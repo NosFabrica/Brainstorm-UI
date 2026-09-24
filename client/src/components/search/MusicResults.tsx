@@ -210,17 +210,22 @@ export function MusicResults({
     const scoped = scopeOf(query)?.pubkey;
     if (scoped) {
       const mine = authors.find((a) => a.author.pubkey === scoped);
-      const n = (mine?.count ?? 0) + wavlake.songs.length + fountain.items.length;
+      // What they have here, called what it is: a podcast episode they were
+      // on is not a song (live, Matt Finlay's four were episodes).
+      const episodes = fountain.items.filter((i) => i.kind === "episode").length;
+      const songs = (mine?.count ?? 0) + wavlake.songs.length + (fountain.items.length - episodes);
+      const n = songs + episodes;
+      const counted = [songs > 0 ? `${songs} ${songs === 1 ? "song" : "songs"}` : "", episodes > 0 ? `${episodes} ${episodes === 1 ? "episode" : "episodes"}` : ""].filter(Boolean).join(" · ") || "0 songs";
       if (mine) {
-        return { kind: "artist" as const, name: getDisplayLabel(mine.author), image: mine.author.picture, sub: `Artist · ${n} ${n === 1 ? "song" : "songs"}`, author: mine.author, playId: mine.first.track.id, score: scoreOf(mine.author.pubkey) ?? null };
+        return { kind: "artist" as const, name: getDisplayLabel(mine.author), image: mine.author.picture, sub: `Artist · ${counted}`, author: mine.author, playId: mine.first.track.id, score: scoreOf(mine.author.pubkey) ?? null };
       }
       // No tracks of their own here, but songs on Wavlake or Fountain: the
       // person is still the artist at the top, with what they have.
       if (person && person.pubkey === scoped && n > 0) {
-        return { kind: "artist" as const, name: getDisplayLabel(person), image: person.picture, sub: `Artist · ${n} ${n === 1 ? "song" : "songs"}`, author: person, playId: wavlake.songs[0]?.id ?? (fountain.items[0] ? `fountain:${fountain.items[0].id}` : undefined), score: scoreOf(person.pubkey) ?? null };
+        return { kind: "artist" as const, name: getDisplayLabel(person), image: person.picture, sub: `Artist · ${counted}`, author: person, playId: wavlake.songs[0]?.id ?? (fountain.items[0] ? `fountain:${fountain.items[0].id}` : undefined), score: scoreOf(person.pubkey) ?? null };
       }
       const a = wavlake.artists[0];
-      if (a) return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: `Artist · ${n} ${n === 1 ? "song" : "songs"}`, href: wavlakeArtistHref(a), external: false, playId: wavlake.songs[0]?.id, score: null as number | null };
+      if (a) return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: `Artist · ${counted}`, href: wavlakeArtistHref(a), external: false, playId: wavlake.songs[0]?.id, score: null as number | null };
     }
     const author = authors.map((a) => ({ a, score: nameMatchScore(getDisplayLabel(a.author), query) })).filter((x) => x.score > 0).sort((x, y) => y.score - x.score)[0];
     const remote = wavlake.artists.map((a) => ({ a, score: nameMatchScore(a.name, query) })).filter((x) => x.score > 0).sort((x, y) => y.score - x.score)[0];
@@ -241,6 +246,9 @@ export function MusicResults({
   }, [browsing, query, wavlake.artists, wavlake.songs, authors, shownTracks, scoreOf, fountain.items, person]);
 
   const songCount = shownTracks.length + (browsing ? 0 : wavlake.songs.length + fountain.items.length + podcastIndex.songs.length);
+  // The list is called what it holds: a person's Fountain episodes are not songs.
+  const episodeCount = fountain.items.filter((i) => i.kind === "episode").length;
+  const songsTitle = episodeCount === 0 ? "Songs" : episodeCount === songCount ? "Episodes" : "Songs & episodes";
 
   // The genre chips re-ask Wavlake's chart while browsing, and narrow the
   // results with words — the same chips, in the shelf they belong to.
@@ -353,7 +361,7 @@ export function MusicResults({
         <>
           {top && <TopResult {...top} onOpenProfile={onOpenProfile} />}
           {songCount > 0 && (
-            <MusicSection title="Songs" count={songCount} icon={CATEGORY_ICON.music} testId="music-songs" action={<PlayAll onClick={() => playFrom(queue[0]?.id)} />}>
+            <MusicSection title={songsTitle} count={songCount} icon={CATEGORY_ICON.music} testId="music-songs" action={<PlayAll onClick={() => playFrom(queue[0]?.id)} />}>
               <Rows>
                 {shownTracks.map((t) => (
                   <TrackCard key={t.hit.event.id} event={t.hit.event} author={t.hit.author} score={scoreOf(t.hit.event.pubkey)} flat />

@@ -239,3 +239,26 @@ describe("MusicResults — the musicians the network tagged", () => {
     expect(within(artists).getByTestId(`music-artist-${"2".repeat(8)}`)).toBeInTheDocument();
   });
 });
+
+describe("MusicResults — a person's music view with what they linked on Fountain", () => {
+  // Live (2026-09-24): Matt Finlay's four Fountain links are podcast episodes he
+  // was on, not songs — the top result said "4 songs". It says what they are.
+  const MATT = "4".repeat(64);
+  const matt = { pubkey: MATT, npub: nip19.npubEncode(MATT), name: "Matt Finlay" };
+  const episode = (id: string, title: string) => ({ kind: "episode" as const, id, show: "Homegrown Hits", title, description: null, image: null, audio: `https://cdn/${id}.mp3`, url: `https://fountain.fm/episode/${id}` });
+  const track = (id: string, title: string) => ({ kind: "track" as const, id, show: "Matt Finlay", title, description: null, image: null, audio: `https://cdn/${id}.mp3`, url: `https://fountain.fm/track/${id}` });
+
+  it("counts episodes as episodes and songs as songs in the top result", () => {
+    open({ query: `from:${matt.npub}`, person: matt, fountain: { items: [episode("e1", "Episode 151"), episode("e2", "Episode 152")], loading: false } });
+    expect(screen.getByTestId("music-top-result")).toHaveTextContent("Artist · 2 episodes");
+    open({ query: `from:${matt.npub}`, person: matt, fountain: { items: [track("t1", "Homegrown Blues"), episode("e1", "Episode 151")], loading: false } });
+    expect(screen.getAllByTestId("music-top-result").at(-1)).toHaveTextContent("Artist · 1 song · 1 episode");
+  });
+
+  it("the list is called what it holds: Episodes when that is all, Songs & episodes when mixed", () => {
+    open({ query: `from:${matt.npub}`, person: matt, fountain: { items: [episode("e1", "Episode 151"), episode("e2", "Episode 152")], loading: false } });
+    expect(screen.getByTestId("music-songs").querySelector("h2")).toHaveTextContent("Episodes");
+    open({ query: `from:${matt.npub}`, person: matt, fountain: { items: [track("t1", "Homegrown Blues"), episode("e1", "Episode 151")], loading: false } });
+    expect(screen.getAllByTestId("music-songs").at(-1)!.querySelector("h2")).toHaveTextContent("Songs & episodes");
+  });
+});

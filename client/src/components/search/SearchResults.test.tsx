@@ -2572,7 +2572,7 @@ describe("SearchResults", () => {
     expect(within(row).getByTestId("track-source")).toHaveAttribute("title", "Fountain");
     expect(within(songs).getByTestId("fountain-song-fountain:ep4")).toHaveTextContent("Episode 4");
     expect(within(songs).getByTestId("fountain-song-fountain:ep4")).not.toHaveTextContent("Listen on Fountain");
-    expect(screen.getByTestId("music-top-result")).toHaveTextContent("2 songs");
+    expect(screen.getByTestId("music-top-result")).toHaveTextContent("1 song · 1 episode");
     expect(screen.queryByTestId("music-scoped-empty")).toBeNull();
   });
 
