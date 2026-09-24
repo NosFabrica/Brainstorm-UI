@@ -4,7 +4,8 @@
  * AsciiDoc page mirrored from Wikipedia an "Article". It reads the page's
  * words as its brief and says what it is.
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { setKindLabelsEverywhere } from "@/lib/kindLabelsPref";
 import { render, screen, within } from "@testing-library/react";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedArticleCard } from "./EmbeddedArticleCard";
@@ -17,7 +18,10 @@ function page(kind: number, content: string, tags: string[][]): MinimalEvent {
 }
 
 describe("EmbeddedArticleCard", () => {
+  afterEach(() => setKindLabelsEverywhere(false));
+
   it("a wiki page without a summary shows its words as the brief and calls itself a Wiki", () => {
+    setKindLabelsEverywhere(true); // the card names its kind in the switched-on view
     const wiki = page(30818, "A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)", [["d", "list-of-comedians"], ["title", "List of comedians"]]);
     render(<EmbeddedArticleCard event={wiki} author={{ name: "GitCitadel" }} />);
     const card = screen.getByTestId("embedded-article");
@@ -126,6 +130,7 @@ describe("EmbeddedArticleCard", () => {
   });
 
   it("a long-form article keeps its own summary and its name", () => {
+    setKindLabelsEverywhere(true); // the card names its kind in the switched-on view
     const article = page(30023, "# Why\n\nBody **bold**.", [["d", "why"], ["title", "Why Bitcoin"], ["summary", "A short case for sound money."]]);
     render(<EmbeddedArticleCard event={article} author={{ name: "Max" }} />);
     const card = screen.getByTestId("embedded-article");
@@ -162,6 +167,7 @@ describe("EmbeddedArticleCard", () => {
   });
 
   it("a zap.cooking recipe calls itself a Recipe", () => {
+    setKindLabelsEverywhere(true); // the card names its kind in the switched-on view
     const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["summary", "Handmade dough, chicken and rice."], ["t", "zapcooking"], ["t", "zapcooking-girik"]]);
     render(<EmbeddedArticleCard event={recipe} author={{ name: "SkyLords" }} />);
     const card = screen.getByTestId("embedded-article");

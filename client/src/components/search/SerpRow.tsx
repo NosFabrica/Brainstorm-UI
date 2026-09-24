@@ -279,6 +279,7 @@ function AuthorLine({
   score,
   created_at,
   type,
+  typeOf,
   feed = false,
   children,
 }: {
@@ -286,6 +287,8 @@ function AuthorLine({
   score?: number | null;
   created_at: number;
   type?: string;
+  /** The event the type describes — the pill names only a spec by default. */
+  typeOf?: NostrEvent;
   /** An automated feed account — said quietly, so a reader knows the voice. */
   feed?: boolean;
   /** Trailing meta (a news row's outlet) — rides the same baseline. */
@@ -307,7 +310,7 @@ function AuthorLine({
           {author ? getDisplayLabel(author) : "Unknown"}
         </span>
         <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
-        {type && <KindPill label={type} className="self-center" />}
+        {type && <KindPill event={typeOf} label={type} className="self-center" />}
         {feed && (
           <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title="An automated feed account" data-testid="serp-feed">
             · <Rss className="h-3 w-3" /> feed
@@ -411,7 +414,7 @@ export function SerpRow({
               identity (and tier ring) still leads; the domain says where
               the story lives. */}
           <div className="min-w-0" data-testid="news-source">
-            <AuthorLine author={author} score={score} created_at={event.created_at} type="News">
+            <AuthorLine author={author} score={score} created_at={event.created_at} type="News" typeOf={event}>
               <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
                 ·
                 <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
@@ -483,7 +486,7 @@ export function SerpRow({
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
-        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? kindLabel(event) : undefined} feed={isFeedAccount(author)} />
+        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? kindLabel(event) : undefined} typeOf={event} feed={isFeedAccount(author)} />
         {title && (
           <div className="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors [&>p]:font-semibold [&>p]:text-sm">
             <Snippet text={title} query={query} lines={2} />

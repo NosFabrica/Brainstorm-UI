@@ -27,6 +27,7 @@ import { brandForHost } from "@/lib/brands";
 import { profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { KindPill } from "@/components/ui/kind-pill";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
@@ -564,7 +565,7 @@ export function RepoCard({
   // patch or issue names the repo it belongs to (from its a-tag), the context
   // that makes a lone "fix: …" card mean something.
   const isRepo = event.kind === 30617;
-  const typeTone: "info" | "warning" | "slate" = isRepo ? "slate" : event.kind === 1617 || event.kind === 1618 ? "info" : "warning";
+  const typeTone: "info" | "warning" = event.kind === 1617 || event.kind === 1618 ? "info" : "warning";
   // A repo is named by its announcement; an issue, patch or PR by the one
   // title rule — a patch without a subject tag is titled from its own text.
   const name = isRepo ? tagVal(event, "name") ?? tagVal(event, "d") ?? "Unnamed repo" : gitItemTitleOf(event);
@@ -623,8 +624,9 @@ export function RepoCard({
               leaves it room so a long title's type chip never slides under it. */}
           <div className={`flex items-center gap-2 min-w-0 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
-            {/* A patch, pull request or issue announces itself; a repo on the Repos tab does not. */}
-            <KindPill event={event} tone={typeTone} mixed={!isRepo} />
+            {/* A patch, pull request or issue announces itself, as it always has;
+                a repo on the Repos tab says Repo only with kind labels on. */}
+            {isRepo ? <KindPill event={event} mixed={false} /> : <Chip size="sm" tone={typeTone} data-testid="kind-pill">{kindTypeLabel(event.kind)}</Chip>}
           </div>
           {isRepo && forkOf && (
             <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500" data-testid={`repo-fork-of-${event.id}`}>

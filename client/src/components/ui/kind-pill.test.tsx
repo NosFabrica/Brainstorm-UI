@@ -23,7 +23,15 @@ describe("KindPill", () => {
     expect(pill.className).toMatch(/rounded-full/);
   });
 
-  it("takes a word of its own where the content's shape is the label — a news-shaped note", () => {
+  // Benjamin (2026-09-24): by default only a spec is named — the case with
+  // no NIP number to lean on. Every other kind waits for the switch.
+  it("names nothing but a spec by default", () => {
+    render(<><KindPill event={ev(30023)} /><KindPill event={ev(30818)} /><KindPill label="News" /></>);
+    expect(screen.queryByTestId("kind-pill")).toBeNull();
+  });
+
+  it("takes a word of its own where the content's shape is the label — a news-shaped note, once labels are on", () => {
+    setKindLabelsEverywhere(true);
     render(<KindPill label="News" />);
     expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^News$/);
   });

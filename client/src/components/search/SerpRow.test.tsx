@@ -5,7 +5,8 @@
  * thumbnail); bare URLs in ordinary posts become clickable chips; the row
  * itself still opens the in-app event page.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setKindLabelsEverywhere } from "@/lib/kindLabelsPref";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 import type { NostrEvent } from "nostr-tools";
@@ -82,6 +83,8 @@ beforeEach(() => {
 });
 
 describe("SerpRow — link metadata", () => {
+  afterEach(() => setKindLabelsEverywhere(false));
+
   // Google shows a link's title and description, not its bare domain. Ours
   // can too, once the link-preview service answers — the row renders the
   // card for the same link a feed would, and stays a chip when there is no answer.
@@ -89,6 +92,7 @@ describe("SerpRow — link metadata", () => {
   // "Post" rows (Benjamin, 2026-09-23). A designation has no content — it is
   // its rows — and the row says what they designate.
   it("a trust designation says what it designates, not 'Post'", () => {
+    setKindLabelsEverywhere(true);
     const ev = { ...note(""), kind: 10040, tags: [["30382:rank", "b".repeat(64), "wss://scores.brainstorm.world"], ["30382:followers", "b".repeat(64), "wss://scores.brainstorm.world"]] };
     render(<SerpRow event={ev} author={author} score={0.7} query="" />);
     const row = screen.getByTestId(`serp-row-${ev.id}`);
@@ -102,6 +106,7 @@ describe("SerpRow — link metadata", () => {
   // content is — encrypted, structured — instead of printing it, and names
   // the common NIP kinds in words, the number kept beside them.
   it("says encrypted content is encrypted instead of printing it, and names the kind in words", () => {
+    setKindLabelsEverywhere(true);
     const blob = "AgkXT1NChTXAHiDpLZZwu5PO5rAVpAxTeRwbCyrcWYDpXson5eEnf/JjsvZqC+V/P5uTF4sbspmfOlVeCi8aJb/oceACXS4VBRcA6s3FxVx0AUbFFqpQGtWjw7a4fu51pNS";
     const ev = { ...note(blob), kind: 30078, tags: [["d", "ditto/metadata"], ["name", "Ditto Metadata"]] };
     render(<SerpRow event={ev} author={author} score={0.7} query="" />);
@@ -120,6 +125,7 @@ describe("SerpRow — link metadata", () => {
   });
 
   it("names the common NIP kinds", () => {
+    setKindLabelsEverywhere(true);
     for (const [kind, label] of [[3, "Follow list"], [10002, "Relay list"], [7, "Reaction"], [9735, "Zap receipt"], [1984, "Report"], [31990, "App handler"]] as const) {
       const ev = { ...note(""), id: `${kind}`.padStart(64, "0"), kind };
       render(<SerpRow event={ev} author={author} score={0.7} query="" />);
@@ -130,6 +136,7 @@ describe("SerpRow — link metadata", () => {
   // A kind the row has no treatment for is named by number, never "Post";
   // NIP-31's `alt` tag is the author's own line for exactly this reader.
   it("an unknown kind is named by its number, with the author's alt line when there is one", () => {
+    setKindLabelsEverywhere(true);
     const ev = { ...note(""), kind: 30079, tags: [["d", "settings"], ["alt", "Nostr Mail settings"]] };
     render(<SerpRow event={ev} author={author} score={0.7} query="" />);
     const row = screen.getByTestId(`serp-row-${ev.id}`);
@@ -281,12 +288,14 @@ describe("SerpRow", () => {
   });
 
   it("labels each row with what kind of thing it is", () => {
+    setKindLabelsEverywhere(true); // labels on every row are the switched-on view
     render(<SerpRow event={note("plain words about liverpool")} author={author} score={0.7} query="liverpool" />);
     expect(screen.getByTestId("kind-pill")).toHaveTextContent("Note");
   });
 
   // A recipe on zap.cooking is a kind-30023 with a tag; the row says Recipe, not Article.
   it("a recipe's row says Recipe, not Article", () => {
+    setKindLabelsEverywhere(true); // labels on every row are the switched-on view
     const recipe = { ...note("# Gırık\n\nHandmade dough, chicken and rice.", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]), kind: 30023 } as NostrEvent;
     render(<SerpRow event={recipe} author={author} score={0.7} query="girik" />);
     expect(screen.getByTestId("kind-pill")).toHaveTextContent("Recipe");
@@ -313,6 +322,7 @@ describe("SerpRow", () => {
   });
 
   it("labels a news-shaped note as News", () => {
+    setKindLabelsEverywhere(true); // labels on every row are the switched-on view
     render(<SerpRow event={note(NEWS)} author={author} score={0.7} query="liverpool" />);
     expect(screen.getByTestId("kind-pill")).toHaveTextContent("News");
   });
@@ -368,6 +378,7 @@ it("a video-only result gets a first-frame thumb, not a blank", () => {
   // GitCitadel's wiki pages are AsciiDoc: opened in a row they read
   // "[[comedian]]" and "== Comedians" (2026-09-07). A row shows the words.
   it("a wiki page's row reads its words, not its markup", () => {
+    setKindLabelsEverywhere(true); // the Wiki word is the switched-on view
     const wiki = {
       ...note("A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)", [["d", "list-of-comedians"], ["title", "List of comedians"]]),
       kind: 30818,

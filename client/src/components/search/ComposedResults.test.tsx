@@ -5,6 +5,7 @@
  * mocked per-stream so tests drive sections independently.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setKindLabelsEverywhere } from "@/lib/kindLabelsPref";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
@@ -373,10 +374,10 @@ describe("ComposedResults — media-rich sections", () => {
     expect(within(articles).getByTestId("article-tile-fa")).toBeInTheDocument();
   });
 
-  // Every Articles row says what it is — a spec (kind 30817) rides in that
-  // section and must not pass for an essay, and an essay says Article too
-  // (the team, 2026-09-24: the kind pill is on every card, not only the odd one).
-  it("every Articles row says what it is: Spec, Article", async () => {
+  // A spec (kind 30817) rides in the Articles section and must not pass for an
+  // essay — it has no NIP number to say so. The essay says nothing by default
+  // (Benjamin, 2026-09-24: labels on every card wait for the switch).
+  it("a spec in the Articles section says Spec; an essay says nothing by default", async () => {
     render(<ComposedResults query="scheduler dvm" pov="nosfabrica" onTabChange={vi.fn()} />);
     const pk = "7".repeat(64);
     sectionCall("articles").emit({
@@ -389,7 +390,7 @@ describe("ComposedResults — media-rich sections", () => {
     });
     const section = await screen.findByTestId("serp-section-articles");
     expect(within(within(section).getByTestId("serp-row-s1")).getByTestId("kind-pill")).toHaveTextContent("Spec");
-    expect(within(within(section).getByTestId("serp-row-e1")).getByTestId("kind-pill")).toHaveTextContent("Article");
+    expect(within(within(section).getByTestId("serp-row-e1")).queryByTestId("kind-pill")).toBeNull();
   });
 
   // Benjamin: "when Latest is showing there should always be 3" — a strip of
@@ -518,8 +519,8 @@ describe("ComposedResults — media-rich sections", () => {
     });
     const section = await screen.findByTestId("serp-section-articles");
     const lead = within(section).getByTestId("article-lead-a1");
-    // A covered piece says what it is too — a spec with a cover lost its label here.
-    expect(within(lead).getByTestId("kind-pill")).toHaveTextContent(/^Article$/);
+    // An essay with a cover says nothing by default; only a spec would.
+    expect(within(lead).queryByTestId("kind-pill")).toBeNull();
     expect(lead).toHaveTextContent("Anfield through the ages");
     expect(lead).toHaveTextContent("Summary of Anfield through the ages");
     expect(lead).toHaveTextContent("author-a1");
@@ -527,7 +528,7 @@ describe("ComposedResults — media-rich sections", () => {
     // Covered articles fill the grid; the one without a cover is not an empty
     // tile but a text row beneath — nothing dropped, no tile left blank.
     const tiles = [...section.querySelectorAll('[data-testid^="article-tile-"]')].map((t) => t.getAttribute("data-testid"));
-    for (const tile of section.querySelectorAll('[data-testid^="article-tile-"]')) expect(within(tile as HTMLElement).getByTestId("kind-pill")).toHaveTextContent(/^Article$/);
+    for (const tile of section.querySelectorAll('[data-testid^="article-tile-"]')) expect(within(tile as HTMLElement).queryByTestId("kind-pill")).toBeNull();
     expect(tiles).toEqual(["article-tile-a2", "article-tile-a4", "article-tile-a5"]);
     expect(within(section).queryByTestId("article-placeholder")).toBeNull();
     expect(within(section).getByTestId("serp-row-a3")).toBeInTheDocument();
@@ -800,9 +801,45 @@ describe("ComposedResults", () => {
     const section = await screen.findByTestId("serp-section-happening");
     const rows = [...section.querySelectorAll('[data-testid^="event-row-"], [data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
     expect(rows).toEqual(["event-row-soon", "event-row-far", "serp-row-stream"]);
-    // Events and streams share the section, so each row says which it is.
+    // Events and streams share the section; by default neither is labelled.
+    expect(within(section).queryByTestId("kind-pill")).toBeNull();
+    // Luma's row: the time and the town, the host, the cover, who is going.
+    const soon = screen.getByTestId("event-row-soon");
+    expect(soon).toHaveTextContent(/\d{1,2}:\d{2}|All day/);
+    expect(soon).toHaveTextContent("The Baltic Fleet, Liverpool");
+    expect(soon).not.toHaveTextContent("33A Wapping");
+    expect(soon).toHaveTextContent(/By\s*club/);
+    expect(within(soon).getByTestId("cover-event-row-soon").getAttribute("src")).toBe("https://img/soon.jpg");
+    expect(await within(soon).findByText(/2 going/)).toBeInTheDocument();
+  });
+
+  it("with kind labels on, Happening says which rows are events and which are streams", async () => {
+    setKindLabelsEverywhere(true);
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cal = (id: string, pk: string, title: string, start: number) =>
+      hitOf(ev(id, 31923, pk, "", [["d", id], ["title", title], ["start", String(start)], ["location", "The Baltic Fleet, 33A Wapping, Liverpool, UK"], ["image", `https://img/${id}.jpg`]]), "club");
+    eventRsvpsMock.mockResolvedValue(new Map([["31923:" + "3".repeat(64) + ":soon", { going: 2, faces: ["7".repeat(64), "8".repeat(64)] }]]));
+    sectionCall("events").emit({
+      hits: [
+        cal("far", "1".repeat(64), "Liverpool Bitcoin Conference", nowSec + 30 * 86_400),
+        cal("gone", "2".repeat(64), "Liverpool Meetup (July)", nowSec - 30 * 86_400),
+        cal("soon", "3".repeat(64), "Liverpool Nostr Social", nowSec + 2 * 86_400),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    sectionCall("live").emit({
+      hits: [hitOf(ev("stream", 30311, "4".repeat(64), "", [["d", "s"], ["title", "Anfield Radio"], ["status", "live"]]), "radio")],
+      eose: true,
+      timeMs: 100,
+    });
+    const section = await screen.findByTestId("serp-section-happening");
+    const rows = [...section.querySelectorAll('[data-testid^="event-row-"], [data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
+    expect(rows).toEqual(["event-row-soon", "event-row-far", "serp-row-stream"]);
     expect(within(within(section).getByTestId("event-row-soon")).getByTestId("kind-pill")).toHaveTextContent("Event");
     expect(within(within(section).getByTestId("serp-row-stream")).getByTestId("kind-pill")).toHaveTextContent("Stream");
+    setKindLabelsEverywhere(false);
     // Luma's row: the time and the town, the host, the cover, who is going.
     const soon = screen.getByTestId("event-row-soon");
     expect(soon).toHaveTextContent(/\d{1,2}:\d{2}|All day/);
