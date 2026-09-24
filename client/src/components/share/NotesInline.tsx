@@ -17,7 +17,34 @@ const NOTES_TOKEN_RE = new RegExp(
   "gi",
 );
 const BARE_DOMAIN_RE = new RegExp(`^${BARE_DOMAIN}$`, "i");
-const GH_REF_RE = /github\.com\/[^/\s]+\/[^/\s]+\/(?:pull|issues)\/(\d+)/;
+export const GH_REF_RE = /github\.com\/([^/\s]+)\/([^/\s]+)\/(?:pull|issues)\/(\d+)/;
+// What prose still hides once URLs and nostr: entities are tokens: domains
+// typed without a scheme, and @handles.
+// A sentence's full stop may follow either ("…at relayop.xyz."), so only a
+// dot that continues into more name ends the match early. A handle starts a
+// word — the @ in name@getalby.com is an address.
+const PROSE_TOKEN_RE = new RegExp(`((?<![\\w@/.])${BARE_DOMAIN}(?![\\w-]|\\.\\w)|(?<![\\w.+-])@[A-Za-z0-9_[\\]./-]*[A-Za-z0-9_\\]])`, "gi");
+
+export type ProsePart = { type: "text" | "handle"; value: string } | { type: "domain"; value: string; url: string };
+
+/** Bare domains (as https links) and @handles in a run of plain text — the
+ *  part of this renderer ReadingText reuses for descriptions. */
+export function splitProse(text: string): ProsePart[] {
+  return text
+    .split(PROSE_TOKEN_RE)
+    .filter(Boolean)
+    .flatMap((part): ProsePart[] => {
+      if (part.startsWith("@")) return [{ type: "handle", value: part }];
+      if (BARE_DOMAIN_RE.test(part)) {
+        // The sentence's full stop is the sentence's, not the domain's.
+        const trimmed = part.replace(/[.,;:!?)]+$/, "");
+        const tail = part.slice(trimmed.length);
+        const link: ProsePart = { type: "domain", value: trimmed, url: `https://${trimmed}` };
+        return tail ? [link, { type: "text", value: tail }] : [link];
+      }
+      return [{ type: "text", value: part }];
+    });
+}
 
 function PrChip({ url, n }: { url: string; n: string }) {
   let host = "github.com";
@@ -48,7 +75,7 @@ export function NotesInline({ text }: { text: string }) {
         if (/^nostr:/i.test(part)) return <MentionChip key={i} uri={part} />;
         if (/^https?:\/\//i.test(part)) {
           const gh = part.match(GH_REF_RE);
-          if (gh) return <PrChip key={i} url={part} n={gh[1]} />;
+          if (gh) return <PrChip key={i} url={part} n={gh[3]} />;
           return <LinkChip key={i} url={part} />;
         }
         // A scheme-less domain is a link too; https is the only sane guess.

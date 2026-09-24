@@ -12,7 +12,7 @@
  * a description renders them quietly: links as underlined text, media as
  * links (the hero shows the media itself), mentions as the person.
  */
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { parseNoteContent, prettyUrlLabel, type NoteToken } from "@/lib/noteContent";
 import { toNoteBlocks, parseInlineMarkdown, type InlineSpan } from "@/lib/noteBlocks";
@@ -20,6 +20,7 @@ import { decodeNostrEntity } from "@/lib/noteRefs";
 import { htmlToText, looksLikeHtml } from "@/lib/htmlText";
 import { MentionChip } from "@/components/share/MentionChip";
 import { useShareNav } from "@/components/share/ShareNavContext";
+import { GH_REF_RE, splitProse } from "@/components/share/NotesInline";
 
 export type ReadingSize = "post" | "body";
 
@@ -34,23 +35,35 @@ const HEADING: Record<ReadingSize, [string, string, string]> = {
   body: ["text-[1.15em]", "text-[1.07em]", "text-[1em]"],
 };
 
-/** Inline emphasis spans as elements. */
-export function renderSpans(spans: InlineSpan[], key: string): ReactNode[] {
+/** Plain text with its bare domains linked and @handles given weight. */
+function renderProse(text: string, key: string): ReactNode[] {
+  return splitProse(text).map((p, i) =>
+    p.type === "domain" ? <ReadingLink key={`${key}~${i}`} url={p.url} label={p.value} />
+    : p.type === "handle" ? <span key={`${key}~${i}`} className="font-medium text-slate-900 dark:text-slate-100">{p.value}</span>
+    : p.value,
+  );
+}
+
+/** Inline emphasis spans as elements. `prose` also links bare domains and
+ *  weighs @handles — for descriptions, which have no richer token pass. */
+export function renderSpans(spans: InlineSpan[], key: string, prose = false): ReactNode[] {
   return spans.map((s, i) => {
     const k = `${key}.${i}`;
-    if (s.type === "text") return s.value;
+    if (s.type === "text") return prose ? renderProse(s.value, k) : s.value;
     if (s.type === "code") {
       return <code key={k} className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.5 font-mono text-[0.85em] text-slate-800 dark:text-slate-100 [overflow-wrap:anywhere]">{s.value}</code>;
     }
     return s.type === "strong"
-      ? <strong key={k} className="font-semibold text-slate-900 dark:text-white">{renderSpans(s.children, k)}</strong>
-      : <em key={k}>{renderSpans(s.children, k)}</em>;
+      ? <strong key={k} className="font-semibold text-slate-900 dark:text-white">{renderSpans(s.children, k, prose)}</strong>
+      : <em key={k}>{renderSpans(s.children, k, prose)}</em>;
   });
 }
 
 /** `host/short-path`, or just the host when the path is an opaque id (a
  *  blob hash, an upload key) — forty hex characters say nothing. */
 export function readingLinkLabel(url: string): string {
+  const gh = url.match(GH_REF_RE);
+  if (gh) return `${gh[1]}/${gh[2]}#${gh[3]}`;
   try {
     const u = new URL(url);
     const last = u.pathname.split("/").filter(Boolean).pop() || "";
@@ -66,7 +79,7 @@ export function readingLinkLabel(url: string): string {
 
 /** A plain web link in running prose: underlined text, not a favicon chip —
  *  chips every few words break the line's rhythm. */
-export function ReadingLink({ url }: { url: string }) {
+export function ReadingLink({ url, label }: { url: string; label?: string }) {
   return (
     <a
       href={url}
@@ -75,7 +88,7 @@ export function ReadingLink({ url }: { url: string }) {
       className="font-medium text-brand-link underline decoration-brand-link/30 underline-offset-[3px] hover:decoration-brand-link [overflow-wrap:anywhere]"
       data-testid="reading-link"
     >
-      {readingLinkLabel(url)}
+      {label ?? readingLinkLabel(url)}
     </a>
   );
 }
@@ -83,6 +96,7 @@ export function ReadingLink({ url }: { url: string }) {
 export function ReadingText({
   text,
   tokens: given,
+  source,
   size = "body",
   headline = size === "post",
   renderToken,
@@ -93,6 +107,8 @@ export function ReadingText({
   text?: string;
   /** Already-parsed tokens (NoteContent parses once for everything it does). */
   tokens?: NoteToken[];
+  /** The text `tokens` came from — code blocks show it verbatim. */
+  source?: string;
   size?: ReadingSize;
   /** Promote a long text's short first line to a headline (see noteBlocks). */
   headline?: boolean;
@@ -105,7 +121,11 @@ export function ReadingText({
 }) {
   const requestNav = useShareNav();
   const [, navigate] = useLocation();
-  const tokens = given ?? parseNoteContent(text && looksLikeHtml(text) ? htmlToText(text) : text || "");
+  // Parsed once per text, not per render: the event page re-renders as its
+  // author, trust and reference queries land.
+  const plain = useMemo(() => (given ? undefined : text && looksLikeHtml(text) ? htmlToText(text) : text || ""), [given, text]);
+  const tokens = useMemo(() => given ?? parseNoteContent(plain ?? ""), [given, plain]);
+  const blocks = useMemo(() => toNoteBlocks(tokens, { headline, source: source ?? plain }), [tokens, headline, source, plain]);
 
   const quiet = (t: NoteToken, key: string): ReactNode => {
     switch (t.type) {
@@ -137,14 +157,14 @@ export function ReadingText({
   const inline = (ts: NoteToken[], key: string) =>
     ts.map((t, j) => {
       const k = `${key}.${j}`;
-      if (t.type === "text") return <span key={k}>{renderSpans(parseInlineMarkdown(t.value), k)}</span>;
+      if (t.type === "text") return <span key={k}>{renderSpans(parseInlineMarkdown(t.value), k, !renderToken)}</span>;
       return renderToken ? renderToken(t, k) : quiet(t, k);
     });
   const [h1, h2, h3] = HEADING[size];
 
   return (
     <div className={`note-reading max-w-[68ch] break-words ${SIZE[size]} ${className}`} data-testid={testId}>
-      {toNoteBlocks(tokens, { headline }).map((b, i) => {
+      {blocks.map((b, i) => {
         const k = String(i);
         switch (b.type) {
           case "p":

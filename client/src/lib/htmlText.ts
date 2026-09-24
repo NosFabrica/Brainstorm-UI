@@ -16,7 +16,7 @@ export function looksLikeHtml(text: string): boolean {
   return !!tags && tags.length >= 3 && tags.some((t) => t.startsWith("</"));
 }
 
-function walk(node: Node, inPre: boolean): string {
+function walk(node: Node, inPre: boolean, depth = 0): string {
   if (node.nodeType === Node.TEXT_NODE) {
     const t = node.textContent || "";
     return inPre ? t : t.replace(/\s+/g, " ");
@@ -24,7 +24,7 @@ function walk(node: Node, inPre: boolean): string {
   if (node.nodeType !== Node.ELEMENT_NODE) return "";
   const el = node as Element;
   const tag = el.tagName.toLowerCase();
-  const inner = () => Array.from(el.childNodes).map((c) => walk(c, inPre || tag === "pre")).join("");
+  const inner = (d = depth) => Array.from(el.childNodes).map((c) => walk(c, inPre || tag === "pre", d)).join("");
   switch (tag) {
     case "script":
     case "style":
@@ -33,8 +33,9 @@ function walk(node: Node, inPre: boolean): string {
       return "\n";
     case "p":
     case "div":
-    case "blockquote":
       return `\n\n${inner().trim()}\n\n`;
+    case "blockquote":
+      return `\n\n${inner().trim().split("\n").map((l) => `> ${l}`).join("\n")}\n\n`;
     case "h1":
     case "h2":
     case "h3":
@@ -43,8 +44,19 @@ function walk(node: Node, inPre: boolean): string {
     case "h6":
       return `\n\n## ${inner().trim()}\n\n`;
     case "ul":
-    case "ol":
-      return `\n\n${inner()}\n\n`;
+    case "ol": {
+      // Items numbered for <ol>; a nested list indents under its item, which
+      // the reader keeps as part of that item.
+      const indent = "  ".repeat(depth);
+      let n = Number(el.getAttribute("start")) || 1;
+      const items = Array.from(el.children)
+        .filter((c) => c.tagName.toLowerCase() === "li")
+        .map((li) => {
+          const body = Array.from(li.childNodes).map((c) => walk(c, inPre, depth + 1)).join("").trim();
+          return `${indent}${tag === "ol" ? `${n++}.` : "-"} ${body}`;
+        });
+      return depth ? `\n${items.join("\n")}` : `\n\n${items.join("\n")}\n\n`;
+    }
     case "li":
       return `\n- ${inner().trim()}`;
     case "pre":

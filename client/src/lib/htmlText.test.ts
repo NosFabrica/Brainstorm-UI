@@ -17,6 +17,12 @@ describe("htmlToText", () => {
     );
   });
 
+  it("numbers ordered lists, quotes blockquotes, indents nested lists", () => {
+    expect(htmlToText("<ol><li>Install</li><li>Enable<ul><li>on boot</li></ul></li></ol><blockquote><p>Works.</p></blockquote>")).toBe(
+      "1. Install\n2. Enable\n  - on boot\n\n> Works.",
+    );
+  });
+
   it("drops scripts and non-web links", () => {
     expect(htmlToText('<p>Hi<script>alert(1)</script> <a href="javascript:alert(1)">there</a></p>')).toBe("Hi there");
   });

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl, type NoteToken } from "@/lib/noteContent";
 import { ReadingText, ReadingLink } from "@/components/share/ReadingText";
@@ -99,7 +99,7 @@ export function NoteContent({
   /** The note author's display name — shown as the audio player's "artist". */
   authorName?: string;
 }) {
-  const tokens = parseNoteContent(content);
+  const tokens = useMemo(() => parseNoteContent(content), [content]);
   // Shared metadata for a rich audio/podcast player: the note's own image as
   // artwork and its title/first-line as the track name (falling back per-URL).
   const audioCover = extractImageUrls(content, tags)[0];
@@ -213,7 +213,7 @@ export function NoteContent({
     : null;
 
   if (reading) {
-    return <ReadingText tokens={tokens} size="post" renderToken={renderToken} after={linkCardNode} testId="note-reading" />;
+    return <ReadingText tokens={tokens} source={content} size="post" renderToken={renderToken} after={linkCardNode} testId="note-reading" />;
   }
 
   return (

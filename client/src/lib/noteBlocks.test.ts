@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseNoteContent } from "@/lib/noteContent";
-import { toNoteBlocks, parseInlineMarkdown } from "@/lib/noteBlocks";
+import { toNoteBlocks, parseInlineMarkdown, type NoteBlock } from "@/lib/noteBlocks";
+import type { NoteToken } from "@/lib/noteContent";
 
 const blocks = (s: string) => toNoteBlocks(parseNoteContent(s));
 const texts = (ts: { type: string; value?: string }[]) => ts.map((t) => t.value ?? `<${t.type}>`).join("");
@@ -107,6 +108,66 @@ describe("layouts that are not prose (from real events)", () => {
   });
 });
 
+describe("review regressions", () => {
+  const para = "A paragraph long enough to count as prose in a long note, going on past sixty characters easily. ";
+  it("a fenced diff stays inside its fence; prose after it stays prose", () => {
+    const b = blocks("Fix below\n\n```diff\ndiff --git a/x b/x\n+ok\n```\n\nThanks for reviewing.");
+    expect(b.map((x) => x.type)).toEqual(["p", "code", "p"]);
+    expect(b[1]).toEqual({ type: "code", text: "diff --git a/x b/x\n+ok" });
+  });
+
+  it("one-line ```code``` is inline code, not a fence that eats the line", () => {
+    const b = blocks("run ```npm install``` first\nthen go");
+    expect(b.map((x) => x.type)).toEqual(["p"]);
+    expect(parseInlineMarkdown("```npm install```")).toEqual([{ type: "code", value: "npm install" }]);
+  });
+
+  it("a fenced table keeps its fences out of the code", () => {
+    const b = blocks("Intro\n\n```\nname    value\nfoo     1\nbar     2\n```\n\nAfter.");
+    expect(b[1]).toEqual({ type: "code", text: "name    value\nfoo     1\nbar     2" });
+  });
+
+  it("a sentence that starts with commit <sha> is prose", () => {
+    const b = blocks(`commit 1a2b3c4d broke the relay, here's what happened\n\n${para}\n\n${para}`);
+    expect(b.every((x) => x.type === "p")).toBe(true);
+  });
+
+  it("a pasted diff ends where the prose after it starts", () => {
+    const b = blocks("diff --git a/x b/x\n@@ -1 +1 @@\n-a\n+b\n\nThat was the fix.");
+    expect(b.map((x) => x.type)).toEqual(["code", "p"]);
+  });
+
+  it("emoji reactions are text, not art", () => {
+    expect(blocks("🎉🎉🎉🎉🎉\n🔥🔥🔥🔥🔥\n❤️❤️❤️❤️")[0].type).toBe("p");
+  });
+
+  it("code shows the source verbatim, not the tokens rebuilt", () => {
+    const src = "```\n[docs](https://example.com/a)\nhttps://njump.me/npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6\n```";
+    expect(toNoteBlocks(parseNoteContent(src), { source: src })[0]).toEqual({
+      type: "code",
+      text: "[docs](https://example.com/a)\nhttps://njump.me/npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6",
+    });
+  });
+
+  it("reads h4-h6 and + bullets, as marketplace descriptions write them", () => {
+    const b = blocks("#### Size guide\n+ small\n+ large");
+    expect(b[0]).toMatchObject({ type: "h", level: 3 });
+    expect(b[1]).toMatchObject({ type: "ul" });
+  });
+
+  it("a lowercase chat line between long paragraphs is not a heading", () => {
+    const b = blocks([para.repeat(3), "lol anyway", para.repeat(3)].join("\n\n"));
+    expect(b.every((x) => x.type === "p")).toBe(true);
+  });
+
+  it("unclosed emphasis markers stay linear, not quadratic", () => {
+    const t = performance.now();
+    parseInlineMarkdown("**a ".repeat(10000));
+    parseInlineMarkdown("__a ".repeat(10000));
+    expect(performance.now() - t).toBeLessThan(250);
+  });
+});
+
 describe("parseInlineMarkdown", () => {
   it("parses strong, em and code", () => {
     expect(parseInlineMarkdown("a **b** *c* `d`")).toEqual([
@@ -122,6 +183,51 @@ describe("parseInlineMarkdown", () => {
   it("leaves snake_case, arithmetic and lone markers alone", () => {
     for (const s of ["snake_case_name", "2 * 3 * 4", "** nope **", "file_name.txt and other_file", "__<_____\\__\\__(___)_))_((_(____))__"]) {
       expect(parseInlineMarkdown(s)).toEqual([{ type: "text", value: s }]);
+    }
+  });
+});
+
+describe("fuzz", () => {
+  // Seeded, so a failure reproduces. Pieces are the shapes real notes mix.
+  const PIECES = ["a", "Bc", "word ", " ", "   ", "\t", "\n", "\n\n", "# ", "#### ", "- ", "+ ", "* ", "1. ", "> ", "\n```\n", "\n```js\n", "```x```", "---", "**", "__", "_", "*", "`",
+    "@@ -1 +1 @@", "diff --git a/x b/x", "commit 1a2b3c4d", "https://ex.am/p?q=1", "#tag", "🎉", "🇨🇭", "ção", "日本", "|  |", "(__)", "\r\n"];
+  const letters = (s: string) => (s.match(/\p{L}/gu) || []).sort().join("");
+  /** Multiset containment of two sorted letter strings. */
+  const within = (small: string, big: string) => {
+    const count = new Map<string, number>();
+    for (const c of big) count.set(c, (count.get(c) ?? 0) + 1);
+    for (const c of small) {
+      const n = count.get(c) ?? 0;
+      if (!n) return false;
+      count.set(c, n - 1);
+    }
+    return true;
+  };
+  const blockText = (b: NoteBlock): string => {
+    const t = (ts: NoteToken[]) => ts.map((x) => (x.type === "mention" ? x.bech32 : x.value)).join("");
+    switch (b.type) {
+      case "code": return b.text;
+      case "hr": return "";
+      case "ul": case "ol": return b.items.map(t).join("\n");
+      default: return t(b.tokens);
+    }
+  };
+  it("never throws and never loses a letter", () => {
+    let seed = 42;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+    for (let n = 0; n < 400; n++) {
+      let src = "";
+      const len = 5 + Math.floor(rand() * 120);
+      for (let i = 0; i < len; i++) src += PIECES[Math.floor(rand() * PIECES.length)];
+      const tokens = parseNoteContent(src);
+      const out = toNoteBlocks(tokens, { source: src });
+      // Every letter survives except a fence's language tag ("```js"), which
+      // may go when the line opens a fence — and nothing is invented.
+      const got = letters(out.map(blockText).join("\n"));
+      const why = JSON.stringify(src) + " => " + JSON.stringify(out);
+      expect(within(letters(src.replace(/^([ \t]*```)[\w+#.-]*[ \t]*$/gm, "$1")), got), why).toBe(true);
+      expect(within(got, letters(src)), why).toBe(true);
+      for (const b of out) if ("tokens" in b) for (const tk of b.tokens) if (tk.type === "text") parseInlineMarkdown(tk.value);
     }
   });
 });

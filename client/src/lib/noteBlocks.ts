@@ -27,12 +27,15 @@ export type NoteBlock =
 
 type Line = NoteToken[];
 
-const HEADING = /^(#{1,3})[ \t]+/;
-const BULLET = /^[ \t]*[-*•][ \t]+/;
+const HEADING = /^ {0,3}(#{1,6})[ \t]+/;
+const BULLET = /^[ \t]*[-*+•][ \t]+/;
 const ORDERED = /^[ \t]*(\d{1,3})[.)][ \t]+/;
 const QUOTE = /^>(?:[ \t]+|$)/;
 const RULE = /^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/;
-const FENCE = /^[ \t]*```/;
+// A fence opens on ``` plus at most a language word, and closes on a bare
+// ``` — "```npm install```" on one line is inline code, not a fence.
+const FENCE = /^[ \t]*```[\w+#.-]*[ \t]*$/;
+const FENCE_CLOSE = /^[ \t]*```[ \t]*$/;
 /** A line this long is prose, not a verse or a list someone typed by hand. */
 const PROSE_LINE = 100;
 /** Ends like a sentence (or a clause), closing quotes/brackets allowed. */
@@ -55,7 +58,8 @@ function splitLines(tokens: NoteToken[]): Line[] {
   return lines;
 }
 
-/** The line's source text — only for code fences, where nothing renders rich. */
+/** A line's text rebuilt from tokens — the fallback when the caller has no
+ *  source text (the tokens lose `[label](url)` and wrapped-entity URLs). */
 function rawText(line: Line): string {
   return line
     .map((t) => (t.type === "mention" ? `nostr:${t.bech32}` : t.value))
@@ -98,10 +102,16 @@ export type NoteBlockOptions = {
   /** Read a short first line of a long text as its headline. Off where the
    *  surface already has a title (a listing, a calendar event). */
   headline?: boolean;
+  /** The text the tokens were parsed from. Code and preformatted blocks show
+   *  it verbatim — tokens never span a newline, so its lines line up with
+   *  the token lines one to one. */
+  source?: string;
 };
 
 export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): NoteBlock[] {
   const lines = splitLines(tokens);
+  const src = opts.source?.split(/\r\n?|\n/);
+  const raw = src && src.length === lines.length ? (i: number) => src[i] : (i: number) => rawText(lines[i]);
   const blocks: NoteBlock[] = [];
   let para: Line[] = [];
   let quote: Line[] = [];
@@ -141,34 +151,36 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
       continue;
     }
 
-    // A block laid out with spaces — ASCII art, a table, a pasted diff —
-    // keeps its layout: monospaced, unwrapped, nothing read as markdown.
-    if (i === 0 || isBlank(lines[i - 1])) {
-      const group: string[] = [];
-      for (let j = i; j < lines.length && !isBlank(lines[j]); j++) group.push(rawText(lines[j]));
-      const pre = preformatted(group);
-      if (pre) {
-        flush();
-        // A diff or a git log runs to the end: its blank context lines would
-        // otherwise cut it into pieces read as prose.
-        const end = pre === "diff" ? lines.length : i + group.length;
-        blocks.push({ type: "code", text: lines.slice(i, end).map(rawText).join("\n").replace(/\s+$/, "") });
-        i = end - 1;
-        continue;
-      }
-    }
-
     // ``` fence — everything up to the closing fence (or the end) verbatim.
     const text = lineText(line);
     if (text !== null && FENCE.test(text)) {
       flush();
       const body: string[] = [];
       let j = i + 1;
-      while (j < lines.length && !FENCE.test(lineText(lines[j]) ?? "")) body.push(rawText(lines[j++]));
+      while (j < lines.length && !FENCE_CLOSE.test(raw(j))) body.push(raw(j++));
       blocks.push({ type: "code", text: body.join("\n") });
       i = j;
       continue;
     }
+
+    // A block laid out with spaces — ASCII art, a table, a pasted diff —
+    // keeps its layout: monospaced, unwrapped, nothing read as markdown.
+    if (i === 0 || isBlank(lines[i - 1])) {
+      const group: string[] = [];
+      for (let j = i; j < lines.length && !isBlank(lines[j]) && !FENCE.test(lineText(lines[j]) ?? ""); j++) group.push(raw(j));
+      const pre = preformatted(group);
+      if (pre) {
+        flush();
+        let end = i + group.length;
+        // A diff runs on through its blank context lines, for as long as the
+        // lines still look like a diff or a git log.
+        if (pre === "diff") while (end < lines.length && (isBlank(lines[end]) || DIFF_LINE.test(raw(end)))) end++;
+        blocks.push({ type: "code", text: Array.from({ length: end - i }, (_, k) => raw(i + k)).join("\n").replace(/\s+$/, "") });
+        i = end - 1;
+        continue;
+      }
+    }
+
     if (text !== null && RULE.test(text)) {
       flush();
       blocks.push({ type: "hr" });
@@ -178,7 +190,7 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
     const h = HEADING.exec(lead);
     if (h && line.length > 0 && (lead.length > h[0].length || line.length > 1)) {
       flush();
-      blocks.push({ type: "h", level: h[1].length as 1 | 2 | 3, tokens: stripLead(line, h[0].length) });
+      blocks.push({ type: "h", level: Math.min(h[1].length, 3) as 1 | 2 | 3, tokens: stripLead(line, h[0].length) });
       continue;
     }
 
@@ -215,7 +227,11 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
   return refineProse(blocks, textLength(tokens), opts.headline ?? true);
 }
 
-const DIFF_START = /^(?:diff --git |@@ -\d+(?:,\d+)? \+\d+|commit [0-9a-f]{7,40}\b)/;
+// Unmistakable starts only: a `diff --git` header, a hunk header, or a full
+// `commit <sha>` line (a sentence that begins "commit 1a2b3c broke…" is prose).
+const DIFF_START = /^(?:diff --git |@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@|commit [0-9a-f]{7,40}$)/;
+/** Lines a diff or a git log is made of. */
+const DIFF_LINE = /^(?:[ +\-@\\]|diff |index |commit |Author:|AuthorDate:|Commit:|CommitDate:|Date:|Merge:|new file|deleted file|similarity |rename |old mode|new mode|Binary files)/;
 const GAP = /\S(?: {3,}|\t)\S/;
 
 /** How a group of lines is laid out, if by hand: "diff" for a pasted diff or
@@ -228,7 +244,8 @@ function preformatted(group: string[]): "diff" | "art" | null {
   if (share((l) => GAP.test(l.trim())) >= 0.3) return "art";
   // Mostly punctuation: box drawing, ASCII shapes.
   const symbolic = (l: string) => {
-    const t = l.replace(/\s/g, "");
+    // Emoji are words here, not drawing: a line of 🎉🔥 is a reaction.
+    const t = l.replace(/[\s\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u200d\ufe0f]/gu, "");
     return t.length > 4 && t.replace(/[\p{L}\p{N}]/gu, "").length / t.length > 0.5;
   };
   return share(symbolic) >= 0.4 ? "art" : null;
@@ -296,10 +313,11 @@ export function refineProse(blocks: NoteBlock[], totalLength: number, headline =
         return;
       }
       const next = blocks[i + 1];
-      // A section head: short, starts like a word or an emoji marker, sits
-      // between blocks of text — and only in a long text, so a chatty note
-      // ("lol" / "that's wild" / a paragraph) never grows headings.
-      const starts = /^[\p{L}'"“‘]/u.test(s) || (s.length <= 50 && /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})/u.test(s));
+      // A section head: short, title-like, between blocks of text — and only
+      // in a long text.
+      // Heads start like titles: a capital (or a caseless script), an opening
+      // quote, or an emoji marker — "lol anyway" between paragraphs is chat.
+      const starts = /^['"“‘]?[\p{Lu}\p{Lt}\p{Lo}]/u.test(s) || (s.length <= 50 && /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})/u.test(s));
       if (
         long && s.length <= 70 && starts &&
         (prev?.type === "p" || prev?.type === "ul" || prev?.type === "ol" || prev?.type === "quote") && !isImageOnly(prev) &&
@@ -324,13 +342,13 @@ export type InlineSpan =
 // and not sit inside a word, so `snake_case`, `2 * 3` and `**` alone stay text.
 const INLINE_RE = new RegExp(
   [
-    "`(?<code>[^`\\n]+)`",
+    "(?<tick>`{1,3})(?<code>[^`\\n]+)\\k<tick>",
     // **strong** hugs its text; __strong__ only around a word, so ASCII
     // art's ____ runs and snake__case stay text.
-    "\\*\\*(?=\\S)(?<strong>[^\\n]+?)(?<=\\S)\\*\\*(?![\\p{L}\\p{N}])",
-    "(?<![\\p{L}\\p{N}_])__(?=[\\p{L}\\p{N}])(?<ustrong>[^\\n]+?)(?<=[\\p{L}\\p{N}])__(?![\\p{L}\\p{N}_])",
-    "(?<![\\p{L}\\p{N}*])\\*(?=[^\\s*])(?<em>[^\\n*]*?[^\\s*])\\*(?![\\p{L}\\p{N}*])",
-    "(?<![\\p{L}\\p{N}_])_(?=[\\p{L}\\p{N}])(?<uem>[^\\n_]*?[\\p{L}\\p{N}])_(?![\\p{L}\\p{N}_])",
+    "\\*\\*(?=\\S)(?<strong>[^\\n]{1,300}?)(?<=\\S)\\*\\*(?![\\p{L}\\p{N}])",
+    "(?<![\\p{L}\\p{N}_])__(?=[\\p{L}\\p{N}])(?<ustrong>[^\\n]{1,300}?)(?<=[\\p{L}\\p{N}])__(?![\\p{L}\\p{N}_])",
+    "(?<![\\p{L}\\p{N}*])\\*(?=[^\\s*])(?<em>[^\\n*]{0,300}?[^\\s*])\\*(?![\\p{L}\\p{N}*])",
+    "(?<![\\p{L}\\p{N}_])_(?=[\\p{L}\\p{N}])(?<uem>[^\\n_]{0,300}?[\\p{L}\\p{N}])_(?![\\p{L}\\p{N}_])",
   ].join("|"),
   "gu",
 );

@@ -105,21 +105,3 @@ export function formatListingPrice(p: ListingPrice): string {
   return (p.frequency ? `${text} / ${p.frequency}` : text).trim();
 }
 
-/**
- * Markdown as words. Marketplace apps write descriptions in markdown; we
- * render text with live links, so headings lose their hashes, emphasis its
- * marks, bullets become bullets. Not a renderer — just no punctuation noise.
- */
-export function plainMarkdown(md: string): string {
-  return md
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-    .replace(/^\s*[-*+]\s+/gm, "• ")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/__(.+?)__/g, "$1")
-    .replace(/(^|[\s(])\*(?!\s)([^*\n]+?)\*(?=[\s.,;:!?)]|$)/g, "$1$2")
-    .replace(/(^|[\s(])_(?!\s)([^_\n]+?)_(?=[\s.,;:!?)]|$)/g, "$1$2")
-    .replace(/`([^`\n]+)`/g, "$1")
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1 $2")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
