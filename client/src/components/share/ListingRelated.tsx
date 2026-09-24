@@ -33,7 +33,10 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
   useEffect(() => {
     let alive = true;
     const address = addressOf(event);
-    void fetchRecentByKinds(event.pubkey, [LISTING_KIND], 30).then((evs) => {
+    // As deep as the profile's shelf asks: a seller's newest listings can be
+    // a run of hidden copies (Staci's shop, 2026-09-24), and thirty of those
+    // left this row empty while her profile showed 36 products.
+    void fetchRecentByKinds(event.pubkey, [LISTING_KIND], 100).then((evs) => {
       if (!alive) return;
       // The seller's things as products. The product this listing belongs to
       // gives its other sizes as options; the rest are "more for sale".

@@ -62,6 +62,18 @@ describe("ListingRelated", () => {
     expect(screen.queryByTestId("listing-similar")).toBeNull();
   });
 
+  // Staci's shop (2026-09-24): her 30 newest listings were copies marked
+  // hidden, so a row that asked for 30 showed nothing under her soap while
+  // her profile, asking deeper, showed 36 products.
+  it("asks deep enough that a run of hidden copies cannot empty the row", async () => {
+    const hidden = Array.from({ length: 30 }, (_, i) => listing(SELLER, `copy-${i}`, `Hidden copy ${i}`, 5000 + i, [["visibility", "hidden"]]));
+    recentMock.mockImplementation(async (_pk, _kinds, limit) => (limit >= 100 ? [...hidden, listing(SELLER, "cream", "Tallow cream", 3000)] : hidden));
+    render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
+    const row = await screen.findByTestId("listing-more-from-seller");
+    expect(row).toHaveTextContent("Tallow cream");
+    expect(row).not.toHaveTextContent("Hidden copy");
+  });
+
   it("offers similar listings from other sellers, named, asked for by this listing's categories", async () => {
     similarMock.mockResolvedValue([listing(OTHER, "cup", "Clay cup", 900), listing(OTHER, "gone", "Gone", 950, [["status", "sold"]])]);
     profileMapMock.mockResolvedValue(new Map([[OTHER, { name: "cupco", display_name: "Cup Co" }]]));
