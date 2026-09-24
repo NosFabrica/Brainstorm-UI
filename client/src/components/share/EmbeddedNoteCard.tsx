@@ -93,7 +93,7 @@ export function EmbeddedNoteCard({
 
   return (
     <div
-      className={`mt-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 p-3 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
+      className={`not-prose mt-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 p-3 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
       data-testid="embedded-note"
       onClick={onClick}
     >

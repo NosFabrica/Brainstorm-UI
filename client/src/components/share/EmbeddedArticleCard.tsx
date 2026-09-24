@@ -98,7 +98,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
 
   return (
     <div
-      className={`mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 @container ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors" : ""}`}
+      className={`not-prose mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 @container ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors" : ""}`}
       data-testid="embedded-article"
       onClick={onCardClick}
     >
