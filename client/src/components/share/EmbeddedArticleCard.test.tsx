@@ -5,7 +5,7 @@
  * words as its brief and says what it is.
  */
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedArticleCard } from "./EmbeddedArticleCard";
 
@@ -38,6 +38,13 @@ describe("EmbeddedArticleCard", () => {
     expect(card).toHaveTextContent("Schedule signed events for later.");
     expect(screen.getByTestId("article-kinds")).toHaveTextContent("5905");
     expect(screen.getByTestId("article-kinds")).toHaveTextContent("7000");
+  });
+
+  // The team (2026-09-24): a spec from Nostr Hub has no NIP number; the
+  // kind's word, as the one pill every card wears, is what says what it is.
+  it("the type is the design-system pill, the same on every card", () => {
+    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} />);
+    expect(within(screen.getByTestId("embedded-article")).getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
   });
 
   // Specs wore the generic Brainstorm article cover (Benjamin, 2026-09-23:

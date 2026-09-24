@@ -1,6 +1,6 @@
 import { useState, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
-import { FileText, BadgeCheck, ArrowRight } from "lucide-react";
+import { BadgeCheck, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
@@ -17,6 +17,7 @@ export const SPEC_COVER_ALT = "Nostr Implementation — decentralized network sp
 export const RECIPE_COVER_ALT = "Cooking Recipe — easy recipe steps";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { sourceAppFor } from "@/lib/sourceApp";
+import { KindPill } from "@/components/ui/kind-pill";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -114,9 +115,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
         />
 
         <div className="min-w-0 flex-1 p-3">
-          <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-primary">
-            <FileText className="h-3 w-3" /> {isWiki ? "Wiki" : isSpec ? "Spec" : sourceAppFor(event)?.noun ?? "Article"}
-          </p>
+          <KindPill event={event} />
           <p className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 mt-0.5">{title}</p>
           {summary && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{summary}</p>}
           {coveredKinds.length > 0 && (
