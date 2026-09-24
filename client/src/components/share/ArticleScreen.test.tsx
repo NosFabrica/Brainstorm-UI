@@ -46,15 +46,15 @@ const npub = nip19.npubEncode(DEREK);
 const nevent = nip19.neventEncode({ id: QUOTED.id });
 const naddr = nip19.naddrEncode({ kind: 30023, pubkey: DEREK, identifier: "zaps" });
 
-const article = (content: string) => ({ id: "2".repeat(64), kind: 30023, pubkey: AUTHOR, created_at: 1_727_798_308, sig: "", content, tags: [["d", "zap-week"], ["title", "Zap week"]] });
+const article = (content: string, tags: string[][] = [["d", "zap-week"], ["title", "Zap week"]]) => ({ id: "2".repeat(64), kind: 30023, pubkey: AUTHOR, created_at: 1_727_798_308, sig: "", content, tags });
 const ptr = { kind: 30023, pubkey: AUTHOR, identifier: "zap-week" };
 
-const open = (content: string) =>
+const open = (content: string, tags?: string[][]) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}>
       <EventStoreProvider eventStore={eventStore}>
         <AccountsProvider manager={new AccountManager<AccountMetadata>() as any}>
-          <ArticleScreen ev={article(content)} naddr={nip19.naddrEncode({ ...ptr })} ptr={ptr} />
+          <ArticleScreen ev={article(content, tags)} naddr={nip19.naddrEncode({ ...ptr })} ptr={ptr} />
         </AccountsProvider>
       </EventStoreProvider>
     </QueryClientProvider>,
@@ -90,5 +90,26 @@ describe("the article reader — nostr references", () => {
     await waitFor(() => expect(body).toHaveTextContent("Some days posting here feels like nobody's listening."));
     await waitFor(() => expect(body).toHaveTextContent("Derek Ross"));
     expect(body).not.toHaveTextContent("primal.net");
+  });
+});
+
+describe("the article reader — a stub whose summary is a link to a note", () => {
+  // Geyser publishes an "article" for a shared Primal link: the title is the
+  // host, the summary is the link, the body is empty. Read as written it was
+  // "primal.net" over a raw URL over nothing (Benjamin, 2026-09-24).
+  const stub = [["d", "primalnet-1"], ["title", "primal.net"], ["summary", `https://primal.net/e/${nevent}`]];
+
+  it("shows the quoted note where the summary would be, not the URL", async () => {
+    open("", stub);
+    await waitFor(() => expect(screen.getByTestId("article-summary")).toHaveTextContent("Some days posting here feels like nobody's listening."));
+    expect(screen.getByTestId("article-summary")).toHaveTextContent("Derek Ross");
+    expect(screen.getByTestId("article-summary")).not.toHaveTextContent("https://");
+  });
+
+  it("when the body is that same link, the note appears once", async () => {
+    open(`https://primal.net/e/${nevent}`, stub);
+    await waitFor(() => expect(screen.getAllByTestId("embedded-note")).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getAllByTestId("embedded-note")).toHaveLength(1);
   });
 });

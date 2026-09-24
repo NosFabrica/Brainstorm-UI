@@ -256,6 +256,12 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   }, [ev, prepared.kinds]);
   // The author's summary, never a publisher's placeholder ("No description available").
   const summary = ev ? articleSummary(ev) : "";
+  // A summary that is nothing but a link to a note or an article (Geyser
+  // publishes an "article" for a shared Primal link: title the host, summary
+  // the link, body empty) is that thing, shown where the summary would be —
+  // unless the body is the same link, which already shows it.
+  const summaryEntity = /^\S+$/.test(summary) ? (summary.startsWith("nostr:") ? summary.slice("nostr:".length) : extractBech32FromUrl(summary)) : null;
+  const summaryEmbed = summaryEntity && prepared.body.trim() !== summary.trim() ? summaryEntity : null;
   // A wiki page mirrored from elsewhere names its source in an "s" tag
   // (GitCitadel: the Wikipedia URL). Attribution is owed, and one line does it.
   const sourceUrl = ev?.kind === 30818 && /^https?:\/\//.test(tag("s") || "") ? tag("s")! : "";
@@ -298,7 +304,11 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             <h1 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
               {title}
             </h1>
-            {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
+            {summaryEmbed ? (
+              <div className="mt-3" data-testid="article-summary"><NostrRef bech32={summaryEmbed} url={summary} /></div>
+            ) : summary ? (
+              <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug" data-testid="article-summary">{summary}</p>
+            ) : null}
             {/* A spec's details, read out of its front matter and tags: its
                 standing, the kinds it defines (each a search for that kind),
                 and the tags it defines. */}
