@@ -3,6 +3,9 @@ import App from "./App";
 import { ThemeProvider } from "./lib/theme";
 import { startStoreHydration } from "./services/storeHydration";
 import { resolveHouseObserver } from "./services/trustSource";
+import { startRelayAuth } from "./services/relayAuth";
+import { pool } from "./lib/relayPool";
+import { accountManager } from "./accounts";
 import "./index.css";
 
 // Before the first render, not in an effect: by the time effects run, the
@@ -18,6 +21,10 @@ if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
 // The relay refuses a lens-less read, so every search waits on this lookup.
 // Asking now means the first search doesn't wait for it in series.
 void resolveHouseObserver();
+
+// Relays that gate reads behind a NIP-42 login: never waited on (lib/relayPool),
+// answered with the account's signer when the reader allowed it (Settings).
+startRelayAuth({ pool, active$: accountManager.active$ as never });
 
 createRoot(document.getElementById("root")!).render(
   <ThemeProvider>
