@@ -83,10 +83,19 @@ export function EmbeddedTrackCard({
   const playable = !!audio;
 
   const open = onOpen ?? (href ? () => navigate(href) : undefined);
-  const onRowClick = open
+  // A tap on the row plays, as it does in Spotify and Apple Music (Benjamin,
+  // 2026-09-24: it has to work from what users already know); the title
+  // opens. A row with nothing to play opens on tap. The playing row's tap
+  // is not a pause — the cover and the bar are for that.
+  const play = () => {
+    if (!audio || player.isPlaying) return;
+    toggleTrack(id, audio, { title, artist, cover, href: href ?? pageUrl, artistHref, artistPubkey });
+  };
+  const onRowClick = playable || open
     ? (e: MouseEvent) => {
         if ((e.target as HTMLElement).closest("a, button, [data-noopen]")) return;
-        open();
+        if (playable) play();
+        else open?.();
       }
     : undefined;
 
@@ -101,7 +110,7 @@ export function EmbeddedTrackCard({
       className={
         flat
           ? `group flex items-center gap-3 rounded-lg px-1 py-2 transition-colors ${player.isActive ? "bg-brand-link/[0.04]" : ""} ${
-              href ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/60" : ""
+              href || playable || onOpen ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/60" : ""
             }`
           : `group flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-2.5 transition-colors ${
               player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200 dark:border-slate-800"
@@ -152,7 +161,13 @@ export function EmbeddedTrackCard({
       </button>
 
       <div className="min-w-0 flex-1">
-        <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{title}</p>
+        <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>
+          {open ? (
+            <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} className="truncate text-left hover:underline">{title}</button>
+          ) : (
+            title
+          )}
+        </p>
         {artist && (
           <p className="truncate text-xs text-slate-500 dark:text-slate-400">
             {/* The artist's own page when they have one here — the row and the face agree. */}
