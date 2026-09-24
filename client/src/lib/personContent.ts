@@ -1,6 +1,6 @@
 import type { Filter } from "nostr-tools";
 import type { MinimalEvent } from "@/lib/noteRefs";
-import { publishedOnZapCooking } from "@/lib/sourceApp";
+import { RECIPE_TAGS, publishedOnZapCooking } from "@/lib/sourceApp";
 import { liveStateOf } from "@/lib/liveStream";
 
 /**
@@ -14,10 +14,16 @@ import { liveStateOf } from "@/lib/liveStream";
  */
 export type PersonContentKey = "shop" | "articles" | "recipes" | "music" | "media" | "live" | "repos";
 
-/** The six probes, in chip order. Recipes is not probed: it is an article wearing zap.cooking's tag. */
-export const PERSON_CONTENT_CATEGORIES: readonly { key: Exclude<PersonContentKey, "recipes">; kinds: readonly number[] }[] = [
+/**
+ * The seven probes, in chip order. Recipes are articles wearing zap.cooking's
+ * tag, asked for on their own: the newest article of a recipe site can be a
+ * newsletter (Zap Cooking, 2026-09-24), and one sample would have hidden the
+ * recipes behind it. An author with essays and recipes wears both chips.
+ */
+export const PERSON_CONTENT_CATEGORIES: readonly { key: PersonContentKey; kinds: readonly number[]; tags?: readonly string[] }[] = [
   { key: "shop", kinds: [30402] },
   { key: "articles", kinds: [30023, 30818] },
+  { key: "recipes", kinds: [30023], tags: RECIPE_TAGS },
   { key: "music", kinds: [31337] },
   { key: "media", kinds: [20, 21, 22, 34235, 34236] },
   { key: "live", kinds: [30311] },
@@ -56,7 +62,7 @@ export const NO_PERSON_CONTENT: PersonContent = Object.freeze({ chips: [] }) as 
 
 /** Six filters for one REQ: the newest event of each category, under the lens. */
 export function personContentFilters(pubkey: string): Filter[] {
-  return PERSON_CONTENT_CATEGORIES.map((c) => ({ kinds: [...c.kinds], authors: [pubkey], limit: 1, search: PERSON_CONTENT_LENS }));
+  return PERSON_CONTENT_CATEGORIES.map((c) => ({ kinds: [...c.kinds], authors: [pubkey], limit: 1, search: PERSON_CONTENT_LENS, ...(c.tags ? { "#t": [...c.tags] } : {}) }));
 }
 
 const chipFor = (key: PersonContentKey, liveNow = false): PersonContentChip => ({ key, label: PERSON_CONTENT_WORDS[key].label, tab: PERSON_CONTENT_WORDS[key].tab, liveNow });
@@ -64,11 +70,17 @@ const chipFor = (key: PersonContentKey, liveNow = false): PersonContentChip => (
 /** Ordered, capped chips from whatever the probe returned. Kinds outside the table are ignored. */
 export function categoriesOf(events: MinimalEvent[], nowSec: number = Math.floor(Date.now() / 1000)): PersonContentChip[] {
   const chips: PersonContentChip[] = [];
+  const isArticle = (e: MinimalEvent) => e.kind === 30023 || e.kind === 30818;
+  const isRecipe = (e: MinimalEvent) => e.kind === 30023 && publishedOnZapCooking(e);
   for (const category of PERSON_CONTENT_CATEGORIES) {
-    const sample = events.find((e) => category.kinds.includes(e.kind));
+    let sample: MinimalEvent | undefined;
+    // Articles are the essays; recipes are their own answer. The relay's
+    // article probe may itself return a recipe, which counts for Recipes.
+    if (category.key === "articles") sample = events.find((e) => isArticle(e) && !isRecipe(e));
+    else if (category.key === "recipes") sample = events.find(isRecipe);
+    else sample = events.find((e) => category.kinds.includes(e.kind));
     if (!sample) continue;
-    if (category.key === "articles") chips.push(chipFor(publishedOnZapCooking(sample) ? "recipes" : "articles"));
-    else if (category.key === "live") chips.push(chipFor("live", liveStateOf({ ...sample, content: sample.content ?? "" }, nowSec) === "live"));
+    if (category.key === "live") chips.push(chipFor("live", liveStateOf({ ...sample, content: sample.content ?? "" }, nowSec) === "live"));
     else chips.push(chipFor(category.key));
     if (chips.length === MAX_PERSON_CONTENT_CHIPS) break;
   }

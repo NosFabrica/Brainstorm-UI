@@ -49,12 +49,12 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("fetchPersonContent", () => {
-  it("asks once, with six lensed filters for the person", () => {
+  it("asks once, with seven lensed filters for the person", () => {
     controllable();
     fetchPersonContent(STACI).catch(() => {});
     expect(reqMock).toHaveBeenCalledTimes(1);
     const filters = reqMock.mock.calls[0][0] as Record<string, unknown>[];
-    expect(filters).toHaveLength(6);
+    expect(filters).toHaveLength(7);
     for (const f of filters) expect(f).toEqual(expect.objectContaining({ authors: [STACI], limit: 1, search: "include:spam" }));
   });
 

@@ -20,10 +20,14 @@ describe("categoriesOf — what a person publishes, in the order a searcher want
     expect(chips.map((c) => c.key)).toEqual(["shop", "articles", "music", "media"]);
   });
 
-  it("an article wearing zap.cooking's tag is Recipes, not Articles", () => {
+  // Zap Cooking (live, 2026-09-24): the newest article was a newsletter, so a
+  // one-event sample read "Articles" for the recipe site. A recipe is its own
+  // probe; an author with both wears both.
+  it("an article wearing zap.cooking's tag is Recipes; essays are Articles; both when both exist", () => {
     expect(categoriesOf([ev(30023, [["t", "zapcooking"]])], NOW)).toEqual([{ key: "recipes", label: "Recipes", tab: "recipes", liveNow: false }]);
-    expect(categoriesOf([ev(30023, [["t", "zapcooking"], ["t", "zapreads"]])], NOW)[0].key).toBe("articles");
-    expect(categoriesOf([ev(30818)], NOW)[0].key).toBe("articles");
+    expect(categoriesOf([ev(30023, [["t", "zapcooking"], ["t", "zapreads"]])], NOW).map((c) => c.key)).toEqual(["articles"]);
+    expect(categoriesOf([ev(30818)], NOW).map((c) => c.key)).toEqual(["articles"]);
+    expect(categoriesOf([ev(30023, [["t", "zapreads"], ["t", "zapcooking"]]), ev(30023, [["t", "zapcooking"]], NOW - 100)], NOW).map((c) => c.key)).toEqual(["articles", "recipes"]);
   });
 
   it("a stream on air now is marked live; an ended one still earns the chip", () => {
@@ -39,11 +43,12 @@ describe("categoriesOf — what a person publishes, in the order a searcher want
 });
 
 describe("personContentFilters — one lensed filter per category, the newest one of each", () => {
-  it("asks six questions under the include:spam lens", () => {
+  it("asks seven questions under the include:spam lens — recipes get their own", () => {
     const filters = personContentFilters(STACI);
-    expect(filters).toHaveLength(6);
+    expect(filters).toHaveLength(7);
     for (const f of filters) expect(f).toEqual(expect.objectContaining({ authors: [STACI], limit: 1, search: "include:spam" }));
-    expect(filters.map((f) => f.kinds)).toEqual([[30402], [30023, 30818], [31337], [20, 21, 22, 34235, 34236], [30311], [30617]]);
+    expect(filters.map((f) => f.kinds)).toEqual([[30402], [30023, 30818], [30023], [31337], [20, 21, 22, 34235, 34236], [30311], [30617]]);
+    expect(filters[2]["#t"]).toEqual(["zapcooking", "nostrcooking"]);
   });
 });
 
