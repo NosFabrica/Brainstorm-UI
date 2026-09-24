@@ -171,4 +171,22 @@ describe("the Connection page", () => {
     expect(screen.getByTestId("hops-group-verified")).toHaveTextContent("1 verified");
     expect(screen.getByTestId("hops-next")).toHaveTextContent("Next path · 1 of 2");
   });
+
+  it("a tapped group belongs to that connection — a new target opens on every path again", async () => {
+    // Seen live (2026-09-24): jack's page opened with "flagged" pressed and
+    // "1 of 1" because Jon's page had been tapped and the same component
+    // stayed mounted across the route change.
+    const T2 = "e".repeat(64);
+    served = [[ME, C1, T], [ME, C2, T], [ME, C3, T]];
+    pathCount = 3;
+    flags = { [C1]: true };
+    open();
+    await waitFor(() => expect(screen.getByTestId("hops-group-flagged")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("hops-group-flagged"));
+    expect(screen.getByTestId("hops-next")).toHaveTextContent("1 of 1");
+    served = [[ME, C1, T2], [ME, C2, T2], [ME, C3, T2]];
+    window.history.pushState({}, "", `/p/${nip19.npubEncode(T2)}/hops`);
+    await waitFor(() => expect(screen.getByTestId("hops-next")).toHaveTextContent("Next path · 1 of 3"));
+    expect(screen.getByTestId("hops-group-flagged")).toHaveAttribute("aria-pressed", "false");
+  });
 });

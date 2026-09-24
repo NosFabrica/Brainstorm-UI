@@ -69,8 +69,13 @@ export default function HopsPathPage() {
   // usable start (falling back to House), and the endpoint is public.
   const eligible = !!fromPubkey && !!toPubkey && fromPubkey !== toPubkey;
 
-  // Which group the reader narrowed to, and where they are in it.
-  const [pick, setPick] = useState<{ group: PathGroupKey | null; pos: number }>({ group: null, pos: 0 });
+  // Which group the reader narrowed to, and where they are in it. The pick
+  // belongs to one connection: this component stays mounted from one
+  // target's page to the next, and a pick that outlived its target opened
+  // jack's page on "flagged · 1 of 1" because Jon's had been tapped.
+  const connection = `${fromPubkey}/${toPubkey}`;
+  const [picked, setPicked] = useState<{ of: string; group: PathGroupKey | null; pos: number }>({ of: connection, group: null, pos: 0 });
+  const pick = picked.of === connection ? picked : { group: null, pos: 0 };
   // Sitewide score-POV (personalized vs global) + the shared explainer modal.
   const { pov: scorePov } = useScorePov();
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
@@ -260,10 +265,10 @@ export default function HopsPathPage() {
               checking={list.length === 0}
               groups={groups}
               selected={pick.group}
-              onSelect={(group) => setPick({ group, pos: 0 })}
+              onSelect={(group) => setPicked({ of: connection, group, pos: 0 })}
               position={list.length ? (pick.pos % list.length) + 1 : 1}
               total={list.length}
-              onNext={() => setPick((c) => ({ ...c, pos: c.pos + 1 }))}
+              onNext={() => setPicked({ of: connection, group: pick.group, pos: pick.pos + 1 })}
               busy={set.sampling}
             />
 
