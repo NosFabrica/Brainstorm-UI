@@ -1290,7 +1290,7 @@ export function ListingCard({
   score,
   showAuthor = true,
   group,
-}: {
+ sellerListings }: {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
@@ -1298,11 +1298,13 @@ export function ListingCard({
   /** When this card stands for one product published as several listings
    *  (sizes, colours): the shared title and how many options there are. */
   group?: { title: string; options: number };
+  /** The seller's other listings on the page: a Conduit seller's listing published elsewhere still opens on Conduit. */
+  sellerListings?: NostrEvent[];
 }) {
   const l = parseListing(event);
   if (!l) return null;
   // The app that sold it, by name, when we know it; else the seller's own link.
-  const app = sourceAppFor(event);
+  const app = sourceAppFor(event, { sellerListings });
   const host = l.shopUrl ? hostOf(l.shopUrl) ?? undefined : undefined;
   const open = app
     ? { url: app.url, label: `Open in ${app.name}`, host: app.host, icon: app.icon }

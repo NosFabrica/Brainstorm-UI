@@ -1323,6 +1323,21 @@ describe("SearchResults", () => {
     expect(within(open).getByTestId("favicon")).toHaveAttribute("src", "https://shop.conduit.market/favicon.svg");
   });
 
+  // Benjamin (2026-09-24): Staci's Conduit-published listings had the link and
+  // her other app's duplicates did not, on the same Shop page. The seller's
+  // other cards on the page say they sell on Conduit; the twin opens there.
+  it("a Conduit seller's listing published elsewhere opens on Conduit too, at its twin, from the cards beside it", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="soap" pov="nosfabrica" />);
+    const seller = "6".repeat(64);
+    const conduit = ev("c1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "sweet-almond-conduit"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]);
+    const elsewhere = ev("e1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "product_1788284895802_51fra"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["t", "Health & Beauty"]]);
+    emit({ hits: [{ event: conduit, author: author(seller, "Born To Be Free"), rank: null }, { event: elsewhere, author: author(seller, "Born To Be Free"), rank: null }], eose: true, timeMs: 130 });
+    const open = within(await screen.findByTestId("listing-card-e1")).getByTestId("listing-open-e1");
+    expect(open.getAttribute("title")).toBe("Open in Conduit");
+    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
+  });
+
   it("collapses recurring events on the Events tab behind a +N chip", async () => {
     setUrlTab("events");
     render(<SearchResults query="liverpool" pov="nosfabrica" />);

@@ -1787,7 +1787,7 @@ export function SearchResults({
                 return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
               }
               if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
-              if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} />);
+              if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} sellerListings={hits.filter((h) => h.event.pubkey === event.pubkey).map((h) => h.event)} />);
               if (LIVE_KINDS.has(event.kind)) {
                 const hostPk = liveHostOf(event);
                 return wrap(<LiveTile {...typed} state={liveStates.get(event.id) ?? liveStateOf(event)} hostScore={hostPk ? scoreOf(hostPk) : undefined} />);
