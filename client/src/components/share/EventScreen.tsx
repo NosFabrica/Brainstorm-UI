@@ -49,7 +49,7 @@ import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { Nip05Check } from "@/components/Nip05Check";
 
 
-type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
+type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string; website?: string };
 export type EventPointer = { id: string; relays?: string[]; author?: string };
 
 /** Addressable kinds (30000–39999) are commented on by coordinate, not id —
@@ -393,7 +393,7 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
-                <ListingHero event={note} />
+                <ListingHero event={note} sellerWebsite={profile.website} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
               ) : VIDEO_EVENT_KINDS.has(note.kind) ? (

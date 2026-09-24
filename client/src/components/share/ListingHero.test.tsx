@@ -103,6 +103,15 @@ describe("ListingHero", () => {
     expect(recentMock).toHaveBeenCalledWith(SELLER, [30402], expect.any(Number));
   });
 
+  it("a listing with no shop link and no marketplace we know still opens the seller's own website, when their profile names one", () => {
+    // The Bitcoin Shop UK's "The Cathedral" (2026-09-24): published through Gamma Markets, no link on the listing, thebitcoinshop.uk on the profile.
+    render(<ListingHero event={listing([["client", "gamma-markets-bulk-updater"]])} sellerWebsite="https://thebitcoinshop.uk/" />);
+    const shop = screen.getByTestId("listing-hero-shop");
+    expect(shop).toHaveTextContent("Visit thebitcoinshop.uk");
+    expect(shop.getAttribute("href")).toBe("https://thebitcoinshop.uk/");
+    expect(shop.getAttribute("target")).toBe("_blank");
+  });
+
   it("a listing with no shop link offers only the message, and a sold one says so", () => {
     render(<ListingHero event={listing([["status", "sold"]])} />);
     expect(screen.queryByTestId("listing-hero-shop")).toBeNull();

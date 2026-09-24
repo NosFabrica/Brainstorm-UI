@@ -115,6 +115,12 @@ describe("a merchant's listing published elsewhere — the same seller, the same
     expect(app?.url).toBe(`https://shop.conduit.market/store/${nip19.npubEncode(MERCHANT)}?${CONDUIT_REFERRAL}`);
   });
 
+  it("a listing with its own product page keeps it — the seller's Conduit store does not outrank the page the seller wrote", () => {
+    // AGORA's T-shirt (2026-09-24): published through Barattolo with swag.btc.pub as its page; the seller also sells on Conduit.
+    const withPage = { ...elsewhere, tags: [["d", "barattolo-342"], ["title", "T-shirt Satoshi Bitcoin Smiley"], ["r", "https://swag.btc.pub/product/satoshi-bitcoin-smiley/"], ["client", "Barattolo", "31990:2e7a:barattolo"]] };
+    expect(sourceAppFor(withPage, { sellerListings: [otherConduit] })).toBeNull();
+  });
+
   it("a seller with nothing on Conduit gets no Conduit link", () => {
     expect(sourceAppFor(elsewhere, { sellerListings: [elsewhere] })).toBeNull();
     expect(sourceAppFor(elsewhere)).toBeNull();

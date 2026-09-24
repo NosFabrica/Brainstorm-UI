@@ -120,7 +120,10 @@ export function sourceAppFor(event: MinimalEvent, context: { sellerListings?: Mi
     if (!naddr) return null;
     return conduitApp(`https://${CONDUIT_HOST}/products/${naddr}`);
   }
-  if (event.kind === 30402 && context.sellerListings?.length) {
+  // The seller's Conduit store never outranks a product page the seller wrote
+  // into the listing (AGORA's T-shirt: Barattolo, swag.btc.pub as its page).
+  const ownPage = event.tags.some((t) => (t[0] === "r" || t[0] === "web") && /^https?:\/\//i.test(t[1] ?? ""));
+  if (event.kind === 30402 && !ownPage && context.sellerListings?.length) {
     const via = conduitViaSeller(event, context.sellerListings);
     if (via) return via;
   }

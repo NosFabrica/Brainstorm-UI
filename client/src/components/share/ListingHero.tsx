@@ -19,7 +19,7 @@ import { ReadingText } from "@/components/share/ReadingText";
  * the seller published. There is no checkout of ours: payment happens where
  * the seller sells.
  */
-export function ListingHero({ event }: { event: MinimalEvent }) {
+export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /** The seller's own website, from their profile — the way in when the listing names no shop and no app we know. */ sellerWebsite?: string | null }) {
   const l = parseListing({ ...event, id: event.id, pubkey: event.pubkey, kind: event.kind, created_at: event.created_at, tags: event.tags, content: event.content ?? "" });
   const [photo, setPhoto] = useState(0);
   // The app that sold it wins over a stray shop link: that is where the
@@ -37,6 +37,13 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
     return () => { alive = false; };
   }, [event.id, event.pubkey]); // eslint-disable-line react-hooks/exhaustive-deps
   const app = sourceAppFor(event, { sellerListings });
+  const websiteHost = (() => {
+    try {
+      return sellerWebsite && /^https?:\/\//i.test(sellerWebsite) ? new URL(sellerWebsite).hostname.replace(/^www\./, "") : null;
+    } catch {
+      return null;
+    }
+  })();
   if (!l) return null;
   const sellable = isSellable(l);
   // Sold, hidden, inactive: a status worth a chip. Merely priceless is not.
@@ -139,6 +146,19 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
             title={`Opens ${shopHost} in a new tab`}
           >
             <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit shop <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+          </a>
+        ) : websiteHost ? (
+          // No shop on the listing and no marketplace we know (The Bitcoin
+          // Shop UK, via Gamma Markets): the seller's own website is the way in.
+          <a
+            href={sellerWebsite!}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
+            data-testid="listing-hero-shop"
+            title={`Opens ${websiteHost} in a new tab`}
+          >
+            <Favicon host={websiteHost} className="h-3.5 w-3.5" /> Visit {websiteHost} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
           </a>
         ) : null}
       </div>
