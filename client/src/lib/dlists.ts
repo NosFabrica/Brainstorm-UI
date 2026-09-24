@@ -67,6 +67,23 @@ export function dlistsFromHeaders(headers: { pubkey: string; kind: number; tags:
   return out;
 }
 
+/**
+ * What a D-list event is, wherever the UI shows it (the team, 2026-09-24:
+ * associate the musician/songs D-list event ids with the music icon): a
+ * header is its list, by coordinate; an item is its list, by its `z` tag.
+ */
+export function dlistOfEvent(ev: { kind: number; pubkey: string; tags: string[][] }, lists: DListEntry[] = DLIST_REGISTRY): (DListEntry & { icon: LucideIcon }) | null {
+  if (ev.kind === DLIST_HEADER_KIND) {
+    const d = ev.tags.find((t) => t[0] === "d")?.[1];
+    return d ? dlistFor(`${DLIST_HEADER_KIND}:${ev.pubkey}:${d}`, lists) : null;
+  }
+  if (ev.kind === DLIST_ITEM_KIND) {
+    const coordinate = dlistCoordinateOf(ev);
+    return coordinate ? dlistFor(coordinate, lists) : null;
+  }
+  return null;
+}
+
 export function dlistFor(coordinate: string, lists: DListEntry[] = DLIST_REGISTRY): (DListEntry & { icon: LucideIcon }) | null {
   const entry = lists.find((e) => e.coordinate === coordinate);
   return entry ? { ...entry, icon: CATEGORY_ICON[entry.category] } : null;

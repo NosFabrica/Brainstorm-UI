@@ -9,11 +9,12 @@
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
+import { dlistOfEvent, parseDListMusician, parseDListSong } from "@/lib/dlists";
 import { Link, useLocation } from "wouter";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { Braces, Lock, Rss } from "lucide-react";
+import { Braces, Lock, Rss, type LucideIcon } from "lucide-react";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { isFeedAccount } from "@/lib/feedAccount";
 import { nip19 } from "nostr-tools";
@@ -89,7 +90,22 @@ function quotedIn(text: string): { id: string; uri: string }[] {
  * word than the kind's: a kind-30023 on zap.cooking is a "Recipe".
  */
 export function typeLabelFor(event: { kind: number; tags: string[][]; pubkey: string; id: string; content: string; created_at: number }): string {
-  return sourceAppFor(event)?.noun ?? kindTypeLabel(event.kind);
+  return dlistTypeFor(event)?.label ?? sourceAppFor(event)?.noun ?? kindTypeLabel(event.kind);
+}
+
+/**
+ * A D-list event's word and icon (the team, 2026-09-24: associate the
+ * musician/songs D-list event ids with the music icon): a header is a
+ * "Music list", an item the song or musician it is.
+ */
+export function dlistTypeFor(event: { kind: number; tags: string[][]; pubkey: string; id: string; content: string; created_at: number }): { label: string; icon: LucideIcon } | null {
+  const list = dlistOfEvent(event);
+  if (!list) return null;
+  const category = list.category.charAt(0).toUpperCase() + list.category.slice(1);
+  if (event.kind === 39998) return { label: `${category} list`, icon: list.icon };
+  if (parseDListSong(event)) return { label: "Song", icon: list.icon };
+  if (parseDListMusician(event)) return { label: "Musician", icon: list.icon };
+  return { label: `${category} list item`, icon: list.icon };
 }
 
 /** What kind of thing a result is — the Google-style micro label. */
@@ -340,14 +356,14 @@ function AuthorLine({
   author,
   score,
   created_at,
-  type,
+  type, typeIcon: TypeIcon,
   feed = false,
   children,
 }: {
   author: SearchResult | null;
   score?: number | null;
   created_at: number;
-  type?: string;
+  type?: string; typeIcon?: LucideIcon;
   /** An automated feed account — said quietly, so a reader knows the voice. */
   feed?: boolean;
   /** Trailing meta (a news row's outlet) — rides the same baseline. */
@@ -370,8 +386,8 @@ function AuthorLine({
         </span>
         <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
         {type && (
-          <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
-            · {type}
+          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
+            · {TypeIcon && <TypeIcon className="h-3 w-3" />}{type}
           </span>
         )}
         {feed && (
@@ -549,7 +565,7 @@ export function SerpRow({
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
-        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? typeLabelFor(event) : undefined} feed={isFeedAccount(author)} />
+        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? typeLabelFor(event) : undefined} typeIcon={showType ? dlistTypeFor(event)?.icon : undefined} feed={isFeedAccount(author)} />
         {title && (
           <div className="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors [&>p]:font-semibold [&>p]:text-sm">
             <Snippet text={title} query={query} lines={2} />

@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { Music } from "lucide-react";
 import { nip19 } from "nostr-tools";
-import { dlistCoordinateOf, dlistFor, filterPodcastIndex, parseDListMusician, parseDListSong } from "./dlists";
+import { dlistCoordinateOf, dlistFor, dlistOfEvent, filterPodcastIndex, parseDListMusician, parseDListSong } from "./dlists";
 
 const AUTHOR = "77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3";
 const SONGS = `39998:${AUTHOR}:b504f5a8-949f-4d31-ad14-8afcebde2b34`;
@@ -39,6 +39,19 @@ describe("the D-list registry", () => {
   it("reads the list a kind-9999 item belongs to from its z tag", () => {
     expect(dlistCoordinateOf(songEv)).toBe(SONGS);
     expect(dlistCoordinateOf(without(songEv, "z"))).toBeNull();
+  });
+});
+
+describe("what a D-list event is, wherever the UI shows it", () => {
+  // The team (2026-09-24): associate the musician/songs D-list event ids with the music icon in the UI.
+  const header = { id: "eadfab91".padEnd(64, "0"), pubkey: AUTHOR, kind: 39998, created_at: 1773688562, content: "", tags: [["d", "b504f5a8-949f-4d31-ad14-8afcebde2b34"], ["name", "V4V Songs"], ["description", "Value-for-value enabled music tracks from Podcast Index"]] };
+
+  it("a list header is its list — name, category, icon; an item is its list too, through its z tag; anything else is nothing", () => {
+    expect(dlistOfEvent(header)).toEqual({ coordinate: SONGS, name: "V4V Songs", category: "music", shape: "song", icon: Music });
+    expect(dlistOfEvent(songEv)?.name).toBe("V4V Songs");
+    expect(dlistOfEvent(musicianEv)?.name).toBe("V4V Musicians");
+    expect(dlistOfEvent({ ...header, pubkey: "a".repeat(64) })).toBeNull();
+    expect(dlistOfEvent({ ...songEv, kind: 1 })).toBeNull();
   });
 });
 
