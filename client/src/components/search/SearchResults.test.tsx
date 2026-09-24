@@ -1361,6 +1361,30 @@ describe("SearchResults", () => {
     setTechnicalView(false);
   });
 
+  // The technical view shows the query as it went to the relay — kinds,
+  // tags, whose perspective, how long — so the syntax teaches itself and an
+  // agent's author can see what the box does. Off, nothing.
+  it("with the technical view on, the query as sent reads under the tab strip", async () => {
+    setTechnicalView(true);
+    setUrlTab("nips");
+    render(<SearchResults query="kind:5905" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 412 });
+    const line = await screen.findByTestId("query-as-sent");
+    expect(line).toHaveTextContent("kinds 30817");
+    expect(line).toHaveTextContent("#k 5905");
+    expect(line).toHaveTextContent("observer house");
+    expect(line).toHaveTextContent("412 ms");
+    setTechnicalView(false);
+  });
+
+  it("off, the query as sent is not shown", async () => {
+    setUrlTab("nips");
+    render(<SearchResults query="kind:5905" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 412 });
+    await screen.findByText(/Nothing found|No specs|nothing/i).catch(() => undefined);
+    expect(screen.queryByTestId("query-as-sent")).toBeNull();
+  });
+
   it("renders a git repo with name and description", async () => {
     setUrlTab("code");
     render(<SearchResults query="relay" pov="nosfabrica" />);
