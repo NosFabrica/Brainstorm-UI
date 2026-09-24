@@ -108,10 +108,13 @@ export function parseDListSong(ev: EventLike): PodcastSong | null {
   };
 }
 
+/** A feed named by its owner's email address is not a musician's name. */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function parseDListMusician(ev: EventLike): PodcastMusician | null {
   if (ev.kind !== DLIST_ITEM_KIND) return null;
   const name = tagOf(ev, "name");
-  if (!name) return null;
+  if (!name || EMAIL.test(name)) return null;
   const feedId = tagOf(ev, "feedId");
   return {
     id: `podcastindex:${ev.id}`,

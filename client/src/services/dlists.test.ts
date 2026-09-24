@@ -66,4 +66,16 @@ describe("fetchPodcastIndexMusic", () => {
     expect(a).toBe(b);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("a musician with several feeds is one face; an email address is not a musician's name", async () => {
+    // Live (2026-09-24): Robert Willey and Christian Leuenberg appear once per album feed, and one feed is named info@100percentretro.com.
+    fetchMock.mockResolvedValue([
+      { ...musician("m1", "Robert Willey", 10), tags: musician("m1", "Robert Willey", 10).tags.map((t) => (t[0] === "feedGuid" ? ["feedGuid", "feed-a"] : t)) },
+      { ...musician("m2", "Robert Willey", 20), tags: musician("m2", "Robert Willey", 20).tags.map((t) => (t[0] === "feedGuid" ? ["feedGuid", "feed-b"] : t)) },
+      musician("m3", "info@100percentretro.com", 30),
+    ]);
+    const r = await fetchPodcastIndexMusic();
+    expect(r.musicians.map((m) => m.name)).toEqual(["Robert Willey"]);
+    expect(r.musicians[0].feedGuid).toBe("feed-b");
+  });
 });

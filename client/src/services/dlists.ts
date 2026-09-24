@@ -3,7 +3,8 @@
  * musicians (lib/dlists). One query for both lists — their coordinates in
  * a single `#z` filter, the pattern services/tags uses — once per session:
  * the lists change rarely. A republished item (kind 9999 is a regular
- * kind, so a republish is a second event) counts once, newest winning. A
+ * kind, so a republish is a second event) counts once, newest winning; a
+ * musician with several feeds is one face. A
  * hub that fails or times out is two empty lists, silently, and is asked
  * again on the next visit — the Music tab then looks as it did before.
  */
@@ -52,7 +53,10 @@ async function lookup(): Promise<PodcastIndexMusic> {
       if (musician) musicians.push({ item: musician, key: musician.feedGuid ?? musician.name.toLowerCase(), at: ev.created_at });
     }
   }
-  return { songs: newestBy(songs), musicians: newestBy(musicians) };
+  // A republished feed counts once (by guid); then one face per musician,
+  // however many album feeds they publish (live: four Robert Willeys).
+  const byFeed = newestBy(musicians).map((item) => ({ item, key: item.name.trim().toLowerCase(), at: musicians.find((m) => m.item === item)!.at }));
+  return { songs: newestBy(songs), musicians: newestBy(byFeed) };
 }
 
 let cached: Promise<PodcastIndexMusic> | null = null;

@@ -77,6 +77,18 @@ describe("MusicResults — the V4V lists while browsing", () => {
     expect(playerSnapshot().currentId).toBe(a.id);
   });
 
+  it("browsing shows a shelf of songs, says how many there are, and Show more brings the rest", () => {
+    // Live (2026-09-24): the list holds 436 songs — a shelf, not a wall.
+    const songs = Array.from({ length: 30 }, (_, i) => song(i + 1, `Song ${i + 1}`));
+    open({ podcastIndex: { songs, musicians: [], loading: false } });
+    const section = screen.getByTestId("music-podcastindex-songs");
+    expect(section.querySelectorAll('[data-testid^="podcastindex-song-"]')).toHaveLength(12);
+    expect(section).toHaveTextContent("30");
+    fireEvent.click(within(section).getByTestId("music-podcastindex-more"));
+    expect(section.querySelectorAll('[data-testid^="podcastindex-song-"]')).toHaveLength(30);
+    expect(within(section).queryByTestId("music-podcastindex-more")).toBeNull();
+  });
+
   it("nothing from the lists is nothing on the page", () => {
     open();
     expect(screen.queryByTestId("music-podcastindex-songs")).toBeNull();

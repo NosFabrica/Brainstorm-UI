@@ -40,6 +40,8 @@ import audioDefault from "@/assets/audio-default.webp";
 type NativeTrack = { hit: SearchHit; track: Track };
 
 const normalise = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+/** How many V4V songs the browsing shelf shows before "Show more". */
+const PI_SHELF = 12;
 const GENRE_LABEL: Record<string, string> = { "hip-hop": "Hip-hop" };
 const genreLabel = (g: string) => GENRE_LABEL[g] ?? g.charAt(0).toUpperCase() + g.slice(1);
 /** Every genre a track claims — `t` and `genre` tags, lower-cased, `#` dropped. */
@@ -71,6 +73,11 @@ export function MusicResults({
   // One genre at a time; the words change, the choice resets.
   const [genre, setGenre] = useState<string | null>(null);
   useEffect(() => setGenre(null), [query]);
+  // The V4V Songs shelf while browsing: a dozen, then the rest on request —
+  // the list holds hundreds (436 on 2026-09-24), a shelf and not a wall.
+  const [allPiSongs, setAllPiSongs] = useState(false);
+  useEffect(() => setAllPiSongs(false), [query]);
+  const piShelf = browsing && !allPiSongs ? podcastIndex.songs.slice(0, PI_SHELF) : podcastIndex.songs;
   const trending = useWavlakeTrending(genre, browsing);
 
   // With words, the chips are the results' own genres — only ones two or more
@@ -180,12 +187,22 @@ export function MusicResults({
             </MusicSection>
           )}
           {podcastIndex.songs.length > 0 && (
-            <MusicSection title="V4V Songs" hint="Podcast Index" icon={CATEGORY_ICON.music} testId="music-podcastindex-songs" action={<PlayAll onClick={() => playFrom(podcastIndex.songs[0].id)} />}>
+            <MusicSection title="V4V Songs" count={podcastIndex.songs.length} hint="Podcast Index" icon={CATEGORY_ICON.music} testId="music-podcastindex-songs" action={<PlayAll onClick={() => playFrom(podcastIndex.songs[0].id)} />}>
               <Rows>
-                {podcastIndex.songs.map((song) => (
+                {piShelf.map((song) => (
                   <PodcastIndexSongCard key={song.id} song={song} flat />
                 ))}
               </Rows>
+              {piShelf.length < podcastIndex.songs.length && (
+                <button
+                  type="button"
+                  onClick={() => setAllPiSongs(true)}
+                  className="mt-2 text-sm font-medium text-brand-link hover:underline"
+                  data-testid="music-podcastindex-more"
+                >
+                  Show all {podcastIndex.songs.length}
+                </button>
+              )}
             </MusicSection>
           )}
           {podcastIndex.musicians.length > 0 && (
