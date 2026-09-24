@@ -1,8 +1,8 @@
 /**
- * A Primal pretty URL to the Nostr entity it names. The grammar is
- * lib/clientLinks; this is the lookup: the NIP-05 name to a pubkey (one
- * cross-origin JSON read — primal.net allows it), then the article by
- * coordinate from the relays, with its author — or the person.
+ * A client's pretty URL to the Nostr entity it names. The grammar is
+ * lib/clientLinks; this is the lookup: the NIP-05 handle to a pubkey (one
+ * cross-origin JSON read at that domain), then the article by coordinate
+ * from the relays, with its author — or the person.
  *
  * Cached for the session by the canonical ref, failures included (as link
  * previews and Fountain items are): the inline slot and the card gate that
@@ -25,7 +25,7 @@ const pending = new Map<string, Promise<ClientLinkEntity | null>>();
 const settled = new Map<string, ClientLinkEntity | null>();
 
 async function lookup(ref: ClientRef): Promise<ClientLinkEntity | null> {
-  const pubkey = await resolveNip05(`${ref.name}@primal.net`);
+  const pubkey = await resolveNip05(ref.nip05);
   if (!pubkey) return null;
   if (ref.kind === "profile") {
     const profile = (await fetchProfileMap([pubkey]).catch(() => new Map())).get(pubkey) as ProfileLite | undefined;

@@ -16,7 +16,7 @@ import { FountainCard } from "@/components/share/FountainCard";
 import { fountainRef } from "@/lib/fountain";
 import { ClientLink } from "@/components/share/ClientLink";
 import { ProfileMention } from "@/components/share/ProfileMention";
-import { primalRef } from "@/lib/clientLinks";
+import { clientRef } from "@/lib/clientLinks";
 import { useClientLink } from "@/hooks/useClientLink";
 import { useLightbox } from "@/components/share/Lightbox";
 
@@ -116,7 +116,7 @@ export function NoteContent({
   const primaryUrl = primaryLink(tokens);
   // A Primal link names a Nostr entity; the card below is for links that
   // name nothing here. Asked unconditionally — the hook count must not move.
-  const primaryRef = primaryUrl ? primalRef(primaryUrl) : null;
+  const primaryRef = primaryUrl ? clientRef(primaryUrl) : null;
   const primaryEntity = useClientLink(primaryRef);
   const primaryIsPlainLink = !primaryRef || (primaryEntity.status === "done" && primaryEntity.entity === null);
   // All image URLs in this note — the set the lightbox carousels through.
@@ -129,7 +129,7 @@ export function NoteContent({
             if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
             if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
             if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
-            if (primalRef(token.value)) return <ClientLink key={i} url={token.value} />;
+            if (clientRef(token.value)) return <ClientLink key={i} url={token.value} />;
             return reading ? <ReadingLink key={i} url={token.value} /> : <LinkChip key={i} url={token.value} />;
           case "audio":
             return (
