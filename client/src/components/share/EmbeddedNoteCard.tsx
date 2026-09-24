@@ -11,8 +11,13 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useLinkedArticles } from "@/hooks/useLinkedArticles";
+import { useQuotedNotes } from "@/hooks/useQuotedNotes";
+import { nip19 } from "nostr-tools";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
+
+/** What a nested card asks the relays about: nothing. */
+const EMPTY_NOTE: MinimalEvent = { id: "", kind: 1, pubkey: "", created_at: 0, content: "", tags: [] };
 
 function ago(ts?: number): string {
   if (!ts) return "";
@@ -36,6 +41,7 @@ export function EmbeddedNoteCard({
   href,
   trustScore01,
   showReplyContext = false,
+  nested = false,
 }: {
   event: MinimalEvent;
   author?: ProfileLite;
@@ -48,6 +54,8 @@ export function EmbeddedNoteCard({
    *  "More from" strip, where a bare reply reads as a cryptic standalone post).
    *  Off by default so quoted-note embeds stay uncluttered. */
   showReplyContext?: boolean;
+  /** A card shown inside another card: its own quotes and articles stay links — one level, never a stack. */
+  nested?: boolean;
 }) {
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
@@ -62,7 +70,9 @@ export function EmbeddedNoteCard({
   const nip05Verified = useNip05(author?.nip05, event.pubkey) === "verified";
   // An article the note links is shown as its own card — the note's full
   // page does the same — and not as a bare "📄 article" link.
-  const linked = useLinkedArticles(event);
+  const linked = useLinkedArticles(nested ? EMPTY_NOTE : event);
+  // Likewise a note it quotes: the quoted note, with its author, one level deep.
+  const quoted = useQuotedNotes(nested ? [] : analyzeNote(event).quoteIds);
   let npub = "";
   try { npub = npubFromPubkey(event.pubkey); } catch { /* ignore */ }
 
@@ -115,8 +125,13 @@ export function EmbeddedNoteCard({
         </p>
       )}
       <div className="line-clamp-5 text-[14px]">
-        <NoteContent content={event.content} compact profiles={profiles} imageOpensThread={!!href} tags={event.tags} authorName={author?.display_name || author?.name} embeddedCoords={linked.coords} />
+        <NoteContent content={event.content} compact profiles={profiles} imageOpensThread={!!href} tags={event.tags} authorName={author?.display_name || author?.name} embeddedCoords={linked.coords} embeddedIds={quoted.ids} />
       </div>
+      {quoted.notes.map((q) => (
+        <div key={q.event.id} data-testid="embedded-quote">
+          <EmbeddedNoteCard event={q.event} author={q.author} profiles={profiles} href={`/e/${nip19.neventEncode({ id: q.event.id, author: q.event.pubkey })}`} nested />
+        </div>
+      ))}
       {linked.articles.map((ae) => (
         <EmbeddedArticleCard key={ae.id} event={ae} author={profiles?.get(ae.pubkey) ?? (ae.pubkey === event.pubkey ? author : undefined)} />
       ))}

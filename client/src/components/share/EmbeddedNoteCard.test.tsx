@@ -18,15 +18,28 @@ const ARTICLE = {
   tags: [["d", "back-to-school-2026"], ["title", "Back to School 2026 — Mission Accomplished ❤️"], ["summary", "Through this update, we are happy to share the results"], ["image", "https://img/cover.jpg"]],
 };
 const addressable = vi.fn(async () => new Map([[`30023:${AUTHOR}:back-to-school-2026`, ARTICLE]]));
+const QUOTED_AUTHOR = "7".repeat(64);
+const QUOTED = { id: "d".repeat(64), kind: 1, pubkey: QUOTED_AUTHOR, created_at: 1_779_000_000, sig: "", content: "Some days posting here feels like nobody's listening.", tags: [] };
+const byIds = vi.fn(async (ids: string[]) => (ids.includes(QUOTED.id) ? [QUOTED] : []));
 
-vi.mock("@/services/nostr", () => ({ fetchAddressableEvents: (c: unknown) => addressable(c), fetchProfileMap: async () => new Map() }));
+vi.mock("@/services/nostr", () => ({
+  fetchAddressableEvents: (c: unknown) => addressable(c),
+  fetchEventsByIds: (ids: string[]) => byIds(ids),
+  fetchProfileMap: async (pks: string[]) => new Map(pks.filter((pk) => pk === QUOTED_AUTHOR).map((pk) => [pk, { name: "Derek Ross" }])),
+}));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
 vi.mock("@/hooks/useNip05", () => ({ useNip05: () => "none" }));
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: async () => null }));
 
 import { EmbeddedNoteCard } from "./EmbeddedNoteCard";
+import { __resetLinkedArticles } from "@/hooks/useLinkedArticles";
+import { __resetQuotedNotes } from "@/hooks/useQuotedNotes";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  __resetLinkedArticles();
+  __resetQuotedNotes();
+});
 
 describe("EmbeddedNoteCard", () => {
   it("a note that links an article shows the article's card, not a bare '📄 article' link", async () => {
@@ -45,5 +58,27 @@ describe("EmbeddedNoteCard", () => {
     renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
     expect(screen.getByTestId("embedded-note")).toHaveTextContent("Just words.");
     expect(addressable).not.toHaveBeenCalled();
+  });
+
+  it("a note that quotes another shows the quoted note itself — its author and words — not a '↳ quoted note' link", async () => {
+    const nevent = nip19.neventEncode({ id: QUOTED.id });
+    const note = { id: "e".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_780_000_200, content: `This. nostr:${nevent}`, tags: [["q", QUOTED.id]] };
+    renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
+    const quoted = await screen.findByTestId("embedded-quote");
+    expect(quoted).toHaveTextContent("Derek Ross");
+    expect(quoted).toHaveTextContent("Some days posting here feels like nobody's listening.");
+    await waitFor(() => expect(screen.queryByText("↳ quoted note")).toBeNull());
+  });
+
+  it("a quoted note's own quotes stay links — one level deep, never a card inside a card inside a card", async () => {
+    const inner = nip19.neventEncode({ id: "f".repeat(64) });
+    const quotedWithQuote = { ...QUOTED, id: "d".repeat(64), content: `Look: nostr:${inner}`, tags: [["q", "f".repeat(64)]] };
+    byIds.mockResolvedValueOnce([quotedWithQuote]);
+    const nevent = nip19.neventEncode({ id: QUOTED.id });
+    const note = { id: "e".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_780_000_200, content: `nostr:${nevent}`, tags: [["q", QUOTED.id]] };
+    renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
+    const quoted = await screen.findByTestId("embedded-quote");
+    expect(quoted).toHaveTextContent("↳ quoted note");
+    expect(byIds).toHaveBeenCalledTimes(1);
   });
 });
