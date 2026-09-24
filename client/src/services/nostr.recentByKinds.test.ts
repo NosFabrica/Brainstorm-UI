@@ -67,6 +67,24 @@ describe("fetchRecentByKinds", () => {
     expect(out.map((e) => e.id[0])).toEqual(["b", "c", "a"]);
   });
 
+  // Zap Cooking's overwritten recipes (2026-09-24): content "", a tombstone
+  // tag, a "[Deleted]" title — from the search relay and the content relays
+  // alike. The profile's blocks never see them.
+  it("drops a husk deleted by overwriting, whichever relay it came from", async () => {
+    const husk = (id: string, created_at: number): NostrEvent =>
+      ({ id, kind: 30023, pubkey: PK, tags: [["d", id], ["deleted", "true"], ["title", "[Deleted]"]], content: "", created_at, sig: "s" }) as NostrEvent;
+    const article = (id: string, created_at: number): NostrEvent =>
+      ({ id, kind: 30023, pubkey: PK, tags: [["d", id], ["title", "Cheese foam tea"]], content: "# Cheese foam tea", created_at, sig: "s" }) as NostrEvent;
+    requestAllMock.mockResolvedValue([husk("a".repeat(64), 400), article("b".repeat(64), 300)]);
+    const p = fetchRecentByKinds(PK, [30023], 5);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(1));
+    searchSubject!.next({ type: "EVENT", event: husk("c".repeat(64), 500) });
+    searchSubject!.next({ type: "EVENT", event: article("d".repeat(64), 200) });
+    searchSubject!.next({ type: "EOSE" });
+    const out = await p;
+    expect(out.map((e) => e.id[0])).toEqual(["b", "d"]);
+  });
+
   // The knowledge panel asks the same person four separate questions the moment
   // it settles on them — listings, media, streams, tracks — and the results page
   // asks a fifth. The relay works a socket's REQs as a queue, so they go as one.
@@ -84,7 +102,7 @@ describe("fetchRecentByKinds", () => {
     // The content relays are asked once too, with the same pair.
     expect(requestAllMock).toHaveBeenCalledTimes(1);
 
-    const listing = { id: "l1", kind: 30402, pubkey: PK, tags: [], content: "", created_at: 500, sig: "s" } as NostrEvent;
+    const listing = { id: "l1", kind: 30402, pubkey: PK, tags: [["d", "l1"], ["title", "Mug"], ["price", "12", "USD"]], content: "", created_at: 500, sig: "s" } as NostrEvent;
     searchSubject!.next({ type: "EVENT", event: listing });
     searchSubject!.next({ type: "EVENT", event: video("v1".padEnd(64, "0"), 400) });
     searchSubject!.next({ type: "EOSE" });
