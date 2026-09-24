@@ -6,6 +6,7 @@
  * event page; a story's headline goes out to the article.
  */
 import { useEffect, useState } from "react";
+import { KindPill } from "@/components/ui/kind-pill";
 import { noteTitle } from "@/lib/noteTitle";
 import { fetchUnfurl } from "@/services/unfurl";
 import { isVideoFileUrl, youtubeThumbnail } from "@/lib/linkThumb";
@@ -294,8 +295,9 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
         data-testid="media-tile-caption"
       >
         {caption && <p className="line-clamp-2 text-[12px] leading-snug text-slate-700 dark:text-slate-200">{caption}</p>}
-        <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">
-          {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(e.created_at)}
+        <p className="mt-0.5 flex items-center gap-1.5 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+          <span className="min-w-0 truncate">{hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(e.created_at)}</span>
+          <KindPill event={e} />
         </p>
       </div>
     </div>
@@ -354,6 +356,7 @@ function ArticleAuthor({ hit, score, light = false }: { hit: SearchHit; score?: 
       </Avatar>
       <span className="truncate">{hit.author ? getDisplayLabel(hit.author) : "Unknown"}</span>
       <span className="shrink-0 opacity-80">· {ago(hit.event.created_at)}</span>
+      <KindPill event={hit.event} />
     </span>
   );
 }

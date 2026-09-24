@@ -518,6 +518,8 @@ describe("ComposedResults — media-rich sections", () => {
     });
     const section = await screen.findByTestId("serp-section-articles");
     const lead = within(section).getByTestId("article-lead-a1");
+    // A covered piece says what it is too — a spec with a cover lost its label here.
+    expect(within(lead).getByTestId("kind-pill")).toHaveTextContent(/^Article$/);
     expect(lead).toHaveTextContent("Anfield through the ages");
     expect(lead).toHaveTextContent("Summary of Anfield through the ages");
     expect(lead).toHaveTextContent("author-a1");
@@ -525,6 +527,7 @@ describe("ComposedResults — media-rich sections", () => {
     // Covered articles fill the grid; the one without a cover is not an empty
     // tile but a text row beneath — nothing dropped, no tile left blank.
     const tiles = [...section.querySelectorAll('[data-testid^="article-tile-"]')].map((t) => t.getAttribute("data-testid"));
+    for (const tile of section.querySelectorAll('[data-testid^="article-tile-"]')) expect(within(tile as HTMLElement).getByTestId("kind-pill")).toHaveTextContent(/^Article$/);
     expect(tiles).toEqual(["article-tile-a2", "article-tile-a4", "article-tile-a5"]);
     expect(within(section).queryByTestId("article-placeholder")).toBeNull();
     expect(within(section).getByTestId("serp-row-a3")).toBeInTheDocument();
@@ -575,10 +578,12 @@ describe("ComposedResults — media-rich sections", () => {
     const grid = await screen.findByTestId("serp-media-grid");
     expect(grid.className).toMatch(/grid/);
     const photo = screen.getByTestId(`media-tile-${"1".repeat(64)}`);
+    expect(within(photo).getByTestId("kind-pill")).toHaveTextContent(/^Photo$/);
     expect(photo.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/anfield.jpg");
     expect(photo).toHaveTextContent("Sports Central");
     expect(photo.querySelector('[data-testid="media-tile-play"]')).toBeNull();
     const video = screen.getByTestId(`media-tile-${"2".repeat(64)}`);
+    expect(within(video).getByTestId("kind-pill")).toHaveTextContent(/^Video$/);
     expect(video.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/goal-poster.jpg");
     expect(video.querySelector('[data-testid="media-tile-play"]')).not.toBeNull();
     // Benjamin: a tap on the picture or the play badge opens THE MEDIA, full
