@@ -194,7 +194,8 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
     // A GFM table: a row of cells, then its separator row.
     if (i + 1 < lines.length && raw(i).includes("|") && TABLE_SEP.test(raw(i + 1)) && raw(i + 1).includes("|")) {
       const head = tableCells(line);
-      if (head.length >= 2) {
+      // One column counts when the row is written as one (| a |).
+      if (head.length >= 2 || (head.length === 1 && raw(i).trimStart().startsWith("|"))) {
         flush();
         const align = raw(i + 1).trim().replace(/^\||\|$/g, "").split("|").map((c): TableAlign => {
           const t = c.trim();
@@ -210,7 +211,10 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
     }
 
     // "Title" over "=====": a heading, as markdown writes one without a #.
-    if (text !== null && i + 1 < lines.length && SETEXT.test(raw(i + 1)) && text.trim() && !para.length) {
+    if (
+      text !== null && i + 1 < lines.length && SETEXT.test(raw(i + 1)) && text.trim() &&
+      !para.length && !list && !quote.length && !HEADING.test(text) && !BULLET.test(text) && !ORDERED.test(text) && !QUOTE.test(text)
+    ) {
       flush();
       blocks.push({ type: "h", level: 1, tokens: tidy(line) });
       i++;

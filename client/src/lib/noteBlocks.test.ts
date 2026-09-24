@@ -261,6 +261,19 @@ describe("refactor review regressions", () => {
   });
 });
 
+describe("audit of #97 (blocks)", () => {
+  it("a one-column table is a table", () => {
+    expect(blocks("| Only |\n| --- |\n| Row |")[0]).toMatchObject({ type: "table" });
+  });
+
+  it("=== under a list item, a quote or a # heading doesn't make a heading of the marker", () => {
+    for (const t of ["- item\n=====", "> quoted\n=====", "# Title\n====="]) {
+      const b = blocks(t);
+      expect(b.some((x) => x.type === "h" && texts((x as { tokens: never[] }).tokens).match(/^[-#>]/)), t).toBe(false);
+    }
+  });
+});
+
 describe("parseInlineMarkdown", () => {
   it("parses strong, em and code", () => {
     expect(parseInlineMarkdown("a **b** *c* `d`")).toEqual([

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useRoute, Link, useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -7,28 +7,25 @@ import rehypeSanitize from "rehype-sanitize";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
-import { ArrowRight, ExternalLink, Loader2, FileText } from "lucide-react";
+import { ArrowRight, ExternalLink } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
+import { VerificationCoin, useTierRing, TierWordChip, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import { fetchProfile } from "@/services/nostr";
 import { apiClient } from "@/services/api";
-import { npubFromPubkey, READER_KINDS } from "@/lib/shareId";
-import type { MinimalEvent } from "@/lib/noteRefs";
+import { npubFromPubkey } from "@/lib/shareId";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { wikiToMarkdown } from "@/lib/wiki";
 import { prepareArticleBody } from "@/lib/articleBody";
-import { normalizeMarkup } from "@/lib/htmlText";
+import { normalizeMarkup, looksLikeHtml } from "@/lib/htmlText";
 import { ReadingText } from "@/components/share/ReadingText";
 import { Chip } from "@/components/ui/chip";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
 import { EntityMenu } from "@/components/share/EntityMenu";
-import { OpenElsewhere } from "@/components/share/OpenElsewhere";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
-import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
@@ -180,9 +177,13 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   // `draft` `optional` status line leave the body and read as themselves.
   // Whatever the text came in: AsciiDoc (wiki) as markdown, HTML converted,
   // stray HTML in markdown cleaned.
+  const source = useMemo(() => (ev ? (ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || "") : ""), [ev]);
+  // HTML converted to text is text: its decoded "<div>" and "2*3*4" must
+  // not be read again as markdown, so it goes to the reading renderer.
+  const fromHtml = useMemo(() => looksLikeHtml(source), [source]);
   const prepared = useMemo(
-    () => prepareArticleBody(ev ? normalizeMarkup(ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || "") : "", title, { identifier: tag("d") }),
-    [ev, title], // eslint-disable-line react-hooks/exhaustive-deps
+    () => prepareArticleBody(normalizeMarkup(source), title, { identifier: tag("d") }),
+    [source, title], // eslint-disable-line react-hooks/exhaustive-deps
   );
   // The kinds a spec covers: the `k` tags and the front matter, one list, each
   // wearing the name its author gave it — a number alone tells a reader nothing.
@@ -341,7 +342,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             {/* Inline code wears no decorative backticks (the typography plugin's
                 default) and wraps — a spec's example URIs used to push the page sideways. */}
             <div className="article-prose mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto" data-testid="article-body">
-              {isMarkdown(prepared.body) ? (
+              {!fromHtml && isMarkdown(prepared.body) ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
                   {prepared.body}
                 </ReactMarkdown>

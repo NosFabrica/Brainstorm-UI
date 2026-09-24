@@ -209,3 +209,12 @@ describe("the kind and the content decide, not the route", () => {
     expect(screen.queryByTestId("article-body")).toBeNull();
   });
 });
+
+describe("audit of #97 (articles)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("an HTML article's decoded <div> and 2*3*4 stay as written", async () => {
+    await open(event(30023, "html2", "HTML", [], "<h2>Intro</h2><h2>Usage</h2><p>Wrap it in &lt;div&gt; tags, 2*3*4.</p>"));
+    expect(screen.getByTestId("article-body")).toHaveTextContent("Wrap it in <div> tags, 2*3*4.");
+  });
+});

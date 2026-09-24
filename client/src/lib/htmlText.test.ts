@@ -85,3 +85,67 @@ describe("markdown with stray HTML (a bridged GitHub comment)", () => {
     expect(normalizeMarkup(t)).toBe(t);
   });
 });
+
+describe("audit of #97 (stray HTML)", () => {
+  it("a <br> or picture in a markdown table row stays in its cell", () => {
+    expect(normalizeMarkup("| a | line1<br>line2 |\n|---|---|\n| b | <img src=\"https://i.x/a.png\"> |")).toBe(
+      "| a | line1 line2 |\n|---|---|\n| b |  https://i.x/a.png  |",
+    );
+  });
+
+  it("HTML with markdown-looking lines inside <pre>, or starting with text, is still HTML", () => {
+    expect(looksLikeHtml("<p>Setup:</p>\n<pre><code># install\nx\n# configure\ny\n# run</code></pre><ul><li>one</li><li>two</li></ul>")).toBe(true);
+    expect(looksLikeHtml("Brand new!<br>\nShips worldwide.<br>\n<ul>\n<li>Fast</li>\n<li>Cheap</li>\n</ul>")).toBe(true);
+  });
+
+  it("lists, code, quotes and rules in markdown become markdown, not tags", () => {
+    const out = normalizeMarkup("## Notes\n\n- a\n- b\n\n<ul>\n<li>Fast</li>\n<li>Cheap</li>\n</ul>\n\nDone <code>x</code>.<hr><blockquote>quoted</blockquote>");
+    expect(out.replace(/`[^`]*`/g, "")).not.toMatch(/<\/?[a-z]/i);
+    expect(out).toContain("- Fast\n- Cheap");
+    expect(out).toContain("Done `x`.");
+    expect(out).toContain("> quoted");
+  });
+
+  it("a backtick inside a comment or a table doesn't break them", () => {
+    expect(stripStrayHtml("a <!-- run `npm test` before merging --> b")).toBe("a  b");
+    expect(stripStrayHtml("x\n\n<table><tr><th>A</th><th>B</th></tr><tr><td>`x`</td><td>y</td></tr></table>")).toContain("| A | B |\n| --- | --- |\n| `x` | y |");
+  });
+
+  it("indented and ~~~ code blocks are left exactly as written", () => {
+    const t = "Example:\n\n    <p>hello</p>\n    <br>\n\n~~~html\n<p>hi</p>\n~~~\n\nand <b>bold</b>.";
+    const out = stripStrayHtml(t);
+    expect(out).toContain("    <p>hello</p>\n    <br>");
+    expect(out).toContain("~~~html\n<p>hi</p>\n~~~");
+    expect(out).toContain("and **bold**.");
+  });
+
+  it("prose that names a tag is left alone", () => {
+    for (const t of ["Use the <br> tag and <p> tag.", "the <b> element", "the <details> element"]) expect(normalizeMarkup(t)).toBe(t);
+  });
+
+  it("nested tables: the outer table's rows, inner table as its cell's text", () => {
+    const out = normalizeMarkup("<table><tr><td><table><tr><td>in</td></tr></table></td><td>out</td></tr></table>");
+    expect(out).toContain("| in | out |");
+  });
+});
+
+describe("audit of #97 (linear on hostile input)", () => {
+  it.each([
+    ["unclosed links", '<a href="https://x.y">'.repeat(10000) + "</b>"],
+    ["unclosed comments", "<!--".repeat(10000) + "</b>"],
+    ["unclosed headings", "<h2>".repeat(10000) + "</b>"],
+    ["unclosed lists", "<ul>".repeat(10000) + "</b>"],
+    ["unclosed pre", "<pre>".repeat(10000) + "</b>"],
+  ])("%s stay fast", (_, text) => {
+    const t = performance.now();
+    normalizeMarkup(text);
+    expect(performance.now() - t).toBeLessThan(500);
+  });
+
+  it("still pairs a heading, a link and a comment", () => {
+    const out = normalizeMarkup('Intro text\n\n<h2>Title</h2>\n\nSee <a href="https://x.y/z">the docs</a>.<!-- hidden -->\n\nMore text');
+    expect(out).toContain("## Title");
+    expect(out).toContain("[the docs](https://x.y/z)");
+    expect(out).not.toContain("hidden");
+  });
+});
