@@ -36,8 +36,12 @@ function ago(ts?: number): string {
 /**
  * A long-form article (NIP-23 kind-30023) teaser: cover image, title, a short
  * brief, and the author — with a "Read article" web-reader link and an
- * "Open in app" handoff. Responsive: image stacks on top on mobile, sits to the
- * left on desktop. Replaces an ugly raw `naddr`/article URL.
+ * "Open in app" handoff. Responsive to its OWN width, not the viewport's: the
+ * cover stacks on top when the card is narrow and sits to the left when it
+ * has room. A viewport breakpoint put a card inside a two-column grid on a
+ * desktop side by side at 280px — the title in a 90px column and the
+ * button wrapping (Benjamin, 2026-09-24: "this looks bad"). Replaces an
+ * ugly raw `naddr`/article URL.
  */
 /** How many of a spec's kinds a card shows; the spec page has them all. */
 const KIND_CHIPS_SHOWN = 6;
@@ -94,11 +98,14 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
 
   return (
     <div
-      className={`mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors" : ""}`}
+      className={`mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 @container ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors" : ""}`}
       data-testid="embedded-article"
       onClick={onCardClick}
     >
-      <div className="flex flex-col sm:flex-row">
+      {/* `@[26rem]`: the card's own width at which the cover moves beside the
+          text — the 11rem cover, its margins, and room for a title. Written
+          out in full: Tailwind only sees class names it can read whole. */}
+      <div className="flex flex-col @[26rem]:flex-row">
         {/* One shape for every card — 16:9, the shape covers are — so the
             same cover never crops differently from card to card, and a
             banner shows edge to edge. Dimensions declared: no jump on load. */}
@@ -110,7 +117,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
           loading="lazy"
           decoding="async"
           onError={() => setImgBroken(true)}
-          className="aspect-video w-full object-cover shrink-0 bg-slate-100 dark:bg-slate-800 sm:m-3 sm:w-44 sm:self-start sm:rounded-lg"
+          className="aspect-video w-full object-cover shrink-0 bg-slate-100 dark:bg-slate-800 @[26rem]:m-3 @[26rem]:w-44 @[26rem]:self-start @[26rem]:rounded-lg"
         />
 
         <div className="min-w-0 flex-1 p-3">
