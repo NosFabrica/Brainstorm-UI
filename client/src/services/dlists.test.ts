@@ -31,9 +31,10 @@ beforeEach(() => {
 });
 
 describe("fetchPodcastIndexMusic", () => {
-  it("asks the tag hub for both lists' items in one query", async () => {
+  it("asks the tag hub for the curators' headers, then for every list's items in one query", async () => {
     await fetchPodcastIndexMusic();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledWith(expect.objectContaining({ kinds: [39998], authors: [AUTHOR] }), ["wss://hub.example"]);
     expect(fetchMock).toHaveBeenCalledWith(expect.objectContaining({ kinds: [9999], "#z": [SONGS, MUSICIANS] }), ["wss://hub.example"]);
   });
 
@@ -52,11 +53,11 @@ describe("fetchPodcastIndexMusic", () => {
   });
 
   it("a hub that fails is two empty lists, not an error — and the next visit asks again", async () => {
-    fetchMock.mockRejectedValueOnce(new Error("boom"));
+    fetchMock.mockRejectedValue(new Error("boom"));
     expect(await fetchPodcastIndexMusic()).toEqual({ songs: [], musicians: [] });
     fetchMock.mockResolvedValue([musician("m1", "Torcon 7", 10)]);
     expect((await fetchPodcastIndexMusic()).musicians).toHaveLength(1);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(4); // headers and items, twice
   });
 
   it("asks the hub once for the whole session", async () => {
@@ -64,7 +65,7 @@ describe("fetchPodcastIndexMusic", () => {
     const [a, b] = await Promise.all([fetchPodcastIndexMusic(), fetchPodcastIndexMusic()]);
     await fetchPodcastIndexMusic();
     expect(a).toBe(b);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("a musician with several feeds is one face; an email address is not a musician's name", async () => {
@@ -77,5 +78,50 @@ describe("fetchPodcastIndexMusic", () => {
     const r = await fetchPodcastIndexMusic();
     expect(r.musicians.map((m) => m.name)).toEqual(["Robert Willey"]);
     expect(r.musicians[0].feedGuid).toBe("feed-b");
+  });
+
+  it("asks the hub again after ten minutes — a tab open all day still catches a new album", async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockResolvedValue([musician("m1", "Torcon 7", 10)]);
+      await fetchPodcastIndexMusic();
+      vi.advanceTimersByTime(9 * 60_000);
+      await fetchPodcastIndexMusic();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      vi.advanceTimersByTime(2 * 60_000);
+      await fetchPodcastIndexMusic();
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a list the curators tag with a category joins without a deploy; a stranger's list does not", async () => {
+    // The team's convention to come: a `category` tag on the kind-39998 header. Items read by their fields — a song has a title and a url, a musician a name.
+    const OTHER = "c".repeat(64);
+    const NEW = `39998:${AUTHOR}:new-list`;
+    const STRANGER = `39998:${OTHER}:their-list`;
+    fetchMock.mockImplementation(async (filter: unknown) => {
+      const f = filter as { kinds: number[]; "#z"?: string[] };
+      if (f.kinds.includes(39998)) {
+        return [
+          { id: "h1".padEnd(64, "0"), pubkey: AUTHOR, kind: 39998, created_at: 5, content: "", tags: [["d", "new-list"], ["name", "V4V Live Sets"], ["category", "music"]] },
+          { id: "h2".padEnd(64, "0"), pubkey: OTHER, kind: 39998, created_at: 5, content: "", tags: [["d", "their-list"], ["name", "Spam Songs"], ["category", "music"]] },
+        ];
+      }
+      const z = f["#z"] ?? [];
+      const items = [];
+      const live = song("s9", "Live at Pahou", 30, "https://mp3s.podcastindex.org/live.mp3");
+      const coin = song("s8", "Buy My Coin", 30, "https://mp3s.podcastindex.org/coin.mp3");
+      if (z.includes(NEW)) items.push({ ...live, tags: live.tags.map((t) => (t[0] === "z" ? ["z", NEW] : t)) });
+      if (z.includes(STRANGER)) items.push({ ...coin, tags: coin.tags.map((t) => (t[0] === "z" ? ["z", STRANGER] : t)) });
+      if (z.includes(SONGS)) items.push(song("s1", "Step Into the Light", 10));
+      return items;
+    });
+    const r = await fetchPodcastIndexMusic();
+    expect(r.songs.map((s) => s.title)).toEqual(["Live at Pahou", "Step Into the Light"]);
+    const itemQuery = fetchMock.mock.calls.map((c) => c[0] as { kinds: number[]; "#z"?: string[] }).find((f) => f.kinds.includes(9999));
+    expect(itemQuery?.["#z"]).toEqual(expect.arrayContaining([SONGS, MUSICIANS, NEW]));
+    expect(itemQuery?.["#z"]).not.toContain(STRANGER);
   });
 });

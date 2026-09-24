@@ -1,8 +1,10 @@
 /**
  * The V4V music lists' items, asked of the tag hub and read as songs and
- * musicians (lib/dlists). One query for both lists — their coordinates in
- * a single `#z` filter, the pattern services/tags uses — once per session:
- * the lists change rarely. A republished item (kind 9999 is a regular
+ * musicians (lib/dlists). First the curators' headers, for any list they
+ * tagged with a category since the last deploy; then one query for every
+ * list's items — the coordinates in a single `#z` filter, the pattern
+ * services/tags uses. Once per ten minutes: the lists change rarely, and
+ * a tab open all day should still catch a new album. A republished item (kind 9999 is a regular
  * kind, so a republish is a second event) counts once, newest winning; a
  * musician with several feeds is one face. A
  * hub that fails or times out is two empty lists, silently, and is asked
@@ -11,12 +13,16 @@
 import { fetchEventsByFilter } from "@/services/nostr";
 import { tagRelays } from "@/config/tagging";
 import {
+  CURATOR_PUBKEYS,
+  DLIST_HEADER_KIND,
   DLIST_ITEM_KIND,
   DLIST_REGISTRY,
   dlistCoordinateOf,
   dlistFor,
+  dlistsFromHeaders,
   parseDListMusician,
   parseDListSong,
+  type DListEntry,
   type PodcastIndexMusic,
   type PodcastMusician,
   type PodcastSong,
@@ -25,7 +31,16 @@ import {
 export type { PodcastIndexMusic };
 
 const EMPTY: PodcastIndexMusic = { songs: [], musicians: [] };
-const MUSIC_COORDS = DLIST_REGISTRY.filter((e) => e.category === "music").map((e) => e.coordinate);
+/** How long an answer stands before the hub is asked again. */
+const TTL_MS = 10 * 60_000;
+
+/** The music lists: the shipped registry, plus any the curators tagged on the hub. */
+async function musicLists(relays: string[]): Promise<DListEntry[]> {
+  const headers = await fetchEventsByFilter({ kinds: [DLIST_HEADER_KIND], authors: CURATOR_PUBKEYS }, relays).catch(() => []);
+  const byCoord = new Map<string, DListEntry>();
+  for (const e of [...DLIST_REGISTRY, ...dlistsFromHeaders(headers)]) if (e.category === "music") byCoord.set(e.coordinate, e);
+  return [...byCoord.values()];
+}
 
 /** Newest of each key wins; the order is newest first. */
 function newestBy<T>(items: { item: T; key: string; at: number }[]): T[] {
@@ -38,20 +53,22 @@ function newestBy<T>(items: { item: T; key: string; at: number }[]): T[] {
 }
 
 async function lookup(): Promise<PodcastIndexMusic> {
-  const events = await fetchEventsByFilter({ kinds: [DLIST_ITEM_KIND], "#z": MUSIC_COORDS, limit: 500 }, tagRelays());
+  const relays = tagRelays();
+  const lists = await musicLists(relays);
+  const events = await fetchEventsByFilter({ kinds: [DLIST_ITEM_KIND], "#z": lists.map((l) => l.coordinate), limit: 500 }, relays);
   const songs: { item: PodcastSong; key: string; at: number }[] = [];
   const musicians: { item: PodcastMusician; key: string; at: number }[] = [];
   for (const ev of events) {
     const coordinate = dlistCoordinateOf(ev);
-    const list = coordinate ? dlistFor(coordinate) : null;
-    if (!list) continue;
-    if (list.shape === "song") {
-      const song = parseDListSong(ev);
-      if (song) songs.push({ item: song, key: song.audio, at: ev.created_at });
-    } else {
-      const musician = parseDListMusician(ev);
-      if (musician) musicians.push({ item: musician, key: musician.feedGuid ?? musician.name.toLowerCase(), at: ev.created_at });
+    if (!coordinate || !dlistFor(coordinate, lists)) continue;
+    // The item's fields say what it is: a song has a title and a url, a musician a name.
+    const song = parseDListSong(ev);
+    if (song) {
+      songs.push({ item: song, key: song.audio, at: ev.created_at });
+      continue;
     }
+    const musician = parseDListMusician(ev);
+    if (musician) musicians.push({ item: musician, key: musician.feedGuid ?? musician.name.toLowerCase(), at: ev.created_at });
   }
   // A republished feed counts once (by guid); then one face per musician,
   // however many album feeds they publish (live: four Robert Willeys).
@@ -59,16 +76,17 @@ async function lookup(): Promise<PodcastIndexMusic> {
   return { songs: newestBy(songs), musicians: newestBy(byFeed) };
 }
 
-let cached: Promise<PodcastIndexMusic> | null = null;
+let cached: { promise: Promise<PodcastIndexMusic>; at: number } | null = null;
 
 export function fetchPodcastIndexMusic(): Promise<PodcastIndexMusic> {
-  if (cached) return cached;
-  const p = lookup().catch(() => {
-    cached = null; // a failure is not remembered: the next visit asks again
+  if (cached && Date.now() - cached.at < TTL_MS) return cached.promise;
+  const entry = { at: Date.now(), promise: lookup() };
+  entry.promise = entry.promise.catch(() => {
+    if (cached === entry) cached = null; // a failure is not remembered: the next visit asks again
     return EMPTY;
   });
-  cached = p;
-  return p;
+  cached = entry;
+  return entry.promise;
 }
 
 /** Test seam. */

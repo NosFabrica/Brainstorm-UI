@@ -45,8 +45,30 @@ export const DLIST_REGISTRY: DListEntry[] = config.lists.map((l) => ({
 /** The icon a category wears, wherever it shows. */
 export const CATEGORY_ICON: Record<DListCategory, LucideIcon> = { music: Music };
 
-export function dlistFor(coordinate: string): (DListEntry & { icon: LucideIcon }) | null {
-  const entry = DLIST_REGISTRY.find((e) => e.coordinate === coordinate);
+/** The keys whose lists the app shows — the team's curators. A shelf is editorial space; anyone on the hub being able to add one is an invitation to spam. */
+export const CURATOR_PUBKEYS: string[] = [config.author];
+
+const isCategory = (v: string | undefined): v is DListCategory => !!v && v in CATEGORY_ICON;
+
+/**
+ * Lists the curators tagged for a category on their kind-39998 headers —
+ * the team's convention to come, so a new list joins without a deploy. A
+ * header names its shape only by what its items carry; the items decide.
+ */
+export function dlistsFromHeaders(headers: { pubkey: string; kind: number; tags: string[][] }[]): DListEntry[] {
+  const out: DListEntry[] = [];
+  for (const h of headers) {
+    if (h.kind !== DLIST_HEADER_KIND || !CURATOR_PUBKEYS.includes(h.pubkey)) continue;
+    const d = h.tags.find((t) => t[0] === "d")?.[1];
+    const category = h.tags.find((t) => t[0] === "category")?.[1]?.trim().toLowerCase();
+    if (!d || !isCategory(category)) continue;
+    out.push({ coordinate: `${DLIST_HEADER_KIND}:${h.pubkey}:${d}`, name: h.tags.find((t) => t[0] === "name")?.[1]?.trim() || d, category, shape: "song" });
+  }
+  return out;
+}
+
+export function dlistFor(coordinate: string, lists: DListEntry[] = DLIST_REGISTRY): (DListEntry & { icon: LucideIcon }) | null {
+  const entry = lists.find((e) => e.coordinate === coordinate);
   return entry ? { ...entry, icon: CATEGORY_ICON[entry.category] } : null;
 }
 
