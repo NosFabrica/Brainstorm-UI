@@ -9,11 +9,12 @@
  * the lookup keeps its own memory and the hook only watches it.
  */
 import { useEffect, useState } from "react";
-import type { MinimalEvent } from "@/lib/noteRefs";
+import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
 import { fetchEventsByIds, fetchProfileMap } from "@/services/nostr";
 
 export type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
-export type QuotedNote = { event: MinimalEvent; author?: ProfileLite };
+/** The quoted note, its author, and the people it mentions — so a name never shows as a key. */
+export type QuotedNote = { event: MinimalEvent; author?: ProfileLite; profiles: Map<string, ProfileLite> };
 
 const settled = new Map<string, QuotedNote | null>();
 const pending = new Map<string, Promise<void>>();
@@ -25,11 +26,11 @@ function resolve(ids: string[]): Promise<void> {
   const p = fetchEventsByIds(ids)
     .catch(() => [])
     .then(async (events) => {
-      const authors = [...new Set(events.map((e) => e.pubkey))];
-      const profiles = authors.length ? await fetchProfileMap(authors).catch(() => new Map()) : new Map();
+      const people = [...new Set(events.flatMap((e) => [e.pubkey, ...analyzeNote(e as MinimalEvent).mentionPubkeys, ...analyzeNote(e as MinimalEvent).replyToPubkeys]))];
+      const profiles = (people.length ? await fetchProfileMap(people).catch(() => new Map()) : new Map()) as Map<string, ProfileLite>;
       for (const id of ids) {
         const event = events.find((e) => e.id === id);
-        settled.set(id, event ? { event: event as MinimalEvent, author: profiles.get(event.pubkey) as ProfileLite | undefined } : null);
+        settled.set(id, event ? { event: event as MinimalEvent, author: profiles.get(event.pubkey), profiles } : null);
       }
     });
   pending.set(key, p);

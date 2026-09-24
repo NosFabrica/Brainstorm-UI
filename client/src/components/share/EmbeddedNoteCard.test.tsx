@@ -19,13 +19,14 @@ const ARTICLE = {
 };
 const addressable = vi.fn(async () => new Map([[`30023:${AUTHOR}:back-to-school-2026`, ARTICLE]]));
 const QUOTED_AUTHOR = "7".repeat(64);
+const MENTIONED = "8".repeat(64);
 const QUOTED = { id: "d".repeat(64), kind: 1, pubkey: QUOTED_AUTHOR, created_at: 1_779_000_000, sig: "", content: "Some days posting here feels like nobody's listening.", tags: [] };
 const byIds = vi.fn(async (ids: string[]) => (ids.includes(QUOTED.id) ? [QUOTED] : []));
 
 vi.mock("@/services/nostr", () => ({
   fetchAddressableEvents: (c: unknown) => addressable(c),
   fetchEventsByIds: (ids: string[]) => byIds(ids),
-  fetchProfileMap: async (pks: string[]) => new Map(pks.filter((pk) => pk === QUOTED_AUTHOR).map((pk) => [pk, { name: "Derek Ross" }])),
+  fetchProfileMap: async (pks: string[]) => new Map(pks.flatMap((pk) => (pk === QUOTED_AUTHOR ? [[pk, { name: "Derek Ross" }]] : pk === MENTIONED ? [[pk, { name: "Max" }]] : []))),
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
 vi.mock("@/hooks/useNip05", () => ({ useNip05: () => "none" }));
@@ -80,5 +81,17 @@ describe("EmbeddedNoteCard", () => {
     const quoted = await screen.findByTestId("embedded-quote");
     expect(quoted).toHaveTextContent("↳ quoted note");
     expect(byIds).toHaveBeenCalledTimes(1);
+  });
+
+  it("a person mentioned inside the quoted note is named, not shown as a key", async () => {
+    const mentioned = nip19.npubEncode(MENTIONED);
+    const quotedWithMention = { ...QUOTED, content: `Write the code with nostr:${mentioned}` };
+    byIds.mockResolvedValueOnce([quotedWithMention]);
+    const nevent = nip19.neventEncode({ id: QUOTED.id });
+    const note = { id: "e".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_780_000_200, content: `nostr:${nevent}`, tags: [["q", QUOTED.id]] };
+    renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
+    const quoted = await screen.findByTestId("embedded-quote");
+    await waitFor(() => expect(quoted).toHaveTextContent("@Max"));
+    expect(quoted).not.toHaveTextContent("npub1");
   });
 });

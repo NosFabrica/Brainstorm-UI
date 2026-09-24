@@ -29,7 +29,7 @@ function QuotedNoteRef({ id, bech32 }: { id: string; bech32: string }) {
   const { notes } = useQuotedNotes([id]);
   const q = notes[0];
   if (!q) return <PageLink bech32={bech32}>↳ quoted note</PageLink>;
-  return <EmbeddedNoteCard event={q.event} author={q.author} href={`/e/${nip19.neventEncode({ id: q.event.id, author: q.event.pubkey })}`} nested />;
+  return <EmbeddedNoteCard event={q.event} author={q.author} profiles={q.profiles} href={`/e/${nip19.neventEncode({ id: q.event.id, author: q.event.pubkey })}`} nested />;
 }
 
 function ArticleRef({ address, bech32 }: { address: AddressRef; bech32: string }) {

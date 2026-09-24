@@ -129,7 +129,7 @@ export function EmbeddedNoteCard({
       </div>
       {quoted.notes.map((q) => (
         <div key={q.event.id} data-testid="embedded-quote">
-          <EmbeddedNoteCard event={q.event} author={q.author} profiles={profiles} href={`/e/${nip19.neventEncode({ id: q.event.id, author: q.event.pubkey })}`} nested />
+          <EmbeddedNoteCard event={q.event} author={q.author} profiles={q.profiles} href={`/e/${nip19.neventEncode({ id: q.event.id, author: q.event.pubkey })}`} nested />
         </div>
       ))}
       {linked.articles.map((ae) => (
