@@ -93,6 +93,17 @@ describe("ListingRelated", () => {
     expect(within(row).queryByTestId("listing-seller-all")).toBeNull();
   });
 
+  // Benjamin (2026-09-24): the row sat flush under the description card. It
+  // keeps the same distance from its neighbours as the posts strip below it.
+  it("stands off the description above and the sections below, like the posts strip", async () => {
+    recentMock.mockResolvedValue([SELF, listing(SELLER, "a", "Product a", 2000)]);
+    render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
+    const block = await screen.findByTestId("listing-related");
+    expect(block.className).toMatch(/\bmt-8\b/);
+    expect(block.className).toMatch(/\bmb-8\b/);
+    expect(block.className).toMatch(/\bspace-y-8\b/);
+  });
+
   it("offers similar listings from other sellers, named, asked for by this listing's categories", async () => {
     similarMock.mockResolvedValue([listing(OTHER, "cup", "Clay cup", 900), listing(OTHER, "gone", "Gone", 950, [["status", "sold"]])]);
     profileMapMock.mockResolvedValue(new Map([[OTHER, { name: "cupco", display_name: "Cup Co" }]]));

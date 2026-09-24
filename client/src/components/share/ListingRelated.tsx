@@ -87,7 +87,9 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
 
   if (mine.length === 0 && similar.length === 0 && options.length === 0) return null;
   return (
-    <div className="space-y-5" data-testid="listing-related">
+    // The same distance from its neighbours as the posts strip below it (mt-8),
+    // and as much between its own rows: a shop page, not a footnote.
+    <div className="mt-8 mb-8 space-y-8" data-testid="listing-related">
       {options.length > 0 && (
         <section data-testid="listing-options" className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Other options</span>
