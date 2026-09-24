@@ -21,7 +21,9 @@ export type NoteBlock =
   | { type: "h"; level: 1 | 2 | 3; tokens: NoteToken[] }
   | { type: "ul" | "ol"; items: NoteToken[][]; start?: number }
   | { type: "quote"; tokens: NoteToken[] }
-  | { type: "code"; text: string }
+  /** `art`: laid out by hand with spaces (ASCII art, a table) — the reader
+   *  scales it to fit rather than scroll. */
+  | { type: "code"; text: string; art?: boolean }
   | { type: "caption"; tokens: NoteToken[] }
   | { type: "hr" };
 
@@ -39,7 +41,11 @@ const FENCE_CLOSE = /^[ \t]*```[ \t]*$/;
 /** A line this long is prose, not a verse or a list someone typed by hand. */
 const PROSE_LINE = 100;
 /** Ends like a sentence (or a clause), closing quotes/brackets allowed. */
-const ENDS_SENTENCE = /[.!?…:;,]["”'’»)\]]*\s*$/;
+// Latin, Arabic/Persian (؟ ، ؛ ۔), CJK (。！？，；：) and Devanagari (।) stops.
+/** A sentence ends inside the line and more follows — an attributed quote
+ *  («…است.» (Rumi)), two sentences: prose, never a title. */
+const INNER_SENTENCE = /[.!?؟。！？]["”'’»«)\]」』]*\s+\S/;
+const ENDS_SENTENCE = /[.!?…:;,؟،؛۔。！？，；：।]["”'’»«)\]」』]*\s*$/;
 
 /** The token stream cut at every newline inside text runs. */
 function splitLines(tokens: NoteToken[]): Line[] {
@@ -175,7 +181,8 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
         // A diff runs on through its blank context lines, for as long as the
         // lines still look like a diff or a git log.
         if (pre === "diff") while (end < lines.length && (isBlank(lines[end]) || DIFF_LINE.test(raw(end)))) end++;
-        blocks.push({ type: "code", text: Array.from({ length: end - i }, (_, k) => raw(i + k)).join("\n").replace(/\s+$/, "") });
+        const text = Array.from({ length: end - i }, (_, k) => raw(i + k)).join("\n").replace(/\s+$/, "");
+        blocks.push(pre === "art" ? { type: "code", text, art: true } : { type: "code", text });
         i = end - 1;
         continue;
       }
@@ -307,7 +314,7 @@ export function refineProse(blocks: NoteBlock[], totalLength: number, headline =
       out.push({ type: "caption", tokens: trimmed });
       return;
     }
-    if (s !== null && !ENDS_SENTENCE.test(s)) {
+    if (s !== null && !ENDS_SENTENCE.test(s) && !INNER_SENTENCE.test(s)) {
       if (headline && i === 0 && long && s.length <= 140 && blocks.length >= 3) {
         out.push({ type: "h", level: 1, tokens });
         return;

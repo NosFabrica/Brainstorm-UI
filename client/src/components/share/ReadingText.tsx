@@ -4,6 +4,10 @@
  * About, a video's summary. Paragraphs, light markdown and the prose pass
  * come from `lib/noteBlocks`; this owns the type.
  *
+ * Every block picks its own direction (`dir="auto"`, lists and quotes on
+ * logical sides), so an Arabic, Persian or Hebrew paragraph reads right to
+ * left beside an English one; code stays left to right.
+ *
  * Two sizes on one scale: `post` is the event itself (a note is the whole
  * page), `body` is a description under a hero that already has a title.
  *
@@ -17,6 +21,8 @@ import { useLocation } from "wouter";
 import { parseNoteContent, prettyUrlLabel, type NoteToken } from "@/lib/noteContent";
 import { toNoteBlocks, parseInlineMarkdown, type InlineSpan } from "@/lib/noteBlocks";
 import { decodeNostrEntity } from "@/lib/noteRefs";
+import { READER_KINDS } from "@/lib/shareId";
+import { nip19 } from "nostr-tools";
 import { htmlToText, looksLikeHtml } from "@/lib/htmlText";
 import { MentionChip } from "@/components/share/MentionChip";
 import { useShareNav } from "@/components/share/ShareNavContext";
@@ -39,7 +45,7 @@ const HEADING: Record<ReadingSize, [string, string, string]> = {
 function renderProse(text: string, key: string): ReactNode[] {
   return splitProse(text).map((p, i) =>
     p.type === "domain" ? <ReadingLink key={`${key}~${i}`} url={p.url} label={p.value} />
-    : p.type === "handle" ? <span key={`${key}~${i}`} className="font-medium text-slate-900 dark:text-slate-100">{p.value}</span>
+    : p.type === "handle" ? <span key={`${key}~${i}`} dir="auto" className="font-medium text-slate-900 dark:text-slate-100">{p.value}</span>
     : p.value,
   );
 }
@@ -85,12 +91,36 @@ export function ReadingLink({ url, label }: { url: string; label?: string }) {
       href={url}
       target="_blank"
       rel="noopener"
+      dir="auto"
       className="font-medium text-brand-link underline decoration-brand-link/30 underline-offset-[3px] hover:decoration-brand-link [overflow-wrap:anywhere]"
       data-testid="reading-link"
     >
       {label ?? readingLinkLabel(url)}
     </a>
   );
+}
+
+/** What an addressable event is, for a link that names it. */
+const ADDRESS_LABEL: Record<number, string> = {
+  31337: "🎵 track", 30402: "🛍 listing", 31922: "📅 event", 31923: "📅 event", 30311: "🔴 live stream",
+  32267: "📱 app", 30617: "📁 repository", 34235: "🎬 video", 34236: "🎬 video", 30000: "👥 list",
+};
+
+function addressKind(bech32: string): number | null {
+  try {
+    const d = nip19.decode(bech32);
+    return d.type === "naddr" ? d.data.kind : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A link for an address with no reader here (a track, a listing…), or null
+ *  for articles, wiki pages and specs, which open on /a/. */
+export function addressLink(bech32: string, key: string | number): ReactNode | null {
+  const kind = addressKind(bech32);
+  if (kind === null || READER_KINDS.has(kind)) return null;
+  return <ReadingLink key={key} url={`https://njump.me/${bech32}`} label={ADDRESS_LABEL[kind] ?? "↗ linked post"} />;
 }
 
 export function ReadingText({
@@ -137,13 +167,17 @@ export function ReadingText({
         return <ReadingLink key={key} url={t.value} />;
       case "hashtag":
         return (
-          <button key={key} type="button" onClick={() => requestNav({ kind: "hashtag", target: t.value, label: t.value })} className="font-medium text-brand-link hover:underline">
+          <button key={key} type="button" dir="auto" onClick={() => requestNav({ kind: "hashtag", target: t.value, label: t.value })} className="font-medium text-brand-link hover:underline">
             {t.value}
           </button>
         );
       case "mention": {
         const { pubkey, address } = decodeNostrEntity(t.bech32);
         if (pubkey) return <MentionChip key={key} uri={`nostr:${t.bech32}`} />;
+        // Only articles, wiki pages and specs have a reader here; any other
+        // address (a track, a listing) opens where every client can show it.
+        const other = address ? addressLink(t.bech32, key) : null;
+        if (other) return other;
         return (
           <button key={key} type="button" onClick={() => navigate(`/${address ? "a" : "e"}/${t.bech32}`)} className="font-medium text-brand-link hover:underline">
             {address ? "📄 article" : "↳ quoted note"}
@@ -163,31 +197,37 @@ export function ReadingText({
   const [h1, h2, h3] = HEADING[size];
 
   return (
-    <div className={`note-reading max-w-[68ch] break-words ${SIZE[size]} ${className}`} data-testid={testId}>
+    <div className={`note-reading w-full max-w-[68ch] break-words [container-type:inline-size] ${SIZE[size]} ${className}`} data-testid={testId}>
       {blocks.map((b, i) => {
         const k = String(i);
         switch (b.type) {
           case "p":
-            return <div key={k} className="whitespace-pre-wrap">{inline(b.tokens, k)}</div>;
+            return <div key={k} dir="auto" className="whitespace-pre-wrap">{inline(b.tokens, k)}</div>;
           case "h": {
             const Tag = (["h2", "h3", "h4"] as const)[b.level - 1];
-            return <Tag key={k} className={`${[h1, h2, h3][b.level - 1]} font-bold leading-snug tracking-tight text-slate-900 dark:text-white`} style={{ fontFamily: "var(--font-display)" }}>{inline(b.tokens, k)}</Tag>;
+            return <Tag key={k} dir="auto" className={`${[h1, h2, h3][b.level - 1]} font-bold leading-snug tracking-tight text-slate-900 dark:text-white`} style={{ fontFamily: "var(--font-display)" }}>{inline(b.tokens, k)}</Tag>;
           }
           case "ul":
           case "ol": {
             const List = b.type;
             return (
-              <List key={k} start={b.type === "ol" ? b.start : undefined} className={`${b.type === "ul" ? "list-disc" : "list-decimal"} space-y-1.5 pl-6 marker:text-slate-400 dark:marker:text-slate-500`}>
-                {b.items.map((item, j) => <li key={j} className="whitespace-pre-wrap pl-1">{inline(item, `${k}.${j}`)}</li>)}
+              <List key={k} dir="auto" start={b.type === "ol" ? b.start : undefined} className={`${b.type === "ul" ? "list-disc" : "list-decimal"} space-y-1.5 ps-6 marker:text-slate-400 dark:marker:text-slate-500`}>
+                {b.items.map((item, j) => <li key={j} className="whitespace-pre-wrap ps-1">{inline(item, `${k}.${j}`)}</li>)}
               </List>
             );
           }
           case "quote":
-            return <blockquote key={k} className="whitespace-pre-wrap border-l-[3px] border-slate-300 dark:border-slate-600 pl-4 italic text-slate-600 dark:text-slate-300">{inline(b.tokens, k)}</blockquote>;
-          case "code":
-            return <pre key={k} className="overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 font-mono text-[0.8em] leading-relaxed text-slate-800 dark:text-slate-100"><code>{b.text}</code></pre>;
+            return <blockquote key={k} dir="auto" className="whitespace-pre-wrap border-s-[3px] border-slate-300 dark:border-slate-600 ps-4 italic text-slate-600 dark:text-slate-300">{inline(b.tokens, k)}</blockquote>;
+          case "code": {
+            // Art fits the column: monospace glyphs are ~0.6em wide, so the
+            // longest line sets the size (never above the code size, never
+            // below 7px — past that it scrolls). Code keeps its size.
+            const cols = b.art ? Math.max(...b.text.split("\n").map((l) => l.replace(/\t/g, "    ").length)) : 0;
+            const fit = cols ? { fontSize: `clamp(7px, calc((100cqw - 2rem) / ${(cols * 0.6).toFixed(1)}), 0.8em)` } : undefined;
+            return <pre key={k} dir="ltr" style={fit} className="overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 font-mono text-[0.8em] leading-relaxed text-slate-800 dark:text-slate-100"><code>{b.text}</code></pre>;
+          }
           case "caption":
-            return <p key={k} className="note-caption whitespace-pre-wrap text-[0.8em] leading-snug text-slate-500 dark:text-slate-400">{inline(b.tokens, k)}</p>;
+            return <p key={k} dir="auto" className="note-caption whitespace-pre-wrap text-[0.8em] leading-snug text-slate-500 dark:text-slate-400">{inline(b.tokens, k)}</p>;
           case "hr":
             return <hr key={k} className="mx-auto w-16 border-slate-200 dark:border-slate-700" />;
         }

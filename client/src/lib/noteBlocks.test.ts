@@ -78,7 +78,7 @@ describe("layouts that are not prose (from real events)", () => {
   it("keeps whitespace art as one preformatted block, untouched", () => {
     const art = ["   ) ( (   (", "  (  ) () @@  )  (( (", "( ( ( ()( /---\\   (()( (", " __<__\\__(___)_))_((_(____))__"].join("\n");
     const b = blocks(art);
-    expect(b).toEqual([{ type: "code", text: art }]);
+    expect(b).toEqual([{ type: "code", text: art, art: true }]);
   });
 
   it("takes a pasted git log / diff to the end as code, blank context lines included", () => {
@@ -153,6 +153,19 @@ describe("review regressions", () => {
     const b = blocks("#### Size guide\n+ small\n+ large");
     expect(b[0]).toMatchObject({ type: "h", level: 3 });
     expect(b[1]).toMatchObject({ type: "ul" });
+  });
+
+  it("an Arabic or CJK question is a sentence, not a heading", () => {
+    for (const q of ["من هم مؤيدي البيتكوين؟", "这是什么？"]) {
+      const b = blocks([para.repeat(3), q, para.repeat(3)].join("\n\n"));
+      expect(b.every((x) => x.type === "p"), q).toBe(true);
+    }
+  });
+
+  it("an attributed quote on the first line is not a headline", () => {
+    const q = "«قانون برای درست‌کاران وضع نشده، بلکه برای قانون‌شکنان و نافرمانان است.» (پولس قدیس)";
+    const b = blocks([q, para.repeat(4), para.repeat(4)].join("\n\n"));
+    expect(b[0].type).toBe("p");
   });
 
   it("a lowercase chat line between long paragraphs is not a heading", () => {

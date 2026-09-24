@@ -16,6 +16,15 @@ describe("ReadingText (descriptions)", () => {
     expect(container).toHaveTextContent("Tips: nodesignal@getalby.com");
   });
 
+  it("a link to a non-article address says what it is, not 'article'", () => {
+    // Real kind-31337 track address from a fanfares.io link in an audio description.
+    const url = "https://fanfares.io/naddr/naddr1qvzqqqr6dypzquvszen0yle0j556up2ewzsdrjaua5eajk9nr5vw2d46xr3k69qpqyvhwumn8ghj7enpdenxzun9wvhxummnw3erztnrdaksqfpsxq6rgcekvc6j6wpsxqmz6dr9xvez6wtz89sj6vf4x93xyerpxfjx2ve4sy5msr";
+    render(<ReadingText text={`Unlock it on ${url}`} />);
+    const link = screen.getByTestId("reading-link");
+    expect(link).toHaveTextContent("🎵 track");
+    expect(link.getAttribute("href")).toMatch(/^https:\/\/njump\.me\/naddr1/);
+  });
+
   it("labels GitHub PRs and opaque blob URLs briefly", () => {
     expect(readingLinkLabel("https://github.com/nostr-protocol/nips/pull/1234")).toBe("nostr-protocol/nips#1234");
     expect(readingLinkLabel("https://cdn.satellite.earth/97c5e2e2fda64e7f21cd39aa01.mp4")).toBe("cdn.satellite.earth");

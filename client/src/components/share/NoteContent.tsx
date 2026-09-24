@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl, type NoteToken } from "@/lib/noteContent";
-import { ReadingText, ReadingLink } from "@/components/share/ReadingText";
+import { ReadingText, ReadingLink, addressLink } from "@/components/share/ReadingText";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
@@ -170,6 +170,8 @@ export function NoteContent({
           case "mention": {
             const { pubkey, id, address } = decodeNostrEntity(token.bech32);
             if (address) {
+              const other = reading ? addressLink(token.bech32, i) : null;
+              if (other) return other;
               // Links to the on-site article page; also embedded as a card below.
               return (
                 <button key={i} type="button" onClick={() => navigate(`/a/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
@@ -198,6 +200,9 @@ export function NoteContent({
               <button
                 key={i}
                 type="button"
+                // Isolated, so "#Bitcoin" keeps its # in front inside an
+                // Arabic sentence (and "#البيتكوين" inside an English one).
+                dir="auto"
                 onClick={() => requestNav({ kind: "hashtag", target: token.value, label: token.value })}
                 className="text-brand-link font-medium hover:underline"
               >
