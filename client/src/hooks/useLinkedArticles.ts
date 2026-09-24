@@ -15,7 +15,7 @@ import { addrCoord, analyzeNote, type AddressRef, type MinimalEvent } from "@/li
 import { fetchAddressableEvents } from "@/services/nostr";
 
 /** Articles, wiki pages and specs — what `EmbeddedArticleCard` renders. */
-const READER_KINDS = new Set([30023, 30818, 30817]);
+export const READER_KINDS: ReadonlySet<number> = new Set([30023, 30818, 30817]);
 
 export function linkedArticleRefs(event: MinimalEvent): AddressRef[] {
   const seen = new Set<string>();
@@ -58,8 +58,8 @@ function known(refs: AddressRef[]): { articles: MinimalEvent[]; coords: Readonly
   return { articles, coords };
 }
 
-export function useLinkedArticles(event: MinimalEvent): { articles: MinimalEvent[]; coords: ReadonlySet<string> } {
-  const refs = linkedArticleRefs(event);
+/** The articles behind a set of addresses, as far as the relays have answered. */
+export function useArticlesByRefs(refs: AddressRef[]): { articles: MinimalEvent[]; coords: ReadonlySet<string> } {
   const key = refs.map(addrCoord).join(",");
   const [, bump] = useState(0);
   useEffect(() => {
@@ -74,6 +74,10 @@ export function useLinkedArticles(event: MinimalEvent): { articles: MinimalEvent
     };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return known(refs);
+}
+
+export function useLinkedArticles(event: MinimalEvent): { articles: MinimalEvent[]; coords: ReadonlySet<string> } {
+  return useArticlesByRefs(linkedArticleRefs(event));
 }
 
 /** Test seam. */
