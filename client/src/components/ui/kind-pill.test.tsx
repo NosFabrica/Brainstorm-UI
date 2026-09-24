@@ -8,10 +8,19 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { KindPill } from "./kind-pill";
-import { setKindLabelsEverywhere } from "@/lib/kindLabelsPref";
+import { setTechnicalView } from "@/lib/technicalView";
 
-beforeEach(() => localStorage.clear());
+// The technical view is a signed-in reader's: the device may hold the flag
+// (a shared machine), and signed out it shows nothing. Signed in is what the
+// accounts module keeps on the device: the active account's row.
+const signIn = () => localStorage.setItem("brainstorm_active_account", "acct-1");
+
+import { KindPill } from "./kind-pill";
+
+beforeEach(() => {
+  localStorage.clear();
+  signIn();
+});
 
 const ev = (kind: number, tags: string[][] = []) => ({ id: "1".repeat(64), kind, pubkey: "a".repeat(64), tags, content: "", created_at: 1 });
 
@@ -31,7 +40,7 @@ describe("KindPill", () => {
   });
 
   it("takes a word of its own where the content's shape is the label — a news-shaped note, once labels are on", () => {
-    setKindLabelsEverywhere(true);
+    setTechnicalView(true);
     render(<KindPill label="News" />);
     expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^News$/);
   });
@@ -47,9 +56,16 @@ describe("KindPill", () => {
   // …unless the reader asked for labels everywhere (Settings › Advanced), the
   // team's and technical readers' view.
   it("shows everywhere once the reader turned that on", () => {
-    setKindLabelsEverywhere(true);
+    setTechnicalView(true);
     render(<KindPill event={ev(30402)} mixed={false} />);
     expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Listing$/);
+  });
+
+  it("shows nothing signed out, even on a device that holds the flag", () => {
+    setTechnicalView(true);
+    localStorage.removeItem("brainstorm_active_account");
+    render(<KindPill event={ev(30402)} mixed={false} />);
+    expect(screen.queryByTestId("kind-pill")).toBeNull();
   });
 
   it("never labels a person", () => {

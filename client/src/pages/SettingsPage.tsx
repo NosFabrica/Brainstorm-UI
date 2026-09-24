@@ -120,7 +120,7 @@ import nostrLogo from "@assets/download_1774042580188.png";
 import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
-import { KindLabelsCard } from "@/components/settings/KindLabelsCard";
+import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
 
 type SettingsTab = "profile" | "trust" | "billing" | "about";
 
@@ -1456,7 +1456,7 @@ export default function SettingsPage() {
           >
             <TagRelaysCard />
           </div>
-          <KindLabelsCard />
+          <TechnicalViewCard />
         </div>
       )}
     </div>

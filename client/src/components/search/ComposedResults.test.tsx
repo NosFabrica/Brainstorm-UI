@@ -5,7 +5,9 @@
  * mocked per-stream so tests drive sections independently.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setKindLabelsEverywhere } from "@/lib/kindLabelsPref";
+import { setTechnicalView } from "@/lib/technicalView";
+// The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
+beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
@@ -813,8 +815,9 @@ describe("ComposedResults", () => {
     expect(await within(soon).findByText(/2 going/)).toBeInTheDocument();
   });
 
-  it("with kind labels on, Happening says which rows are events and which are streams", async () => {
-    setKindLabelsEverywhere(true);
+  it("with the technical view on, Happening says which rows are events and which are streams", async () => {
+    setTechnicalView(true);
+    localStorage.setItem("brainstorm_active_account", "acct-1"); // the suite's beforeEach clears the device
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const nowSec = Math.floor(Date.now() / 1000);
     const cal = (id: string, pk: string, title: string, start: number) =>
@@ -839,7 +842,7 @@ describe("ComposedResults", () => {
     expect(rows).toEqual(["event-row-soon", "event-row-far", "serp-row-stream"]);
     expect(within(within(section).getByTestId("event-row-soon")).getByTestId("kind-pill")).toHaveTextContent("Event");
     expect(within(within(section).getByTestId("serp-row-stream")).getByTestId("kind-pill")).toHaveTextContent("Stream");
-    setKindLabelsEverywhere(false);
+    setTechnicalView(false);
     // Luma's row: the time and the town, the host, the cover, who is going.
     const soon = screen.getByTestId("event-row-soon");
     expect(soon).toHaveTextContent(/\d{1,2}:\d{2}|All day/);

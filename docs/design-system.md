@@ -59,7 +59,7 @@ The Chip that says what a content item *is* — Spec, Article, Listing, App, Eve
 fed by the one registry in `lib/kindLabel.ts`. **By default only a spec is named**, where it sits among
 other kinds (the Articles tab, Everything's Articles section, the reader page): a spec from Nostr Hub has
 no NIP number, and the word is what says what it is. Every other kind stays unlabelled until a signed-in
-reader turns on *Kind labels on every card* (Settings › Advanced, per device, `lib/kindLabelsPref.ts`) —
+reader turns on *Kind labels on every card* (Settings › Advanced, per device, `lib/technicalView.ts`) —
 the team's and technical readers' view, where every card, row and tile says its kind. Always slate: a kind
 is a label, not a status, and colour is kept for trust and interaction. Never a link, never on a person.
 A NIP number is never derived or invented.

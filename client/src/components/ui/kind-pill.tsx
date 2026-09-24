@@ -1,6 +1,6 @@
 import { Chip, type ChipProps } from "@/components/ui/chip";
 import { kindLabel, type KindEvent } from "@/lib/kindLabel";
-import { kindLabelsEverywhere } from "@/lib/kindLabelsPref";
+import { technicalView } from "@/lib/technicalView";
 
 // KindPill — the pill that says what a thing is: Spec, Article, Listing, App …
 // on every content card, row and tile (the team, 2026-09-24: a spec from Nostr
@@ -17,7 +17,7 @@ import { kindLabelsEverywhere } from "@/lib/kindLabelsPref";
 //   <KindPill label="News" />            // where the content's shape is the label
 
 export function KindPill({ event, label, mixed = true, tone = "slate", size = "sm", className, ...rest }: { event?: KindEvent; label?: string; /** Whether this surface mixes kinds. Where it holds one, the pill stays away — unless the reader asked for labels everywhere. */ mixed?: boolean } & Omit<ChipProps, "children">) {
-  const everywhere = kindLabelsEverywhere();
+  const everywhere = technicalView();
   // By default only a spec is named, and only where it sits among other
   // kinds — the case with no NIP number to lean on. Everything else waits
   // for the switch (Benjamin, 2026-09-24: "these should not be showing

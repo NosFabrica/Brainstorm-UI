@@ -6,20 +6,20 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { kindLabelsEverywhere } from "@/lib/kindLabelsPref";
-import { KindLabelsCard } from "./KindLabelsCard";
+import { technicalViewOn } from "@/lib/technicalView";
+import { TechnicalViewCard } from "./TechnicalViewCard";
 
 beforeEach(() => localStorage.clear());
 
-describe("KindLabelsCard", () => {
+describe("TechnicalViewCard", () => {
   it("is off until the reader turns it on, and remembers the choice on this device", () => {
-    render(<KindLabelsCard />);
-    const toggle = screen.getByRole("switch", { name: /kind labels on every card/i });
+    render(<TechnicalViewCard />);
+    const toggle = screen.getByRole("switch", { name: /^technical view$/i });
     expect(toggle).toHaveAttribute("aria-checked", "false");
-    expect(kindLabelsEverywhere()).toBe(false);
+    expect(technicalViewOn()).toBe(false);
     fireEvent.click(toggle);
-    expect(kindLabelsEverywhere()).toBe(true);
+    expect(technicalViewOn()).toBe(true);
     fireEvent.click(toggle);
-    expect(kindLabelsEverywhere()).toBe(false);
+    expect(technicalViewOn()).toBe(false);
   });
 });

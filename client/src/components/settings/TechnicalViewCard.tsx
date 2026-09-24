@@ -11,37 +11,37 @@ import { useState } from "react";
 import { Tags } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { kindLabelsEverywhere, setKindLabelsEverywhere } from "@/lib/kindLabelsPref";
+import { technicalViewOn, setTechnicalView } from "@/lib/technicalView";
 
-export function KindLabelsCard() {
-  const [on, setOn] = useState(() => kindLabelsEverywhere());
+export function TechnicalViewCard() {
+  const [on, setOn] = useState(() => technicalViewOn());
   const change = (next: boolean) => {
-    setKindLabelsEverywhere(next);
+    setTechnicalView(next);
     setOn(next);
   };
   return (
-    <Card className="overflow-hidden" data-testid="card-kind-labels">
+    <Card className="overflow-hidden" data-testid="card-technical-view">
       <div className="flex items-start gap-3 border-b border-border bg-slate-50 px-5 py-4 dark:bg-slate-900">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800/60">
           <Tags className="h-4 w-4 text-brand-deep" />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-kind-labels-title">
-            Kind labels
+          <h2 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-technical-view-title">
+            Technical view
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Results say what they are — Spec, Article, Stream — where kinds mix. This shows the label on every card, on this device.
+            For power users: what each result is, which relay served it, and the query as it went out. Off, the app looks as it does for everyone.
           </p>
         </div>
       </div>
       <div className="flex items-start justify-between gap-4 p-5">
         <div className="min-w-0">
-          <label htmlFor="kind-labels-switch" className="text-sm font-medium text-slate-900 dark:text-slate-100">
-            Kind labels on every card
+          <label htmlFor="technical-view-switch" className="text-sm font-medium text-slate-900 dark:text-slate-100">
+            Technical view
           </label>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">For the technical view: listings, apps, events and the rest get their kind too.</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Kind and number on every card, the relay an event came from, the query as sent, an event&rsquo;s ids on its page. On this device, while you are signed in.</p>
         </div>
-        <Switch id="kind-labels-switch" checked={on} onCheckedChange={change} aria-label="Kind labels on every card" data-testid="switch-kind-labels" />
+        <Switch id="technical-view-switch" checked={on} onCheckedChange={change} aria-label="Technical view" data-testid="switch-technical-view" />
       </div>
     </Card>
   );

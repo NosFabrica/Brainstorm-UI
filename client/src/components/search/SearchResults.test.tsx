@@ -6,7 +6,9 @@
  * own suite covers the wire; these tests cover what a searcher sees.
  */
 import { nip19 } from "nostr-tools";
-import { setKindLabelsEverywhere } from "@/lib/kindLabelsPref";
+import { setTechnicalView } from "@/lib/technicalView";
+// The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
+beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
@@ -1349,14 +1351,14 @@ describe("SearchResults", () => {
   // technical readers, not the default. The label earns its place only where
   // kinds mix; Settings › Advanced turns it on everywhere, on this device.
   it("with kind labels everywhere on, a single-kind tab's cards say what they are", async () => {
-    setKindLabelsEverywhere(true);
+    setTechnicalView(true);
     setUrlTab("shop");
     render(<SearchResults query="mug" pov="nosfabrica" />);
     const listing = ev("kl1", 30402, "5".repeat(64), "A mug", [["d", "kl1"], ["title", "Handmade mug"], ["price", "20", "USD"], ["status", "active"]]);
     emit({ hits: [{ event: listing, author: author(listing.pubkey, "potter"), rank: null }], eose: true, timeMs: 100 });
     const card = await screen.findByTestId("listing-card-kl1");
     expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Listing$/);
-    setKindLabelsEverywhere(false);
+    setTechnicalView(false);
   });
 
   it("renders a git repo with name and description", async () => {
