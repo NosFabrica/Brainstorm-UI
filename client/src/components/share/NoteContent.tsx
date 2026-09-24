@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl } from "@/lib/noteContent";
+import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl, type NoteToken } from "@/lib/noteContent";
+import { ReadingText, ReadingLink, addressLink } from "@/components/share/ReadingText";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
@@ -60,6 +61,7 @@ function NoteLiveVideo({ url }: { url: string }) {
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
+
 /**
  * Renders parsed kind-1 note content: text, links, inline images/video,
  * `nostr:` mentions (resolved to @DisplayName when a profile map is provided),
@@ -69,6 +71,7 @@ type ProfileLite = { name?: string; display_name?: string; picture?: string };
 export function NoteContent({
   content,
   compact = false,
+  reading = false,
   profiles,
   linkCard = false,
   imageOpensThread = false,
@@ -78,6 +81,10 @@ export function NoteContent({
 }: {
   content: string;
   compact?: boolean;
+  /** The note's own page: reader-sized type, real paragraphs and light
+   *  markdown (headings, lists, quotes, code, emphasis). Feeds keep the
+   *  compact pre-wrapped run. */
+  reading?: boolean;
   profiles?: Map<string, ProfileLite>;
   /** Quoted events the card renders in full below — their inline stub would
    *  say "↳ quoted note" above the quote itself, so it leaves the prose. */
@@ -92,7 +99,7 @@ export function NoteContent({
   /** The note author's display name — shown as the audio player's "artist". */
   authorName?: string;
 }) {
-  const tokens = parseNoteContent(content);
+  const tokens = useMemo(() => parseNoteContent(content), [content]);
   // Shared metadata for a rich audio/podcast player: the note's own image as
   // artwork and its title/first-line as the track name (falling back per-URL).
   const audioCover = extractImageUrls(content, tags)[0];
@@ -110,9 +117,7 @@ export function NoteContent({
   const primaryIsPlainLink = !primaryRef || (primaryEntity.status === "done" && primaryEntity.entity === null);
   // All image URLs in this note — the set the lightbox carousels through.
   const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
-  return (
-    <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">
-      {tokens.map((token, i) => {
+  const renderToken = (token: NoteToken, i: number | string): ReactNode => {
         switch (token.type) {
           case "text":
             return <span key={i}>{token.value}</span>;
@@ -121,7 +126,7 @@ export function NoteContent({
             if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
             if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
             if (primalRef(token.value)) return <ClientLink key={i} url={token.value} />;
-            return <LinkChip key={i} url={token.value} />;
+            return reading ? <ReadingLink key={i} url={token.value} /> : <LinkChip key={i} url={token.value} />;
           case "audio":
             return (
               <div key={i} className="mt-2">
@@ -165,6 +170,8 @@ export function NoteContent({
           case "mention": {
             const { pubkey, id, address } = decodeNostrEntity(token.bech32);
             if (address) {
+              const other = reading ? addressLink(token.bech32, i, token.url) : null;
+              if (other) return other;
               // Links to the on-site article page; also embedded as a card below.
               return (
                 <button key={i} type="button" onClick={() => navigate(`/a/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
@@ -193,6 +200,9 @@ export function NoteContent({
               <button
                 key={i}
                 type="button"
+                // Isolated, so "#Bitcoin" keeps its # in front inside an
+                // Arabic sentence (and "#البيتكوين" inside an English one).
+                dir="auto"
                 onClick={() => requestNav({ kind: "hashtag", target: token.value, label: token.value })}
                 className="text-brand-link font-medium hover:underline"
               >
@@ -202,8 +212,19 @@ export function NoteContent({
           default:
             return null;
         }
-      })}
-      {primaryUrl && linkCard && primaryIsPlainLink && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl) && <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={content} />}
+  };
+  const linkCardNode = primaryUrl && linkCard && primaryIsPlainLink && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl)
+    ? <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={content} />
+    : null;
+
+  if (reading) {
+    return <ReadingText tokens={tokens} source={content} size="post" renderToken={renderToken} after={linkCardNode} testId="note-reading" />;
+  }
+
+  return (
+    <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">
+      {tokens.map((token, i) => renderToken(token, i))}
+      {linkCardNode}
     </div>
   );
 }

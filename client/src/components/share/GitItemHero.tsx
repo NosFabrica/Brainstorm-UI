@@ -147,7 +147,9 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
             </div>
           )}
           {patch.message && (
-            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200" data-testid="git-patch-message">
+            // A commit message is literal: "#42" is an issue, "deploy.sh" a
+            // file — the reading renderer would make them a hashtag and a link.
+            <p className="mt-2 max-w-[68ch] whitespace-pre-wrap break-words text-[15px] sm:text-base leading-[1.65] text-slate-700 dark:text-slate-200" data-testid="git-patch-message">
               {patch.message}
             </p>
           )}

@@ -3,13 +3,13 @@ import { nip19 } from "nostr-tools";
 import { Radio, Users, ExternalLink, CalendarClock } from "lucide-react";
 import { useSoloEmbed } from "@/lib/playback";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
-import { NotesInline } from "@/components/share/NotesInline";
 import { isHlsUrl, replayEmbedUrl, streamEmbedUrl } from "@/lib/streamEmbed";
 import { verifyRecording, liveStateOf } from "@/lib/liveStream";
 import { isVideoFileUrl } from "@/lib/linkThumb";
 import { relativeEventTime } from "@/lib/calendarEvent";
 import liveDefault from "@/assets/live-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { ReadingText } from "@/components/share/ReadingText";
 
 /**
  * A live-stream watch hero for kind-30311 (NIP-53) on /e: an embedded HLS player
@@ -188,9 +188,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
       {summary && summary !== title && (
         // Links are links and people are names — the same inline renderer the
         // event page uses for its About.
-        <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-          <NotesInline text={summary} />
-        </p>
+        <ReadingText text={summary} className="mt-3" />
       )}
 
       {watchUrl && canEmbed && (
