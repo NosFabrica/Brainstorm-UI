@@ -18,7 +18,7 @@
  * next read if it gets authenticated meanwhile. A relay that cannot be reached
  * is skipped the same way: no single relay decides when a read is done.
  */
-import { Relay, RelayPool, type RelayOptions } from "applesauce-relay";
+import { Relay, RelayGroup, RelayPool, type RelayOptions } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
 
 /**
@@ -35,7 +35,23 @@ class ReadFirstRelay extends Relay {
   }
 }
 
+/**
+ * How long the other relays get once one has answered a read. The library
+ * waits 5s; a relay that connects and says nothing (or is just far away) held
+ * every read that long. Long enough for a second relay on a normal link to
+ * finish, short enough that nobody notices the wait.
+ */
+export const STRAGGLER_GRACE_MS = 1200;
+
+/** A read is done when every relay has answered, or a grace after the first did. */
+const readComplete = () => RelayGroup.completeOnAny(RelayGroup.completeAfterFirstRelay(STRAGGLER_GRACE_MS), RelayGroup.completeOnAllEose());
+
 class ReadFirstPool extends RelayPool {
+  /** Every one-shot read gets the app's completion rule unless the caller brings its own. */
+  request(relays: Parameters<RelayPool["request"]>[0], filters: Parameters<RelayPool["request"]>[1], opts?: Parameters<RelayPool["request"]>[2]): ReturnType<RelayPool["request"]> {
+    return super.request(relays, filters, { complete: readComplete(), ...opts });
+  }
+
   /** The library's `relay()`, minting ReadFirstRelay — it takes no factory. */
   relay(url: string): Relay {
     url = normalizeURL(url);

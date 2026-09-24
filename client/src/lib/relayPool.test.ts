@@ -51,6 +51,8 @@ const OPEN = "wss://open.example";
 const GATED = "wss://gated.example";
 /** A relay whose socket never connects — an author's `umbrel.local`, seen 2026-09-24. */
 const DEAD = "wss://dead.example";
+/** A relay that connects and then says nothing — no event, no EOSE. */
+const SLOW = "wss://slow.example";
 scripts.set(OPEN, (id, send) => { send(["EVENT", id, EVENT]); send(["EOSE", id]); });
 scripts.set(GATED, (id, send) => { send(["AUTH", "challenge-xyz"]); send(["CLOSED", id, "auth-required: not authenticated"]); });
 
@@ -79,11 +81,24 @@ describe("the app's relay pool", () => {
     expect(Date.now() - started).toBeLessThan(1500);
   }, 4000);
 
+  // A relay that connects and never answers used to hold a read for the
+  // library's 5s fallback. No single relay decides when a read is done: once
+  // one relay has answered, the rest get a short grace, then the read completes.
+  it("gives the other relays a short grace after the first answer, then completes", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const started = Date.now();
+    const events = await read(pool, [OPEN, SLOW]);
+    expect(events.map((e) => e.id)).toEqual([EVENT.id]);
+    const took = Date.now() - started;
+    expect(took).toBeGreaterThan(500); // it did wait for the straggler a moment
+    expect(took).toBeLessThan(2500);
+  }, 4000);
+
   // The control: what the library does on its own, and what the team saw.
   it("(control) a stock pool holds the same reads for the library's 5s fallback", async () => {
     const pool = new RelayPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
     const started = Date.now();
-    await Promise.all([read(pool), read(pool, [OPEN, DEAD])]);
+    await Promise.all([read(pool), read(pool, [OPEN, DEAD]), read(pool, [OPEN, SLOW])]);
     expect(Date.now() - started).toBeGreaterThan(4500);
   }, 9000);
 });
