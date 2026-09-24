@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl, type NoteToken } from "@/lib/noteContent";
 import { ReadingText, ReadingLink, addressLink, addressLabel } from "@/components/share/ReadingText";
 import { normalizeMarkup } from "@/lib/htmlText";
-import { decodeNostrEntity } from "@/lib/noteRefs";
+import { addrCoord, decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
@@ -79,6 +79,7 @@ export function NoteContent({
   tags = [],
   authorName,
   embeddedIds,
+  embeddedCoords,
 }: {
   content: string;
   compact?: boolean;
@@ -90,6 +91,8 @@ export function NoteContent({
   /** Quoted events the card renders in full below — their inline stub would
    *  say "↳ quoted note" above the quote itself, so it leaves the prose. */
   embeddedIds?: ReadonlySet<string>;
+  /** Articles (by coordinate) the caller shows as cards: their inline link is not repeated. */
+  embeddedCoords?: ReadonlySet<string>;
   /** Render a rich preview card for the primary link below the body. */
   linkCard?: boolean;
   /** In a clickable feed card: render images as cropped thumbnails whose click
@@ -174,6 +177,8 @@ export function NoteContent({
           case "mention": {
             const { pubkey, id, address } = decodeNostrEntity(token.bech32);
             if (address) {
+              // Shown as a card by the caller? Then the card IS the link.
+              if (embeddedCoords?.has(addrCoord(address))) return null;
               const other = reading ? addressLink(token.bech32, i, token.url) : null;
               if (other) return other;
               // Links to its on-site page (/e/ renders every kind); an article
