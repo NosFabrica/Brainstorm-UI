@@ -20,8 +20,13 @@ import { useToast } from "@/hooks/use-toast";
 import { isValidEmail } from "@/lib/email";
 import { isUnread, markSeen } from "@/lib/supportSeen";
 import { collectDiagnostics } from "@/lib/supportDiagnostics";
+import { SUPPORT_EMAIL, fmtDate, fmtTime, fmtWhen, statusTone } from "@/lib/supportDisplay";
+import { useTicketParam } from "@/hooks/useTicketParam";
+import { SupportTimeline } from "@/components/support/SupportTimeline";
 import {
   SUPPORT_CATEGORIES,
+  SUPPORT_POLL_MS,
+  SUPPORT_QUERY_KEY as SUPPORT_KEY,
   categoryLabel,
   createTicket,
   fetchSupport,
@@ -30,10 +35,7 @@ import {
   resolveTicket,
   type SupportTicket,
 } from "@/services/support";
-import type { Tone } from "@/lib/tones";
 
-const SUPPORT_KEY = ["/user/support"];
-const SUPPORT_EMAIL = "support@nosfabrica.com";
 // The server stores the address, but nothing sends mail yet.
 const EMAIL_NOTIFICATIONS_LIVE = false;
 const SUBJECT_MAX = 120;
@@ -53,44 +55,6 @@ const FAQ_DEFLECTION: Record<string, string[]> = {
   account: ["What does my Verification Score mean?"],
 };
 
-/** Known statuses get meaningful color; the set is open — unknowns stay neutral. */
-function statusTone(status: string): Tone {
-  if (status === "open") return "info";
-  if (status === "answered") return "success";
-  if (status === "closed") return "neutral";
-  return "neutral";
-}
-
-function fmtWhen(iso: string): string {
-  const d = new Date(iso);
-  return Number.isFinite(d.getTime())
-    ? d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-    : "";
-}
-
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isFinite(d.getTime())
-    ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
-    : "";
-}
-
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  return Number.isFinite(d.getTime())
-    ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-    : "";
-}
-
-/** Lifecycle lines in the user's voice; unknown event types render plainly. */
-function userEventLabel(e: { type: string; by: string }): string {
-  if (e.type === "opened") return "Ticket opened";
-  if (e.type === "closed") return e.by === "support" ? "Closed by Brainstorm Support" : "You marked this resolved";
-  if (e.type === "reopened") return e.by === "user" ? "Reopened by your reply" : "Reopened";
-  if (e.type === "recategorized") return "Category updated by Brainstorm Support";
-  return e.type.replaceAll("_", " ");
-}
-
 const inputCls =
   "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40";
 
@@ -104,26 +68,17 @@ export default function SupportPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const user = useActiveAccountDisplay();
-  // The selected ticket lives in the URL — refresh-survivable, shareable, and
-  // someday the email notification links straight here.
-  const [selectedId, setSelectedId] = useState<string | null>(() => {
-    try {
-      return new URLSearchParams(window.location.search).get("ticket");
-    } catch {
-      return null;
-    }
-  });
-  const selectTicket = (id: string | null) => {
-    setSelectedId(id);
-    try {
-      window.history.replaceState({}, "", id ? `/support?ticket=${encodeURIComponent(id)}` : "/support");
-    } catch {
-      /* URL sync is a convenience, never a blocker */
-    }
-  };
+  const [selectedId, selectTicket] = useTicketParam((id) =>
+    id ? `/support?ticket=${encodeURIComponent(id)}` : "/support",
+  );
   const [composerOpen, setComposerOpen] = useState(false);
 
-  const supportQuery = useQuery({ queryKey: SUPPORT_KEY, queryFn: fetchSupport, staleTime: 30_000 });
+  const supportQuery = useQuery({
+    queryKey: SUPPORT_KEY,
+    queryFn: fetchSupport,
+    staleTime: 30_000,
+    refetchInterval: SUPPORT_POLL_MS,
+  });
   const allowed = supportQuery.data?.allowed;
   const tickets = supportQuery.data?.tickets ?? [];
 
@@ -164,12 +119,17 @@ export default function SupportPage() {
             <div className="flex items-center gap-2 py-8 text-sm text-slate-500 dark:text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
             </div>
-          ) : allowed === false ? (
-            <Teaser />
-          ) : selectedId ? (
-            <ThreadView id={selectedId} onBack={() => selectTicket(null)} />
           ) : (
-            <TicketList tickets={tickets} onOpen={selectTicket} onNew={() => setComposerOpen(true)} />
+            <div className="space-y-6">
+              {allowed === false && <Teaser />}
+              {selectedId ? (
+                <ThreadView id={selectedId} canReply={allowed !== false} onBack={() => selectTicket(null)} />
+              ) : (
+                (allowed !== false || tickets.length > 0) && (
+                  <TicketList tickets={tickets} onOpen={selectTicket} onNew={() => setComposerOpen(true)} />
+                )
+              )}
+            </div>
           )}
         </div>
 
@@ -188,7 +148,7 @@ export default function SupportPage() {
   );
 }
 
-/** What a free account sees: the perk exists, and where it comes from. */
+/** What an account without support sees, above any history it already has. */
 function Teaser() {
   return (
     <Card className="p-6 sm:p-8 text-center" data-testid="support-teaser">
@@ -201,8 +161,6 @@ function Teaser() {
         us the community way — answers to common questions live in the FAQ.
       </p>
       <div className="mt-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-        {/* /pricing ships with billing, which is live before any server ever
-            answers allowed:false — so the link is safe in every real deploy. */}
         <Button asChild data-testid="teaser-upgrade">
           <Link href="/pricing">Get Priority</Link>
         </Button>
@@ -332,7 +290,7 @@ function TicketList({
   );
 }
 
-function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
+function ThreadView({ id, canReply, onBack }: { id: string; canReply: boolean; onBack: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [draft, setDraft] = useState("");
@@ -341,6 +299,7 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
   const threadQuery = useQuery({
     queryKey: [...SUPPORT_KEY, id],
     queryFn: () => fetchThread(id),
+    refetchInterval: SUPPORT_POLL_MS,
   });
 
   const ticket = threadQuery.data?.ticket;
@@ -354,12 +313,6 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
   useEffect(() => {
     if (lastMessageAt) markSeen("user", id);
   }, [id, lastMessageAt]);
-
-  // One timeline: messages and lifecycle moments, in the order they happened.
-  const timeline = [
-    ...messages.map((m) => ({ kind: "message" as const, at: m.createdAt, message: m })),
-    ...events.map((e) => ({ kind: "event" as const, at: e.at, event: e })),
-  ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === "event" ? -1 : 1));
 
   // Low-stakes and reversible (replying reopens) — no confirm dialog needed.
   const resolve = async () => {
@@ -438,61 +391,43 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
             </span>
           </div>
 
-          <div className="mt-4 space-y-3">
-            {timeline.map((item, i) =>
-              item.kind === "message" ? (
-                <div
-                  key={item.message.id}
-                  className={`max-w-[85%] rounded-2xl border p-3.5 text-sm ${
-                    item.message.author === "support"
-                      ? "border-brand-accent/25 bg-brand-primary/[0.05] dark:bg-brand-primary/10"
-                      : "ml-auto border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-                  }`}
-                  data-testid={`message-${item.message.author}`}
-                >
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                    {item.message.author === "support" ? `Brainstorm Support · ${SUPPORT_EMAIL}` : "You"}
-                    <span className="ml-2 font-normal normal-case tracking-normal">{fmtWhen(item.message.createdAt)}</span>
-                  </p>
-                  <p className="mt-1.5 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">{item.message.body}</p>
-                </div>
-              ) : (
-                <p
-                  key={`ev-${i}`}
-                  className="text-center text-[11px] text-slate-400 dark:text-slate-500"
-                  data-testid={`ticket-event-${item.event.type}`}
-                >
-                  — {userEventLabel(item.event)} · {fmtWhen(item.event.at)} —
-                </p>
-              ),
-            )}
+          <div className="mt-4">
+            <SupportTimeline messages={messages} events={events} viewer="user" />
           </div>
 
-          {/* Closed is not a wall: replying IS reopening — no button to learn. */}
-          {closed && (
-            <p className="mt-5 text-sm text-slate-400 dark:text-slate-500" data-testid="thread-closed-note">
-              This ticket is closed — replying reopens it.
+          {!canReply ? (
+            <p className="mt-5 text-sm text-slate-400 dark:text-slate-500" data-testid="thread-reply-locked">
+              Replying needs Priority — this history stays yours to read.
             </p>
+          ) : (
+            <>
+              {/* Closed is not a wall: replying IS reopening — no button to learn. */}
+              {closed && (
+                <p className="mt-5 text-sm text-slate-400 dark:text-slate-500" data-testid="thread-closed-note">
+                  This ticket is closed — replying reopens it.
+                </p>
+              )}
+              <div className={closed ? "mt-2 flex items-end gap-2" : "mt-5 flex items-end gap-2"}>
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value.slice(0, BODY_MAX))}
+                  placeholder={closed ? "Reply to reopen…" : "Write a reply…"}
+                  rows={3}
+                  className={`${inputCls} resize-y`}
+                  data-testid="thread-reply-input"
+                />
+                <Button
+                  onClick={() => void send()}
+                  disabled={sending || !draft.trim()}
+                  className="gap-1.5 shrink-0"
+                  data-testid="thread-reply-send"
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Send
+                </Button>
+              </div>
+            </>
           )}
-          <div className={closed ? "mt-2 flex items-end gap-2" : "mt-5 flex items-end gap-2"}>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value.slice(0, BODY_MAX))}
-              placeholder={closed ? "Reply to reopen…" : "Write a reply…"}
-              rows={3}
-              className={`${inputCls} resize-y`}
-              data-testid="thread-reply-input"
-            />
-            <Button
-              onClick={() => void send()}
-              disabled={sending || !draft.trim()}
-              className="gap-1.5 shrink-0"
-              data-testid="thread-reply-send"
-            >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Send
-            </Button>
-          </div>
         </>
       )}
     </div>

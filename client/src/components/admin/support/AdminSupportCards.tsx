@@ -35,48 +35,28 @@ import { useToast } from "@/hooks/use-toast";
 import { npubFromPubkey } from "@/lib/shareId";
 import { copyToClipboard } from "@/lib/clipboard";
 import { isUnread, markSeen } from "@/lib/supportSeen";
-import { listCanned, removeCanned, saveCanned, updateCanned } from "@/lib/cannedReplies";
+import { fmtDate, fmtTime, fmtWhen, statusRank, statusTone } from "@/lib/supportDisplay";
+import { useCannedReplies } from "@/hooks/useCannedReplies";
+import { useTicketParam } from "@/hooks/useTicketParam";
+import { SupportTimeline } from "@/components/support/SupportTimeline";
 import {
+  ADMIN_SUPPORT_QUERY_KEY as ADMIN_SUPPORT_KEY,
   SUPPORT_CATEGORIES,
+  SUPPORT_POLL_MS,
+  SUPPORT_QUERY_KEY,
   adminCloseTicket,
+  adminFetchThread,
   adminListTickets,
+  adminReopenTicket,
   adminReply,
   adminSetCategory,
-  adminFetchThread,
   categoryLabel,
   type AdminSupportTicket,
 } from "@/services/support";
-import type { Tone } from "@/lib/tones";
-
-const ADMIN_SUPPORT_KEY = ["/api/admin/support/tickets"];
 
 /** Queued in the close dialog, editable, and sent only on the admin's press. */
 const DEFAULT_CLOSING_MESSAGE =
   "Glad we could help! We're closing this ticket — if anything resurfaces, just reply here and it reopens.";
-
-function statusTone(status: string): Tone {
-  if (status === "open") return "info";
-  if (status === "answered") return "success";
-  if (status === "closed") return "neutral";
-  return "neutral";
-}
-
-function fmtWhen(iso: string): string {
-  const d = new Date(iso);
-  return Number.isFinite(d.getTime())
-    ? d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-    : "";
-}
-
-function fmtDateOnly(iso: string): string {
-  const d = new Date(iso);
-  return Number.isFinite(d.getTime()) ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
-}
-
-function fmtTimeOnly(iso: string): string {
-  const d = new Date(iso);
-  return Number.isFinite(d.getTime()) ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
-}
 
 function requesterLabel(pubkey: string): string {
   try {
@@ -150,17 +130,18 @@ function RequesterCell({
 const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
 const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
 
-/** Lifecycle lines in the admin's voice; unknown event types render plainly. */
-function adminEventLabel(e: { type: string; by: string }): string {
-  if (e.type === "opened") return "Ticket opened";
-  if (e.type === "closed") return e.by === "support" ? "Closed by support" : "Resolved by the user";
-  if (e.type === "reopened") return e.by === "user" ? "Reopened by the user's reply" : "Reopened";
-  if (e.type === "recategorized") return "Recategorized by support";
-  return e.type.replaceAll("_", " ");
-}
-
 type SortKey = "created" | "subject" | "category" | "status" | "updated";
 type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
+
+export interface QueueFilters {
+  search: string;
+  status: string;
+  category: string;
+  window: string;
+  showClosed: boolean;
+}
+
+const NO_FILTERS: QueueFilters = { search: "", status: "all", category: "all", window: "all", showClosed: false };
 
 const TIME_WINDOWS = [
   { key: "all", label: "All time", ms: null },
@@ -199,22 +180,18 @@ function SortHeader({ label, sortKey, sort, onSort }: {
 export function filterAndSort(
   tickets: AdminSupportTicket[],
   profiles: Map<string, ProfileBits>,
-  search: string,
-  statusFilter: string,
-  categoryFilter: string,
-  windowFilter: string,
+  filters: QueueFilters,
   sort: SortState,
-  showClosed: boolean = true,
 ): AdminSupportTicket[] {
-  const q = search.trim().toLowerCase();
-  const windowMs = TIME_WINDOWS.find((w) => w.key === windowFilter)?.ms ?? null;
+  const q = filters.search.trim().toLowerCase();
+  const windowMs = TIME_WINDOWS.find((w) => w.key === filters.window)?.ms ?? null;
   const cutoff = windowMs === null ? null : Date.now() - windowMs;
   let out = tickets.filter((t) => {
     // The queue shows work by default; closed is a click away (or pick the
     // "closed" status filter explicitly).
-    if (!showClosed && statusFilter !== "closed" && t.status === "closed") return false;
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
-    if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
+    if (!filters.showClosed && filters.status !== "closed" && t.status === "closed") return false;
+    if (filters.status !== "all" && t.status !== filters.status) return false;
+    if (filters.category !== "all" && t.category !== filters.category) return false;
     if (cutoff !== null && new Date(t.lastMessageAt).getTime() < cutoff) return false;
     if (!q) return true;
     const name = profiles.get(t.pubkey)?.name?.toLowerCase() || "";
@@ -237,8 +214,9 @@ export function filterAndSort(
     const dir = sort.dir === "asc" ? 1 : -1;
     out = [...out].sort((a, b) => value(a).localeCompare(value(b)) * dir);
   } else {
-    const rank = (t: AdminSupportTicket) => (t.status === "open" ? 0 : t.status === "answered" ? 1 : 2);
-    out = [...out].sort((a, b) => rank(a) - rank(b) || b.lastMessageAt.localeCompare(a.lastMessageAt));
+    out = [...out].sort(
+      (a, b) => statusRank(a.status) - statusRank(b.status) || b.lastMessageAt.localeCompare(a.lastMessageAt),
+    );
   }
   return out;
 }
@@ -247,32 +225,12 @@ export function filterAndSort(
  * The admin side of priority support: every ticket, the thread, reply + close.
  */
 export function AdminSupportCards({ active }: { active: boolean }) {
-  // The open thread lives in the URL — paste a link in team chat and a
-  // colleague lands on the same ticket.
-  const [openId, setOpenIdState] = useState<string | null>(() => {
-    try {
-      return new URLSearchParams(window.location.search).get("ticket");
-    } catch {
-      return null;
-    }
-  });
-  const setOpenId = (id: string | null) => {
-    setOpenIdState(id);
-    try {
-      window.history.replaceState(
-        {},
-        "",
-        id ? `/admin?tab=support&ticket=${encodeURIComponent(id)}` : "/admin?tab=support",
-      );
-    } catch {
-      /* URL sync is a convenience, never a blocker */
-    }
-  };
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [windowFilter, setWindowFilter] = useState<string>("all");
-  const [showClosed, setShowClosed] = useState(false);
+  const [openId, setOpenId] = useTicketParam((id) =>
+    id ? `/admin?tab=support&ticket=${encodeURIComponent(id)}` : "/admin?tab=support",
+  );
+  const [filters, setFilters] = useState<QueueFilters>(NO_FILTERS);
+  const setFilter = (patch: Partial<QueueFilters>) => setFilters((f) => ({ ...f, ...patch }));
+  const setSearch = (search: string) => setFilter({ search });
   const [sort, setSort] = useState<SortState>(null);
   const toggleSort = (key: SortKey) =>
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
@@ -282,6 +240,7 @@ export function AdminSupportCards({ active }: { active: boolean }) {
     queryFn: adminListTickets,
     enabled: active,
     staleTime: 30_000,
+    refetchInterval: active ? SUPPORT_POLL_MS : false,
   });
   // Before the early returns — hook order must not change between renders.
   const profiles = useProfileBits((listQuery.data ?? []).map((t) => t.pubkey));
@@ -315,10 +274,10 @@ export function AdminSupportCards({ active }: { active: boolean }) {
 
   const statuses = Array.from(new Set(tickets.map((t) => t.status))).sort();
   const categories = Array.from(new Set(tickets.map((t) => t.category))).sort();
-  const visible = filterAndSort(tickets, profiles, search, statusFilter, categoryFilter, windowFilter, sort, showClosed);
+  const visible = filterAndSort(tickets, profiles, filters, sort);
   const closedCount = tickets.filter((t) => t.status === "closed").length;
   const filtering =
-    search.trim() !== "" || statusFilter !== "all" || categoryFilter !== "all" || windowFilter !== "all";
+    filters.search.trim() !== "" || filters.status !== "all" || filters.category !== "all" || filters.window !== "all";
 
   return (
     <div>
@@ -327,12 +286,12 @@ export function AdminSupportCards({ active }: { active: boolean }) {
           <input
             type="text"
             placeholder="Search subject, requester…"
-            value={search}
+            value={filters.search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
             data-testid="input-support-search"
           />
-          {search && (
+          {filters.search && (
             <button
               type="button"
               onClick={() => setSearch("")}
@@ -343,7 +302,7 @@ export function AdminSupportCards({ active }: { active: boolean }) {
             </button>
           )}
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={filters.status} onValueChange={(status) => setFilter({ status })}>
           <SelectTrigger className="w-32 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-support-status">
             <SelectValue />
           </SelectTrigger>
@@ -354,7 +313,7 @@ export function AdminSupportCards({ active }: { active: boolean }) {
             ))}
           </SelectContent>
         </Select>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+        <Select value={filters.category} onValueChange={(category) => setFilter({ category })}>
           <SelectTrigger className="w-40 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-support-category">
             <SelectValue />
           </SelectTrigger>
@@ -365,7 +324,7 @@ export function AdminSupportCards({ active }: { active: boolean }) {
             ))}
           </SelectContent>
         </Select>
-        <Select value={windowFilter} onValueChange={setWindowFilter}>
+        <Select value={filters.window} onValueChange={(window) => setFilter({ window })}>
           <SelectTrigger className="w-36 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-support-window">
             <SelectValue />
           </SelectTrigger>
@@ -378,11 +337,11 @@ export function AdminSupportCards({ active }: { active: boolean }) {
         {closedCount > 0 && (
           <button
             type="button"
-            onClick={() => setShowClosed((v) => !v)}
+            onClick={() => setFilter({ showClosed: !filters.showClosed })}
             className="rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
             data-testid="toggle-closed"
           >
-            {showClosed ? "Hide closed" : `Show closed (${closedCount})`}
+            {filters.showClosed ? "Hide closed" : `Show closed (${closedCount})`}
           </button>
         )}
         {filtering && (
@@ -394,7 +353,7 @@ export function AdminSupportCards({ active }: { active: boolean }) {
 
       {visible.length === 0 ? (
         <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="admin-support-no-match">
-          {!filtering && !showClosed && closedCount > 0
+          {!filtering && !filters.showClosed && closedCount > 0
             ? "Queue clear — nothing awaiting a reply."
             : "No tickets match your filters."}
         </p>
@@ -421,8 +380,8 @@ export function AdminSupportCards({ active }: { active: boolean }) {
                 >
                   <td className={`${td} whitespace-nowrap`}>
                     <span className="flex flex-col leading-tight">
-                      <span className="text-[13px] font-semibold tabular-nums">{fmtDateOnly(t.createdAt)}</span>
-                      <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">{fmtTimeOnly(t.createdAt)}</span>
+                      <span className="text-[13px] font-semibold tabular-nums">{fmtDate(t.createdAt)}</span>
+                      <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">{fmtTime(t.createdAt)}</span>
                     </span>
                   </td>
                   <td className={`${td} font-medium`}>
@@ -473,10 +432,8 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [closingMessage, setClosingMessage] = useState(DEFAULT_CLOSING_MESSAGE);
-  // Bumped after canned-reply saves/deletes so the picker re-reads the store.
-  const [cannedTick, setCannedTick] = useState(0);
-  const canned = listCanned();
-  void cannedTick;
+  const cannedReplies = useCannedReplies();
+  const canned = cannedReplies.canned;
   // Which snippet the draft came from — inserting into an empty composer arms
   // "Update", so a rewording saves back to the SAME snippet instead of the
   // save-new-then-delete-old dance. Appending into existing text doesn't.
@@ -489,6 +446,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
   const threadQuery = useQuery({
     queryKey: [...ADMIN_SUPPORT_KEY, id],
     queryFn: () => adminFetchThread(id),
+    refetchInterval: SUPPORT_POLL_MS,
   });
   const ticket = threadQuery.data?.ticket;
   const messages = threadQuery.data?.messages ?? [];
@@ -497,11 +455,6 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
   const requester = threadQuery.data?.requester ?? null;
   const requesterProfiles = useProfileBits(requester ? [requester.pubkey] : []);
   const closed = ticket?.status === "closed";
-
-  const timeline = [
-    ...messages.map((m) => ({ kind: "message" as const, at: m.createdAt, message: m })),
-    ...events.map((e) => ({ kind: "event" as const, at: e.at, event: e })),
-  ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === "event" ? -1 : 1));
 
   // Being here IS seeing it — clears the queue dot for this ticket.
   const lastMessageAt = ticket?.lastMessageAt;
@@ -514,7 +467,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
       qc.invalidateQueries({ queryKey: [...ADMIN_SUPPORT_KEY, id] }),
       qc.invalidateQueries({ queryKey: ADMIN_SUPPORT_KEY, exact: true }),
       // An admin on their own ticket sees it from the user side too.
-      qc.invalidateQueries({ queryKey: ["/user/support"] }),
+      qc.invalidateQueries({ queryKey: SUPPORT_QUERY_KEY }),
     ]);
 
   const reply = async () => {
@@ -529,6 +482,18 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
       toast({ title: "Reply sent", description: "The user sees it in their thread; email notification goes out when configured." });
     } catch (e) {
       toast({ title: "Reply failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reopen = async () => {
+    setBusy(true);
+    try {
+      await adminReopenTicket(id);
+      await refresh();
+    } catch (e) {
+      toast({ title: "Reopen failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -681,40 +646,19 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
             </details>
           )}
 
-          <div className="mt-3 space-y-2.5">
-            {timeline.map((item, i) =>
-              item.kind === "message" ? (
-                <div
-                  key={item.message.id}
-                  className={`max-w-[85%] rounded-xl border p-3 text-sm ${
-                    item.message.author === "support"
-                      ? "ml-auto border-brand-accent/25 bg-brand-primary/[0.05] dark:bg-brand-primary/10"
-                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-                  }`}
-                  data-testid={`admin-message-${item.message.author}`}
-                >
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                    {item.message.author === "support" ? "Support (you)" : "User"}
-                    <span className="ml-2 font-normal normal-case tracking-normal">{fmtWhen(item.message.createdAt)}</span>
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">{item.message.body}</p>
-                </div>
-              ) : (
-                <p
-                  key={`ev-${i}`}
-                  className="text-center text-[11px] text-slate-400 dark:text-slate-500"
-                  data-testid={`admin-event-${item.event.type}`}
-                >
-                  — {adminEventLabel(item.event)} · {fmtWhen(item.event.at)} —
-                </p>
-              ),
-            )}
+          <div className="mt-3">
+            <SupportTimeline messages={messages} events={events} viewer="admin" />
           </div>
 
           {closed ? (
-            <p className="mt-4 text-sm text-slate-400 dark:text-slate-500" data-testid="admin-thread-closed">
-              Closed. The user keeps the history; a new issue means a new ticket.
-            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <p className="text-sm text-slate-400 dark:text-slate-500" data-testid="admin-thread-closed">
+                Closed. The user can reply to reopen it.
+              </p>
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => void reopen()} data-testid="admin-reopen-ticket">
+                Reopen
+              </Button>
+            </div>
           ) : (
             <>
             {/* The answers that repeat: insert a saved reply, edit, send. */}
@@ -741,7 +685,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2 text-xs"
-                  onClick={() => { updateCanned(editingCanned.id, draft); setCannedTick((n) => n + 1); }}
+                  onClick={() => cannedReplies.update(editingCanned.id, draft)}
                   data-testid="canned-update"
                 >
                   Update “{editingCanned.title}”
@@ -752,7 +696,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2 text-xs"
-                  onClick={() => { saveCanned("", draft); setCannedTick((n) => n + 1); }}
+                  onClick={() => cannedReplies.save(draft)}
                   data-testid="canned-save"
                 >
                   Save as canned reply
@@ -771,9 +715,8 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
                               type="button"
                               className="font-medium text-red-500 hover:text-red-600"
                               onClick={() => {
-                                removeCanned(c.id);
+                                cannedReplies.remove(c.id);
                                 setConfirmDeleteId(null);
-                                setCannedTick((n) => n + 1);
                               }}
                               data-testid={`canned-delete-confirm-${c.id}`}
                             >

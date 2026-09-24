@@ -12,6 +12,11 @@
 
 import { adminJson, jsonBody } from "@/services/api/core";
 
+export const SUPPORT_QUERY_KEY = ["/user/support"];
+export const ADMIN_SUPPORT_QUERY_KEY = ["/api/admin/support/tickets"];
+// The lists carry ETags, so a quiet poll is a bodyless 304 the browser answers from cache.
+export const SUPPORT_POLL_MS = 30_000;
+
 export type TicketStatus = string; // known values: "open" | "answered" | "closed"
 
 /**
@@ -67,7 +72,7 @@ export interface TicketEvent {
 }
 
 export interface SupportState {
-  /** Server-decided entitlement (paid users). False renders the teaser. */
+  /** Server-decided entitlement. False gates writing only; the history stays readable. */
   allowed: boolean;
   tickets: SupportTicket[];
 }
@@ -92,8 +97,23 @@ export type AdminSupportTicket = SupportTicket & {
 
 type Raw = Record<string, unknown>;
 
-// The server's page ceiling. Neither list pages yet, so ask for all it allows.
-const PAGE = "page=1&size=100";
+// The server's page ceiling.
+const PAGE_SIZE = 100;
+
+interface Page<T> {
+  items: T[];
+  pages: number;
+}
+
+/** Every page, in order — the screens filter and sort the whole set client-side. */
+async function allPages<T>(fetchPage: (query: string) => Promise<Page<T>>): Promise<T[]> {
+  const items: T[] = [];
+  for (let page = 1; ; page++) {
+    const r = await fetchPage(`page=${page}&size=${PAGE_SIZE}`);
+    items.push(...r.items);
+    if (page >= r.pages) return items;
+  }
+}
 
 /** Support timestamps are naive UTC on the wire; pin them before JS reads local. */
 function instant(value: unknown): string {
@@ -161,11 +181,16 @@ function ticketPath(scope: "user" | "admin", id: string): string {
 // --- User -------------------------------------------------------------------------
 
 export async function fetchSupport(): Promise<SupportState> {
-  const r = await adminJson<{ support_included: boolean; tickets: { items: Raw[] } }>(
-    `/user/support?${PAGE}`,
-    "Couldn't load support",
-  );
-  return { allowed: r.support_included, tickets: r.tickets.items.map(toTicket) };
+  let allowed = false;
+  const tickets = await allPages(async (query) => {
+    const r = await adminJson<{ support_included: boolean; tickets: Page<Raw> }>(
+      `/user/support?${query}`,
+      "Couldn't load support",
+    );
+    allowed = r.support_included;
+    return r.tickets;
+  });
+  return { allowed, tickets: tickets.map(toTicket) };
 }
 
 export async function createTicket(input: {
@@ -212,8 +237,10 @@ export async function resolveTicket(id: string): Promise<void> {
 // --- Admin ------------------------------------------------------------------------
 
 export async function adminListTickets(): Promise<AdminSupportTicket[]> {
-  const r = await adminJson<{ items: Raw[] }>(`/admin/support/tickets?${PAGE}`, "Couldn't load tickets");
-  return r.items.map(toAdminTicket);
+  const items = await allPages((query) =>
+    adminJson<Page<Raw>>(`/admin/support/tickets?${query}`, "Couldn't load tickets"),
+  );
+  return items.map(toAdminTicket);
 }
 
 /** Any ticket, not just the caller's — the user endpoint would 404 these. */
@@ -235,6 +262,11 @@ export async function adminReply(id: string, body: string): Promise<SupportMessa
 export async function adminCloseTicket(id: string, closingMessage?: string): Promise<void> {
   const message = closingMessage?.trim() || null;
   await adminJson(`${ticketPath("admin", id)}/close`, "Couldn't close the ticket", jsonBody("POST", { message }));
+}
+
+/** Reopen without saying anything — a reply would reopen it too. */
+export async function adminReopenTicket(id: string): Promise<void> {
+  await adminJson(`${ticketPath("admin", id)}/reopen`, "Couldn't reopen the ticket", { method: "POST" });
 }
 
 /** Recategorize — category drives the filters and (later) KB routing. */

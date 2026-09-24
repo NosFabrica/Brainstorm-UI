@@ -63,6 +63,12 @@ describe("AdminSupportCards (against the fake server)", () => {
     expect(closedThread.messages.at(-1)!.body).toContain("reply here and it reopens");
     expect(screen.queryByTestId("admin-reply-input")).toBeNull();
     void dialog;
+
+    // Reopening is one click, and the composer comes back.
+    fireEvent.click(screen.getByTestId("admin-reopen-ticket"));
+    await waitFor(() => expect(screen.getByTestId("admin-thread-status").textContent).toBe("open"));
+    expect(screen.getByTestId("admin-reply-input")).toBeInTheDocument();
+    await screen.findByTestId("admin-event-reopened");
   });
 
   it("shows who the requester IS — avatar name over npub, not a hex string", async () => {
@@ -109,9 +115,10 @@ describe("AdminSupportCards (against the fake server)", () => {
     const { filterAndSort } = await import("./AdminSupportCards");
     const tickets = await adminListTickets();
 
-    const dayView = filterAndSort(tickets, new Map(), "", "all", "all", "24h", null);
+    const filters = { search: "", status: "all", category: "all", window: "24h", showClosed: true };
+    const dayView = filterAndSort(tickets, new Map(), filters, null);
     expect(dayView.map((t) => t.subject)).toEqual(["Fresh issue"]);
-    const allView = filterAndSort(tickets, new Map(), "", "all", "all", "all", null);
+    const allView = filterAndSort(tickets, new Map(), { ...filters, window: "all" }, null);
     expect(allView).toHaveLength(2);
   });
 

@@ -13,7 +13,7 @@ import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
 import { SchedulingStatsPanel } from "@/components/admin/scheduling/SchedulingStatsPanel";
 import { AdminSupportCards } from "@/components/admin/support/AdminSupportCards";
-import { adminListTickets } from "@/services/support";
+import { ADMIN_SUPPORT_QUERY_KEY, adminListTickets } from "@/services/support";
 import { unreadCount } from "@/lib/supportSeen";
 import { AdminBillingCards } from "@/components/admin/billing/AdminBillingCards";
 import { PlanMappingsCard } from "@/components/admin/billing/PlanMappingsCard";
@@ -1923,10 +1923,11 @@ export default function AdminPage() {
   // Tickets where the user spoke last and hasn't been seen — the Support
   // tab's dot. Shares the tab's query key, so opening the tab dedupes it.
   const adminSupportQuery = useQuery({
-    queryKey: ["/api/admin/support/tickets"],
+    queryKey: ADMIN_SUPPORT_QUERY_KEY,
     queryFn: adminListTickets,
     enabled: !!user?.isAdmin,
     staleTime: 60_000,
+    refetchInterval: 60_000,
     retry: false,
   });
   const supportUnread = unreadCount("admin", adminSupportQuery.data ?? []);

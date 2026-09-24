@@ -37,7 +37,7 @@ describe("SupportPage (through the real seam)", () => {
     fireEvent.click(screen.getByTestId("ticket-submit"));
 
     await screen.findByTestId("support-thread");
-    expect(screen.getByText("Score stuck")).toBeInTheDocument();
+    expect(await screen.findByText("Score stuck")).toBeInTheDocument();
     expect(screen.getByTestId("message-user").textContent).toContain("No movement since Friday.");
     expect(screen.getByTestId("thread-status").textContent).toBe("open");
   });
@@ -171,6 +171,25 @@ describe("SupportPage (through the real seam)", () => {
     // The teaser sells the upgrade, not just the FAQ detour.
     const upgrade = screen.getByTestId("teaser-upgrade");
     expect(upgrade).toHaveAttribute("href", "/pricing");
+  });
+
+  // Entitlement gates writing, not reading: a lapsed subscriber keeps the answers they had.
+  it("a lapsed user keeps their history under the teaser — readable, resolvable, not repliable", async () => {
+    const t = await createTicket({ subject: "Old answer", body: "x", category: "other" });
+    await adminReply(t.id, "Here's what happened.");
+    fakeSupport.allowed = false;
+
+    renderWithProviders(<SupportPage />);
+    await screen.findByTestId("support-teaser");
+    expect(screen.queryByTestId("button-new-ticket")).toBeNull();
+
+    fireEvent.click(await screen.findByTestId(`ticket-${t.id}`));
+    expect((await screen.findByTestId("message-support")).textContent).toContain("Here's what happened.");
+    expect(screen.getByTestId("thread-reply-locked")).toBeInTheDocument();
+    expect(screen.queryByTestId("thread-reply-input")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("thread-resolve"));
+    await waitFor(() => expect(screen.getByTestId("thread-status").textContent).toBe("closed"));
   });
 
   it("renders a support reply as Brainstorm Support and lets the user answer", async () => {

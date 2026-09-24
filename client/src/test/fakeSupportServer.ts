@@ -84,7 +84,7 @@ export const fakeSupport = {
   async handle(path: string, init: RequestInit = {}): Promise<unknown> {
     const method = init.method ?? "GET";
     const body = init.body ? JSON.parse(String(init.body)) : {};
-    const [route] = path.split("?");
+    const [route, query = ""] = path.split("?");
     const m = route.match(/^\/(user|admin)\/support(?:\/tickets(?:\/(\d+))?(?:\/(\w+))?)?$/);
     if (!m) throw httpError(`fake support server: no route for ${method} ${path}`);
     const [, scope, rawId, verb] = m;
@@ -93,9 +93,9 @@ export const fakeSupport = {
     if (!rawId) {
       if (method === "GET" && !route.endsWith("/tickets")) {
         const mine = this.tickets.filter((t) => t.pubkey === CALLER).sort(byActivity).map(summary);
-        return { support_included: this.allowed, tickets: page(mine) };
+        return { support_included: this.allowed, tickets: page(mine, query) };
       }
-      if (method === "GET" && admin) return page([...this.tickets].sort(byActivity).map(adminSummary));
+      if (method === "GET" && admin) return page([...this.tickets].sort(byActivity).map(adminSummary), query);
       if (method === "POST" && !admin) {
         if (!this.allowed) throw httpError("Support isn't included in your plan.");
         const at = now();
@@ -135,6 +135,10 @@ export const fakeSupport = {
       setStatus(ticket, "closed", "user");
       return summary(ticket);
     }
+    if (verb === "reopen" && admin) {
+      setStatus(ticket, "open", "support");
+      return adminSummary(ticket);
+    }
     if (verb === "close" && admin) {
       if (body.message != null) append(ticket, "support", body.message);
       setStatus(ticket, "closed", "support");
@@ -169,8 +173,17 @@ function byActivity(a: FakeTicket, b: FakeTicket): number {
   return b.last_message_at.localeCompare(a.last_message_at);
 }
 
-function page<T>(items: T[]) {
-  return { items, total: items.length, page: 1, size: 100, pages: 1 };
+function page<T>(items: T[], query: string) {
+  const params = new URLSearchParams(query);
+  const n = Number(params.get("page") ?? 1);
+  const size = Math.min(Number(params.get("size") ?? 50), 100);
+  return {
+    items: items.slice((n - 1) * size, n * size),
+    total: items.length,
+    page: n,
+    size,
+    pages: Math.ceil(items.length / size),
+  };
 }
 
 function summary(t: FakeTicket) {

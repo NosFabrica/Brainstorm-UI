@@ -33,7 +33,7 @@ import { removalLosesKey } from "@/accounts/picker";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import type { AccountDisplay } from "@/accounts/display";
 import { apiClient } from "@/services/api";
-import { fetchSupport } from "@/services/support";
+import { SUPPORT_QUERY_KEY, fetchSupport } from "@/services/support";
 import { unreadCount } from "@/lib/supportSeen";
 import {
   AlertDialog,
@@ -221,7 +221,7 @@ export function AccountMenuBody({
   // Unread support replies light the Support row's dot. Cheap: the query is
   // shared with /support and only fires while the menu is open.
   const supportQuery = useQuery({
-    queryKey: ["/user/support"],
+    queryKey: SUPPORT_QUERY_KEY,
     queryFn: fetchSupport,
     staleTime: 30_000,
     retry: false,

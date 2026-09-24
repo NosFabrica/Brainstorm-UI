@@ -5,6 +5,7 @@ import {
   adminCloseTicket,
   adminFetchThread,
   adminListTickets,
+  adminReopenTicket,
   adminReply,
   adminSetCategory,
   createTicket,
@@ -198,5 +199,25 @@ describe("priority support seam (against the fake server)", () => {
     expect(thread.requester).toEqual({ pubkey: other, notifyEmail: "o@example.com" });
     const [row] = await adminListTickets();
     expect(row).toMatchObject({ id: String(t.id), pubkey: other, notifyEmail: "o@example.com" });
+  });
+
+  // The server caps a page at 100; a longer queue must not lose its tail.
+  it("reads every page of both lists", async () => {
+    for (let i = 0; i < 250; i++) fakeSupport.seed({ subject: `T${i}` });
+
+    expect(await adminListTickets()).toHaveLength(250);
+    expect((await fetchSupport()).tickets).toHaveLength(250);
+  });
+
+  it("support can reopen a closed ticket without a reply", async () => {
+    const t = await createTicket({ subject: "Too soon", body: "x", category: "other" });
+    await adminCloseTicket(t.id);
+
+    await adminReopenTicket(t.id);
+
+    const thread = await fetchThread(t.id);
+    expect(thread.ticket.status).toBe("open");
+    expect(thread.messages).toHaveLength(1);
+    expect(thread.events.at(-1)).toMatchObject({ type: "reopened", by: "support" });
   });
 });
