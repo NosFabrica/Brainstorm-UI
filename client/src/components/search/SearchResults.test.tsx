@@ -1324,18 +1324,33 @@ describe("SearchResults", () => {
   });
 
   // Benjamin (2026-09-24): Staci's Conduit-published listings had the link and
-  // her other app's duplicates did not, on the same Shop page. The seller's
-  // other cards on the page say they sell on Conduit; the twin opens there.
-  it("a Conduit seller's listing published elsewhere opens on Conduit too, at its twin, from the cards beside it", async () => {
+  // her other app's duplicates did not, on the same Shop page — and the same
+  // soap sat there twice. One product is one card: the copy with the product
+  // page stays, the duplicate goes, and nothing on the card mentions it.
+  it("a seller's same-title duplicate collapses into the copy that opens on Conduit", async () => {
     setUrlTab("shop");
     render(<SearchResults query="soap" pov="nosfabrica" />);
     const seller = "6".repeat(64);
     const conduit = ev("c1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "sweet-almond-conduit"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]);
     const elsewhere = ev("e1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "product_1788284895802_51fra"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["t", "Health & Beauty"]]);
+    emit({ hits: [{ event: elsewhere, author: author(seller, "Born To Be Free"), rank: null }, { event: conduit, author: author(seller, "Born To Be Free"), rank: null }], eose: true, timeMs: 130 });
+    const card = await screen.findByTestId("listing-card-c1");
+    expect(screen.queryByTestId("listing-card-e1")).toBeNull();
+    expect(card).not.toHaveTextContent(/2 listings|also on/i);
+    const open = within(card).getByTestId("listing-open-c1");
+    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
+  });
+
+  // A Conduit seller's listing with no twin still opens on Conduit, at their store.
+  it("a Conduit seller's other listing, published elsewhere with no twin, opens at their Conduit store", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="soap" pov="nosfabrica" />);
+    const seller = "6".repeat(64);
+    const conduit = ev("c1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "sweet-almond-conduit"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]);
+    const elsewhere = ev("e1", 30402, seller, "Lavender Tallow Soap Bar", [["d", "product_1788284895802_51frb"], ["title", "Lavender Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/2.jpg"], ["t", "Health & Beauty"]]);
     emit({ hits: [{ event: conduit, author: author(seller, "Born To Be Free"), rank: null }, { event: elsewhere, author: author(seller, "Born To Be Free"), rank: null }], eose: true, timeMs: 130 });
     const open = within(await screen.findByTestId("listing-card-e1")).getByTestId("listing-open-e1");
-    expect(open.getAttribute("title")).toBe("Open in Conduit");
-    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
+    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/store\/npub1[a-z0-9]+\?ref=brainstorm$/);
   });
 
   it("collapses recurring events on the Events tab behind a +N chip", async () => {

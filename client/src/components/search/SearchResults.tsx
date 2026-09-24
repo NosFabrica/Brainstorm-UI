@@ -50,6 +50,7 @@ import { EventDateTile } from "@/components/share/EventDateTile";
 import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
 import { isSellable, parseListing } from "@/lib/listing";
+import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
@@ -774,7 +775,9 @@ export function SearchResults({
     const base = snapshot?.hits ?? [];
     // A listing is for sale or it is not a result: sold, hidden and priceless
     // never count, so the count line and the cards agree.
-    if (tab === "shop") return base.filter((h) => { const l = parseListing(h.event); return !!l && isSellable(l); });
+    // One product, one card: a seller's same-title copies from two apps fold
+    // into the one with a product page (lib/listingDuplicates).
+    if (tab === "shop") return collapseDuplicateListings(base.filter((h) => { const l = parseListing(h.event); return !!l && isSellable(l); }));
     // The relay narrows by tag but cannot exclude by one: zap.cooking's own
     // articles wear the recipe tag too. One source of truth says which is
     // which, here, so the count line, the chips and the cards agree.
@@ -1787,7 +1790,7 @@ export function SearchResults({
                 return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
               }
               if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
-              if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} sellerListings={hits.filter((h) => h.event.pubkey === event.pubkey).map((h) => h.event)} />);
+              if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} sellerListings={(snapshot?.hits ?? []).filter((h) => h.event.pubkey === event.pubkey).map((h) => h.event)} />);
               if (LIVE_KINDS.has(event.kind)) {
                 const hostPk = liveHostOf(event);
                 return wrap(<LiveTile {...typed} state={liveStates.get(event.id) ?? liveStateOf(event)} hostScore={hostPk ? scoreOf(hostPk) : undefined} />);
