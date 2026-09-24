@@ -4,9 +4,19 @@
  * to act — message the seller in their own Nostr app, or open the seller's
  * shop page. No checkout of ours: payment happens where the seller sells.
  */
-import { describe, expect, it } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
+
+// The seller's other listings, for a listing published outside Conduit whose seller sells on Conduit.
+const recentMock = vi.fn(async (_pubkey: string, _kinds: number[], _limit: number) => [] as unknown[]);
+vi.mock("@/services/nostr", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/services/nostr")>()), fetchRecentByKinds: (pk: string, kinds: number[], limit: number) => recentMock(pk, kinds, limit) }));
+
 import { ListingHero } from "./ListingHero";
+
+beforeEach(() => {
+  recentMock.mockReset();
+  recentMock.mockResolvedValue([]);
+});
 
 const SELLER = "9".repeat(64);
 const listing = (tags: string[][], content = "Maglia in kashmir, taglia M. Spedizione tracciata. https://barattolo.app/faq") => ({
@@ -80,6 +90,17 @@ describe("ListingHero", () => {
     expect(shop.getAttribute("target")).toBe("_blank");
     expect(shop).toHaveAttribute("title", expect.stringContaining("shop.conduit.market"));
     expect(screen.queryByText(/Buy now|Add to cart|Checkout/i)).toBeNull();
+  });
+
+  it("a listing published outside Conduit by a seller who sells on Conduit opens there — at the twin's product page", async () => {
+    // Benjamin (2026-09-24): Staci's shop on Conduit has every product; only her Conduit-published events had the link.
+    const twin = listing([["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]]);
+    recentMock.mockResolvedValue([{ ...twin, id: "2".repeat(64), tags: [["d", "maglia-conduit"], ["title", "Maglia in kashmir donna"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]] }]);
+    render(<ListingHero event={listing([["t", "Fashion"]])} />);
+    const shop = await screen.findByTestId("listing-hero-shop");
+    expect(shop).toHaveTextContent(/^Open in Conduit$/);
+    expect(shop.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
+    expect(recentMock).toHaveBeenCalledWith(SELLER, [30402], expect.any(Number));
   });
 
   it("a listing with no shop link offers only the message, and a sold one says so", () => {

@@ -1,3 +1,4 @@
+import { nip19 } from "nostr-tools";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { naddrForEvent } from "@/lib/articleLinks";
 
@@ -82,18 +83,46 @@ function withReferral(url: string): string {
   return u.toString();
 }
 
-/** The app this event was published in, and its page there — or null: most events have none. */
-export function sourceAppFor(event: MinimalEvent): SourceApp | null {
+const conduitApp = (url: string): SourceApp => ({ name: "Conduit", host: CONDUIT_HOST, url: withReferral(url), icon: `https://${CONDUIT_HOST}/favicon.svg` });
+const titleOf = (event: MinimalEvent) => (event.tags.find((t) => t[0] === "title")?.[1] ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * What the same seller sells on Conduit, for a listing they published
+ * elsewhere. Staci's shop (2026-09-24): 67 listing events from two
+ * publishers — the Conduit Merchant Portal and another app — the other
+ * app's being duplicates of products Conduit sells. A Conduit merchant's
+ * listing opens on Conduit: at the twin product when one shares the title,
+ * else at their store.
+ */
+function conduitViaSeller(event: MinimalEvent, sellerListings: MinimalEvent[]): SourceApp | null {
+  const theirs = sellerListings.filter((l) => l.kind === 30402 && l.pubkey === event.pubkey && publishedInConduit(l));
+  if (theirs.length === 0) return null;
+  const title = titleOf(event);
+  const twin = title ? theirs.find((l) => titleOf(l) === title) : undefined;
+  const naddr = twin ? naddrForEvent(twin) : null;
+  if (naddr) return conduitApp(`https://${CONDUIT_HOST}/products/${naddr}`);
+  try {
+    return conduitApp(`https://${CONDUIT_HOST}/store/${nip19.npubEncode(event.pubkey)}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The app this event was published in, and its page there — or null: most
+ * events have none. With the seller's other listings in hand, a listing a
+ * Conduit merchant published elsewhere still opens on Conduit.
+ */
+export function sourceAppFor(event: MinimalEvent, context: { sellerListings?: MinimalEvent[] } = {}): SourceApp | null {
   if (!hasIdentifier(event)) return null;
   if (event.kind === 30402 && publishedInConduit(event)) {
     const naddr = naddrForEvent(event);
     if (!naddr) return null;
-    return {
-      name: "Conduit",
-      host: CONDUIT_HOST,
-      url: withReferral(`https://${CONDUIT_HOST}/products/${naddr}`),
-      icon: `https://${CONDUIT_HOST}/favicon.svg`,
-    };
+    return conduitApp(`https://${CONDUIT_HOST}/products/${naddr}`);
+  }
+  if (event.kind === 30402 && context.sellerListings?.length) {
+    const via = conduitViaSeller(event, context.sellerListings);
+    if (via) return via;
   }
   if (event.kind === 30023 && publishedOnZapCooking(event)) {
     const naddr = naddrForEvent(event);

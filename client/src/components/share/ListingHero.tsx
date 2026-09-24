@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ExternalLink, MapPin, MessageCircle, ShoppingBag, Truck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { formatListingPrice, isSellable, parseListing } from "@/lib/listing";
 import { sourceAppFor } from "@/lib/sourceApp";
+import { fetchRecentByKinds } from "@/services/nostr";
 import { nostrUriFor } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
@@ -23,7 +24,19 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
   const [photo, setPhoto] = useState(0);
   // The app that sold it wins over a stray shop link: that is where the
   // product actually lives and checks out.
-  const app = sourceAppFor(event);
+  // A listing published outside Conduit by a seller who sells on Conduit still
+  // opens there: the seller's other listings say whether they do.
+  const [sellerListings, setSellerListings] = useState<MinimalEvent[]>([]);
+  useEffect(() => {
+    setSellerListings([]);
+    if (sourceAppFor(event)) return;
+    let alive = true;
+    fetchRecentByKinds(event.pubkey, [30402], 40)
+      .then((evs) => { if (alive) setSellerListings(evs as MinimalEvent[]); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [event.id, event.pubkey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const app = sourceAppFor(event, { sellerListings });
   if (!l) return null;
   const sellable = isSellable(l);
   // Sold, hidden, inactive: a status worth a chip. Merely priceless is not.
