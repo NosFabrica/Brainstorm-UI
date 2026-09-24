@@ -319,6 +319,19 @@ describe("SearchResults", () => {
   // Benjamin: the nine-tab strip was "distracting and takes up a lot of
   // space". Google's shape: five tabs in view, the rest behind More ▾, and
   // the chosen overflow tab takes the More slot so you can see where you are.
+  // Benjamin (2026-09-24): ten flat rows mixing Recipes with PRs read like a
+  // settings list. The menu is grouped by what a person is doing, consumer
+  // things first and developer things last.
+  it("groups More by what you're doing: Read & listen, Happening, Build, then Lists", () => {
+    render(<SearchResults query="jack" pov="nosfabrica" />);
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    const menu = screen.getByRole("menu");
+    const groups = [...menu.querySelectorAll('[data-testid^="search-tab-group-"]')].map((el) => el.textContent);
+    expect(groups).toEqual(["Read & listen", "Happening", "Build"]);
+    const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]:not([data-testid^="search-tab-group-"])')].map((el) => el.getAttribute("data-testid"));
+    expect(items).toEqual(["search-tab-articles", "search-tab-music", "search-tab-recipes", "search-tab-events", "search-tab-live", "search-tab-apps", "search-tab-repos", "search-tab-issues", "search-tab-prs", "search-tab-nips", "search-tab-lists"]);
+  });
+
   // Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
   // Articles is the first thing behind More.
   it("shows five verticals — Media then Shop — and folds Articles first behind More", () => {
@@ -334,7 +347,7 @@ describe("SearchResults", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     const menu = screen.getByRole("menu");
-    const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]')].map((el) => el.getAttribute("data-testid"));
+    const items = [...menu.querySelectorAll('[role="menuitem"]')].map((el) => el.getAttribute("data-testid"));
     expect(items[0]).toBe("search-tab-articles");
     for (const t of ["apps", "repos", "issues", "prs", "events", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
 

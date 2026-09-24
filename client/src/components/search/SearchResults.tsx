@@ -142,23 +142,20 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
   { key: "media", label: "Media" },
   { key: "shop", label: "Shop" },
 ];
-const MORE_TABS: { key: SearchTab; label: string }[] = [
-  { key: "articles", label: "Articles" },
-  { key: "apps", label: "Apps" },
-  // Long-form articles wearing zap.cooking's tag: the same kind as Articles,
-  // which keeps showing them labelled Recipe — this is where people look.
-  { key: "recipes", label: "Recipes" },
-  { key: "repos", label: "Repos" },
-  { key: "issues", label: "Issues" },
-  { key: "prs", label: "PRs" },
-  // Protocol specs (kind 30817), by the name people search for. They stay in
-  // Articles too, labelled Spec — this is where people look.
-  { key: "nips", label: "NIPs" },
-  { key: "events", label: "Events" },
-  { key: "music", label: "Music" },
-  { key: "live", label: "Live" },
-  { key: "lists", label: "Lists" },
+/**
+ * Behind More, grouped by what a person is doing — consumer things first,
+ * developer things last (Benjamin, 2026-09-24: ten flat rows mixing Recipes
+ * with PRs read like a settings list). Recipes are long-form articles
+ * wearing zap.cooking's tag and NIPs are protocol specs (kind 30817); both
+ * stay in Articles too, labelled — these are where people look for them.
+ */
+const MORE_GROUPS: { title: string | null; tabs: { key: SearchTab; label: string }[] }[] = [
+  { title: "Read & listen", tabs: [{ key: "articles", label: "Articles" }, { key: "music", label: "Music" }, { key: "recipes", label: "Recipes" }] },
+  { title: "Happening", tabs: [{ key: "events", label: "Events" }, { key: "live", label: "Live" }] },
+  { title: "Build", tabs: [{ key: "apps", label: "Apps" }, { key: "repos", label: "Repos" }, { key: "issues", label: "Issues" }, { key: "prs", label: "PRs" }, { key: "nips", label: "NIPs" }] },
+  { title: null, tabs: [{ key: "lists", label: "Lists" }] },
 ];
+const MORE_TABS: { key: SearchTab; label: string }[] = MORE_GROUPS.flatMap((g) => g.tabs);
 const TABS = [...PRIMARY_TABS, ...MORE_TABS];
 
 const TAB_KEYS = new Set(TABS.map((t) => t.key));
@@ -214,26 +211,35 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
           aria-label="More result types"
           className="absolute right-0 top-full z-20 mt-1 min-w-[9rem] rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          {MORE_TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="menuitem"
-              aria-current={tab === t.key ? "true" : undefined}
-              onClick={() => {
-                setOpen(false);
-                onChange(t.key);
-              }}
-              className={
-                "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                (tab === t.key
-                  ? "font-semibold text-brand-deep dark:text-brand-link"
-                  : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
-              }
-              data-testid={`search-tab-${t.key}`}
-            >
-              {t.label}
-            </button>
+          {MORE_GROUPS.map((g, gi) => (
+            <div key={g.title ?? "rest"} className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""} role="group" aria-label={g.title ?? undefined}>
+              {g.title && (
+                <div className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500" data-testid={`search-tab-group-${g.title.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
+                  {g.title}
+                </div>
+              )}
+              {g.tabs.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="menuitem"
+                  aria-current={tab === t.key ? "true" : undefined}
+                  onClick={() => {
+                    setOpen(false);
+                    onChange(t.key);
+                  }}
+                  className={
+                    "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
+                    (tab === t.key
+                      ? "font-semibold text-brand-deep dark:text-brand-link"
+                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
+                  }
+                  data-testid={`search-tab-${t.key}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       )}
