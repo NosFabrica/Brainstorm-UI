@@ -55,6 +55,7 @@ import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
 import { useTaggedMusicians } from "@/hooks/useTaggedMusicians";
+import { usePersonFountain } from "@/hooks/usePersonFountain";
 import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
@@ -871,6 +872,8 @@ export function SearchResults({
   // named person's own media; the Music tab leads with their own music: the
   // catalogue the scoped view reads, joined to whatever the words found.
   const musicPerson = tab === "music" && !scope ? panelPerson : null;
+  // What the person linked on Fountain — the panel plays it; so does the view.
+  const fountain = usePersonFountain(tab === "music" ? (scopedTo ?? musicPerson?.pubkey ?? null) : null);
   const catalogue = useArtistCatalogue(tab === "music" ? (scopedTo ?? musicPerson?.pubkey ?? null) : null, { name: scopedTo ? undefined : musicPerson ? getDisplayLabel(musicPerson) : undefined });
   const wavlake = useMemo(() => {
     if (!scope) {
@@ -897,7 +900,7 @@ export function SearchResults({
     mediaSettled &&
     hits.length === 0 &&
     personMedia.length === 0 &&
-    (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0 && !podcastIndex.loading && podcastIndex.songs.length === 0 && podcastIndex.musicians.length === 0 && !tagged.loading && filterTaggedPeople(query, tagged.people).length === 0 && (query.trim() !== "" || tagged.people.length === 0)));
+    (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0 && !fountain.loading && fountain.items.length === 0 && !podcastIndex.loading && podcastIndex.songs.length === 0 && podcastIndex.musicians.length === 0 && !tagged.loading && filterTaggedPeople(query, tagged.people).length === 0 && (query.trim() !== "" || tagged.people.length === 0)));
   // What the count line counts, when it shows: every source the tab shows.
   const extraCount = (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
   const peopleIdx = useRef(0);
@@ -1743,7 +1746,7 @@ export function SearchResults({
             </div>
           )}
           {tab === "music" ? (
-            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} podcastIndex={podcastIndex} tagged={tagged} scoreOf={scoreOf} onOpenProfile={openProfile} />
+            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} podcastIndex={podcastIndex} tagged={tagged} fountain={fountain} person={panelPerson} scoreOf={scoreOf} onOpenProfile={openProfile} />
           ) : (
           <div
             className={

@@ -2,6 +2,7 @@ import { parseTrack } from "@/lib/trackEvent";
 import { formatListingPrice, parseListing } from "@/lib/listing";
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
+import type { FountainItem } from "@/lib/fountain";
 import { useEffect, useState } from "react";
 /**
  * Typed result cards for the verticals with no existing precedent —
@@ -1300,6 +1301,29 @@ export function PodcastIndexSongCard({ song, flat, artistHref }: { song: Podcast
         pageUrl={here}
         supportUrl={song.url}
         artistHref={artistHref}
+        flat={flat}
+      />
+    </div>
+  );
+}
+
+/**
+ * A song or episode a person linked on Fountain — the same row as a track,
+ * the show as the artist line, Fountain named as the source. Fountain's page
+ * title carries its own call to action ("• Listen on Fountain"); the row does not.
+ */
+export function FountainSongCard({ item, flat }: { item: FountainItem; flat?: boolean }) {
+  return (
+    <div data-testid={`fountain-song-fountain:${item.id}`}>
+      <EmbeddedTrackCard
+        id={`fountain:${item.id}`}
+        title={item.title.replace(/\s*[•·|–-]\s*(?:Watch|Listen) on Fountain\s*$/i, "").trim() || item.title}
+        artist={item.show ?? undefined}
+        cover={item.image ?? undefined}
+        audio={item.audio}
+        sourceLabel="Fountain"
+        sourceHost="fountain.fm"
+        pageUrl={item.url}
         flat={flat}
       />
     </div>

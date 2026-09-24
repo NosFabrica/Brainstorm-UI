@@ -25,7 +25,8 @@ import { parseTrack, type Track } from "@/lib/trackEvent";
 import { WAVLAKE_GENRES, type WavlakeAlbum, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { useWavlakeTrending } from "@/hooks/useWavlakeTrending";
 import { playFrom, setPlaylist, toggleTrack, useTrackPlayer } from "@/lib/audioPlayer";
-import { PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import { FountainSongCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import type { FountainItem } from "@/lib/fountain";
 import { CATEGORY_ICON, filterTaggedPeople, type PodcastMusician, type PodcastSong } from "@/lib/dlists";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
@@ -61,6 +62,8 @@ export function MusicResults({
   onOpenProfile,
   podcastIndex,
   tagged,
+  fountain = { items: [], loading: false },
+  person = null,
 }: {
   hits: SearchHit[];
   query: string;
@@ -69,6 +72,10 @@ export function MusicResults({
   podcastIndex: { songs: PodcastSong[]; musicians: PodcastMusician[]; loading: boolean };
   /** The people the network tagged Musician — the tagging list; narrowed by the words here. */
   tagged: { people: SearchResult[]; loading: boolean };
+  /** What the person the view is about linked on Fountain — their songs and episodes there. */
+  fountain?: { items: FountainItem[]; loading: boolean };
+  /** The person the view is about — scoped to them, or named by the words — for the top result. */
+  person?: SearchResult | null;
   scoreOf: (pubkey: string) => number | null | undefined;
   onOpenProfile: (result: SearchResult) => void;
 }) {
@@ -132,8 +139,9 @@ export function MusicResults({
     const native = shownTracks.map((t) => ({ id: t.track.id, src: t.track.audio, title: t.track.title, artist: t.track.artist ?? (t.hit.author ? getDisplayLabel(t.hit.author) : undefined), cover: t.track.cover, href: eventPath(t.hit.event), artistHref: t.hit.author ? `/p/${t.hit.author.npub}` : undefined, artistPubkey: t.hit.event.pubkey }));
     const remote = (browsing ? trending.songs : wavlake.songs).map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: wavlakeSongHref(s), artistHref: profileHrefOf(s.artistNpub) }));
     const pi = podcastIndex.songs.map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist || undefined, cover: s.cover, href: podcastIndexHref(s.artist || s.title) }));
-    return browsing ? [...remote, ...native, ...pi] : [...native, ...remote, ...pi];
-  }, [browsing, shownTracks, trending.songs, wavlake.songs, podcastIndex.songs]);
+    const fm = fountain.items.map((i) => ({ id: `fountain:${i.id}`, src: i.audio, title: i.title, artist: i.show ?? undefined, cover: i.image ?? undefined, href: i.url }));
+    return browsing ? [...remote, ...native, ...pi, ...fm] : [...native, ...remote, ...fm, ...pi];
+  }, [browsing, shownTracks, trending.songs, wavlake.songs, podcastIndex.songs, fountain.items]);
   useEffect(() => {
     setPlaylist(queue);
   }, [queue]);
@@ -202,12 +210,17 @@ export function MusicResults({
     const scoped = scopeOf(query)?.pubkey;
     if (scoped) {
       const mine = authors.find((a) => a.author.pubkey === scoped);
+      const n = (mine?.count ?? 0) + wavlake.songs.length + fountain.items.length;
       if (mine) {
-        const n = mine.count + wavlake.songs.length;
         return { kind: "artist" as const, name: getDisplayLabel(mine.author), image: mine.author.picture, sub: `Artist · ${n} ${n === 1 ? "song" : "songs"}`, author: mine.author, playId: mine.first.track.id, score: scoreOf(mine.author.pubkey) ?? null };
       }
+      // No tracks of their own here, but songs on Wavlake or Fountain: the
+      // person is still the artist at the top, with what they have.
+      if (person && person.pubkey === scoped && n > 0) {
+        return { kind: "artist" as const, name: getDisplayLabel(person), image: person.picture, sub: `Artist · ${n} ${n === 1 ? "song" : "songs"}`, author: person, playId: wavlake.songs[0]?.id ?? (fountain.items[0] ? `fountain:${fountain.items[0].id}` : undefined), score: scoreOf(person.pubkey) ?? null };
+      }
       const a = wavlake.artists[0];
-      if (a) return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: "Artist · Wavlake", href: wavlakeArtistHref(a), external: false, playId: wavlake.songs[0]?.id, score: null as number | null };
+      if (a) return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: `Artist · ${n} ${n === 1 ? "song" : "songs"}`, href: wavlakeArtistHref(a), external: false, playId: wavlake.songs[0]?.id, score: null as number | null };
     }
     const author = authors.map((a) => ({ a, score: nameMatchScore(getDisplayLabel(a.author), query) })).filter((x) => x.score > 0).sort((x, y) => y.score - x.score)[0];
     const remote = wavlake.artists.map((a) => ({ a, score: nameMatchScore(a.name, query) })).filter((x) => x.score > 0).sort((x, y) => y.score - x.score)[0];
@@ -225,9 +238,9 @@ export function MusicResults({
     const song = wavlake.songs[0];
     if (song) return { kind: "song" as const, name: song.title, image: song.cover, sub: `${song.artist} · Wavlake`, href: wavlakeSongHref(song), external: false, playId: song.id, score: null as number | null };
     return null;
-  }, [browsing, query, wavlake.artists, wavlake.songs, authors, shownTracks, scoreOf]);
+  }, [browsing, query, wavlake.artists, wavlake.songs, authors, shownTracks, scoreOf, fountain.items, person]);
 
-  const songCount = shownTracks.length + (browsing ? 0 : wavlake.songs.length + podcastIndex.songs.length);
+  const songCount = shownTracks.length + (browsing ? 0 : wavlake.songs.length + fountain.items.length + podcastIndex.songs.length);
 
   // The genre chips re-ask Wavlake's chart while browsing, and narrow the
   // results with words — the same chips, in the shelf they belong to.
@@ -347,6 +360,9 @@ export function MusicResults({
                 ))}
                 {wavlake.songs.map((song) => (
                   <WavlakeSongCard key={song.id} song={song} flat />
+                ))}
+                {fountain.items.map((item) => (
+                  <FountainSongCard key={item.id} item={item} flat />
                 ))}
                 {podcastIndex.songs.map((song) => (
                   <PodcastIndexSongCard key={song.id} song={song} artistHref={piArtistHref(song)} flat />

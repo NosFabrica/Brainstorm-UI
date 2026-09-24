@@ -107,6 +107,9 @@ const wavlakeTrendingMock = vi.fn<(opts?: { genre?: string }) => Promise<Wavlake
 type Catalogue = import("@/hooks/useArtistCatalogue").ArtistCatalogue;
 const catalogueMock = vi.fn<(pubkey: string | null | undefined) => Catalogue>(() => ({ artist: null, songs: [], loading: false }));
 vi.mock("@/hooks/useArtistCatalogue", () => ({ useArtistCatalogue: (pk: string | null | undefined) => catalogueMock(pk) }));
+// Fountain's pages, asked for the item behind a link a note carries; nothing unless a test says so.
+const fountainItemMock = vi.fn<(url: string) => Promise<import("@/lib/fountain").FountainItem | null>>(async () => null);
+vi.mock("@/lib/fountain", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/fountain")>()), fetchFountainItem: (url: string) => fountainItemMock(url) }));
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
@@ -2541,6 +2544,36 @@ describe("SearchResults", () => {
     expect(empty).toHaveTextContent("No songs from Matt Finlay here yet");
     expect(within(empty).getByRole("link", { name: /profile/i })).toHaveAttribute("href", `/p/${npub}`);
     expect(screen.queryByTestId("container-no-results")).toBeNull();
+  });
+
+  // Benjamin (2026-09-24): Matt Finlay is the first face on the Musicians
+  // shelf and his music view was empty — his music lives on Fountain, linked
+  // from his notes, which the panel beside the empty state was already playing.
+  it("a person's music view plays the songs they linked on Fountain, as their panel does", async () => {
+    setUrlTab("music");
+    const pk = "d".repeat(64);
+    const npub = nip19.npubEncode(pk);
+    suggestMock.mockResolvedValue([{ pubkey: pk, npub, name: "Matt Finlay", wotRank: 0.5, wotFollowers: 10 }]);
+    recentByKindsMock.mockImplementation(async (pubkey, kinds) =>
+      pubkey === pk && kinds.includes(1)
+        ? [ev("f1", 1, pk, "New one out now https://fountain.fm/track/abc123"), ev("f2", 1, pk, "Homegrown ep 4 https://fountain.fm/episode/ep4")]
+        : [],
+    );
+    fountainItemMock.mockImplementation(async (url: string) =>
+      url.includes("abc123")
+        ? { kind: "track", id: "abc123", show: "Matt Finlay", title: "Homegrown Blues", description: null, image: "https://img/hb.jpg", audio: "https://cdn/hb.mp3", url }
+        : { kind: "episode", id: "ep4", show: "Homegrown", title: "Episode 4 • Listen on Fountain", description: null, image: null, audio: "https://cdn/ep4.mp3", url },
+    );
+    render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 50 });
+    const songs = await screen.findByTestId("music-songs");
+    const row = within(songs).getByTestId("fountain-song-fountain:abc123");
+    expect(row).toHaveTextContent("Homegrown Blues");
+    expect(within(row).getByTestId("track-source")).toHaveAttribute("title", "Fountain");
+    expect(within(songs).getByTestId("fountain-song-fountain:ep4")).toHaveTextContent("Episode 4");
+    expect(within(songs).getByTestId("fountain-song-fountain:ep4")).not.toHaveTextContent("Listen on Fountain");
+    expect(screen.getByTestId("music-top-result")).toHaveTextContent("2 songs");
+    expect(screen.queryByTestId("music-scoped-empty")).toBeNull();
   });
 
   it("keeps quiet when the top person is only a weak match", async () => {
