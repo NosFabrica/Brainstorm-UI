@@ -31,7 +31,10 @@ class FakeSocket {
   onerror: ((e: unknown) => void) | null = null;
   onmessage: ((e: { data: string }) => void) | null = null;
   constructor(public url: string) {
-    setTimeout(() => { this.readyState = 1; this.onopen?.({}); }, 0);
+    setTimeout(() => {
+      if (this.url.startsWith(DEAD)) { this.readyState = 3; this.onerror?.({ type: "error" }); this.onclose?.({ wasClean: false, code: 1006 }); return; }
+      this.readyState = 1; this.onopen?.({});
+    }, 0);
   }
   send(data: string) {
     const frame = JSON.parse(data) as unknown[];
@@ -46,11 +49,13 @@ class FakeSocket {
 const EVENT: NostrEvent = { id: "1".repeat(64), kind: 10002, pubkey: "a".repeat(64), tags: [["r", "wss://open.example"]], content: "", created_at: 1, sig: "s" } as NostrEvent;
 const OPEN = "wss://open.example";
 const GATED = "wss://gated.example";
+/** A relay whose socket never connects — an author's `umbrel.local`, seen 2026-09-24. */
+const DEAD = "wss://dead.example";
 scripts.set(OPEN, (id, send) => { send(["EVENT", id, EVENT]); send(["EOSE", id]); });
 scripts.set(GATED, (id, send) => { send(["AUTH", "challenge-xyz"]); send(["CLOSED", id, "auth-required: not authenticated"]); });
 
-const read = (pool: RelayPool) =>
-  firstValueFrom(pool.request([OPEN, GATED], { kinds: [10002], authors: ["a".repeat(64)] }, { eventStore: null }).pipe(toArray()));
+const read = (pool: RelayPool, relays = [OPEN, GATED]) =>
+  firstValueFrom(pool.request(relays, { kinds: [10002], authors: ["a".repeat(64)] }, { eventStore: null }).pipe(toArray()));
 
 afterEach(() => vi.useRealTimers());
 
@@ -63,11 +68,22 @@ describe("the app's relay pool", () => {
     expect(Date.now() - started).toBeLessThan(1500);
   }, 4000);
 
+  // An author's relay list names a relay nobody can reach (`umbrel.local`).
+  // The library retries its connection three times, with backoff, before
+  // the relay counts as done — and the article waited on it (2026-09-24).
+  it("completes a read at once past a relay whose socket never connects — a one-shot read does not retry a dead relay", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const started = Date.now();
+    const events = await read(pool, [OPEN, DEAD]);
+    expect(events.map((e) => e.id)).toEqual([EVENT.id]);
+    expect(Date.now() - started).toBeLessThan(1500);
+  }, 4000);
+
   // The control: what the library does on its own, and what the team saw.
-  it("(control) a stock pool holds the same read for the library's 5s fallback", async () => {
+  it("(control) a stock pool holds the same reads for the library's 5s fallback", async () => {
     const pool = new RelayPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
     const started = Date.now();
-    await read(pool);
+    await Promise.all([read(pool), read(pool, [OPEN, DEAD])]);
     expect(Date.now() - started).toBeGreaterThan(4500);
   }, 9000);
 });

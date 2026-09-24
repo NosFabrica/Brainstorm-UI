@@ -15,7 +15,8 @@
  * screen took to render when a relay in the reader's own relay list was gated
  * (the team, 2026-09-24). A gated relay is skipped at once; the read completes
  * when the relays that can answer have answered, and the gated one joins the
- * next read if it gets authenticated meanwhile.
+ * next read if it gets authenticated meanwhile. A relay that cannot be reached
+ * is skipped the same way: no single relay decides when a read is done.
  */
 import { Relay, RelayPool, type RelayOptions } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
@@ -50,7 +51,10 @@ class ReadFirstPool extends RelayPool {
 
 /** The pool the app runs on, built once below; exposed so a test can build its own over a fake socket. */
 export function createPool(options: RelayOptions = {}): RelayPool {
-  return new ReadFirstPool({ keepAlive: KEEP_ALIVE_MS, ...options });
+  // A one-shot read does not retry a relay whose socket will not connect —
+  // the library's three retries with backoff kept an article waiting on an
+  // author's `umbrel.local`. Live subscriptions keep their reconnects.
+  return new ReadFirstPool({ keepAlive: KEEP_ALIVE_MS, requestReconnect: 0, ...options });
 }
 
 export const pool = createPool();
