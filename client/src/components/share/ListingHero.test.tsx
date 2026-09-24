@@ -29,6 +29,9 @@ const listing = (tags: string[][], content = "Maglia in kashmir, taglia M. Spedi
   tags: [["d", "maglia-1"], ["title", "Maglia in kashmir donna"], ["price", "23550", "sats"], ...tags],
 });
 
+const ratesMock = vi.fn<() => Record<string, number> | null>(() => ({ USD: 100_000, EUR: 90_000 }));
+vi.mock("@/hooks/useBtcRates", () => ({ useBtcRates: () => ratesMock() }));
+
 describe("ListingHero", () => {
   it("shows the photos, the price as priced, where it is, shipping, and the description with its links live", () => {
     render(
@@ -46,6 +49,8 @@ describe("ListingHero", () => {
     const hero = screen.getByTestId("listing-hero");
     expect(screen.getByTestId("listing-hero-title")).toHaveTextContent("Maglia in kashmir donna");
     expect(screen.getByTestId("listing-hero-price")).toHaveTextContent("23,550 sats");
+    // The seller's price leads; what it is in the buyer's money sits under it.
+    expect(screen.getByTestId("listing-hero-price-converted")).toHaveTextContent("≈ $23.55");
     expect(hero).toHaveTextContent("Gubbio (PG)");
     // Gallery: the first photo large, the rest as thumbnails; tapping one swaps it in.
     expect((screen.getByTestId("listing-hero-photo") as HTMLImageElement).getAttribute("src")).toBe("https://img/1.jpg");

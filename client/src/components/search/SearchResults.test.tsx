@@ -81,6 +81,10 @@ const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.85)
 // Event cards carry the RSVP button, which reads the active account; these
 // tests are signed out — the button is the sign-in door and never publishes.
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
+// One Bitcoin price for the Shop page — fixed here so a sats price converts to round money.
+const TEST_RATES = { USD: 100_000, EUR: 90_000, GBP: 80_000, CAD: 140_000, CHF: 85_000, AUD: 150_000, JPY: 15_000_000 };
+const ratesMock = vi.fn<() => Record<string, number> | null>(() => TEST_RATES);
+vi.mock("@/hooks/useBtcRates", () => ({ useBtcRates: (enabled: boolean) => (enabled === false ? null : ratesMock()) }));
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
@@ -186,6 +190,8 @@ beforeEach(() => {
   flagsMock.mockImplementation(() => false);
   reachMock.mockReturnValue({ direct: new Set(), friends: new Set(), ready: true });
   scoreOfMock.mockImplementation(() => 0.85);
+  ratesMock.mockReset();
+  ratesMock.mockReturnValue(TEST_RATES);
   wavlakeCatalogueMock.mockResolvedValue({ artists: [], albums: [], songs: [] });
   wavlakeTrendingMock.mockResolvedValue([]);
   allStreams = [];
@@ -1352,6 +1358,113 @@ describe("SearchResults", () => {
     emit({ hits: [{ event: conduit, author: author(seller, "Born To Be Free"), rank: null }, { event: elsewhere, author: author(seller, "Born To Be Free"), rank: null }], eose: true, timeMs: 130 });
     const open = within(await screen.findByTestId("listing-card-e1")).getByTestId("listing-open-e1");
     expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/store\/npub1[a-z0-9]+\?ref=brainstorm$/);
+  });
+
+  // Benjamin (2026-09-24), "as easy as finding what you want on Google": a
+  // page priced in sats, dollars and euros has to be comparable. One rate,
+  // the seller's price first, the buyer's own money underneath.
+  it("every listing says what it costs in the viewer's money under the price the seller wrote", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="soap" pov="nosfabrica" />);
+    const seller = "6".repeat(64);
+    emit({
+      hits: [
+        { event: ev("s1", 30402, seller, "Soap", [["d", "s1"], ["title", "Soap"], ["price", "23550", "sats"]]), author: author(seller, "Staci"), rank: null },
+        { event: ev("s2", 30402, seller, "Balm", [["d", "s2"], ["title", "Balm"], ["price", "12", "USD"]]), author: author(seller, "Staci"), rank: null },
+        { event: ev("s3", 30402, seller, "Tallow", [["d", "s3"], ["title", "Tallow"], ["price", "9", "EUR"]]), author: author(seller, "Staci"), rank: null },
+        { event: ev("s4", 30402, seller, "Real", [["d", "s4"], ["title", "Real"], ["price", "50", "BRL"]]), author: author(seller, "Staci"), rank: null },
+      ],
+      eose: true,
+      timeMs: 130,
+    });
+    expect(await screen.findByTestId("listing-price-s1")).toHaveTextContent("23,550 sats");
+    expect(screen.getByTestId("listing-price-converted-s1")).toHaveTextContent("≈ $23.55");
+    expect(screen.getByTestId("listing-price-s2")).toHaveTextContent("$12");
+    expect(screen.getByTestId("listing-price-converted-s2")).toHaveTextContent("≈ 12,000 sats");
+    expect(screen.getByTestId("listing-price-converted-s3")).toHaveTextContent("≈ $10");
+    // Money we have no rate for stays as priced, with nothing underneath.
+    expect(screen.queryByTestId("listing-price-converted-s4")).toBeNull();
+  });
+
+  it("price chips narrow the Shop page in the viewer's money, and vanish when there is no rate", async () => {
+    setUrlTab("shop");
+    const seller = "6".repeat(64);
+    const hits = [
+      { event: ev("p1", 30402, seller, "Soap", [["d", "p1"], ["title", "Soap"], ["price", "12000", "sats"]]), author: author(seller, "Staci"), rank: null },
+      { event: ev("p2", 30402, seller, "Kit", [["d", "p2"], ["title", "Kit"], ["price", "40", "USD"]]), author: author(seller, "Staci"), rank: null },
+      { event: ev("p3", 30402, seller, "Box", [["d", "p3"], ["title", "Box"], ["price", "0.002", "BTC"]]), author: author(seller, "Staci"), rank: null },
+    ];
+    const { unmount } = render(<SearchResults query="soap" pov="nosfabrica" />);
+    emit({ hits, eose: true, timeMs: 130 });
+    await screen.findByTestId("listing-card-p1");
+    const chips = screen.getByTestId("shop-price-facets");
+    expect(within(chips).getByTestId("shop-price-under")).toHaveTextContent("Under $25");
+    expect(within(chips).getByTestId("shop-price-mid")).toHaveTextContent("$25 – $100");
+    expect(within(chips).getByTestId("shop-price-up")).toHaveTextContent("$100 and up");
+    fireEvent.click(within(chips).getByTestId("shop-price-under"));
+    expect(screen.getByTestId("listing-card-p1")).toBeInTheDocument();
+    expect(screen.queryByTestId("listing-card-p2")).toBeNull();
+    expect(screen.queryByTestId("listing-card-p3")).toBeNull();
+    fireEvent.click(within(chips).getByTestId("shop-price-up"));
+    expect(screen.queryByTestId("listing-card-p1")).toBeNull();
+    expect(screen.getByTestId("listing-card-p3")).toBeInTheDocument();
+    // The same chip again lifts the narrowing.
+    fireEvent.click(within(chips).getByTestId("shop-price-up"));
+    expect(screen.getByTestId("listing-card-p1")).toBeInTheDocument();
+    expect(screen.getByTestId("listing-card-p2")).toBeInTheDocument();
+    unmount();
+
+    ratesMock.mockReturnValue(null);
+    allStreams = [];
+    render(<SearchResults query="soap" pov="nosfabrica" />);
+    emit({ hits, eose: true, timeMs: 130 });
+    await screen.findByTestId("listing-card-p1");
+    expect(screen.queryByTestId("shop-price-facets")).toBeNull();
+    expect(screen.queryByTestId("listing-price-converted-p1")).toBeNull();
+  });
+
+  it("the Shop page sorts by price on the client — the relay never hears sort:price", async () => {
+    setUrlTab("shop");
+    const rewrite = vi.fn();
+    const seller = "6".repeat(64);
+    const hits = [
+      { event: ev("q1", 30402, seller, "Kit", [["d", "q1"], ["title", "Kit"], ["price", "40", "USD"]]), author: author(seller, "Staci"), rank: null },
+      { event: ev("q2", 30402, seller, "Soap", [["d", "q2"], ["title", "Soap"], ["price", "12000", "sats"]]), author: author(seller, "Staci"), rank: null },
+      { event: ev("q3", 30402, seller, "Real", [["d", "q3"], ["title", "Real"], ["price", "50", "BRL"]]), author: author(seller, "Staci"), rank: null },
+      { event: ev("q4", 30402, seller, "Box", [["d", "q4"], ["title", "Box"], ["price", "0.002", "BTC"]]), author: author(seller, "Staci"), rank: null },
+    ];
+    const { unmount } = render(<SearchResults query="soap" pov="nosfabrica" onQueryRewrite={rewrite} />);
+    emit({ hits, eose: true, timeMs: 130 });
+    await screen.findByTestId("listing-card-q1");
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    const sort = screen.getByTestId("filter-sort") as HTMLSelectElement;
+    const values = [...sort.querySelectorAll("option")].map((o) => o.value);
+    expect(values).toContain("price");
+    expect(values).toContain("price:desc");
+    fireEvent.change(sort, { target: { value: "price" } });
+    expect(rewrite).toHaveBeenCalledWith("soap sort:price");
+    unmount();
+
+    allStreams = [];
+    render(<SearchResults query="soap sort:price" pov="nosfabrica" onQueryRewrite={rewrite} />);
+    await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    const [q] = mainStreamCalls().at(-1)!;
+    expect(String(q)).not.toMatch(/sort:price/);
+    emit({ hits, eose: true, timeMs: 130 });
+    await screen.findByTestId("listing-card-q1");
+    // Cheapest first; a price we cannot convert goes last.
+    const order = () => screen.getAllByTestId(/^listing-card-/).map((el) => el.getAttribute("data-testid"));
+    expect(order()).toEqual(["listing-card-q2", "listing-card-q1", "listing-card-q4", "listing-card-q3"]);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    expect(screen.getByTestId("filter-sort")).toHaveValue("price");
+  });
+
+  it("the price sorts are the Shop page's alone", () => {
+    setUrlTab("notes");
+    render(<SearchResults query="soap" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    const values = [...screen.getByTestId("filter-sort").querySelectorAll("option")].map((o) => o.value);
+    expect(values).not.toContain("price");
   });
 
   it("collapses recurring events on the Events tab behind a +N chip", async () => {

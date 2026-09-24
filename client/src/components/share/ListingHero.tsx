@@ -4,6 +4,8 @@ import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { formatListingPrice, isSellable, parseListing } from "@/lib/listing";
 import { sourceAppFor } from "@/lib/sourceApp";
+import { secondPriceLine, viewerCurrency } from "@/lib/exchangeRate";
+import { useBtcRates } from "@/hooks/useBtcRates";
 import { fetchRecentByKinds } from "@/services/nostr";
 import { nostrUriFor } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -37,6 +39,8 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
     return () => { alive = false; };
   }, [event.id, event.pubkey]); // eslint-disable-line react-hooks/exhaustive-deps
   const app = sourceAppFor(event, { sellerListings });
+  // The seller's price leads; what it is in the buyer's own money sits under it.
+  const rates = useBtcRates();
   const websiteHost = (() => {
     try {
       return sellerWebsite && /^https?:\/\//i.test(sellerWebsite) ? new URL(sellerWebsite).hostname.replace(/^www\./, "") : null;
@@ -69,9 +73,13 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
           </span>
         )}
         {l.price ? (
-          <span className="absolute left-3 top-3 rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold text-white" data-testid="listing-hero-price">
-          {formatListingPrice(l.price)}
-        </span>
+          <span className="absolute left-3 top-3 flex flex-col rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold leading-tight text-white">
+            <span data-testid="listing-hero-price">{formatListingPrice(l.price)}</span>
+            {(() => {
+              const converted = rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
+              return converted ? <span className="text-xs font-medium text-white/75" data-testid="listing-hero-price-converted">{converted}</span> : null;
+            })()}
+          </span>
         ) : (
           <span className="absolute left-3 top-3 rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold text-white" data-testid="listing-hero-price-unknown">Price on request</span>
         )}
