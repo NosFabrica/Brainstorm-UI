@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl, type NoteToken } from "@/lib/noteContent";
-import { ReadingText, ReadingLink, addressLink } from "@/components/share/ReadingText";
+import { ReadingText, ReadingLink, addressLink, addressLabel } from "@/components/share/ReadingText";
+import { normalizeMarkup } from "@/lib/htmlText";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
@@ -99,11 +100,14 @@ export function NoteContent({
   /** The note author's display name — shown as the audio player's "artist". */
   authorName?: string;
 }) {
-  const tokens = useMemo(() => parseNoteContent(content), [content]);
+  // On the event's own page, whatever markup the text came in (HTML, a
+  // GitHub comment's stray tags) is cleaned first; feeds keep the raw text.
+  const text = useMemo(() => (reading ? normalizeMarkup(content) : content), [reading, content]);
+  const tokens = useMemo(() => parseNoteContent(text), [text]);
   // Shared metadata for a rich audio/podcast player: the note's own image as
   // artwork and its title/first-line as the track name (falling back per-URL).
-  const audioCover = extractImageUrls(content, tags)[0];
-  const audioTitle = extractNoteTitle(content, tags);
+  const audioCover = extractImageUrls(text, tags)[0];
+  const audioTitle = extractNoteTitle(text, tags);
   const requestNav = useShareNav();
   const openLightbox = useLightbox();
   const [, navigate] = useLocation();
@@ -172,10 +176,11 @@ export function NoteContent({
             if (address) {
               const other = reading ? addressLink(token.bech32, i, token.url) : null;
               if (other) return other;
-              // Links to the on-site article page; also embedded as a card below.
+              // Links to its on-site page (/e/ renders every kind); an article
+              // is also embedded as a card below.
               return (
-                <button key={i} type="button" onClick={() => navigate(`/a/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
-                  📄 article
+                <button key={i} type="button" onClick={() => navigate(`/e/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
+                  {addressLabel(token.bech32)}
                 </button>
               );
             }
@@ -214,11 +219,11 @@ export function NoteContent({
         }
   };
   const linkCardNode = primaryUrl && linkCard && primaryIsPlainLink && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl)
-    ? <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={content} />
+    ? <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={text} />
     : null;
 
   if (reading) {
-    return <ReadingText tokens={tokens} source={content} size="post" renderToken={renderToken} after={linkCardNode} testId="note-reading" />;
+    return <ReadingText tokens={tokens} source={text} size="post" renderToken={renderToken} after={linkCardNode} testId="note-reading" />;
   }
 
   return (

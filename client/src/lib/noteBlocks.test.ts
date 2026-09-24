@@ -225,6 +225,55 @@ describe("final audit regressions", () => {
   });
 });
 
+describe("markdown notes (real: a test note, bridged GitHub comments)", () => {
+  it("reads a GFM table: header, rows, alignment", () => {
+    const b = blocks("| table | test |\n| ------------ | ------------: |\n| TABLE | TEST |\n\nafter");
+    expect(b[0]).toMatchObject({ type: "table", align: [undefined, "right"] });
+    const t = b[0] as { head: { value?: string }[][]; rows: { value?: string }[][][] };
+    expect(t.head.map((c) => c.map((x) => x.value).join(""))).toEqual(["table", "test"]);
+    expect(t.rows[0].map((c) => c.map((x) => x.value).join(""))).toEqual(["TABLE", "TEST"]);
+    expect(b[1].type).toBe("p");
+  });
+
+  it("an aligned table is a table, not ASCII art", () => {
+    const b = blocks("| name     | value |\n|----------|-------|\n| foo      | 1     |\n| bar      | 2     |");
+    expect(b.map((x) => x.type)).toEqual(["table"]);
+  });
+
+  it("a line underlined with === is a heading", () => {
+    const b = blocks("Properties for Decentralized Lists\n=====\n\nWe augment the list NIP.");
+    expect(b.map((x) => x.type)).toEqual(["h", "p"]);
+  });
+});
+
+describe("refactor review regressions", () => {
+  it("backslashes in a note are the author's: ¯\\_(ツ)_/¯ stays whole", () => {
+    expect(parseInlineMarkdown("¯\\_(ツ)_/¯ and C:\\dir\\")).toEqual([{ type: "text", value: "¯\\_(ツ)_/¯ and C:\\dir\\" }]);
+  });
+
+  it("a short separator row still makes a table", () => {
+    expect(blocks("| a | b |\n|:--|--:|\n| 1 | 2 |")[0]).toMatchObject({ type: "table", align: ["left", "right"] });
+  });
+
+  it("a quote's trailing spacer lines are dropped", () => {
+    const b = blocks("> a\n>\n>");
+    expect(texts((b[0] as { tokens: never[] }).tokens)).toBe("a");
+  });
+});
+
+describe("audit of #97 (blocks)", () => {
+  it("a one-column table is a table", () => {
+    expect(blocks("| Only |\n| --- |\n| Row |")[0]).toMatchObject({ type: "table" });
+  });
+
+  it("=== under a list item, a quote or a # heading doesn't make a heading of the marker", () => {
+    for (const t of ["- item\n=====", "> quoted\n=====", "# Title\n====="]) {
+      const b = blocks(t);
+      expect(b.some((x) => x.type === "h" && texts((x as { tokens: never[] }).tokens).match(/^[-#>]/)), t).toBe(false);
+    }
+  });
+});
+
 describe("parseInlineMarkdown", () => {
   it("parses strong, em and code", () => {
     expect(parseInlineMarkdown("a **b** *c* `d`")).toEqual([
@@ -237,8 +286,12 @@ describe("parseInlineMarkdown", () => {
     ]);
   });
 
+  it("ASCII art's underscore runs never turn bold (art itself renders as a code block)", () => {
+    expect(parseInlineMarkdown("__<_____\\__\\__(___)_))_((_(____))__").every((x) => x.type === "text")).toBe(true);
+  });
+
   it("leaves snake_case, arithmetic and lone markers alone", () => {
-    for (const s of ["snake_case_name", "2 * 3 * 4", "** nope **", "file_name.txt and other_file", "call __init__ and __main__ here", "__<_____\\__\\__(___)_))_((_(____))__"]) {
+    for (const s of ["snake_case_name", "2 * 3 * 4", "** nope **", "file_name.txt and other_file", "call __init__ and __main__ here"]) {
       expect(parseInlineMarkdown(s)).toEqual([{ type: "text", value: s }]);
     }
   });
@@ -246,7 +299,7 @@ describe("parseInlineMarkdown", () => {
 
 describe("fuzz", () => {
   // Seeded, so a failure reproduces. Pieces are the shapes real notes mix.
-  const PIECES = ["a", "Bc", "word ", " ", "   ", "\t", "\n", "\n\n", "# ", "#### ", "- ", "+ ", "* ", "1. ", "> ", "\n```\n", "\n```js\n", "```x```", "---", "**", "__", "_", "*", "`",
+  const PIECES = ["a", "Bc", "word ", " ", "   ", "\t", "\n", "\n\n", "# ", "#### ", "- ", "+ ", "* ", "1. ", "> ", "\n| a | b |\n|---|:--:|\n", "\n```\n", "\n```js\n", "```x```", "---", "**", "__", "_", "*", "`",
     "@@ -1 +1 @@", "diff --git a/x b/x", "commit 1a2b3c4d", "https://ex.am/p?q=1", "#tag", "🎉", "🇨🇭", "ção", "日本", "|  |", "(__)", "\r\n"];
   const letters = (s: string) => (s.match(/\p{L}/gu) || []).sort().join("");
   /** Multiset containment of two sorted letter strings. */
@@ -264,6 +317,7 @@ describe("fuzz", () => {
     const t = (ts: NoteToken[]) => ts.map((x) => (x.type === "mention" ? x.bech32 : x.value)).join("");
     switch (b.type) {
       case "code": return b.text;
+      case "table": return [...b.head, ...b.rows.flat()].map(t).join("\n");
       case "hr": return "";
       case "ul": case "ol": return [...b.items.map(t), ...(b.nested ?? []).flatMap((n) => (n ? n.items.map(t) : []))].join("\n");
       default: return t(b.tokens);

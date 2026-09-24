@@ -20,7 +20,7 @@ const host = (relay: string) => relay.replace(/^wss?:\/\//, "").replace(/\/+$/, 
 
 export function DesignationHero({ event }: { event: DesignationEvent }) {
   const d = describeDesignation(event);
-  const specPath = (spec: { kind: number; pubkey: string; identifier: string }) => `/a/${nip19.naddrEncode(spec)}`;
+  const specPath = (spec: { kind: number; pubkey: string; identifier: string }) => `/e/${nip19.naddrEncode(spec)}`;
   const named = [...d.signals, ...(d.lists ? ["Trusted Lists"] : [])];
   const relays = [...new Set(d.providers.map((p) => host(p.relay)).filter(Boolean))];
   // The mark only where it is true: every designated provider is ours.
