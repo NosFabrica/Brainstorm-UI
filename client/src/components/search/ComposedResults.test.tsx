@@ -330,7 +330,7 @@ describe("ComposedResults — media-rich sections", () => {
     expect(screen.queryByTestId("serp-row-n1")).toBeNull();
     expect(screen.getByTestId("serp-row-n2")).toBeInTheDocument();
     // Latest is only notes: saying "· Note" on every row says nothing.
-    expect(within(screen.getByTestId("serp-row-n2")).queryByTestId("serp-type")).toBeNull();
+    expect(within(screen.getByTestId("serp-row-n2")).queryByTestId("kind-pill")).toBeNull();
   });
 
   // People first, feeds after: nothing hidden, but a network of people leads.
@@ -387,8 +387,8 @@ describe("ComposedResults — media-rich sections", () => {
       timeMs: 100,
     });
     const section = await screen.findByTestId("serp-section-articles");
-    expect(within(within(section).getByTestId("serp-row-s1")).getByTestId("serp-type")).toHaveTextContent("Spec");
-    expect(within(within(section).getByTestId("serp-row-e1")).queryByTestId("serp-type")).toBeNull();
+    expect(within(within(section).getByTestId("serp-row-s1")).getByTestId("kind-pill")).toHaveTextContent("Spec");
+    expect(within(within(section).getByTestId("serp-row-e1")).queryByTestId("kind-pill")).toBeNull();
   });
 
   // Benjamin: "when Latest is showing there should always be 3" — a strip of

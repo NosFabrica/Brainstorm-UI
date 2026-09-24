@@ -31,6 +31,7 @@ import { eventPath } from "@/lib/shareId";
 import { wikiPlainText } from "@/lib/wiki";
 import { describeDesignation } from "@/lib/nip85Declaration";
 import { kindLabel } from "@/lib/kindLabel";
+import { KindPill } from "@/components/ui/kind-pill";
 import { contentShape } from "@/lib/contentShape";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
@@ -306,11 +307,7 @@ function AuthorLine({
           {author ? getDisplayLabel(author) : "Unknown"}
         </span>
         <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
-        {type && (
-          <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
-            · {type}
-          </span>
-        )}
+        {type && <KindPill label={type} className="self-center" />}
         {feed && (
           <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title="An automated feed account" data-testid="serp-feed">
             · <Rss className="h-3 w-3" /> feed

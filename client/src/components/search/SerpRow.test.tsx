@@ -277,20 +277,20 @@ describe("SerpRow", () => {
   it("a spec's row says Spec", () => {
     const spec = { ...note("# Scheduler DVM\n\nSchedule signed events…", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "5905"]]), kind: 30817 } as NostrEvent;
     render(<SerpRow event={spec} author={author} score={0.7} query="dvm" />);
-    expect(screen.getByTestId("serp-type")).toHaveTextContent("Spec");
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent("Spec");
   });
 
   it("labels each row with what kind of thing it is", () => {
     render(<SerpRow event={note("plain words about liverpool")} author={author} score={0.7} query="liverpool" />);
-    expect(screen.getByTestId("serp-type")).toHaveTextContent("Note");
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent("Note");
   });
 
   // A recipe on zap.cooking is a kind-30023 with a tag; the row says Recipe, not Article.
   it("a recipe's row says Recipe, not Article", () => {
     const recipe = { ...note("# Gırık\n\nHandmade dough, chicken and rice.", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]), kind: 30023 } as NostrEvent;
     render(<SerpRow event={recipe} author={author} score={0.7} query="girik" />);
-    expect(screen.getByTestId("serp-type")).toHaveTextContent("Recipe");
-    expect(screen.getByTestId("serp-type")).not.toHaveTextContent("Article");
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent("Recipe");
+    expect(screen.getByTestId("kind-pill")).not.toHaveTextContent("Article");
   });
 
   // Benjamin, over Shosho's "GTAing with nostr:npub1de6l09… is Live!
@@ -314,7 +314,7 @@ describe("SerpRow", () => {
 
   it("labels a news-shaped note as News", () => {
     render(<SerpRow event={note(NEWS)} author={author} score={0.7} query="liverpool" />);
-    expect(screen.getByTestId("serp-type")).toHaveTextContent("News");
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent("News");
   });
 
   it("renders a nostr: mention as the person — name, not a raw URI", () => {
