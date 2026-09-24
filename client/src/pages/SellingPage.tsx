@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, ShoppingBag } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { decodeShareId } from "@/lib/shareId";
-import { fetchProfileForShare, fetchRecentByKinds } from "@/services/nostr";
+import { fetchRecentByKinds } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { LISTING_KIND } from "@/lib/listing";
 import { productsFromEvents } from "@/lib/listingVariants";
 import { ListingCard } from "@/components/search/cards";
@@ -24,13 +25,7 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
   const goBack = useGoBack();
   const me = useActiveAccountDisplay();
 
-  const profileQuery = useQuery({
-    queryKey: ["share-profile", pubkey],
-    queryFn: () => fetchProfileForShare(pubkey, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const { profile } = useLiveProfile(pubkey, relayHints);
   const listingsQuery = useQuery({
     queryKey: ["seller-listings", pubkey],
     queryFn: () => fetchRecentByKinds(pubkey, [LISTING_KIND], 100, { relayHints }),
@@ -39,7 +34,6 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
     retry: false,
   });
   const products = useMemo(() => productsFromEvents(listingsQuery.data ?? []), [listingsQuery.data]);
-  const profile = profileQuery.data;
   const name = profile?.display_name || profile?.name || `${npub.slice(0, 12)}…`;
   const first = name.split(" ")[0];
 

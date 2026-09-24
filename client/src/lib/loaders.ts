@@ -23,8 +23,8 @@ export const ADDRESS_LOADER_BUFFER_MS = 150;
 /**
  * What this device already holds, asked before any relay is (the loaders' own
  * local-first hook). A hit removes the pointer, so the relays are never asked
- * for it — which is why `cachedEventsForFilters` only answers with copies young
- * enough to stand alone, and lets older ones fall through.
+ * for it — which is why `cachedEventsForFilters` sends every copy past its
+ * freshness window to the relays behind the answer (`refreshStale`).
  */
 export const addressLoader = createAddressLoader(pool, {
   eventStore,

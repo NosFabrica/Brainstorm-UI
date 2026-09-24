@@ -18,8 +18,13 @@ vi.mock("@/lib/relayRequest", () => ({
   requestNewestRaw: vi.fn(),
   requestOne: vi.fn(),
 }));
+const heldMock = vi.fn<(kind: number, pubkey: string, identifier?: string) => NostrEvent | undefined>(() => undefined);
 vi.mock("@/lib/eventStore", () => ({
-  eventStore: { getEvent: () => undefined, getReplaceable: () => undefined, add: (event: NostrEvent) => event },
+  eventStore: {
+    getEvent: () => undefined,
+    getReplaceable: (kind: number, pubkey: string, identifier?: string) => heldMock(kind, pubkey, identifier),
+    add: (event: NostrEvent) => event,
+  },
 }));
 
 let searchRelaySubject: Subject<{ type: string; event?: NostrEvent }> | null = null;
@@ -51,6 +56,7 @@ const ptr = { kind: 30818, pubkey: GITCITADEL, identifier: "isis", relays: [] as
 
 beforeEach(() => {
   vi.clearAllMocks();
+  heldMock.mockImplementation(() => undefined);
   searchRelaySubject = null;
 });
 
@@ -90,5 +96,32 @@ describe("fetchAddressableEvents", () => {
     searchRelaySubject!.next({ type: "EOSE" });
     const map = await pending;
     expect([...map.keys()]).toEqual([`30023:${other.pubkey}:post`]);
+  });
+
+  // An naddr's relay hint is where the author said to look — but only a hint:
+  // it joins the default set rather than replacing it (Vitor, 2026-09-24).
+  it("asks an naddr's own relay hint beside the default relays", async () => {
+    requestAllMock.mockResolvedValueOnce([isis()]);
+    await fetchAddressableEvents([{ ...ptr, relays: ["wss://hint.example/"] }]);
+    const asked = requestAllMock.mock.calls[0][0] as unknown as string[];
+    expect(asked).toEqual(expect.arrayContaining([...PROFILE_RELAYS, "wss://hint.example/"]));
+  });
+
+  it("counts a copy the store holds — still asks the relays, never the search relay", async () => {
+    heldMock.mockImplementation((kind, pubkey, identifier) =>
+      kind === 30818 && pubkey === GITCITADEL && identifier === "isis" ? isis() : undefined,
+    );
+    requestAllMock.mockResolvedValueOnce([]);
+    const map = await fetchAddressableEvents([ptr]);
+    expect(map.get(`30818:${GITCITADEL}:isis`)?.content).toContain("Isis");
+    expect(requestAllMock).toHaveBeenCalled();
+    expect(searchReqMock).not.toHaveBeenCalled();
+  });
+
+  it("a newer copy from the relays wins over the held one", async () => {
+    heldMock.mockImplementation(() => isis());
+    requestAllMock.mockResolvedValueOnce([{ ...isis(), id: "9".repeat(64), created_at: 2, content: "edited" }]);
+    const map = await fetchAddressableEvents([ptr]);
+    expect(map.get(`30818:${GITCITADEL}:isis`)?.content).toBe("edited");
   });
 });
