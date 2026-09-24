@@ -575,6 +575,7 @@ describe("SearchResults", () => {
       expect(within(facets).getByTestId("event-facet-past")).toHaveTextContent("Past 1");
       // The card reads as an event: the start time, the title, who hosts, where.
       const tonight = screen.getByTestId("event-card-e-tonight");
+      expect(within(tonight).getByTestId("kind-pill")).toHaveTextContent(/^Event$/);
       expect(within(tonight).getByTestId("event-time-e-tonight")).toHaveTextContent(/\d{1,2}:\d{2}/);
       expect(tonight).toHaveTextContent("Bitcoin Liverpool Meetup");
       expect(tonight).toHaveTextContent("Liverpool, UK");
@@ -822,6 +823,7 @@ describe("SearchResults", () => {
     // Live first, most watched first.
     expect(tiles()).toEqual(["live-tile-l1", "live-tile-l2"]);
     const l1 = screen.getByTestId("live-tile-l1");
+    expect(within(l1).getByTestId("kind-pill")).toHaveTextContent(/^Stream$/);
     expect(within(l1).getByTestId("live-status-l1")).toHaveTextContent(/LIVE/);
     expect(within(l1).getByTestId("live-status-l1")).toHaveTextContent("23");
     expect(within(l1).getByTestId("live-onair-l1")).toHaveTextContent("2h 15m");
@@ -953,6 +955,7 @@ describe("SearchResults", () => {
     emit({ hits: [{ event: track, author: author(nova, "NOVA"), rank: null }, { event: junk, author: null, rank: null }], eose: true, timeMs: 150 });
 
     const card = await screen.findByTestId("track-card-t1");
+    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Track$/);
     expect(card).toHaveTextContent("Old Carbon");
     expect(card).toHaveTextContent("NOVA");
     // The cover is the play button — the same inline player the profile page uses.
@@ -1264,6 +1267,7 @@ describe("SearchResults", () => {
     });
 
     const card = await screen.findByTestId("listing-card-l1");
+    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Listing$/);
     expect(card).toHaveTextContent("Maglia in kashmir donna");
     expect(card).toHaveTextContent("23,550 sats");
     expect(card).toHaveTextContent("Gubbio (PG)");
@@ -1352,9 +1356,9 @@ describe("SearchResults", () => {
     expect(await screen.findByText("vespa-relay")).toBeInTheDocument();
     expect(screen.getByText("Search relay over Vespa")).toBeInTheDocument();
     const card = screen.getByTestId("repo-card-r1");
-    // On the Repos tab a repo is the default thing — no "Repo" chip on 45 of
-    // 100 cards (probed 2026-09-05); issues and PRs announce themselves.
-    expect(within(card).queryByText("Repo")).toBeNull();
+    // Every card says what it is (the team, 2026-09-24) — a repo too, in the
+    // same pill an issue or a pull request wears.
+    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Repo$/);
     expect(card).toHaveTextContent("Maintained by");
   });
 
@@ -1820,7 +1824,9 @@ describe("SearchResults", () => {
     expect(within(card).queryByTestId("app-summary-bare")).toBeNull();
     // The chips sit in the text column, beside the icon — under the name, not under the icon's height.
     const chips = within(card).getByTestId("app-platforms-bare");
-    expect(chips.parentElement).toBe(within(card).getByText("PlayOnDlna").parentElement);
+    expect(chips.parentElement).toContainElement(within(card).getByText("PlayOnDlna"));
+    // And the card says what it is, beside the name.
+    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^App$/);
   });
 
   it("the Apps strip is one row: platforms, then categories, without counts", async () => {
@@ -1864,6 +1870,7 @@ describe("SearchResults", () => {
     // …and the people-pack outranks the bookmark list despite arriving after.
     const cards = screen.getAllByTestId(/^list-card-/);
     expect(cards[0].getAttribute("data-testid")).toBe("list-card-fs1");
+    expect(within(cards[0] as HTMLElement).getByTestId("kind-pill")).toHaveTextContent(/^Follow set$/);
     expect(cards[1].getAttribute("data-testid")).toBe("list-card-bm1");
   });
 
@@ -1982,6 +1989,7 @@ describe("SearchResults", () => {
     const other = ev("bl1", 21, "9".repeat(64), "another clip", [["d", "bl1"], ["title", "another clip"], ["imeta", "url https://blossom.primal.net/xyz.mp4", "m video/mp4"]]);
     emit({ hits: [{ event: divine, author: author(divine.pubkey, "dancer"), rank: null }, { event: other, author: author(other.pubkey, "someone"), rank: null }], eose: true, timeMs: 200 });
     const card = await screen.findByTestId("media-card-dv1");
+    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Video$/);
     const mark = within(card).getByRole("img", { name: "Divine" });
     expect(mark.tagName.toLowerCase()).toBe("svg");
     expect(card).not.toHaveTextContent("media.divine.video");

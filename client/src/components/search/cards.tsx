@@ -26,7 +26,7 @@ import { sourceAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
 import { profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
-import { kindTypeLabel } from "@/lib/kindLabel";
+import { KindPill } from "@/components/ui/kind-pill";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
@@ -69,10 +69,13 @@ function AuthorRow({
   author,
   score,
   created_at,
+  trailing,
 }: {
   author: SearchResult | null;
   score?: number | null;
   created_at: number;
+  /** What the row ends with — the card's kind pill. */
+  trailing?: React.ReactNode;
 }) {
   const tierRing = useTierRing();
   return (
@@ -87,6 +90,7 @@ function AuthorRow({
         {author ? getDisplayLabel(author) : "Unknown"}
       </span>
       <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{fmtWhen(created_at)}</span>
+      {trailing}
     </div>
   );
 }
@@ -325,7 +329,7 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
       className="relative w-full cursor-pointer rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150 p-3 sm:p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
       data-testid={`media-card-${event.id}`}
     >
-      <AuthorRow author={author} score={score} created_at={event.created_at} />
+      <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<KindPill event={event} />} />
       {caption && (
         <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-200 break-words line-clamp-2">
           {caption.split(/(nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi).map((part, i) =>
@@ -426,7 +430,10 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
       <div className="flex h-full flex-col">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+            <div className="flex items-center gap-2 min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+              <KindPill event={event} />
+            </div>
             {summary && (
             <p
               className="mt-0.5 min-h-[2rem] text-xs leading-4 text-slate-500 dark:text-slate-400 break-words line-clamp-2"
@@ -550,12 +557,12 @@ export function RepoCard({
 }) {
   // One card for NIP-34: repo announcements (30617, the Repos tab), issues
   // (1621, the Issues tab), patches and pull requests (1617/1618, the PRs
-  // tab). A repo wears no chip; a patch or issue says what it is and names the
-  // repo it belongs to (from its a-tag) — the context that makes a lone "fix: …"
-  // card mean something.
+  // tab). Each says what it is in the one pill every card wears — a patch or
+  // pull request in the info tone, an issue in warning, a repo plain — and a
+  // patch or issue names the repo it belongs to (from its a-tag), the context
+  // that makes a lone "fix: …" card mean something.
   const isRepo = event.kind === 30617;
-  const typeLabel = isRepo ? null : kindTypeLabel(event.kind);
-  const typeTone: "info" | "warning" = event.kind === 1617 || event.kind === 1618 ? "info" : "warning";
+  const typeTone: "info" | "warning" | "slate" = isRepo ? "slate" : event.kind === 1617 || event.kind === 1618 ? "info" : "warning";
   // A repo is named by its announcement; an issue, patch or PR by the one
   // title rule — a patch without a subject tag is titled from its own text.
   const name = isRepo ? tagVal(event, "name") ?? tagVal(event, "d") ?? "Unnamed repo" : gitItemTitleOf(event);
@@ -614,7 +621,7 @@ export function RepoCard({
               leaves it room so a long title's type chip never slides under it. */}
           <div className={`flex items-center gap-2 min-w-0 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
-            {typeLabel && <Chip size="sm" tone={typeTone}>{typeLabel}</Chip>}
+            <KindPill event={event} tone={typeTone} />
           </div>
           {isRepo && forkOf && (
             <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500" data-testid={`repo-fork-of-${event.id}`}>
@@ -740,6 +747,7 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
               so a long title and the live chip never run beneath it. */}
           <div className={`flex items-center gap-2 min-w-0 ${openIn ? "pr-14" : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+            <KindPill event={event} />
             {status && (
               <Chip size="sm" tone={LIVE_TONES[status] ?? "neutral"} dot={status === "live"} data-testid={`live-status-${event.id}`}>
                 {status}
@@ -842,6 +850,7 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
           <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
         </Avatar>
         <span className="min-w-0 truncate text-xs text-slate-600 dark:text-slate-300">{channelName}</span>
+        <KindPill event={event} />
         {/* The category waits for a wider tile: on a phone's 166px it cut 46 of
             66 host names ("The Old Timey Computer Show" kept 27px). */}
         {category && <span className="hidden sm:inline shrink-0 truncate text-[11px] text-slate-400 dark:text-slate-500">· {category}</span>}
@@ -949,12 +958,15 @@ export function EventCard({
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          {cal.startSec > 0 && (
-            <p className={`text-xs font-semibold ${past ? "text-slate-400 dark:text-slate-500" : "text-brand-deep dark:text-brand-link"}`} data-testid={`event-time-${event.id}`}>
-              {formatEventTime(cal.startSec, cal.isDateOnly)}
-              {past && <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">· {relativeEventTime(cal.startSec)}</span>}
-            </p>
-          )}
+          <div className="flex items-center gap-2 min-w-0">
+            {cal.startSec > 0 && (
+              <p className={`min-w-0 truncate text-xs font-semibold ${past ? "text-slate-400 dark:text-slate-500" : "text-brand-deep dark:text-brand-link"}`} data-testid={`event-time-${event.id}`}>
+                {formatEventTime(cal.startSec, cal.isDateOnly)}
+                {past && <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">· {relativeEventTime(cal.startSec)}</span>}
+              </p>
+            )}
+            <KindPill event={event} />
+          </div>
           <p className={`mt-0.5 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 line-clamp-2 ${openIn ? "pr-24" : corner ? "sm:pr-24" : ""}`}>{cal.title}</p>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
             <Avatar className={`h-4 w-4 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
@@ -1102,6 +1114,7 @@ export function ListCard({
   const header = (
     <div className="flex items-center gap-2 min-w-0">
       <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+      <KindPill event={event} />
       <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
         {folded
           ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}`
@@ -1206,7 +1219,7 @@ export function ListCard({
             </div>
           ) : (
             <div className="mt-1.5">
-              <AuthorRow author={author} score={score} created_at={event.created_at} />
+              <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<KindPill event={event} />} />
             </div>
           )}
         </div>
@@ -1241,6 +1254,7 @@ export function TrackCard({ event, author, flat }: { event: NostrEvent; author: 
         artistHref={author ? `/p/${author.npub}` : undefined}
         artistPubkey={event.pubkey}
         flat={flat}
+        badge={<KindPill event={event} />}
       />
     </div>
   );
@@ -1348,7 +1362,7 @@ export function ListingCard({
       )}
       {showAuthor && (
         <div className="mt-2">
-          <AuthorRow author={author} score={score} created_at={event.created_at} />
+          <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<KindPill event={event} />} />
         </div>
       )}
     </CardShell>
