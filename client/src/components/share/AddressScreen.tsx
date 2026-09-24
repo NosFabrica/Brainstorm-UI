@@ -6,6 +6,7 @@ import type { MinimalEvent } from "@/lib/noteRefs";
 import { OpenElsewhere } from "@/components/share/OpenElsewhere";
 import { ArticleScreen, ArticleShell, type AddressPointer, type ArticleEvent } from "@/components/share/ArticleScreen";
 import { EventScreen } from "@/components/share/EventScreen";
+import { isBlankEvent } from "@/lib/blankEvent";
 
 /**
  * An `naddr`: whatever its author last published at the address. The
@@ -23,7 +24,9 @@ export function AddressScreen({ naddr, ptr }: { naddr: string; ptr: AddressPoint
     retry: false,
   });
   const ev = articleQuery.data as ArticleEvent | null | undefined;
-  if (ev && !READER_KINDS.has(ev.kind)) {
+  // Deleted by overwriting: the address resolves to a husk. The event layout
+  // says what happened rather than the reader showing an article called "[Deleted]".
+  if (ev && (isBlankEvent(ev) || !READER_KINDS.has(ev.kind))) {
     return <EventScreen event={ev as unknown as MinimalEvent} ptr={{ id: ev.id, author: ev.pubkey, relays: ptr.relays }} />;
   }
   if (ev) return <ArticleScreen ev={ev} naddr={naddr} ptr={ptr} />;

@@ -3,7 +3,8 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { naddrForEvent } from "@/lib/articleLinks";
-import { Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
+import { isBlankEvent } from "@/lib/blankEvent";
+import { Smartphone, Loader2, MessageSquare, ArrowRight, X, Trash2 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
@@ -144,6 +145,9 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   });
   const note = (event ?? eventQuery.data) as MinimalEvent | null | undefined;
 
+  // Deleted by overwriting (lib/blankEvent): the address still resolves, to a
+  // husk. Say what happened rather than render an article called "[Deleted]".
+  if (note && isBlankEvent(note)) return <DeletedEvent />;
   // The kind decides, before any of the event layout's own queries run.
   if (note && READER_KINDS.has(note.kind)) {
     const d = note.tags.find((t) => t[0] === "d")?.[1] ?? "";
@@ -152,6 +156,21 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
     if (naddr) return <ArticleScreen ev={note as ArticleEvent} naddr={naddr} ptr={{ kind: note.kind, pubkey: note.pubkey, identifier: d, relays: relayHints }} />;
   }
   return <EventView ptr={ptr} note={note} loading={eventQuery.isLoading} />;
+}
+
+function DeletedEvent() {
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
+      <PublicPageHeader />
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+        <div className="text-center py-20" data-testid="event-deleted">
+          <Trash2 className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
+          <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">This post was deleted by its author.</p>
+          <Link href="/" className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
+        </div>
+      </main>
+    </div>
+  );
 }
 
 function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: MinimalEvent | null | undefined; loading: boolean }) {
