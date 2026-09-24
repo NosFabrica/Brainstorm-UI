@@ -23,6 +23,7 @@ import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
 import { EntityMenu } from "@/components/share/EntityMenu";
+import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { OpenElsewhere } from "@/components/share/OpenElsewhere";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
@@ -339,6 +340,8 @@ export default function ArticlePage() {
                 )}
               </div>
             </div>
+            {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
+            <TechnicalStrip event={ev} ids={naddr ? [{ label: "naddr", value: naddr }] : []} className="mt-2" />
 
             {/* Full article body — Brainstorm is the reading destination. */}
             {/* Inline code wears no decorative backticks (the typography plugin's

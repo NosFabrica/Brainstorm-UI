@@ -24,6 +24,7 @@ import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers
 import { nip19 } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
+import { setTechnicalView } from "@/lib/technicalView";
 
 const AUTHOR = "9".repeat(64);
 const served = vi.fn((): Record<string, unknown> | null => null);
@@ -114,6 +115,18 @@ describe("what the reader says a page is", () => {
   it("names the kind above the title: Spec, Recipe", async () => {
     await open(spec(30817, []));
     expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
+  });
+
+  // The technical view's line under the byline: kind and ids, a click to copy.
+  it("with the technical view on, the page carries its kind and address", async () => {
+    setTechnicalView(true);
+    localStorage.setItem("brainstorm_active_account", "acct-1");
+    const naddr = await open(spec(30817, []));
+    const strip = screen.getByTestId("technical-strip");
+    expect(strip).toHaveTextContent("kind 30817");
+    expect(strip).toHaveTextContent(`naddr ${naddr.slice(0, 8)}…${naddr.slice(-4)}`);
+    setTechnicalView(false);
+    localStorage.removeItem("brainstorm_active_account");
   });
 
   // Benjamin (2026-09-24): only a spec. An essay, a wiki page or a recipe
