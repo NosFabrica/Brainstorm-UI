@@ -95,4 +95,16 @@ describe("the author queue and the device's own copy", () => {
     await Promise.resolve();
     expect(loadReplaceableMock).not.toHaveBeenCalled();
   });
+
+  it("leaves a stale copy alone when the loader is already refreshing it", async () => {
+    const { claimRefresh } = await import("@/lib/eventCache");
+    const pk = "9".repeat(64);
+    expect(claimRefresh(`0:${pk}:`, 0)).toBe(true); // the loader got there first
+    held.set(pk, { event: profile(pk), at: Date.now() - PROFILE_FRESH_MS - 1 });
+    const got: NostrEvent[] = [];
+    wantProfile(pk, (p) => got.push(p));
+    await settle();
+    expect(got).toHaveLength(1); // still shown
+    expect(reqMock).not.toHaveBeenCalled(); // not asked twice
+  });
 });

@@ -1,7 +1,7 @@
 import type { NostrEvent } from "nostr-tools";
 import { searchRelay } from "@/lib/searchRelay";
 import { eventStore } from "@/lib/eventStore";
-import { PROFILE_FRESH_MS, readProfileRows } from "@/lib/eventCache";
+import { PROFILE_FRESH_MS, claimRefresh, readProfileRows } from "@/lib/eventCache";
 import { loadReplaceable } from "@/lib/loaders";
 
 /**
@@ -179,7 +179,8 @@ async function ask(authors: string[]): Promise<void> {
     if (held.size > 0) {
       const old = Date.now() - PROFILE_FRESH_MS;
       missing = authors.filter((a) => !held.has(a));
-      refresh = [...held.values()].filter((row) => row.at < old).map((row) => row.event.pubkey);
+      // Claimed, so a copy the loader is already refreshing isn't asked twice.
+      refresh = [...held.values()].filter((row) => row.at < old && claimRefresh(`0:${row.event.pubkey}:`, 0)).map((row) => row.event.pubkey);
       refresh.forEach((a) => refreshing.add(a));
       for (const row of held.values()) deliver(row.event);
     }

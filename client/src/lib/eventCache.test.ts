@@ -13,13 +13,14 @@ import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 
 const storeAdd = vi.fn((event: NostrEvent) => event);
+const storeReplaceable = vi.fn((..._a: unknown[]): NostrEvent | undefined => undefined);
 const loadReplaceableMock = vi.fn(async (..._a: unknown[]) => undefined);
 const snapshot: { event?: unknown } = {};
 
 vi.mock("./eventStore", () => ({
   eventStore: {
     add: (e: NostrEvent) => storeAdd(e),
-    getReplaceable: () => undefined,
+    getReplaceable: (...a: unknown[]) => storeReplaceable(...a),
     insert$: { subscribe: () => ({ unsubscribe() {} }) },
   },
 }));
@@ -270,6 +271,24 @@ describe("what goes to disk", () => {
  * which is the win, and the reason for both the refresh of stale copies and
  * the signature check.
  */
+describe("the device connection", () => {
+  it("opens the database once for many reads and writes", async () => {
+    const opens = vi.spyOn(indexedDB, "open");
+    await cache.writeEvents([signed(10002)]);
+    await cache.cachedEventsForFilters([{ kinds: [10002], authors: [ME] }]);
+    await cache.readProfileRows([ME]);
+    await cache.writeEvents([signed(10040)]);
+    expect(opens).toHaveBeenCalledTimes(1);
+    opens.mockRestore();
+  });
+
+  it("reads only the authors asked about", async () => {
+    await cache.writeEvents([signed(10002), signed(10002, [], OTHER_SECRET)]);
+    const found = await cache.cachedEventsForFilters([{ kinds: [10002], authors: [OTHER] }]);
+    expect(found.map((e) => e.pubkey)).toEqual([OTHER]);
+  });
+});
+
 describe("answering the loader from disk", () => {
   const ask = (filter: Record<string, unknown>) => cache.cachedEventsForFilters([filter as never]);
 
@@ -338,6 +357,39 @@ describe("answering the loader from disk", () => {
       expect(loadReplaceableMock).toHaveBeenCalledTimes(1);
     } finally {
       clock.mockRestore();
+    }
+  });
+
+  // Every copy served from the device goes back through the store and so to
+  // the writer; rewriting an identical copy reset its age on every read, and a
+  // copy read often was never refreshed.
+  it("does not make an entry fresh again by writing the same copy back", async () => {
+    const list = signed(10002);
+    await cache.writeEvents([list]);
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31 * 60_000);
+    try {
+      await cache.writeEvents([list]); // the served copy, written back
+      await ask({ kinds: [10002], authors: [ME] });
+      await vi.waitFor(() => expect(loadReplaceableMock).toHaveBeenCalledTimes(1));
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("refreshes a stale relay list where relay lists are indexed, and a 10040 on a few of its author's relays", async () => {
+    const outbox = ["a", "b", "c", "d", "e", "f"].map((x) => ["r", `wss://${x}.example/`]);
+    storeReplaceable.mockImplementation((kind) => (kind === 10002 ? signed(10002, outbox) : undefined));
+    await cache.writeEvents([signed(10002), signed(10040)]);
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31 * 60_000);
+    try {
+      await ask({ kinds: [10002, 10040], authors: [ME] });
+      await vi.waitFor(() => expect(loadReplaceableMock).toHaveBeenCalledTimes(2));
+      const byKind = new Map(loadReplaceableMock.mock.calls.map((call) => [call[0], call[2] as { relays?: string[] }]));
+      expect(byKind.get(10002)?.relays).toBeUndefined();
+      expect(byKind.get(10040)?.relays).toHaveLength(4);
+    } finally {
+      clock.mockRestore();
+      storeReplaceable.mockReset();
     }
   });
 

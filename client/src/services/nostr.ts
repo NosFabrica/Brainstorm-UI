@@ -187,25 +187,23 @@ export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000): P
  * the hardcoded set and an activation published only to the user's own relays
  * reads as "never activated".
  */
-export async function fetchTrustProviderList(
-  pubkey: string,
-  timeoutMs = 10000,
-  { fromRelays = false }: { fromRelays?: boolean } = {},
-): Promise<NostrEvent | undefined> {
+export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
+  // Always the relays, newest wins — never a held copy on its own. Every
+  // reader of this acts on it: merges into it and publishes it back (drop a
+  // row declared elsewhere and it is gone), clears the local "activated" flag
+  // when it names another assistant, or picks the scorer a whole page is
+  // ranked by. Held copies are kept until evicted, so one can be arbitrarily
+  // old. The held copy still counts: it wins when it is newer (published here,
+  // relays not caught up) and answers when no relay does, so a failed read is
+  // never mistaken for "they declared nothing".
+  const held = eventStore.getReplaceable(10040, pubkey) as NostrEvent | undefined;
   try {
     const writeRelays = await outboxRelays(pubkey, PROFILE_RELAYS);
-    // A read that is about to be merged into and published back must be the
-    // newest any relay has — not the device's copy, which is kept until
-    // evicted, and not merely the first relay to answer. Publishing over an
-    // older copy would drop whatever the user declared elsewhere since.
-    if (fromRelays) {
-      return await requestNewest(writeRelays, { kinds: [10040], authors: [pubkey], limit: 5 }, timeoutMs);
-    }
-
-    return await loadReplaceable(10040, pubkey, { relays: writeRelays, timeoutMs });
+    const fetched = await requestNewest(writeRelays, { kinds: [10040], authors: [pubkey], limit: 5 }, timeoutMs);
+    return newerOf(fetched, (eventStore.getReplaceable(10040, pubkey) as NostrEvent | undefined) ?? held);
   } catch {}
 
-  return undefined;
+  return held;
 }
 
 
