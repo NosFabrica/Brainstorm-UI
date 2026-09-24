@@ -22,10 +22,11 @@ import { reportSearchFailure } from "@/lib/serverStatus";
 import { searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
-import { liftQuery } from "@/lib/searchSyntax";
+import { liftQuery, searchFilters } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
+import { RECIPE_TAGS } from "@/lib/sourceApp";
 
 export type SearchTab =
   | "everything"
@@ -36,17 +37,26 @@ export type SearchTab =
   | "apps"
   | "shop"
   | "repos"
+  | "issues"
+  | "prs"
   | "events"
   | "live"
   | "music"
   | "releases"
-  | "lists";
+  | "lists"
+  | "recipes"
+  | "nips";
 
 /** One truth for tab → kinds, extracted from the SearchOverTrust app. */
 export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   people: [0],
   notes: [1, 11, 1111],
-  articles: [30023, 30024, 30818, 30040, 30041],
+  // 30817 = specs (NIPs on Nostr): Markdown, addressable, indexed by the
+  // search relay — read like an article, labelled "Spec".
+  articles: [30023, 30024, 30818, 30040, 30041, 30817],
+  // Specs alone, as their own vertical under More — "NIPs" is the word people
+  // search (Benjamin, 2026-09-23). They stay in Articles too, labelled.
+  nips: [30817],
   media: [20, 21, 22, 1063, 1986, 1222, 34235, 34236],
   // Vitor's split: Zap Store app listings and git-shaped kinds were one
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
@@ -58,7 +68,11 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   // game state and ad-skip data, so the UI keeps only hits with a title and
   // audio — see lib/trackEvent.
   music: [31337],
-  repos: [30617, 1617, 1618, 1621],
+  // NIP-34 git, one vertical per thing people look for: repo announcements,
+  // issues, and patches with pull requests (both are code up for review).
+  repos: [30617],
+  issues: [1621],
+  prs: [1617, 1618],
   // Benjamin: "filter by events also". NIP-52 calendar events are their own
   // vertical (the tab does the calendar work — the relay only knows
   // created_at); Live keeps the NIP-53 streams. Kind 31924 calendars (event
@@ -69,11 +83,29 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   releases: [30063],
   // 30000 = NIP-51 follow sets — Brainstorm's own pinned-tag exports live here.
   lists: [30000, 10003, 10015, 30001, 30003, 30015, 30267, 39701],
+  // Recipes are long-form articles wearing zap.cooking's tag — the same kind as
+  // Articles, narrowed by tag (TAB_TAGS). They stay in Articles too, labelled.
+  recipes: [30023],
+};
+
+/**
+ * The verticals that are a kind narrowed by tag. The relay filters `#t`
+ * alongside `search` and `kinds` (probed 2026-09-22), so this is a real
+ * vertical, not a client-side sieve.
+ */
+const TAB_TAGS: Partial<Record<SearchTab, readonly string[]>> = {
+  recipes: RECIPE_TAGS,
 };
 
 /** Everything is deliberately unconstrained — the relay blends and ranks. */
 export function kindsForTab(tab: SearchTab): number[] | undefined {
   return tab === "everything" ? undefined : TAB_KINDS[tab];
+}
+
+/** The `#t` a vertical is defined by, if any — a typed `#tag` in the query wins over it. */
+export function tagsForTab(tab: SearchTab): string[] | undefined {
+  const tags = TAB_TAGS[tab];
+  return tags ? [...tags] : undefined;
 }
 
 export interface SearchHit {
@@ -140,6 +172,12 @@ export interface SearchParams {
    * page joins; a "more" page opens its own REQ as before.
    */
   group?: SearchGroup;
+  /**
+   * Exactly these kinds, in place of the tab's — Everything's section for a
+   * typed kind that none of its sections carry. Not intersected with the
+   * query's own `kind:` tokens; it IS them.
+   */
+  kinds?: number[];
 }
 
 const DEFAULT_LIMIT = 100;
@@ -346,33 +384,65 @@ export function searchStream(
     const observer = await resolveObserver(params);
     if (cancelled) return;
 
-    const kinds = kindsForTab(params.tab);
-    // from:/to:/#tag/since:/until: become NIP-01 filter fields (the relay
-    // never sees those prefixes — verified by probing); the relay's own
-    // extensions (sort:/include:spam/filter:rank:/observer:) stay in `search`.
+    // from:/to:/#tag/since:/until:/group:/label:/kind:/the NIP-73 scopes become NIP-01
+    // filter FIELDS (the relay never sees those prefixes — verified by probing); the relay's
+    // own extensions (sort:/include:spam/filter:rank:/observer:) stay in `search`. A #tag, a
+    // group:, a label: or a scope asks several questions at once, so what comes back is a
+    // UNION of filters ORed in one REQ.
     const lifted = liftQuery(query);
+    // A typed kind: (or spec:) narrows whatever tab it is on. Everything is
+    // one request with a filter per section, each routed by kind, so the typed
+    // kind narrows each section rather than replacing its kinds — otherwise
+    // Latest, Happening and Media would all ask for specs and fill with them.
+    // Agents filter by kind this way; no chip needed.
+    // On the NIPs tab a kind is what a spec COVERS (its `k` tags), not what
+    // it is — `kind:5905` is the specs that define kind 5905. The relay
+    // narrows by `#k` (probed 2026-09-23).
+    const tabKinds = params.kinds ?? kindsForTab(params.tab);
+    const coveredKinds = params.tab === "nips" ? lifted.kinds : undefined;
+    const kinds = lifted.kinds && !coveredKinds && !params.kinds ? (tabKinds ? tabKinds.filter((k) => lifted.kinds!.includes(k)) : lifted.kinds) : tabKinds;
+    // A section the typed kind doesn't fit asks nothing and is simply done.
+    if (kinds && kinds.length === 0) {
+      emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
+      return;
+    }
     // A NIP-53 stream is published by the streaming platform's key with the
     // streamer as its `p` host, so a person's live streams are the ones they
     // HOST, not the ones their key authored (probed 2026-09-09: mar's own key
     // holds 161 ended streams with no recording; the platform's holds her 300
     // recent ones, 67 with replays). On the Live tab a person scope asks by host.
     const byHost = params.tab === "live" && !!lifted.authors;
-    const p = byHost ? [...new Set([...(lifted["#p"] ?? []), ...(lifted.authors ?? [])])] : lifted["#p"];
     // `#p` matches any role; a stream is theirs when they host it (a missing
     // role reads as host — self-published streams often carry none).
     const hosts = byHost ? new Set(lifted.authors) : null;
     const hostedByThem = (event: NostrEvent) =>
       !hosts || event.tags.some((t) => t[0] === "p" && hosts.has(t[1]) && (!t[3] || t[3].toLowerCase() === "host"));
-    const filter: import("nostr-tools").Filter = {
-      ...(kinds ? { kinds } : {}),
-      ...(lifted.authors && !byHost ? { authors: lifted.authors } : {}),
-      ...(p && p.length ? { "#p": p } : {}),
-      ...(lifted["#t"] ? { "#t": lifted["#t"] } : {}),
-      ...(params.since !== undefined ? { since: params.since } : lifted.since !== undefined ? { since: lifted.since } : {}),
-      ...(lifted.until !== undefined ? { until: lifted.until } : {}),
-      search: withObserver(lifted.search, observer),
-      limit: params.limit ?? DEFAULT_LIMIT,
-    };
+    const limit = params.limit ?? DEFAULT_LIMIT;
+    // On the Live tab the author question moves to `#p`, so the grammar's own `authors` is
+    // dropped and the keys ride the base every filter carries.
+    const askedBy = byHost ? query.replace(/(^|\s)from:\S+/gi, " ") : query;
+    const filters = searchFilters(askedBy, {
+      kinds,
+      limit,
+      searchString: (terms) => withObserver(terms, observer),
+      base: {
+        // What a spec COVERS rather than what it is, on the NIPs tab.
+        ...(coveredKinds ? { "#k": coveredKinds.map(String) } : {}),
+        // A tab with a tag of its own asks it — unless the query named tags, which the
+        // grammar then asks for in a filter of their own.
+        ...(!lifted["#t"] && tagsForTab(params.tab) ? { "#t": tagsForTab(params.tab)! } : {}),
+        ...(byHost && lifted.authors ? { "#p": lifted.authors } : {}),
+      },
+      since: params.since,
+    });
+    // A scope asked of a tab that holds no comments has nothing to ask.
+    if (filters.length === 0) {
+      emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
+      return;
+    }
+    // What the deadline, the sort probe and the paging cursor read: every filter of a union
+    // carries the same words, window and lens.
+    const filter = filters[0];
 
     // --- Author hydration: the store answers known authors; the rest go to the shared queue.
     const wantedAuthors = new Map<string, () => void>();
@@ -413,7 +483,12 @@ export function searchStream(
     const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
     const pageSubs: { unsubscribe: () => void }[] = [];
 
-    const openPage = (pageFilter: import("nostr-tools").Filter, closeAtEose: boolean) => {
+    const openPage = (page: import("nostr-tools").Filter[], closeAtEose: boolean) => {
+      // The page's own size, for the short-page test below. Only meaningful when ONE filter
+      // was asked: a union's filters run short independently, and `#l` finding nothing says
+      // nothing about whether `#t` has more.
+      const single = page.length === 1;
+      const pageLimit_ = page[0]?.limit ?? pageLimit;
       let received = 0;
       let fresh = 0;
       // The first page of a seeded stream is a refresh: what it brings is
@@ -435,11 +510,15 @@ export function searchStream(
       // Routing back from a shared REQ is by kind, so a member must name kinds
       // (Everything names none — it would be handed every other section's hits)
       // and the group's members must not ask for the same kind twice.
-      const canGroup = !!params.group && !closeAtEose && !!pageFilter.kinds?.length;
+      //
+      // A union cannot join one at all: its filters ask different tag questions of the SAME
+      // kinds, so a kind no longer says which filter — or which section — an event came back
+      // for. It gets a REQ of its own.
+      const canGroup = single && !!params.group && !closeAtEose && !!page[0].kinds?.length;
       const open = (o: { error: (err: unknown) => void; next: (msg: { type: string; event?: NostrEvent; reason?: string }) => void }) =>
         canGroup
-          ? joinGroupReq(relay, params.group!, pageFilter, o)
-          : relay.req(pageFilter).subscribe(o);
+          ? joinGroupReq(relay, params.group!, page[0], o)
+          : relay.req(page).subscribe(o);
       const sub = open({
         error: (err: unknown) => {
           clearTimeout(deadline);
@@ -488,10 +567,11 @@ export function searchStream(
             }
             seeded.clear();
           }
-          // A page the relay returned short is the last one — counted as the
-          // relay sent it, before dedupe: an `until` page always carries the
-          // boundary second again. A full page with nothing new is the end too.
-          if (received < (pageFilter.limit ?? pageLimit) || fresh === 0) exhausted = true;
+          // A page the relay returned short is the last one — counted as the relay sent it,
+          // before dedupe: an `until` page always carries the boundary second again. A full
+          // page with nothing new is the end too, and for a union it is the ONLY end: the
+          // filters are short independently, so their total says nothing.
+          if (fresh === 0 || (single && received < pageLimit_)) exhausted = true;
           if (closeAtEose) sub.unsubscribe();
           emit({ timeMs: Date.now() - startedAt });
         } else if (msg.type === "CLOSED") {
@@ -503,27 +583,38 @@ export function searchStream(
       pageSubs.push({ unsubscribe: () => { clearTimeout(deadline); sub.unsubscribe(); } });
     };
 
+    // How the next page is asked for. Walking back with `until` is only correct when ONE
+    // filter was asked: `oldest` is the oldest second ANY filter of a union returned, so
+    // rewinding them all to it skips whatever a filter had between its own oldest and that
+    // one — silently, and for good. A union grows its limits instead and leans on the dedupe,
+    // which is what the ranked path has always done.
+    const walksBack = recent && filters.length === 1;
+
     turnPage = () => {
       if (cancelled || !eose || loadingMore || exhausted) return;
-      const nextLimit = pageLimit * (pagesTurned + 2);
-      if (!recent && nextLimit > RANKED_PAGE_CEILING) {
+      const factor = pagesTurned + 2;
+      const nextLimit = pageLimit * factor;
+      if (!walksBack && nextLimit > RANKED_PAGE_CEILING) {
         exhausted = true;
         emit({});
         return;
       }
       loadingMore = true;
       pagesTurned++;
-      // `since` belongs to page one only: it says "we already hold everything
-      // older" (SearchParams.seed). Carried onto a page asked `until` the
-      // oldest hit, it describes an empty window and the section reads as
-      // exhausted.
-      const { since: _pageOneOnly, ...rest } = filter;
-      const next: import("nostr-tools").Filter = recent ? { ...rest, until: oldest } : { ...rest, limit: nextLimit };
+      // `since` belongs to page one only: it says "we already hold everything older"
+      // (SearchParams.seed). Carried onto a page asked `until` the oldest hit, it describes
+      // an empty window and the section reads as exhausted.
+      //
+      // Every filter of the union turns together, and the side questions grow in proportion
+      // so a wider page does not keep re-reading the same quarter of them.
+      const next = filters.map(({ since: _pageOneOnly, ...f }) =>
+        walksBack ? { ...f, until: oldest } : { ...f, limit: (f.limit ?? pageLimit) * factor },
+      );
       emit({});
       openPage(next, true);
     };
 
-    openPage(filter, false);
+    openPage(filters, false);
     unsubscribe = () => {
       for (const sub of pageSubs) sub.unsubscribe();
       wantedAuthors.forEach((withdraw) => withdraw());
@@ -1168,6 +1259,31 @@ export function fetchRepoCounts(address: string, timeoutMs = 5000): Promise<Repo
 }
 
 /**
+ * The specs (kind 30817) that define a kind — the `k` tags they carry name
+ * it, and the relay narrows by them (probed 2026-09-23). A structural
+ * event's page says what its kind is by pointing here.
+ */
+export function fetchSpecsForKind(kind: number, timeoutMs = 5000): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const found: NostrEvent[] = [];
+    const sub = relay
+      .req({ kinds: [30817], "#k": [String(kind)], search: "include:spam", limit: 5 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) found.push(msg.event);
+        else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(found);
+    }
+  });
+}
+
+/**
  * The wiki page for a NIP (kind 30818, d = "nip-46"). Several authors
  * publish competing versions — probed live, a real 10KB spec sits next to
  * 7-character stubs — so the most substantial page wins.
@@ -1545,7 +1661,21 @@ export function suggestProfileHits(
   if (signal?.aborted) return Promise.resolve([]);
   return new Promise((resolve) => {
     const seen = new Map<string, SearchHit>();
-    const cancel = searchStream(
+    // Declared before the stream opens. A stream that answers synchronously — an unconfigured
+    // relay emits its error on the spot — calls `finish` while these are still being
+    // assigned, and a `const` would be in its dead zone (a ReferenceError, not a result).
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancel: SearchHandle | undefined;
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", finish);
+      cancel?.();
+      resolve([...seen.values()].slice(0, limit));
+    }
+    cancel = searchStream(
       query,
       { tab: "people", pov: params.pov, userPubkey: params.userPubkey, limit },
       (snapshot) => {
@@ -1555,13 +1685,8 @@ export function suggestProfileHits(
         if (snapshot.eose || snapshot.error) finish();
       },
     );
-    const timer = setTimeout(finish, timeoutMs);
+    if (done) { cancel(); return; }
+    timer = setTimeout(finish, timeoutMs);
     signal?.addEventListener("abort", finish, { once: true });
-    function finish() {
-      clearTimeout(timer);
-      signal?.removeEventListener("abort", finish);
-      cancel();
-      resolve([...seen.values()].slice(0, limit));
-    }
   });
 }

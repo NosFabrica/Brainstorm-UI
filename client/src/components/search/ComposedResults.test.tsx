@@ -26,6 +26,7 @@ vi.mock("@/services/search", async (importOriginal) => {
   return {
     ...actual,
     fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
+    fetchSpecsForKind: (kind: number) => specsForKindMock(kind),
     searchStream: (query: string, params: SearchParams, onSnapshot: (s: SearchSnapshot) => void) => {
       const call: StreamCall = {
         query,
@@ -42,6 +43,7 @@ vi.mock("@/services/search", async (importOriginal) => {
     suggestProfiles: () => Promise.resolve([]),
   };
 });
+const specsForKindMock = vi.fn<(kind: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.8);
 const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() => Promise.resolve(new Map()));
 vi.mock("@/hooks/useAuthorScores", () => ({
@@ -371,6 +373,24 @@ describe("ComposedResults — media-rich sections", () => {
     expect(within(articles).getByTestId("article-tile-fa")).toBeInTheDocument();
   });
 
+  // Article rows on Everything hide their type — the section says "Articles".
+  // A spec (kind 30817) rides in that section and must not pass for an essay.
+  it("a spec in the Articles section says Spec; an essay still says nothing", async () => {
+    render(<ComposedResults query="scheduler dvm" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const pk = "7".repeat(64);
+    sectionCall("articles").emit({
+      hits: [
+        { event: ev("s1", 30817, pk, "# Scheduler DVM", [["d", "s1"], ["title", "Scheduler DVM"], ["k", "5905"]]), author: author(pk, "russell"), rank: null },
+        { event: ev("e1", 30023, pk, "Body", [["d", "e1"], ["title", "Building a DVM"]]), author: author(pk, "russell"), rank: null },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const section = await screen.findByTestId("serp-section-articles");
+    expect(within(within(section).getByTestId("serp-row-s1")).getByTestId("serp-type")).toHaveTextContent("Spec");
+    expect(within(within(section).getByTestId("serp-row-e1")).queryByTestId("serp-type")).toBeNull();
+  });
+
   // Benjamin: "when Latest is showing there should always be 3" — a strip of
   // two reads as an accident. Pictured news leads; when that runs short the
   // strip fills to three with unpictured news, then with pictured notes.
@@ -632,6 +652,66 @@ describe("ComposedResults", () => {
     expect(sectionCall("articles").query).toBe("liverpool");
     expect(sectionCall("people").query).toBe("liverpool");
     expect(sectionCall("people").params.limit).toBeLessThanOrEqual(10);
+  });
+
+  // Everything is its sections, each routed by kind — so `kind:32267` typed
+  // by an agent, or reached from a spec's chip, was dealt to eight sections
+  // none of which carry it, and every one finished empty: "Nothing found",
+  // with two thousand apps on the relay (Benjamin, 2026-09-23, from the
+  // AI Agent Communication spec). A typed kind no section carries gets a
+  // section of its own, asking for exactly that.
+  it("a typed kind no section carries gets a section of its own", async () => {
+    window.history.replaceState({}, "", "/?q=kind%3A32267");
+    render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
+
+    const byKind = sectionCall("everything");
+    expect(byKind.params.kinds).toEqual([32267]);
+    for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
+    byKind.emit({ hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")], eose: true, timeMs: 200 });
+
+    const section = await screen.findByTestId("serp-section-kind");
+    expect(section).toHaveTextContent("App · kind 32267");
+    expect(section).toHaveTextContent("zapstore");
+    expect(screen.queryByTestId("composed-empty")).toBeNull();
+  });
+
+  // Several specs cover most kinds — a capability profile lists forty — so
+  // "defined in <the first one back>" was a guess ("Nostr mail settings" for
+  // kind 30078). The section names the kind in words with its number, and
+  // links the specs that cover it, the first two by name.
+  it("the kind section names the kind and the specs that cover it", async () => {
+    specsForKindMock.mockResolvedValueOnce([
+      ev("s1", 30817, "b".repeat(64), "#", [["d", "zapstore-apps"], ["title", "App metadata"]]),
+      ev("s2", 30817, "c".repeat(64), "#", [["d", "noornote"], ["title", "NoorNote"]]),
+      ev("s3", 30817, "d".repeat(64), "#", [["d", "x"], ["title", "X"]]),
+    ]);
+    window.history.replaceState({}, "", "/?q=kind%3A32267");
+    render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const byKind = sectionCall("everything");
+    for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
+    byKind.emit({ hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")], eose: true, timeMs: 200 });
+
+    const link = await screen.findByTestId("serp-kind-spec");
+    expect(link).toHaveTextContent("App metadata, NoorNote +1");
+    expect(link.getAttribute("href")).toBe("/?t=nips&q=kind%3A32267");
+    expect(screen.getByTestId("serp-section-kind")).toHaveTextContent("App · kind 32267");
+    expect(specsForKindMock).toHaveBeenCalledWith(32267);
+  });
+
+  // The search relay indexes the kinds it is configured for; most kinds a
+  // spec defines (25801, 5905) are not among them. An empty there is the
+  // corpus, not the words — say which.
+  it("says the kind is not indexed when the relay holds none of it", async () => {
+    window.history.replaceState({}, "", "/?q=kind%3A25801");
+    render(<ComposedResults query="kind:25801" pov="nosfabrica" onTabChange={vi.fn()} />);
+    for (const c of calls) c.emit({ hits: [], eose: true, timeMs: 1 });
+
+    expect(await screen.findByTestId("composed-empty")).toHaveTextContent("Nothing indexed for kind 25801");
+  });
+
+  it("a typed kind a section already carries asks nothing extra", () => {
+    render(<ComposedResults query="dvm spec:" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "everything")).toBeUndefined();
   });
 
   // The home feed: NO query at all → the composed page becomes "what's

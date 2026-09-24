@@ -233,6 +233,29 @@ describe("the plain-link card", () => {
     expect(screen.queryByTestId("link-card-image")).toBeNull();
   });
 
+  it("drops the words the note already says, keeping only the new lede", async () => {
+    unfurlMock.mockResolvedValue({ kind: "page", title: "Todos que apoiei venceram na América Latina, diz Trump", description: "Presidente dos EUA afirmou estar nove em nove", image: null, siteName: "O Antagonista" });
+    render(<LinkPreviewCard url="https://oantagonista.com.br/x" context="“Todos que apoiei venceram” na América Latina, diz Trump" />);
+    const card = await screen.findByTestId("link-card");
+    expect(card).toHaveTextContent("nove em nove");
+    expect(card).not.toHaveTextContent("diz Trump");
+  });
+
+  it("draws nothing when the note already says it all and shows its own picture — the chip names the link", async () => {
+    unfurlMock.mockResolvedValue({ kind: "page", title: "Story headline here | Outlet", description: "Story headline here", image: "https://img.test/og.jpg", siteName: "Outlet" });
+    render(<LinkPreviewCard url="https://news.test/story" showImage={false} context="Story headline here" />);
+    await screen.findByTestId("link-card-echoed");
+    expect(screen.queryByTestId("link-card")).toBeNull();
+  });
+
+  it("is only the picture and its source when the note already says it all", async () => {
+    unfurlMock.mockResolvedValue({ kind: "page", title: "Story headline here", description: null, image: "https://img.test/og.jpg", siteName: "Outlet" });
+    render(<LinkPreviewCard url="https://news.test/story" context="Story headline here" />);
+    const card = await screen.findByTestId("link-card-media");
+    expect(card.querySelector("img")).toHaveAttribute("src", "https://img.test/og.jpg");
+    expect(card).not.toHaveTextContent("Story headline here");
+  });
+
   it("plays an extensionless video link inline", async () => {
     unfurlMock.mockResolvedValue({ kind: "video", title: null, description: null, image: null, siteName: null });
     render(<LinkPreviewCard url="https://cdn.test/v/abc" />);

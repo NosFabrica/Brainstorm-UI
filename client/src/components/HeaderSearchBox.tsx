@@ -15,6 +15,7 @@ import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSugg
 import { useTagMatches } from "@/hooks/useTags";
 import type { TagSummary } from "@/services/tags";import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
+import { typeaheadWords } from "@/lib/searchSyntax";
 
 /**
  * Desktop header search with live, debounced typeahead (mirrors the landing box,
@@ -76,7 +77,8 @@ export function HeaderSearchBox({
     if (parseTopicQuery(value).isTopic) {
       setSuggestions([]); setLoading(false); setOpen(true); return;
     }
-    if (query.length < 2 || isLikelyNpub(query) || isHexPubkey(query) || isNip05Handle(query)) {
+    // Filters and half-typed prefixes are not names: `doi:` must not list people called "doi".
+    if (query.length < 2 || typeaheadWords(value) === null || isLikelyNpub(query) || isHexPubkey(query) || isNip05Handle(query)) {
       setSuggestions([]); setOpen(false); setLoading(false); return;
     }
     setLoading(true); setOpen(true);

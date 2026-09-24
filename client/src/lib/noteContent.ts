@@ -155,7 +155,7 @@ export function primaryLink(tokens: NoteToken[]): string | null {
 }
 
 /** Sheds prose punctuation; keeps a closing paren the URL itself opened (Wikipedia). */
-function trimProse(url: string): string {
+export function trimProse(url: string): string {
   let out = url.replace(/[,;!?]+$/, "");
   const count = (re: RegExp) => out.match(re)?.length ?? 0;
   while (out.endsWith(")") && count(/\(/g) < count(/\)/g)) {

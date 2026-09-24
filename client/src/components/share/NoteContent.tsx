@@ -12,6 +12,10 @@ import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { wavlakeTrackId } from "@/lib/wavlake";
 import { FountainCard } from "@/components/share/FountainCard";
 import { fountainRef } from "@/lib/fountain";
+import { ClientLink } from "@/components/share/ClientLink";
+import { ProfileMention } from "@/components/share/ProfileMention";
+import { primalRef } from "@/lib/clientLinks";
+import { useClientLink } from "@/hooks/useClientLink";
 import { useLightbox } from "@/components/share/Lightbox";
 
 /** Human-readable track name from a raw audio URL. Falls back to "Audio" for
@@ -99,6 +103,11 @@ export function NoteContent({
   // The note's primary link gets a rich preview card below the body (not in
   // compact/embedded contexts). Inline URLs stay as compact favicon chips.
   const primaryUrl = primaryLink(tokens);
+  // A Primal link names a Nostr entity; the card below is for links that
+  // name nothing here. Asked unconditionally — the hook count must not move.
+  const primaryRef = primaryUrl ? primalRef(primaryUrl) : null;
+  const primaryEntity = useClientLink(primaryRef);
+  const primaryIsPlainLink = !primaryRef || (primaryEntity.status === "done" && primaryEntity.entity === null);
   // All image URLs in this note — the set the lightbox carousels through.
   const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
   return (
@@ -111,6 +120,7 @@ export function NoteContent({
             if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
             if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
             if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
+            if (primalRef(token.value)) return <ClientLink key={i} url={token.value} />;
             return <LinkChip key={i} url={token.value} />;
           case "audio":
             return (
@@ -164,18 +174,7 @@ export function NoteContent({
             }
             if (pubkey) {
               const prof = profiles?.get(pubkey);
-              const name = prof?.display_name || prof?.name;
-              const label = name ? `@${name}` : `@${token.bech32.slice(0, 10)}…`;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => requestNav({ kind: "profile", target: token.bech32, label: name || token.bech32.slice(0, 12) + "…", picture: prof?.picture })}
-                  className="text-brand-link font-medium hover:underline"
-                >
-                  {label}
-                </button>
-              );
+              return <ProfileMention key={i} npub={token.bech32} name={prof?.display_name || prof?.name} picture={prof?.picture} />;
             }
             if (id) {
               // Embedded as a card below? Then the card IS the quote.
@@ -204,7 +203,7 @@ export function NoteContent({
             return null;
         }
       })}
-      {primaryUrl && linkCard && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl) && <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} />}
+      {primaryUrl && linkCard && primaryIsPlainLink && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl) && <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={content} />}
     </div>
   );
 }

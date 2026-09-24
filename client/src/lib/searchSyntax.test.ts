@@ -7,13 +7,15 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, personAssist, personScope, readFilters, scopeOf, scopedPlaceholder, scopedSearchHref, seeAllLabel, sinceForPreset, splitFilters } from "./searchSyntax";
+import { activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, personAssist, personScope, readFilters, scopeOf, scopedPlaceholder, scopedSearchHref, seeAllLabel, sinceForPreset, splitFilters, typeaheadWords } from "./searchSyntax";
 
-// Probed 2026-09-03: the relay ignores filter:rank and knows no hops. The
-// controls that need those are done on the CLIENT, but still speak grammar —
+// The relay knows no hops and has no verification of its own, so those two
+// controls are done on the CLIENT — but they still speak grammar:
 // trust:verified and reach:follows|friends ride the box like every other
 // token, and liftQuery keeps them off the wire (sent as text they'd match
-// nothing).
+// nothing). `filter:rank:gte:N` is NOT one of these: the relay's own store
+// deletes rows below the floor (vespa-relay store e1ecd7f23e), so it rides
+// the search string like sort: and observer:.
 describe("client-side filter tokens", () => {
   it("writes and reads trust:verified and reach:", () => {
     expect(applyFilters("bitcoin", { verifiedOnly: true })).toBe("bitcoin trust:verified");
@@ -26,6 +28,18 @@ describe("client-side filter tokens", () => {
     expect(state.reach).toBe("friends");
     expect(readFilters("btc").reach).toBeNull();
     expect(readFilters("btc reach:nonsense").reach).toBeNull();
+  });
+
+  /**
+   * Agents and power users filter by kind without a chip for it: `kind:N`
+   * lifts to the relay filter like from:/#tag, and `spec:` is the human word
+   * for kind 30817 (the team: hide kind filters from the UI, keep them typeable).
+   */
+  it("lifts kind: and spec: to a kinds filter, and leaves the words", () => {
+    expect(liftQuery("dvm spec:")).toMatchObject({ search: "dvm", kinds: [30817] });
+    expect(liftQuery("kind:30817 kind:30023 dvm")).toMatchObject({ search: "dvm", kinds: [30817, 30023] });
+    expect(liftQuery("plain words").kinds).toBeUndefined();
+    expect(liftQuery("kind:abc words")).toMatchObject({ search: "kind:abc words" }); // not a kind — left alone
   });
 
   it("keeps client-only tokens off the wire", () => {
@@ -50,7 +64,19 @@ describe("splitFilters / activeFilterCount", () => {
   it("counts the filters a person has switched on", () => {
     expect(activeFilterCount(readFilters("btc"))).toBe(0);
     expect(activeFilterCount(readFilters("btc sort:rank trust:verified"))).toBe(2);
-    expect(activeFilterCount(readFilters(`btc since:2026-01-01 until:2026-02-01 reach:follows include:spam observer:${"a".repeat(64)}`))).toBe(4);
+    // The date range counts once, however many ends it has.
+    expect(activeFilterCount(readFilters("btc since:2026-01-01 until:2026-02-01 reach:follows include:spam"))).toBe(3);
+    // `observer:` has no control in the panel — it is typed, and it draws in the box — so the
+    // badge does not count it, or it would send somebody looking for a control that isn't there.
+    expect(activeFilterCount(readFilters(`btc observer:${"a".repeat(64)}`))).toBe(0);
+  });
+
+  it("a typed observer: stays in the box rather than hoisting into the URL", () => {
+    const hex = "a".repeat(64);
+    expect(splitFilters(`jack observer:${hex} sort:recent`)).toEqual({
+      text: `jack observer:${hex}`,
+      tokens: "sort:recent",
+    });
   });
 });
 
@@ -97,7 +123,9 @@ describe("applyFilters", () => {
     expect(applyFilters("btc include:spam", { includeSpam: false })).toBe("btc");
   });
 
-  it("writes an observer for Rank-as and removes it when reset", () => {
+  // Nothing in the UI calls this for `observer:` any more, but the rewrite still has to work:
+  // it is how a caller drops a typed one, and how readFilters round-trips.
+  it("rewrites an observer in place, and removes it", () => {
     const hex = "a".repeat(64);
     expect(applyFilters("jack", { rankAs: hex })).toBe(`jack observer:${hex}`);
     expect(applyFilters(`jack observer:${hex}`, { rankAs: null })).toBe("jack");
@@ -154,9 +182,14 @@ describe("personAssist — the from:/to: people picker trigger", () => {
   it("offers to complete a name fragment being typed after from: or to:", () => {
     const assist = personAssist("bugs from:ja");
     expect(assist).toMatchObject({ prefix: "from", fragment: "ja" });
-    expect(assist!.complete("npub1jack")).toBe("bugs from:npub1jack");
+    expect(assist!.complete("npub1jack")).toBe("bugs from:npub1jack ");
 
-    expect(personAssist("to:mar")!.complete("npub1maria")).toBe("to:npub1maria");
+    expect(personAssist("to:mar")!.complete("npub1maria")).toBe("to:npub1maria ");
+
+    // observer: is a person too — whose web of trust ranks the results.
+    const observer = personAssist("bitcoin observer:vi");
+    expect(observer).toMatchObject({ prefix: "observer", fragment: "vi" });
+    expect(observer!.complete("npub1vitor")).toBe("bitcoin observer:npub1vitor ");
   });
 
   it("stays quiet when there's nothing to help with", () => {
@@ -166,6 +199,28 @@ describe("personAssist — the from:/to: people picker trigger", () => {
     // Already a key — the page wrote it; no second offer.
     expect(personAssist("from:npub1abcdef")).toBeNull();
     expect(personAssist(`from:${"a".repeat(64)}`)).toBeNull();
+    expect(personAssist("observer:")).toBeNull();
+    expect(personAssist("observer:npub1abcdef")).toBeNull();
+    expect(personAssist(`observer:${"a".repeat(64)}`)).toBeNull();
+  });
+});
+
+// Typing `doi:` listed people called "doi"; `doi:10.1000` listed whoever commented on it.
+describe("typeaheadWords — what the people typeahead may look up", () => {
+  it("is the words, when the box holds nothing but words", () => {
+    expect(typeaheadWords("jack")).toBe("jack");
+    expect(typeaheadWords(" jack dorsey ")).toBe("jack dorsey");
+    expect(typeaheadWords("https://example.com")).toBe("https://example.com");
+  });
+
+  it.each([
+    "from:", "to:", "since:", "until:", "kind:", "kind:2", "spec:", "sort:", "sort:rec", "include:", "include:spam",
+    "filter:", "filter:rank:gte:", "filter:rank:gte:50", "observer:", "observer:ja", "trust:", "trust:ver",
+    "reach:", "reach:fol", "site:", "site:exa", "isbn:", "isbn:978", "geo:", "geo:u4p", "isan:", "doi:", "doi:10.1000",
+    "podcast:guid:", "podcast:item:guid:", "podcast:publisher:", "label:", "label:en", "group:", "group:gen",
+    "DOI:10.1000", "jack doi:", "doi: jack", "jack kind:20", "#nostr jack",
+  ])("is null for %s — no name there", (q) => {
+    expect(typeaheadWords(q)).toBeNull();
   });
 });
 
@@ -175,15 +230,21 @@ describe("readFilters", () => {
       sort: "rank",
       since: "2026-01-01",
       until: null,
+      rankFloor: 30,
       verifiedOnly: false,
       reach: null,
       includeSpam: true,
       rankAs: null,
     });
+    // Two of one prefix keep the NARROWER bound, as the parser does — the panel has to show
+    // the day the search is actually using, not the last one somebody typed.
+    expect(readFilters("btc since:2026-03-01 since:2026-01-01").since).toBe("2026-03-01");
+    expect(readFilters("btc until:2026-01-01 until:2026-03-01").until).toBe("2026-01-01");
     expect(readFilters("plain words")).toEqual({
       sort: null,
       since: null,
       until: null,
+      rankFloor: null,
       verifiedOnly: false,
       reach: null,
       includeSpam: false,

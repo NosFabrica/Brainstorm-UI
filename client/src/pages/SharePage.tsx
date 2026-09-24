@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRoute, useSearch, useLocation, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, Image as ImageIcon, FileText, BadgeCheck, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, ShieldCheck, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
+import { MessageSquare, Image as ImageIcon, FileText, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, ShieldCheck, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
@@ -73,6 +73,7 @@ import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults"
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
+import { Nip05Handle } from "@/components/Nip05Check";
 
 const NO_RELAYS: string[] = [];
 
@@ -1020,11 +1021,7 @@ export default function SharePage() {
             {/* "Identity confirmed" — trusted reviewers said this is really them.
                 Google's verified-badge spot: beside the name, not in a section. */}
             {pubkey && <PanelIdentityChip pubkey={pubkey} personal={myPov} testId="share-identity" />}
-            {profile.nip05 && (
-              <span className="inline-flex items-center gap-1 text-sm text-brand-link font-medium">
-                <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}
-              </span>
-            )}
+            <Nip05Handle nip05={profile.nip05} pubkey={pubkey} className="inline-flex items-center gap-1 text-sm text-brand-link font-medium" iconClassName="h-4 w-4" />
             {/* "Follows you" is a fact about the two of you, not an action — it
                 sits with the identity, beside the handle, where X, Bluesky and
                 Mastodon put it (Benjamin, 2026-09-08: in the button row it read

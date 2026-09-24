@@ -43,7 +43,6 @@ import {
   Share2,
   Globe,
   Eye,
-  BadgeCheck,
   AlertTriangle,
 } from "lucide-react";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
@@ -108,6 +107,7 @@ import { useHasSession } from "@/hooks/useHasSession";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { useTierRing } from "@/components/score/VerificationCoin";
+import { Nip05Handle } from "@/components/Nip05Check";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -2309,12 +2309,13 @@ export default function ProfilePage() {
                           <h3 className="w-full sm:w-auto text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
                             {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
                           </h3>
-                          {displayNostrProfile?.nip05 && (
-                            <span className="inline-flex items-center gap-1 min-w-0 max-w-full text-[11px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium" data-testid="text-profile-nip05" title="Verified handle (NIP-05)">
-                              <BadgeCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-brand-primary" />
-                              <span className="truncate">{displayNostrProfile.nip05}</span>
-                            </span>
-                          )}
+                          <Nip05Handle
+                            nip05={displayNostrProfile?.nip05}
+                            pubkey={hexPubkey}
+                            className="inline-flex items-center gap-1 min-w-0 max-w-full text-[11px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium"
+                            iconClassName="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-brand-primary"
+                            testId="text-profile-nip05"
+                          />
                           {hexPubkey && getCurrentAssistantPubkey() === hexPubkey && (
                             <Badge
                               variant="secondary"

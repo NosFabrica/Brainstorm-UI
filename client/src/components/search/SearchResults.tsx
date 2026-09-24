@@ -6,11 +6,12 @@
  * back, so stale results structurally cannot flash).
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
-import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
-import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
+import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
+import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, queryWords, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { eventStore } from "@/lib/eventStore";
@@ -56,13 +57,17 @@ import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
+import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
 import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
 
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
 const MEDIA_KINDS = new Set(TAB_KINDS.media);
 const APP_KINDS = new Set(TAB_KINDS.apps);
-const REPO_KINDS = new Set(TAB_KINDS.repos);
+// Repos, Issues and PRs all draw a RepoCard; the latter two carry a state.
+const REPO_KINDS = new Set([...TAB_KINDS.repos, ...TAB_KINDS.issues, ...TAB_KINDS.prs]);
+const isGitItemTab = (tab: SearchTab) => tab === "issues" || tab === "prs";
+const isGitTab = (tab: SearchTab) => tab === "repos" || isGitItemTab(tab);
 
 /** One row of the flat list: a hit, and — when it leads a fold — how many it
  *  hides, the chip's words, and (for an opened fork) whose fork it is. */
@@ -79,6 +84,31 @@ const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
 const MUSIC_KINDS = new Set(TAB_KINDS.music);
 const SHOP_KINDS = new Set(TAB_KINDS.shop);
+
+/** What kind of article a hit is — the Articles tab's type chips narrow by this. */
+type ArticleType = "article" | "spec" | "wiki";
+const ARTICLE_TYPE_LABEL: Record<ArticleType, string> = { article: "Articles", spec: "Specs", wiki: "Wiki" };
+function articleTypeOf(kind: number): ArticleType {
+  return kind === 30817 ? "spec" : kind === 30818 ? "wiki" : "article";
+}
+
+/**
+ * A recipe's topics. zap.cooking writes each chosen category twice — plain
+ * and as `zapcooking-<word>` — beside the recipe marker itself and a
+ * `zapcooking-<slug>` copy of the dish (the `d` tag). The words are topics
+ * whichever way they are spelled; the marker and the dish's slug are not, and
+ * neither is a bare number, which is a serving count or a step.
+ */
+function recipeTopics(e: NostrEvent): string[] {
+  const marker = new RegExp(`^(${RECIPE_TAGS.join("|")})(-|$)`, "i");
+  const slug = (e.tags.find((t) => t[0] === "d")?.[1] ?? "").trim().toLowerCase();
+  const words = e.tags
+    .filter((t) => t[0] === "t" && t[1])
+    .map((t) => t[1].trim().replace(/^#/, "").toLowerCase())
+    .map((t) => (marker.test(t) ? t.replace(marker, "") : t))
+    .filter((t) => t && t !== slug && !/^\d+$/.test(t));
+  return [...new Set(words)];
+}
 const LIST_KINDS = new Set(TAB_KINDS.lists);
 
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
@@ -99,18 +129,28 @@ function profilesOf(hits: SearchHit[]) {
   return map;
 }
 
-/** Google's row: five verticals in view, the long tail behind More ▾. */
+/** Google's row: five verticals in view, the long tail behind More ▾.
+ *  Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
+ *  Articles is the first thing behind More. */
 const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
   { key: "everything", label: "Everything" },
   { key: "people", label: "People" },
   { key: "notes", label: "Notes" },
-  { key: "articles", label: "Articles" },
   { key: "media", label: "Media" },
+  { key: "shop", label: "Shop" },
 ];
 const MORE_TABS: { key: SearchTab; label: string }[] = [
+  { key: "articles", label: "Articles" },
   { key: "apps", label: "Apps" },
-  { key: "shop", label: "Shop" },
+  // Long-form articles wearing zap.cooking's tag: the same kind as Articles,
+  // which keeps showing them labelled Recipe — this is where people look.
+  { key: "recipes", label: "Recipes" },
   { key: "repos", label: "Repos" },
+  { key: "issues", label: "Issues" },
+  { key: "prs", label: "PRs" },
+  // Protocol specs (kind 30817), by the name people search for. They stay in
+  // Articles too, labelled Spec — this is where people look.
+  { key: "nips", label: "NIPs" },
   { key: "events", label: "Events" },
   { key: "music", label: "Music" },
   { key: "live", label: "Live" },
@@ -241,6 +281,20 @@ const SORT_OPTIONS = [
   { value: "followers", label: "Most followed authors" },
 ];
 
+/**
+ * The relay's `filter:rank:gte:N`, on the 0..100 trust scale. A floor DELETES rows below it
+ * rather than sinking them (vespa-relay store e1ecd7f23e), which is why it is a coarse menu
+ * and not a slider: the difference between 50 and 52 is not a decision anybody makes, and
+ * each step is a page of results gone.
+ */
+const RANK_FLOORS: { value: number | null; label: string }[] = [
+  { value: null, label: "No floor" },
+  { value: 25, label: "Rank 25+" },
+  { value: 50, label: "Rank 50+" },
+  { value: 75, label: "Rank 75+" },
+  { value: 90, label: "Rank 90+" },
+];
+
 /** A one-line facet chip strip: horizontal scroll with the scrollbar hidden,
  *  a soft right-edge fade to signal "more", and mouse-wheel → horizontal so a
  *  desktop mouse scrolls it as easily as a phone swipes (trackpads/touch already
@@ -262,12 +316,12 @@ function FiltersPanel({
 }) {
   // What the relay will actually run: a wordless browse cannot be rank- or
   // follower-sorted, so the panel shows the fallback and greys those two.
-  const browsing = !splitFilters(query).text;
+  const browsing = !queryWords(query);
   const state = readFilters(browsing ? browseSafeQuery(query) : query);
   const preset = datePreset(state);
   // "Custom range" stays open once chosen, even before a day is picked.
   const [customDates, setCustomDates] = useState(preset === "custom");
-  const advancedActive = !!state.reach || state.includeSpam;
+  const advancedActive = !!state.reach || state.includeSpam || state.rankFloor != null;
   const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
   useEffect(() => {
     if (advancedActive) setAdvancedOpen(true);
@@ -276,6 +330,15 @@ function FiltersPanel({
 
 
   const showDates = customDates || preset === "custom";
+  // The menu is coarse, but the grammar takes any 0..100 — a hand-typed `filter:rank:gte:33`
+  // would otherwise read as "No floor" while the Filters badge counted it, which is the panel
+  // disagreeing with the search it is describing. The typed value joins the menu, in order.
+  const floors = useMemo(() => {
+    const typed = state.rankFloor;
+    if (typed == null || RANK_FLOORS.some((o) => o.value === typed)) return RANK_FLOORS;
+    return [...RANK_FLOORS, { value: typed, label: `Rank ${typed}+` }]
+      .sort((a, b) => (a.value ?? -1) - (b.value ?? -1));
+  }, [state.rankFloor]);
   const segment = (on: boolean) =>
     `h-8 px-2.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/30 ${
       on ? "bg-brand-primary text-white" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -415,12 +478,31 @@ function FiltersPanel({
           </div>
         </div>
       )}
+      {/* The relay's own floor, the opposite end of the same dial as "Include unranked":
+          one lifts the floor to nothing, the other raises it. Both cannot be on, so
+          choosing a floor turns the waiver off. */}
+      <label className={column}>
+        Trust floor
+        <select
+          className={control}
+          value={state.rankFloor ?? ""}
+          onChange={(e) => {
+            const next = e.target.value === "" ? null : Number(e.target.value);
+            write(next == null ? { rankFloor: null } : { rankFloor: next, includeSpam: false });
+          }}
+          data-testid="filter-rank-floor"
+        >
+          {floors.map((o) => (
+            <option key={o.label} value={o.value ?? ""}>{o.label}</option>
+          ))}
+        </select>
+      </label>
       <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         <input
           type="checkbox"
           className="h-3.5 w-3.5 accent-brand-primary"
           checked={state.includeSpam}
-          onChange={(e) => write({ includeSpam: e.target.checked })}
+          onChange={(e) => write(e.target.checked ? { includeSpam: true, rankFloor: null } : { includeSpam: false })}
           data-testid="filter-spam"
         />
         Include unranked accounts
@@ -559,6 +641,8 @@ export function SearchResults({
     };
   }, [tab, query, panelPerson?.pubkey]);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [syntaxOpen, setSyntaxOpen] = useState(false);
+  useSyntaxSheetShortcut(useCallback(() => setSyntaxOpen(true), []));
 
   // Everything composes its own purpose-ranked section streams — unless the
   // user typed a sort:, which is them choosing ONE order for one list.
@@ -574,7 +658,10 @@ export function SearchResults({
   // put the page named "List of comedians" 26th under a month of news; best
   // match had it first, the other comedian lists behind it (relay probe,
   // 2026-09-07). A wordless browse still asks newest — there is nothing to match.
-  const articlesByRelevance = tab === "articles" && !!splitFilters(query).text;
+  // Recipes and specs are articles by kind and by nature — evergreen too.
+  const articlesByRelevance = (tab === "articles" || tab === "recipes" || tab === "nips") && !!queryWords(query);
+  // The kinds the box asked for (`kind:30078`) — a spec card leads with them.
+  const searchedKinds = useMemo(() => (liftQuery(query).kinds ?? []).map(String), [query]);
   const effectiveQuery =
     !userSorted && tab !== "everything" && tab !== "people" && !articlesByRelevance
       ? `${safeQuery} sort:recent`.trim()
@@ -688,6 +775,10 @@ export function SearchResults({
     // A listing is for sale or it is not a result: sold, hidden and priceless
     // never count, so the count line and the cards agree.
     if (tab === "shop") return base.filter((h) => { const l = parseListing(h.event); return !!l && isSellable(l); });
+    // The relay narrows by tag but cannot exclude by one: zap.cooking's own
+    // articles wear the recipe tag too. One source of truth says which is
+    // which, here, so the count line, the chips and the cards agree.
+    if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
     if (tab !== "media" || !mediaNotes) return base;
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
@@ -828,7 +919,9 @@ export function SearchResults({
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
   const [appCategory, setAppCategory] = useState<string | null>(null);
   const [shopCategory, setShopCategory] = useState<string | null>(null);
-  // Repos tab: what became of each issue and patch — one request per page,
+  const [articleType, setArticleType] = useState<ArticleType | null>(null);
+  const [recipeTopic, setRecipeTopic] = useState<string | null>(null);
+  // Issues and PRs tabs: what became of each issue and patch — one request per page,
   // keyed by item id (NIP-34 status events, newest wins; none means open).
   const [repoState, setRepoState] = useState<GitState | null>(null);
   const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
@@ -858,26 +951,33 @@ export function SearchResults({
   }, [eventAddrKey]);
   const rsvpsOf = (e: NostrEvent) => eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
   const gitItemIds = useMemo(
-    () => (tab === "repos" ? hits.filter((h) => isGitItem(h.event.kind)).map((h) => h.event.id) : []),
+    () => (isGitItemTab(tab) ? hits.filter((h) => isGitItem(h.event.kind)).map((h) => h.event.id) : []),
     [hits, tab],
   );
   const gitIdsKey = gitItemIds.join(",");
+  // Each streamed snapshot or "more" page asks only after the ids it adds —
+  // not the whole growing list again. A generation drops answers that land
+  // after the page emptied (a new tab), so they can't refill it.
+  const gitFetched = useRef({ gen: 0, ids: new Set<string>() });
   useEffect(() => {
+    const seen = gitFetched.current;
     if (!gitIdsKey) {
+      seen.gen += 1;
+      seen.ids = new Set();
       setGitStatuses(new Map());
+      setGitComments(new Map());
       return;
     }
-    let alive = true;
-    const ids = gitIdsKey.split(",");
+    const ids = gitIdsKey.split(",").filter((id) => !seen.ids.has(id));
+    if (ids.length === 0) return;
+    for (const id of ids) seen.ids.add(id);
+    const gen = seen.gen;
     void fetchGitStatuses(ids).then((m) => {
-      if (alive) setGitStatuses(m);
+      if (gitFetched.current.gen === gen && m.size) setGitStatuses((prev) => new Map([...prev, ...m]));
     });
     void fetchGitCommentCounts(ids).then((m) => {
-      if (alive) setGitComments(m);
+      if (gitFetched.current.gen === gen && m.size) setGitComments((prev) => new Map([...prev, ...m]));
     });
-    return () => {
-      alive = false;
-    };
   }, [gitIdsKey]);
   const stateOf = (e: NostrEvent): GitState | null => (isGitItem(e.kind) ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null);
   const [repoLabel, setRepoLabel] = useState<string | null>(null);
@@ -887,7 +987,7 @@ export function SearchResults({
   // "nonlinear" led the strip — stays on their cards. On a one-author page
   // every label is theirs anyway, so all count.
   const repoLabelFacets = useMemo(() => {
-    if (tab !== "repos") return [] as [string, number][];
+    if (!isGitItemTab(tab)) return [] as [string, number][];
     const counts = new Map<string, number>();
     const authorsOf = new Map<string, Set<string>>();
     const authors = new Set<string>();
@@ -905,7 +1005,7 @@ export function SearchResults({
       .slice(0, 8);
   }, [hits, tab]);
   const repoStateFacets = useMemo(() => {
-    if (tab !== "repos") return [] as [GitState, number][];
+    if (!isGitItemTab(tab)) return [] as [GitState, number][];
     const counts = new Map<GitState, number>();
     for (const h of hits) {
       const st = stateOf(h.event);
@@ -919,6 +1019,12 @@ export function SearchResults({
     setAppPlatform(null);
     setAppCategory(null);
     setShopCategory(null);
+    setArticleType(null);
+    setRecipeTopic(null);
+    // Issues' states aren't PRs' (resolved vs merged), and a new query may
+    // carry none of the picked label: either would strand an empty page.
+    setRepoState(null);
+    setRepoLabel(null);
   }, [tab, query]);
   // The listings' own categories, counted — the Shop's facets.
   const shopFacets = useMemo(() => {
@@ -926,6 +1032,24 @@ export function SearchResults({
     const counts = new Map<string, number>();
     for (const h of hits) for (const c of parseListing(h.event)?.categories ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [tab, hits]);
+  // The kinds of article among the hits, in a fixed order. Chips only when
+  // there is more than one kind to tell apart — a search for honey sees none
+  // (the team: surface a way to narrow to specs only when specs were matched).
+  const articleFacets = useMemo<ArticleType[]>(() => {
+    if (tab !== "articles") return [];
+    const present = new Set(hits.map((h) => articleTypeOf(h.event.kind)));
+    const types = (["article", "spec", "wiki"] as ArticleType[]).filter((t) => present.has(t));
+    return types.length > 1 ? types : [];
+  }, [tab, hits]);
+  // The recipes' own topics — chicken, soup — counted. zap.cooking's
+  // housekeeping tags (the recipe marker and its `zapcooking-<slug>` copies)
+  // name the app and the dish, not a topic, and stay out.
+  const recipeFacets = useMemo(() => {
+    if (tab !== "recipes") return [];
+    const counts = new Map<string, number>();
+    for (const h of hits) for (const t of recipeTopics(h.event)) counts.set(t, (counts.get(t) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
   }, [tab, hits]);
   const appFacets = useMemo(() => {
     if (tab !== "apps") return [];
@@ -965,14 +1089,19 @@ export function SearchResults({
     if (tab === "shop" && shopCategory) {
       shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
     }
-    if (tab === "repos" && repoState) {
-      // A state names issues and patches; repo announcements have none.
+    if (tab === "articles" && articleType) {
+      shown = shown.filter((h) => articleTypeOf(h.event.kind) === articleType);
+    }
+    if (tab === "recipes" && recipeTopic) {
+      shown = shown.filter((h) => recipeTopics(h.event).includes(recipeTopic));
+    }
+    if (isGitItemTab(tab) && repoState) {
       shown = shown.filter((h) => stateOf(h.event) === repoState);
     }
-    if (tab === "repos" && repoLabel) {
+    if (isGitItemTab(tab) && repoLabel) {
       shown = shown.filter((h) => gitLabelsOf(h.event).includes(repoLabel));
     }
-    if (tab === "repos") {
+    if (isGitItemTab(tab)) {
       // People's issues before agents' — the partition Latest uses for feeds.
       shown = peopleBeforeAgents(shown, (h) => ({ event: h.event, author: h.author }));
     }
@@ -1010,8 +1139,8 @@ export function SearchResults({
       shown = hits.filter((h) => titled(h.event) && itemCount(h.event) > 0);
       shown = [...shown.filter((h) => isPeoplePack(h.event)), ...shown.filter((h) => !isPeoplePack(h.event))];
     }
-    if (tab === "repos") {
-      // One codebase, one card: forks fold behind the most trusted
+    if (isGitTab(tab)) {
+      // Repos, Issues and PRs. One codebase, one card: forks fold behind the most trusted
       // maintainer's announcement and open on a tap, each naming its parent.
       // And one maintainer, three cards: Google's host-diversity rule. Probed
       // 2026-09-05, one company's 23 bare repos filled the first screens; the
@@ -1115,6 +1244,8 @@ export function SearchResults({
   const narrowed =
     activeFilters > 0 ||
     !!shopCategory ||
+    !!articleType ||
+    !!recipeTopic ||
     !!appPlatform ||
     !!appCategory ||
     !!repoState ||
@@ -1173,13 +1304,29 @@ export function SearchResults({
         <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
           <MoreTabs tab={tab} onChange={changeTab} />
           {perspective}
+          {/* The syntax sheet, before the sorting: what can be typed into the box is the
+              question people have first. The mark alone — a labelled button wraps this row
+              on a phone — and `aria-label` says what it is. */}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-label="Search syntax"
+            title="Search syntax — people, days, topics, and the tokens that rank the answer. Shortcut: ?"
+            onClick={() => setSyntaxOpen(true)}
+            // Same bare 24px round mark as the perspective control's ⓘ beside it (not a tab: a
+            // tab's underline border pushes the glyph off-centre), pulled in so the pair reads as one.
+            className={"inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-brand-deep dark:text-slate-500 dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" + (perspective ? " sm:-ml-1.5" : "")}
+            data-testid="search-syntax-toggle"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+          </button>
           {onQueryRewrite && (
             <button
               type="button"
               aria-expanded={filtersOpen}
               aria-label="Filters"
               onClick={() => setFiltersOpen((v) => !v)}
-              className={tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:!px-2.5"}
+              className={tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:-ml-1.5 sm:!pl-1.5 sm:!pr-2.5"}
               data-testid="search-filters-toggle"
             >
               <SlidersHorizontal className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
@@ -1198,6 +1345,7 @@ export function SearchResults({
       </div>
 
       {filtersOpen && onQueryRewrite && <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} onQueryRewrite={onQueryRewrite} />}
+      <SearchSyntaxSheet open={syntaxOpen} onOpenChange={setSyntaxOpen} />
 
       {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
           card on mobile, the right rail on desktop (flex order). When no
@@ -1306,7 +1454,7 @@ export function SearchResults({
               )}
             </div>
           )}
-          {tab === "repos" && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
+          {isGitItemTab(tab) && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
             <FacetRow className="mb-2" testId="repo-state-facets">
               <button
                 type="button"
@@ -1374,6 +1522,68 @@ export function SearchResults({
                 <FacetChip key={st} pressed={effectiveShelf === st} onClick={() => setLiveShelf(st)} count={liveCounts[st]} testId={`live-facet-${st === "replay" ? "replays" : st}`}>
                   {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
                 </FacetChip>
+              ))}
+            </FacetRow>
+          )}
+          {tab === "articles" && articleFacets.length > 0 && (
+            <FacetRow className="mb-2" testId="article-facets">
+              <button
+                type="button"
+                onClick={() => setArticleType(null)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  articleType === null
+                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                }`}
+                data-testid="article-facet-all"
+              >
+                All
+              </button>
+              {articleFacets.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setArticleType((cur) => (cur === t ? null : t))}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    articleType === t
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                  }`}
+                  data-testid={`article-facet-${t}`}
+                >
+                  {ARTICLE_TYPE_LABEL[t]}
+                </button>
+              ))}
+            </FacetRow>
+          )}
+          {tab === "recipes" && recipeFacets.length > 0 && (
+            <FacetRow className="mb-2" testId="recipe-facets">
+              <button
+                type="button"
+                onClick={() => setRecipeTopic(null)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  recipeTopic === null
+                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                }`}
+                data-testid="recipe-facet-all"
+              >
+                All
+              </button>
+              {recipeFacets.map(([topic]) => (
+                <button
+                  key={topic}
+                  type="button"
+                  onClick={() => setRecipeTopic((cur) => (cur === topic ? null : topic))}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    recipeTopic === topic
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                  }`}
+                  data-testid={`recipe-facet-${topic}`}
+                >
+                  {topic}
+                </button>
               ))}
             </FacetRow>
           )}
@@ -1477,7 +1687,7 @@ export function SearchResults({
                 ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
                 : tab === "live"
                   ? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
-                  : tab === "apps" || tab === "repos"
+                  : tab === "apps" || isGitTab(tab)
                   ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2"
                   : "space-y-2 sm:space-y-3"
             }
@@ -1510,7 +1720,7 @@ export function SearchResults({
                     {chipLabel ?? `+${collapsedCount} more like this`}
                   </button>
                 ) : null;
-              // Grid tabs (Apps, Repos) stretch every cell so a row of cards
+              // Grid tabs (Apps, Repos, Issues, PRs) stretch every cell so a row of cards
               // shares one height; list tabs are unaffected by h-full.
               const day = eventDayHeaders.get(event.id);
               const wrap = (card: React.ReactNode) => (
@@ -1551,6 +1761,7 @@ export function SearchResults({
               if (ARTICLE_KINDS.has(event.kind)) {
                 return wrap(
                   <EmbeddedArticleCard
+                    leadKinds={searchedKinds}
                     event={event as MinimalEvent}
                     author={profiles.get(event.pubkey)}
                     trustScore01={scoreOf(event.pubkey) ?? null}

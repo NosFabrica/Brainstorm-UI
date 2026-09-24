@@ -2,7 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
-import { BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
+import { Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
@@ -20,6 +20,9 @@ import { RepoHero } from "@/components/share/RepoHero";
 import { GitItemHero } from "@/components/share/GitItemHero";
 import { isGitItem } from "@/lib/gitStatus";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
+import { DesignationHero } from "@/components/share/DesignationHero";
+import { StructuralHero } from "@/components/share/StructuralHero";
+import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
 import { ListingRelated } from "@/components/share/ListingRelated";
@@ -41,6 +44,7 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { Nip05Check } from "@/components/Nip05Check";
 
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
@@ -153,8 +157,8 @@ export default function EventPage() {
     ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] || note.tags.find((t) => t[0] === "p")?.[1]
     : undefined;
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
-  // Long-form (30023) and wiki pages (30818) both read on the article reader.
-  const isArticle = note?.kind === 30023 || note?.kind === 30818;
+  // Long-form (30023), wiki pages (30818) and specs (30817) all read on the article reader.
+  const isArticle = note?.kind === 30023 || note?.kind === 30818 || note?.kind === 30817;
   const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
 
   // Long-form events belong on the article reader — hand off to /a.
@@ -342,7 +346,7 @@ export default function EventPage() {
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
                     <TierWordChip score01={score01} />
-                    {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
+                    <Nip05Check nip05={profile.nip05} pubkey={note.pubkey} className="h-4 w-4 text-sky-500 shrink-0" />
                   </div>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{ago(note.created_at)}</span>
                 </div>
@@ -353,6 +357,8 @@ export default function EventPage() {
                   copies={[
                     { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
                     { id: "event-id", label: "Copy event ID", value: ptr.id, hint: "The raw 64-character id" },
+                    // The event as fetched from the relay (sig included) — the cast to MinimalEvent is type-only.
+                    { id: "event-json", label: "Copy raw JSON", value: JSON.stringify(note, null, 2), hint: "The full signed event, as relays serve it" },
                   ]}
                   triggerTestId="event-menu"
                 />
@@ -373,6 +379,8 @@ export default function EventPage() {
                 <RepoHero event={note} />
               ) : note.kind === 30000 ? (
                 <FollowSetHero event={note} />
+              ) : note.kind === 10040 ? (
+                <DesignationHero event={note} />
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
@@ -383,6 +391,9 @@ export default function EventPage() {
                 <VideoHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
                 <ShareNoteCard event={note} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded />
+              ) : mediaUrls.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
+                // No content to read — none, or ciphertext, or JSON: a structural event, its meaning in its tags.
+                <StructuralHero event={note} />
               ) : (
                 <div data-testid="event-media">
                   {mediaUrls.map((u, i) =>
