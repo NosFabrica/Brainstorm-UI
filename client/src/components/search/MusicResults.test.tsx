@@ -196,15 +196,27 @@ describe("MusicResults — the musicians the network tagged", () => {
   const joe = { pubkey: JOE, npub: nip19.npubEncode(JOE), name: "joemartin", displayName: "Joe Martin", picture: "https://img/joe.jpg" };
   const nova = { pubkey: "2".repeat(64), npub: nip19.npubEncode("2".repeat(64)), name: "NOVA" };
 
-  it("browsing shows them as a shelf of faces with their trust rings, under the Music icon, each opening the profile", () => {
-    const onOpenProfile = vi.fn();
-    open({ tagged: { people: [joe, nova], loading: false }, scoreOf: () => 0.4, onOpenProfile });
+  it("browsing shows them as a shelf of faces with their trust rings, under the Music icon, each opening that person's music here", () => {
+    // Benjamin (2026-09-24): a face in a music context is an artist page, not a bio — the listener stays in the music.
+    open({ tagged: { people: [joe, nova], loading: false }, scoreOf: () => 0.4 });
     const shelf = screen.getByTestId("music-tagged-musicians");
     expect(shelf).toHaveTextContent("Musicians on Nostr");
     expect(shelf.querySelector("svg.lucide-music")).not.toBeNull();
-    fireEvent.click(within(shelf).getByTestId(`music-artist-${JOE.slice(0, 8)}`));
-    expect(onOpenProfile).toHaveBeenCalledWith(joe);
+    expect(within(shelf).getByTestId(`music-artist-${JOE.slice(0, 8)}`)).toHaveAttribute("href", `/?q=from%3A${joe.npub}&t=music`);
     expect(within(shelf).getByTestId(`music-artist-${"2".repeat(8)}`)).toHaveTextContent("NOVA");
+  });
+
+  it("a track author's face opens their music here too, and a Wavlake artist with a Nostr key likewise", () => {
+    const hit: SearchHit = {
+      event: { id: "j1".padEnd(64, "0"), kind: 31337, pubkey: JOE, created_at: 1_727_000_000, sig: "", content: "", tags: [["d", "hmdh"], ["title", "Hand Me Down Heart"], ["media", "https://example/hmdh.mp3"]] },
+      author: joe as never,
+      rank: null,
+    };
+    const wavlakeArtist = { id: "wl-1", name: "Ainsley Costello", artistNpub: nip19.npubEncode("3".repeat(64)) };
+    open({ query: "joe martin", hits: [hit], wavlake: { ...noWavlake, artists: [wavlakeArtist as never] } });
+    const artists = screen.getByTestId("music-artists");
+    expect(within(artists).getByTestId(`music-artist-${JOE.slice(0, 8)}`)).toHaveAttribute("href", `/?q=from%3A${joe.npub}&t=music`);
+    expect(within(artists).getByTestId("music-artist-wavlake-wl-1")).toHaveAttribute("href", `/?q=from%3A${wavlakeArtist.artistNpub}&t=music`);
   });
 
   it("with words, the tagged musicians whose name answers join Artists — once, even when they also have tracks here", () => {

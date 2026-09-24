@@ -1453,6 +1453,25 @@ export function SearchResults({
             </div>
           ))}
         </div>
+      ) : noResults && tab === "music" && scopedTo ? (
+        // A person's music view with nothing here yet: say so, and offer the
+        // person — a face in a music context opens their music, and this is
+        // where a Bandcamp-only musician lands.
+        <div className="mt-4 sm:mt-6" data-testid="music-scoped-empty">
+          <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+            <EmptyState
+              icon={Radar}
+              compact
+              title={`No songs from ${panelPerson ? getDisplayLabel(panelPerson) : "them"} here yet`}
+              description="Nothing on Nostr or Wavlake under their key so far."
+              action={
+                <Link href={`/p/${(() => { try { return nip19.npubEncode(scopedTo); } catch { return scopedTo; } })()}`} className="text-sm font-semibold text-brand-link hover:underline">
+                  See their profile →
+                </Link>
+              }
+            />
+          </div>
+        </div>
       ) : noResults ? (
         <div className="mt-4 sm:mt-6" data-testid="container-no-results">
           <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">

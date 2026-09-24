@@ -2530,6 +2530,19 @@ describe("SearchResults", () => {
     expect(screen.queryByTestId("container-no-results")).toBeNull();
   });
 
+  it("a person's music view with no songs here says so and offers the profile, instead of a blank Nothing found", async () => {
+    setUrlTab("music");
+    const pk = "d".repeat(64);
+    const npub = nip19.npubEncode(pk);
+    suggestMock.mockResolvedValue([{ pubkey: pk, npub, name: "Matt Finlay", wotRank: 0.5, wotFollowers: 10 }]);
+    render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 50 });
+    const empty = await screen.findByTestId("music-scoped-empty");
+    expect(empty).toHaveTextContent("No songs from Matt Finlay here yet");
+    expect(within(empty).getByRole("link", { name: /profile/i })).toHaveAttribute("href", `/p/${npub}`);
+    expect(screen.queryByTestId("container-no-results")).toBeNull();
+  });
+
   it("keeps quiet when the top person is only a weak match", async () => {
     setUrlTab("notes");
     suggestMock.mockResolvedValueOnce([

@@ -14,9 +14,10 @@
  * own shelves after the native tracks; with words, the matches join Songs
  * and Artists after Wavlake's, each row naming its source.
  */
-import { scopeOf } from "@/lib/searchSyntax";
+import { scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { nip19 } from "nostr-tools";
 import { Info, Loader2, Pause, Play } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SearchHit } from "@/services/search";
@@ -171,6 +172,21 @@ export function MusicResults({
   const nostrFor = (name: string): SearchResult | null => nostrByName.get(normalise(name)) ?? null;
   const alsoOnPodcastIndex = useMemo(() => new Set(podcastIndex.musicians.map((m) => nostrByName.get(normalise(m.name))?.pubkey).filter((pk): pk is string => !!pk)), [podcastIndex.musicians, nostrByName]);
   const unmatchedMusicians = podcastIndex.musicians.filter((m) => !nostrFor(m.name));
+  // A face in a music context is an artist page, not a bio (Benjamin,
+  // 2026-09-24): every face opens that person's music here, scoped; the top
+  // result keeps the way to the profile. A Wavlake artist without a Nostr
+  // key has their music here by name.
+  const musicHrefOf = (pubkey: string) => scopedSearchHref(pubkey, "music");
+  const wavlakeMusicHref = (a: Pick<WavlakeArtist, "name" | "artistNpub">) => {
+    if (a.artistNpub) {
+      try {
+        return scopedSearchHref(nip19.decode(a.artistNpub).data as string, "music");
+      } catch {
+        /* fall through */
+      }
+    }
+    return wavlakeArtistHref(a);
+  };
   const piArtistHref = (song: PodcastSong): string | undefined => {
     const person = nostrFor(song.artist);
     return person ? `/p/${person.npub}` : undefined;
@@ -238,7 +254,7 @@ export function MusicResults({
             <MusicSection title="Musicians on Nostr" hint="tagged by the network" icon={CATEGORY_ICON.music} testId="music-tagged-musicians">
               <FacetRow testId="music-tagged-musicians-strip" className="gap-4 pb-2">
                 {tagged.people.map((p) => (
-                  <ArtistFace key={p.pubkey} name={getDisplayLabel(p)} image={p.picture} score={scoreOf(p.pubkey) ?? null} sub="Musician" onClick={() => onOpenProfile(p)} testId={`music-artist-${p.pubkey.slice(0, 8)}`} />
+                  <ArtistFace key={p.pubkey} name={getDisplayLabel(p)} image={p.picture} score={scoreOf(p.pubkey) ?? null} sub="Musician" href={musicHrefOf(p.pubkey)} testId={`music-artist-${p.pubkey.slice(0, 8)}`} />
                 ))}
               </FacetRow>
             </MusicSection>
@@ -342,13 +358,13 @@ export function MusicResults({
             <MusicSection title="Artists" icon={CATEGORY_ICON.music} testId="music-artists">
               <FacetRow testId="music-artists-strip" className="gap-4 pb-2">
                 {authors.map((a) => (
-                  <ArtistFace key={a.author.pubkey} name={getDisplayLabel(a.author)} image={a.author.picture} score={scoreOf(a.author.pubkey) ?? null} sub={alsoOnPodcastIndex.has(a.author.pubkey) ? "also on Podcast Index" : `${a.count} ${a.count === 1 ? "song" : "songs"}`} onClick={() => onOpenProfile(a.author)} testId={`music-artist-${a.author.pubkey.slice(0, 8)}`} />
+                  <ArtistFace key={a.author.pubkey} name={getDisplayLabel(a.author)} image={a.author.picture} score={scoreOf(a.author.pubkey) ?? null} sub={alsoOnPodcastIndex.has(a.author.pubkey) ? "also on Podcast Index" : `${a.count} ${a.count === 1 ? "song" : "songs"}`} href={musicHrefOf(a.author.pubkey)} testId={`music-artist-${a.author.pubkey.slice(0, 8)}`} />
                 ))}
                 {taggedMatches.map((p) => (
-                  <ArtistFace key={p.pubkey} name={getDisplayLabel(p)} image={p.picture} score={scoreOf(p.pubkey) ?? null} sub="Musician" onClick={() => onOpenProfile(p)} testId={`music-artist-${p.pubkey.slice(0, 8)}`} />
+                  <ArtistFace key={p.pubkey} name={getDisplayLabel(p)} image={p.picture} score={scoreOf(p.pubkey) ?? null} sub="Musician" href={musicHrefOf(p.pubkey)} testId={`music-artist-${p.pubkey.slice(0, 8)}`} />
                 ))}
                 {wavlake.artists.map((a) => (
-                  <ArtistFace key={a.id} name={a.name} image={a.artworkUrl} score={null} sub="Wavlake" href={wavlakeArtistHref(a)} testId={`music-artist-wavlake-${a.id}`} />
+                  <ArtistFace key={a.id} name={a.name} image={a.artworkUrl} score={null} sub="Wavlake" href={wavlakeMusicHref(a)} testId={`music-artist-wavlake-${a.id}`} />
                 ))}
                 {unmatchedMusicians.map((m) => (
                   <ArtistFace key={m.id} name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
