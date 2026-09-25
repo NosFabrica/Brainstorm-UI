@@ -19,6 +19,9 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { isFeedAccount } from "@/lib/feedAccount";
 import { nip19 } from "nostr-tools";
 import { Favicon, LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
+import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
+import { clientRef } from "@/lib/clientLinks";
+import { useClientLink } from "@/hooks/useClientLink";
 import { parseNoteContent, primaryLink, unwrapMarkdownLinks } from "@/lib/noteContent";
 import { TranslateLine } from "@/components/share/TranslateLine";
 import { useLightbox } from "@/components/share/Lightbox";
@@ -513,6 +516,15 @@ export function SerpRow({
   const shapeLine = shape?.kind === "encrypted" ? "Encrypted — only its owner can read it" : shape?.kind === "json" ? `Structured data · ${shape.fields} ${shape.fields === 1 ? "field" : "fields"}` : null;
   // Same link a feed would card for this note, so the two never disagree.
   const cardLink = primaryLink(parseNoteContent(body));
+  // A Primal link names a Nostr thing: an article is its card, the way the
+  // note card on a profile shows it (Benjamin, 2026-09-25: megistus's row
+  // said "primal.net" where the profile showed White Noise's "We're back").
+  // Asked unconditionally — the hook count must not move between renders.
+  const cardRef = cardLink ? clientRef(cardLink) : null;
+  const cardEntity = useClientLink(cardRef);
+  const linkedArticle = cardEntity.status === "done" && cardEntity.entity?.kind === "article" ? cardEntity.entity : null;
+  // While a Primal link resolves, no metadata card either: it would flash and go.
+  const plainCardLink = cardLink && !cardRef ? cardLink : cardLink && cardEntity.status === "done" && cardEntity.entity === null ? cardLink : null;
   // The picture on the right is this URL; a chip for it in the text is the
   // same picture's address, said again.
   const thumb = rowThumbMedia(event);
@@ -535,14 +547,19 @@ export function SerpRow({
         )}
         {body && (
           <div className={title ? "mt-1" : "mt-1.5"}>
-            <Snippet text={shown} query={query} lines={title ? 2 : 3} hide={thumbUrl} />
+            <Snippet text={shown} query={query} lines={title ? 2 : 3} hide={linkedArticle ? cardLink : thumbUrl} />
             {/* X's "Translate post" for text in another language — on-device, quiet. */}
             <TranslateLine text={body.slice(0, 1000)} />
           </div>
         )}
-        {cardLink && (
+        {linkedArticle && (
           <div onClick={(e) => e.stopPropagation()}>
-            <LinkPreviewCard url={cardLink} showImage={!thumb.url} context={[title, shown].filter(Boolean).join("\n")} />
+            <EmbeddedArticleCard event={linkedArticle.event} author={linkedArticle.author} />
+          </div>
+        )}
+        {plainCardLink && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <LinkPreviewCard url={plainCardLink} showImage={!thumb.url} context={[title, shown].filter(Boolean).join("\n")} />
           </div>
         )}
         {quotedIn(body).slice(0, 1).map((q) => (

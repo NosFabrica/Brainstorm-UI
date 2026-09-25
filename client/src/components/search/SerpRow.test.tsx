@@ -41,6 +41,12 @@ const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; descri
   Promise.resolve(null),
 );
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
+// A Primal link's resolution, controlled per test — the same seam the note card uses.
+const clientLink = vi.hoisted(() => ({
+  resolve: vi.fn<(ref: unknown) => Promise<unknown>>(() => new Promise(() => {})),
+  peek: vi.fn<(ref: unknown) => unknown>(() => undefined),
+}));
+vi.mock("@/services/clientLinks", () => ({ resolveClientLink: clientLink.resolve, peekClientLink: clientLink.peek }));
 const openLightboxMock = vi.fn();
 vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
 // Wavlake's catalogue, answered: the row's player is the point, not the fetch.
@@ -180,6 +186,23 @@ describe("SerpRow — link metadata", () => {
     expect(row).toHaveTextContent("Kind 30079");
     expect(row).not.toHaveTextContent("Post");
     expect(row).toHaveTextContent("Nostr Mail settings");
+  });
+
+  // Benjamin (2026-09-25): megistus's note is one Primal link to White Noise's
+  // article. His profile shows the article's card; the search row showed a bare
+  // "primal.net" chip. The row resolves the link the way the note card does.
+  it("a note that is a Primal link to an article shows the article's card, not a chip", async () => {
+    const AUTHOR = "b".repeat(64);
+    const article = { id: "c".repeat(64), kind: 30023, pubkey: AUTHOR, created_at: 1_780_000_000, sig: "", content: "White Noise is back on iOS and Android after a full rebuild.", tags: [["d", "were-back"], ["title", "We're back"], ["summary", "White Noise is back on iOS and Android after a full rebuild."], ["image", "https://img/wn.jpg"]] };
+    clientLink.resolve.mockResolvedValue({ kind: "article", event: article, author: { name: "White Noise" } });
+    render(<SerpRow event={note("https://primal.net/whitenoise/were-back")} author={author} score={0.7} query="" />);
+    const card = await screen.findByTestId("embedded-article");
+    expect(card).toHaveTextContent("We're back");
+    expect(card).toHaveTextContent("White Noise");
+    expect(screen.queryByTestId("link-card")).toBeNull();
+    expect(screen.queryAllByTestId("link-chip")).toHaveLength(0);
+    expect(unfurlMock).not.toHaveBeenCalled();
+    clientLink.resolve.mockImplementation(() => new Promise(() => {}));
   });
 
   it("turns a plain link into a metadata card when the proxy knows it", async () => {
