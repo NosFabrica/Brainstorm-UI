@@ -1027,12 +1027,18 @@ export async function fetchAddressableEvents(
   // authors at four relays each is eighty sockets opened at once for one render.
   const direct = dedupeRelays([...relays, ...valid.flatMap((c) => c.relays ?? [])]);
   const asked = direct.length ? direct : PROFILE_RELAYS;
+  // Done the moment every wanted address has a copy — the page does not wait
+  // for the remaining relays to say "nothing else" (an article took 5.5s
+  // behind an author's dead relay, 2026-09-24). A newer version on a slower
+  // relay reaches the store on later reads; the reader has the article now.
+  const wantedKey = (event: NostrEvent) => `${event.kind}:${event.pubkey}:${event.tags.find((tag) => tag[0] === "d")?.[1] ?? ""}`;
+  const enough = { enough: (collected: Map<string, NostrEvent>) => { const seen = new Set<string>(); for (const e of collected.values()) seen.add(wantedKey(e)); return [...wanted].every((k) => seen.has(k)); } };
   const [events, routed] = await Promise.all([
-    requestAll(asked, filter, timeoutMs),
+    requestAll(asked, filter, timeoutMs, enough),
     planOutboxReads(authors, [])
       .then((plan) => dedupeRelays(plan.relays).filter((relay) => !asked.includes(relay)))
       .catch(() => [] as string[])
-      .then((extra) => (extra.length ? requestAll(extra, filter, timeoutMs) : [])),
+      .then((extra) => (extra.length ? requestAll(extra, filter, timeoutMs, enough) : [])),
   ]);
   for (const event of [...events, ...routed]) keep(event);
 
