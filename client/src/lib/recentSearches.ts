@@ -1,8 +1,11 @@
 // Per-ACCOUNT "Recent" for the home search box. A unified, most-recent-first
-// list of two kinds of thing the visitor did from search:
+// list of three kinds of thing the visitor did from search:
 //   • query   — a text search they ran (re-run on click)
 //   • profile — a person they opened from search (re-open on click, shown with
 //               their avatar/handle)
+//   • scoped  — a search of one person's things on one tab ("vinney's media"),
+//               remembered the way the chip that opened it read: the face, the
+//               name, the tab — never the key (re-run on click)
 // Stores only the visitor's own search activity, first-party + functional → no
 // consent banner (same lightweight localStorage pattern as the hints flag).
 //
@@ -31,13 +34,27 @@ export type RecentItem =
       picture?: string;
       nip05?: string;
       t: number;
+    }
+  | {
+      type: "scoped";
+      pubkey: string;
+      npub: string;
+      label: string;
+      picture?: string;
+      /** The results tab the search ran on: "media", "shop", "everything"… */
+      tab: string;
+      /** The words typed beside the person's pill, trimmed; "" for the whole tab. */
+      words: string;
+      t: number;
     };
 
 /** Stable identity for de-dupe / removal / React keys. */
 export function recentKey(item: RecentItem): string {
   return item.type === "profile"
     ? `profile:${item.pubkey.toLowerCase()}`
-    : `query:${item.q.toLowerCase()}`;
+    : item.type === "scoped"
+      ? `scoped:${item.pubkey.toLowerCase()}:${item.tab}:${item.words.toLowerCase()}`
+      : `query:${item.q.toLowerCase()}`;
 }
 
 // Tolerate old records: pre-profile entries were bare { q, t } with no `type`.
@@ -52,6 +69,19 @@ function normalize(e: any): RecentItem | null {
       label: e.label,
       picture: typeof e.picture === "string" ? e.picture : undefined,
       nip05: typeof e.nip05 === "string" ? e.nip05 : undefined,
+      t: e.t,
+    };
+  }
+  if (e.type === "scoped") {
+    if (typeof e.pubkey !== "string" || typeof e.npub !== "string" || typeof e.label !== "string" || typeof e.tab !== "string") return null;
+    return {
+      type: "scoped",
+      pubkey: e.pubkey,
+      npub: e.npub,
+      label: e.label,
+      picture: typeof e.picture === "string" ? e.picture : undefined,
+      tab: e.tab,
+      words: typeof e.words === "string" ? e.words : "",
       t: e.t,
     };
   }
@@ -108,6 +138,32 @@ export function pushRecentProfile(p: RecentProfileInput): RecentItem[] {
     label: p.label || p.npub,
     picture: p.picture || undefined,
     nip05: p.nip05 || undefined,
+    t: Date.now(),
+  });
+}
+
+export interface RecentScopedInput {
+  pubkey: string;
+  npub: string;
+  label: string;
+  picture?: string;
+  tab: string;
+  words?: string;
+}
+
+/** A search of one person's things on one tab — "vinney's media", with any words typed beside the pill. */
+export function pushRecentScoped(s: RecentScopedInput): RecentItem[] {
+  const pubkey = (s.pubkey || "").toLowerCase();
+  const tab = (s.tab || "").trim();
+  if (!pubkey || !s.npub || !tab) return getRecentItems();
+  return unshift({
+    type: "scoped",
+    pubkey,
+    npub: s.npub,
+    label: s.label || s.npub,
+    picture: s.picture || undefined,
+    tab,
+    words: (s.words || "").trim(),
     t: Date.now(),
   });
 }

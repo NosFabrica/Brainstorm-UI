@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { SearchSnapshot } from "@/services/search";
 import { nip19 } from "nostr-tools";
-import { getRecentItems, pushRecentProfile } from "@/lib/recentSearches";
+import { getRecentItems, pushRecentProfile, pushRecentScoped } from "@/lib/recentSearches";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 
 const streamMock = vi.fn();
@@ -517,5 +517,51 @@ describe("what a suggested person publishes", () => {
     expect(chip).toHaveAttribute("aria-label", "Staci's shop");
     expect(chip.closest("button")).toBeNull();
     expect(contentMock).toHaveBeenLastCalledWith(expect.arrayContaining([STACI]));
+  });
+});
+
+// Benjamin (2026-09-24): a chip tap ran vinney's Media search, and RECENT had no memory of
+// it — it refused scoped searches because the only thing to store was the raw key. History
+// is helpful, like Google's: the search is remembered the way the chip read.
+describe("a scoped search is remembered in RECENT", () => {
+  const VINNEY = "7".repeat(64);
+  const VINNEY_NPUB = nip19.npubEncode(VINNEY);
+  const media = { key: "media", label: "Media", tab: "media", liveNow: false };
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    suggestMock.mockReset();
+    suggestMock.mockResolvedValue([]);
+    contentMock.mockReset();
+    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === VINNEY ? { chips: [media] } : undefined])));
+    knownProfiles.set(VINNEY, { display_name: "vinney…axkl", picture: "https://img/vinney.jpg" });
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("a chip tap lands on the person's tab, and RECENT remembers the person and the tab — never the key", async () => {
+    suggestMock.mockResolvedValue([{ pubkey: VINNEY, npub: VINNEY_NPUB, name: "vinney…axkl", picture: "https://img/vinney.jpg", wotRank: null, wotFollowers: null }]);
+    render(<Landing />);
+    typeInBox("vinney");
+    const row = await screen.findByTestId("home-suggestion-0", {}, { timeout: 3000 });
+    fireEvent.click(within(row).getByTestId("person-content-chip-media"));
+    await waitFor(() => expect(getRecentItems()[0]).toMatchObject({ type: "scoped", pubkey: VINNEY, label: "vinney…axkl", tab: "media", words: "" }));
+    expect(JSON.stringify(getRecentItems())).not.toContain("from:");
+    expect(getRecentItems().some((r) => r.type === "query")).toBe(false);
+  });
+
+  it("the RECENT row reads as the person and the tab, and re-runs the scoped search", async () => {
+    pushRecentScoped({ pubkey: VINNEY, npub: VINNEY_NPUB, label: "vinney…axkl", picture: "https://img/vinney.jpg", tab: "media", words: "sunset" });
+    render(<Landing />);
+    const box = screen.getByTestId("input-home-search");
+    fireEvent.pointerDown(box);
+    fireEvent.focus(box);
+    const row = await screen.findByTestId("home-recent-0");
+    expect(row).toHaveTextContent("vinney…axkl");
+    expect(within(row).getByTestId("home-recent-scoped-what-0")).toHaveTextContent("Media · sunset");
+    expect(row).not.toHaveTextContent("npub1");
+    fireEvent.mouseDown(within(row).getByTestId("home-recent-scoped-0"));
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("t")).toBe("media"));
+    expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${VINNEY_NPUB} sunset`);
   });
 });

@@ -12,6 +12,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { useTagMatches } from "@/hooks/useTags";
 import { npubFromPubkey } from "@/lib/shareId";
+import { scopedSearchHref } from "@/lib/searchSyntax";
+import { tabLabel } from "@/services/search";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
 import { usePersonContent } from "@/hooks/usePersonContent";
 /** Fire from anywhere (a header magnifier) to open mobile search. */
@@ -291,11 +293,15 @@ export function MobileSearchOverlay() {
                 <li key={recentKey(item)} className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => (item.type === "profile" ? openProfile(item) : submit(item.q))}
+                    onClick={() => {
+                      if (item.type === "profile") openProfile(item);
+                      else if (item.type === "scoped") { setOpen(false); navigate(scopedSearchHref(item.pubkey, item.tab, item.words)); }
+                      else submit(item.q);
+                    }}
                     className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
                     data-testid={`mobile-search-recent-${item.type}`}
                   >
-                    {item.type === "profile" ? (
+                    {item.type === "profile" || item.type === "scoped" ? (
                       <Avatar className="h-8 w-8 shrink-0 rounded-full border border-slate-200 dark:border-slate-800">
                         {item.picture ? <AvatarImage src={item.picture} alt="" className="object-cover" /> : null}
                         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
@@ -307,10 +313,15 @@ export function MobileSearchOverlay() {
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-200">
-                        {item.type === "profile" ? item.label : item.q}
+                        {item.type === "query" ? item.q : item.label}
                       </span>
                       {item.type === "profile" && item.nip05 && (
                         <span className="block truncate text-xs text-brand-primary dark:text-brand-link">{item.nip05.replace(/^_@/, "")}</span>
+                      )}
+                      {item.type === "scoped" && (
+                        <span className="block truncate text-xs text-slate-500 dark:text-slate-400" data-testid="mobile-search-recent-what">
+                          {item.words ? `${tabLabel(item.tab)} · ${item.words}` : tabLabel(item.tab)}
+                        </span>
                       )}
                     </span>
                     <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" />
@@ -318,7 +329,7 @@ export function MobileSearchOverlay() {
                   <button
                     type="button"
                     onClick={() => drop(item)}
-                    aria-label={`Remove ${item.type === "profile" ? item.label : item.q} from recent searches`}
+                    aria-label={`Remove ${item.type === "query" ? item.q : item.type === "scoped" ? `${item.label}'s ${tabLabel(item.tab).toLowerCase()}` : item.label} from recent searches`}
                     className="shrink-0 rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-500 dark:text-slate-600 dark:hover:bg-slate-800"
                     data-testid="mobile-search-recent-remove"
                   >

@@ -3,7 +3,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
 import { copyToClipboard } from "@/lib/clipboard";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
+import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem, pushRecentScoped } from "@/lib/recentSearches";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { nip19 } from "nostr-tools";
 import { resolveNip05 } from "@/lib/nip05";
@@ -51,7 +51,7 @@ import {
   typeaheadPause,
   type SearchResult,
 } from "@/lib/profileSearch";
-import { suggestProfileHits, suggestProfiles, type SearchHit } from "@/services/search";
+import { suggestProfileHits, suggestProfiles, type SearchHit, tabLabel } from "@/services/search";
 import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
@@ -67,6 +67,7 @@ import { usePersonContent } from "@/hooks/usePersonContent";
 import { useTagMatches } from "@/hooks/useTags";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { npubFromPubkey } from "@/lib/shareId";
+import { scopedSearchHref } from "@/lib/searchSyntax";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 import { useConnectionSpeed } from "@/lib/connection";
 
@@ -733,6 +734,17 @@ export default function Landing() {
   // Which results tab is showing, so the box can say "Search means's notes";
   // seeded from the URL, then told by the results as tabs change.
   const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(window.location.search).get("t") || "everything");
+  // A search of one person's things, on one tab, is a search — RECENT remembers it the way
+  // the chip that opened it read: the face, the name, the tab, never the key. Recorded from
+  // the search that RAN (not each keystroke), once the person's name is known, and again when
+  // the tab changes under the scope. Benjamin (2026-09-24): "history is helpful, like Google".
+  useEffect(() => {
+    if (!hasSearched || !submitted) return;
+    const ran = scopeOf(submitted);
+    if (!ran || !scopeName || ran.pubkey !== scope?.pubkey) return;
+    setRecent(pushRecentScoped({ pubkey: ran.pubkey, npub: npubFromPubkey(ran.pubkey), label: scopeName, picture: scopeProfile?.picture, tab: activeTab, words: ran.rest }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitted, hasSearched, scopeName, scopeProfile?.picture, activeTab]);
   // Arriving scoped — the profile's magnifier, a "View all" — the cursor is
   // already in the box (X's profile search). Once per person, so typing and
   // re-renders never have their focus stolen.
@@ -1295,7 +1307,9 @@ export default function Landing() {
                     const handle = item.type === "profile" && item.nip05 ? item.nip05.replace(/^_@/, "") : null;
                     const removeLabel = item.type === "profile"
                       ? `Remove ${item.label} from recent`
-                      : `Remove "${item.q}" from recent searches`;
+                      : item.type === "scoped"
+                        ? `Remove ${item.label}'s ${tabLabel(item.tab).toLowerCase()} from recent`
+                        : `Remove "${item.q}" from recent searches`;
                     return (
                       <div
                         key={recentKey(item)}
@@ -1322,6 +1336,25 @@ export default function Landing() {
                                   <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />{handle}
                                 </p>
                               )}
+                            </div>
+                          </button>
+                        ) : item.type === "scoped" ? (
+                          // "vinney's media": the person's face, the tab, the words — re-run as the scoped search.
+                          <button
+                            type="button"
+                            className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
+                            onMouseDown={(e) => { e.preventDefault(); setFocused(false); setLocation(scopedSearchHref(item.pubkey, item.tab, item.words)); }}
+                            data-testid={`home-recent-scoped-${i}`}
+                          >
+                            <Avatar className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
+                              {item.picture ? <AvatarImage src={item.picture} alt={item.label} className="object-cover" /> : null}
+                              <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{item.label}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 truncate leading-tight" data-testid={`home-recent-scoped-what-${i}`}>
+                                {item.words ? `${tabLabel(item.tab)} · ${item.words}` : tabLabel(item.tab)}
+                              </p>
                             </div>
                           </button>
                         ) : (

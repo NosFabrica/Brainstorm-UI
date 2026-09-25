@@ -15,6 +15,7 @@ vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["n
 vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
 
 import { MobileSearchOverlay, openMobileSearch } from "./MobileSearchOverlay";
+import { pushRecentScoped } from "@/lib/recentSearches";
 import { nip19 } from "nostr-tools";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 
@@ -123,5 +124,23 @@ describe("what a result publishes", () => {
     fireEvent.click(screen.getByTestId("person-content-chip-shop"));
     expect(screen.queryByTestId("mobile-search-input")).toBeNull();
     expect(window.location.search).toMatch(/&t=shop$/);
+  });
+});
+
+describe("a scoped search in the sheet's recents", () => {
+  const VINNEY = "7".repeat(64);
+  const VINNEY_NPUB = nip19.npubEncode(VINNEY);
+
+  it("reads as the person and the tab, and re-runs the scoped search", () => {
+    pushRecentScoped({ pubkey: VINNEY, npub: VINNEY_NPUB, label: "vinney…axkl", picture: "https://img/vinney.jpg", tab: "media" });
+    renderOpen();
+    const row = screen.getByTestId("mobile-search-recent-scoped");
+    expect(row).toHaveTextContent("vinney…axkl");
+    expect(screen.getByTestId("mobile-search-recent-what")).toHaveTextContent("Media");
+    expect(row).not.toHaveTextContent("npub1");
+    fireEvent.click(row);
+    expect(screen.queryByTestId("mobile-search-input")).toBeNull();
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("media");
+    expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${VINNEY_NPUB}`);
   });
 });
