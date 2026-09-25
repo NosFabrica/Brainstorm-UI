@@ -2,6 +2,9 @@ import { parseTrack } from "@/lib/trackEvent";
 import { formatListingPrice, parseListing } from "@/lib/listing";
 import type { WavlakeSong } from "@/lib/wavlake";
 import { useEffect, useState } from "react";
+import { useConnectionSpeed } from "@/lib/connection";
+import { MediaImg } from "@/components/ui/media-img";
+import { useAvatarSrc } from "@/lib/avatarSrc";
 /**
  * Typed result cards for the verticals with no existing precedent —
  * media, code & git, live events, lists. Each is a compact, self-contained
@@ -346,8 +349,9 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
           />
         </div>
       ) : (isImage || poster) && url ? (
-        <img
+        <MediaImg
           src={isImage ? url : (poster as string)}
+          preset="media_1280"
           alt=""
           loading="lazy"
           className="mt-2 w-full max-h-96 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-cover"
@@ -781,7 +785,13 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
   const faces = useFaceProfiles(hostIsAuthor ? [] : [hostPk as string]);
   const hostProfile = hostIsAuthor ? undefined : faces.get(hostPk as string);
   const channelName = hostProfile ? hostProfile.display_name || hostProfile.name || "" : author ? getDisplayLabel(author) : "";
+  const speed = useConnectionSpeed();
   const channelPicture = hostProfile ? hostProfile.picture : author?.picture;
+  // One thumbnail URL for both draws below, so the blurred backdrop and the
+  // circle share a single request. AvatarImage further down keeps the original
+  // and does its own.
+  const { src: channelThumb, onError: channelThumbFailed, spent: channelThumbSpent } = useAvatarSrc(channelPicture ?? undefined, "sm", speed);
+  const channelArt = speed === "very-slow" || channelThumbSpent ? null : channelThumb;
   const tierRing = useTierRing();
   const ring = tierRing(hostIsAuthor ? score : hostScore, false, "sm", true) ?? "";
   const category = liveCategoryOf(event);
@@ -801,11 +811,11 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
         <div className="relative aspect-video overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
           {image && !posterBroken ? (
             <img src={image} alt="" loading="lazy" onError={() => setPosterBroken(true)} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-          ) : channelPicture ? (
+          ) : channelArt ? (
             <div className="relative h-full w-full" data-testid={`live-art-${event.id}`}>
-              <img src={channelPicture} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl opacity-60" />
+              <img src={channelArt} alt="" aria-hidden="true" onError={channelThumbFailed} className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl opacity-60" />
               <span className="absolute inset-0 bg-slate-900/30" aria-hidden="true" />
-              <img src={channelPicture} alt="" className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full object-cover ring-2 ring-white/80" />
+              <img src={channelArt} alt="" onError={channelThumbFailed} className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full object-cover ring-2 ring-white/80" />
             </div>
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900" data-testid={`live-art-${event.id}`}>
@@ -1323,7 +1333,7 @@ export function ListingCard({
     >
       <div className="-mx-1 -mt-1 relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
         {l.images[0] ? (
-          <img src={l.images[0]} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+          <MediaImg src={l.images[0]} preset="media_640" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
             <ShoppingBag className="h-7 w-7" />

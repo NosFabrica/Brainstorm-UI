@@ -7,7 +7,8 @@ import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Shuffle, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileForShare, fetchProfileMap } from "@/services/nostr";
+import { fetchProfileMap } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { logout } from "@/accounts/login-flow";
 import { AccountMenu } from "@/components/AccountMenu";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -76,13 +77,7 @@ export default function HopsPathPage() {
     retry: false,
   });
 
-  const subjectQuery = useQuery({
-    queryKey: ["share-profile", toPubkey],
-    queryFn: () => fetchProfileForShare(toPubkey, { relayHints }),
-    enabled: !!toPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const subject = useLiveProfile(toPubkey, relayHints).profile;
 
   const d = pathQuery.data;
   const profilesQuery = useQuery({
@@ -150,7 +145,7 @@ export default function HopsPathPage() {
   if (!eligible) return <Redirect to={`/p/${rawId}`} replace />;
 
   const subjectName =
-    subjectQuery.data?.display_name || subjectQuery.data?.name || shortNpub(npubFromPubkey(toPubkey));
+    subject?.display_name || subject?.name || shortNpub(npubFromPubkey(toPubkey));
   const profs = profilesQuery.data;
   const myFollows = followingQuery.data;
 
@@ -180,7 +175,7 @@ export default function HopsPathPage() {
   const nameAt = (i: number): string => {
     const pk = d?.path?.[i];
     if (!pk) return "";
-    const sp = i === (d!.path.length - 1) ? subjectQuery.data : undefined;
+    const sp = i === (d!.path.length - 1) ? subject : undefined;
     const pp = profs?.get(pk);
     return sp?.display_name || sp?.name || pp?.display_name || pp?.name || shortNpub(npubFromPubkey(pk));
   };
@@ -267,7 +262,7 @@ export default function HopsPathPage() {
                 // bulk profile map (fixed relay set) misses — so for the subject
                 // reuse the relay-hint-resolved profile the page title already
                 // fetched. Keeps name + avatar consistent with the header/SharePage.
-                const subj = isSubject ? subjectQuery.data : undefined;
+                const subj = isSubject ? subject : undefined;
                 const picture = subj?.picture || p?.picture;
                 // Node 0 under House is named by OUR copy — the fetched kind-0
                 // says "nosfabrica", which would contradict the rest of the UI.
