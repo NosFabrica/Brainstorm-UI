@@ -268,8 +268,13 @@ Two things that has to get right:
 
 - **Bounded staleness.** Because a hit ends the sequence, a cache with no
   expiry would pin every author's relay list to whatever it was when we last
-  saw them. Entries answer for 30 minutes and are then treated as a miss. The
-  active account is not subject to this — it is refreshed explicitly.
+  saw them. Entries answer on their own for 30 minutes. **Amended
+  (2026-09-24):** past that they no longer turn into a miss — they still
+  answer, and the relays are asked after them in the background
+  (`refreshStale`, once per entry per window). An hours-old relay list routes
+  far better than the default set a miss falls back to, and a miss meant a
+  reader or a publish waiting on the network for it. Entries now live until
+  evicted. The active account is refreshed explicitly, as before.
 - **`cache: false` on a deliberate relay read.** `loadReplaceable`'s
   `fromRelays` now sets it. Without that, the revalidation that keeps a
   hydrated copy fresh would be answered from the very cache it exists to

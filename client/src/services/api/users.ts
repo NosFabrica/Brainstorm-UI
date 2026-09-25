@@ -18,6 +18,8 @@ export interface ShortestPath {
   /** True when `pathCount` hit the server cap (show as "N+"). */
   pathCountCapped: boolean;
   maxHops: number;
+  /** Every shortest path, when the server sends them (bounded by `maxPaths`); absent today. */
+  paths?: string[][];
 }
 
 /** One account in the observer's network, with its verified trust signals. */
@@ -138,9 +140,14 @@ export const usersApi = {
    * are hex pubkeys or npubs; the endpoint returns ONE randomly-chosen shortest
    * path per call (re-call for a different one). `from` is required — there is no
    * house default, so callers pass an explicit pubkey (the logged-in viewer's).
+   * `maxPaths` (server default and ceiling 1000) caps the paths the server
+   * materialises — and with them `pathCount`, which turns "119" into "50+" —
+   * so the Connection page leaves it unset. `paths`, when a server sends the
+   * list, rides along.
    */
-  async getShortestPath(opts: { from: string; to: string }): Promise<ShortestPath> {
+  async getShortestPath(opts: { from: string; to: string; maxPaths?: number }): Promise<ShortestPath> {
     const params = new URLSearchParams({ from: opts.from, to: opts.to });
+    if (opts.maxPaths) params.set("maxPaths", String(opts.maxPaths));
     const url = `${getBrainstormApi()}/shortestPath?${params.toString()}`;
     const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
     if (!response.ok) {

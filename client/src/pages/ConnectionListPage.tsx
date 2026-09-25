@@ -4,7 +4,8 @@ import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Users, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
+import { fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { logout } from "@/accounts/login-flow";
 import { AccountMenu } from "@/components/AccountMenu";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -69,13 +70,7 @@ export default function ConnectionListPage() {
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   // Subject profile — reuse SharePage's cache key so a click from /p/:id is warm.
-  const subjectQuery = useQuery({
-    queryKey: ["share-profile", pubkey],
-    queryFn: () => fetchProfileForShare(pubkey, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const liveSubject = useLiveProfile(pubkey, relayHints).profile;
 
   const connQuery = useInfiniteQuery<
     { items: GraphEntry[]; next_cursor: string | null },
@@ -156,7 +151,7 @@ export default function ConnectionListPage() {
   if (!decoded) return <Redirect to="/" replace />;
   if (!cfg) return <Redirect to={`/p/${rawId}`} replace />;
 
-  const subject = (subjectQuery.data ?? {}) as Record<string, string | undefined>;
+  const subject = (liveSubject ?? {}) as Record<string, string | undefined>;
   const subjectName =
     subject.display_name || subject.name || (pubkey ? npubFromPubkey(pubkey).slice(0, 12) + "…" : "this profile");
   const profileMap = profilesQuery.data;

@@ -19,6 +19,7 @@ import { ProfileMention } from "@/components/share/ProfileMention";
 import { clientRef } from "@/lib/clientLinks";
 import { useClientLink } from "@/hooks/useClientLink";
 import { useLightbox } from "@/components/share/Lightbox";
+import { MediaImg } from "@/components/ui/media-img";
 
 /** Human-readable track name from a raw audio URL. Falls back to "Audio" for
  *  non-descriptive filenames (numeric ids, hashes/uuids) like `…/32939084.mp3`. */
@@ -157,12 +158,13 @@ export function NoteContent({
                 key={i}
                 className="mt-2 aspect-[16/10] w-full max-h-72 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"
               >
-                <img src={token.value} alt="" loading="lazy" className="h-full w-full object-cover" />
+                <MediaImg src={token.value} preset="media_640" alt="" loading="lazy" className="h-full w-full object-cover" />
               </div>
             ) : (
-              <img
+              <MediaImg
                 key={i}
                 src={token.value}
+                preset="media_1280"
                 alt=""
                 loading="lazy"
                 data-noopen

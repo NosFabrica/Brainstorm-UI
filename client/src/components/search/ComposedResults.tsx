@@ -19,7 +19,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing, QuietTrustChrome } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { SerpRow, kindTypeLabel } from "@/components/search/SerpRow";
+import { SerpRow } from "@/components/search/SerpRow";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
@@ -546,7 +547,7 @@ function ComposedResultsBody({
               {/* The section says "Articles" for the rows, so an essay needs no
                   label — a spec (30817) rides here too and must not pass for one. */}
               {articleRows.map((c) => (
-                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} showType={c.primary.event.kind === 30817} />
+                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
               ))}
             </div>
           )}
@@ -603,7 +604,7 @@ function ComposedResultsBody({
                 query={query}
                 renderRow={
                   c.primary.event.kind === 31922 || c.primary.event.kind === 31923
-                    ? (h) => <EventRow hit={h} score={scoreOf(h.event.pubkey)} going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0} />
+                    ? (h) => <EventRow hit={h} score={scoreOf(h.event.pubkey)} going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0} showKind />
                     : undefined
                 }
               />

@@ -5,10 +5,12 @@
  * settings, not two ideas:
  *
  * - **Profiles (kind 0).** Names and avatars, so a reload does not ask the
- *   relay for sixty kind-0s it already had. Two ages: a young copy answers on
- *   its own, an older one is still shown while the relay is asked as well, and
- *   past a week it is not shown at all.
- * - **Routing (kinds 3, 10002, 10040).** Where reads and publishes GO. This is
+ *   relay for sixty kind-0s it already had. A young copy answers on its own;
+ *   an older one — however old — is still shown while the relay is asked as
+ *   well. Any name beats a spinner, and the relay's answer replaces it.
+ * - **Routing (kinds 3, 10002, 10040).** Where reads and publishes GO. Kept,
+ *   like profiles, until evicted: a young copy answers alone, an older one
+ *   answers while the relays are asked after it. This is
  *   the half that has to be here BEFORE a signature: routing is needed the
  *   moment an event is published, and a lookup at that moment is dead air
  *   before the signer prompt — or a race the publish loses quietly, landing on
@@ -38,16 +40,20 @@ const STORE = "events";
 /** Kind 0's own database, before profiles and routing shared one. */
 const LEGACY_PROFILE_DB = "brainstorm-profiles";
 
-/** How long a held profile answers without the relay being asked as well. */
+/**
+ * How long a held profile answers without the relay being asked as well. There
+ * is no second age: an older copy is shown for as long as the device keeps it
+ * (MAX_CACHED bounds that), and asked after every time.
+ */
 export const PROFILE_FRESH_MS = 60 * 60 * 1000;
-/** How long it answers at all. */
-export const PROFILE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Routing gets one age, not two. A stale name is worth showing while the relay
- * is asked; a stale relay list is not worth routing by, so it simply expires.
+ * How long a held routing event answers without the relays being asked as
+ * well. Past it the copy still answers — an hours-old relay list routes far
+ * better than the default set a miss falls back to — and is refreshed behind
+ * it (`refreshStale`).
  */
-const ROUTING_TTL_MS = 30 * 60 * 1000;
+const ROUTING_FRESH_MS = 30 * 60 * 1000;
 
 /** How long writes are gathered before they go to the device. */
 const WRITE_BATCH_MS = 2000;
@@ -62,8 +68,7 @@ const CACHED = new Set(CACHED_KINDS);
 /** NIP-65, restated so this module needs no import from the routing one. */
 const RELAY_LIST_KIND = 10002;
 
-const ageLimit = (kind: number) => (kind === 0 ? PROFILE_TTL_MS : ROUTING_TTL_MS);
-const freshLimit = (kind: number) => (kind === 0 ? PROFILE_FRESH_MS : ROUTING_TTL_MS);
+const freshLimit = (kind: number) => (kind === 0 ? PROFILE_FRESH_MS : ROUTING_FRESH_MS);
 
 export interface CachedRow {
   /** `kind:pubkey:d` — one row per replaceable coordinate. */
@@ -125,15 +130,39 @@ async function open(): Promise<IDBDatabase> {
 
 function indexedDbStore(): CacheStore | null {
   if (typeof indexedDB === "undefined") return null;
+  // One connection, kept open: every loader batch, author-queue batch and
+  // write batch comes through here, and opening the database costs more than
+  // most of the reads it serves. Dropped when the browser closes it or another
+  // tab needs a version change, and reopened on next use.
+  let connection: Promise<IDBDatabase> | null = null;
+  const connect = (): Promise<IDBDatabase> => {
+    connection ??= open().then((db) => {
+      const drop = () => {
+        connection = null;
+      };
+      db.onclose = drop;
+      db.onversionchange = () => {
+        drop();
+        db.close();
+      };
+      return db;
+    });
+    connection.catch(() => {
+      connection = null;
+    });
+    return connection;
+  };
   const run = async <T>(
     mode: IDBTransactionMode,
     work: (s: IDBObjectStore, keep: (value: T) => void) => void,
   ): Promise<T | undefined> => {
-    const db = await open();
     try {
-      return await transact<T>(db, STORE, mode, work);
-    } finally {
-      db.close();
+      return await transact<T>(await connect(), STORE, mode, work);
+    } catch (error) {
+      // A connection closed under us (InvalidStateError): once more, fresh.
+      if ((error as DOMException)?.name !== "InvalidStateError") throw error;
+      connection = null;
+      return transact<T>(await connect(), STORE, mode, work);
     }
   };
 
@@ -148,24 +177,20 @@ function indexedDbStore(): CacheStore | null {
         }
       })) ?? [],
 
-    // One transaction for the whole set: a read per author would be up to the
-    // loader's buffer size (200) of them, serialized, in front of the step that
-    // exists to avoid a network round trip.
-    byAuthors: async (pubkeys) => {
-      const wanted = new Set(pubkeys);
-      return (
-        (await run<CachedRow[]>("readonly", (s, keep) => {
-          const found: CachedRow[] = [];
-          keep(found);
-          const req = s.getAll();
-          req.onsuccess = () => {
-            for (const row of (req.result ?? []) as CachedRow[]) {
-              if (row && wanted.has(row.pubkey)) found.push(row);
-            }
-          };
-        })) ?? []
-      );
-    },
+    // One transaction for the whole set, one index lookup per author inside
+    // it: the requests are pipelined, not serialized, and only the rows asked
+    // about are read — not all 2,000 of them, full events included, on every
+    // loader batch.
+    byAuthors: async (pubkeys) =>
+      (await run<CachedRow[]>("readonly", (s, keep) => {
+        const found: CachedRow[] = [];
+        keep(found);
+        const index = s.index("pubkey");
+        for (const pubkey of new Set(pubkeys)) {
+          const req = index.getAll(IDBKeyRange.only(pubkey));
+          req.onsuccess = () => found.push(...((req.result ?? []) as CachedRow[]));
+        }
+      })) ?? [],
 
     put: async (rows) => {
       await run("readwrite", (s) => rows.forEach((row) => s.put(row)));
@@ -231,19 +256,18 @@ function trustworthy(row: CachedRow | undefined): row is CachedRow {
   }
 }
 
-/** The rows held for these coordinates, with their age — expired ones left out. */
+/** The rows held for these coordinates, with their age — however old; eviction is the only expiry. */
 async function liveRows(addrs: string[]): Promise<CachedRow[]> {
   const s = device();
   if (!s || addrs.length === 0) return [];
   try {
-    const now = Date.now();
-    return (await s.get(addrs)).filter((row) => trustworthy(row) && row.at >= now - ageLimit(row.kind));
+    return (await s.get(addrs)).filter((row) => trustworthy(row));
   } catch {
     return []; // the device has nothing to say — ask the relay
   }
 }
 
-/** The profiles held for these pubkeys, with their age — expired ones left out. */
+/** The profiles held for these pubkeys, with their age — however old. */
 export async function readProfileRows(pubkeys: string[]): Promise<Map<string, CachedRow>> {
   const held = new Map<string, CachedRow>();
   for (const row of await liveRows(pubkeys.map((pk) => `0:${pk}:`))) held.set(row.pubkey, row);
@@ -251,9 +275,13 @@ export async function readProfileRows(pubkeys: string[]): Promise<Map<string, Ca
 }
 
 /**
- * Held events young enough to answer ON THEIR OWN, for applesauce's
- * `cacheRequest`: that hook REMOVES the pointers it answers from the loading
- * sequence, so an older copy must fall through to the relays instead.
+ * Held events, for applesauce's `cacheRequest` — every one, however old.
+ *
+ * That hook REMOVES the pointers it answers from the loading sequence, so a
+ * copy past its freshness window would otherwise pin that author to it: the
+ * relays would never be asked again. Those are answered AND refreshed behind
+ * the answer (`refreshStale`), which is what bounds staleness now — not
+ * withholding the copy and making the reader wait on the relays for it.
  */
 export async function cachedEventsForFilters(
   filters: { kinds?: number[]; authors?: string[]; "#d"?: string[] }[],
@@ -270,6 +298,7 @@ export async function cachedEventsForFilters(
   }
 
   const now = Date.now();
+  const stale: CachedRow[] = [];
   const byAuthor = new Map<string, CachedRow[]>();
   for (const row of rows) {
     const bucket = byAuthor.get(row.pubkey);
@@ -281,18 +310,77 @@ export async function cachedEventsForFilters(
   for (const filter of filters) {
     for (const pubkey of filter.authors ?? []) {
       for (const row of byAuthor.get(pubkey) ?? []) {
-        if (row.at < now - freshLimit(row.kind)) continue;
         if (filter.kinds && !filter.kinds.includes(row.kind)) continue;
         if (filter["#d"]) {
           const d = row.event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
           if (!filter["#d"].includes(d)) continue;
         }
         if (!trustworthy(row)) continue;
+        if (out.has(row.event.id)) continue;
         out.set(row.event.id, row.event);
+        if (row.at < now - freshLimit(row.kind)) stale.push(row);
       }
     }
   }
+  if (stale.length) void refreshStale(stale);
   return [...out.values()];
+}
+
+/** When each coordinate was last sent to the relays for a refresh. */
+const refreshedAt = new Map<string, number>();
+
+/** NIP-85 trust-provider declaration: the one cached kind refreshed on its author's relays. */
+const TRUST_PROVIDER_KIND = 10040;
+/** How many of an author's relays a refresh asks — MAX_RELAYS_PER_AUTHOR, restated to avoid the import cycle. */
+const REFRESH_RELAYS_PER_AUTHOR = 4;
+
+/**
+ * Claim the refresh of one coordinate: true if nobody has sent it to the
+ * relays within its freshness window, and records that this caller now has.
+ * Shared by every path that refreshes a stale copy — this module's and the
+ * author queue's — so one person shown two ways is refreshed once.
+ */
+export function claimRefresh(addr: string, kind: number): boolean {
+  const now = Date.now();
+  if ((refreshedAt.get(addr) ?? 0) >= now - freshLimit(kind)) return false;
+  refreshedAt.set(addr, now);
+  return true;
+}
+
+/**
+ * Ask the relays after copies that answered past their freshness window.
+ *
+ * Once per coordinate per window: a page asks for the same people many times
+ * over, and one refresh covers every one of those reads. Whatever comes back
+ * lands in the store — and so on the device — for the next read. Routed by
+ * the author's relay list where the store has one, as `revalidate` is: a
+ * kind-10040 that lives only on their own relays is not refreshed by asking
+ * the default set. Their relay list itself is looked up where relay lists are
+ * indexed (the loader's lookup relays).
+ */
+async function refreshStale(rows: CachedRow[]): Promise<void> {
+  const due = rows.filter((row) => claimRefresh(row.addr, row.kind));
+  if (!due.length) return;
+  // Imported here for the reason `revalidate` gives: a static import back
+  // into `lib/loaders` closes a cycle at module init.
+  const { loadReplaceable } = await import("./loaders");
+  await Promise.all(
+    due.map((row) => {
+      // Profiles, contact and relay lists are asked where they are indexed:
+      // the loader's lookup relays. Only a kind-10040 needs its author's own
+      // relays — and only a few of them, since the loader unions every
+      // pointer's relays in a batch and a page of stale authors would
+      // otherwise open all of theirs at once.
+      const list = row.kind === TRUST_PROVIDER_KIND ? eventStore.getReplaceable(RELAY_LIST_KIND, row.pubkey) : undefined;
+      const write = list ? parseRelayList(list as NostrEvent).write.slice(0, REFRESH_RELAYS_PER_AUTHOR) : [];
+      return loadReplaceable(row.kind, row.pubkey, {
+        identifier: row.event.tags.find((tag) => tag[0] === "d")?.[1],
+        relays: write.length ? write : undefined,
+        fromRelays: true,
+        timeoutMs: 8000,
+      }).catch(() => undefined);
+    }),
+  );
 }
 
 /** Hold these events for next time, newest copy winning, oldest evicted. */
@@ -302,11 +390,17 @@ export async function writeEvents(events: NostrEvent[]): Promise<void> {
   if (!s || worth.length === 0) return;
   try {
     const addrs = worth.map(coordinate);
-    const held = await s.get(addrs);
-    const newest = new Map(held.map((row) => [row.addr, row.event.created_at]));
+    const held = new Map((await s.get(addrs)).map((row) => [row.addr, row.event]));
     const at = Date.now();
+    // Only a copy that BEATS the held one is written (NIP-01: newer, or on a
+    // tie the lower id). The one already held is not rewritten: every copy
+    // served from the device goes back through the store, and rewriting it
+    // would reset its age on every read — a copy read often would never look
+    // stale, and so never be refreshed.
+    const beats = (event: NostrEvent, row: NostrEvent | undefined) =>
+      !row || event.created_at > row.created_at || (event.created_at === row.created_at && event.id < row.id);
     const rows = worth
-      .filter((event) => event.created_at >= (newest.get(coordinate(event)) ?? 0))
+      .filter((event) => beats(event, held.get(coordinate(event))))
       .map((event) => ({ addr: coordinate(event), pubkey: event.pubkey, kind: event.kind, event, at }));
     if (rows.length === 0) return;
     await s.put(rows);
@@ -468,6 +562,7 @@ export async function clearEventCache(): Promise<void> {
   // The writer first: it batches, so clearing without stopping it lets the
   // in-flight batch write the trail straight back after sign-out wiped it.
   stopWriting?.();
+  refreshedAt.clear();
   hydration = null;
   hydratingFor = null;
   const s = device();
@@ -500,6 +595,7 @@ export function __useCacheStore(fake: CacheStore | null | undefined): void {
 
 /** Test seam. */
 export function __resetEventCache(): void {
+  refreshedAt.clear();
   hydration = null;
   hydratingFor = null;
   stopWriting?.();

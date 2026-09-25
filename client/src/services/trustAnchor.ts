@@ -184,6 +184,8 @@ export async function publishBrainstormTrustAnchor(
   // must never cost them another provider's rows.
   let existing: string[][] = [];
   try {
+    // From the relays, newest wins (fetchTrustProviderList): this is merged
+    // into and published back, so an older copy would cost rows declared elsewhere.
     existing = (await fetchTrustProviderList(pubkey))?.tags ?? [];
   } catch {
     // Unreadable relays: publish ours alone, as before.
