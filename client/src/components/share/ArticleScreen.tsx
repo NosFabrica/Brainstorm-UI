@@ -2,9 +2,13 @@ import { memo, useMemo, useState, type ReactNode } from "react";
 import type { NoteToken } from "@/lib/noteContent";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeSanitize from "rehype-sanitize";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import { extractBech32FromUrl } from "@/lib/noteContent";
+import { clientRef } from "@/lib/clientLinks";
+import { ClientLink } from "@/components/share/ClientLink";
+import { NostrRef } from "@/components/share/NostrRef";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
@@ -15,7 +19,7 @@ import { fetchProfile } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
 import { sourceAppFor } from "@/lib/sourceApp";
-import { wikiToMarkdown } from "@/lib/wiki";
+import { articleSummary, wikiToMarkdown } from "@/lib/wiki";
 import { prepareArticleBody } from "@/lib/articleBody";
 import { htmlToText, looksLikeHtml, stripStrayHtml } from "@/lib/htmlText";
 import { ReadingText } from "@/components/share/ReadingText";
@@ -69,13 +73,55 @@ function ArticleVideo({ url }: { url: string }) {
   return <video src={url} controls playsInline preload={videoPreload(speed)} className="my-3 block w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-900" />;
 }
 
+/** Markdown's sanitizer, taught that a `nostr:` link is a link. */
+const SANITIZE_SCHEMA = {
+  ...defaultSchema,
+  protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), "nostr"] },
+};
+
+/** Markdown's own URL filter drops schemes it does not know; a `nostr:` link is a link. */
+const keepNostrUrls = (url: string) => (url.startsWith("nostr:") ? url : defaultUrlTransform(url));
+
+/** A bare `nostr:` reference in prose, made a link so markdown hands it to the renderer below. */
+const BARE_NOSTR_URI = /(?<![\w[(`/:])(nostr:(?:npub|nprofile|note|nevent|naddr)1[02-9ac-hj-np-z]+)/gi;
+export function linkNostrUris(markdown: string): string {
+  return markdown.replace(BARE_NOSTR_URI, "[$1]($1)");
+}
+
+/** A link that renders as a thing — a person, a note, an article — rather than as a link. */
+function embedFor(url: string): React.ReactNode | null {
+  if (url.startsWith("nostr:")) return <NostrRef bech32={url.slice("nostr:".length)} />;
+  const bech = extractBech32FromUrl(url);
+  if (bech) return <NostrRef bech32={bech} url={url} />;
+  if (clientRef(url)) return <ClientLink url={url} />;
+  return null;
+}
+
+/** The hast paragraph's only content is one bare link that renders as a card. */
+function paragraphIsEmbed(node: { children?: { type: string; tagName?: string; value?: string; properties?: { href?: unknown }; children?: { value?: string }[] }[] } | undefined): boolean {
+  const kids = (node?.children ?? []).filter((c) => !(c.type === "text" && !(c.value ?? "").trim()));
+  if (kids.length !== 1 || kids[0].tagName !== "a") return false;
+  const href = typeof kids[0].properties?.href === "string" ? kids[0].properties.href : "";
+  const text = (kids[0].children ?? []).map((c) => c.value ?? "").join("").trim();
+  return !!href && text === href && (href.startsWith("nostr:") || !!extractBech32FromUrl(href) || !!clientRef(href));
+}
+
 const mdComponents: Components = {
+  // A paragraph that is only a card is not a paragraph: no <p> around a <div>.
+  p({ node, children }) {
+    return paragraphIsEmbed(node as Parameters<typeof paragraphIsEmbed>[0]) ? <div className="not-prose my-3">{children}</div> : <p>{children}</p>;
+  },
   a({ href, children }) {
     const url = typeof href === "string" ? href : "";
     // A link into Brainstorm itself (a wiki topic's articles search) stays here.
     if (url.startsWith("/")) return <InAppLink href={url}>{children}</InAppLink>;
     const text = Array.isArray(children) ? children.map((c) => (typeof c === "string" ? c : "")).join("") : String(children ?? "");
     const bare = !!url && text.trim() === url.trim(); // an autolinked bare URL, not [label](url)
+    // A reference to a person, a note or an article is that thing, not a link.
+    if (bare) {
+      const embed = embedFor(url);
+      if (embed) return embed;
+    }
     if (url && videoEmbedFor(url)) return <VideoEmbed url={url} />;
     if (url && bare && VID_RE.test(url)) {
       return <ArticleVideo url={url} />;
@@ -92,7 +138,9 @@ const mdComponents: Components = {
  *  Vimeo link plays in place, a video file preloads by connection, a bare
  *  link is a chip. Everything else renders as ReadingText's own. */
 function articleEmbed(t: NoteToken, key: string): ReactNode | undefined {
+  if (t.type === "mention") return <NostrRef key={key} bech32={t.bech32} url={t.url} />;
   if (t.type !== "url" && t.type !== "video") return undefined;
+  if (t.type === "url" && clientRef(t.value)) return <ClientLink key={key} url={t.value} />;
   if (videoEmbedFor(t.value)) return <VideoEmbed key={key} url={t.value} />;
   if (t.type === "video") return <ArticleVideo key={key} url={t.value} />;
   return <LinkChip key={key} url={t.value} />;
@@ -112,8 +160,10 @@ const REHYPE_PLUGINS = [rehypeSanitize];
  */
 export const ArticleBody = memo(function ArticleBody({ body, fromHtml }: { body: string; fromHtml: boolean }) {
   return !fromHtml && isMarkdown(body) ? (
-    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={mdComponents}>
-      {body}
+    // `nostr:` references stay links (the sanitizer would strip the scheme), and
+    // bare ones in the text are linked first — feat/client-links-native.
+    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} urlTransform={keepNostrUrls} components={mdComponents}>
+      {linkNostrUris(body)}
     </ReactMarkdown>
   ) : (
     // Plain text: markdown would fold its single line breaks into
@@ -232,7 +282,14 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
     // In order, however the author tagged them.
     return [...byKind.entries()].map(([kind, label]) => ({ kind, label })).sort((a, b) => Number(a.kind) - Number(b.kind));
   }, [ev, prepared.kinds]);
-  const summary = tag("summary") || "";
+  // The author's summary, never a publisher's placeholder ("No description available").
+  const summary = ev ? articleSummary(ev) : "";
+  // A summary that is nothing but a link to a note or an article (Geyser
+  // publishes an "article" for a shared Primal link: title the host, summary
+  // the link, body empty) is that thing, shown where the summary would be —
+  // unless the body is the same link, which already shows it.
+  const summaryEntity = /^\S+$/.test(summary) ? (summary.startsWith("nostr:") ? summary.slice("nostr:".length) : extractBech32FromUrl(summary)) : null;
+  const summaryEmbed = summaryEntity && prepared.body.trim() !== summary.trim() ? summaryEntity : null;
   // A wiki page mirrored from elsewhere names its source in an "s" tag
   // (GitCitadel: the Wikipedia URL). Attribution is owed, and one line does it.
   const sourceUrl = ev?.kind === 30818 && /^https?:\/\//.test(tag("s") || "") ? tag("s")! : "";
@@ -278,7 +335,11 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
               {title}
             </h1>
-            {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
+            {summaryEmbed ? (
+              <div className="mt-3" data-testid="article-summary"><NostrRef bech32={summaryEmbed} url={summary} /></div>
+            ) : summary ? (
+              <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug" data-testid="article-summary">{summary}</p>
+            ) : null}
             {/* A spec's details, read out of its front matter and tags: its
                 standing, the kinds it defines (each a search for that kind),
                 and the tags it defines. */}

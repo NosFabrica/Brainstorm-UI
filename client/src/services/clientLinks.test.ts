@@ -21,7 +21,7 @@ import { __resetClientLinks, peekClientLink, resolveClientLink } from "./clientL
 
 const PK = "75d737c3472471029c44876b330d2284288a42779b591a2ed4daa1c6c07efaf7";
 const ARTICLE = { id: "1".repeat(64), kind: 30023, pubkey: PK, tags: [["d", "were-back"], ["title", "We're back"]], content: "# We're back", created_at: 1, sig: "s" } as NostrEvent;
-const ref = { kind: "article" as const, name: "whitenoise", identifier: "were-back" };
+const ref = { kind: "article" as const, nip05: "whitenoise@primal.net", identifier: "were-back" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -49,7 +49,7 @@ describe("resolveClientLink", () => {
   });
 
   it("a person: the name to a pubkey, with their profile", async () => {
-    expect(await resolveClientLink({ kind: "profile", name: "whitenoise" })).toEqual({ kind: "profile", pubkey: PK, npub: nip19.npubEncode(PK), profile: { name: "White Noise" } });
+    expect(await resolveClientLink({ kind: "profile", nip05: "whitenoise@primal.net" })).toEqual({ kind: "profile", pubkey: PK, npub: nip19.npubEncode(PK), profile: { name: "White Noise" } });
   });
 
   it("asks once per entity, and can be peeked once settled", async () => {

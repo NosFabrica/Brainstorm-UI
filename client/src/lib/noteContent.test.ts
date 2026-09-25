@@ -122,3 +122,25 @@ describe("Primal URLs that carry a bech32", () => {
     expect(parseNoteContent("https://primal.net/whitenoise/were-back")).toEqual([{ type: "url", value: "https://primal.net/whitenoise/were-back" }]);
   });
 });
+
+describe("parseNoteContent — client links that carry the entity", () => {
+  // The team (2026-09-24): keep readers in Brainstorm instead of bouncing to
+  // another client. A link that carries the nevent/naddr/npub is the entity,
+  // whichever client's site wraps it.
+  const PK = "a".repeat(64);
+  const npub = nip19.npubEncode(PK);
+  const note = nip19.noteEncode("b".repeat(64));
+  const naddr = nip19.naddrEncode({ kind: 30023, pubkey: PK, identifier: "hello" });
+  const nprofile = nip19.nprofileEncode({ pubkey: PK });
+
+  it("Damus, nostr.band, Coracle and YakiHonne links become mentions of what they carry", () => {
+    const urls = [
+      `https://damus.io/${note}`,
+      `https://nostr.band/${npub}`,
+      `https://coracle.social/people/${nprofile}`,
+      `https://yakihonne.com/article/${naddr}`,
+    ];
+    const tokens = parseNoteContent(urls.join(" ")).filter((t) => t.type === "mention");
+    expect(tokens.map((t) => (t as { bech32: string }).bech32)).toEqual([note, npub, nprofile, naddr]);
+  });
+});

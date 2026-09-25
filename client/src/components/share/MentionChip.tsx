@@ -58,7 +58,7 @@ export function MentionChip({ uri, plain = false }: { uri: string; /** The name 
     <span onClick={(e) => e.stopPropagation()}>
       <Link
         href={`/p/${npub}`}
-        className="inline-flex max-w-full items-center gap-1 align-middle rounded-md bg-brand-primary/5 dark:bg-brand-primary/15 px-1.5 py-0.5 text-[13px] font-medium text-brand-link no-underline hover:bg-brand-primary/10 dark:hover:bg-brand-primary/25 transition-colors"
+        className="not-prose inline-flex max-w-full items-center gap-1 align-middle rounded-md bg-brand-primary/5 dark:bg-brand-primary/15 px-1.5 py-0.5 text-[13px] font-medium text-brand-link no-underline hover:bg-brand-primary/10 dark:hover:bg-brand-primary/25 transition-colors"
         data-testid="mention-chip"
       >
         {profile?.picture && (
