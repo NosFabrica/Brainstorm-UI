@@ -48,7 +48,7 @@ export function ShareOgCard({
         {/* Identity + the trust standing */}
         <div className="flex items-center gap-[4%]">
           <Avatar className="h-[26cqw] w-[26cqw] rounded-2xl border-2 border-white shadow-lg bg-white">
-            {picture ? <AvatarImage src={picture} alt={displayName} className="object-cover" /> : null}
+            {picture ? <AvatarImage size="lg" src={picture} alt={displayName} className="object-cover" /> : null}
             <AvatarFallback className="rounded-2xl bg-brand-primary/15 text-brand-primary font-bold text-[8cqw]" style={{ fontFamily: "var(--font-display)" }}>
               {initialsFor(displayName)}
             </AvatarFallback>

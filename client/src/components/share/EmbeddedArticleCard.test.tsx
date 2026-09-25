@@ -4,8 +4,11 @@
  * AsciiDoc page mirrored from Wikipedia an "Article". It reads the page's
  * words as its brief and says what it is.
  */
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { setTechnicalView } from "@/lib/technicalView";
+// The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
+beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
+import { render, screen, within } from "@testing-library/react";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedArticleCard } from "./EmbeddedArticleCard";
 
@@ -17,7 +20,10 @@ function page(kind: number, content: string, tags: string[][]): MinimalEvent {
 }
 
 describe("EmbeddedArticleCard", () => {
+  afterEach(() => setTechnicalView(false));
+
   it("a wiki page without a summary shows its words as the brief and calls itself a Wiki", () => {
+    setTechnicalView(true); // the card names its kind in the switched-on view
     const wiki = page(30818, "A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)", [["d", "list-of-comedians"], ["title", "List of comedians"]]);
     render(<EmbeddedArticleCard event={wiki} author={{ name: "GitCitadel" }} />);
     const card = screen.getByTestId("embedded-article");
@@ -38,6 +44,18 @@ describe("EmbeddedArticleCard", () => {
     expect(card).toHaveTextContent("Schedule signed events for later.");
     expect(screen.getByTestId("article-kinds")).toHaveTextContent("5905");
     expect(screen.getByTestId("article-kinds")).toHaveTextContent("7000");
+  });
+
+  // The team (2026-09-24): a spec from Nostr Hub has no NIP number; the
+  // kind's word, as the one pill every card wears, is what says what it is.
+  it("the type is the design-system pill, the same on every card", () => {
+    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} />);
+    expect(within(screen.getByTestId("embedded-article")).getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
+  });
+
+  it("stays unlabelled on a surface that holds one kind — the Recipes or NIPs tab", () => {
+    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} mixed={false} />);
+    expect(screen.queryByTestId("kind-pill")).toBeNull();
   });
 
   // Specs wore the generic Brainstorm article cover (Benjamin, 2026-09-23:
@@ -62,7 +80,7 @@ describe("EmbeddedArticleCard", () => {
     const spec = page(30817, "# NoorNote", [["d", "noornote"], ["title", "NoorNote"], ...kinds]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "alp" }} leadKinds={["30078"]} />);
     const row = screen.getByTestId("article-kinds");
-    expect([...row.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["kind 30078", "kind 0", "kind 1", "kind 3", "kind 4", "kind 5"]);
+    expect([...row.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["30078", "0", "1", "3", "4", "5"]);
     expect(screen.getByTestId("article-kinds-more")).toHaveTextContent("+7 more");
   });
 
@@ -97,21 +115,24 @@ describe("EmbeddedArticleCard", () => {
   it("only numeric k tags are kinds", () => {
     const spec = page(30817, "# TA", [["d", "ta"], ["title", "TA"], ["k", "10040"], ["k", "nip"]]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "ManiMe" }} />);
-    expect([...screen.getByTestId("article-kinds").querySelectorAll("a")].map((a) => a.textContent)).toEqual(["kind 10040"]);
+    expect([...screen.getByTestId("article-kinds").querySelectorAll("a")].map((a) => a.textContent)).toEqual(["10040"]);
   });
 
   // The kind chips are the NIPs tab's filter — no chip row on the tab itself
   // (the team's "too busy"; Benjamin 2026-09-23). Each opens the specs that
   // cover that kind, in numeric order.
   it("a spec's kind chips open the specs that cover that kind", () => {
-    const spec = page(30817, "# Scheduler DVM", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "7000"], ["k", "5905"]]);
+    // The team (2026-09-24): with no NIP number to lean on, the kind's own
+    // name — the one its author put on the k tag — is what a chip shows.
+    const spec = page(30817, "# Scheduler DVM", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "7000"], ["k", "5905", "DVM Job Request"]]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "nogringo" }} />);
     const links = [...screen.getByTestId("article-kinds").querySelectorAll("a")];
-    expect(links.map((a) => a.textContent)).toEqual(["kind 5905", "kind 7000"]);
+    expect(links.map((a) => a.textContent)).toEqual(["5905 · DVM Job Request", "7000"]);
     expect(links[0].getAttribute("href")).toBe("/?t=nips&q=kind%3A5905");
   });
 
   it("a long-form article keeps its own summary and its name", () => {
+    setTechnicalView(true); // the card names its kind in the switched-on view
     const article = page(30023, "# Why\n\nBody **bold**.", [["d", "why"], ["title", "Why Bitcoin"], ["summary", "A short case for sound money."]]);
     render(<EmbeddedArticleCard event={article} author={{ name: "Max" }} />);
     const card = screen.getByTestId("embedded-article");
@@ -148,6 +169,7 @@ describe("EmbeddedArticleCard", () => {
   });
 
   it("a zap.cooking recipe calls itself a Recipe", () => {
+    setTechnicalView(true); // the card names its kind in the switched-on view
     const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["summary", "Handmade dough, chicken and rice."], ["t", "zapcooking"], ["t", "zapcooking-girik"]]);
     render(<EmbeddedArticleCard event={recipe} author={{ name: "SkyLords" }} />);
     const card = screen.getByTestId("embedded-article");

@@ -6,6 +6,7 @@ import {
   Plus,
   Trash2,
   Users2,
+  LifeBuoy,
   Loader2,
   Receipt,
   ChevronLeft,
@@ -587,6 +588,17 @@ export function SchedulingCard({ active }: { active: boolean }) {
                               data-testid={`policy-public-${p.id}`}
                             >
                               Public
+                            </Chip>
+                          )}
+                          {p.support_included && (
+                            <Chip
+                              size="sm"
+                              tone="violet"
+                              icon={LifeBuoy}
+                              title="Users on this policy can file support tickets"
+                              data-testid={`policy-support-${p.id}`}
+                            >
+                              Support
                             </Chip>
                           )}
                           {paidPolicyIds.has(p.id) && !isPublicPolicy(p) && (

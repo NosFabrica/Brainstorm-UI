@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import type { NoteToken } from "@/lib/noteContent";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -20,10 +20,13 @@ import { prepareArticleBody } from "@/lib/articleBody";
 import { htmlToText, looksLikeHtml, stripStrayHtml } from "@/lib/htmlText";
 import { ReadingText } from "@/components/share/ReadingText";
 import { Chip } from "@/components/ui/chip";
+import { KindPill } from "@/components/ui/kind-pill";
+import { specKindTags } from "@/lib/kindLabel";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
 import { EntityMenu } from "@/components/share/EntityMenu";
+import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
@@ -94,6 +97,30 @@ function articleEmbed(t: NoteToken, key: string): ReactNode | undefined {
   if (t.type === "video") return <ArticleVideo key={key} url={t.value} />;
   return <LinkChip key={key} url={t.value} />;
 }
+
+/** Module-level, so the memoized body below sees the same plugins every render. */
+const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [rehypeSanitize];
+
+/**
+ * The article's text, rendered — and only re-rendered when the text changes.
+ *
+ * Parsing is the expensive part of this page: remark, GFM and sanitize over
+ * the whole article. The screen around it re-renders as its author's profile,
+ * trust score, comments and newer versions land; none of those change the
+ * body, so none of them should parse it again.
+ */
+export const ArticleBody = memo(function ArticleBody({ body, fromHtml }: { body: string; fromHtml: boolean }) {
+  return !fromHtml && isMarkdown(body) ? (
+    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={mdComponents}>
+      {body}
+    </ReactMarkdown>
+  ) : (
+    // Plain text: markdown would fold its single line breaks into
+    // one paragraph; the reading renderer keeps them.
+    <ReadingText text={body} normalized size="post" headline={false} media embed={articleEmbed} className="not-prose" />
+  );
+});
 
 /** Written in markdown, not plain text: enough of its syntax to count. */
 export function isMarkdown(text: string): boolean {
@@ -200,8 +227,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   // wearing the name its author gave it — a number alone tells a reader nothing.
   const coveredKinds = useMemo(() => {
     if (ev?.kind !== 30817) return [] as { kind: string; label?: string }[];
-    const byKind = new Map<string, string | undefined>();
-    for (const t of ev.tags) if (t[0] === "k" && /^\d+$/.test(t[1] ?? "")) byKind.set(t[1], t[2] || undefined); // "nip" is not a kind
+    const byKind = new Map<string, string | undefined>(specKindTags(ev).map((k) => [k.kind, k.label]));
     for (const k of prepared.kinds) byKind.set(k.kind, k.label ?? byKind.get(k.kind));
     // In order, however the author tagged them.
     return [...byKind.entries()].map(([kind, label]) => ({ kind, label })).sort((a, b) => Number(a.kind) - Number(b.kind));
@@ -246,7 +272,10 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             {image && (
               <img src={image} alt="" className="w-full max-h-80 object-cover rounded-2xl border border-slate-200 dark:border-slate-800" />
             )}
-            <h1 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+            {/* A spec says so before its title (Benjamin, 2026-09-24: only a spec —
+                an essay, a wiki page or a recipe looks like what it is). */}
+            <KindPill event={ev} mixed={ev.kind === 30817} className="mt-5" />
+            <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
               {title}
             </h1>
             {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
@@ -348,20 +377,14 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
                 )}
               </div>
             </div>
+            {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
+            <TechnicalStrip event={ev} ids={naddr ? [{ label: "naddr", value: naddr }] : []} className="mt-2" />
 
             {/* Full article body — Brainstorm is the reading destination. */}
             {/* Inline code wears no decorative backticks (the typography plugin's
                 default) and wraps — a spec's example URIs used to push the page sideways. */}
             <div className="article-prose mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto" data-testid="article-body">
-              {!fromHtml && isMarkdown(prepared.body) ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
-                  {prepared.body}
-                </ReactMarkdown>
-              ) : (
-                // Plain text: markdown would fold its single line breaks into
-                // one paragraph; the reading renderer keeps them.
-                <ReadingText text={prepared.body} normalized size="post" headline={false} media embed={articleEmbed} className="not-prose" />
-              )}
+              <ArticleBody body={prepared.body} fromHtml={fromHtml} />
             </div>
 
             {/* Comments — teaser-gated for anon, trust-filterable for members (same as /e). */}

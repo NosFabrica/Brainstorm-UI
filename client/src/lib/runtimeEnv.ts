@@ -5,7 +5,8 @@ type EnvKey =
   | "VITE_SEARCH_RELAY_URL"
   | "VITE_TAG_RELAY_URLS"
   | "VITE_FEATURE_AGENT_SUITE"
-  | "VITE_FEATURE_ASSISTANTS_ADMIN";
+  | "VITE_FEATURE_ASSISTANTS_ADMIN"
+  | "VITE_IMG_PROXY";
 
 declare global {
   interface Window {
@@ -32,6 +33,8 @@ export const env = {
   VITE_TAG_RELAY_URLS: read("VITE_TAG_RELAY_URLS") ?? "",
   VITE_FEATURE_AGENT_SUITE: read("VITE_FEATURE_AGENT_SUITE") ?? "",
   VITE_FEATURE_ASSISTANTS_ADMIN: read("VITE_FEATURE_ASSISTANTS_ADMIN") ?? "",
+  // Same-origin image proxy prefix (/img). Unset → original image URLs.
+  VITE_IMG_PROXY: read("VITE_IMG_PROXY") ?? "",
 } as const;
 
 export {};

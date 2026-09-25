@@ -21,7 +21,8 @@ import { eventPath } from "@/lib/shareId";
 import { fetchGitCommentCounts, fetchGitStatuses, fetchRepoActivity, fetchRepoCounts, fetchRepoForks, kind0ToSearchResult, type RepoCounts } from "@/services/search";
 import { repoLineageOf } from "@/lib/gitStatus";
 import { Favicon } from "@/components/share/LinkPreview";
-import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitStateOf, peopleBeforeAgents } from "@/lib/gitStatus";
+import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitStateOf, peopleBeforeAgents } from "@/lib/gitStatus";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { MessageSquare } from "lucide-react";
 import { ReadingText } from "@/components/share/ReadingText";
 
@@ -325,7 +326,7 @@ export function RepoHero({ event }: { event: RepoEvent }) {
                   data-testid={`repo-activity-${item.id}`}
                 >
                   <Chip size="sm" tone={item.kind === 1617 || item.kind === 1618 ? "info" : "warning"}>
-                    {gitItemLabel(item.kind)}
+                    {kindTypeLabel(item.kind)}
                   </Chip>
                   {(() => {
                     const st = gitStateOf(activityStatuses.get(item.id)?.kind, item.kind);

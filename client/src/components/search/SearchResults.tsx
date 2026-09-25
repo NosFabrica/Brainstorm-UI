@@ -20,6 +20,7 @@ import { PersonCard } from "@/components/search/PersonCard";
 import { QuietTrustChrome } from "@/components/score/VerificationCoin";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
+import { QueryAsSent } from "@/components/search/QueryAsSent";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventPath } from "@/lib/shareId";
 import { useNoteRefs } from "@/hooks/useNoteRefs";
@@ -1344,6 +1345,7 @@ export function SearchResults({
         </div>
       </div>
 
+      <QueryAsSent query={effectiveQuery} tab={tab} pov={pov} timeMs={snapshot?.timeMs} />
       {filtersOpen && onQueryRewrite && <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} onQueryRewrite={onQueryRewrite} />}
       <SearchSyntaxSheet open={syntaxOpen} onOpenChange={setSyntaxOpen} />
 
@@ -1762,6 +1764,7 @@ export function SearchResults({
                 return wrap(
                   <EmbeddedArticleCard
                     leadKinds={searchedKinds}
+                    mixed={tab === "articles"}
                     event={event as MinimalEvent}
                     author={profiles.get(event.pubkey)}
                     trustScore01={scoreOf(event.pubkey) ?? null}
