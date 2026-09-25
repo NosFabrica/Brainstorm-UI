@@ -59,7 +59,8 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   // Specs alone, as their own vertical under More — "NIPs" is the word people
   // search (Benjamin, 2026-09-23). They stay in Articles too, labelled.
   nips: [30817],
-  media: [20, 21, 22, 1063, 1986, 1222, 34235, 34236],
+  // Pictures, NIP-71 clips, files (by mime), voice. Kind 1986 was here once — a NIP-32 label, not media.
+  media: [20, 21, 22, 1063, 1222, 34235, 34236],
   // Vitor's split: Zap Store app listings and git-shaped kinds were one
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
   // probing showed it ~90% JSON junk; it still surfaces via Everything.

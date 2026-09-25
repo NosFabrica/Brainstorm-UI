@@ -66,6 +66,7 @@ import { usePersonFountain } from "@/hooks/usePersonFountain";
 import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
+import { MEDIA_KIND_LABELS, MEDIA_KIND_ORDER, mediaKindOf, type MediaKind } from "@/lib/mediaKind";
 import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
@@ -164,6 +165,10 @@ const MORE_GROUPS: { title: string | null; tabs: { key: SearchTab; label: string
   { title: null, tabs: [{ key: "lists", label: "Lists" }] },
 ];
 const MORE_TABS: { key: SearchTab; label: string }[] = MORE_GROUPS.flatMap((g) => g.tabs);
+/** Where we're going, said under More without a door: agent suites — verifying and hiring agents — are on the roadmap (Benjamin, 2026-09-25). */
+const SOON_TABS: { key: string; label: string; title: string }[] = [
+  { key: "agents", label: "Agents", title: "Verify and hire agents — coming to Brainstorm" },
+];
 const TABS = [...PRIMARY_TABS, ...MORE_TABS];
 
 const TAB_KEYS = new Set(TABS.map((t) => t.key));
@@ -246,6 +251,20 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
                 >
                   {t.label}
                 </button>
+              ))}
+              {g.title === "Build" && SOON_TABS.map((t) => (
+                // A muted row, not a door: the Apps launcher's "Soon" treatment.
+                <div
+                  key={t.key}
+                  role="menuitem"
+                  aria-disabled="true"
+                  title={t.title}
+                  className="flex w-full cursor-default items-center justify-between rounded-lg px-3 py-1.5 text-left text-[13px] text-slate-400 dark:text-slate-500"
+                  data-testid={`search-tab-${t.key}-soon`}
+                >
+                  {t.label}
+                  <span className="ml-3 text-[9px] font-bold uppercase tracking-[0.15em] text-slate-300 dark:text-slate-600">Soon</span>
+                </div>
               ))}
             </div>
           ))}
@@ -1004,6 +1023,8 @@ export function SearchResults({
   const rates = useBtcRates(tab === "shop");
   const viewerFiat = useMemo(() => viewerCurrency(), []);
   const bands = useMemo(() => priceBands(viewerFiat), [viewerFiat]);
+  // Photos · Videos · Audio — the Media tab's one narrowing (lib/mediaKind).
+  const [mediaKind, setMediaKind] = useState<MediaKind | null>(null);
   const [articleType, setArticleType] = useState<ArticleType | null>(null);
   const [recipeTopic, setRecipeTopic] = useState<string | null>(null);
   // Issues and PRs tabs: what became of each issue and patch — one request per page,
@@ -1104,6 +1125,7 @@ export function SearchResults({
     setAppPlatform(null);
     setAppCategory(null);
     setShopCategory(null);
+    setMediaKind(null);
     setArticleType(null);
     setRecipeTopic(null);
     // Issues' states aren't PRs' (resolved vs merged), and a new query may
@@ -1112,6 +1134,17 @@ export function SearchResults({
     setRepoLabel(null);
   }, [tab, query]);
   // The listings' own categories, counted — the Shop's facets.
+  // What kinds of media the page holds, in fixed order, counted. One kind alone needs no row.
+  const mediaFacets = useMemo(() => {
+    if (tab !== "media") return [];
+    const counts = new Map<MediaKind, number>();
+    for (const h of hits) {
+      const k = mediaKindOf(h.event);
+      if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    const present = MEDIA_KIND_ORDER.filter((k) => counts.has(k)).map((k) => [k, counts.get(k)!] as [MediaKind, number]);
+    return present.length > 1 ? present : [];
+  }, [tab, hits]);
   const shopFacets = useMemo(() => {
     if (tab !== "shop") return [];
     const counts = new Map<string, number>();
@@ -1236,6 +1269,7 @@ export function SearchResults({
       // declared mime is image/video/audio, and not when it is a video's
       // reusable soundtrack (lib/fileMetadata). Everything still shows the rest.
       shown = hits.filter((h) => h.event.kind !== 1063 || (isMediaFile(h.event) && !isSoundtrackFile(h.event)));
+      if (mediaKind) shown = shown.filter((h) => mediaKindOf(h.event) === mediaKind);
     }
     if (tab === "lists") {
       // Lists must earn their place: untitled or empty ones are app
@@ -1317,7 +1351,7 @@ export function SearchResults({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits, tab, appPlatform, appCategory, shopCategory, shopPrice, rates, bands, viewerFiat, priceSort, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, proven]);
+  }, [hits, tab, appPlatform, appCategory, shopCategory, shopPrice, rates, bands, viewerFiat, priceSort, mediaKind, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, proven]);
 
   // The Events tab is a timeline: the first card of each day carries a header
   // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
@@ -1354,6 +1388,7 @@ export function SearchResults({
     activeFilters > 0 ||
     !!shopCategory ||
     !!shopPrice ||
+    !!mediaKind ||
     !!articleType ||
     !!recipeTopic ||
     !!appPlatform ||
@@ -1751,6 +1786,18 @@ export function SearchResults({
                 >
                   {topic}
                 </button>
+              ))}
+            </FacetRow>
+          )}
+          {tab === "media" && mediaFacets.length > 0 && (
+            <FacetRow className="mb-2" testId="media-facets">
+              <FacetChip pressed={mediaKind === null} onClick={() => setMediaKind(null)} testId="media-facet-all">
+                All
+              </FacetChip>
+              {mediaFacets.map(([kind, count]) => (
+                <FacetChip key={kind} pressed={mediaKind === kind} onClick={() => setMediaKind((cur) => (cur === kind ? null : kind))} count={count} testId={`media-facet-${kind}`}>
+                  {MEDIA_KIND_LABELS[kind]}
+                </FacetChip>
               ))}
             </FacetRow>
           )}
