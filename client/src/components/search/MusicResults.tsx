@@ -311,7 +311,7 @@ function ArtistFace({ name, image, score, sub, onClick, href, testId }: { name: 
   const body = (
     <>
       <Avatar className={`h-16 w-16 border-2 border-slate-200/80 dark:border-slate-800/80 ${ring}`}>
-        {image ? <AvatarImage src={image} alt="" className="object-cover" /> : null}
+        {image ? <AvatarImage size="lg" src={image} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">
           <DefaultAvatarImg />
         </AvatarFallback>
@@ -356,7 +356,7 @@ function TopResult({
   const ring = kind === "artist" ? tierRing(score, false, "md", true) ?? "" : "";
   const art = kind === "artist" ? (
     <Avatar className={`h-24 w-24 border-2 border-slate-200/80 dark:border-slate-800/80 ${ring}`}>
-      {image ? <AvatarImage src={image} alt="" className="object-cover" /> : null}
+      {image ? <AvatarImage size="lg" src={image} alt="" className="object-cover" /> : null}
       <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
     </Avatar>
   ) : (

@@ -971,7 +971,7 @@ export default function SharePage() {
                 <span className="pointer-events-none absolute -inset-1 rounded-full ring-2 ring-red-500/80 animate-pulse" aria-hidden="true" data-testid="share-live-ring" />
               )}
               <Avatar key={pubkey} className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white bg-white dark:bg-slate-900 ${tierRing(coinScore01) ?? "shadow-lg"}`}>
-                {profile.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
+                {profile.picture ? <AvatarImage size="lg" src={profile.picture} alt={displayName} className="object-cover" /> : null}
                 <AvatarFallback className="overflow-hidden rounded-full">
                   <DefaultAvatarImg flagged={isFlagged} />
                 </AvatarFallback>
