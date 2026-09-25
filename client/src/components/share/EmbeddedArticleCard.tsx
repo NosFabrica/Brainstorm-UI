@@ -16,6 +16,8 @@ import recipeCover from "@/assets/cooking-recipe-easy-recipe-steps-cover.webp";
 export const SPEC_COVER_ALT = "Nostr Implementation — decentralized network specs";
 export const RECIPE_COVER_ALT = "Cooking Recipe — easy recipe steps";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { isBlankEvent } from "@/lib/blankEvent";
+import { DeletedStub } from "@/components/share/DeletedStub";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { specKindTags } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
@@ -62,6 +64,8 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
   // Callers that fetched a score pass it (dashboard/reading cards); the
   // profile's article list doesn't — self-serve from the shared house cache.
   const fallbackScoreOf = useAuthorScores(trustScore01 == null ? [event.pubkey] : []);
+  // Deleted by overwriting: a quiet stub in the card's place, nothing to click.
+  if (isBlankEvent(event)) return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   const title = tagVal(event, "title") || "Untitled article";
   // A wiki page (NIP-54) has no summary tag; its opening words stand in.

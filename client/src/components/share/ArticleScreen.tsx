@@ -148,7 +148,8 @@ function articleEmbed(t: NoteToken, key: string): ReactNode | undefined {
 
 /** Module-level, so the memoized body below sees the same plugins every render. */
 const REMARK_PLUGINS = [remarkGfm];
-const REHYPE_PLUGINS = [rehypeSanitize];
+// The sanitizer keeps `nostr:` links (SANITIZE_SCHEMA above) — feat/client-links-native.
+const REHYPE_PLUGINS: import("unified").PluggableList = [[rehypeSanitize, SANITIZE_SCHEMA]];
 
 /**
  * The article's text, rendered — and only re-rendered when the text changes.

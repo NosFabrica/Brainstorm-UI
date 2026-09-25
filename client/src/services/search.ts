@@ -27,6 +27,7 @@ import { resolveHouseObserver } from "@/services/trustSource";
 import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
 import { RECIPE_TAGS } from "@/lib/sourceApp";
+import { isBlankEvent } from "@/lib/blankEvent";
 
 export type SearchTab =
   | "everything"
@@ -540,6 +541,8 @@ export function searchStream(
           const event = msg.event;
           received++;
           if (!hostedByThem(event)) return;
+          // A husk deleted by overwriting is not a result (lib/blankEvent).
+          if (isBlankEvent(event)) return;
           confirmed.add(event.id);
           if (seen.has(event.id)) return;
           seen.add(event.id);
