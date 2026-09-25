@@ -11,7 +11,7 @@ import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
-import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, queryWords, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
+import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, queryWords, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch, scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { eventStore } from "@/lib/eventStore";
@@ -34,6 +34,7 @@ import {
   type SearchSnapshot,
   type SearchTab,
   type SearchHandle,
+  tabLabel,
 } from "@/services/search";
 import { MoreResults } from "./MoreResults";
 import { SorryPage } from "@/components/sorry/SorryPage";
@@ -54,6 +55,8 @@ import { isSellable, parseListing } from "@/lib/listing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { priceBands, priceInCurrency, toSats, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
+import { usePersonContent } from "@/hooks/usePersonContent";
+import { PersonContentChips } from "@/components/search/PersonContentChips";
 import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
@@ -881,6 +884,9 @@ export function SearchResults({
   // Words typed beside the person chip narrow that catalogue by title.
   const scope = scopeOf(query);
   const scopedTo = scope?.pubkey ?? null;
+  // Under a scope an empty tab is a door, not a dead end: what the person does publish.
+  const scopedContent = usePersonContent(useMemo(() => (scopedTo ? [scopedTo] : []), [scopedTo]));
+  const scopedName = scopedTo && panelPerson?.pubkey === scopedTo ? getDisplayLabel(panelPerson) : null;
   const wavlakeWords = useWavlakeSearch(query, tab === "music" && !scope);
   // The V4V lists from Podcast Index (the team, 2026-09-24): the Music tab's
   // third source, asked of the tag hub on the tab, never for one person's
@@ -1464,6 +1470,7 @@ export function SearchResults({
         sections={composed ? sections : undefined}
         onOpen={onOpenProfile}
         onPerson={setPanelPerson}
+        onTab={(next) => changeTab(next as SearchTab)}
         // Not pinned: the panel is context for the query, read at the top, and
         // it scrolls away with the page the way Google's does. Pinned, it
         // followed the reader down every page and ducked under the search
@@ -1535,12 +1542,40 @@ export function SearchResults({
       ) : noResults ? (
         <div className="mt-4 sm:mt-6" data-testid="container-no-results">
           <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+            {scopedTo && hiddenBelowLine === 0 ? (
+              (() => {
+                const who = scopedName ?? "This person";
+                const thing = tab === "everything" ? "anything" : tabLabel(tab).toLowerCase();
+                const others = { chips: (scopedContent.get(scopedTo)?.chips ?? []).filter((c) => c.tab !== tab) };
+                return (
+                  <EmptyState
+                    icon={Radar}
+                    compact
+                    title={`${who} hasn't published ${thing} here yet`}
+                    description={others.chips.length ? `What ${scopedName ? who : "they"} ${scopedName ? "does" : "do"} publish:` : "Try another tab, or everything they have published."}
+                    action={
+                      <div className="flex flex-col items-center gap-3" data-testid="scoped-empty">
+                        {others.chips.length > 0 && (
+                          <PersonContentChips pubkey={scopedTo} name={who} content={others} onPick={(c) => changeTab(c.tab as SearchTab)} testId="scoped-empty-chips" />
+                        )}
+                        {tab !== "everything" && (
+                          <Link href={scopedSearchHref(scopedTo, "everything", scope?.rest)} className="text-xs font-semibold text-brand-link hover:underline" data-testid="scoped-empty-all">
+                            See everything from {who === "This person" ? "them" : who} →
+                          </Link>
+                        )}
+                      </div>
+                    }
+                  />
+                );
+              })()
+            ) : (
             <EmptyState
               icon={Radar}
               compact
               title="Nothing found"
               description={hiddenBelowLine > 0 ? "Everything that matched came from accounts below the verified line." : "Try different words, another tab, or paste an npub directly."}
             />
+            )}
           </div>
           {floorNotice}
         </div>

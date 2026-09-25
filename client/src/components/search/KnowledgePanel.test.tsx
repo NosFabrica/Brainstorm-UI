@@ -32,6 +32,8 @@ vi.mock("@/services/search", async (importOriginal) => {
     },
   };
 });
+const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
+vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.7);
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
@@ -1199,5 +1201,35 @@ describe("the panel offers a search of everything this person published", () => 
     render(<KnowledgePanel query={`from:${nip19.npubEncode(NOVA)}`} pov="nosfabrica" />);
     await screen.findByTestId("search-knowledge-panel");
     expect(screen.queryByTestId("knowledge-panel-search")).toBeNull();
+  });
+});
+
+// The same chips as the search rows, under "Followed by": what they publish,
+// one tap to each — and under a scope, the tab switches in place.
+describe("what the panel's person publishes", () => {
+  const DAVID = "d".repeat(64);
+  const shop = { key: "shop", label: "Shop", tab: "shop", liveNow: false };
+  beforeEach(() => {
+    contentMock.mockReset();
+    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === DAVID ? { chips: [shop] } : undefined])));
+    suggestMock.mockResolvedValue([{ pubkey: DAVID, npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 }]);
+  });
+
+  it("wears the chips under Followed by, each a link to the scoped search", async () => {
+    render(<KnowledgePanel query="david" pov="nosfabrica" />);
+    const chips = await screen.findByTestId("panel-content-chips");
+    const chip = within(chips).getByTestId("person-content-chip-shop");
+    expect(chip.getAttribute("href")).toMatch(/^\/\?q=from%3Anpub1.*&t=shop$/);
+    expect(chip).toHaveAttribute("aria-label", "david's shop");
+  });
+
+  it("with the page's tab switch in hand, a chip switches the tab in place", async () => {
+    const onTab = vi.fn();
+    const before = window.location.href;
+    render(<KnowledgePanel query="david" pov="nosfabrica" onTab={onTab} />);
+    const chips = await screen.findByTestId("panel-content-chips");
+    fireEvent.click(within(chips).getByTestId("person-content-chip-shop"));
+    expect(onTab).toHaveBeenCalledWith("shop");
+    expect(window.location.href).toBe(before);
   });
 });

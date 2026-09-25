@@ -12,8 +12,13 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { useTagMatches } from "@/hooks/useTags";
 import { eventPath, npubFromPubkey } from "@/lib/shareId";
-import { suggestListings, type SearchHit } from "@/services/search";
+import { suggestListings, tabLabel, type SearchHit } from "@/services/search";
 import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
+import { scopedSearchHref } from "@/lib/searchSyntax";
+import { PersonContentChips } from "@/components/search/PersonContentChips";
+import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
+import { intentTarget, searchIntent } from "@/lib/personContent";
+import { usePersonContent } from "@/hooks/usePersonContent";
 /** Fire from anywhere (a header magnifier) to open mobile search. */
 export const OPEN_MOBILE_SEARCH_EVENT = "open-mobile-search";
 
@@ -38,6 +43,8 @@ export function openMobileSearch() {
  * reads on mount) rather than re-implementing result ranking in a second place.
  * Recent PROFILES skip that and open directly, since the destination is unambiguous.
  */
+
+
 export function MobileSearchOverlay() {
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
@@ -51,6 +58,8 @@ export function MobileSearchOverlay() {
   const [results, setResults] = useState<SearchResult[]>([]);
   // Product titles under the people — straight to the listing.
   const [products, setProducts] = useState<SearchHit[]>([]);
+  // What each result publishes — chips on their row, always visible on a phone.
+  const personContent = usePersonContent(useMemo(() => results.map((r) => r.pubkey), [results]));
   const [searching, setSearching] = useState(false);
   const speed = useConnectionSpeed();
   // Tag suggestions cost the whole catalogue; a poor connection does without.
@@ -113,7 +122,8 @@ export function MobileSearchOverlay() {
         if (reqRef.current === reqId) setProducts(hits);
       });
       try {
-        const { results: hits } = await searchByText(term, pov, observerPubkey, 10, request.signal);
+        // "staci shop" looks up "staci"; the category word becomes the intent row.
+        const { results: hits } = await searchByText(searchIntent(term)?.name ?? term, pov, observerPubkey, 10, request.signal);
         if (reqRef.current !== reqId) return;
         setResults(hits.slice(0, 8));
       } catch {
@@ -128,6 +138,8 @@ export function MobileSearchOverlay() {
       request.abort();
     };
   }, [q, open, pov, observerPubkey, speed]);
+
+  const intent = useMemo(() => intentTarget(searchIntent(q), results, personContent), [q, results, personContent]);
 
   const openResult = (r: SearchResult) => {
     const label = r.displayName || r.name || r.npub.slice(0, 12) + "…";
@@ -203,6 +215,16 @@ export function MobileSearchOverlay() {
           <>
             {/* Tags before people: fewer of them, and a different kind of answer
                 — "who is known for this" rather than "who is called this". */}
+            {intent && (
+              <div className="mb-1 border-b border-slate-100 pb-1 dark:border-slate-800/60">
+                <IntentSuggestionRow
+                  name={(intent.person as SearchResult).displayName || (intent.person as SearchResult).name || `${(intent.person as SearchResult).npub.slice(0, 12)}…`}
+                  chip={intent.chip}
+                  onSelect={() => { setOpen(false); navigate(scopedSearchHref(intent.person.pubkey, intent.chip.tab)); }}
+                  testId="mobile-search-intent"
+                />
+              </div>
+            )}
             {tagMatches.length > 0 && (
               <div className="mb-1 border-b border-slate-100 pb-1 dark:border-slate-800/60" data-testid="mobile-search-tags">
                 {tagMatches.map((t) => (
@@ -223,11 +245,19 @@ export function MobileSearchOverlay() {
             {results.map((r) => {
               const label = r.displayName || r.name || `${r.npub.slice(0, 12)}…`;
               return (
-                <button
+                // A div, not a button: the chips inside are links. Enter and Space still open the person.
+                <div
                   key={r.pubkey}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => openResult(r)}
-                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                  onKeyDown={(e) => {
+                    if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      openResult(r);
+                    }
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:hover:bg-slate-900"
                   data-testid="mobile-search-result"
                 >
                   <Avatar className={`h-9 w-9 shrink-0 rounded-full border border-slate-200 dark:border-slate-800 ${tierRing(r.wotRank) ?? ""}`}>
@@ -238,6 +268,7 @@ export function MobileSearchOverlay() {
                     <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{label}</span>
                     {r.nip05 && <span className="block truncate text-xs text-brand-primary dark:text-brand-link">{r.nip05.replace(/^_@/, "")}</span>}
                   </span>
+                  <PersonContentChips pubkey={r.pubkey} name={label} content={personContent.get(r.pubkey)} onNavigate={() => setOpen(false)} />
                   {/* The same coin as the results page and the desktop
                       dropdown — this was the third bespoke rendering of one
                       number. */}
@@ -249,7 +280,7 @@ export function MobileSearchOverlay() {
                       className={tierRing(r.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
                     />
                   )}
-                </button>
+                </div>
               );
             })}
             {products.length > 0 && (
@@ -298,11 +329,15 @@ export function MobileSearchOverlay() {
                 <li key={recentKey(item)} className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => (item.type === "profile" ? openProfile(item) : submit(item.q))}
+                    onClick={() => {
+                      if (item.type === "profile") openProfile(item);
+                      else if (item.type === "scoped") { setOpen(false); navigate(scopedSearchHref(item.pubkey, item.tab, item.words)); }
+                      else submit(item.q);
+                    }}
                     className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
                     data-testid={`mobile-search-recent-${item.type}`}
                   >
-                    {item.type === "profile" ? (
+                    {item.type === "profile" || item.type === "scoped" ? (
                       <Avatar className="h-8 w-8 shrink-0 rounded-full border border-slate-200 dark:border-slate-800">
                         {item.picture ? <AvatarImage src={item.picture} alt="" className="object-cover" /> : null}
                         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
@@ -314,10 +349,15 @@ export function MobileSearchOverlay() {
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-200">
-                        {item.type === "profile" ? item.label : item.q}
+                        {item.type === "query" ? item.q : item.label}
                       </span>
                       {item.type === "profile" && item.nip05 && (
                         <span className="block truncate text-xs text-brand-primary dark:text-brand-link">{item.nip05.replace(/^_@/, "")}</span>
+                      )}
+                      {item.type === "scoped" && (
+                        <span className="block truncate text-xs text-slate-500 dark:text-slate-400" data-testid="mobile-search-recent-what">
+                          {item.words ? `${tabLabel(item.tab)} · ${item.words}` : tabLabel(item.tab)}
+                        </span>
                       )}
                     </span>
                     <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" />
@@ -325,7 +365,7 @@ export function MobileSearchOverlay() {
                   <button
                     type="button"
                     onClick={() => drop(item)}
-                    aria-label={`Remove ${item.type === "profile" ? item.label : item.q} from recent searches`}
+                    aria-label={`Remove ${item.type === "query" ? item.q : item.type === "scoped" ? `${item.label}'s ${tabLabel(item.tab).toLowerCase()}` : item.label} from recent searches`}
                     className="shrink-0 rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-500 dark:text-slate-600 dark:hover:bg-slate-800"
                     data-testid="mobile-search-recent-remove"
                   >

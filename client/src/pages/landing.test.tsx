@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { SearchSnapshot } from "@/services/search";
 import { nip19 } from "nostr-tools";
-import { getRecentItems } from "@/lib/recentSearches";
+import { getRecentItems, pushRecentProfile, pushRecentScoped } from "@/lib/recentSearches";
+import { scopedSearchHref } from "@/lib/searchSyntax";
 
 const streamMock = vi.fn();
 // People the typeahead offers; a test that needs a dropdown seeds one.
@@ -72,6 +73,9 @@ vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.85 })
 vi.mock("@/hooks/useAppEndorsements", () => ({ useAppEndorsements: () => null }));
 vi.mock("@/hooks/useMyFollows", () => ({ useMyFollows: () => ({ follows: new Set<string>(), ready: true, signedIn: false }) }));
 vi.mock("@/hooks/usePersonEndorsements", () => ({ usePersonEndorsements: () => null }));
+// What each suggested person publishes — a test that wants chips seeds this.
+const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
+vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/hooks/useAuthorFlags", () => ({ useAuthorFlags: () => () => false }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: () => ({ direct: new Set(), friends: new Set(), ready: true }) }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
@@ -500,5 +504,132 @@ describe("the Browse row under the box", () => {
     expect(music.querySelector("svg.lucide-music")).not.toBeNull();
     fireEvent.mouseDown(music);
     expect(window.location.search).toContain("t=music");
+  });
+});
+
+// Benjamin (2026-09-24): finding Staci's shop took four steps — search, open
+// the profile, find the magnifier, pick Shop. The row itself now says what she
+// publishes, and one tap lands on it.
+describe("what a suggested person publishes", () => {
+  const STACI = "5".repeat(64);
+  const STACI_NPUB = nip19.npubEncode(STACI);
+  const shop = { key: "shop", label: "Shop", tab: "shop", liveNow: false };
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    suggestMock.mockReset();
+    suggestMock.mockResolvedValue([]);
+    contentMock.mockReset();
+    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])));
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("a suggested person wears chips for what they publish, linking to their scoped search", async () => {
+    suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null }]);
+    render(<Landing />);
+    typeInBox("staci");
+    const row = await screen.findByTestId("home-suggestion-0", {}, { timeout: 3000 });
+    expect(contentMock).toHaveBeenLastCalledWith(expect.arrayContaining([STACI]));
+    const chip = within(row).getByTestId("person-content-chip-shop");
+    expect(chip.getAttribute("href")).toBe(scopedSearchHref(STACI, "shop"));
+    expect(chip).toHaveAttribute("aria-label", "Staci's shop");
+    // A link never sits inside a button; the row is an option the input drives.
+    expect(chip.closest("button")).toBeNull();
+    expect(row).toHaveAttribute("role", "option");
+
+    fireEvent.click(chip);
+    // The page runs the scoped search on the Shop tab (it adds its own newest-first order).
+    await waitFor(() => expect(mainStreamCalls().some(([q, p]) => String(q).startsWith(`from:${STACI_NPUB}`) && (p as { tab?: string }).tab === "shop")).toBe(true));
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("shop");
+    expect(screen.queryByTestId("home-suggestion-0")).toBeNull();
+  });
+
+  // Google reads "nike shoes" as a store and a thing. "staci shop" looks Staci up and
+  // offers her shop first, one tap to it.
+  it("a name plus a category word offers that person's category first, and looks the name up", async () => {
+    suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null }]);
+    render(<Landing />);
+    typeInBox("staci shop");
+    const row = await screen.findByTestId("home-intent-row", {}, { timeout: 3000 });
+    expect(row).toHaveTextContent("Staci's shop");
+    expect(suggestMock.mock.calls.at(-1)?.[0]).toBe("staci");
+    expect(screen.getByTestId("home-suggestion-0")).toBeInTheDocument();
+    fireEvent.click(row);
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("t")).toBe("shop"));
+    expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${STACI_NPUB}`);
+  });
+
+  it("a category the person does not have offers nothing extra", async () => {
+    suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null }]);
+    render(<Landing />);
+    typeInBox("staci music");
+    await screen.findByTestId("home-suggestion-0", {}, { timeout: 3000 });
+    expect(screen.queryByTestId("home-intent-row")).toBeNull();
+  });
+
+  it("a recent person wears the chips too, beside their row's button", async () => {
+    pushRecentProfile({ pubkey: STACI, npub: STACI_NPUB, label: "Staci" });
+    render(<Landing />);
+    const box = screen.getByTestId("input-home-search");
+    fireEvent.pointerDown(box);
+    fireEvent.focus(box);
+    const row = await screen.findByTestId("home-recent-0");
+    const chip = within(row).getByTestId("person-content-chip-shop");
+    expect(chip.getAttribute("href")).toBe(scopedSearchHref(STACI, "shop"));
+    expect(chip).toHaveAttribute("aria-label", "Staci's shop");
+    expect(chip.closest("button")).toBeNull();
+    expect(contentMock).toHaveBeenLastCalledWith(expect.arrayContaining([STACI]));
+  });
+});
+
+// Benjamin (2026-09-24): a chip tap ran vinney's Media search, and RECENT had no memory of
+// it — it refused scoped searches because the only thing to store was the raw key. History
+// is helpful, like Google's: the search is remembered the way the chip read.
+describe("a scoped search is remembered in RECENT", () => {
+  const VINNEY = "7".repeat(64);
+  const VINNEY_NPUB = nip19.npubEncode(VINNEY);
+  const media = { key: "media", label: "Media", tab: "media", liveNow: false };
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    suggestMock.mockReset();
+    suggestMock.mockResolvedValue([]);
+    contentMock.mockReset();
+    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === VINNEY ? { chips: [media] } : undefined])));
+    knownProfiles.set(VINNEY, { display_name: "vinney…axkl", picture: "https://img/vinney.jpg" });
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("a chip tap lands on the person's tab, and RECENT remembers the person and the tab — never the key", async () => {
+    suggestMock.mockResolvedValue([{ pubkey: VINNEY, npub: VINNEY_NPUB, name: "vinney…axkl", picture: "https://img/vinney.jpg", wotRank: null, wotFollowers: null }]);
+    render(<Landing />);
+    typeInBox("vinney");
+    const row = await screen.findByTestId("home-suggestion-0", {}, { timeout: 3000 });
+    fireEvent.click(within(row).getByTestId("person-content-chip-media"));
+    await waitFor(() => expect(getRecentItems()[0]).toMatchObject({ type: "scoped", pubkey: VINNEY, label: "vinney…axkl", tab: "media", words: "" }));
+    expect(JSON.stringify(getRecentItems())).not.toContain("from:");
+    expect(getRecentItems().some((r) => r.type === "query")).toBe(false);
+    // Browsing another tab under the same search is not another search.
+    fireEvent.click(await screen.findByTestId("search-tab-notes"));
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("t")).toBe("notes"));
+    expect(getRecentItems()).toHaveLength(1);
+    expect(getRecentItems()[0]).toMatchObject({ type: "scoped", tab: "media" });
+  });
+
+  it("the RECENT row reads as the person and the tab, and re-runs the scoped search", async () => {
+    pushRecentScoped({ pubkey: VINNEY, npub: VINNEY_NPUB, label: "vinney…axkl", picture: "https://img/vinney.jpg", tab: "media", words: "sunset" });
+    render(<Landing />);
+    const box = screen.getByTestId("input-home-search");
+    fireEvent.pointerDown(box);
+    fireEvent.focus(box);
+    const row = await screen.findByTestId("home-recent-0");
+    expect(row).toHaveTextContent("vinney…axkl");
+    expect(within(row).getByTestId("home-recent-scoped-what-0")).toHaveTextContent("Media · sunset");
+    expect(row).not.toHaveTextContent("npub1");
+    fireEvent.mouseDown(within(row).getByTestId("home-recent-scoped-0"));
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("t")).toBe("media"));
+    expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${VINNEY_NPUB} sunset`);
   });
 });

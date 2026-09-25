@@ -9,12 +9,17 @@ vi.mock("@/lib/profileSearch", async (importOriginal) => ({
   searchByText: (...args: unknown[]) => searchMock(...args),
 }));
 const listingsMock = vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []);
-vi.mock("@/services/search", () => ({ suggestListings: (...args: unknown[]) => listingsMock(...args) }));
+vi.mock("@/services/search", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/services/search")>()), suggestListings: (...args: unknown[]) => listingsMock(...args) }));
+const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
+vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
 
 import { MobileSearchOverlay, openMobileSearch } from "./MobileSearchOverlay";
+import { pushRecentScoped } from "@/lib/recentSearches";
+import { nip19 } from "nostr-tools";
+import { scopedSearchHref } from "@/lib/searchSyntax";
 
 const input = () => screen.getByTestId("mobile-search-input");
 const signalOf = (call: number) => searchMock.mock.calls[call][4] as AbortSignal | undefined;
@@ -100,5 +105,77 @@ describe("typing in the mobile search sheet", () => {
     fireEvent.change(input(), { target: { value: "vitor" } });
     fireEvent.keyDown(input(), { key: "Enter" });
     expect(window.location.search).toBe("?q=vitor");
+  });
+});
+
+describe("what a result publishes", () => {
+  const STACI = "5".repeat(64);
+  const STACI_NPUB = nip19.npubEncode(STACI);
+  const shop = { key: "shop", label: "Shop", tab: "shop", liveNow: false };
+  beforeEach(() => {
+    contentMock.mockReset();
+    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])));
+    searchMock.mockResolvedValue({ results: [{ pubkey: STACI, npub: STACI_NPUB, name: "Staci" }], total: 1, timeMs: 1 });
+  });
+  const typeStaci = async () => {
+    renderOpen();
+    fireEvent.change(input(), { target: { value: "staci" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    await act(async () => {});
+  };
+
+  it("a result wears chips, and a link never sits inside a button", async () => {
+    await typeStaci();
+    const row = screen.getByTestId("mobile-search-result");
+    expect(row).toHaveAttribute("role", "button");
+    expect(row.tagName).not.toBe("BUTTON");
+    const chip = screen.getByTestId("person-content-chip-shop");
+    expect(chip.getAttribute("href")).toBe(scopedSearchHref(STACI, "shop"));
+    expect(chip).toHaveAttribute("aria-label", "Staci's shop");
+    expect(chip.closest("button")).toBeNull();
+  });
+
+  it("\"staci shop\" looks Staci up and offers her shop first", async () => {
+    renderOpen();
+    fireEvent.change(input(), { target: { value: "staci shop" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    await act(async () => {});
+    expect(searchMock.mock.calls.at(-1)?.[0]).toBe("staci");
+    const row = screen.getByTestId("mobile-search-intent");
+    expect(row).toHaveTextContent("Staci's shop");
+    fireEvent.click(row);
+    expect(screen.queryByTestId("mobile-search-input")).toBeNull();
+    expect(window.location.search).toMatch(/&t=shop$/);
+  });
+
+  it("Enter on the row still opens the person", async () => {
+    await typeStaci();
+    fireEvent.keyDown(screen.getByTestId("mobile-search-result"), { key: "Enter" });
+    expect(window.location.pathname).toBe(`/p/${STACI_NPUB}`);
+  });
+
+  it("a chip tap closes the sheet and opens the scoped search", async () => {
+    await typeStaci();
+    fireEvent.click(screen.getByTestId("person-content-chip-shop"));
+    expect(screen.queryByTestId("mobile-search-input")).toBeNull();
+    expect(window.location.search).toMatch(/&t=shop$/);
+  });
+});
+
+describe("a scoped search in the sheet's recents", () => {
+  const VINNEY = "7".repeat(64);
+  const VINNEY_NPUB = nip19.npubEncode(VINNEY);
+
+  it("reads as the person and the tab, and re-runs the scoped search", () => {
+    pushRecentScoped({ pubkey: VINNEY, npub: VINNEY_NPUB, label: "vinney…axkl", picture: "https://img/vinney.jpg", tab: "media" });
+    renderOpen();
+    const row = screen.getByTestId("mobile-search-recent-scoped");
+    expect(row).toHaveTextContent("vinney…axkl");
+    expect(screen.getByTestId("mobile-search-recent-what")).toHaveTextContent("Media");
+    expect(row).not.toHaveTextContent("npub1");
+    fireEvent.click(row);
+    expect(screen.queryByTestId("mobile-search-input")).toBeNull();
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("media");
+    expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${VINNEY_NPUB}`);
   });
 });
