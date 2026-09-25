@@ -4,7 +4,7 @@ import { ChefHat, FileText, GitBranch, Image as ImageIcon, Music, Radio, Shoppin
 import { Chip } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 import { scopedSearchHref } from "@/lib/searchSyntax";
-import { chipAriaLabel, type PersonContent, type PersonContentKey } from "@/lib/personContent";
+import { chipAriaLabel, type PersonContent, type PersonContentChip, type PersonContentKey } from "@/lib/personContent";
 
 /**
  * What a person publishes, as chips on their row in search — "Shop",
@@ -35,6 +35,7 @@ export function PersonContentChips({
   className = "",
   onNavigate,
   linkTabIndex,
+  onPick,
   testId = "person-content-chips",
 }: {
   pubkey: string;
@@ -46,6 +47,8 @@ export function PersonContentChips({
   onNavigate?: () => void;
   /** -1 inside listbox rows, where the input owns focus. */
   linkTabIndex?: number;
+  /** Given, a chip switches the tab in place (the page already shows this person) instead of navigating. */
+  onPick?: (chip: PersonContentChip) => void;
   testId?: string;
 }) {
   const chips = content?.chips ?? [];
@@ -65,6 +68,10 @@ export function PersonContentChips({
               onMouseDown={(e) => e.preventDefault()}
               onClick={(e) => {
                 e.stopPropagation();
+                if (onPick) {
+                  e.preventDefault();
+                  onPick(c);
+                }
                 onNavigate?.();
               }}
               data-testid={`person-content-chip-${c.key}`}
