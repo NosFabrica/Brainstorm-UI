@@ -87,3 +87,42 @@ describe("a recipe published on zap.cooking", () => {
     expect(sourceAppFor(article([["t", "bitcoin"]]))).toBeNull();
   });
 });
+
+describe("a merchant's listing published elsewhere — the same seller, the same product, on Conduit", () => {
+  // Benjamin (2026-09-24): Staci's listings carry the Conduit link, but not all
+  // of them — her shop on Conduit lists every product. On the relays her 67
+  // listing events come from two publishers: the Conduit Merchant Portal
+  // (a `client` tag, lowercase tags) and another app (no tag, "Health &
+  // Beauty", ids like `product_1788284895802_51fra`). The other app's events
+  // are duplicates of products Conduit sells.
+  const conduitTwin = {
+    ...listing([["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]),
+    id: "3".repeat(64),
+    tags: [["d", "sweet-almond-tallow-soap-bar-x1"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]],
+  };
+  const otherConduit = { ...conduitTwin, id: "4".repeat(64), tags: [["d", "lavender-x2"], ["title", "Lavender Tallow Soap Bar"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]] };
+  const elsewhere = { ...listing([]), id: "5".repeat(64), tags: [["d", "product_1788284895802_51fra"], ["title", "Sweet Almond Tallow Soap Bar"], ["t", "Health & Beauty"], ["t", "SOAP"]] };
+
+  it("opens on Conduit at the twin's product page when the seller sells the same title there", () => {
+    const app = sourceAppFor(elsewhere, { sellerListings: [otherConduit, conduitTwin] });
+    expect(app?.name).toBe("Conduit");
+    expect(app?.url).toBe(`https://shop.conduit.market/products/${nip19.naddrEncode({ kind: 30402, pubkey: MERCHANT, identifier: "sweet-almond-tallow-soap-bar-x1" })}?${CONDUIT_REFERRAL}`);
+  });
+
+  it("opens on the seller's Conduit store when they sell on Conduit but not this exact product", () => {
+    const app = sourceAppFor({ ...elsewhere, tags: [["d", "product_9"], ["title", "Something Only Here"]] }, { sellerListings: [otherConduit] });
+    expect(app?.name).toBe("Conduit");
+    expect(app?.url).toBe(`https://shop.conduit.market/store/${nip19.npubEncode(MERCHANT)}?${CONDUIT_REFERRAL}`);
+  });
+
+  it("a listing with its own product page keeps it — the seller's Conduit store does not outrank the page the seller wrote", () => {
+    // AGORA's T-shirt (2026-09-24): published through Barattolo with swag.btc.pub as its page; the seller also sells on Conduit.
+    const withPage = { ...elsewhere, tags: [["d", "barattolo-342"], ["title", "T-shirt Satoshi Bitcoin Smiley"], ["r", "https://swag.btc.pub/product/satoshi-bitcoin-smiley/"], ["client", "Barattolo", "31990:2e7a:barattolo"]] };
+    expect(sourceAppFor(withPage, { sellerListings: [otherConduit] })).toBeNull();
+  });
+
+  it("a seller with nothing on Conduit gets no Conduit link", () => {
+    expect(sourceAppFor(elsewhere, { sellerListings: [elsewhere] })).toBeNull();
+    expect(sourceAppFor(elsewhere)).toBeNull();
+  });
+});

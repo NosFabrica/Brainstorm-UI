@@ -51,6 +51,9 @@ import { EventDateTile } from "@/components/share/EventDateTile";
 import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
 import { isSellable, parseListing } from "@/lib/listing";
+import { collapseDuplicateListings } from "@/lib/listingDuplicates";
+import { priceBands, priceInCurrency, toSats, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
+import { useBtcRates } from "@/hooks/useBtcRates";
 import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
@@ -291,6 +294,17 @@ const SORT_OPTIONS = [
   { value: "rank", label: "Most trusted authors" },
   { value: "followers", label: "Most followed authors" },
 ];
+/** The Shop page's own sorts. The relay knows no prices: these ride the query
+ *  as `sort:price` for the panel and the URL, and the page orders the cards
+ *  itself through one Bitcoin rate (lib/exchangeRate). */
+const PRICE_SORTS = [
+  { value: "price", label: "Price: low to high" },
+  { value: "price:desc", label: "Price: high to low" },
+];
+const priceSortOf = (query: string): "asc" | "desc" | null => {
+  const sort = readFilters(query).sort;
+  return sort === "price" ? "asc" : sort === "price:desc" ? "desc" : null;
+};
 
 /**
  * The relay's `filter:rank:gte:N`, on the 0..100 trust scale. A floor DELETES rows below it
@@ -318,13 +332,16 @@ function FiltersPanel({
   query,
   pov,
   userPubkey,
+  tab,
   onQueryRewrite,
 }: {
   query: string;
   pov: SearchPov;
   userPubkey?: string;
+  tab: SearchTab;
   onQueryRewrite: (next: string) => void;
 }) {
+  const sortOptions = tab === "shop" ? [...SORT_OPTIONS, ...PRICE_SORTS] : SORT_OPTIONS;
   // What the relay will actually run: a wordless browse cannot be rank- or
   // follower-sorted, so the panel shows the fallback and greys those two.
   const browsing = !queryWords(query);
@@ -384,7 +401,7 @@ function FiltersPanel({
           onChange={(e) => write({ sort: e.target.value || null })}
           data-testid="filter-sort"
         >
-          {SORT_OPTIONS.map((o) => (
+          {sortOptions.map((o) => (
             <option key={o.value} value={o.value} disabled={browsing && BROWSE_UNAVAILABLE_SORTS.has(o.value)}>
               {o.label}
             </option>
@@ -659,14 +676,18 @@ export function SearchResults({
 
   // Everything composes its own purpose-ranked section streams — unless the
   // user typed a sort:, which is them choosing ONE order for one list.
-  const userSorted = /(^|\s)sort:/i.test(query);
+  // A price sort is the page's own order, not the relay's: it leaves the
+  // query before the relay sees it, and the cards are sorted below.
+  const priceSort = tab === "shop" ? priceSortOf(query) : null;
+  const relayQuery = priceSort ? applyFilters(query, { sort: null }) : query;
+  const userSorted = /(^|\s)sort:/i.test(relayQuery);
   const composed = tab === "everything" && !userSorted;
   // Content tabs land on what's fresh by default; People keeps trust rank,
   // and a typed sort: is always honored verbatim.
   // A browse (no words) asking for a sort the relay cannot run over the whole
   // index falls back to newest — the relay never answers it, and a hung
   // request stalls everything else on the connection (RELAY-ASKS #12).
-  const safeQuery = browseSafeQuery(query);
+  const safeQuery = browseSafeQuery(relayQuery);
   // Articles are evergreen: with words typed, relevance leads. Recent-first
   // put the page named "List of comedians" 26th under a month of news; best
   // match had it first, the other comedian lists behind it (relay probe,
@@ -787,7 +808,9 @@ export function SearchResults({
     const base = snapshot?.hits ?? [];
     // A listing is for sale or it is not a result: sold, hidden and priceless
     // never count, so the count line and the cards agree.
-    if (tab === "shop") return base.filter((h) => { const l = parseListing(h.event); return !!l && isSellable(l); });
+    // One product, one card: a seller's same-title copies from two apps fold
+    // into the one with a product page (lib/listingDuplicates).
+    if (tab === "shop") return collapseDuplicateListings(base.filter((h) => { const l = parseListing(h.event); return !!l && isSellable(l); }));
     // The relay narrows by tag but cannot exclude by one: zap.cooking's own
     // articles wear the recipe tag too. One source of truth says which is
     // which, here, so the count line, the chips and the cards agree.
@@ -968,6 +991,13 @@ export function SearchResults({
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
   const [appCategory, setAppCategory] = useState<string | null>(null);
   const [shopCategory, setShopCategory] = useState<string | null>(null);
+  // Prices in the buyer's own money: one Bitcoin rate for the whole page,
+  // asked only on the Shop tab. Without it the chips stay away and the
+  // cards say nothing extra.
+  const [shopPrice, setShopPrice] = useState<PriceBand["key"] | null>(null);
+  const rates = useBtcRates(tab === "shop");
+  const viewerFiat = useMemo(() => viewerCurrency(), []);
+  const bands = useMemo(() => priceBands(viewerFiat), [viewerFiat]);
   const [articleType, setArticleType] = useState<ArticleType | null>(null);
   const [recipeTopic, setRecipeTopic] = useState<string | null>(null);
   // Issues and PRs tabs: what became of each issue and patch — one request per page,
@@ -1138,6 +1168,30 @@ export function SearchResults({
     if (tab === "shop" && shopCategory) {
       shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
     }
+    if (tab === "shop" && shopPrice && rates) {
+      const band = bands.find((b) => b.key === shopPrice);
+      shown = shown.filter((h) => {
+        const price = parseListing(h.event)?.price;
+        const amount = price ? priceInCurrency(price, rates, viewerFiat) : null;
+        return amount !== null && !!band?.holds(amount);
+      });
+    }
+    if (tab === "shop" && priceSort) {
+      // Cheapest (or dearest) first; a price we cannot convert goes last either way.
+      const satsOf = (h: SearchHit) => {
+        const price = parseListing(h.event)?.price;
+        return price ? toSats(price, rates) : null;
+      };
+      const dir = priceSort === "asc" ? 1 : -1;
+      shown = [...shown].sort((a, b) => {
+        const x = satsOf(a);
+        const y = satsOf(b);
+        if (x === null && y === null) return 0;
+        if (x === null) return 1;
+        if (y === null) return -1;
+        return (x - y) * dir;
+      });
+    }
     if (tab === "articles" && articleType) {
       shown = shown.filter((h) => articleTypeOf(h.event.kind) === articleType);
     }
@@ -1257,7 +1311,7 @@ export function SearchResults({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits, tab, appPlatform, appCategory, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, proven]);
+  }, [hits, tab, appPlatform, appCategory, shopCategory, shopPrice, rates, bands, viewerFiat, priceSort, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, proven]);
 
   // The Events tab is a timeline: the first card of each day carries a header
   // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
@@ -1293,6 +1347,7 @@ export function SearchResults({
   const narrowed =
     activeFilters > 0 ||
     !!shopCategory ||
+    !!shopPrice ||
     !!articleType ||
     !!recipeTopic ||
     !!appPlatform ||
@@ -1394,7 +1449,7 @@ export function SearchResults({
       </div>
 
       <QueryAsSent query={effectiveQuery} tab={tab} pov={pov} timeMs={snapshot?.timeMs} />
-      {filtersOpen && onQueryRewrite && <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} onQueryRewrite={onQueryRewrite} />}
+      {filtersOpen && onQueryRewrite && <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} tab={tab} onQueryRewrite={onQueryRewrite} />}
       <SearchSyntaxSheet open={syntaxOpen} onOpenChange={setSyntaxOpen} />
 
       {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
@@ -1687,6 +1742,15 @@ export function SearchResults({
               ))}
             </FacetRow>
           )}
+          {tab === "shop" && rates && rawHits.length > 0 && (
+            <FacetRow className="mb-2" testId="shop-price-facets">
+              {bands.map((b) => (
+                <FacetChip key={b.key} pressed={shopPrice === b.key} onClick={() => setShopPrice((cur) => (cur === b.key ? null : b.key))} testId={`shop-price-${b.key}`}>
+                  {b.label}
+                </FacetChip>
+              ))}
+            </FacetRow>
+          )}
           {tab === "apps" && (appFacets.length > 0 || appCategoryFacets.length > 0) && (
             <FacetRow className="mb-2" testId="app-facets">
               <button
@@ -1857,7 +1921,7 @@ export function SearchResults({
                 return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
               }
               if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
-              if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} />);
+              if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} rates={rates} sellerListings={(snapshot?.hits ?? []).filter((h) => h.event.pubkey === event.pubkey).map((h) => h.event)} />);
               if (LIVE_KINDS.has(event.kind)) {
                 const hostPk = liveHostOf(event);
                 return wrap(<LiveTile {...typed} state={liveStates.get(event.id) ?? liveStateOf(event)} hostScore={hostPk ? scoreOf(hostPk) : undefined} />);

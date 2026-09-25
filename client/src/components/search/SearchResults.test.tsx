@@ -88,6 +88,10 @@ const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.85)
 // Event cards carry the RSVP button, which reads the active account; these
 // tests are signed out — the button is the sign-in door and never publishes.
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
+// One Bitcoin price for the Shop page — fixed here so a sats price converts to round money.
+const TEST_RATES = { USD: 100_000, EUR: 90_000, GBP: 80_000, CAD: 140_000, CHF: 85_000, AUD: 150_000, JPY: 15_000_000 };
+const ratesMock = vi.fn<() => Record<string, number> | null>(() => TEST_RATES);
+vi.mock("@/hooks/useBtcRates", () => ({ useBtcRates: (enabled: boolean) => (enabled === false ? null : ratesMock()) }));
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
@@ -196,6 +200,8 @@ beforeEach(() => {
   flagsMock.mockImplementation(() => false);
   reachMock.mockReturnValue({ direct: new Set(), friends: new Set(), ready: true });
   scoreOfMock.mockImplementation(() => 0.85);
+  ratesMock.mockReset();
+  ratesMock.mockReturnValue(TEST_RATES);
   wavlakeCatalogueMock.mockResolvedValue({ artists: [], albums: [], songs: [] });
   wavlakeTrendingMock.mockResolvedValue([]);
   allStreams = [];
@@ -1280,7 +1286,7 @@ describe("SearchResults", () => {
       ({ event: ev(id, 30402, seller, `${title} — come nuova`, [["d", id], ["title", title], ...tags]), author: author(seller, "Barattolo"), rank: null });
     emit({
       hits: [
-        listing("l1", "Maglia in kashmir donna", [["price", "23550", "sats"], ["image", "https://img/1.jpg"], ["location", "Gubbio (PG)"], ["t", "abbigliamento"], ["t", "kashmir"], ["r", "https://barattolo.app/l/l1"]]),
+        listing("l1", "Maglia in kashmir donna", [["price", "23550", "sats"], ["image", "https://img/1.jpg"], ["location", "Gubbio (PG)"], ["shipping_option", "Italia", "500", "sats"], ["t", "abbigliamento"], ["t", "kashmir"], ["r", "https://barattolo.app/l/l1"]]),
         listing("l2", "Maglia mezza stagione", [["price", "14100", "sats"], ["image", "https://img/2.jpg"], ["t", "abbigliamento"]]),
         listing("sold", "Maglia venduta", [["price", "9000", "sats"], ["status", "sold"], ["t", "abbigliamento"]]),
         listing("nop", "Regalo senza prezzo", [["image", "https://img/3.jpg"]]),
@@ -1291,6 +1297,8 @@ describe("SearchResults", () => {
 
     const card = await screen.findByTestId("listing-card-l1");
     expect(within(card).queryByTestId("kind-pill")).toBeNull(); // the Shop tab says it
+    // One quiet line under the title: where it is, what shipping costs.
+    expect(within(card).getByTestId("listing-meta-l1")).toHaveTextContent("Gubbio (PG) · 500 sats shipping");
     expect(card).toHaveTextContent("Maglia in kashmir donna");
     expect(card).toHaveTextContent("23,550 sats");
     expect(card).toHaveTextContent("Gubbio (PG)");
@@ -1302,8 +1310,9 @@ describe("SearchResults", () => {
     // Over a photo the corner is the shop's favicon alone in a small pill;
     // the words wait on hover. Text over busy photography was unreadable.
     expect(open.textContent?.trim()).toBe("");
-    expect(open.getAttribute("title")).toBe("Visit shop");
-    expect(open.getAttribute("aria-label")).toBe("Visit shop");
+    // The verb says where you land: a seller's site by its host, a marketplace by "Buy on".
+    expect(open.getAttribute("title")).toBe("Visit barattolo.app");
+    expect(open.getAttribute("aria-label")).toBe("Visit barattolo.app");
     expect(within(open).getByTestId("favicon")).toBeInTheDocument();
     expect(screen.getByTestId("listing-card-l2")).toBeInTheDocument();
     expect(screen.queryByTestId("listing-card-sold")).toBeNull();
@@ -1344,10 +1353,147 @@ describe("SearchResults", () => {
 
     const open = within(await screen.findByTestId("listing-card-c1")).getByTestId("listing-open-c1");
     expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
-    expect(open.getAttribute("title")).toBe("Open in Conduit");
-    expect(open.getAttribute("aria-label")).toBe("Open in Conduit");
+    expect(open.getAttribute("title")).toBe("Buy on Conduit");
+    expect(open.getAttribute("aria-label")).toBe("Buy on Conduit");
     expect(open.textContent?.trim()).toBe("");
     expect(within(open).getByTestId("favicon")).toHaveAttribute("src", "https://shop.conduit.market/favicon.svg");
+  });
+
+  // Benjamin (2026-09-24): Staci's Conduit-published listings had the link and
+  // her other app's duplicates did not, on the same Shop page — and the same
+  // soap sat there twice. One product is one card: the copy with the product
+  // page stays, the duplicate goes, and nothing on the card mentions it.
+  it("a seller's same-title duplicate collapses into the copy that opens on Conduit", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="soap" pov="nosfabrica" />);
+    const seller = "6".repeat(64);
+    const conduit = ev("c1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "sweet-almond-conduit"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]);
+    const elsewhere = ev("e1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "product_1788284895802_51fra"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["t", "Health & Beauty"]]);
+    emit({ hits: [{ event: elsewhere, author: author(seller, "Born To Be Free"), rank: null }, { event: conduit, author: author(seller, "Born To Be Free"), rank: null }], eose: true, timeMs: 130 });
+    const card = await screen.findByTestId("listing-card-c1");
+    expect(screen.queryByTestId("listing-card-e1")).toBeNull();
+    expect(card).not.toHaveTextContent(/2 listings|also on/i);
+    const open = within(card).getByTestId("listing-open-c1");
+    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
+  });
+
+  // A Conduit seller's listing with no twin still opens on Conduit, at their store.
+  it("a Conduit seller's other listing, published elsewhere with no twin, opens at their Conduit store", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="soap" pov="nosfabrica" />);
+    const seller = "6".repeat(64);
+    const conduit = ev("c1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "sweet-almond-conduit"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]);
+    const elsewhere = ev("e1", 30402, seller, "Lavender Tallow Soap Bar", [["d", "product_1788284895802_51frb"], ["title", "Lavender Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/2.jpg"], ["t", "Health & Beauty"]]);
+    emit({ hits: [{ event: conduit, author: author(seller, "Born To Be Free"), rank: null }, { event: elsewhere, author: author(seller, "Born To Be Free"), rank: null }], eose: true, timeMs: 130 });
+    const open = within(await screen.findByTestId("listing-card-e1")).getByTestId("listing-open-e1");
+    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/store\/npub1[a-z0-9]+\?ref=brainstorm$/);
+  });
+
+  // Benjamin (2026-09-24), "as easy as finding what you want on Google": a
+  // page priced in sats, dollars and euros has to be comparable. One rate,
+  // the seller's price first, the buyer's own money underneath.
+  it("every listing says what it costs in the viewer's money under the price the seller wrote", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="soap" pov="nosfabrica" />);
+    const seller = "6".repeat(64);
+    emit({
+      hits: [
+        { event: ev("s1", 30402, seller, "Soap", [["d", "s1"], ["title", "Soap"], ["price", "23550", "sats"]]), author: author(seller, "Staci"), rank: null },
+        { event: ev("s2", 30402, seller, "Balm", [["d", "s2"], ["title", "Balm"], ["price", "12", "USD"]]), author: author(seller, "Staci"), rank: null },
+        { event: ev("s3", 30402, seller, "Tallow", [["d", "s3"], ["title", "Tallow"], ["price", "9", "EUR"]]), author: author(seller, "Staci"), rank: null },
+        { event: ev("s4", 30402, seller, "Real", [["d", "s4"], ["title", "Real"], ["price", "50", "BRL"]]), author: author(seller, "Staci"), rank: null },
+      ],
+      eose: true,
+      timeMs: 130,
+    });
+    expect(await screen.findByTestId("listing-price-s1")).toHaveTextContent("23,550 sats");
+    expect(screen.getByTestId("listing-price-converted-s1")).toHaveTextContent("≈ $23.55");
+    expect(screen.getByTestId("listing-price-s2")).toHaveTextContent("$12");
+    expect(screen.getByTestId("listing-price-converted-s2")).toHaveTextContent("≈ 12,000 sats");
+    expect(screen.getByTestId("listing-price-converted-s3")).toHaveTextContent("≈ $10");
+    // Money we have no rate for stays as priced, with nothing underneath.
+    expect(screen.queryByTestId("listing-price-converted-s4")).toBeNull();
+  });
+
+  it("price chips narrow the Shop page in the viewer's money, and vanish when there is no rate", async () => {
+    setUrlTab("shop");
+    const seller = "6".repeat(64);
+    const hits = [
+      { event: ev("p1", 30402, seller, "Soap", [["d", "p1"], ["title", "Soap"], ["price", "12000", "sats"]]), author: author(seller, "Staci"), rank: null },
+      { event: ev("p2", 30402, seller, "Kit", [["d", "p2"], ["title", "Kit"], ["price", "40", "USD"]]), author: author(seller, "Staci"), rank: null },
+      { event: ev("p3", 30402, seller, "Box", [["d", "p3"], ["title", "Box"], ["price", "0.002", "BTC"]]), author: author(seller, "Staci"), rank: null },
+    ];
+    const { unmount } = render(<SearchResults query="soap" pov="nosfabrica" />);
+    emit({ hits, eose: true, timeMs: 130 });
+    await screen.findByTestId("listing-card-p1");
+    const chips = screen.getByTestId("shop-price-facets");
+    expect(within(chips).getByTestId("shop-price-under")).toHaveTextContent("Under $25");
+    expect(within(chips).getByTestId("shop-price-mid")).toHaveTextContent("$25 – $100");
+    expect(within(chips).getByTestId("shop-price-up")).toHaveTextContent("$100 and up");
+    fireEvent.click(within(chips).getByTestId("shop-price-under"));
+    expect(screen.getByTestId("listing-card-p1")).toBeInTheDocument();
+    expect(screen.queryByTestId("listing-card-p2")).toBeNull();
+    expect(screen.queryByTestId("listing-card-p3")).toBeNull();
+    fireEvent.click(within(chips).getByTestId("shop-price-up"));
+    expect(screen.queryByTestId("listing-card-p1")).toBeNull();
+    expect(screen.getByTestId("listing-card-p3")).toBeInTheDocument();
+    // The same chip again lifts the narrowing.
+    fireEvent.click(within(chips).getByTestId("shop-price-up"));
+    expect(screen.getByTestId("listing-card-p1")).toBeInTheDocument();
+    expect(screen.getByTestId("listing-card-p2")).toBeInTheDocument();
+    unmount();
+
+    ratesMock.mockReturnValue(null);
+    allStreams = [];
+    render(<SearchResults query="soap" pov="nosfabrica" />);
+    emit({ hits, eose: true, timeMs: 130 });
+    await screen.findByTestId("listing-card-p1");
+    expect(screen.queryByTestId("shop-price-facets")).toBeNull();
+    expect(screen.queryByTestId("listing-price-converted-p1")).toBeNull();
+  });
+
+  it("the Shop page sorts by price on the client — the relay never hears sort:price", async () => {
+    setUrlTab("shop");
+    const rewrite = vi.fn();
+    const seller = "6".repeat(64);
+    const hits = [
+      { event: ev("q1", 30402, seller, "Kit", [["d", "q1"], ["title", "Kit"], ["price", "40", "USD"]]), author: author(seller, "Staci"), rank: null },
+      { event: ev("q2", 30402, seller, "Soap", [["d", "q2"], ["title", "Soap"], ["price", "12000", "sats"]]), author: author(seller, "Staci"), rank: null },
+      { event: ev("q3", 30402, seller, "Real", [["d", "q3"], ["title", "Real"], ["price", "50", "BRL"]]), author: author(seller, "Staci"), rank: null },
+      { event: ev("q4", 30402, seller, "Box", [["d", "q4"], ["title", "Box"], ["price", "0.002", "BTC"]]), author: author(seller, "Staci"), rank: null },
+    ];
+    const { unmount } = render(<SearchResults query="soap" pov="nosfabrica" onQueryRewrite={rewrite} />);
+    emit({ hits, eose: true, timeMs: 130 });
+    await screen.findByTestId("listing-card-q1");
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    const sort = screen.getByTestId("filter-sort") as HTMLSelectElement;
+    const values = [...sort.querySelectorAll("option")].map((o) => o.value);
+    expect(values).toContain("price");
+    expect(values).toContain("price:desc");
+    fireEvent.change(sort, { target: { value: "price" } });
+    expect(rewrite).toHaveBeenCalledWith("soap sort:price");
+    unmount();
+
+    allStreams = [];
+    render(<SearchResults query="soap sort:price" pov="nosfabrica" onQueryRewrite={rewrite} />);
+    await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    const [q] = mainStreamCalls().at(-1)!;
+    expect(String(q)).not.toMatch(/sort:price/);
+    emit({ hits, eose: true, timeMs: 130 });
+    await screen.findByTestId("listing-card-q1");
+    // Cheapest first; a price we cannot convert goes last.
+    const order = () => screen.getAllByTestId(/^listing-card-/).map((el) => el.getAttribute("data-testid"));
+    expect(order()).toEqual(["listing-card-q2", "listing-card-q1", "listing-card-q4", "listing-card-q3"]);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    expect(screen.getByTestId("filter-sort")).toHaveValue("price");
+  });
+
+  it("the price sorts are the Shop page's alone", () => {
+    setUrlTab("notes");
+    render(<SearchResults query="soap" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    const values = [...screen.getByTestId("filter-sort").querySelectorAll("option")].map((o) => o.value);
+    expect(values).not.toContain("price");
   });
 
   it("collapses recurring events on the Events tab behind a +N chip", async () => {
