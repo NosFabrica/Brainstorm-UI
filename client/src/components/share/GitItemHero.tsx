@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { Link } from "wouter";
 import { Bot, GitBranch, GitCommitHorizontal, MessageSquare } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
@@ -23,7 +24,7 @@ const DIFF_FOLD = 120;
  */
 export function GitItemHero({ event, author }: { event: GitItem; author?: AgentAuthor }) {
   const title = gitItemTitleOf(event);
-  const kindLabel = event.kind === 1617 ? "Patch" : event.kind === 1618 ? "Pull request" : "Issue";
+  const kindLabel = kindTypeLabel(event.kind);
   const address = event.tags.find((t) => t[0] === "a")?.[1] ?? null;
   const repoName = gitRepoNameOf(event);
   const labels = gitLabelsOf(event);

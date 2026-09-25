@@ -49,7 +49,10 @@ export function EmbeddedTrackCard({
   artistPubkey,
   flat = false,
   durationSec,
+  badge,
 }: {
+  /** What sits beside the title — a search card's kind pill. Never a link. */
+  badge?: React.ReactNode;
   id: string;
   title: string;
   artist?: string;
@@ -149,7 +152,10 @@ export function EmbeddedTrackCard({
       </button>
 
       <div className="min-w-0 flex-1">
-        <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{title}</p>
+        <div className="flex items-center gap-2 min-w-0">
+          <p className={`min-w-0 truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{title}</p>
+          {badge}
+        </div>
         {artist && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{artist}</p>}
 
         {player.isActive && (

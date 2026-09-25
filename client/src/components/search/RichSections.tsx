@@ -6,6 +6,8 @@
  * event page; a story's headline goes out to the article.
  */
 import { useEffect, useState } from "react";
+import { KindPill } from "@/components/ui/kind-pill";
+import { ViaRelay } from "@/components/ui/via-relay";
 import { noteTitle } from "@/lib/noteTitle";
 import { fetchUnfurl } from "@/services/unfurl";
 import { isVideoFileUrl, youtubeThumbnail } from "@/lib/linkThumb";
@@ -294,8 +296,10 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
         data-testid="media-tile-caption"
       >
         {caption && <p className="line-clamp-2 text-[12px] leading-snug text-slate-700 dark:text-slate-200">{caption}</p>}
-        <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">
-          {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(e.created_at)}
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+          <span className="min-w-0 truncate">{hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(e.created_at)}</span>
+          {/* The picture says what it is; the pill only when asked for everywhere. */}
+          <KindPill event={e} mixed={false} />
         </p>
       </div>
     </div>
@@ -345,7 +349,7 @@ function articleShape(e: NostrEvent) {
 function ArticleAuthor({ hit, score, light = false }: { hit: SearchHit; score?: number | null; light?: boolean }) {
   const tierRing = useTierRing();
   return (
-    <span className={`flex items-center gap-1.5 min-w-0 text-[11px] ${light ? "text-white/85" : "text-slate-500 dark:text-slate-400"}`}>
+    <span className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0 text-[11px] ${light ? "text-white/85" : "text-slate-500 dark:text-slate-400"}`}>
       <Avatar className={`h-4 w-4 shrink-0 border border-white/60 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
         {hit.author?.picture ? <AvatarImage src={hit.author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">
@@ -354,6 +358,8 @@ function ArticleAuthor({ hit, score, light = false }: { hit: SearchHit; score?: 
       </Avatar>
       <span className="truncate">{hit.author ? getDisplayLabel(hit.author) : "Unknown"}</span>
       <span className="shrink-0 opacity-80">· {ago(hit.event.created_at)}</span>
+      <KindPill event={hit.event} />
+      <ViaRelay event={hit.event} />
     </span>
   );
 }
