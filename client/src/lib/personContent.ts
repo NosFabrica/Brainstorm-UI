@@ -32,6 +32,17 @@ export const PERSON_CONTENT_CATEGORIES: readonly { key: PersonContentKey; kinds:
 
 export const MAX_PERSON_CONTENT_CHIPS = 4;
 
+/**
+ * A chip promises something you can act on now. A listing or a stream from
+ * 2023 breaks that promise (Vitor's Shop chip, 2026-09-24, led to a shelf
+ * nobody could buy from), so Shop and Live go stale after a year. Articles,
+ * recipes, music, media and code are evergreen: a 2023 article still reads.
+ */
+export const STALE_AFTER_SEC: Partial<Record<PersonContentKey, number>> = {
+  shop: 365 * 86_400,
+  live: 365 * 86_400,
+};
+
 /** The search relay refuses a filter without a lens; this one asks for the whole corpus. */
 export const PERSON_CONTENT_LENS = "include:spam";
 
@@ -80,6 +91,8 @@ export function categoriesOf(events: MinimalEvent[], nowSec: number = Math.floor
     else if (category.key === "recipes") sample = events.find(isRecipe);
     else sample = events.find((e) => category.kinds.includes(e.kind));
     if (!sample) continue;
+    const staleAfter = STALE_AFTER_SEC[category.key];
+    if (staleAfter !== undefined && nowSec - sample.created_at > staleAfter) continue;
     if (category.key === "live") chips.push(chipFor("live", liveStateOf({ ...sample, content: sample.content ?? "" }, nowSec) === "live"));
     else chips.push(chipFor(category.key));
     if (chips.length === MAX_PERSON_CONTENT_CHIPS) break;

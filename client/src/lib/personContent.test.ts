@@ -42,6 +42,27 @@ describe("categoriesOf — what a person publishes, in the order a searcher want
   });
 });
 
+describe("categoriesOf — a chip promises something you can act on now", () => {
+  const MONTH = 30 * 86_400;
+  // Vitor (live, 2026-09-24): a Shop chip on a listing 34 months old led to a shelf
+  // nobody could buy from. Shop and Live go stale after a year; the rest keep.
+  it("a shop is a shop only if something was listed in the last year", () => {
+    expect(categoriesOf([ev(30402, [], NOW - 34 * MONTH)], NOW)).toEqual([]);
+    expect(categoriesOf([ev(30402, [], NOW - 11 * MONTH)], NOW).map((c) => c.key)).toEqual(["shop"]);
+  });
+
+  it("a channel is a channel only if it streamed in the last year", () => {
+    expect(categoriesOf([ev(30311, [["title", "Show"], ["status", "ended"]], NOW - 13 * MONTH)], NOW)).toEqual([]);
+    expect(categoriesOf([ev(30311, [["title", "Show"], ["status", "ended"]], NOW - 5 * MONTH)], NOW).map((c) => c.key)).toEqual(["live"]);
+  });
+
+  it("articles, recipes, music, media and code are evergreen", () => {
+    const old = NOW - 36 * MONTH;
+    expect(categoriesOf([ev(30023, [], old), ev(30023, [["t", "zapcooking"]], old), ev(31337, [], old), ev(21, [], old), ev(30617, [], old)], NOW).map((c) => c.key)).toEqual(["articles", "recipes", "music", "media"]);
+    expect(categoriesOf([ev(30617, [], old)], NOW).map((c) => c.key)).toEqual(["repos"]);
+  });
+});
+
 describe("personContentFilters — one lensed filter per category, the newest one of each", () => {
   it("asks seven questions under the include:spam lens — recipes get their own", () => {
     const filters = personContentFilters(STACI);
