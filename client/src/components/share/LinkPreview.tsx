@@ -8,6 +8,7 @@ import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
 import { useLightbox } from "@/components/share/Lightbox";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { useNearViewport } from "@/hooks/useNearViewport";
+import { MediaImg } from "@/components/ui/media-img";
 import { useConnectionSpeed } from "@/lib/connection";
 import { echoContext, isEchoed } from "@/lib/echoedText";
 
@@ -81,7 +82,7 @@ export function LinkChip({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noopener"
-      className="inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+      className="not-prose inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
       data-testid="link-chip"
     >
       <Favicon host={u?.hostname || ""} className="h-3.5 w-3.5 rounded-sm shrink-0 object-contain" />
@@ -287,8 +288,9 @@ function UnfurledCard({ url, host, showImage, context }: { url: string; host: st
       {image && (
         // Whoever posted the link chose this host, so it learns the reader's
         // IP either way — it does not also get to learn what they were reading.
-        <img
+        <MediaImg
           src={image}
+          preset="media_320"
           alt=""
           loading="lazy"
           referrerPolicy="no-referrer"

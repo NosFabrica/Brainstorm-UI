@@ -77,6 +77,8 @@ describe("the work factor a backup arrived with", () => {
     expect(backupWorkFactor("ncryptsec1")).toBeUndefined();
     expect(backupWorkFactor(nsec)).toBeUndefined();
     expect(backupWorkFactor("")).toBeUndefined();
+    // A key whose first byte is NIP-49's version: the bytes alone would read as a backup.
+    expect(backupWorkFactor(nsecEncode(new Uint8Array(32).fill(2)))).toBeUndefined();
   });
 });
 

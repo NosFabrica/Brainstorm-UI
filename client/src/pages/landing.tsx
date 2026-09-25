@@ -25,6 +25,7 @@ import {
   ListChecks,
   ShoppingBag,
 } from "lucide-react";
+import { CATEGORY_ICON } from "@/lib/dlists";
 import { GlossBackground } from "@/components/GlossBackground";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
@@ -1262,6 +1263,8 @@ export default function Landing() {
                     { tab: "shop", label: "Shop", icon: ShoppingBag },
                     { tab: "apps", label: "Apps", icon: Package },
                     { tab: "events", label: "Events", icon: CalendarDays },
+                    // The music category's icon comes from the D-list registry (the team, 2026-09-24).
+                    { tab: "music", label: "Music", icon: CATEGORY_ICON.music },
                     { tab: "live", label: "Live", icon: Radio },
                     { tab: "lists", label: "Lists", icon: ListChecks },
                   ].map((c) => (

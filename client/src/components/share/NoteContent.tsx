@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl, type NoteToken } from "@/lib/noteContent";
 import { ReadingText, ReadingLink, addressLink, addressLabel } from "@/components/share/ReadingText";
 import { normalizeMarkup } from "@/lib/htmlText";
-import { decodeNostrEntity } from "@/lib/noteRefs";
+import { addrCoord, decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
@@ -16,9 +16,10 @@ import { FountainCard } from "@/components/share/FountainCard";
 import { fountainRef } from "@/lib/fountain";
 import { ClientLink } from "@/components/share/ClientLink";
 import { ProfileMention } from "@/components/share/ProfileMention";
-import { primalRef } from "@/lib/clientLinks";
+import { clientRef } from "@/lib/clientLinks";
 import { useClientLink } from "@/hooks/useClientLink";
 import { useLightbox } from "@/components/share/Lightbox";
+import { MediaImg } from "@/components/ui/media-img";
 
 /** Human-readable track name from a raw audio URL. Falls back to "Audio" for
  *  non-descriptive filenames (numeric ids, hashes/uuids) like `…/32939084.mp3`. */
@@ -79,6 +80,7 @@ export function NoteContent({
   tags = [],
   authorName,
   embeddedIds,
+  embeddedCoords,
 }: {
   content: string;
   compact?: boolean;
@@ -90,6 +92,8 @@ export function NoteContent({
   /** Quoted events the card renders in full below — their inline stub would
    *  say "↳ quoted note" above the quote itself, so it leaves the prose. */
   embeddedIds?: ReadonlySet<string>;
+  /** Articles (by coordinate) the caller shows as cards: their inline link is not repeated. */
+  embeddedCoords?: ReadonlySet<string>;
   /** Render a rich preview card for the primary link below the body. */
   linkCard?: boolean;
   /** In a clickable feed card: render images as cropped thumbnails whose click
@@ -116,7 +120,7 @@ export function NoteContent({
   const primaryUrl = primaryLink(tokens);
   // A Primal link names a Nostr entity; the card below is for links that
   // name nothing here. Asked unconditionally — the hook count must not move.
-  const primaryRef = primaryUrl ? primalRef(primaryUrl) : null;
+  const primaryRef = primaryUrl ? clientRef(primaryUrl) : null;
   const primaryEntity = useClientLink(primaryRef);
   const primaryIsPlainLink = !primaryRef || (primaryEntity.status === "done" && primaryEntity.entity === null);
   // All image URLs in this note — the set the lightbox carousels through.
@@ -129,7 +133,7 @@ export function NoteContent({
             if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
             if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
             if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
-            if (primalRef(token.value)) return <ClientLink key={i} url={token.value} />;
+            if (clientRef(token.value)) return <ClientLink key={i} url={token.value} />;
             return reading ? <ReadingLink key={i} url={token.value} /> : <LinkChip key={i} url={token.value} />;
           case "audio":
             return (
@@ -154,12 +158,13 @@ export function NoteContent({
                 key={i}
                 className="mt-2 aspect-[16/10] w-full max-h-72 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"
               >
-                <img src={token.value} alt="" loading="lazy" className="h-full w-full object-cover" />
+                <MediaImg src={token.value} preset="media_640" alt="" loading="lazy" className="h-full w-full object-cover" />
               </div>
             ) : (
-              <img
+              <MediaImg
                 key={i}
                 src={token.value}
+                preset="media_1280"
                 alt=""
                 loading="lazy"
                 data-noopen
@@ -174,6 +179,8 @@ export function NoteContent({
           case "mention": {
             const { pubkey, id, address } = decodeNostrEntity(token.bech32);
             if (address) {
+              // Shown as a card by the caller? Then the card IS the link.
+              if (embeddedCoords?.has(addrCoord(address))) return null;
               const other = reading ? addressLink(token.bech32, i, token.url) : null;
               if (other) return other;
               // Links to its on-site page (/e/ renders every kind); an article

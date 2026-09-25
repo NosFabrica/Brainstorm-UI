@@ -19,6 +19,8 @@ export interface SchedulingItem {
    * optional here because older servers don't send it.
    */
   is_public?: boolean;
+  /** Users on this policy may file support tickets. Optional: older servers don't send it. */
+  support_included?: boolean;
   manual_quota_limit: number;
   manual_quota_window_seconds: number;
 }
@@ -31,6 +33,8 @@ export interface CreateSchedulingBody {
   is_default?: boolean;
   /** Whether a plan mapped to this policy may be sold on the pricing page. */
   is_public?: boolean;
+  /** Users on this policy may file support tickets. */
+  support_included?: boolean;
   manual_quota_limit?: number;
   manual_quota_window_seconds?: number;
 }

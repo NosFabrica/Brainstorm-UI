@@ -5,7 +5,7 @@
  * in the URL so Back, reload and a shared link keep them.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { SearchSnapshot } from "@/services/search";
 import { nip19 } from "nostr-tools";
 import { getRecentItems } from "@/lib/recentSearches";
@@ -484,6 +484,21 @@ describe("the Browse row under the box", () => {
     fireEvent.focus(input);
     const chips = await screen.findByTestId("browse-chips");
     const order = [...chips.querySelectorAll('[data-testid^="browse-"]')].map((el) => el.getAttribute("data-testid"));
-    expect(order).toEqual(["browse-people", "browse-notes", "browse-media", "browse-shop", "browse-apps", "browse-events", "browse-live", "browse-lists"]);
+    expect(order).toEqual(["browse-people", "browse-notes", "browse-media", "browse-shop", "browse-apps", "browse-events", "browse-music", "browse-live", "browse-lists"]);
+  });
+
+  it("offers Music, under the music category's icon, and opens the Music tab", async () => {
+    // The team (2026-09-24): the music category, defined by the V4V D-lists, gets the Music icon.
+    window.history.replaceState({}, "", "/");
+    render(<Landing />);
+    const input = screen.getByTestId("input-home-search");
+    fireEvent.pointerDown(input);
+    fireEvent.focus(input);
+    const chips = await screen.findByTestId("browse-chips");
+    const music = within(chips).getByTestId("browse-music");
+    expect(music).toHaveTextContent("Music");
+    expect(music.querySelector("svg.lucide-music")).not.toBeNull();
+    fireEvent.mouseDown(music);
+    expect(window.location.search).toContain("t=music");
   });
 });

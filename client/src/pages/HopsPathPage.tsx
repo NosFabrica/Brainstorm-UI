@@ -5,9 +5,10 @@ import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Shuffle, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
+import { ArrowLeft, Loader2, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileForShare, fetchProfileMap } from "@/services/nostr";
+import { fetchProfileMap } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { logout } from "@/accounts/login-flow";
 import { AccountMenu } from "@/components/AccountMenu";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -18,21 +19,30 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Wordmark } from "@/components/Wordmark";
 import { ordinal } from "@/components/DegreeChip";
-import { tierForScore, shareTierFor } from "@/components/share/TrustScoreBadge";
+import { shareTierFor } from "@/components/share/TrustScoreBadge";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TrustScoreModal, PovIcon, povChrome, useScorePov } from "@/components/score/TrustScorePov";
 import { useHasSession } from "@/hooks/useHasSession";
+import { usePathSet } from "@/hooks/usePathSet";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { useAuthorFlags } from "@/hooks/useAuthorFlags";
+import { classifyPath, groupPaths, nodeRisk, orderedPaths } from "@/lib/hopsPaths";
+import { PathFootnote, PathRiskLine, PathStepper, type PathGroupKey } from "@/components/hops/PathSummary";
+import { Chip } from "@/components/ui/chip";
 
 function shortNpub(npub: string): string {
   return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
 }
 
 /**
- * The "shortest path" page (`/p/:id/hops`): explains the degree metric and shows
- * ONE randomly-chosen shortest follow-path from the viewer to this profile, with a
- * "show another path" shuffle. Each node links to that person's profile — the core
- * use case being to spot the one weak-link account to report so a whole swarm
- * downstream of it drops out of your trust network. Signed-in + scored viewers only.
+ * The Connection page (`/p/:id/hops`): explains the degree metric and walks
+ * the shortest follow-paths from the origin (you, or Brainstorm) to this
+ * profile. The safest path leads; the counts of verified, unverified and
+ * flagged paths are buttons that narrow to that group, and "Next path" steps
+ * through it in a fixed order (hooks/usePathSet gathers the set, lib/hopsPaths
+ * judges it). Each node links to that person's profile — the core use case
+ * being to spot the one weak-link account to report so a whole swarm
+ * downstream of it drops out of your trust network.
  */
 export default function HopsPathPage() {
   const [displayMode] = useScoreDisplayMode();
@@ -60,35 +70,43 @@ export default function HopsPathPage() {
   // usable start (falling back to House), and the endpoint is public.
   const eligible = !!fromPubkey && !!toPubkey && fromPubkey !== toPubkey;
 
-  // Shuffle: each bump re-fetches, and the endpoint returns a different random path.
-  const [nonce, setNonce] = useState(0);
+  // Which group the reader narrowed to, and where they are in it. The pick
+  // belongs to one connection: this component stays mounted from one
+  // target's page to the next, and a pick that outlived its target opened
+  // jack's page on "flagged · 1 of 1" because Jon's had been tapped.
+  const connection = `${fromPubkey}/${toPubkey}`;
+  const [picked, setPicked] = useState<{ of: string; group: PathGroupKey | null; pos: number }>({ of: connection, group: null, pos: 0 });
+  const pick = picked.of === connection ? picked : { group: null, pos: 0 };
   // Sitewide score-POV (personalized vs global) + the shared explainer modal.
   const { pov: scorePov } = useScorePov();
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
 
-  const pathQuery = useQuery({
-    queryKey: ["shortestPath", fromPubkey, toPubkey, nonce],
-    queryFn: () => apiClient.getShortestPath({ from: fromPubkey, to: toPubkey }),
-    enabled: eligible,
-    // Stable per nonce — the shuffle bumps `nonce` to force a fresh random path,
-    // so we don't want background refetches remounting the list (resets node state).
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const set = usePathSet(fromPubkey, toPubkey, { enabled: eligible, nonce: 0 });
+  const d = set.head;
 
-  const subjectQuery = useQuery({
-    queryKey: ["share-profile", toPubkey],
-    queryFn: () => fetchProfileForShare(toPubkey, { relayHints }),
-    enabled: !!toPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // Every account on every path, judged in one batched request. The groups
+  // are recomputed each render on purpose — memoising on the hook closures
+  // would freeze the page at "checking".
+  const allNodes = useMemo(() => [...new Set(set.paths.flat())].sort(), [set.paths]);
+  const scoreOf = useAuthorScores(allNodes);
+  const flaggedOf = useAuthorFlags(allNodes);
+  const signals = { flaggedOf, scoreOf };
+  const groups = groupPaths(set.paths, (p) => classifyPath(p, signals));
+  const list = pick.group ? groups[pick.group] : orderedPaths(groups);
+  // Nothing judged yet → the probe path, unmarked, while the signals land.
+  const shown: string[] = list.length ? list[pick.pos % list.length] : (set.paths[0] ?? []);
+  const checked = groups.verified.length + groups.unverified.length + groups.flagged.length;
+  // "…through 1 person, 130 different ways." — the count rides on the sentence.
+  const ways = d && d.pathCount > 1
+    ? <>, <span className="font-semibold">{d.pathCount.toLocaleString()}{d.pathCountCapped ? "+" : ""}</span> different ways.</>
+    : ".";
 
-  const d = pathQuery.data;
+  const subject = useLiveProfile(toPubkey, relayHints).profile;
+
   const profilesQuery = useQuery({
-    queryKey: ["hops-profiles", (d?.path ?? []).join(",")],
-    queryFn: () => fetchProfileMap(d!.path),
-    enabled: !!d?.path?.length,
+    queryKey: ["hops-profiles", shown.join(",")],
+    queryFn: () => fetchProfileMap(shown),
+    enabled: shown.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -97,10 +115,10 @@ export default function HopsPathPage() {
   // everyone's (house). Fetching both makes the POV toggle instant and lets the
   // pill hint when the two views disagree. Short paths → few calls.
   const scoresQuery = useQuery({
-    queryKey: ["hops-scores-both", signedIn, (d?.path ?? []).join(",")],
+    queryKey: ["hops-scores-both", signedIn, shown.join(",")],
     queryFn: async () => {
       const entries = await Promise.all(
-        d!.path.map(async (pk) => {
+        shown.map(async (pk) => {
           const [mine, house] = await Promise.all([
             signedIn
               ? apiClient.getUserOverview(pk).then((r) => {
@@ -115,7 +133,7 @@ export default function HopsPathPage() {
       );
       return new Map(entries);
     },
-    enabled: !!d?.path?.length,
+    enabled: shown.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -150,37 +168,29 @@ export default function HopsPathPage() {
   if (!eligible) return <Redirect to={`/p/${rawId}`} replace />;
 
   const subjectName =
-    subjectQuery.data?.display_name || subjectQuery.data?.name || shortNpub(npubFromPubkey(toPubkey));
+    subject?.display_name || subject?.name || shortNpub(npubFromPubkey(toPubkey));
   const profs = profilesQuery.data;
   const myFollows = followingQuery.data;
 
   // Weak link = the DECISION-MAKER, not the scammer: the last trusted account before
-  // trust collapses — the node that follows the first low-trust ("bad") node in the
+  // trust collapses — the node that follows the first risky connector in the
   // path. Its follow-decision is how a flagged account reached your network (Vitor:
   // "the person who decided a scammer is worth following"). We surface two roles:
   //   • weakLinkIndex — the decision-maker (authentic → usually an honest mistake).
-  //   • entryBadIndex — the first low-trust node it follows: the account to REPORT,
-  //     whose takedown disconnects the swarm downstream of it (David's scammer hub).
+  //   • entryBadIndex — the first flagged / unverified connector it follows: the
+  //     account to REPORT, whose takedown disconnects the swarm downstream of it.
   // If YOU follow the first bad node directly, there's no intermediate decision-maker.
-  let entryBadIndex = -1;
   // Weak-link analysis is a personalized promise ("report it and it drops out
   // of YOUR network") — under House the path is explanatory, nothing more.
-  if (originPov === "personalized" && d?.path && scores) {
-    for (let i = 1; i < d.path.length; i++) {
-      const s = scores.get(d.path[i]);
-      if (typeof s !== "number") continue;
-      const key = tierForScore(s).key;
-      if (key === "low" || key === "unverified") { entryBadIndex = i; break; }
-    }
-  }
+  const entryBadIndex = originPov === "personalized" ? classifyPath(shown, signals).riskyIndex : -1;
   const weakLinkIndex = entryBadIndex > 1 ? entryBadIndex - 1 : -1; // -1 ⇒ it's You, or none
   const youFollowBadDirectly = entryBadIndex === 1;
 
   // Display name for a path node by index (subject resolves via relay-hint profile).
   const nameAt = (i: number): string => {
-    const pk = d?.path?.[i];
+    const pk = shown[i];
     if (!pk) return "";
-    const sp = i === (d!.path.length - 1) ? subjectQuery.data : undefined;
+    const sp = i === shown.length - 1 ? subject : undefined;
     const pp = profs?.get(pk);
     return sp?.display_name || sp?.name || pp?.display_name || pp?.name || shortNpub(npubFromPubkey(pk));
   };
@@ -223,7 +233,7 @@ export default function HopsPathPage() {
           <span className="text-brand-link">{subjectName}</span>
         </h1>
 
-        {pathQuery.isPending ? (
+        {set.isPending ? (
           <div className="mt-8 flex items-center gap-2 text-slate-400 dark:text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> {originPov === "personalized" ? "Finding your connection…" : "Finding the connection…"}</div>
         ) : !d || !d.reachable || d.hops === 0 ? (
           <p className="mt-4 text-slate-600 dark:text-slate-300" data-testid="hops-unreachable">
@@ -235,39 +245,57 @@ export default function HopsPathPage() {
           </p>
         ) : (
           <>
-            <p className="mt-3 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
+            <p className="mt-3 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="hops-degree">
               <span className="font-semibold text-slate-900 dark:text-slate-100">{ordinal(d.hops)} degree</span> —{" "}
               {d.hops === 1 ? (
                 originPov === "personalized" ? <>you follow {subjectName} directly.</> : <>Brainstorm follows {subjectName} directly.</>
               ) : originPov === "personalized" ? (
-                <>you're connected to {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}.</>
+                <>you're connected to {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}{ways}</>
               ) : (
-                <>Brainstorm reaches {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}.</>
-              )}{" "}
-              {d.pathCount === 1 ? (
-                <>This is the only connection this direct:</>
-              ) : (
-                <>There are <span className="font-semibold text-slate-900 dark:text-slate-100">{d.pathCount.toLocaleString()}{d.pathCountCapped ? "+" : ""}</span> connections this direct — here's one:</>
+                <>Brainstorm reaches {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}{ways}</>
               )}
             </p>
+
+            {/* Loud only for risk: a line per kind, and only when there is one. */}
+            {(["flagged", "unverified"] as const).map((kind) => (
+              <PathRiskLine
+                key={kind}
+                kind={kind}
+                count={groups[kind].length}
+                checked={checked}
+                complete={set.complete}
+                pressed={pick.group === kind}
+                onToggle={() => setPicked({ of: connection, group: pick.group === kind ? null : kind, pos: 0 })}
+              />
+            ))}
 
             {/* The path — each node links to their profile. The weak-link explanation
                 lives INSIDE the weak-link card (progressive disclosure), not up here. */}
             {/* The route — one connected timeline. A rail threads through the avatars
                 so it reads as a single path (you → them), not a stack of cards. Uniform
                 across mobile / desktop / PWA — no breakpoint reflow. */}
-            <ol className="mt-5 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 sm:p-4 shadow-sm" data-testid="hops-path">
-              {d.path.map((pk, i) => {
+            <div className="mt-4 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 sm:p-4 shadow-sm">
+              {list.length > 1 && (
+                <div className="flex justify-end mb-1 -mt-1">
+                  <PathStepper
+                    position={(pick.pos % list.length) + 1}
+                    total={list.length}
+                    onNext={() => setPicked({ of: connection, group: pick.group, pos: pick.pos + 1 })}
+                  />
+                </div>
+              )}
+            <ol data-testid="hops-path">
+              {shown.map((pk, i) => {
                 const p = profs?.get(pk);
                 const npub = npubFromPubkey(pk);
                 const isOrigin = i === 0;
                 const isMe = pk === myPubkey;
-                const isSubject = i === d.path.length - 1;
+                const isSubject = i === shown.length - 1;
                 // The target's kind-0 usually lives on its own relays, which the
                 // bulk profile map (fixed relay set) misses — so for the subject
                 // reuse the relay-hint-resolved profile the page title already
                 // fetched. Keeps name + avatar consistent with the header/SharePage.
-                const subj = isSubject ? subjectQuery.data : undefined;
+                const subj = isSubject ? subject : undefined;
                 const picture = subj?.picture || p?.picture;
                 // Node 0 under House is named by OUR copy — the fetched kind-0
                 // says "nosfabrica", which would contradict the rest of the UI.
@@ -278,9 +306,12 @@ export default function HopsPathPage() {
                   ? (originPov === "personalized" ? "You" : "Brainstorm")
                   : isMe ? "You" : isSubject ? "Them" : "Connector";
                 const score = scores?.get(pk);
-                const tier = typeof score === "number" ? shareTierFor(score, granularity) : null;
+                // The network's standing of a connector — the same rule that
+                // sorted the paths. The origin and the target are never marked.
+                const risk = !isOrigin && !isSubject ? nodeRisk(pk, signals) : "verified";
+                const tier = typeof score === "number" ? shareTierFor(score, granularity, risk === "flagged") : null;
                 const isWeakLink = i === weakLinkIndex; // decision-maker (authentic)
-                const isEntryBad = i === entryBadIndex; // low-trust account to report (score-derived, NOT an existing report/mute)
+                const isEntryBad = i === entryBadIndex; // the risky connector to report (personalized only)
                 const tint = isWeakLink
                   ? "bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/25"
                   : isEntryBad
@@ -294,7 +325,7 @@ export default function HopsPathPage() {
                       <Link href={`/p/${npub}`} className="group">
                         <Avatar className={`h-10 w-10 ${tierRing(score) ?? "ring-1 ring-slate-200 dark:ring-slate-800"}`}>
                           {picture ? <AvatarImage src={picture} alt="" className="object-cover" /> : null}
-                          <AvatarFallback className="bg-transparent p-0"><DefaultAvatarImg flagged={isEntryBad} /></AvatarFallback>
+                          <AvatarFallback className="bg-transparent p-0"><DefaultAvatarImg flagged={risk === "flagged"} /></AvatarFallback>
                         </Avatar>
                       </Link>
                       {!isSubject && <div className="mt-1.5 w-px flex-1 bg-slate-200 dark:bg-slate-700" aria-hidden />}
@@ -312,10 +343,11 @@ export default function HopsPathPage() {
                                   Weak link
                                 </span>
                               )}
-                              {isEntryBad && (
-                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rose-100 dark:bg-rose-500/20 border border-rose-300 dark:border-rose-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300" data-testid={`hops-flagged-${i}`} title="Scored low in your network — reporting it disconnects it and anything downstream. This reflects its score, not an existing report.">
-                                  Low trust
-                                </span>
+                              {risk === "flagged" && (
+                                <Chip tone="danger" size="sm" title="Flagged by the network" data-testid={`hops-flagged-${i}`}>Flagged</Chip>
+                              )}
+                              {risk === "unverified" && (
+                                <Chip tone="warning" size="sm" title="Not yet verified by the network" data-testid={`hops-unverified-${i}`}>Unverified</Chip>
                               )}
                             </div>
                             <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{roleLabel}</div>
@@ -390,20 +422,15 @@ export default function HopsPathPage() {
                 );
               })}
             </ol>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setNonce((n) => n + 1)}
-                disabled={d.pathCount <= 1 || pathQuery.isFetching}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 h-10 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                data-testid="hops-shuffle"
-              >
-                {pathQuery.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shuffle className="h-4 w-4" />}
-                Show another path
-              </button>
-              {d.pathCount <= 1 && <span className="text-xs text-slate-400 dark:text-slate-500">This is the only shortest path.</span>}
             </div>
+            <PathFootnote
+              pathCount={d.pathCount}
+              pathCountCapped={d.pathCountCapped}
+              checked={checked}
+              complete={set.complete}
+              checking={list.length === 0}
+            />
+
           </>
         )}
 
