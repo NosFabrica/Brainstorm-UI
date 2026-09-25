@@ -5,11 +5,15 @@
  * thumbnail); bare URLs in ordinary posts become clickable chips; the row
  * itself still opens the in-app event page.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setTechnicalView } from "@/lib/technicalView";
+// The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
+beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { fireEvent, render, screen } from "@testing-library/react";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 import type { NostrEvent } from "nostr-tools";
 import { SerpRow } from "./SerpRow";
+import { addSeenRelay } from "applesauce-core/helpers/relays";
 
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => () => 0.7,
@@ -37,6 +41,12 @@ const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; descri
   Promise.resolve(null),
 );
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
+// A Primal link's resolution, controlled per test — the same seam the note card uses.
+const clientLink = vi.hoisted(() => ({
+  resolve: vi.fn<(ref: unknown) => Promise<unknown>>(() => new Promise(() => {})),
+  peek: vi.fn<(ref: unknown) => unknown>(() => undefined),
+}));
+vi.mock("@/services/clientLinks", () => ({ resolveClientLink: clientLink.resolve, peekClientLink: clientLink.peek }));
 const openLightboxMock = vi.fn();
 vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
 // Wavlake's catalogue, answered: the row's player is the point, not the fetch.
@@ -82,6 +92,8 @@ beforeEach(() => {
 });
 
 describe("SerpRow — link metadata", () => {
+  afterEach(() => setTechnicalView(false));
+
   // Google shows a link's title and description, not its bare domain. Ours
   // can too, once the link-preview service answers — the row renders the
   // card for the same link a feed would, and stays a chip when there is no answer.
@@ -89,6 +101,7 @@ describe("SerpRow — link metadata", () => {
   // "Post" rows (Benjamin, 2026-09-23). A designation has no content — it is
   // its rows — and the row says what they designate.
   it("a trust designation says what it designates, not 'Post'", () => {
+    setTechnicalView(true);
     const ev = { ...note(""), kind: 10040, tags: [["30382:rank", "b".repeat(64), "wss://scores.brainstorm.world"], ["30382:followers", "b".repeat(64), "wss://scores.brainstorm.world"]] };
     render(<SerpRow event={ev} author={author} score={0.7} query="" />);
     const row = screen.getByTestId(`serp-row-${ev.id}`);
@@ -102,6 +115,7 @@ describe("SerpRow — link metadata", () => {
   // content is — encrypted, structured — instead of printing it, and names
   // the common NIP kinds in words, the number kept beside them.
   it("says encrypted content is encrypted instead of printing it, and names the kind in words", () => {
+    setTechnicalView(true);
     const blob = "AgkXT1NChTXAHiDpLZZwu5PO5rAVpAxTeRwbCyrcWYDpXson5eEnf/JjsvZqC+V/P5uTF4sbspmfOlVeCi8aJb/oceACXS4VBRcA6s3FxVx0AUbFFqpQGtWjw7a4fu51pNS";
     const ev = { ...note(blob), kind: 30078, tags: [["d", "ditto/metadata"], ["name", "Ditto Metadata"]] };
     render(<SerpRow event={ev} author={author} score={0.7} query="" />);
@@ -120,11 +134,30 @@ describe("SerpRow — link metadata", () => {
   });
 
   it("names the common NIP kinds", () => {
+    setTechnicalView(true);
     for (const [kind, label] of [[3, "Follow list"], [10002, "Relay list"], [7, "Reaction"], [9735, "Zap receipt"], [1984, "Report"], [31990, "App handler"]] as const) {
       const ev = { ...note(""), id: `${kind}`.padStart(64, "0"), kind };
       render(<SerpRow event={ev} author={author} score={0.7} query="" />);
       expect(screen.getByTestId(`serp-row-${ev.id}`)).toHaveTextContent(label);
     }
+  });
+
+  // The technical view's most useful line: which relay served this event —
+  // for anyone asking "why can't others see my post". applesauce records
+  // the relays an event was seen on; the byline names the first, quietly.
+  it("with the technical view on, the byline says which relay served the event", () => {
+    setTechnicalView(true);
+    const ev = note("served");
+    addSeenRelay(ev, "wss://nos.lol/");
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    expect(screen.getByTestId("via-relay")).toHaveTextContent(/^via nos\.lol$/);
+  });
+
+  it("off, no relay is named", () => {
+    const ev = note("served");
+    addSeenRelay(ev, "wss://nos.lol/");
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    expect(screen.queryByTestId("via-relay")).toBeNull();
   });
 
   // The team (2026-09-24): associate the musician/songs D-list event ids with
@@ -146,12 +179,30 @@ describe("SerpRow — link metadata", () => {
   // A kind the row has no treatment for is named by number, never "Post";
   // NIP-31's `alt` tag is the author's own line for exactly this reader.
   it("an unknown kind is named by its number, with the author's alt line when there is one", () => {
+    setTechnicalView(true);
     const ev = { ...note(""), kind: 30079, tags: [["d", "settings"], ["alt", "Nostr Mail settings"]] };
     render(<SerpRow event={ev} author={author} score={0.7} query="" />);
     const row = screen.getByTestId(`serp-row-${ev.id}`);
     expect(row).toHaveTextContent("Kind 30079");
     expect(row).not.toHaveTextContent("Post");
     expect(row).toHaveTextContent("Nostr Mail settings");
+  });
+
+  // Benjamin (2026-09-25): megistus's note is one Primal link to White Noise's
+  // article. His profile shows the article's card; the search row showed a bare
+  // "primal.net" chip. The row resolves the link the way the note card does.
+  it("a note that is a Primal link to an article shows the article's card, not a chip", async () => {
+    const AUTHOR = "b".repeat(64);
+    const article = { id: "c".repeat(64), kind: 30023, pubkey: AUTHOR, created_at: 1_780_000_000, sig: "", content: "White Noise is back on iOS and Android after a full rebuild.", tags: [["d", "were-back"], ["title", "We're back"], ["summary", "White Noise is back on iOS and Android after a full rebuild."], ["image", "https://img/wn.jpg"]] };
+    clientLink.resolve.mockResolvedValue({ kind: "article", event: article, author: { name: "White Noise" } });
+    render(<SerpRow event={note("https://primal.net/whitenoise/were-back")} author={author} score={0.7} query="" />);
+    const card = await screen.findByTestId("embedded-article");
+    expect(card).toHaveTextContent("We're back");
+    expect(card).toHaveTextContent("White Noise");
+    expect(screen.queryByTestId("link-card")).toBeNull();
+    expect(screen.queryAllByTestId("link-chip")).toHaveLength(0);
+    expect(unfurlMock).not.toHaveBeenCalled();
+    clientLink.resolve.mockImplementation(() => new Promise(() => {}));
   });
 
   it("turns a plain link into a metadata card when the proxy knows it", async () => {
@@ -293,20 +344,22 @@ describe("SerpRow", () => {
   it("a spec's row says Spec", () => {
     const spec = { ...note("# Scheduler DVM\n\nSchedule signed events…", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "5905"]]), kind: 30817 } as NostrEvent;
     render(<SerpRow event={spec} author={author} score={0.7} query="dvm" />);
-    expect(screen.getByTestId("serp-type")).toHaveTextContent("Spec");
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent("Spec");
   });
 
   it("labels each row with what kind of thing it is", () => {
+    setTechnicalView(true); // labels on every row are the switched-on view
     render(<SerpRow event={note("plain words about liverpool")} author={author} score={0.7} query="liverpool" />);
-    expect(screen.getByTestId("serp-type")).toHaveTextContent("Note");
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent("Note");
   });
 
   // A recipe on zap.cooking is a kind-30023 with a tag; the row says Recipe, not Article.
   it("a recipe's row says Recipe, not Article", () => {
+    setTechnicalView(true); // labels on every row are the switched-on view
     const recipe = { ...note("# Gırık\n\nHandmade dough, chicken and rice.", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]), kind: 30023 } as NostrEvent;
     render(<SerpRow event={recipe} author={author} score={0.7} query="girik" />);
-    expect(screen.getByTestId("serp-type")).toHaveTextContent("Recipe");
-    expect(screen.getByTestId("serp-type")).not.toHaveTextContent("Article");
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent("Recipe");
+    expect(screen.getByTestId("kind-pill")).not.toHaveTextContent("Article");
   });
 
   // Benjamin, over Shosho's "GTAing with nostr:npub1de6l09… is Live!
@@ -329,8 +382,9 @@ describe("SerpRow", () => {
   });
 
   it("labels a news-shaped note as News", () => {
+    setTechnicalView(true); // labels on every row are the switched-on view
     render(<SerpRow event={note(NEWS)} author={author} score={0.7} query="liverpool" />);
-    expect(screen.getByTestId("serp-type")).toHaveTextContent("News");
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent("News");
   });
 
   it("renders a nostr: mention as the person — name, not a raw URI", () => {
@@ -384,6 +438,7 @@ it("a video-only result gets a first-frame thumb, not a blank", () => {
   // GitCitadel's wiki pages are AsciiDoc: opened in a row they read
   // "[[comedian]]" and "== Comedians" (2026-09-07). A row shows the words.
   it("a wiki page's row reads its words, not its markup", () => {
+    setTechnicalView(true); // the Wiki word is the switched-on view
     const wiki = {
       ...note("A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)", [["d", "list-of-comedians"], ["title", "List of comedians"]]),
       kind: 30818,

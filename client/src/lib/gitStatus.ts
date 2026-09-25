@@ -10,10 +10,6 @@ export const GIT_ITEM_KINDS = [1617, 1618, 1621] as const;
 export function isGitItem(kind: number): boolean {
   return kind === 1617 || kind === 1618 || kind === 1621;
 }
-export function gitItemLabel(kind: number): string {
-  return kind === 1617 ? "Patch" : kind === 1618 ? "PR" : "Issue";
-}
-
 export type GitState = "open" | "merged" | "resolved" | "closed" | "draft";
 
 export function gitStateOf(statusKind: number | undefined, itemKind: number): GitState {

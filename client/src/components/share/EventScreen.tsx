@@ -6,7 +6,11 @@ import { naddrForEvent } from "@/lib/articleLinks";
 import { Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
+import { fetchEventsByIds, fetchAddressableEvents } from "@/services/nostr";
+import { eventStore } from "@/lib/eventStore";
+import { useHeldReplaceables } from "@/hooks/useHeldEvents";
+import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
+import { MAX_REF_HINTS, capHints, mergeNewest } from "@/hooks/useNoteRefs";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
@@ -23,6 +27,7 @@ import { isGitItem } from "@/lib/gitStatus";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { DesignationHero } from "@/components/share/DesignationHero";
 import { StructuralHero } from "@/components/share/StructuralHero";
+import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { DListHero } from "@/components/share/DListHero";
 import { dlistOfEvent } from "@/lib/dlists";
 import { contentShape } from "@/lib/contentShape";
@@ -37,6 +42,7 @@ import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { useLightbox } from "@/components/share/Lightbox";
 import { EntityMenu } from "@/components/share/EntityMenu";
+import { originClientOf } from "@/lib/openInApp";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS } from "@/lib/shareId";
@@ -141,6 +147,9 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
       return (evs[0] as MinimalEvent) ?? null;
     },
     enabled: !!ptr?.id && !event,
+    // An event by id never changes, so a held copy is the answer: no spinner,
+    // and no relay asked for what the store already has.
+    initialData: () => (ptr?.id ? ((eventStore.getEvent(ptr.id) as MinimalEvent | undefined) ?? undefined) : undefined),
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -179,13 +188,9 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
   const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
 
-  const profileQuery = useQuery({
-    queryKey: ["event-author", authorPk],
-    queryFn: async () => (authorPk ? (await fetchProfile(authorPk)) ?? null : null),
-    enabled: !!authorPk,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // The author's held profile at once; the event's own relay hints are asked
+  // beside their outbox, and a newer profile replaces it as it lands.
+  const authorProfile = useLiveProfile(authorPk || undefined, ptr?.relays ?? []).profile;
   const trustQuery = useQuery({
     queryKey: ["event-author-trust", authorPk],
     queryFn: () => (authorPk ? apiClient.getHouseInfluence(authorPk) : null),
@@ -196,17 +201,17 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
 
   // References inside the note (quoted notes, articles, mentions) so the rich
   // card can embed them — same two batched queries the share page uses.
-  const refs = useMemo(() => (note ? collectRefs([note]) : { pubkeys: [], ids: [], addrs: [] }), [note]);
+  const refs = useMemo(() => collectRefs(note ? [note] : []), [note]);
   const refEventsQuery = useQuery({
     queryKey: ["event-refs", ptr?.id, refs.ids],
-    queryFn: () => fetchEventsByIds(refs.ids, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+    queryFn: () => fetchEventsByIds(refs.ids, Array.from(new Set([...relayHints, ...PROFILE_RELAYS, ...refs.idRelays.slice(0, MAX_REF_HINTS)]))),
     enabled: refs.ids.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
   });
   const addrEventsQuery = useQuery({
     queryKey: ["event-addrs", ptr?.id, refs.addrs.map(addrCoord)],
-    queryFn: () => fetchAddressableEvents(refs.addrs, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+    queryFn: () => fetchAddressableEvents(capHints(refs.addrs), Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
     enabled: refs.addrs.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
@@ -217,12 +222,13 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
     for (const ev of (refEventsQuery.data ?? []) as MinimalEvent[]) m.set(ev.id, ev);
     return m;
   }, [refEventsQuery.data]);
-  const addrByCoord = useMemo(() => {
-    const m = new Map<string, MinimalEvent>();
-    const src = addrEventsQuery.data as Map<string, MinimalEvent> | undefined;
-    if (src) for (const [k, v] of src) m.set(k, v as MinimalEvent);
-    return m;
-  }, [addrEventsQuery.data]);
+  // Referenced articles: the held copy at once, the newer of it and the
+  // fetched one after — and any later version the store receives.
+  const heldAddrs = useHeldReplaceables(refs.addrs);
+  const addrByCoord = useMemo(
+    () => mergeNewest(refs.addrs, heldAddrs, (addrEventsQuery.data as Map<string, MinimalEvent> | undefined) ?? new Map()),
+    [refs.addrs, heldAddrs, addrEventsQuery.data],
+  );
 
   const allRefPubkeys = useMemo(() => {
     const set = new Set<string>(refs.pubkeys);
@@ -230,21 +236,15 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
     for (const ev of addrByCoord.values()) set.add(ev.pubkey);
     return Array.from(set);
   }, [refs.pubkeys, eventsById, addrByCoord]);
-  const refProfilesQuery = useQuery({
-    queryKey: ["event-ref-profiles", ptr?.id, allRefPubkeys],
-    queryFn: () => fetchProfileMap(allRefPubkeys),
-    enabled: allRefPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const refProfiles = useLiveProfiles(allRefPubkeys);
 
   const profiles = useMemo(() => {
-    const m = new Map<string, ProfileLite>(refProfilesQuery.data ?? new Map());
-    if (authorPk && profileQuery.data) m.set(authorPk, profileQuery.data as ProfileLite);
+    const m = new Map<string, ProfileLite>(refProfiles as Map<string, ProfileLite>);
+    if (authorPk && authorProfile) m.set(authorPk, authorProfile as ProfileLite);
     return m;
-  }, [refProfilesQuery.data, authorPk, profileQuery.data]);
+  }, [refProfiles, authorPk, authorProfile]);
 
-  const profile = (profileQuery.data ?? {}) as ProfileLite;
+  const profile = (authorProfile ?? {}) as ProfileLite;
   const authorName = profile.display_name || profile.name || (authorPk ? npubFromPubkey(authorPk).slice(0, 12) + "…" : "Someone");
   const authorNpub = authorPk ? (() => { try { return npubFromPubkey(authorPk); } catch { return ""; } })() : "";
   const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;
@@ -263,6 +263,13 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
   );
 
   const openInApp = nostrUriForEvent(ptr?.id || "", relayHints, authorPk || undefined);
+  // Whether the hero below is one of the kind-specific ones, or the generic
+  // fallback (media, text, or the structural card). Mirrors the chain in the
+  // JSX: a kind with no hero of its own is the one whose publishing client
+  // is worth a way back to (the team, 2026-09-24: "open in original client").
+  const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 10040, 31337, 30402, 31922, 31923]);
+  const renderedGenerically =
+    !!note && !isGitItem(note.kind) && !DEDICATED_KINDS.has(note.kind) && !VIDEO_EVENT_KINDS.has(note.kind) && !NOTE_KINDS.has(note.kind);
   // The ⋯ in the header: copies of the event's ids and "Open in" another
   // client. The URL may have carried a bare id or a note1 — a real nevent
   // is what to copy and what the web apps want.
@@ -363,7 +370,7 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
               </Link>
               {ptr && nevent && (
                 <EntityMenu
-                  entity={{ kind: "event", eventKind: note.kind, bech32: nevent, uri: openInApp }}
+                  entity={{ kind: "event", eventKind: note.kind, bech32: nevent, uri: openInApp, origin: renderedGenerically ? originClientOf(note) : undefined }}
                   copies={[
                     ...(naddr ? [{ id: "naddr", label: "Copy naddr", value: naddr, hint: "Its address: always the latest version" }] : []),
                     { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
@@ -375,6 +382,9 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
                 />
               )}
             </div>
+
+            {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
+            {ptr && <TechnicalStrip event={note} ids={nevent ? [{ label: "nevent", value: nevent }] : []} className="mb-3" />}
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`} data-testid="event-note">

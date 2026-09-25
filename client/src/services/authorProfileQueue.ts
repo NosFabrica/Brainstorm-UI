@@ -1,7 +1,8 @@
 import type { NostrEvent } from "nostr-tools";
 import { searchRelay } from "@/lib/searchRelay";
 import { eventStore } from "@/lib/eventStore";
-import { PROFILE_FRESH_MS, readProfileRows } from "@/lib/eventCache";
+import { PROFILE_FRESH_MS, claimRefresh, readProfileRows } from "@/lib/eventCache";
+import { loadReplaceable } from "@/lib/loaders";
 
 /**
  * One queue of author kind-0 lookups on the search relay, shared by every
@@ -31,6 +32,8 @@ const open = new Set<Lookup>();
 const noProfileUntil = new Map<string, number>();
 /** Authors already given their one retry after an unfinished lookup. */
 const retried = new Set<string>();
+/** Authors shown from an old device copy and being asked after it. */
+const refreshing = new Set<string>();
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 
 function release(lookup: Lookup): boolean {
@@ -40,11 +43,31 @@ function release(lookup: Lookup): boolean {
   return true;
 }
 
+/**
+ * An old device copy the search relay could not refresh: ask the profile
+ * relays instead. The search relay does not index everyone, and a copy is
+ * shown however old it is (lib/eventCache) — without this, the name of
+ * someone it never indexed would never be corrected. Whatever arrives lands
+ * in the store, where every page following it picks it up.
+ */
+function refreshElsewhere(pubkey: string): void {
+  if (!refreshing.delete(pubkey)) return;
+  void loadReplaceable(0, pubkey, { fromRelays: true }).catch(() => undefined);
+}
+
 /** The relay finished: whoever it didn't answer has no profile there. */
 function settle(lookup: Lookup, answered: Set<string>): void {
   if (!release(lookup)) return;
   for (const a of lookup.authors) {
-    if (answered.has(a)) continue;
+    if (answered.has(a)) {
+      refreshing.delete(a);
+      continue;
+    }
+    // A held copy says they do have a profile — just not one this relay has.
+    if (refreshing.has(a)) {
+      refreshElsewhere(a);
+      continue;
+    }
     noProfileUntil.set(a, Date.now() + NO_PROFILE_TTL_MS);
     tell(a, null);
   }
@@ -55,7 +78,10 @@ function settle(lookup: Lookup, answered: Set<string>): void {
 function abort(lookup: Lookup): void {
   if (!release(lookup)) return;
   for (const a of lookup.authors) {
-    if (!listeners.has(a)) continue;
+    if (!listeners.has(a)) {
+      refreshElsewhere(a);
+      continue;
+    }
     if (retried.has(a)) {
       tell(a, null);
     } else {
@@ -69,7 +95,10 @@ function abort(lookup: Lookup): void {
 function send(authors: string[]): void {
   const relay = searchRelay();
   if (!relay) {
-    for (const a of authors) tell(a, null);
+    for (const a of authors) {
+      refreshElsewhere(a);
+      tell(a, null);
+    }
     return;
   }
   const answered = new Set<string>();
@@ -150,7 +179,9 @@ async function ask(authors: string[]): Promise<void> {
     if (held.size > 0) {
       const old = Date.now() - PROFILE_FRESH_MS;
       missing = authors.filter((a) => !held.has(a));
-      refresh = [...held.values()].filter((row) => row.at < old).map((row) => row.event.pubkey);
+      // Claimed, so a copy the loader is already refreshing isn't asked twice.
+      refresh = [...held.values()].filter((row) => row.at < old && claimRefresh(`0:${row.event.pubkey}:`, 0)).map((row) => row.event.pubkey);
+      refresh.forEach((a) => refreshing.add(a));
       for (const row of held.values()) deliver(row.event);
     }
   } catch {
@@ -214,6 +245,7 @@ export function __resetAuthorProfileQueue(): void {
   listeners.clear();
   noProfileUntil.clear();
   retried.clear();
+  refreshing.clear();
   clearTimeout(flushTimer);
   flushTimer = undefined;
 }

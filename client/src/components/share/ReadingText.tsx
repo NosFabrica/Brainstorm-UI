@@ -27,7 +27,7 @@ import { normalizeMarkup } from "@/lib/htmlText";
 import { MentionChip } from "@/components/share/MentionChip";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { GH_REF_RE, splitProse } from "@/components/share/NotesInline";
-import { kindTypeLabel } from "@/components/search/SerpRow";
+import { kindTypeLabel } from "@/lib/kindLabel";
 
 export type ReadingSize = "post" | "body";
 

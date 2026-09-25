@@ -13,7 +13,9 @@ import { wavlakeSongHref } from "@/lib/upNext";
 import { WavlakeSongCard } from "@/components/search/cards";
 import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
-import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
+import { fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchProfileMap, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
+import { externalIdentitiesOf } from "@/lib/profileContent";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { dedupeRelays, parseRelayList } from "@/lib/relayRouting";
 import { parseIdentities } from "@/lib/externalIdentity";
@@ -112,24 +114,13 @@ export default function SharePage() {
   // (raw). Defaults to verified — Brainstorm's bot-free view is the headline.
   const [statLens, setStatLens] = useState<StatLens>("verified");
 
-  const profileQuery = useQuery({
-    queryKey: ["share-profile", pubkey],
-    queryFn: () => fetchProfileForShare(pubkey, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // The held copy at once, however old; the relays (the nprofile's hints
+  // among them) are asked all the same, and a newer one replaces it.
+  const liveProfile = useLiveProfile(pubkey, relayHints);
 
   // NIP-39 external identity claims (GitHub, X, Telegram, …) from the kind-0 `i`
   // tags — shown as clickable links in the hero (not as "verified").
-  const identitiesQuery = useQuery({
-    queryKey: ["share-identities", pubkey],
-    queryFn: () => fetchExternalIdentities(pubkey, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const identities = useMemo(() => parseIdentities(identitiesQuery.data ?? []), [identitiesQuery.data]);
+  const identities = useMemo(() => parseIdentities(externalIdentitiesOf(liveProfile.event)), [liveProfile.event]);
 
   // User-owned personalization (NIP-78): what the profile owner has chosen to
   // hide / reorder / emphasize. Opt-out — everything shows until they hide it.
@@ -458,7 +449,7 @@ export default function SharePage() {
   const relayCount = relays.length;
   const profileRelays = relays.length ? relays : relayHints;
 
-  const profile = (profileQuery.data ?? {}) as ProfileContentLike;
+  const profile = (liveProfile.profile ?? {}) as ProfileContentLike;
   const displayName = profile.display_name || profile.name || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
 
   /**
@@ -553,7 +544,7 @@ export default function SharePage() {
   // We resolve kind-0 from relays; treat a profile the backend hasn't scored
   // (no house influence once that query settles) as "not yet indexed by
   // Brainstorm" so the UI can show the live-from-relays note.
-  const foundViaRelays = !!profileQuery.data && houseRankQuery.isFetched && houseScore01 == null;
+  const foundViaRelays = !!liveProfile.profile && houseRankQuery.isFetched && houseScore01 == null;
   // A shared link is public, so the badge ALWAYS shows the network (house) score
   // — the same number every recipient sees — never the viewer's personalized POV.
   // (When logged out, `score01` already equals the house score, so it's a safe
@@ -811,7 +802,7 @@ export default function SharePage() {
     return <ShareShell><NotFoundCard rawId={rawId} /></ShareShell>;
   }
 
-  const profileLoading = profileQuery.isLoading;
+  const profileLoading = liveProfile.loading;
   const hasContent =
     (notesQuery.data?.length ?? 0) > 0 || photos.length > 0 || articles.length > 0 || sellingCount > 0 ||
     videos.length > 0 || audio.native.length + audio.songs.length > 0 || liveStreams.has || !!featured || calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0;
@@ -980,7 +971,7 @@ export default function SharePage() {
                 <span className="pointer-events-none absolute -inset-1 rounded-full ring-2 ring-red-500/80 animate-pulse" aria-hidden="true" data-testid="share-live-ring" />
               )}
               <Avatar key={pubkey} className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white bg-white dark:bg-slate-900 ${tierRing(coinScore01) ?? "shadow-lg"}`}>
-                {profile.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
+                {profile.picture ? <AvatarImage size="lg" src={profile.picture} alt={displayName} className="object-cover" /> : null}
                 <AvatarFallback className="overflow-hidden rounded-full">
                   <DefaultAvatarImg flagged={isFlagged} />
                 </AvatarFallback>

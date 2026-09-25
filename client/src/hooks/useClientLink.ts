@@ -1,5 +1,5 @@
 /**
- * A component's view of a Primal link's resolution (services/clientLinks):
+ * A component's view of a client link's resolution (services/clientLinks):
  * idle for no ref, loading while the lookup runs, done with the entity or
  * null after. A ref the session already settled is done on the first
  * render, so a re-mounted note never flashes a chip where a card was.
