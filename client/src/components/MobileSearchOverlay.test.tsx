@@ -113,6 +113,19 @@ describe("what a result publishes", () => {
     expect(chip.closest("button")).toBeNull();
   });
 
+  it("\"staci shop\" looks Staci up and offers her shop first", async () => {
+    renderOpen();
+    fireEvent.change(input(), { target: { value: "staci shop" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    await act(async () => {});
+    expect(searchMock.mock.calls.at(-1)?.[0]).toBe("staci");
+    const row = screen.getByTestId("mobile-search-intent");
+    expect(row).toHaveTextContent("Staci's shop");
+    fireEvent.click(row);
+    expect(screen.queryByTestId("mobile-search-input")).toBeNull();
+    expect(window.location.search).toMatch(/&t=shop$/);
+  });
+
   it("Enter on the row still opens the person", async () => {
     await typeStaci();
     fireEvent.keyDown(screen.getByTestId("mobile-search-result"), { key: "Enter" });

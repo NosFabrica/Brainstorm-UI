@@ -104,3 +104,45 @@ export function categoriesOf(events: MinimalEvent[], nowSec: number = Math.floor
 export function chipAriaLabel(name: string, chip: PersonContentChip): string {
   return `${name}'s ${PERSON_CONTENT_WORDS[chip.key].noun}`;
 }
+
+/** The words people type for a category: "staci shop", "vitor articles", "zap cooking recipes". */
+const CATEGORY_WORDS: Record<string, PersonContentKey> = {
+  shop: "shop", store: "shop", products: "shop", listings: "shop",
+  articles: "articles", article: "articles", writing: "articles", posts: "articles", blog: "articles",
+  recipes: "recipes", recipe: "recipes",
+  music: "music", songs: "music", tracks: "music",
+  media: "media", photos: "media", pictures: "media", pics: "media", videos: "media", video: "media",
+  live: "live", stream: "live", streams: "live", streaming: "live",
+  code: "repos", repos: "repos", repo: "repos", github: "repos",
+};
+
+/**
+ * "staci shop" is a person and a category — Google reads "nike shoes" the same
+ * way. The name to look up and the category the intent row lands on; null when
+ * the words do not end in a category word, or nothing precedes it.
+ */
+export function searchIntent(query: string): { name: string; key: PersonContentKey } | null {
+  const words = query.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2) return null;
+  const key = CATEGORY_WORDS[words[words.length - 1].toLowerCase()];
+  if (!key) return null;
+  return { name: words.slice(0, -1).join(" "), key };
+}
+
+/**
+ * The intent row's target: "staci shop" and a suggested person whose chips say shop —
+ * the first such person in the list, with the chip to land on. Null when nobody
+ * suggested has that category: a row that only says no would be noise.
+ */
+export function intentTarget<P extends { pubkey: string }>(
+  intent: { name: string; key: PersonContentKey } | null,
+  people: readonly P[],
+  content: Map<string, PersonContent | undefined>,
+): { person: P; chip: PersonContentChip } | null {
+  if (!intent) return null;
+  for (const person of people) {
+    const chip = content.get(person.pubkey)?.chips.find((c) => c.key === intent.key);
+    if (chip) return { person, chip };
+  }
+  return null;
+}

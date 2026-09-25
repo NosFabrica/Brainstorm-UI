@@ -17,6 +17,9 @@ import type { TagSummary } from "@/services/tags";import { useHasMywot } from "@
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { typeaheadWords } from "@/lib/searchSyntax";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
+import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
+import { intentTarget, searchIntent } from "@/lib/personContent";
+import { scopedSearchHref } from "@/lib/searchSyntax";
 import { usePersonContent } from "@/hooks/usePersonContent";
 
 /**
@@ -25,6 +28,8 @@ import { usePersonContent } from "@/hooks/usePersonContent";
  * to that profile; submitting free text routes to the home results surface
  * (`/?q=`). Rendered inline in PublicPageHeader on ≥sm; mobile uses the icon.
  */
+
+
 export function HeaderSearchBox({
   className = "",
   placeholder = "Search Brainstorm",
@@ -89,7 +94,8 @@ export function HeaderSearchBox({
     timer.current = window.setTimeout(async () => {
       try {
         request.current = new AbortController();
-        const { results } = await searchByText(query, effectivePov, observerPubkey, 10, request.current.signal);
+        // "staci shop" looks up "staci"; the category word becomes the intent row.
+        const { results } = await searchByText(searchIntent(query)?.name ?? query, effectivePov, observerPubkey, 10, request.current.signal);
         if (reqId.current !== id) return;
         setSuggestions(results.slice(0, 7)); setActive(-1); setOpen(true);
       } catch {
@@ -168,6 +174,8 @@ export function HeaderSearchBox({
   };
 
   const topic = parseTopicQuery(q);
+  // "staci shop": the person named, if a suggested one has that category — the intent row's target.
+  const intent = useMemo(() => intentTarget(searchIntent(q), suggestions, personContent), [q, suggestions, personContent]);
   // `#topic` queries already route to the hashtag feed — don't offer a second answer.
   // Only while the dropdown is open: text left after submit mustn't keep the catalogue live.
   const tagMatches = useTagMatches(topic.isTopic || !open ? "" : q);
@@ -203,7 +211,7 @@ export function HeaderSearchBox({
           )}
         </div>
       </form>
-      {open && (topic.isTopic || loading || suggestions.length > 0 || tagMatches.length > 0) && (
+      {open && (topic.isTopic || loading || suggestions.length > 0 || tagMatches.length > 0 || !!intent) && (
         <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/10" role="listbox" data-testid="header-search-suggestions">
           {topic.isTopic ? (
             <TopicSuggestionRow tag={topic.tag} active onSelect={() => goTopic(topic.tag)} testId="header-search-topic" />
@@ -213,6 +221,11 @@ export function HeaderSearchBox({
             </div>
           ) : (
             <>
+            {intent && (
+              <div className="border-b border-slate-100 dark:border-slate-800/60">
+                <IntentSuggestionRow name={nameOf(intent.person as SearchResult)} chip={intent.chip} onSelect={() => { setOpen(false); navigate(scopedSearchHref(intent.person.pubkey, intent.chip.tab)); }} testId="header-search-intent" />
+              </div>
+            )}
             {tagMatches.length > 0 && (
               <div className="border-b border-slate-100 dark:border-slate-800/60" data-testid="header-search-tags">
                 {tagMatches.map((t) => (

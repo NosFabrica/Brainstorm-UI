@@ -505,6 +505,29 @@ describe("what a suggested person publishes", () => {
     expect(screen.queryByTestId("home-suggestion-0")).toBeNull();
   });
 
+  // Google reads "nike shoes" as a store and a thing. "staci shop" looks Staci up and
+  // offers her shop first, one tap to it.
+  it("a name plus a category word offers that person's category first, and looks the name up", async () => {
+    suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null }]);
+    render(<Landing />);
+    typeInBox("staci shop");
+    const row = await screen.findByTestId("home-intent-row", {}, { timeout: 3000 });
+    expect(row).toHaveTextContent("Staci's shop");
+    expect(suggestMock.mock.calls.at(-1)?.[0]).toBe("staci");
+    expect(screen.getByTestId("home-suggestion-0")).toBeInTheDocument();
+    fireEvent.click(row);
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("t")).toBe("shop"));
+    expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${STACI_NPUB}`);
+  });
+
+  it("a category the person does not have offers nothing extra", async () => {
+    suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null }]);
+    render(<Landing />);
+    typeInBox("staci music");
+    await screen.findByTestId("home-suggestion-0", {}, { timeout: 3000 });
+    expect(screen.queryByTestId("home-intent-row")).toBeNull();
+  });
+
   it("a recent person wears the chips too, beside their row's button", async () => {
     pushRecentProfile({ pubkey: STACI, npub: STACI_NPUB, label: "Staci" });
     render(<Landing />);

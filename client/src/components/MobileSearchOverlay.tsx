@@ -15,6 +15,8 @@ import { npubFromPubkey } from "@/lib/shareId";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { tabLabel } from "@/services/search";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
+import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
+import { intentTarget, searchIntent } from "@/lib/personContent";
 import { usePersonContent } from "@/hooks/usePersonContent";
 /** Fire from anywhere (a header magnifier) to open mobile search. */
 export const OPEN_MOBILE_SEARCH_EVENT = "open-mobile-search";
@@ -40,6 +42,8 @@ export function openMobileSearch() {
  * reads on mount) rather than re-implementing result ranking in a second place.
  * Recent PROFILES skip that and open directly, since the destination is unambiguous.
  */
+
+
 export function MobileSearchOverlay() {
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
@@ -111,7 +115,8 @@ export function MobileSearchOverlay() {
     const request = new AbortController();
     timerRef.current = window.setTimeout(async () => {
       try {
-        const { results: hits } = await searchByText(term, pov, observerPubkey, 10, request.signal);
+        // "staci shop" looks up "staci"; the category word becomes the intent row.
+        const { results: hits } = await searchByText(searchIntent(term)?.name ?? term, pov, observerPubkey, 10, request.signal);
         if (reqRef.current !== reqId) return;
         setResults(hits.slice(0, 8));
       } catch {
@@ -126,6 +131,8 @@ export function MobileSearchOverlay() {
       request.abort();
     };
   }, [q, open, pov, observerPubkey, speed]);
+
+  const intent = useMemo(() => intentTarget(searchIntent(q), results, personContent), [q, results, personContent]);
 
   const openResult = (r: SearchResult) => {
     const label = r.displayName || r.name || r.npub.slice(0, 12) + "…";
@@ -196,6 +203,16 @@ export function MobileSearchOverlay() {
           <>
             {/* Tags before people: fewer of them, and a different kind of answer
                 — "who is known for this" rather than "who is called this". */}
+            {intent && (
+              <div className="mb-1 border-b border-slate-100 pb-1 dark:border-slate-800/60">
+                <IntentSuggestionRow
+                  name={(intent.person as SearchResult).displayName || (intent.person as SearchResult).name || `${(intent.person as SearchResult).npub.slice(0, 12)}…`}
+                  chip={intent.chip}
+                  onSelect={() => { setOpen(false); navigate(scopedSearchHref(intent.person.pubkey, intent.chip.tab)); }}
+                  testId="mobile-search-intent"
+                />
+              </div>
+            )}
             {tagMatches.length > 0 && (
               <div className="mb-1 border-b border-slate-100 pb-1 dark:border-slate-800/60" data-testid="mobile-search-tags">
                 {tagMatches.map((t) => (

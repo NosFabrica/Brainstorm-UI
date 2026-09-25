@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { categoriesOf, chipAriaLabel, personContentFilters, type PersonContentChip } from "./personContent";
+import { categoriesOf, chipAriaLabel, personContentFilters, searchIntent, type PersonContentChip } from "./personContent";
 
 // Benjamin (2026-09-24): "if Staci's name pops up in search … icons for users
 // who produce content." Six probes, one event each is enough to know.
@@ -83,5 +83,29 @@ describe("chipAriaLabel — the chip named for a screen reader", () => {
     expect(chipAriaLabel("Staci", chip("articles"))).toBe("Staci's articles");
     expect(chipAriaLabel("Staci", chip("music"))).toBe("Staci's music");
     expect(chipAriaLabel("Staci", chip("media"))).toBe("Staci's media");
+  });
+});
+
+// Google reads "nike shoes" as a store and a thing. "staci shop" is a person and a
+// category: the name to look up, the category the intent row lands on.
+describe("searchIntent — a name plus a category word", () => {
+  it("reads the last word as the category and the rest as the name", () => {
+    expect(searchIntent("staci shop")).toEqual({ name: "staci", key: "shop" });
+    expect(searchIntent("zap cooking recipes")).toEqual({ name: "zap cooking", key: "recipes" });
+    expect(searchIntent("Vitor Articles")).toEqual({ name: "Vitor", key: "articles" });
+  });
+
+  it("knows the words people use for each category", () => {
+    for (const [word, key] of [["store", "shop"], ["products", "shop"], ["writing", "articles"], ["posts", "articles"], ["songs", "music"], ["photos", "media"], ["videos", "media"], ["stream", "live"], ["streams", "live"], ["repos", "repos"], ["github", "repos"]] as const) {
+      expect(searchIntent(`staci ${word}`)?.key).toBe(key);
+    }
+  });
+
+  it("a name alone, a category alone, or a category first is no intent", () => {
+    expect(searchIntent("staci")).toBeNull();
+    expect(searchIntent("shop")).toBeNull();
+    expect(searchIntent("shop staci")).toBeNull();
+    expect(searchIntent("  ")).toBeNull();
+    expect(searchIntent("staci soap")).toBeNull();
   });
 });

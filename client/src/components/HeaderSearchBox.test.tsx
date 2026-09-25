@@ -126,6 +126,19 @@ describe("what a suggested person publishes", () => {
     expect(chip.closest("button")).toBeNull();
   });
 
+  it("\"staci shop\" looks Staci up and offers her shop first", async () => {
+    render(<HeaderSearchBox />);
+    fireEvent.change(input(), { target: { value: "staci shop" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    await act(async () => {});
+    expect(searchMock.mock.calls.at(-1)?.[0]).toBe("staci");
+    const row = screen.getByTestId("header-search-intent");
+    expect(row).toHaveTextContent("Staci's shop");
+    fireEvent.click(row);
+    expect(screen.queryByTestId("header-search-suggestions")).toBeNull();
+    expect(window.location.search).toMatch(/&t=shop$/);
+  });
+
   it("a chip tap closes the list and lands on the scoped tab", async () => {
     render(<HeaderSearchBox />);
     fireEvent.change(input(), { target: { value: "staci" } });

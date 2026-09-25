@@ -18,7 +18,7 @@ import { chipAriaLabel, type PersonContent, type PersonContentKey } from "@/lib/
  * mousedown is swallowed so the search box keeps focus, and its click never
  * reaches the row, whose own click opens the profile.
  */
-const ICONS: Record<PersonContentKey, ComponentType<{ className?: string }>> = {
+export const PERSON_CONTENT_ICONS: Record<PersonContentKey, ComponentType<{ className?: string }>> = {
   shop: ShoppingBag,
   articles: FileText,
   recipes: ChefHat,
@@ -72,7 +72,7 @@ export function PersonContentChips({
               <Chip
                 tone="slate"
                 size="sm"
-                icon={ICONS[c.key]}
+                icon={PERSON_CONTENT_ICONS[c.key]}
                 className="cursor-pointer transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-brand-deep active:bg-indigo-100 dark:hover:border-indigo-500/25 dark:hover:bg-indigo-500/10 dark:hover:text-brand-link dark:active:bg-indigo-500/20"
               >
                 {c.liveNow && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" data-testid="person-content-live-dot" aria-hidden="true" />}

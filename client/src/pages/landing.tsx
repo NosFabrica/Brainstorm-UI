@@ -63,6 +63,8 @@ import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
+import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
+import { intentTarget, searchIntent } from "@/lib/personContent";
 import { usePersonContent } from "@/hooks/usePersonContent";
 import { useTagMatches } from "@/hooks/useTags";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
@@ -95,6 +97,8 @@ const PLACEHOLDER_EXAMPLES = [
 // marks a "returning" visitor, who gets the calm static placeholder instead
 // of the rotating hints. First-party + functional → no consent banner needed.
 const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
+
+
 
 export default function Landing() {
   const tierRing = useTierRing();
@@ -342,7 +346,9 @@ export default function Landing() {
     suggestTimerRef.current = window.setTimeout(async () => {
       try {
         suggestRequestRef.current = new AbortController();
-        const suggestHits = await suggestProfileHits(q, { pov: effectivePov, userPubkey: user?.pubkey }, { signal: suggestRequestRef.current.signal });
+        // "staci shop" looks up "staci"; the category word becomes the intent row.
+        const lookup = searchIntent(q)?.name ?? q;
+        const suggestHits = await suggestProfileHits(lookup, { pov: effectivePov, userPubkey: user?.pubkey }, { signal: suggestRequestRef.current.signal });
         if (suggestAbortRef.current !== reqId) return;
         // Kept for the People section: submitting asks this very question again.
         suggestedPeople.current = { query: q, hits: suggestHits };
@@ -815,6 +821,8 @@ export default function Landing() {
   // already routed at the hashtag feed and shouldn't offer a second answer.
   // Only while suggestions show — a query restored from the URL mustn't pull the whole catalogue.
   const tagMatches = useTagMatches(topicMatch.isTopic || !showSuggestions ? "" : query);
+  // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
+  const intent = useMemo(() => intentTarget(searchIntent(query), suggestions, personContent), [query, suggestions, personContent]);
   const dropdownOpen =
     !fieldPicking &&
     showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
@@ -1147,6 +1155,16 @@ export default function Landing() {
                     {/* Tags first: far fewer of them than people, and they're a
                         different kind of answer — "who is known for this"
                         rather than "who is called this". */}
+                    {intent && (
+                      <div className="shrink-0 border-b border-slate-100 dark:border-slate-800/60">
+                        <IntentSuggestionRow
+                          name={getDisplayLabel(intent.person as SearchResult)}
+                          chip={intent.chip}
+                          onSelect={() => { setShowSuggestions(false); setLocation(scopedSearchHref(intent.person.pubkey, intent.chip.tab)); }}
+                          testId="home-intent-row"
+                        />
+                      </div>
+                    )}
                     {tagMatches.length > 0 && (
                       <div className="shrink-0 border-b border-slate-100 dark:border-slate-800/60" data-testid="home-tag-matches">
                         {tagMatches.map((t) => (
