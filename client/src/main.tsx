@@ -29,7 +29,7 @@ void resolveHouseObserver();
 
 // Relays that gate reads behind a NIP-42 login: never waited on (lib/relayPool),
 // answered with the account's signer when the reader allowed it (Settings).
-startRelayAuth({ pool, active$: accountManager.active$ as never });
+startRelayAuth({ pool, active$: accountManager.active$ });
 
 createRoot(document.getElementById("root")!).render(
   <ThemeProvider>

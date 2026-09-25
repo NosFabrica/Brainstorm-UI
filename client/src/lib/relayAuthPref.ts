@@ -4,7 +4,13 @@
  * signing prompt per relay in nos2x or Amber until "always allow" is ticked,
  * and an unasked-for prompt is not a setting anyone chose.
  */
+import { Subject } from "rxjs";
 import { accountKey } from "@/lib/accountStorage";
+
+const changed = new Subject<string>();
+
+/** Emits the pubkey whose choice just changed, so services/relayAuth can act on it without a reload. */
+export const relayAuthChanged$ = changed.asObservable();
 
 export function relayAuthAllowed(pubkey: string): boolean {
   try {
@@ -22,4 +28,5 @@ export function setRelayAuthAllowed(pubkey: string, on: boolean): void {
   } catch {
     /* private window, full quota — the default stands */
   }
+  changed.next(pubkey);
 }
