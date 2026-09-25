@@ -42,6 +42,7 @@ function controllable() {
 }
 
 beforeEach(() => {
+  localStorage.clear();
   __resetPersonContent();
   reqMock.mockReset();
   relayOn = true;
@@ -118,5 +119,48 @@ describe("fetchPersonContent", () => {
     relayOn = false;
     expect(await fetchPersonContent(STACI)).toEqual({ chips: [] });
     expect(reqMock).not.toHaveBeenCalled();
+  });
+});
+
+// Benjamin (2026-09-24): recents wore their chips a beat late on every visit. A day's
+// worth of answers lives in local storage, so a returning searcher sees them at once.
+describe("fetchPersonContent — remembered across visits", () => {
+  it("an answer from an earlier visit paints at once and is not asked again within a day", async () => {
+    const { subject } = controllable();
+    const p = fetchPersonContent(STACI);
+    subject.next(frame(ev(30402)));
+    subject.next(EOSE);
+    await p;
+    __resetPersonContent({ keepStored: true });
+    expect(peekPersonContent(STACI)).toEqual({ chips: [{ key: "shop", label: "Shop", tab: "shop", liveNow: false }] });
+    expect(await fetchPersonContent(STACI)).toEqual({ chips: [{ key: "shop", label: "Shop", tab: "shop", liveNow: false }] });
+    expect(reqMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a day later the person is asked about again", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-24T10:00:00Z"));
+    const { subject } = controllable();
+    const p = fetchPersonContent(STACI);
+    subject.next(frame(ev(30402)));
+    subject.next(EOSE);
+    await p;
+    __resetPersonContent({ keepStored: true });
+    vi.setSystemTime(new Date("2026-09-25T10:00:01Z"));
+    expect(peekPersonContent(STACI)).toBeUndefined();
+    void fetchPersonContent(STACI).catch(() => {});
+    expect(reqMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("nothing to say is remembered too, and a broken store is no store", async () => {
+    const { subject } = controllable();
+    const p = fetchPersonContent(STACI);
+    subject.next(EOSE);
+    await p;
+    __resetPersonContent({ keepStored: true });
+    expect(peekPersonContent(STACI)).toEqual({ chips: [] });
+    localStorage.setItem("brainstorm_person_content:v1", "{not json");
+    __resetPersonContent({ keepStored: true });
+    expect(peekPersonContent(STACI)).toBeUndefined();
   });
 });
