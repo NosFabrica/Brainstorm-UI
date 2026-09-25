@@ -10,7 +10,7 @@ import { Link } from "wouter";
 import { Braces, ChevronDown, ChevronRight, Lock } from "lucide-react";
 import { useSpecsForKind } from "@/hooks/useSpecsForKind";
 import { contentShape } from "@/lib/contentShape";
-import { kindTypeLabel } from "@/components/search/SerpRow";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { ReadingText } from "@/components/share/ReadingText";
 
 type StructuralEvent = { id: string; kind: number; pubkey: string; tags: string[][]; content: string; created_at: number };

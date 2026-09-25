@@ -25,6 +25,7 @@ import {
   ListChecks,
   ShoppingBag,
 } from "lucide-react";
+import { CATEGORY_ICON } from "@/lib/dlists";
 import { GlossBackground } from "@/components/GlossBackground";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
@@ -51,7 +52,8 @@ import {
   typeaheadPause,
   type SearchResult,
 } from "@/lib/profileSearch";
-import { suggestProfileHits, suggestProfiles, type SearchHit, tabLabel } from "@/services/search";
+import { suggestListings, suggestProfileHits, suggestProfiles, tabLabel, type SearchHit } from "@/services/search";
+import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
 import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
@@ -68,7 +70,7 @@ import { intentTarget, searchIntent } from "@/lib/personContent";
 import { usePersonContent } from "@/hooks/usePersonContent";
 import { useTagMatches } from "@/hooks/useTags";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { npubFromPubkey } from "@/lib/shareId";
+import { eventPath, npubFromPubkey } from "@/lib/shareId";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 import { useConnectionSpeed } from "@/lib/connection";
@@ -114,6 +116,8 @@ export default function Landing() {
     try { return new URLSearchParams(window.location.search).get("f") || ""; } catch { return ""; }
   });
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  // Product titles under the people — "Satoshi Smiley T-shirt", straight to it.
+  const [productSuggestions, setProductSuggestions] = useState<SearchHit[]>([]);
   /** The typeahead's last answer, as hits, for the People section to start from. */
   const suggestedPeople = useRef<{ query: string; hits: SearchHit[] } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -317,6 +321,7 @@ export default function Landing() {
         } catch {
           if (suggestAbortRef.current !== reqId) return;
           setSuggestions([]);
+      setProductSuggestions([]);
         } finally {
           if (suggestAbortRef.current === reqId) setIsSuggesting(false);
         }
@@ -327,6 +332,7 @@ export default function Landing() {
     if (parseTopicQuery(value).isTopic) {
       typedSinceSearchRef.current = true;
       setSuggestions([]);
+      setProductSuggestions([]);
       setIsSuggesting(false);
       setShowSuggestions(true);
       return;
@@ -336,6 +342,7 @@ export default function Landing() {
     if (q.length < 2 || typeaheadWords(scopeOf(value)?.rest ?? value) === null || isLikelyNpub(q) || isHexPubkey(q) || isNip05Handle(q)) {
       typedSinceSearchRef.current = false;
       setSuggestions([]);
+      setProductSuggestions([]);
       setShowSuggestions(false);
       setIsSuggesting(false);
       return;
@@ -346,9 +353,16 @@ export default function Landing() {
     suggestTimerRef.current = window.setTimeout(async () => {
       try {
         suggestRequestRef.current = new AbortController();
+        const signal = suggestRequestRef.current.signal;
+        // Products ask beside the people, on the same cancel; they land when they land.
+        void suggestListings(q, { pov: effectivePov, userPubkey: user?.pubkey }, { limit: 3, signal }).then((hits) => {
+          if (suggestAbortRef.current !== reqId) return;
+          setProductSuggestions(hits);
+          if (hits.length) setShowSuggestions(true);
+        });
         // "staci shop" looks up "staci"; the category word becomes the intent row.
         const lookup = searchIntent(q)?.name ?? q;
-        const suggestHits = await suggestProfileHits(lookup, { pov: effectivePov, userPubkey: user?.pubkey }, { signal: suggestRequestRef.current.signal });
+        const suggestHits = await suggestProfileHits(lookup, { pov: effectivePov, userPubkey: user?.pubkey }, { signal });
         if (suggestAbortRef.current !== reqId) return;
         // Kept for the People section: submitting asks this very question again.
         suggestedPeople.current = { query: q, hits: suggestHits };
@@ -359,6 +373,7 @@ export default function Landing() {
       } catch {
         if (suggestAbortRef.current !== reqId) return;
         setSuggestions([]);
+      setProductSuggestions([]);
       } finally {
         if (suggestAbortRef.current === reqId) setIsSuggesting(false);
       }
@@ -773,6 +788,7 @@ export default function Landing() {
     setQuery("");
     setFilters("");
     setSuggestions([]);
+    setProductSuggestions([]);
     setActiveSuggestion(-1);
     setSubmitted(null);
     setIsSearching(false);
@@ -825,7 +841,7 @@ export default function Landing() {
   const intent = useMemo(() => intentTarget(searchIntent(query), suggestions, personContent), [query, suggestions, personContent]);
   const dropdownOpen =
     !fieldPicking &&
-    showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
+    showSuggestions && (suggestions.length > 0 || productSuggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
   const showRecent = engaged && focused && query.trim() === "" && !hasSearched && !dropdownOpen;
@@ -1243,6 +1259,19 @@ export default function Landing() {
                       );
                     })}
                     </div>
+                    {/* Products under the people: the thing itself, one tap away. */}
+                    {productSuggestions.length > 0 && (
+                      <div className="shrink-0 border-t border-slate-100 dark:border-slate-800/60" data-testid="home-product-suggestions">
+                        {productSuggestions.map((h, i) => (
+                          <ListingSuggestionRow
+                            key={h.event.id}
+                            hit={h}
+                            onSelect={() => { setShowSuggestions(false); setLocation(eventPath(h.event)); }}
+                            testId={`home-product-suggestion-${i}`}
+                          />
+                        ))}
+                      </div>
+                    )}
                     <button
                       type="button"
                       className={`w-full shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 dark:border-slate-800/60 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 dark:bg-slate-800 text-brand-primary" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-brand-primary"}`}
@@ -1284,6 +1313,8 @@ export default function Landing() {
                     { tab: "shop", label: "Shop", icon: ShoppingBag },
                     { tab: "apps", label: "Apps", icon: Package },
                     { tab: "events", label: "Events", icon: CalendarDays },
+                    // The music category's icon comes from the D-list registry (the team, 2026-09-24).
+                    { tab: "music", label: "Music", icon: CATEGORY_ICON.music },
                     { tab: "live", label: "Live", icon: Radio },
                     { tab: "lists", label: "Lists", icon: ListChecks },
                   ].map((c) => (

@@ -16,29 +16,32 @@
  * the author's profile, the trust score, and the heavy siblings (thread,
  * header, more-from-author) that would otherwise reach the network.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountManager } from "applesauce-accounts";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
 import { nip19 } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
+import { setTechnicalView } from "@/lib/technicalView";
 
 const AUTHOR = "9".repeat(64);
-const served = vi.fn((): Record<string, unknown> | null => null);
+const eventsByIds = vi.fn(async (..._args: unknown[]) => [] as unknown[]);
+const served = vi.fn((): Record<string, unknown> | null | Promise<Record<string, unknown> | null> => null);
 
 vi.mock("@/services/nostr", () => ({
   fetchAddressableEvents: async (ptrs: { kind: number; pubkey: string; identifier: string }[]) => {
     const map = new Map<string, unknown>();
-    const ev = served();
+    const ev = await served();
     if (ev) map.set(`${ptrs[0].kind}:${ptrs[0].pubkey}:${ptrs[0].identifier}`, ev);
     return map;
   },
   fetchProfile: async () => ({ name: "hzrd149" }),
+  refreshProfileEvent: async () => null,
   // What the event layout (a non-article at an address) asks for; nothing here.
   fetchRecentByKinds: async () => [],
-  fetchEventsByIds: async () => [],
+  fetchEventsByIds: (...args: unknown[]) => eventsByIds(...args),
   fetchProfileMap: async () => new Map(),
 }));
 vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => null } }));
@@ -92,6 +95,22 @@ const open = async (ev: ReturnType<typeof event>) => {
 describe("the article reader", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  // Zap Cooking's "cheese-foam-tea" (2026-09-24): deleted by overwriting, its
+  // address still resolves — to content "", a tombstone tag and a "[Deleted]"
+  // title, which read as an article called "[Deleted]". The page says what
+  // happened instead.
+  it("a link to an article deleted by overwriting says so, and shows no article", async () => {
+    const husk = { ...event(30023, "cheese-foam-tea", "[Deleted]", [["deleted", "true"]], ""), tags: [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]] };
+    served.mockReturnValue(husk);
+    const naddr = nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "cheese-foam-tea" });
+    window.history.pushState({}, "", `/e/${naddr}`);
+    renderPage();
+    const notice = await screen.findByTestId("event-deleted");
+    expect(notice).toHaveTextContent(/deleted by its author/i);
+    expect(screen.queryByTestId("article-body")).toBeNull();
+    expect(screen.queryByText("[Deleted]")).toBeNull();
+  });
+
   it("offers a recipe's own home — Open in Zap.cooking — beside the menu", async () => {
     const naddr = await open(article([["t", "zapcooking"], ["t", "zapcooking-girik"]]));
 
@@ -107,6 +126,36 @@ describe("the article reader", () => {
 
     expect(screen.queryByTestId("article-source-app")).toBeNull();
     expect(screen.getByTestId("article-menu")).toBeInTheDocument();
+  });
+});
+
+describe("what the reader says a page is", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // The team (2026-09-24): a spec from Nostr Hub has no NIP number; the page
+  // says what it is in the same pill every card wears, above the title.
+  it("names the kind above the title: Spec, Recipe", async () => {
+    await open(spec(30817, []));
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
+  });
+
+  // The technical view's line under the byline: kind and ids, a click to copy.
+  it("with the technical view on, the page carries its kind and address", async () => {
+    setTechnicalView(true);
+    localStorage.setItem("brainstorm_active_account", "acct-1");
+    const naddr = await open(spec(30817, []));
+    const strip = screen.getByTestId("technical-strip");
+    expect(strip).toHaveTextContent("kind 30817");
+    expect(strip).toHaveTextContent(`naddr ${naddr.slice(0, 8)}…${naddr.slice(-4)}`);
+    setTechnicalView(false);
+    localStorage.removeItem("brainstorm_active_account");
+  });
+
+  // Benjamin (2026-09-24): only a spec. An essay, a wiki page or a recipe
+  // looks like what it is; the word above the title would be noise.
+  it("says nothing above a recipe or an essay", async () => {
+    await open(article([["t", "zapcooking"]]));
+    expect(screen.queryByTestId("kind-pill")).toBeNull();
   });
 });
 
@@ -257,3 +306,57 @@ describe("one route for every event: the id decides", () => {
     expect(await screen.findByText("We couldn’t find this post on the relays.")).toBeInTheDocument();
   });
 });
+
+// Brainstorm spun for a second or two on an article it already held (Vitor,
+// 2026-09-24): the page waited on every relay before showing anything. A held
+// copy shows at once; the relays are still asked, and a newer version takes
+// its place when it lands.
+describe("a copy the device already holds", () => {
+  const realVerify = eventStore.verifyEvent;
+  beforeAll(() => { eventStore.verifyEvent = undefined; });
+  afterAll(() => { eventStore.verifyEvent = realVerify; });
+  beforeEach(() => vi.clearAllMocks());
+
+  const version = (id: string, created_at: number, content: string) =>
+    ({ ...event(30023, "held", "Held", [], content), id: id.repeat(64), created_at });
+
+  it("shows at once, and gives way to a newer version when one arrives", async () => {
+    eventStore.add(version("a", 1_700_000_000, "The version on the device.") as any);
+    served.mockReturnValue(new Promise(() => {})); // the relays never finish
+    window.history.pushState({}, "", `/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "held" })}`);
+    renderPage();
+
+    expect(await screen.findByTestId("article-body")).toHaveTextContent("The version on the device.");
+
+    act(() => { eventStore.add(version("b", 1_700_000_100, "The author's edit, just in.") as any); });
+    await waitFor(() => expect(screen.getByTestId("article-body")).toHaveTextContent("The author's edit, just in."));
+  });
+
+  it("does not fall back to an older version the relays hand back", async () => {
+    eventStore.add(version("c", 1_800_000_000, "Newest, already here.") as any);
+    served.mockReturnValue(version("d", 1_600_000_000, "An old copy from a stale relay."));
+    window.history.pushState({}, "", `/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "held" })}`);
+    renderPage();
+
+    expect(await screen.findByTestId("article-body")).toHaveTextContent("Newest, already here.");
+    await waitFor(() => expect(served).toHaveBeenCalled());
+    expect(screen.getByTestId("article-body")).toHaveTextContent("Newest, already here.");
+  });
+});
+
+describe("an event by id the device already holds", () => {
+  const realVerify = eventStore.verifyEvent;
+  beforeAll(() => { eventStore.verifyEvent = undefined; });
+  afterAll(() => { eventStore.verifyEvent = realVerify; });
+
+  it("renders from the store without asking the relays", async () => {
+    const note = { id: "4".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_700_000_000, content: "A note the device already has.", sig: "s".repeat(128), tags: [] };
+    eventStore.add(note as any);
+    eventsByIds.mockClear();
+    window.history.pushState({}, "", `/e/${nip19.noteEncode(note.id)}`);
+    renderPage();
+    expect(await screen.findByText("A note the device already has.")).toBeInTheDocument();
+    expect(eventsByIds.mock.calls.some((call) => (call[0] as string[]).includes(note.id))).toBe(false);
+  });
+});
+

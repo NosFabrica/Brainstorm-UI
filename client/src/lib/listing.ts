@@ -105,3 +105,23 @@ export function formatListingPrice(p: ListingPrice): string {
   return (p.frequency ? `${text} / ${p.frequency}` : text).trim();
 }
 
+
+/**
+ * The one quiet line under a card's title: where it is, what shipping
+ * costs — "Gubbio (PG) · 500 sats shipping", "United States · Free
+ * shipping", "Shipping from 500 sats". Shipping priced in no money of its
+ * own borrows the listing's. Neither known: the seller's summary, or nothing.
+ */
+export function listingCardLine(l: Listing): string | null {
+  const money = (amount: number, currency: string) => formatListingPrice({ amount, currency: currency || l.price?.currency || "" });
+  let shipping: string | null = null;
+  if (l.shipping.some((s) => s.amount === 0)) shipping = "Free shipping";
+  else if (l.shipping.length === 1) shipping = `${money(l.shipping[0].amount, l.shipping[0].currency)} shipping`;
+  else if (l.shipping.length > 1) {
+    const cheapest = l.shipping.reduce((a, b) => (b.amount < a.amount ? b : a));
+    shipping = `Shipping from ${money(cheapest.amount, cheapest.currency)}`;
+  }
+  const parts = [l.location, shipping].filter((p): p is string => !!p);
+  if (parts.length) return parts.join(" · ");
+  return l.summary;
+}

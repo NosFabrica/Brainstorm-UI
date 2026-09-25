@@ -8,6 +8,8 @@ vi.mock("@/lib/profileSearch", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/profileSearch")>()),
   searchByText: (...args: unknown[]) => searchMock(...args),
 }));
+const listingsMock = vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []);
+vi.mock("@/services/search", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/services/search")>()), suggestListings: (...args: unknown[]) => listingsMock(...args) }));
 const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
 vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
@@ -33,6 +35,8 @@ function typeSlowly(word: string) {
 beforeEach(() => {
   searchMock.mockReset();
   searchMock.mockImplementation(() => new Promise(() => {}));
+  listingsMock.mockReset();
+  listingsMock.mockResolvedValue([]);
   window.history.replaceState({}, "", "/p/somebody");
   vi.useFakeTimers();
 });
@@ -92,6 +96,24 @@ describe("typing in the header search", () => {
     await act(async () => {});
     expect(signalOf(0)?.aborted).toBe(true);
     expect(screen.queryByTestId("header-search-suggestions")).toBeNull();
+  });
+
+  it("a product title under the people opens the listing itself", async () => {
+    searchMock.mockResolvedValue({ results: [], total: 0, timeMs: 1 });
+    listingsMock.mockResolvedValue([{
+      event: { id: "t".repeat(64), kind: 30402, pubkey: "e".repeat(64), tags: [["d", "smiley"], ["title", "Satoshi Smiley T-shirt"], ["price", "21", "USD"]], content: "", created_at: 1, sig: "s" },
+      author: null,
+      rank: null,
+    }]);
+    render(<HeaderSearchBox />);
+    fireEvent.change(input(), { target: { value: "satoshi" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    await act(async () => {});
+    const row = screen.getByTestId("header-search-product-0");
+    expect(row).toHaveTextContent("Satoshi Smiley T-shirt");
+    expect(row).toHaveTextContent("$21");
+    fireEvent.click(row);
+    expect(window.location.pathname).toMatch(/^\/e\/(nevent1|t{64})/);
   });
 
   it("goes to the results right away on Enter", () => {

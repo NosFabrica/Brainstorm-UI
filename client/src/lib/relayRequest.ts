@@ -92,9 +92,10 @@ export function requestNewest(
  * The newest event from an UNTRUSTED relay — one the user typed, not one we
  * ship. Differs from `requestNewest` in exactly the two ways trust demands:
  *
- * - No `eventStore`. The store has no `verifyEvent` hook, so ingesting here
- *   would let a hostile relay plant forged replaceables (a fake kind-10002
- *   would even steer where we publish). The caller verifies, then `add`s.
+ * - No `eventStore`. The caller verifies, then `add`s — explicitly, rather
+ *   than leaning on the store's own signature check (applesauce's default
+ *   `verifyEvent`), because a forged replaceable from a relay the user typed
+ *   (a fake kind-10002 would even steer where we publish) must never get in.
  * - No `catchError`. A multi-relay fan-out shrugs off one dead relay; here the
  *   relay IS the query, and "couldn't connect" must reach the caller as a
  *   rejection, distinct from "connected, found nothing" (undefined).

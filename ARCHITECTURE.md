@@ -70,9 +70,10 @@ store at boot, from `main.tsx`, before the first render.
 
 It is also the address loader's `cacheRequest` — step one of the loading
 sequence, ahead of any relay — so other people's profiles and relay lists come
-off disk too. Entries answer for 30 minutes before being treated as a miss,
-because a hit ends the sequence and unbounded staleness would pin every author
-to a relay list we saw once.
+off disk too. Entries are kept until evicted. A hit ends the sequence, so to
+keep a relay list seen once from pinning its author forever, an entry older
+than its freshness window (30 minutes for routing, an hour for profiles) still
+answers but is refreshed from the relays behind the answer.
 
 Three rules it lives by: hydrated events are **signature-verified** (IndexedDB
 is writable by anything with script on the origin, and a forged kind-10002
