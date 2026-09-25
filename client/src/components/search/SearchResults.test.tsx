@@ -344,12 +344,31 @@ describe("SearchResults", () => {
     const menu = screen.getByRole("menu");
     const groups = [...menu.querySelectorAll('[data-testid^="search-tab-group-"]')].map((el) => el.textContent);
     expect(groups).toEqual(["Read & listen", "Happening", "Build"]);
-    const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]:not([data-testid^="search-tab-group-"])')].map((el) => el.getAttribute("data-testid"));
+    // Doors only: a "Soon" row names where we're going and opens nothing.
+    const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]:not([data-testid^="search-tab-group-"]):not([data-testid$="-soon"])')].map((el) => el.getAttribute("data-testid"));
     expect(items).toEqual(["search-tab-articles", "search-tab-music", "search-tab-recipes", "search-tab-events", "search-tab-live", "search-tab-apps", "search-tab-repos", "search-tab-issues", "search-tab-prs", "search-tab-nips", "search-tab-lists"]);
   });
 
   // Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
   // Articles is the first thing behind More.
+  // Benjamin (2026-09-25): agent suites — verifying and hiring agents — are on the
+  // roadmap. More says so under Build, quietly, without promising an empty page.
+  it("More teases Agents as coming — named, muted, and not a door yet", () => {
+    render(<SearchResults query="jack" pov="nosfabrica" />);
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    const menu = screen.getByRole("menu");
+    const soon = within(menu).getByTestId("search-tab-agents-soon");
+    expect(soon).toHaveTextContent("Agents");
+    expect(soon).toHaveTextContent("Soon");
+    expect(soon).toHaveAttribute("aria-disabled", "true");
+    expect(soon.getAttribute("title")).toMatch(/hire agents/i);
+    const before = mainStreamCalls().length;
+    fireEvent.click(soon);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(mainStreamCalls().length).toBe(before);
+    expect(screen.getByTestId("search-tab-everything").getAttribute("aria-selected")).toBe("true");
+  });
+
   it("shows five verticals — Media then Shop — and folds Articles first behind More", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     const row = ["everything", "people", "notes", "media", "shop"].map((t) => screen.getByTestId(`search-tab-${t}`));
@@ -2327,6 +2346,39 @@ describe("SearchResults", () => {
     expect(chip).not.toBeNull();
     await vi.waitFor(() => expect(chip!).toHaveTextContent("@bartholin"));
     expect(card.textContent).not.toContain("nostr:npub");
+  });
+
+  // Benjamin (2026-09-25): "we don't have images as an option or videos — that gets
+  // filtered into Media". Photos · Videos · Audio narrow the tab, counted, like Shop's
+  // categories; a page of one kind needs no row.
+  it("the Media tab narrows to photos, videos or audio, counted, and shows no row for one kind", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="sunset" pov="nosfabrica" />);
+    const pk = "5".repeat(64);
+    const photo = ev("p1", 20, pk, "golden hour", [["imeta", "url https://cdn/sunset.jpg", "m image/jpeg"]]);
+    const clip1 = ev("v1", 21, pk, "the drive", [["imeta", "url https://cdn/drive.mp4", "m video/mp4"]]);
+    const clip2 = ev("v2", 34236, pk, "", [["d", "v2"], ["imeta", "url https://cdn/short.mp4", "m video/mp4"]]);
+    const voice = ev("a1", 1222, pk, "", [["imeta", "url https://cdn/voice.ogg", "m audio/ogg"]]);
+    emit({ hits: [photo, clip1, clip2, voice].map((event) => ({ event, author: author(pk, "Sunset"), rank: null })), eose: true, timeMs: 120 });
+    await screen.findByTestId("media-card-p1");
+    const facets = screen.getByTestId("media-facets");
+    expect(within(facets).getByTestId("media-facet-photo")).toHaveTextContent(/Photos\s*1/);
+    expect(within(facets).getByTestId("media-facet-video")).toHaveTextContent(/Videos\s*2/);
+    expect(within(facets).getByTestId("media-facet-audio")).toHaveTextContent(/Audio\s*1/);
+    fireEvent.click(within(facets).getByTestId("media-facet-video"));
+    expect(screen.getAllByTestId(/^media-card-/).map((el) => el.getAttribute("data-testid"))).toEqual(["media-card-v1", "media-card-v2"]);
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("2 of 4 match");
+    fireEvent.click(within(facets).getByTestId("media-facet-all"));
+    expect(screen.getAllByTestId(/^media-card-/)).toHaveLength(4);
+  });
+
+  it("a Media page of one kind shows no facet row", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="sunset" pov="nosfabrica" />);
+    const pk = "5".repeat(64);
+    emit({ hits: [ev("p1", 20, pk, "", [["imeta", "url https://cdn/a.jpg", "m image/jpeg"]]), ev("p2", 20, pk, "", [["imeta", "url https://cdn/b.jpg", "m image/jpeg"]])].map((event) => ({ event, author: author(pk, "Sunset"), rank: null })), eose: true, timeMs: 120 });
+    await screen.findByTestId("media-card-p1");
+    expect(screen.queryByTestId("media-facets")).toBeNull();
   });
 
   it("the Media tab shows media — APKs and other file blobs stay out", async () => {

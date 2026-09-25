@@ -239,67 +239,20 @@ function naddrOf(event: NostrEvent): string | null {
   }
 }
 
-/** First usable image/video URL: imeta `url …`, a url tag, or a bare URL in content. */
-export function mediaUrlOf(event: NostrEvent): string | null {
-  for (const tag of event.tags) {
-    if (tag[0] === "imeta") {
-      const urlPart = tag.slice(1).find((p) => p.startsWith("url "));
-      if (urlPart) return urlPart.slice(4).trim();
-    }
-  }
-  const url = tagVal(event, "url") ?? tagVal(event, "thumb") ?? tagVal(event, "image");
-  if (url) return url;
-  const inContent = event.content.match(/https?:\/\/\S+\.(?:png|jpe?g|gif|webp|mp4|webm|mov)\b\S*/i);
-  return inContent ? inContent[0] : null;
-}
-
-/** The poster IMAGE for a media event — imeta's image/thumb parts (NIP-71
- *  publishes video previews there) or plain thumb/image tags. Null means
- *  "no still exists"; the card then pulls a first frame from the video. */
-export function mediaPosterOf(event: NostrEvent): string | null {
-  for (const tag of event.tags) {
-    if (tag[0] === "imeta") {
-      for (const key of ["image ", "thumb "]) {
-        const part = tag.slice(1).find((p) => p.startsWith(key));
-        if (part) return part.slice(key.length).trim();
-      }
-    }
-  }
-  return tagVal(event, "thumb") ?? tagVal(event, "image") ?? null;
-}
-
-/** Video by declared mime first (imeta "m video/…"), extension second. */
-export function isVideoUrl(event: NostrEvent, url: string): boolean {
-  for (const tag of event.tags) {
-    if (tag[0] === "imeta") {
-      const mime = tag.slice(1).find((p) => p.startsWith("m "));
-      if (mime) return mime.slice(2).trim().startsWith("video/");
-    }
-  }
-  const m = tagVal(event, "m");
-  if (m) return m.startsWith("video/");
-  return /\.(?:mp4|webm|mov|m3u8)(?:\?|#|$)/i.test(url);
-}
-
-const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
+// The media helpers live in lib/mediaKind (the Media tab's facets read them
+// too); re-exported here for the callers that always found them on the card.
+export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
+import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf } from "@/lib/mediaKind";
 
 export function MediaCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
   const [, navigate] = useLocation();
   const url = mediaUrlOf(event);
   const poster = mediaPosterOf(event);
-  const mime = (() => {
-    for (const tag of event.tags) {
-      if (tag[0] === "imeta") {
-        const m = tag.slice(1).find((p) => p.startsWith("m "));
-        if (m) return m.slice(2).trim();
-      }
-    }
-    return tagVal(event, "m") ?? "";
-  })();
-  const isImage = !!url && (mime.startsWith("image/") || IMAGE_RE.test(url));
-  const isAudio =
-    !!url && (mime.startsWith("audio/") || event.kind === 1222 || /\.(?:mp3|m4a|ogg|wav|flac|aac|opus)(?:\?|#|$)/i.test(url));
-  const isVideo = !!url && !isImage && !isAudio && isVideoUrl(event, url);
+  const kind = mediaKindOf(event);
+  const mime = mediaMimeOf(event);
+  const isImage = kind === "photo";
+  const isAudio = kind === "audio";
+  const isVideo = kind === "video";
   // The caption is the words, never the URL — the media itself is the link.
   // nostr: mentions stay IN and render as the person below.
   const caption = (tagVal(event, "title") ?? event.content ?? "")
