@@ -3,7 +3,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
 import { copyToClipboard } from "@/lib/clipboard";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
+import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem, pushRecentScoped } from "@/lib/recentSearches";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { nip19 } from "nostr-tools";
 import { resolveNip05 } from "@/lib/nip05";
@@ -52,7 +52,7 @@ import {
   typeaheadPause,
   type SearchResult,
 } from "@/lib/profileSearch";
-import { suggestListings, suggestProfileHits, suggestProfiles, type SearchHit } from "@/services/search";
+import { suggestListings, suggestProfileHits, suggestProfiles, tabLabel, type SearchHit } from "@/services/search";
 import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
 import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
@@ -64,9 +64,14 @@ import { useProfileMap } from "@/hooks/useProfileMap";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
+import { PersonContentChips } from "@/components/search/PersonContentChips";
+import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
+import { intentTarget, searchIntent } from "@/lib/personContent";
+import { usePersonContent } from "@/hooks/usePersonContent";
 import { useTagMatches } from "@/hooks/useTags";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventPath, npubFromPubkey } from "@/lib/shareId";
+import { scopedSearchHref } from "@/lib/searchSyntax";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 import { useConnectionSpeed } from "@/lib/connection";
 
@@ -94,6 +99,8 @@ const PLACEHOLDER_EXAMPLES = [
 // marks a "returning" visitor, who gets the calm static placeholder instead
 // of the rotating hints. First-party + functional → no consent banner needed.
 const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
+
+
 
 export default function Landing() {
   const tierRing = useTierRing();
@@ -129,6 +136,11 @@ export default function Landing() {
   // Per-browser recent searches, shown under an empty, focused box (returning
   // visitors only — a first-timer has none). `focused` gates that panel.
   const [recent, setRecent] = useState<RecentItem[]>(() => getRecentItems());
+  // What each suggested or recent person publishes — chips on their row,
+  // one tap to their shop, recipes, streams. One ask per person per session.
+  const personContent = usePersonContent(
+    useMemo(() => [...suggestions.map((s) => s.pubkey), ...recent.flatMap((r) => (r.type === "profile" ? [r.pubkey] : []))], [suggestions, recent]),
+  );
   const [focused, setFocused] = useState(false);
   // Benjamin: "when users refresh to the home screen, don't have the search
   // history dropdown [showing]" — the box autofocuses on load, and focus
@@ -348,7 +360,9 @@ export default function Landing() {
           setProductSuggestions(hits);
           if (hits.length) setShowSuggestions(true);
         });
-        const suggestHits = await suggestProfileHits(q, { pov: effectivePov, userPubkey: user?.pubkey }, { signal });
+        // "staci shop" looks up "staci"; the category word becomes the intent row.
+        const lookup = searchIntent(q)?.name ?? q;
+        const suggestHits = await suggestProfileHits(lookup, { pov: effectivePov, userPubkey: user?.pubkey }, { signal });
         if (suggestAbortRef.current !== reqId) return;
         // Kept for the People section: submitting asks this very question again.
         suggestedPeople.current = { query: q, hits: suggestHits };
@@ -741,6 +755,19 @@ export default function Landing() {
   // Which results tab is showing, so the box can say "Search means's notes";
   // seeded from the URL, then told by the results as tabs change.
   const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(window.location.search).get("t") || "everything");
+  // A search of one person's things is a search — RECENT remembers it the way the chip that
+  // opened it read: the face, the name, the tab it opened on, never the key. Recorded from
+  // the search that RAN (not each keystroke), once the person's name is known. Tabs browsed
+  // under it are not searches (Benjamin, 2026-09-24: "just your search, like Google"), so a
+  // tab change leaves history alone.
+  useEffect(() => {
+    if (!hasSearched || !submitted) return;
+    const ran = scopeOf(submitted);
+    if (!ran || !scopeName || ran.pubkey !== scope?.pubkey) return;
+    const openedOn = new URLSearchParams(window.location.search).get("t") || "everything";
+    setRecent(pushRecentScoped({ pubkey: ran.pubkey, npub: npubFromPubkey(ran.pubkey), label: scopeName, picture: scopeProfile?.picture, tab: openedOn, words: ran.rest }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submitted, hasSearched, scopeName, scopeProfile?.picture]);
   // Arriving scoped — the profile's magnifier, a "View all" — the cursor is
   // already in the box (X's profile search). Once per person, so typing and
   // re-renders never have their focus stolen.
@@ -810,6 +837,8 @@ export default function Landing() {
   // already routed at the hashtag feed and shouldn't offer a second answer.
   // Only while suggestions show — a query restored from the URL mustn't pull the whole catalogue.
   const tagMatches = useTagMatches(topicMatch.isTopic || !showSuggestions ? "" : query);
+  // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
+  const intent = useMemo(() => intentTarget(searchIntent(query), suggestions, personContent), [query, suggestions, personContent]);
   const dropdownOpen =
     !fieldPicking &&
     showSuggestions && (suggestions.length > 0 || productSuggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
@@ -1142,6 +1171,16 @@ export default function Landing() {
                     {/* Tags first: far fewer of them than people, and they're a
                         different kind of answer — "who is known for this"
                         rather than "who is called this". */}
+                    {intent && (
+                      <div className="shrink-0 border-b border-slate-100 dark:border-slate-800/60">
+                        <IntentSuggestionRow
+                          name={getDisplayLabel(intent.person as SearchResult)}
+                          chip={intent.chip}
+                          onSelect={() => { setShowSuggestions(false); setLocation(scopedSearchHref(intent.person.pubkey, intent.chip.tab)); }}
+                          testId="home-intent-row"
+                        />
+                      </div>
+                    )}
                     {tagMatches.length > 0 && (
                       <div className="shrink-0 border-b border-slate-100 dark:border-slate-800/60" data-testid="home-tag-matches">
                         {tagMatches.map((t) => (
@@ -1164,13 +1203,14 @@ export default function Landing() {
                       const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
                       const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
                       return (
-                        <button
+                        // A div, not a button: the chips inside are links, and the
+                        // input keeps focus anyway (aria-activedescendant above).
+                        <div
                           key={s.pubkey}
                           id={`home-suggestion-opt-${i}`}
-                          type="button"
                           role="option"
                           aria-selected={i === activeSuggestion}
-                          className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                          className={`group w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors cursor-pointer ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                           onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); handlePrefetchEnter(s); }}
                           onMouseLeave={() => handlePrefetchLeave(s)}
                           onClick={() => pickSuggestion(s)}
@@ -1193,6 +1233,16 @@ export default function Landing() {
                               </p>
                             )}
                           </div>
+                          {/* What they publish, one tap to it. Desktop reveals on
+                              hover or the arrowed row; phones always show it. */}
+                          <PersonContentChips
+                            pubkey={s.pubkey}
+                            name={getDisplayLabel(s)}
+                            content={personContent.get(s.pubkey)}
+                            onNavigate={() => setShowSuggestions(false)}
+                            linkTabIndex={-1}
+                            className="sm:opacity-0 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100 sm:group-focus-within:opacity-100"
+                          />
                           {/* Same coin as the results list below and every people
                               list — it follows the viewer's display mode where
                               this pill couldn't, and fixes the pill's scale bug:
@@ -1205,7 +1255,7 @@ export default function Landing() {
                               className={tierRing(rank) && coinReplaced ? "sr-only" : "shrink-0"}
                             />
                           )}
-                        </button>
+                        </div>
                       );
                     })}
                     </div>
@@ -1308,7 +1358,9 @@ export default function Landing() {
                     const handle = item.type === "profile" && item.nip05 ? item.nip05.replace(/^_@/, "") : null;
                     const removeLabel = item.type === "profile"
                       ? `Remove ${item.label} from recent`
-                      : `Remove "${item.q}" from recent searches`;
+                      : item.type === "scoped"
+                        ? `Remove ${item.label}'s ${tabLabel(item.tab).toLowerCase()} from recent`
+                        : `Remove "${item.q}" from recent searches`;
                     return (
                       <div
                         key={recentKey(item)}
@@ -1337,6 +1389,25 @@ export default function Landing() {
                               )}
                             </div>
                           </button>
+                        ) : item.type === "scoped" ? (
+                          // "vinney's media": the person's face, the tab, the words — re-run as the scoped search.
+                          <button
+                            type="button"
+                            className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
+                            onMouseDown={(e) => { e.preventDefault(); setFocused(false); setLocation(scopedSearchHref(item.pubkey, item.tab, item.words)); }}
+                            data-testid={`home-recent-scoped-${i}`}
+                          >
+                            <Avatar className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
+                              {item.picture ? <AvatarImage src={item.picture} alt={item.label} className="object-cover" /> : null}
+                              <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{item.label}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 truncate leading-tight" data-testid={`home-recent-scoped-what-${i}`}>
+                                {item.words ? `${tabLabel(item.tab)} · ${item.words}` : tabLabel(item.tab)}
+                              </p>
+                            </div>
+                          </button>
                         ) : (
                           <button
                             type="button"
@@ -1347,6 +1418,16 @@ export default function Landing() {
                             <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
                             <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{item.q}</span>
                           </button>
+                        )}
+                        {item.type === "profile" && (
+                          <PersonContentChips
+                            pubkey={item.pubkey}
+                            name={item.label}
+                            content={personContent.get(item.pubkey)}
+                            onNavigate={() => setFocused(false)}
+                            linkTabIndex={-1}
+                            className="sm:opacity-0 sm:group-hover/recent:opacity-100 sm:group-focus-within/recent:opacity-100"
+                          />
                         )}
                         <button
                           type="button"

@@ -249,6 +249,90 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
 
   const caretIndex = () => selectionRange()[1];
 
+  // ---- the scope stays first ----------------------------------------------
+  //
+  // A search scoped to a person leads with their pill. The pill is not editable, so a tap
+  // left of it put the caret in front, a word landed there, and the box read
+  // "dogfrom:npub…" — the scope gone, the suggestions for strangers (Benjamin, 2026-09-24).
+  // The scope is the box's frame: the caret never rests before it, and a word that still
+  // lands there is moved behind it, with the space the grammar needs.
+
+  const isScopeChip = (n: Node | null): n is HTMLElement => isChip(n) && n.dataset.type === "key";
+
+  /** The box as the DOM holds it: text before the leading scope pills, the pills, the rest. */
+  function scopeParts(): { lead: string; scope: string[]; between: string; rest: string; leadNodes: number } | null {
+    const nodes = Array.from(el.childNodes).filter((n) => !isHint(n));
+    let i = 0;
+    let lead = "";
+    while (i < nodes.length && !isScopeChip(nodes[i])) {
+      if (isChip(nodes[i])) return null; // another pill leads: no scope to keep first
+      lead += (nodes[i] as Text).data ?? nodes[i].textContent ?? "";
+      i++;
+    }
+    if (i >= nodes.length) return null;
+    const scope: string[] = [];
+    let between = "";
+    while (i < nodes.length) {
+      const n = nodes[i];
+      if (isScopeChip(n)) { scope.push(n.dataset.token as string); i++; continue; }
+      // Whitespace between two scope pills belongs to the scope; anything else ends it.
+      if (n.nodeType === 3 && /^\s*$/.test((n as Text).data) && i + 1 < nodes.length && isScopeChip(nodes[i + 1])) { between += (n as Text).data; i++; continue; }
+      break;
+    }
+    let rest = "";
+    for (; i < nodes.length; i++) rest += nodes[i].nodeType === 3 ? (nodes[i] as Text).data : isChip(nodes[i]) ? (nodes[i] as HTMLElement).dataset.token : nodes[i].textContent || "";
+    return { lead: lead.replace(/\u00a0/g, " "), scope, between, rest: rest.replace(/\u00a0/g, " "), leadNodes: 0 };
+  }
+
+  /** The value offset just past the leading scope and the space after it — where typing belongs. */
+  function scopeEnd(): number {
+    const parts = scopeParts();
+    if (!parts || parts.lead.trim()) return 0;
+    const scopeLen = parts.lead.length + parts.scope.join("").length + parts.between.length;
+    return scopeLen + (parts.rest.startsWith(" ") ? 1 : 0);
+  }
+
+  /** Does the box lead with the scope right now? Remembered across keystrokes, below. */
+  const leadsWithScope = (): boolean => {
+    const parts = scopeParts();
+    return !!parts && parts.lead === "";
+  };
+  // The rule applies to a box that already led with its scope: `gm from:npub…` typed in that
+  // order is a query with a scope in the middle, and stays as typed.
+  let ledWithScope = false;
+
+  function clampCaret(): void {
+    const end = scopeEnd();
+    if (end > 0 && caretIndex() < end) setCaret(end);
+  }
+
+  /**
+   * Text that landed in front of the scope, or glued to its pill, rewritten as the scope,
+   * one space, then the words. Null when the box is already in order.
+   */
+  function restoreScope(): { text: string; caret: number } | null {
+    const parts = scopeParts();
+    if (!parts) return null;
+    const { lead, scope, between, rest } = parts;
+    const lead2 = lead.replace(/^\s+/, "");
+    const glued = rest !== "" && !rest.startsWith(" ");
+    if (!lead2 && !glued) return null;
+    const scopeText = scope.join(" ");
+    const restBody = rest.startsWith(" ") ? rest.slice(1) : rest;
+    const joiner = lead2 && restBody && !/\s$/.test(lead2) ? " " : "";
+    const text = `${scopeText} ${lead2}${joiner}${restBody}`;
+    const c = caretIndex();
+    const scopeRaw = scope.join("") + between;
+    let caret: number;
+    if (c <= lead.length) caret = scopeText.length + 1 + Math.max(0, c - (lead.length - lead2.length));
+    else if (c <= lead.length + scopeRaw.length) caret = scopeText.length + 1 + lead2.length;
+    else {
+      const r = c - lead.length - scopeRaw.length;
+      caret = scopeText.length + 1 + lead2.length + joiner.length + (rest.startsWith(" ") ? Math.max(0, r - 1) : r);
+    }
+    return { text, caret };
+  }
+
   function setCaret(index: number): void {
     const r = document.createRange();
     let i = 0;
@@ -540,6 +624,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     }
     drawHint();
     if (caret != null) setCaret(caret);
+    ledWithScope = leadsWithScope();
     if (unknown.length) handlers.needPeople(unknown);
     // A `group:` token from a URL or a paste was never offered by the picker; this names it.
     if (strangeGroups.length) handlers.needGroups(strangeGroups);
@@ -624,6 +709,15 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
   // ---- the listeners -------------------------------------------------------
 
   const onInput = (e: Event) => {
+    if (ledWithScope && !(e as InputEvent).isComposing) {
+      const fixed = restoreScope();
+      if (fixed) {
+        render(fixed.text, fixed.caret);
+        updateToken();
+        handlers.onEdit(readValue());
+        return;
+      }
+    }
     const text = readValue();
     // The browser leaves a `<br>` behind when the last character goes.
     if (!text) {
@@ -634,6 +728,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       if (structureChanged(text, at)) render(text, at);
     }
     updateToken();
+    ledWithScope = leadsWithScope();
     handlers.onEdit(readValue());
   };
 
@@ -685,10 +780,11 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     if (text && structureChanged(text, null)) render(text, caretIndex(), null);
   }
 
-  const onClick = () => { updateToken(); syncPills(); };
-  const onFocus = () => { updateToken(); syncPills(); };
+  const onClick = () => { clampCaret(); updateToken(); syncPills(); };
+  const onFocus = () => { clampCaret(); updateToken(); syncPills(); };
   const onKeyUp = (e: KeyboardEvent) => {
-    if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End" || e.key === "ArrowUp") {
+      clampCaret();
       updateToken();
       syncPills();
     }

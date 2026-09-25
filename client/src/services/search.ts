@@ -100,6 +100,28 @@ const TAB_TAGS: Partial<Record<SearchTab, readonly string[]>> = {
 };
 
 /** Everything is deliberately unconstrained — the relay blends and ranks. */
+/** The word each tab wears — for anything that names a tab away from the tab bar. */
+export const TAB_LABELS: Record<SearchTab, string> = {
+  everything: "Everything",
+  people: "People",
+  notes: "Notes",
+  articles: "Articles",
+  media: "Media",
+  apps: "Apps",
+  shop: "Shop",
+  repos: "Repos",
+  issues: "Issues",
+  prs: "PRs",
+  events: "Events",
+  live: "Live",
+  music: "Music",
+  releases: "Releases",
+  lists: "Lists",
+  recipes: "Recipes",
+  nips: "NIPs",
+};
+export const tabLabel = (tab: string): string => TAB_LABELS[tab as SearchTab] ?? tab;
+
 export function kindsForTab(tab: SearchTab): number[] | undefined {
   return tab === "everything" ? undefined : TAB_KINDS[tab];
 }

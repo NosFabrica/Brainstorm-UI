@@ -428,3 +428,81 @@ describe("what running it in a browser caught", () => {
     expect(box().className).toContain("whitespace-pre-wrap");
   });
 });
+
+// Benjamin (2026-09-24): on a search scoped to megistus, a tap left of the pill put the
+// caret before it, "dog" landed in front, and the box read "dogfrom:npub…" — the scope
+// gone, the suggestions for strangers. The scope is the box's frame: words go after it.
+describe("the scope pill stays first", () => {
+  const scoped = `from:${npub}`;
+  const chip = () => box().querySelector('[data-token][data-type="key"]') as HTMLElement;
+  const caretAt = (node: Node, offset: number) => {
+    const r = document.createRange();
+    r.setStart(node, offset);
+    r.collapse(true);
+    const sel = document.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(r);
+  };
+  /** Where the caret is, as an offset into the value — a pill is worth its whole token. */
+  const caretIndex = () => {
+    const el = box();
+    const r = document.getSelection()!.getRangeAt(0);
+    let i = 0;
+    for (const n of Array.from(el.childNodes)) {
+      if (n === r.startContainer) return i + (n.nodeType === 3 ? r.startOffset : 0);
+      if (r.startContainer === el) { if (Array.from(el.childNodes).indexOf(n) >= r.startOffset) return i; }
+      i += n.nodeType === 3 ? (n.textContent ?? "").length : ((n as HTMLElement).dataset.token ?? "").length;
+    }
+    return i;
+  };
+
+  it("words typed in front of the scope land behind it, and the pill stays a pill", () => {
+    const { onChange } = mount({ value: scoped });
+    expect(chip()).toBeTruthy();
+    // The browser inserts the text before the non-editable pill; the box is told after.
+    box().insertBefore(document.createTextNode("dog"), chip());
+    fireEvent.input(box());
+    expect(onChange).toHaveBeenLastCalledWith(`${scoped} dog`);
+    expect(box().querySelectorAll('[data-token][data-type="key"]')).toHaveLength(1);
+    expect(box().value).toBe(`${scoped} dog`);
+    expect(caretIndex()).toBe(`${scoped} dog`.length);
+  });
+
+  it("a word typed right after the pill gets the space the grammar needs", () => {
+    const { onChange } = mount({ value: scoped });
+    box().insertBefore(document.createTextNode("dog"), box().querySelector("[data-hint]"));
+    fireEvent.input(box());
+    expect(onChange).toHaveBeenLastCalledWith(`${scoped} dog`);
+    expect(box().querySelectorAll('[data-token][data-type="key"]')).toHaveLength(1);
+    expect(caretIndex()).toBe(`${scoped} dog`.length);
+  });
+
+  it("a tap or a keystroke that leaves the caret before the scope moves it behind it", () => {
+    mount({ value: `${scoped} ` });
+    caretAt(box(), 0);
+    fireEvent.click(box());
+    expect(caretIndex()).toBe(scoped.length + 1);
+    caretAt(box(), 0);
+    fireEvent.focus(box());
+    expect(caretIndex()).toBe(scoped.length + 1);
+    caretAt(box(), 0);
+    fireEvent.keyUp(box(), { key: "Home" });
+    expect(caretIndex()).toBe(scoped.length + 1);
+  });
+
+  it("without a space after the pill the caret rests right behind it", () => {
+    mount({ value: scoped });
+    caretAt(box(), 0);
+    fireEvent.click(box());
+    expect(caretIndex()).toBe(scoped.length);
+  });
+
+  it("words already behind the scope are left exactly where they are", () => {
+    const { onChange } = mount({ value: `${scoped} dog` });
+    const last = box().lastChild as Text;
+    caretAt(last, last.data.length);
+    fireEvent.click(box());
+    expect(caretIndex()).toBe(`${scoped} dog`.length);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});

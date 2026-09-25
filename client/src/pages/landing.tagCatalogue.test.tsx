@@ -26,6 +26,7 @@ vi.mock("@/services/nostr", () => ({
   fetchAddressableEvents: async () => new Map(),
 }));
 vi.mock("@/services/api", () => ({ apiClient: new Proxy({}, { get: () => async () => null }) }));
+vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: () => new Map() }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.85 }));
 vi.mock("@/hooks/useAppEndorsements", () => ({ useAppEndorsements: () => null }));

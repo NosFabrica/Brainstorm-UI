@@ -9,6 +9,7 @@ import { nip19 } from "nostr-tools";
 import { setTechnicalView } from "@/lib/technicalView";
 // The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
+import { scopedSearchHref } from "@/lib/searchSyntax";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
@@ -87,6 +88,9 @@ vi.mock("@/services/nostr", () => ({
 const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.85);
 // Event cards carry the RSVP button, which reads the active account; these
 // tests are signed out — the button is the sign-in door and never publishes.
+// What a scoped person publishes — the empty tab under a scope offers it.
+const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
+vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 // One Bitcoin price for the Shop page — fixed here so a sats price converts to round money.
 const TEST_RATES = { USD: 100_000, EUR: 90_000, GBP: 80_000, CAD: 140_000, CHF: 85_000, AUD: 150_000, JPY: 15_000_000 };
@@ -2799,6 +2803,33 @@ describe("SearchResults", () => {
     render(<SearchResults query="zzz" pov="nosfabrica" />);
     emit({ hits: [], eose: true, timeMs: 100 });
     expect(await screen.findByTestId("container-no-results")).toBeInTheDocument();
+  });
+
+  // Tap Staci's Shop, switch to Articles where she has nothing: a door, not a dead end.
+  it("an empty tab under a scope names the person, offers what they do publish, and switches the tab in place", async () => {
+    const joe = "e".repeat(64);
+    const npub = nip19.npubEncode(joe);
+    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === joe ? { chips: [{ key: "shop", label: "Shop", tab: "shop", liveNow: false }, { key: "articles", label: "Articles", tab: "articles", liveNow: false }] } : undefined])));
+    suggestMock.mockResolvedValue([{ pubkey: joe, npub, name: "Joe Martin", wotRank: 0.9, wotFollowers: 3 }]);
+    setUrlTab("articles");
+    render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 100 });
+    const empty = await screen.findByTestId("container-no-results");
+    await vi.waitFor(() => expect(empty).toHaveTextContent("Joe Martin hasn't published articles here yet"));
+    const chips = within(empty).getByTestId("scoped-empty-chips");
+    expect(within(chips).queryByTestId("person-content-chip-articles")).toBeNull();
+    expect(within(empty).getByTestId("scoped-empty-all").getAttribute("href")).toBe(scopedSearchHref(joe, "everything"));
+    fireEvent.click(within(chips).getByTestId("person-content-chip-shop"));
+    await vi.waitFor(() => expect(screen.getByTestId("search-tab-shop")).toHaveAttribute("aria-selected", "true"));
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("shop");
+    // Benjamin (2026-09-25): "See everything from …" changed the URL and nothing moved —
+    // the page reads its tab once, on mount. The link switches the tab the way the chips do.
+    emit({ hits: [], eose: true, timeMs: 100 });
+    const all = await screen.findByTestId("scoped-empty-all");
+    fireEvent.click(all);
+    await vi.waitFor(() => expect(screen.getByTestId("search-tab-everything")).toHaveAttribute("aria-selected", "true"));
+    expect(new URLSearchParams(window.location.search).get("t")).toBeNull();
+    contentMock.mockImplementation(() => new Map());
   });
 });
 

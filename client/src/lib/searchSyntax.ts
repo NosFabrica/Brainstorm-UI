@@ -328,14 +328,15 @@ export function personScope(query: string): string | null {
 }
 
 /** The search page, scoped to one person, on one vertical. */
-export function scopedSearchHref(pubkey: string, tab: string): string {
+export function scopedSearchHref(pubkey: string, tab: string, words = ""): string {
   let key = pubkey;
   try {
     key = nip19.npubEncode(pubkey);
   } catch {
     // a malformed key stays as typed — the box will show the failure
   }
-  return `/?q=${encodeURIComponent(`from:${key}`)}&t=${encodeURIComponent(tab)}`;
+  const q = words.trim() ? `from:${key} ${words.trim()}` : `from:${key}`;
+  return `/?q=${encodeURIComponent(q)}&t=${encodeURIComponent(tab)}`;
 }
 
 /**
