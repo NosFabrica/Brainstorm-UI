@@ -2822,6 +2822,13 @@ describe("SearchResults", () => {
     fireEvent.click(within(chips).getByTestId("person-content-chip-shop"));
     await vi.waitFor(() => expect(screen.getByTestId("search-tab-shop")).toHaveAttribute("aria-selected", "true"));
     expect(new URLSearchParams(window.location.search).get("t")).toBe("shop");
+    // Benjamin (2026-09-25): "See everything from …" changed the URL and nothing moved —
+    // the page reads its tab once, on mount. The link switches the tab the way the chips do.
+    emit({ hits: [], eose: true, timeMs: 100 });
+    const all = await screen.findByTestId("scoped-empty-all");
+    fireEvent.click(all);
+    await vi.waitFor(() => expect(screen.getByTestId("search-tab-everything")).toHaveAttribute("aria-selected", "true"));
+    expect(new URLSearchParams(window.location.search).get("t")).toBeNull();
     contentMock.mockImplementation(() => new Map());
   });
 });

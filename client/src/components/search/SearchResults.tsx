@@ -1559,7 +1559,15 @@ export function SearchResults({
                           <PersonContentChips pubkey={scopedTo} name={who} content={others} onPick={(c) => changeTab(c.tab as SearchTab)} testId="scoped-empty-chips" />
                         )}
                         {tab !== "everything" && (
-                          <Link href={scopedSearchHref(scopedTo, "everything", scope?.rest)} className="text-xs font-semibold text-brand-link hover:underline" data-testid="scoped-empty-all">
+                          // The page reads its tab once, on mount: a link that only rewrites the URL
+                          // moved nothing. It switches the tab in place, the way the chips do; the
+                          // href stays for a middle-click or a copied link.
+                          <Link
+                            href={scopedSearchHref(scopedTo, "everything", scope?.rest)}
+                            onClick={(e) => { e.preventDefault(); changeTab("everything"); }}
+                            className="text-xs font-semibold text-brand-link hover:underline"
+                            data-testid="scoped-empty-all"
+                          >
                             See everything from {who === "This person" ? "them" : who} →
                           </Link>
                         )}
