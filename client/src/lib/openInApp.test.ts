@@ -91,3 +91,28 @@ describe("appLinksFor", () => {
     expect(appLinksFor(followSet, PIXEL).map((l) => l.id)).toEqual(["amethyst", "default"]);
   });
 });
+
+describe("appLinksFor — the client that published it", () => {
+  // The team (2026-09-24): when Brainstorm renders an event only partially,
+  // offer the client named in its NIP-89 `client` tag as a way back to the
+  // original — an "open in original client" fallback.
+  const generic = (origin: string): OpenEntity => ({ kind: "event", eventKind: 30078, bech32: nevent, uri: `nostr:${nevent}`, origin });
+
+  it("a client we can link to is offered last, by its own name, at its page for this event", () => {
+    expect(appLinksFor(generic("Coracle"), MAC).at(-1)).toEqual({ id: "origin", label: "Coracle", href: `https://coracle.social/notes/${nevent}`, external: true });
+    expect(appLinksFor(generic("nostter"), MAC).at(-1)).toEqual({ id: "origin", label: "Nostter", href: `https://nostter.app/${nevent}`, external: true });
+    expect(appLinksFor(generic("Damus"), MAC).at(-1)).toEqual({ id: "origin", label: "Damus", href: `https://damus.io/${nevent}`, external: true });
+  });
+
+  it("a client we cannot link to adds nothing, and one already offered is not offered twice", () => {
+    expect(appLinksFor(generic("Some Wallet"), MAC).map((l) => l.id)).not.toContain("origin");
+    const primalNote: OpenEntity = { ...note, origin: "Primal" };
+    expect(appLinksFor(primalNote, MAC).filter((l) => l.id === "origin" || l.id === "primal")).toHaveLength(1);
+  });
+
+  it("an article opens at the client's article route", () => {
+    const naddr = nip19.naddrEncode({ kind: 30023, pubkey: "a".repeat(64), identifier: "x" });
+    const article: OpenEntity = { kind: "article", eventKind: 30023, bech32: naddr, uri: `nostr:${naddr}`, origin: "habla.news" };
+    expect(appLinksFor(article, MAC).at(-1)).toEqual({ id: "origin", label: "Habla", href: `https://habla.news/a/${naddr}`, external: true });
+  });
+});

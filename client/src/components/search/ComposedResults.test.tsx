@@ -5,6 +5,9 @@
  * mocked per-stream so tests drive sections independently.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTechnicalView } from "@/lib/technicalView";
+// The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
+beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
@@ -76,6 +79,10 @@ const author = (pubkey: string, name: string) => ({
 });
 // Wavlake as the second music source: nothing unless a test says otherwise.
 const wavlakeSearchMock = vi.fn<(term: string) => Promise<import("@/lib/wavlake").WavlakeSong[]>>(() => Promise.resolve([]));
+// The V4V lists from Podcast Index (the team, 2026-09-24): the Listen row's third source, with words.
+const podcastIndexMock = vi.fn(async () => ({ songs: [] as unknown[], musicians: [] as unknown[] }));
+vi.mock("@/services/dlists", () => ({ fetchPodcastIndexMusic: () => podcastIndexMock() }));
+
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
@@ -330,7 +337,7 @@ describe("ComposedResults — media-rich sections", () => {
     expect(screen.queryByTestId("serp-row-n1")).toBeNull();
     expect(screen.getByTestId("serp-row-n2")).toBeInTheDocument();
     // Latest is only notes: saying "· Note" on every row says nothing.
-    expect(within(screen.getByTestId("serp-row-n2")).queryByTestId("serp-type")).toBeNull();
+    expect(within(screen.getByTestId("serp-row-n2")).queryByTestId("kind-pill")).toBeNull();
   });
 
   // People first, feeds after: nothing hidden, but a network of people leads.
@@ -373,9 +380,10 @@ describe("ComposedResults — media-rich sections", () => {
     expect(within(articles).getByTestId("article-tile-fa")).toBeInTheDocument();
   });
 
-  // Article rows on Everything hide their type — the section says "Articles".
-  // A spec (kind 30817) rides in that section and must not pass for an essay.
-  it("a spec in the Articles section says Spec; an essay still says nothing", async () => {
+  // A spec (kind 30817) rides in the Articles section and must not pass for an
+  // essay — it has no NIP number to say so. The essay says nothing by default
+  // (Benjamin, 2026-09-24: labels on every card wait for the switch).
+  it("a spec in the Articles section says Spec; an essay says nothing by default", async () => {
     render(<ComposedResults query="scheduler dvm" pov="nosfabrica" onTabChange={vi.fn()} />);
     const pk = "7".repeat(64);
     sectionCall("articles").emit({
@@ -387,8 +395,8 @@ describe("ComposedResults — media-rich sections", () => {
       timeMs: 100,
     });
     const section = await screen.findByTestId("serp-section-articles");
-    expect(within(within(section).getByTestId("serp-row-s1")).getByTestId("serp-type")).toHaveTextContent("Spec");
-    expect(within(within(section).getByTestId("serp-row-e1")).queryByTestId("serp-type")).toBeNull();
+    expect(within(within(section).getByTestId("serp-row-s1")).getByTestId("kind-pill")).toHaveTextContent("Spec");
+    expect(within(within(section).getByTestId("serp-row-e1")).queryByTestId("kind-pill")).toBeNull();
   });
 
   // Benjamin: "when Latest is showing there should always be 3" — a strip of
@@ -517,6 +525,8 @@ describe("ComposedResults — media-rich sections", () => {
     });
     const section = await screen.findByTestId("serp-section-articles");
     const lead = within(section).getByTestId("article-lead-a1");
+    // An essay with a cover says nothing by default; only a spec would.
+    expect(within(lead).queryByTestId("kind-pill")).toBeNull();
     expect(lead).toHaveTextContent("Anfield through the ages");
     expect(lead).toHaveTextContent("Summary of Anfield through the ages");
     expect(lead).toHaveTextContent("author-a1");
@@ -524,6 +534,7 @@ describe("ComposedResults — media-rich sections", () => {
     // Covered articles fill the grid; the one without a cover is not an empty
     // tile but a text row beneath — nothing dropped, no tile left blank.
     const tiles = [...section.querySelectorAll('[data-testid^="article-tile-"]')].map((t) => t.getAttribute("data-testid"));
+    for (const tile of section.querySelectorAll('[data-testid^="article-tile-"]')) expect(within(tile as HTMLElement).queryByTestId("kind-pill")).toBeNull();
     expect(tiles).toEqual(["article-tile-a2", "article-tile-a4", "article-tile-a5"]);
     expect(within(section).queryByTestId("article-placeholder")).toBeNull();
     expect(within(section).getByTestId("serp-row-a3")).toBeInTheDocument();
@@ -574,10 +585,12 @@ describe("ComposedResults — media-rich sections", () => {
     const grid = await screen.findByTestId("serp-media-grid");
     expect(grid.className).toMatch(/grid/);
     const photo = screen.getByTestId(`media-tile-${"1".repeat(64)}`);
+    expect(within(photo).queryByTestId("kind-pill")).toBeNull(); // the picture says what it is
     expect(photo.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/anfield.jpg");
     expect(photo).toHaveTextContent("Sports Central");
     expect(photo.querySelector('[data-testid="media-tile-play"]')).toBeNull();
     const video = screen.getByTestId(`media-tile-${"2".repeat(64)}`);
+    expect(within(video).queryByTestId("kind-pill")).toBeNull();
     expect(video.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/goal-poster.jpg");
     expect(video.querySelector('[data-testid="media-tile-play"]')).not.toBeNull();
     // Benjamin: a tap on the picture or the play badge opens THE MEDIA, full
@@ -794,6 +807,46 @@ describe("ComposedResults", () => {
     const section = await screen.findByTestId("serp-section-happening");
     const rows = [...section.querySelectorAll('[data-testid^="event-row-"], [data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
     expect(rows).toEqual(["event-row-soon", "event-row-far", "serp-row-stream"]);
+    // Events and streams share the section; by default neither is labelled.
+    expect(within(section).queryByTestId("kind-pill")).toBeNull();
+    // Luma's row: the time and the town, the host, the cover, who is going.
+    const soon = screen.getByTestId("event-row-soon");
+    expect(soon).toHaveTextContent(/\d{1,2}:\d{2}|All day/);
+    expect(soon).toHaveTextContent("The Baltic Fleet, Liverpool");
+    expect(soon).not.toHaveTextContent("33A Wapping");
+    expect(soon).toHaveTextContent(/By\s*club/);
+    expect(within(soon).getByTestId("cover-event-row-soon").getAttribute("src")).toBe("https://img/soon.jpg");
+    expect(await within(soon).findByText(/2 going/)).toBeInTheDocument();
+  });
+
+  it("with the technical view on, Happening says which rows are events and which are streams", async () => {
+    setTechnicalView(true);
+    localStorage.setItem("brainstorm_active_account", "acct-1"); // the suite's beforeEach clears the device
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cal = (id: string, pk: string, title: string, start: number) =>
+      hitOf(ev(id, 31923, pk, "", [["d", id], ["title", title], ["start", String(start)], ["location", "The Baltic Fleet, 33A Wapping, Liverpool, UK"], ["image", `https://img/${id}.jpg`]]), "club");
+    eventRsvpsMock.mockResolvedValue(new Map([["31923:" + "3".repeat(64) + ":soon", { going: 2, faces: ["7".repeat(64), "8".repeat(64)] }]]));
+    sectionCall("events").emit({
+      hits: [
+        cal("far", "1".repeat(64), "Liverpool Bitcoin Conference", nowSec + 30 * 86_400),
+        cal("gone", "2".repeat(64), "Liverpool Meetup (July)", nowSec - 30 * 86_400),
+        cal("soon", "3".repeat(64), "Liverpool Nostr Social", nowSec + 2 * 86_400),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    sectionCall("live").emit({
+      hits: [hitOf(ev("stream", 30311, "4".repeat(64), "", [["d", "s"], ["title", "Anfield Radio"], ["status", "live"]]), "radio")],
+      eose: true,
+      timeMs: 100,
+    });
+    const section = await screen.findByTestId("serp-section-happening");
+    const rows = [...section.querySelectorAll('[data-testid^="event-row-"], [data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
+    expect(rows).toEqual(["event-row-soon", "event-row-far", "serp-row-stream"]);
+    expect(within(within(section).getByTestId("event-row-soon")).getByTestId("kind-pill")).toHaveTextContent("Event");
+    expect(within(within(section).getByTestId("serp-row-stream")).getByTestId("kind-pill")).toHaveTextContent("Stream");
+    setTechnicalView(false);
     // Luma's row: the time and the town, the host, the cover, who is going.
     const soon = screen.getByTestId("event-row-soon");
     expect(soon).toHaveTextContent(/\d{1,2}:\d{2}|All day/);
@@ -871,6 +924,21 @@ describe("ComposedResults", () => {
     expect(within(card).getByTestId("track-play")).toBeInTheDocument();
     fireEvent.click(within(section).getByTestId("serp-more-listen"));
     expect(onTabChange).toHaveBeenCalledWith("music");
+  });
+
+  it("the Listen row carries up to three value-for-value songs that answer the words, after Wavlake's", async () => {
+    wavlakeSearchMock.mockResolvedValue([
+      { id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" },
+    ]);
+    const pi = (n: number, title: string) => ({ id: `podcastindex:${n}`, eventId: String(n), title, artist: "Ainsley Costello", audio: `https://cdn/${n}.mp3`, source: "podcastindex" });
+    podcastIndexMock.mockResolvedValue({ songs: [pi(1, "Cherry on Top"), pi(2, "Lover's Curse"), pi(3, "Dear Silence"), pi(4, "Fourth"), { ...pi(5, "Unrelated"), artist: "Someone Else" }], musicians: [] });
+    render(<ComposedResults query="Ainsley Costello" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("music").emit({ hits: [], eose: true, timeMs: 80 });
+    const section = await screen.findByTestId("serp-section-listen");
+    await within(section).findByTestId("podcastindex-song-podcastindex:1");
+    const order = [...section.querySelectorAll('[data-testid^="wavlake-song-"], [data-testid^="podcastindex-song-"]')].map((el) => el.getAttribute("data-testid"));
+    expect(order).toEqual(["wavlake-song-wavlake:04cead49", "podcastindex-song-podcastindex:1", "podcastindex-song-podcastindex:2", "podcastindex-song-podcastindex:3"]);
+    expect(within(section).getByTestId("podcastindex-song-podcastindex:1")).toHaveTextContent("Podcast Index");
   });
 
   it("shows no Listen row when nothing on the relay is a song", async () => {

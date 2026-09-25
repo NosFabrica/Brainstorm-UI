@@ -5,7 +5,7 @@
  * in the URL so Back, reload and a shared link keep them.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { SearchSnapshot } from "@/services/search";
 import { nip19 } from "nostr-tools";
 import { getRecentItems } from "@/lib/recentSearches";
@@ -13,6 +13,8 @@ import { getRecentItems } from "@/lib/recentSearches";
 const streamMock = vi.fn();
 // People the typeahead offers; a test that needs a dropdown seeds one.
 const suggestMock = vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []);
+// Product titles ride the same typeahead; a test that wants one seeds it here.
+const listingsMock = vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []);
 let allStreams: { query: string; params: { tab?: string; limit?: number }; cb: (s: SearchSnapshot) => void }[] = [];
 const isPanelProbe = (q: string, p?: { tab?: string; limit?: number }) =>
   q.startsWith("#") || (p?.tab === "apps" && p?.limit === 6) || (p?.tab === "events" && p?.limit === 60);
@@ -27,6 +29,7 @@ vi.mock("@/services/search", async (importOriginal) => {
       return () => {};
     },
     suggestProfiles: (...args: unknown[]) => suggestMock(...args),
+    suggestListings: (...args: unknown[]) => listingsMock(...args),
     // The page asks for hits now (it seeds the People section with them); the
     // fixtures are still people, so wrap each in the kind-0 it arrived as.
     suggestProfileHits: async (...args: unknown[]) => {
@@ -248,6 +251,8 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
     streamMock.mockClear();
     suggestMock.mockReset();
     suggestMock.mockResolvedValue([]);
+    listingsMock.mockReset();
+    listingsMock.mockResolvedValue([]);
     knownProfiles.set(JOE, { display_name: "Joe Martin", picture: "https://img/joe.jpg" });
     window.history.replaceState({}, "", `/?q=from%3A${npub}&t=music`);
   });
@@ -266,6 +271,26 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
     render(<Landing />);
     await screen.findByTestId("search-scope-chip");
     await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("input-home-search")));
+  });
+
+  // Benjamin (2026-09-24), the Google reflex: "Satoshi Smiley T-shirt", then
+  // straight to it. Up to three product titles sit under the people.
+  it("product titles ride the typeahead and open the listing itself", async () => {
+    const SELLER = "e".repeat(64);
+    listingsMock.mockResolvedValue([{
+      event: { id: "t".repeat(64), kind: 30402, pubkey: SELLER, tags: [["d", "smiley"], ["title", "Satoshi Smiley T-shirt"], ["price", "21", "USD"], ["image", "https://img/smiley.jpg"]], content: "", created_at: 1, sig: "s" },
+      author: { pubkey: SELLER, npub: nip19.npubEncode(SELLER), name: "Black Sheep", wotRank: null, wotFollowers: null },
+      rank: null,
+    }]);
+    render(<Landing />);
+    typeInBox("satoshi smiley");
+    const row = await screen.findByTestId("home-product-suggestion-0", {}, { timeout: 3000 });
+    expect(row).toHaveTextContent("Satoshi Smiley T-shirt");
+    expect(row).toHaveTextContent("$21");
+    expect(row).toHaveTextContent("Black Sheep");
+    expect(listingsMock.mock.calls[0][0]).toBe("satoshi smiley");
+    fireEvent.click(row);
+    await waitFor(() => expect(window.location.pathname).toMatch(/^\/e\/(nevent1|t{64})/));
   });
 
   it("the typeahead's footer names the person, never the key", async () => {
@@ -459,6 +484,21 @@ describe("the Browse row under the box", () => {
     fireEvent.focus(input);
     const chips = await screen.findByTestId("browse-chips");
     const order = [...chips.querySelectorAll('[data-testid^="browse-"]')].map((el) => el.getAttribute("data-testid"));
-    expect(order).toEqual(["browse-people", "browse-notes", "browse-media", "browse-shop", "browse-apps", "browse-events", "browse-live", "browse-lists"]);
+    expect(order).toEqual(["browse-people", "browse-notes", "browse-media", "browse-shop", "browse-apps", "browse-events", "browse-music", "browse-live", "browse-lists"]);
+  });
+
+  it("offers Music, under the music category's icon, and opens the Music tab", async () => {
+    // The team (2026-09-24): the music category, defined by the V4V D-lists, gets the Music icon.
+    window.history.replaceState({}, "", "/");
+    render(<Landing />);
+    const input = screen.getByTestId("input-home-search");
+    fireEvent.pointerDown(input);
+    fireEvent.focus(input);
+    const chips = await screen.findByTestId("browse-chips");
+    const music = within(chips).getByTestId("browse-music");
+    expect(music).toHaveTextContent("Music");
+    expect(music.querySelector("svg.lucide-music")).not.toBeNull();
+    fireEvent.mouseDown(music);
+    expect(window.location.search).toContain("t=music");
   });
 });

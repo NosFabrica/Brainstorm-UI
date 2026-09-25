@@ -7,7 +7,7 @@
  * on the topic can answer, not just one.
  */
 import { describe, expect, it } from "vitest";
-import { wikiPlainText, wikiToMarkdown } from "./wiki";
+import { articleBrief, articleSummary, wikiPlainText, wikiToMarkdown } from "./wiki";
 
 describe("wikiToMarkdown", () => {
   it("a labelled wikilink reads as its label and searches the topic's articles here", () => {
@@ -58,5 +58,34 @@ describe("wikiPlainText", () => {
   it("a markdown page reads as its words too — links, emphasis, headings and bullets stripped", () => {
     const page = "# Bitcoin\n\n**Bitcoin** is a _peer-to-peer_ [currency](https://bitcoin.org) with `snake_case` names.\n\n- one\n- two\n\n![cover](https://img.example/b.png)";
     expect(wikiPlainText(page)).toBe("Bitcoin is a peer-to-peer currency with `snake_case` names. one two");
+  });
+});
+
+describe("articleBrief — a publisher's placeholder is no summary", () => {
+  // Geyser stamps "No description available" on an update whose author wrote
+  // no summary; a card and the reader showed it as if the author had
+  // (Benjamin, 2026-09-24, Hope With Bitcoin's "Mission Day!").
+  const article = (summary: string | undefined) => ({
+    kind: 30023,
+    content: "**Today**, the Hope With Bitcoin team is heading to the Bon Arbre Orphanage in Pahou, Benin.\n\nThe day will include a Bitcoin education session.",
+    tags: summary === undefined ? [["title", "Mission Day!"]] : [["title", "Mission Day!"], ["summary", summary]],
+  });
+
+  it("the article's opening words stand in for a placeholder, and for no summary at all", () => {
+    expect(articleBrief(article("No description available"))).toBe("Today, the Hope With Bitcoin team is heading to the Bon Arbre Orphanage in Pahou, Benin. The day will include a Bitcoin education session.");
+    expect(articleBrief(article(undefined))).toBe("Today, the Hope With Bitcoin team is heading to the Bon Arbre Orphanage in Pahou, Benin. The day will include a Bitcoin education session.");
+  });
+
+  it("opening words that only repeat the title are no brief; a body that opens with its title goes on from there", () => {
+    const recipe = { kind: 30023, content: "Chicken soup", tags: [["title", "Chicken soup"]] };
+    expect(articleBrief(recipe)).toBe("");
+    const opensWithTitle = { kind: 30023, content: "# Mission Day!\n\nToday we are heading to Pahou.", tags: [["title", "Mission Day!"]] };
+    expect(articleBrief(opensWithTitle)).toBe("Today we are heading to Pahou.");
+  });
+
+  it("a real summary is kept as written; the reader's summary line says nothing for a placeholder", () => {
+    expect(articleBrief(article("A day at the orphanage."))).toBe("A day at the orphanage.");
+    expect(articleSummary(article("No description available"))).toBe("");
+    expect(articleSummary(article("A day at the orphanage."))).toBe("A day at the orphanage.");
   });
 });

@@ -16,6 +16,9 @@ import { useTagMatches } from "@/hooks/useTags";
 import type { TagSummary } from "@/services/tags";import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { typeaheadWords } from "@/lib/searchSyntax";
+import { suggestListings, type SearchHit } from "@/services/search";
+import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
+import { eventPath } from "@/lib/shareId";
 
 /**
  * Desktop header search with live, debounced typeahead (mirrors the landing box,
@@ -43,6 +46,8 @@ export function HeaderSearchBox({
   const [, navigate] = useLocation();
   const [q, setQ] = useState("");
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  // Product titles under the people — straight to the listing.
+  const [products, setProducts] = useState<SearchHit[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(-1);
@@ -75,17 +80,23 @@ export function HeaderSearchBox({
     // A `#topic` query resolves to the trust-ranked content feed, not profiles —
     // keep the dropdown open (for the topic row) but skip the profile search.
     if (parseTopicQuery(value).isTopic) {
-      setSuggestions([]); setLoading(false); setOpen(true); return;
+      setSuggestions([]); setProducts([]); setLoading(false); setOpen(true); return;
     }
     // Filters and half-typed prefixes are not names: `doi:` must not list people called "doi".
     if (query.length < 2 || typeaheadWords(value) === null || isLikelyNpub(query) || isHexPubkey(query) || isNip05Handle(query)) {
-      setSuggestions([]); setOpen(false); setLoading(false); return;
+      setSuggestions([]); setProducts([]); setOpen(false); setLoading(false); return;
     }
     setLoading(true); setOpen(true);
     timer.current = window.setTimeout(async () => {
       try {
         request.current = new AbortController();
-        const { results } = await searchByText(query, effectivePov, observerPubkey, 10, request.current.signal);
+        const signal = request.current.signal;
+        void suggestListings(query, { pov: effectivePov, userPubkey: observerPubkey }, { limit: 3, signal }).then((hits) => {
+          if (reqId.current !== id) return;
+          setProducts(hits);
+          if (hits.length) setOpen(true);
+        });
+        const { results } = await searchByText(query, effectivePov, observerPubkey, 10, signal);
         if (reqId.current !== id) return;
         setSuggestions(results.slice(0, 7)); setActive(-1); setOpen(true);
       } catch {
@@ -125,6 +136,11 @@ export function HeaderSearchBox({
     setOpen(false);
     setActive(-1);
     navigate(profileHref(r.npub));
+  };
+
+  const goListing = (hit: SearchHit) => {
+    setOpen(false);
+    navigate(eventPath(hit.event));
   };
 
   const goTopic = (tag: string) => {
@@ -199,11 +215,11 @@ export function HeaderSearchBox({
           )}
         </div>
       </form>
-      {open && (topic.isTopic || loading || suggestions.length > 0 || tagMatches.length > 0) && (
+      {open && (topic.isTopic || loading || suggestions.length > 0 || products.length > 0 || tagMatches.length > 0) && (
         <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/10" role="listbox" data-testid="header-search-suggestions">
           {topic.isTopic ? (
             <TopicSuggestionRow tag={topic.tag} active onSelect={() => goTopic(topic.tag)} testId="header-search-topic" />
-          ) : loading && suggestions.length === 0 && tagMatches.length === 0 ? (
+          ) : loading && suggestions.length === 0 && products.length === 0 && tagMatches.length === 0 ? (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-slate-400 dark:text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Searching…
             </div>
@@ -254,6 +270,13 @@ export function HeaderSearchBox({
                 )}
               </button>
             ))}
+            {products.length > 0 && (
+              <div className="border-t border-slate-100 dark:border-slate-800/60" data-testid="header-search-products">
+                {products.map((h, i) => (
+                  <ListingSuggestionRow key={h.event.id} hit={h} onSelect={() => goListing(h)} testId={`header-search-product-${i}`} />
+                ))}
+              </div>
+            )}
             </>
           )}
         </div>
