@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
+import { ProfileImg } from "@/components/ui/profile-img";
 import { nip19 } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
@@ -62,7 +63,7 @@ export function MentionChip({ uri, plain = false }: { uri: string; /** The name 
         data-testid="mention-chip"
       >
         {profile?.picture && (
-          <img src={profile.picture} alt="" loading="lazy" className="h-3.5 w-3.5 shrink-0 rounded-full object-cover" />
+          <ProfileImg src={profile.picture} alt="" loading="lazy" className="h-3.5 w-3.5 shrink-0 rounded-full object-cover" />
         )}
         <span className="truncate">@{name}</span>
       </Link>

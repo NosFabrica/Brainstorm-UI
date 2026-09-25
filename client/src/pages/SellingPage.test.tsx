@@ -10,10 +10,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { NostrEvent } from "nostr-tools";
 
 const recentMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>();
-const profileMock = vi.fn(async () => ({ name: "borntobefree", display_name: "Born To Be Free", picture: "https://img/me.jpg" }));
+const profileMock = vi.fn(async () => ({
+  id: "f".repeat(64), kind: 0, pubkey: "ab".repeat(32), created_at: 1, tags: [], sig: "",
+  content: JSON.stringify({ name: "borntobefree", display_name: "Born To Be Free", picture: "https://img/me.jpg" }),
+}));
 vi.mock("@/services/nostr", () => ({
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentMock(pubkey, kinds, limit),
-  fetchProfileForShare: () => profileMock(),
+  refreshProfileEvent: () => profileMock(),
 }));
 const goBackMock = vi.fn();
 vi.mock("@/hooks/useGoBack", () => ({ useGoBack: () => goBackMock }));

@@ -6,7 +6,11 @@ import { naddrForEvent } from "@/lib/articleLinks";
 import { Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
+import { fetchEventsByIds, fetchAddressableEvents } from "@/services/nostr";
+import { eventStore } from "@/lib/eventStore";
+import { useHeldReplaceables } from "@/hooks/useHeldEvents";
+import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
+import { MAX_REF_HINTS, capHints, mergeNewest } from "@/hooks/useNoteRefs";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
@@ -140,6 +144,9 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
       return (evs[0] as MinimalEvent) ?? null;
     },
     enabled: !!ptr?.id && !event,
+    // An event by id never changes, so a held copy is the answer: no spinner,
+    // and no relay asked for what the store already has.
+    initialData: () => (ptr?.id ? ((eventStore.getEvent(ptr.id) as MinimalEvent | undefined) ?? undefined) : undefined),
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -178,13 +185,9 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
   const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
 
-  const profileQuery = useQuery({
-    queryKey: ["event-author", authorPk],
-    queryFn: async () => (authorPk ? (await fetchProfile(authorPk)) ?? null : null),
-    enabled: !!authorPk,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // The author's held profile at once; the event's own relay hints are asked
+  // beside their outbox, and a newer profile replaces it as it lands.
+  const authorProfile = useLiveProfile(authorPk || undefined, ptr?.relays ?? []).profile;
   const trustQuery = useQuery({
     queryKey: ["event-author-trust", authorPk],
     queryFn: () => (authorPk ? apiClient.getHouseInfluence(authorPk) : null),
@@ -195,17 +198,17 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
 
   // References inside the note (quoted notes, articles, mentions) so the rich
   // card can embed them — same two batched queries the share page uses.
-  const refs = useMemo(() => (note ? collectRefs([note]) : { pubkeys: [], ids: [], addrs: [] }), [note]);
+  const refs = useMemo(() => collectRefs(note ? [note] : []), [note]);
   const refEventsQuery = useQuery({
     queryKey: ["event-refs", ptr?.id, refs.ids],
-    queryFn: () => fetchEventsByIds(refs.ids, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+    queryFn: () => fetchEventsByIds(refs.ids, Array.from(new Set([...relayHints, ...PROFILE_RELAYS, ...refs.idRelays.slice(0, MAX_REF_HINTS)]))),
     enabled: refs.ids.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
   });
   const addrEventsQuery = useQuery({
     queryKey: ["event-addrs", ptr?.id, refs.addrs.map(addrCoord)],
-    queryFn: () => fetchAddressableEvents(refs.addrs, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+    queryFn: () => fetchAddressableEvents(capHints(refs.addrs), Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
     enabled: refs.addrs.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
@@ -216,12 +219,13 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
     for (const ev of (refEventsQuery.data ?? []) as MinimalEvent[]) m.set(ev.id, ev);
     return m;
   }, [refEventsQuery.data]);
-  const addrByCoord = useMemo(() => {
-    const m = new Map<string, MinimalEvent>();
-    const src = addrEventsQuery.data as Map<string, MinimalEvent> | undefined;
-    if (src) for (const [k, v] of src) m.set(k, v as MinimalEvent);
-    return m;
-  }, [addrEventsQuery.data]);
+  // Referenced articles: the held copy at once, the newer of it and the
+  // fetched one after — and any later version the store receives.
+  const heldAddrs = useHeldReplaceables(refs.addrs);
+  const addrByCoord = useMemo(
+    () => mergeNewest(refs.addrs, heldAddrs, (addrEventsQuery.data as Map<string, MinimalEvent> | undefined) ?? new Map()),
+    [refs.addrs, heldAddrs, addrEventsQuery.data],
+  );
 
   const allRefPubkeys = useMemo(() => {
     const set = new Set<string>(refs.pubkeys);
@@ -229,21 +233,15 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
     for (const ev of addrByCoord.values()) set.add(ev.pubkey);
     return Array.from(set);
   }, [refs.pubkeys, eventsById, addrByCoord]);
-  const refProfilesQuery = useQuery({
-    queryKey: ["event-ref-profiles", ptr?.id, allRefPubkeys],
-    queryFn: () => fetchProfileMap(allRefPubkeys),
-    enabled: allRefPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const refProfiles = useLiveProfiles(allRefPubkeys);
 
   const profiles = useMemo(() => {
-    const m = new Map<string, ProfileLite>(refProfilesQuery.data ?? new Map());
-    if (authorPk && profileQuery.data) m.set(authorPk, profileQuery.data as ProfileLite);
+    const m = new Map<string, ProfileLite>(refProfiles as Map<string, ProfileLite>);
+    if (authorPk && authorProfile) m.set(authorPk, authorProfile as ProfileLite);
     return m;
-  }, [refProfilesQuery.data, authorPk, profileQuery.data]);
+  }, [refProfiles, authorPk, authorProfile]);
 
-  const profile = (profileQuery.data ?? {}) as ProfileLite;
+  const profile = (authorProfile ?? {}) as ProfileLite;
   const authorName = profile.display_name || profile.name || (authorPk ? npubFromPubkey(authorPk).slice(0, 12) + "…" : "Someone");
   const authorNpub = authorPk ? (() => { try { return npubFromPubkey(authorPk); } catch { return ""; } })() : "";
   const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;

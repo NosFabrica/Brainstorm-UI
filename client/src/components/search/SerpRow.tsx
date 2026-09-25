@@ -36,6 +36,7 @@ import { ViaRelay } from "@/components/ui/via-relay";
 import { contentShape } from "@/lib/contentShape";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
+import { MediaImg } from "@/components/ui/media-img";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 function ago(created_at: number): string {
@@ -162,8 +163,9 @@ function RowThumb({ event, author, score, onFail }: { event: NostrEvent; author:
   };
   if (poster && !failed) {
     return (
-      <img
+      <MediaImg
         src={poster}
+        preset="media_320"
         alt=""
         loading="lazy"
         onError={() => {

@@ -53,6 +53,7 @@ const NAMESPACES = {
   brainstorm_nip85_dismissed_at: "device",
   brainstorm_nip85_consent: "device",
   brainstorm_assistant: "device",
+  brainstorm_relay_auth: "device",
 } as const satisfies Record<string, Lifetime>;
 
 export type AccountNamespace = keyof typeof NAMESPACES;

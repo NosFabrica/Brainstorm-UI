@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import type { NoteToken } from "@/lib/noteContent";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -97,6 +97,30 @@ function articleEmbed(t: NoteToken, key: string): ReactNode | undefined {
   if (t.type === "video") return <ArticleVideo key={key} url={t.value} />;
   return <LinkChip key={key} url={t.value} />;
 }
+
+/** Module-level, so the memoized body below sees the same plugins every render. */
+const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [rehypeSanitize];
+
+/**
+ * The article's text, rendered — and only re-rendered when the text changes.
+ *
+ * Parsing is the expensive part of this page: remark, GFM and sanitize over
+ * the whole article. The screen around it re-renders as its author's profile,
+ * trust score, comments and newer versions land; none of those change the
+ * body, so none of them should parse it again.
+ */
+export const ArticleBody = memo(function ArticleBody({ body, fromHtml }: { body: string; fromHtml: boolean }) {
+  return !fromHtml && isMarkdown(body) ? (
+    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={mdComponents}>
+      {body}
+    </ReactMarkdown>
+  ) : (
+    // Plain text: markdown would fold its single line breaks into
+    // one paragraph; the reading renderer keeps them.
+    <ReadingText text={body} normalized size="post" headline={false} media embed={articleEmbed} className="not-prose" />
+  );
+});
 
 /** Written in markdown, not plain text: enough of its syntax to count. */
 export function isMarkdown(text: string): boolean {
@@ -360,15 +384,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             {/* Inline code wears no decorative backticks (the typography plugin's
                 default) and wraps — a spec's example URIs used to push the page sideways. */}
             <div className="article-prose mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto" data-testid="article-body">
-              {!fromHtml && isMarkdown(prepared.body) ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
-                  {prepared.body}
-                </ReactMarkdown>
-              ) : (
-                // Plain text: markdown would fold its single line breaks into
-                // one paragraph; the reading renderer keeps them.
-                <ReadingText text={prepared.body} normalized size="post" headline={false} media embed={articleEmbed} className="not-prose" />
-              )}
+              <ArticleBody body={prepared.body} fromHtml={fromHtml} />
             </div>
 
             {/* Comments — teaser-gated for anon, trust-filterable for members (same as /e). */}

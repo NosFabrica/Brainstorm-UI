@@ -17,6 +17,7 @@ import type { NostrEvent } from "nostr-tools";
 import { Favicon } from "@/components/share/LinkPreview";
 import { useLightbox } from "@/components/share/Lightbox";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
+import { MediaImg } from "@/components/ui/media-img";
 import { parseNewsShape, type NewsShape } from "@/lib/newsShape";
 import { eventPath } from "@/lib/shareId";
 import { articleBrief } from "@/lib/wiki";
@@ -258,8 +259,9 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
             is one; when that fails too — or a picture alone fails — the tile
             tells the grid it is gone. */}
         {poster && !imgFailed ? (
-          <img
+          <MediaImg
             src={poster}
+            preset="media_640"
             alt=""
             loading="lazy"
             onError={() => {
