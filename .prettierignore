@@ -1,0 +1,9 @@
+.agents
+.claude
+.worktrees
+artifacts
+attached_assets
+brand-assets
+client/src/lib/tagging-sdk
+dist
+package-lock.json
