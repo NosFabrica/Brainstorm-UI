@@ -94,7 +94,7 @@ export function NowPlayingBar() {
     >
       {current.cover && (
         <>
-          <img src={current.cover} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full scale-150 object-cover blur-2xl opacity-60" data-testid="now-playing-backdrop" />
+          <img src={current.cover} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full scale-150 object-cover blur-2xl opacity-60 will-change-transform" data-testid="now-playing-backdrop" />
           <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/70 to-slate-950/85" aria-hidden="true" data-testid="now-playing-scrim" />
         </>
       )}

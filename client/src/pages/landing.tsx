@@ -898,10 +898,11 @@ export default function Landing() {
     <div className="min-h-[100dvh] bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative [overflow-x:clip]" data-testid="page-home">
       <GlossBackground />
       {/* Aurora glow behind the hero — soft at rest, blooms when the search goes
-          active, so the wordmark + search feel alive without any idle noise. */}
+          active, so the wordmark + search feel alive without any idle noise. Its
+          own layer, like GlossBackground's washes, so typing never repaints the blur. */}
       <div
         aria-hidden="true"
-        className={`pointer-events-none absolute left-1/2 top-[44dvh] z-0 h-[380px] w-[680px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] blur-[100px] transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
+        className={`pointer-events-none absolute left-1/2 top-[44dvh] z-0 h-[380px] w-[680px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] blur-[100px] will-change-transform transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
         style={{ background: "radial-gradient(ellipse at center, rgba(114,55,255,0.16) 0%, rgba(19,210,229,0.10) 45%, transparent 72%)" }}
       />
 
@@ -1131,6 +1132,22 @@ export default function Landing() {
                   // handleSearch() no-ops on an empty query, so an idle click is
                   // harmless.
                   disabled={isSearching}
+                  // iOS Safari: a tap here while the field is being edited ends the editing
+                  // first — the keyboard drops, the page scrolls back down — and the click it
+                  // synthesizes afterwards lands wherever the button has moved away from, so the
+                  // search never runs until a second tap. Submit on the touch itself, and cancel
+                  // the late click so it can't hit whatever the results put under the finger.
+                  onTouchEnd={(e) => {
+                    const t = e.changedTouches[0];
+                    const r = e.currentTarget.getBoundingClientRect();
+                    // A drag that started here and ended elsewhere is a scroll, not a tap.
+                    if (!t || t.clientX < r.left || t.clientX > r.right || t.clientY < r.top || t.clientY > r.bottom) return;
+                    e.preventDefault();
+                    if (isSearching) return;
+                    (document.activeElement as HTMLElement | null)?.blur?.();
+                    cancelSuggest();
+                    void handleSearch();
+                  }}
                   className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"
                 >

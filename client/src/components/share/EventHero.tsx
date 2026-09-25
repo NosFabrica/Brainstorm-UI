@@ -121,7 +121,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           data-testid="event-hero-poster"
         >
           {!imgBroken && e.image && (
-            <img src={heroImage} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover blur-xl opacity-70" data-testid="event-hero-image-blur" />
+            <img src={heroImage} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover blur-xl opacity-70 will-change-transform" data-testid="event-hero-image-blur" />
           )}
           <img
             src={heroImage}
