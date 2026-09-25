@@ -2110,6 +2110,39 @@ describe("SearchResults", () => {
     expect(card.textContent).not.toContain("nostr:npub");
   });
 
+  // Benjamin (2026-09-25): "we don't have images as an option or videos — that gets
+  // filtered into Media". Photos · Videos · Audio narrow the tab, counted, like Shop's
+  // categories; a page of one kind needs no row.
+  it("the Media tab narrows to photos, videos or audio, counted, and shows no row for one kind", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="sunset" pov="nosfabrica" />);
+    const pk = "5".repeat(64);
+    const photo = ev("p1", 20, pk, "golden hour", [["imeta", "url https://cdn/sunset.jpg", "m image/jpeg"]]);
+    const clip1 = ev("v1", 21, pk, "the drive", [["imeta", "url https://cdn/drive.mp4", "m video/mp4"]]);
+    const clip2 = ev("v2", 34236, pk, "", [["d", "v2"], ["imeta", "url https://cdn/short.mp4", "m video/mp4"]]);
+    const voice = ev("a1", 1222, pk, "", [["imeta", "url https://cdn/voice.ogg", "m audio/ogg"]]);
+    emit({ hits: [photo, clip1, clip2, voice].map((event) => ({ event, author: author(pk, "Sunset"), rank: null })), eose: true, timeMs: 120 });
+    await screen.findByTestId("media-card-p1");
+    const facets = screen.getByTestId("media-facets");
+    expect(within(facets).getByTestId("media-facet-photo")).toHaveTextContent(/Photos\s*1/);
+    expect(within(facets).getByTestId("media-facet-video")).toHaveTextContent(/Videos\s*2/);
+    expect(within(facets).getByTestId("media-facet-audio")).toHaveTextContent(/Audio\s*1/);
+    fireEvent.click(within(facets).getByTestId("media-facet-video"));
+    expect(screen.getAllByTestId(/^media-card-/).map((el) => el.getAttribute("data-testid"))).toEqual(["media-card-v1", "media-card-v2"]);
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("2 of 4 match");
+    fireEvent.click(within(facets).getByTestId("media-facet-all"));
+    expect(screen.getAllByTestId(/^media-card-/)).toHaveLength(4);
+  });
+
+  it("a Media page of one kind shows no facet row", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="sunset" pov="nosfabrica" />);
+    const pk = "5".repeat(64);
+    emit({ hits: [ev("p1", 20, pk, "", [["imeta", "url https://cdn/a.jpg", "m image/jpeg"]]), ev("p2", 20, pk, "", [["imeta", "url https://cdn/b.jpg", "m image/jpeg"]])].map((event) => ({ event, author: author(pk, "Sunset"), rank: null })), eose: true, timeMs: 120 });
+    await screen.findByTestId("media-card-p1");
+    expect(screen.queryByTestId("media-facets")).toBeNull();
+  });
+
   it("the Media tab shows media — APKs and other file blobs stay out", async () => {
     setUrlTab("media");
     render(<SearchResults query="" pov="nosfabrica" />);
