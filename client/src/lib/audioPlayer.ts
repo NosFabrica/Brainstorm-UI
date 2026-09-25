@@ -5,6 +5,7 @@
 // the bottom.
 
 import { useSyncExternalStore, useState, useEffect, useRef, type RefObject } from "react";
+import { resolveAudioSrc, wavlakeTrackId } from "@/lib/wavlake";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { playSolo, type Sounding } from "@/lib/playback";
 
@@ -188,14 +189,23 @@ export function toggleTrack(id: string, src: string, meta?: TrackMeta) {
   }
   currentId = id;
   status = "loading";
-  a.src = src;
-  a.currentTime = 0;
   applyMediaSession(id);
-  playSolo(musicHolder);
-  // Wrapped: a media element that returns nothing from play() (older engines,
-  // test DOMs) must not throw before the store learns which track is active.
-  Promise.resolve(a.play()).catch(() => { status = "error"; emit(); });
   emit();
+  // A track that names its song by a Wavlake page plays the stream behind it;
+  // any other URL is the stream. Resolved before the element sees a src, and
+  // dropped if the listener has moved on meanwhile.
+  const start = (stream: string) => {
+    if (currentId !== id) return;
+    a.src = stream;
+    a.currentTime = 0;
+    playSolo(musicHolder);
+    // Wrapped: a media element that returns nothing from play() (older engines,
+    // test DOMs) must not throw before the store learns which track is active.
+    Promise.resolve(a.play()).catch(() => { status = "error"; emit(); });
+    emit();
+  };
+  if (wavlakeTrackId(src)) void resolveAudioSrc(src).then(start);
+  else start(src);
 }
 
 /** Play or pause whatever is active — the bar's button, the hardware key. */
@@ -307,6 +317,12 @@ export function playNext(): boolean {
   if (!next) return false;
   toggleTrack(next.id, next.src);
   return true;
+}
+
+/** The track before `id` in the registered playlist — what Previous would play. */
+export function peekPrev(id: string | null): PlaylistTrack | null {
+  const idx = playlist.findIndex((t) => t.id === id);
+  return idx > 0 ? playlist[idx - 1] : null;
 }
 
 /** Back to the previous track in the registered playlist, if there is one. */

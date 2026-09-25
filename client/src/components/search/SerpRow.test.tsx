@@ -154,6 +154,22 @@ describe("SerpRow — link metadata", () => {
     expect(screen.queryByTestId("via-relay")).toBeNull();
   });
 
+  // The team (2026-09-24): associate the musician/songs D-list event ids with
+  // the music icon in the UI. A list header and its items say what they are.
+  it("a V4V D-list header is a music list, and its items are songs and musicians, each under the Music icon", () => {
+    const AUTHOR = "77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3";
+    const header = { ...note(""), id: "eadfab91".padEnd(64, "0"), pubkey: AUTHOR, kind: 39998, tags: [["d", "b504f5a8-949f-4d31-ad14-8afcebde2b34"], ["name", "V4V Songs"]] };
+    const song = { ...note(""), id: "a313660f".padEnd(64, "0"), pubkey: AUTHOR, kind: 9999, tags: [["z", `39998:${AUTHOR}:b504f5a8-949f-4d31-ad14-8afcebde2b34`], ["title", "Step Into the Light"], ["artist", "Torcon 7"], ["url", "https://mp3s.podcastindex.org/x.mp3"], ["alt", "Song: Step Into the Light by Torcon 7"]] };
+    const musician = { ...note(""), id: "4921a433".padEnd(64, "0"), pubkey: AUTHOR, kind: 9999, tags: [["z", `39998:${AUTHOR}:c7e2e5f1-2258-4d9d-92ed-d29b9837a82a`], ["name", "Torcon 7"], ["alt", "Musician: Torcon 7"]] };
+    for (const [ev, label] of [[header, "Music list"], [song, "Song"], [musician, "Musician"]] as const) {
+      render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+      const row = screen.getByTestId(`serp-row-${ev.id}`);
+      expect(row).toHaveTextContent(label);
+      expect(row).not.toHaveTextContent(/Kind \d/);
+      expect(row.querySelector("[data-testid=serp-type] svg.lucide-music")).not.toBeNull();
+    }
+  });
+
   // A kind the row has no treatment for is named by number, never "Post";
   // NIP-31's `alt` tag is the author's own line for exactly this reader.
   it("an unknown kind is named by its number, with the author's alt line when there is one", () => {

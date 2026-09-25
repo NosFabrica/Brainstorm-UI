@@ -1,6 +1,8 @@
 import { parseTrack } from "@/lib/trackEvent";
 import { formatListingPrice, parseListing } from "@/lib/listing";
 import type { WavlakeSong } from "@/lib/wavlake";
+import type { PodcastSong } from "@/lib/dlists";
+import type { FountainItem } from "@/lib/fountain";
 import { useEffect, useState } from "react";
 /**
  * Typed result cards for the verticals with no existing precedent —
@@ -24,7 +26,7 @@ import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
-import { profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
+import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
@@ -1292,6 +1294,57 @@ export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: bool
         onOpen={() => navigate(here)}
         pageUrl={here}
         artistHref={profileHrefOf(song.artistNpub)}
+        flat={flat}
+      />
+    </div>
+  );
+}
+
+/**
+ * A song from the V4V Songs list (Podcast Index) — the same row as a native
+ * track, the source named, the title opening the artist's music here.
+ */
+export function PodcastIndexSongCard({ song, flat, artistHref }: { song: PodcastSong; flat?: boolean; /** The artist's Nostr profile, when the musician is also on Nostr. */ artistHref?: string }) {
+  const [, navigate] = useLocation();
+  const here = artistHref ?? podcastIndexHref(song.artist || song.title);
+  return (
+    <div data-testid={`podcastindex-song-${song.id}`}>
+      <EmbeddedTrackCard
+        id={song.id}
+        title={song.title}
+        artist={song.artist || undefined}
+        cover={song.cover}
+        audio={song.audio}
+        durationSec={song.durationSec}
+        sourceLabel="Podcast Index"
+        sourceHost="podcastindex.org"
+        onOpen={() => navigate(here)}
+        pageUrl={here}
+        supportUrl={song.url}
+        artistHref={artistHref}
+        flat={flat}
+      />
+    </div>
+  );
+}
+
+/**
+ * A song or episode a person linked on Fountain — the same row as a track,
+ * the show as the artist line, Fountain named as the source. Fountain's page
+ * title carries its own call to action ("• Listen on Fountain"); the row does not.
+ */
+export function FountainSongCard({ item, flat }: { item: FountainItem; flat?: boolean }) {
+  return (
+    <div data-testid={`fountain-song-fountain:${item.id}`}>
+      <EmbeddedTrackCard
+        id={`fountain:${item.id}`}
+        title={item.title.replace(/\s*[•·|–-]\s*(?:Watch|Listen) on Fountain\s*$/i, "").trim() || item.title}
+        artist={item.show ?? undefined}
+        cover={item.image ?? undefined}
+        audio={item.audio}
+        sourceLabel="Fountain"
+        sourceHost="fountain.fm"
+        pageUrl={item.url}
         flat={flat}
       />
     </div>

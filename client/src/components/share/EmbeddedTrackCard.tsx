@@ -1,6 +1,6 @@
 import { type MouseEvent } from "react";
-import { useLocation } from "wouter";
-import { Play, Pause, Loader2, AlertCircle } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Play, Pause, Loader2, AlertCircle, HeartHandshake } from "lucide-react";
 import { FlashIcon } from "@/components/FlashIcon";
 import { Favicon } from "@/components/share/LinkPreview";
 import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime } from "@/lib/audioPlayer";
@@ -45,6 +45,7 @@ export function EmbeddedTrackCard({
   sourceHost,
   onOpen,
   pageUrl,
+  supportUrl,
   artistHref,
   artistPubkey,
   flat = false,
@@ -69,6 +70,8 @@ export function EmbeddedTrackCard({
   onOpen?: () => void;
   /** The track's page on its source site, for the app's now-playing bar to link. */
   pageUrl?: string;
+  /** Where a listener pays the artist directly (value-for-value) — a link beside the source badge. */
+  supportUrl?: string;
   /** The artist's profile, for the bar's name to link; their Nostr key, for "more from this artist". */
   artistHref?: string;
   artistPubkey?: string;
@@ -83,10 +86,19 @@ export function EmbeddedTrackCard({
   const playable = !!audio;
 
   const open = onOpen ?? (href ? () => navigate(href) : undefined);
-  const onRowClick = open
+  // A tap on the row plays, as it does in Spotify and Apple Music (Benjamin,
+  // 2026-09-24: it has to work from what users already know); the title
+  // opens. A row with nothing to play opens on tap. The playing row's tap
+  // is not a pause — the cover and the bar are for that.
+  const play = () => {
+    if (!audio || player.isPlaying) return;
+    toggleTrack(id, audio, { title, artist, cover, href: href ?? pageUrl, artistHref, artistPubkey });
+  };
+  const onRowClick = playable || open
     ? (e: MouseEvent) => {
         if ((e.target as HTMLElement).closest("a, button, [data-noopen]")) return;
-        open();
+        if (playable) play();
+        else open?.();
       }
     : undefined;
 
@@ -101,7 +113,7 @@ export function EmbeddedTrackCard({
       className={
         flat
           ? `group flex items-center gap-3 rounded-lg px-1 py-2 transition-colors ${player.isActive ? "bg-brand-link/[0.04]" : ""} ${
-              href ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/60" : ""
+              href || playable || onOpen ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/60" : ""
             }`
           : `group flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-2.5 transition-colors ${
               player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200 dark:border-slate-800"
@@ -153,10 +165,21 @@ export function EmbeddedTrackCard({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 min-w-0">
-          <p className={`min-w-0 truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{title}</p>
+          <p className={`min-w-0 truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>
+            {open ? (
+              <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} className="truncate text-left hover:underline">{title}</button>
+            ) : (
+              title
+            )}
+          </p>
           {badge}
         </div>
-        {artist && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{artist}</p>}
+        {artist && (
+          <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+            {/* The artist's own page when they have one here — the row and the face agree. */}
+            {artistHref ? <Link href={artistHref} className="hover:text-brand-link hover:underline" onClick={(e) => e.stopPropagation()}>{artist}</Link> : artist}
+          </p>
+        )}
 
         {player.isActive && (
           <div className="mt-2 flex items-center gap-2" data-noopen>
@@ -186,6 +209,21 @@ export function EmbeddedTrackCard({
 
       {/* Right rail: source tag, genre chip, total time (idle), zap. */}
       <div className="flex shrink-0 items-center gap-2">
+        {supportUrl && (
+          <a
+            href={supportUrl}
+            target="_blank"
+            rel="noopener"
+            aria-label="Support the artist"
+            title="Support the artist"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-brand-link hover:bg-brand-primary/5 dark:hover:bg-brand-primary/15 transition-colors"
+            data-testid="track-support"
+          >
+            <HeartHandshake className="h-3 w-3" />
+            <span className="hidden sm:inline">Support</span>
+          </a>
+        )}
         {sourceLabel && (
           // The source's own mark, the way the app brands zap.stream and GitHub:
           // the mark at every width, the name from sm up. A badge, not a door.

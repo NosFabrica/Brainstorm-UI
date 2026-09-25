@@ -8,11 +8,13 @@
  * a div-with-navigate, so the external anchors inside stay legal HTML.
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { sourceAppFor } from "@/lib/sourceApp";
+import { dlistOfEvent, parseDListMusician, parseDListSong } from "@/lib/dlists";
 import { Link, useLocation } from "wouter";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { Braces, Lock, Rss } from "lucide-react";
+import { Braces, Lock, Rss, type LucideIcon } from "lucide-react";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { isFeedAccount } from "@/lib/feedAccount";
 import { nip19 } from "nostr-tools";
@@ -84,6 +86,29 @@ function quotedIn(text: string): { id: string; uri: string }[] {
     }
   }
   return out;
+}
+
+/**
+ * What this result calls itself, when the app that published it has a better
+ * word than the kind's: a kind-30023 on zap.cooking is a "Recipe".
+ */
+export function typeLabelFor(event: { kind: number; tags: string[][]; pubkey: string; id: string; content: string; created_at: number }): string {
+  return dlistTypeFor(event)?.label ?? sourceAppFor(event)?.noun ?? kindLabel(event);
+}
+
+/**
+ * A D-list event's word and icon (the team, 2026-09-24: associate the
+ * musician/songs D-list event ids with the music icon): a header is a
+ * "Music list", an item the song or musician it is.
+ */
+export function dlistTypeFor(event: { kind: number; tags: string[][]; pubkey: string; id: string; content: string; created_at: number }): { label: string; icon: LucideIcon } | null {
+  const list = dlistOfEvent(event);
+  if (!list) return null;
+  const category = list.category.charAt(0).toUpperCase() + list.category.slice(1);
+  if (event.kind === 39998) return { label: `${category} list`, icon: list.icon };
+  if (parseDListSong(event)) return { label: "Song", icon: list.icon };
+  if (parseDListMusician(event)) return { label: "Musician", icon: list.icon };
+  return { label: `${category} list item`, icon: list.icon };
 }
 
 
@@ -281,6 +306,7 @@ function AuthorLine({
   created_at,
   type,
   typeOf,
+  typeIcon: TypeIcon,
   feed = false,
   children,
 }: {
@@ -290,6 +316,8 @@ function AuthorLine({
   type?: string;
   /** The event the type describes — the pill names only a spec by default. */
   typeOf?: NostrEvent;
+  /** A D-list event's icon: its word always shows, beside the icon, whatever the technical view says. */
+  typeIcon?: LucideIcon;
   /** An automated feed account — said quietly, so a reader knows the voice. */
   feed?: boolean;
   /** Trailing meta (a news row's outlet) — rides the same baseline. */
@@ -311,7 +339,13 @@ function AuthorLine({
           {author ? getDisplayLabel(author) : "Unknown"}
         </span>
         <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
-        {type && <KindPill event={typeOf} label={type} className="self-center" />}
+        {type && TypeIcon ? (
+          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
+            · <TypeIcon className="h-3 w-3" />{type}
+          </span>
+        ) : (
+          type && <KindPill event={typeOf} label={type} className="self-center" />
+        )}
         {typeOf && <ViaRelay event={typeOf} />}
         {feed && (
           <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title="An automated feed account" data-testid="serp-feed">
@@ -488,7 +522,7 @@ export function SerpRow({
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
-        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? kindLabel(event) : undefined} typeOf={event} feed={isFeedAccount(author)} />
+        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? typeLabelFor(event) : undefined} typeIcon={showType ? dlistTypeFor(event)?.icon : undefined} typeOf={event} feed={isFeedAccount(author)} />
         {title && (
           <div className="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors [&>p]:font-semibold [&>p]:text-sm">
             <Snippet text={title} query={query} lines={2} />

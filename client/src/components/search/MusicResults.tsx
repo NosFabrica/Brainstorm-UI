@@ -8,18 +8,28 @@
  * matches, else the best song), Songs as rows from both sources, Artists as
  * faces with their trust rings, Albums as Wavlake tiles. One Play starts the
  * whole queue; a slim bar at the bottom says what is playing.
+ *
+ * A third source (the team, 2026-09-24): the V4V Songs and V4V Musicians
+ * lists from Podcast Index, under the Music icon — while browsing, their
+ * own shelves after the native tracks; with words, the matches join Songs
+ * and Artists after Wavlake's, each row naming its source.
  */
-import { scopeOf } from "@/lib/searchSyntax";
+import { scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Loader2, Pause, Play } from "lucide-react";
+import { nip19 } from "nostr-tools";
+import { Info, Loader2, Pause, Play } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SearchHit } from "@/services/search";
 import { parseTrack, type Track } from "@/lib/trackEvent";
 import { WAVLAKE_GENRES, type WavlakeAlbum, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { useWavlakeTrending } from "@/hooks/useWavlakeTrending";
 import { playFrom, setPlaylist, toggleTrack, useTrackPlayer } from "@/lib/audioPlayer";
-import { TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import { FountainSongCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import type { FountainItem } from "@/lib/fountain";
+import { CATEGORY_ICON, filterTaggedPeople, type PodcastMusician, type PodcastSong } from "@/lib/dlists";
 import { FacetChip, FacetRow } from "@/components/search/sections";
+import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -27,13 +37,17 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { compactCount } from "@/lib/compactCount";
 import { nameMatchScore } from "@/lib/nameMatch";
-import { profileHrefOf, wavlakeArtistHref, wavlakeSongHref } from "@/lib/upNext";
+import { podcastIndexHref, profileHrefOf, wavlakeArtistHref, wavlakeSongHref } from "@/lib/upNext";
 import { eventPath } from "@/lib/shareId";
 import audioDefault from "@/assets/audio-default.webp";
 
 type NativeTrack = { hit: SearchHit; track: Track };
 
 const normalise = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+/** How many V4V songs the browsing shelf shows before "Show more". */
+const PI_SHELF = 12;
+/** Why the value-for-value shelves exist, in one sentence — behind an info mark. */
+const V4V_WHY = "Value-for-value: listeners pay these artists directly, no label and no platform between them.";
 const GENRE_LABEL: Record<string, string> = { "hip-hop": "Hip-hop" };
 const genreLabel = (g: string) => GENRE_LABEL[g] ?? g.charAt(0).toUpperCase() + g.slice(1);
 /** Every genre a track claims — `t` and `genre` tags, lower-cased, `#` dropped. */
@@ -46,10 +60,22 @@ export function MusicResults({
   wavlake,
   scoreOf,
   onOpenProfile,
+  podcastIndex,
+  tagged,
+  fountain = { items: [], loading: false },
+  person = null,
 }: {
   hits: SearchHit[];
   query: string;
   wavlake: { artists: WavlakeArtist[]; albums: WavlakeAlbum[]; songs: WavlakeSong[]; loading: boolean };
+  /** The V4V lists, already narrowed by the words. */
+  podcastIndex: { songs: PodcastSong[]; musicians: PodcastMusician[]; loading: boolean };
+  /** The people the network tagged Musician — the tagging list; narrowed by the words here. */
+  tagged: { people: SearchResult[]; loading: boolean };
+  /** What the person the view is about linked on Fountain — their songs and episodes there. */
+  fountain?: { items: FountainItem[]; loading: boolean };
+  /** The person the view is about — scoped to them, or named by the words — for the top result. */
+  person?: SearchResult | null;
   scoreOf: (pubkey: string) => number | null | undefined;
   onOpenProfile: (result: SearchResult) => void;
 }) {
@@ -62,7 +88,40 @@ export function MusicResults({
   // One genre at a time; the words change, the choice resets.
   const [genre, setGenre] = useState<string | null>(null);
   useEffect(() => setGenre(null), [query]);
+  // The V4V Songs shelf while browsing: a dozen, then the rest on request —
+  // the list holds hundreds (436 on 2026-09-24), a shelf and not a wall.
+  const [allPiSongs, setAllPiSongs] = useState(false);
+  useEffect(() => setAllPiSongs(false), [query]);
+
+  // One song per musician on the shelf (live, the top was one artist's album);
+  // "Show all" is the list in its own order.
+  const piShelf = useMemo(() => {
+    if (!browsing || allPiSongs) return podcastIndex.songs;
+    const seen = new Set<string>();
+    const shelf: PodcastSong[] = [];
+    for (const song of podcastIndex.songs) {
+      const key = normalise(song.artist || song.title);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      shelf.push(song);
+      if (shelf.length === PI_SHELF) break;
+    }
+    return shelf;
+  }, [browsing, allPiSongs, podcastIndex.songs]);
   const trending = useWavlakeTrending(genre, browsing);
+  // Wavlake's chart as one rail, one tile per artist (live, four of eight were
+  // one artist); "Show all" is the whole chart as a grid.
+  const [allTrending, setAllTrending] = useState(false);
+  useEffect(() => setAllTrending(false), [query, genre]);
+  const trendingRail = useMemo(() => {
+    const seen = new Set<string>();
+    return trending.songs.filter((s) => {
+      const key = normalise(s.artist);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [trending.songs]);
 
   // With words, the chips are the results' own genres — only ones two or more
   // tracks share, so a one-off tag never becomes a button.
@@ -79,8 +138,10 @@ export function MusicResults({
   const queue = useMemo(() => {
     const native = shownTracks.map((t) => ({ id: t.track.id, src: t.track.audio, title: t.track.title, artist: t.track.artist ?? (t.hit.author ? getDisplayLabel(t.hit.author) : undefined), cover: t.track.cover, href: eventPath(t.hit.event), artistHref: t.hit.author ? `/p/${t.hit.author.npub}` : undefined, artistPubkey: t.hit.event.pubkey }));
     const remote = (browsing ? trending.songs : wavlake.songs).map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: wavlakeSongHref(s), artistHref: profileHrefOf(s.artistNpub) }));
-    return browsing ? [...remote, ...native] : [...native, ...remote];
-  }, [browsing, shownTracks, trending.songs, wavlake.songs]);
+    const pi = podcastIndex.songs.map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist || undefined, cover: s.cover, href: podcastIndexHref(s.artist || s.title) }));
+    const fm = fountain.items.map((i) => ({ id: `fountain:${i.id}`, src: i.audio, title: i.title, artist: i.show ?? undefined, cover: i.image ?? undefined, href: i.url }));
+    return browsing ? [...remote, ...native, ...pi, ...fm] : [...native, ...remote, ...fm, ...pi];
+  }, [browsing, shownTracks, trending.songs, wavlake.songs, podcastIndex.songs, fountain.items]);
   useEffect(() => {
     setPlaylist(queue);
   }, [queue]);
@@ -97,6 +158,48 @@ export function MusicResults({
     return [...byPk.values()].sort((a, b) => b.count - a.count);
   }, [tracks]);
 
+  // The network's tagged musicians the words keep — "musician" keeps them all —
+  // less the ones already here as a track's author: one face per person.
+  const taggedMatches = useMemo(() => {
+    const here = new Set(authors.map((a) => a.author.pubkey));
+    return filterTaggedPeople(query, tagged.people).filter((p) => !here.has(p.pubkey));
+  }, [query, tagged.people, authors]);
+
+  // A value-for-value musician who is also on Nostr — the same name, exactly
+  // and only once, among the tracks' authors here — is that person: one face,
+  // the Nostr one, and their Podcast Index songs point at the profile. A `p`
+  // tag on the list item will make the match exact; this is the interim.
+  const nostrByName = useMemo(() => {
+    const seen = new Map<string, SearchResult | null>();
+    for (const a of authors) {
+      const key = normalise(getDisplayLabel(a.author));
+      seen.set(key, seen.has(key) ? null : a.author);
+    }
+    return seen;
+  }, [authors]);
+  const nostrFor = (name: string): SearchResult | null => nostrByName.get(normalise(name)) ?? null;
+  const alsoOnPodcastIndex = useMemo(() => new Set(podcastIndex.musicians.map((m) => nostrByName.get(normalise(m.name))?.pubkey).filter((pk): pk is string => !!pk)), [podcastIndex.musicians, nostrByName]);
+  const unmatchedMusicians = podcastIndex.musicians.filter((m) => !nostrFor(m.name));
+  // A face in a music context is an artist page, not a bio (Benjamin,
+  // 2026-09-24): every face opens that person's music here, scoped; the top
+  // result keeps the way to the profile. A Wavlake artist without a Nostr
+  // key has their music here by name.
+  const musicHrefOf = (pubkey: string) => scopedSearchHref(pubkey, "music");
+  const wavlakeMusicHref = (a: Pick<WavlakeArtist, "name" | "artistNpub">) => {
+    if (a.artistNpub) {
+      try {
+        return scopedSearchHref(nip19.decode(a.artistNpub).data as string, "music");
+      } catch {
+        /* fall through */
+      }
+    }
+    return wavlakeArtistHref(a);
+  };
+  const piArtistHref = (song: PodcastSong): string | undefined => {
+    const person = nostrFor(song.artist);
+    return person ? `/p/${person.npub}` : undefined;
+  };
+
   // Top result: the artist when a NAME answers to the words (by words, never
   // inside one — "nova" is not Freddy Donovan), the person on Nostr before the
   // catalogue at equal strength; else the best song.
@@ -107,12 +210,22 @@ export function MusicResults({
     const scoped = scopeOf(query)?.pubkey;
     if (scoped) {
       const mine = authors.find((a) => a.author.pubkey === scoped);
+      // What they have here, called what it is: a podcast episode they were
+      // on is not a song (live, Matt Finlay's four were episodes).
+      const episodes = fountain.items.filter((i) => i.kind === "episode").length;
+      const songs = (mine?.count ?? 0) + wavlake.songs.length + (fountain.items.length - episodes);
+      const n = songs + episodes;
+      const counted = [songs > 0 ? `${songs} ${songs === 1 ? "song" : "songs"}` : "", episodes > 0 ? `${episodes} ${episodes === 1 ? "episode" : "episodes"}` : ""].filter(Boolean).join(" · ") || "0 songs";
       if (mine) {
-        const n = mine.count + wavlake.songs.length;
-        return { kind: "artist" as const, name: getDisplayLabel(mine.author), image: mine.author.picture, sub: `Artist · ${n} ${n === 1 ? "song" : "songs"}`, author: mine.author, playId: mine.first.track.id, score: scoreOf(mine.author.pubkey) ?? null };
+        return { kind: "artist" as const, name: getDisplayLabel(mine.author), image: mine.author.picture, sub: `Artist · ${counted}`, author: mine.author, playId: mine.first.track.id, score: scoreOf(mine.author.pubkey) ?? null };
+      }
+      // No tracks of their own here, but songs on Wavlake or Fountain: the
+      // person is still the artist at the top, with what they have.
+      if (person && person.pubkey === scoped && n > 0) {
+        return { kind: "artist" as const, name: getDisplayLabel(person), image: person.picture, sub: `Artist · ${counted}`, author: person, playId: wavlake.songs[0]?.id ?? (fountain.items[0] ? `fountain:${fountain.items[0].id}` : undefined), score: scoreOf(person.pubkey) ?? null };
       }
       const a = wavlake.artists[0];
-      if (a) return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: "Artist · Wavlake", href: wavlakeArtistHref(a), external: false, playId: wavlake.songs[0]?.id, score: null as number | null };
+      if (a) return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: `Artist · ${counted}`, href: wavlakeArtistHref(a), external: false, playId: wavlake.songs[0]?.id, score: null as number | null };
     }
     const author = authors.map((a) => ({ a, score: nameMatchScore(getDisplayLabel(a.author), query) })).filter((x) => x.score > 0).sort((x, y) => y.score - x.score)[0];
     const remote = wavlake.artists.map((a) => ({ a, score: nameMatchScore(a.name, query) })).filter((x) => x.score > 0).sort((x, y) => y.score - x.score)[0];
@@ -130,34 +243,108 @@ export function MusicResults({
     const song = wavlake.songs[0];
     if (song) return { kind: "song" as const, name: song.title, image: song.cover, sub: `${song.artist} · Wavlake`, href: wavlakeSongHref(song), external: false, playId: song.id, score: null as number | null };
     return null;
-  }, [browsing, query, wavlake.artists, wavlake.songs, authors, shownTracks, scoreOf]);
+  }, [browsing, query, wavlake.artists, wavlake.songs, authors, shownTracks, scoreOf, fountain.items, person]);
 
-  const songCount = shownTracks.length + (browsing ? 0 : wavlake.songs.length);
+  const songCount = shownTracks.length + (browsing ? 0 : wavlake.songs.length + fountain.items.length + podcastIndex.songs.length);
+  // The list is called what it holds: a person's Fountain episodes are not songs.
+  const episodeCount = fountain.items.filter((i) => i.kind === "episode").length;
+  const songsTitle = episodeCount === 0 ? "Songs" : episodeCount === songCount ? "Episodes" : "Songs & episodes";
+
+  // The genre chips re-ask Wavlake's chart while browsing, and narrow the
+  // results with words — the same chips, in the shelf they belong to.
+  const genreChips = (
+    <FacetRow testId="music-genres">
+      <FacetChip pressed={genre === null} onClick={() => setGenre(null)} testId="music-genre-all">
+        All
+      </FacetChip>
+      {genreFacets.map((g) => (
+        <FacetChip key={g.key} pressed={genre === g.key} onClick={() => setGenre((cur) => (cur === g.key ? null : g.key))} testId={`music-genre-${g.key}`}>
+          {genreLabel(g.key)}
+        </FacetChip>
+      ))}
+    </FacetRow>
+  );
 
   return (
     <div data-testid="music-results">
-      {genreFacets.length > 0 && (
-        <FacetRow className="mb-3" testId="music-genres">
-          <FacetChip pressed={genre === null} onClick={() => setGenre(null)} testId="music-genre-all">
-            All
-          </FacetChip>
-          {genreFacets.map((g) => (
-            <FacetChip key={g.key} pressed={genre === g.key} onClick={() => setGenre((cur) => (cur === g.key ? null : g.key))} testId={`music-genre-${g.key}`}>
-              {genreLabel(g.key)}
-            </FacetChip>
-          ))}
-        </FacetRow>
-      )}
+      {!browsing && genreFacets.length > 0 && genreChips}
 
       {browsing ? (
         <>
+          {tagged.people.length > 0 && (
+            <MusicSection title="Musicians on Nostr" hint="tagged by the network" icon={CATEGORY_ICON.music} testId="music-tagged-musicians">
+              <FacetRow testId="music-tagged-musicians-strip" className="gap-4 pb-2">
+                {tagged.people.map((p) => (
+                  <ArtistFace key={p.pubkey} name={getDisplayLabel(p)} image={p.picture} score={scoreOf(p.pubkey) ?? null} sub="Musician" href={musicHrefOf(p.pubkey)} testId={`music-artist-${p.pubkey.slice(0, 8)}`} />
+                ))}
+              </FacetRow>
+            </MusicSection>
+          )}
+          {podcastIndex.songs.length > 0 && (
+            <MusicSection
+              title="Value-for-value songs"
+              count={podcastIndex.songs.length}
+              hint="from Podcast Index"
+              why={V4V_WHY}
+              icon={CATEGORY_ICON.music}
+              testId="music-podcastindex-songs"
+              action={
+                <>
+                  {!allPiSongs && piShelf.length < podcastIndex.songs.length && <ShowAll count={podcastIndex.songs.length} onClick={() => setAllPiSongs(true)} testId="music-podcastindex-more" />}
+                  <PlayAll onClick={() => playFrom(podcastIndex.songs[0].id)} />
+                </>
+              }
+            >
+              {allPiSongs ? (
+                <Rows>
+                  {podcastIndex.songs.map((song) => (
+                    <PodcastIndexSongCard key={song.id} song={song} artistHref={piArtistHref(song)} flat />
+                  ))}
+                </Rows>
+              ) : (
+                <TileRail testId="music-podcastindex-songs-rail">
+                  {piShelf.map((song) => (
+                    <SongTile key={song.id} song={{ id: song.id, title: song.title, artist: song.artist, cover: song.cover, audio: song.audio, href: piArtistHref(song) ?? podcastIndexHref(song.artist || song.title) }} />
+                  ))}
+                </TileRail>
+              )}
+            </MusicSection>
+          )}
+          {podcastIndex.musicians.length > 0 && (
+            <MusicSection title="Value-for-value musicians" hint="from Podcast Index" why={V4V_WHY} icon={CATEGORY_ICON.music} testId="music-podcastindex-musicians">
+              <FacetRow testId="music-podcastindex-musicians-strip" className="gap-4 pb-2">
+                {unmatchedMusicians.map((m) => (
+                  <div key={m.id} className="flex shrink-0 flex-col items-center">
+                    <ArtistFace name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
+                    {m.url && (
+                      <a href={m.url} target="_blank" rel="noopener" className="mt-0.5 text-[11px] font-medium text-brand-link hover:underline" data-testid={`music-podcastindex-support-${m.id}`}>
+                        Support the artist
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </FacetRow>
+            </MusicSection>
+          )}
           {(trending.loading || trending.songs.length > 0) && (
-            <MusicSection title="Trending on Wavlake" hint={genre ? `${genreLabel(genre)} · by sats` : "by sats this week"} testId="music-trending">
-              <TileGrid>
-                {trending.loading && trending.songs.length === 0
-                  ? Array.from({ length: 8 }).map((_, i) => <TileSkeleton key={i} />)
-                  : trending.songs.map((song) => <SongTile key={song.id} song={song} />)}
-              </TileGrid>
+            <MusicSection
+              title="Trending on Wavlake"
+              hint={genre ? `${genreLabel(genre)} · by sats` : "by sats this week"}
+              testId="music-trending"
+              action={!allTrending && trendingRail.length < trending.songs.length ? <ShowAll count={trending.songs.length} onClick={() => setAllTrending(true)} testId="music-trending-more" /> : undefined}
+            >
+              {genreFacets.length > 0 && <div className="mb-3">{genreChips}</div>}
+              {allTrending ? (
+                <TileGrid>
+                  {trending.songs.map((song) => <SongTile key={song.id} song={wavlakeTile(song)} />)}
+                </TileGrid>
+              ) : (
+                <TileRail testId="music-trending-rail">
+                  {trending.loading && trending.songs.length === 0
+                    ? Array.from({ length: 6 }).map((_, i) => <TileSkeleton key={i} />)
+                    : trendingRail.map((song) => <SongTile key={song.id} song={wavlakeTile(song)} />)}
+                </TileRail>
+              )}
             </MusicSection>
           )}
           {shownTracks.length > 0 && (
@@ -174,7 +361,7 @@ export function MusicResults({
         <>
           {top && <TopResult {...top} onOpenProfile={onOpenProfile} />}
           {songCount > 0 && (
-            <MusicSection title="Songs" count={songCount} testId="music-songs" action={<PlayAll onClick={() => playFrom(queue[0]?.id)} />}>
+            <MusicSection title={songsTitle} count={songCount} icon={CATEGORY_ICON.music} testId="music-songs" action={<PlayAll onClick={() => playFrom(queue[0]?.id)} />}>
               <Rows>
                 {shownTracks.map((t) => (
                   <TrackCard key={t.hit.event.id} event={t.hit.event} author={t.hit.author} score={scoreOf(t.hit.event.pubkey)} flat />
@@ -182,17 +369,29 @@ export function MusicResults({
                 {wavlake.songs.map((song) => (
                   <WavlakeSongCard key={song.id} song={song} flat />
                 ))}
+                {fountain.items.map((item) => (
+                  <FountainSongCard key={item.id} item={item} flat />
+                ))}
+                {podcastIndex.songs.map((song) => (
+                  <PodcastIndexSongCard key={song.id} song={song} artistHref={piArtistHref(song)} flat />
+                ))}
               </Rows>
             </MusicSection>
           )}
-          {(authors.length > 0 || wavlake.artists.length > 0) && (
-            <MusicSection title="Artists" testId="music-artists">
+          {(authors.length > 0 || taggedMatches.length > 0 || wavlake.artists.length > 0 || unmatchedMusicians.length > 0) && (
+            <MusicSection title="Artists" icon={CATEGORY_ICON.music} testId="music-artists">
               <FacetRow testId="music-artists-strip" className="gap-4 pb-2">
                 {authors.map((a) => (
-                  <ArtistFace key={a.author.pubkey} name={getDisplayLabel(a.author)} image={a.author.picture} score={scoreOf(a.author.pubkey) ?? null} sub={`${a.count} ${a.count === 1 ? "song" : "songs"}`} onClick={() => onOpenProfile(a.author)} testId={`music-artist-${a.author.pubkey.slice(0, 8)}`} />
+                  <ArtistFace key={a.author.pubkey} name={getDisplayLabel(a.author)} image={a.author.picture} score={scoreOf(a.author.pubkey) ?? null} sub={alsoOnPodcastIndex.has(a.author.pubkey) ? "also on Podcast Index" : `${a.count} ${a.count === 1 ? "song" : "songs"}`} href={musicHrefOf(a.author.pubkey)} testId={`music-artist-${a.author.pubkey.slice(0, 8)}`} />
+                ))}
+                {taggedMatches.map((p) => (
+                  <ArtistFace key={p.pubkey} name={getDisplayLabel(p)} image={p.picture} score={scoreOf(p.pubkey) ?? null} sub="Musician" href={musicHrefOf(p.pubkey)} testId={`music-artist-${p.pubkey.slice(0, 8)}`} />
                 ))}
                 {wavlake.artists.map((a) => (
-                  <ArtistFace key={a.id} name={a.name} image={a.artworkUrl} score={null} sub="Wavlake" href={wavlakeArtistHref(a)} testId={`music-artist-wavlake-${a.id}`} />
+                  <ArtistFace key={a.id} name={a.name} image={a.artworkUrl} score={null} sub="Wavlake" href={wavlakeMusicHref(a)} testId={`music-artist-wavlake-${a.id}`} />
+                ))}
+                {unmatchedMusicians.map((m) => (
+                  <ArtistFace key={m.id} name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
                 ))}
               </FacetRow>
             </MusicSection>
@@ -216,13 +415,14 @@ export function MusicResults({
   );
 }
 
-function MusicSection({ title, hint, count, action, testId, children }: { title: string; hint?: string; count?: number; action?: React.ReactNode; testId: string; children: React.ReactNode }) {
+function MusicSection({ title, hint, why, count, icon, action, testId, children }: { title: string; hint?: string; /** One sentence behind an info mark. */ why?: string; count?: number; icon?: React.ComponentType<{ className?: string }>; action?: React.ReactNode; testId: string; children: React.ReactNode }) {
   return (
     <section className="mt-5 first:mt-0" data-testid={testId}>
-      <div className="mb-2 flex items-center gap-2">
-        <SectionHeader variant="title" kicker={title} className="shrink-0" />
+      <div className="mb-2 flex items-center gap-2 overflow-hidden">
+        <SectionHeader variant="title" kicker={title} icon={icon} className="min-w-0 shrink [&>h2]:truncate" />
         {count != null && <span className="text-sm text-slate-400 dark:text-slate-500">{count}</span>}
-        {hint && <span className="truncate text-xs text-slate-400 dark:text-slate-500">{hint}</span>}
+        {hint && <span className="hidden truncate text-xs text-slate-400 dark:text-slate-500 sm:inline">{hint}</span>}
+        {why && <WhyMark text={why} />}
         <span className="flex-1" />
         {action}
       </div>
@@ -232,16 +432,33 @@ function MusicSection({ title, hint, count, action, testId, children }: { title:
 }
 
 /** Spotify's one big button: start the list from the top. */
+/** An info mark that says, on hover or a tap, why a shelf exists. */
+function WhyMark({ text }: { text: string }) {
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" aria-label={text} className="inline-flex shrink-0 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors" data-testid="music-v4v-why">
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[260px] text-xs leading-snug">{text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function PlayAll({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-brand-primary pl-2.5 pr-3 text-xs font-semibold text-white shadow-sm transition-transform hover:scale-[1.03]"
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-brand-primary px-2.5 text-xs font-semibold text-white shadow-sm transition-transform hover:scale-[1.03] sm:pr-3"
+      aria-label="Play all"
       data-testid="music-play-all"
     >
       <Play className="h-3.5 w-3.5 fill-current" />
-      Play
+      <span className="hidden sm:inline">Play</span>
     </button>
   );
 }
@@ -279,7 +496,29 @@ function TileSkeleton() {
 }
 
 /** A cover tile: the art is the play button, the title opens the song's page. */
-function SongTile({ song }: { song: WavlakeSong }) {
+/** What a cover tile needs, from any source. */
+type TileSong = { id: string; title: string; artist?: string; cover?: string; audio: string; href: string; sats?: number };
+const wavlakeTile = (song: WavlakeSong): TileSong => ({ id: song.id, title: song.title, artist: song.artist, cover: song.cover, audio: song.audio, href: wavlakeSongHref(song), sats: song.sats });
+
+/** One shelf as a row that scrolls sideways — a streaming home's rail — the tiles a fixed width. */
+function TileRail({ testId, children }: { testId: string; children: React.ReactNode }) {
+  const ref = useWheelScrollX();
+  return (
+    <div ref={ref} className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_calc(100%_-_1.5rem),transparent)] [&>*]:w-36 [&>*]:shrink-0 sm:[&>*]:w-40" data-testid={testId}>
+      {children}
+    </div>
+  );
+}
+
+function ShowAll({ count, onClick, testId }: { count: number; onClick: () => void; testId: string }) {
+  return (
+    <button type="button" onClick={onClick} className="shrink-0 whitespace-nowrap text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100" data-testid={testId}>
+      Show all {count}
+    </button>
+  );
+}
+
+function SongTile({ song }: { song: TileSong }) {
   const player = useTrackPlayer(song.id);
   return (
     <div className="group min-w-0" data-testid={`music-tile-${song.id}`}>
@@ -287,16 +526,16 @@ function SongTile({ song }: { song: WavlakeSong }) {
         <Cover src={song.cover} />
         <button
           type="button"
-          onClick={() => toggleTrack(song.id, song.audio)}
+          onClick={() => toggleTrack(song.id, song.audio, { title: song.title, artist: song.artist, cover: song.cover, href: song.href })}
           className={`absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-brand-link shadow-md ring-1 ring-black/5 transition-all ${player.isActive ? "opacity-100" : "opacity-0 translate-y-1 group-hover:translate-y-0 group-hover:opacity-100 focus-visible:opacity-100"}`}
           aria-label={player.isPlaying ? "Pause" : "Play"}
         >
           {player.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : player.isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 translate-x-[1px] fill-current" />}
         </button>
       </div>
-      <Link href={wavlakeSongHref(song)} className="mt-2 block">
+      <Link href={song.href} className="mt-2 block">
         <p className={`truncate text-sm font-medium ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{song.title}</p>
-        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{song.artist}</p>
+        {song.artist && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{song.artist}</p>}
       </Link>
       {song.sats != null && song.sats > 0 && (
         <p className="mt-0.5 text-[11px] tabular-nums text-slate-400 dark:text-slate-500">{compactCount(song.sats)} sats</p>

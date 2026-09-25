@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { Loader2, Pause, Play, SkipForward, X } from "lucide-react";
-import { closePlayer, extendPlaylist, formatTime, peekNext, playNext, seekTrack, togglePlayback, trackMeta, usePlayerState } from "@/lib/audioPlayer";
+import { Loader2, Pause, Play, SkipForward, X, SkipBack } from "lucide-react";
+import { closePlayer, extendPlaylist, formatTime, peekNext, peekPrev, playNext, playPrev, seekTrack, togglePlayback, trackMeta, usePlayerState } from "@/lib/audioPlayer";
 import { moreFromArtist } from "@/lib/upNext";
 import { registerBottomChrome } from "@/lib/bottomChrome";
 import { Equalizer } from "@/components/share/EmbeddedTrackCard";
@@ -147,6 +147,16 @@ export function NowPlayingBar() {
             </p>
           )}
         </div>
+        <button
+          type="button"
+          onClick={() => playPrev()}
+          disabled={!peekPrev(id)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/80 hover:bg-white/10 disabled:opacity-40"
+          aria-label="Previous"
+          data-testid="now-playing-prev"
+        >
+          <SkipBack className="h-4 w-4 fill-current" />
+        </button>
         <button
           type="button"
           onClick={() => togglePlayback()}
