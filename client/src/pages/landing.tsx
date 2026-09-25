@@ -734,17 +734,19 @@ export default function Landing() {
   // Which results tab is showing, so the box can say "Search means's notes";
   // seeded from the URL, then told by the results as tabs change.
   const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(window.location.search).get("t") || "everything");
-  // A search of one person's things, on one tab, is a search — RECENT remembers it the way
-  // the chip that opened it read: the face, the name, the tab, never the key. Recorded from
-  // the search that RAN (not each keystroke), once the person's name is known, and again when
-  // the tab changes under the scope. Benjamin (2026-09-24): "history is helpful, like Google".
+  // A search of one person's things is a search — RECENT remembers it the way the chip that
+  // opened it read: the face, the name, the tab it opened on, never the key. Recorded from
+  // the search that RAN (not each keystroke), once the person's name is known. Tabs browsed
+  // under it are not searches (Benjamin, 2026-09-24: "just your search, like Google"), so a
+  // tab change leaves history alone.
   useEffect(() => {
     if (!hasSearched || !submitted) return;
     const ran = scopeOf(submitted);
     if (!ran || !scopeName || ran.pubkey !== scope?.pubkey) return;
-    setRecent(pushRecentScoped({ pubkey: ran.pubkey, npub: npubFromPubkey(ran.pubkey), label: scopeName, picture: scopeProfile?.picture, tab: activeTab, words: ran.rest }));
+    const openedOn = new URLSearchParams(window.location.search).get("t") || "everything";
+    setRecent(pushRecentScoped({ pubkey: ran.pubkey, npub: npubFromPubkey(ran.pubkey), label: scopeName, picture: scopeProfile?.picture, tab: openedOn, words: ran.rest }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [submitted, hasSearched, scopeName, scopeProfile?.picture, activeTab]);
+  }, [submitted, hasSearched, scopeName, scopeProfile?.picture]);
   // Arriving scoped — the profile's magnifier, a "View all" — the cursor is
   // already in the box (X's profile search). Once per person, so typing and
   // re-renders never have their focus stolen.

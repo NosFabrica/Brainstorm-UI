@@ -3,9 +3,10 @@
 //   • query   — a text search they ran (re-run on click)
 //   • profile — a person they opened from search (re-open on click, shown with
 //               their avatar/handle)
-//   • scoped  — a search of one person's things on one tab ("vinney's media"),
-//               remembered the way the chip that opened it read: the face, the
-//               name, the tab — never the key (re-run on click)
+//   • scoped  — a search of one person's things ("vinney's media"), remembered
+//               the way the chip that opened it read: the face, the name, the
+//               tab it opened on — never the key (re-run on click). One row per
+//               person and words, like Google: the search, not every tab browsed
 // Stores only the visitor's own search activity, first-party + functional → no
 // consent banner (same lightweight localStorage pattern as the hints flag).
 //
@@ -41,7 +42,7 @@ export type RecentItem =
       npub: string;
       label: string;
       picture?: string;
-      /** The results tab the search ran on: "media", "shop", "everything"… */
+      /** The results tab the search opened on: "media", "shop", "everything"… */
       tab: string;
       /** The words typed beside the person's pill, trimmed; "" for the whole tab. */
       words: string;
@@ -53,7 +54,7 @@ export function recentKey(item: RecentItem): string {
   return item.type === "profile"
     ? `profile:${item.pubkey.toLowerCase()}`
     : item.type === "scoped"
-      ? `scoped:${item.pubkey.toLowerCase()}:${item.tab}:${item.words.toLowerCase()}`
+      ? `scoped:${item.pubkey.toLowerCase()}:${item.words.toLowerCase()}`
       : `query:${item.q.toLowerCase()}`;
 }
 

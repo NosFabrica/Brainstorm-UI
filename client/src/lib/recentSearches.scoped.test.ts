@@ -23,13 +23,17 @@ describe("pushRecentScoped", () => {
     expect(getRecentItems()[0]).toMatchObject({ type: "scoped", tab: "media" });
   });
 
-  it("the same person on the same tab is one row, moved to the front; another tab is another row", () => {
+  // Benjamin (2026-09-24): "it doesn't need to save every tab you click, just your search,
+  // like Google". One row per person: searched again on another tab, the row moves to the
+  // front wearing that tab.
+  it("the same person is one row, moved to the front; another tab replaces it rather than adding", () => {
     pushRecentScoped({ pubkey: VINNEY, npub, label: "vinney", tab: "media" });
     pushRecentQuery("soap");
     pushRecentScoped({ pubkey: VINNEY, npub, label: "vinney", tab: "media" });
-    expect(getRecentItems().map((r) => recentKey(r))).toEqual([`scoped:${VINNEY}:media:`, "query:soap"]);
+    expect(getRecentItems().map((r) => recentKey(r))).toEqual([`scoped:${VINNEY}:`, "query:soap"]);
     pushRecentScoped({ pubkey: VINNEY, npub, label: "vinney", tab: "articles" });
-    expect(getRecentItems()).toHaveLength(3);
+    expect(getRecentItems()).toHaveLength(2);
+    expect(getRecentItems()[0]).toMatchObject({ type: "scoped", tab: "articles" });
   });
 
   it("words typed under the scope are part of the search remembered", () => {

@@ -548,6 +548,11 @@ describe("a scoped search is remembered in RECENT", () => {
     await waitFor(() => expect(getRecentItems()[0]).toMatchObject({ type: "scoped", pubkey: VINNEY, label: "vinney…axkl", tab: "media", words: "" }));
     expect(JSON.stringify(getRecentItems())).not.toContain("from:");
     expect(getRecentItems().some((r) => r.type === "query")).toBe(false);
+    // Browsing another tab under the same search is not another search.
+    fireEvent.click(await screen.findByTestId("search-tab-notes"));
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("t")).toBe("notes"));
+    expect(getRecentItems()).toHaveLength(1);
+    expect(getRecentItems()[0]).toMatchObject({ type: "scoped", tab: "media" });
   });
 
   it("the RECENT row reads as the person and the tab, and re-runs the scoped search", async () => {
