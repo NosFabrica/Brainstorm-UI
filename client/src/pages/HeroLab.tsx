@@ -137,6 +137,7 @@ export default function HeroLab() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prev/next only call setI; bind once
   }, []);
 
   // Preload neighbours for instant switching.

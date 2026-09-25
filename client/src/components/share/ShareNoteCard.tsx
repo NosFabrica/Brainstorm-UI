@@ -1,5 +1,4 @@
 import { useState, useMemo, type MouseEvent } from "react";
-import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TierTile } from "@/components/score/TierTile";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
@@ -54,7 +53,6 @@ function ago(ts?: number): string {
 function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<string, ProfileLite> }) {
   const requestNav = useShareNav();
   const tierRing = useTierRing();
-  const coinReplaced = useCoinReplacedByRing();
   const scoreOf = useAuthorScores([pubkey]);
   const p = profiles.get(pubkey);
   const name = p?.display_name || p?.name || "someone";
@@ -114,7 +112,6 @@ export function ShareNoteCard({
    *  query, not one per card — see ACCEPTANCE C2 and `useEventTagsBatch`. */
   tags?: NoteTag[];
 }) {
-  const [displayMode] = useScoreDisplayMode();
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
   const [granularity] = useTierGranularity();

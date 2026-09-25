@@ -41,6 +41,7 @@ export function AutoPublishAssistant() {
 
     once.mark(pk);
     void ensureAssistantPublished({ follow: false, background: true }).catch(() => { /* retries next load */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `once` is a new object each render (ref-backed)
   }, [pk, history.isSuccess, history.data]);
 
   return null;

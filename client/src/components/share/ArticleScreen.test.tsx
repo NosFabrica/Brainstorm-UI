@@ -53,7 +53,7 @@ const open = (content: string, tags?: string[][]) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}>
       <EventStoreProvider eventStore={eventStore}>
-        <AccountsProvider manager={new AccountManager<AccountMetadata>() as any}>
+        <AccountsProvider manager={new AccountManager<AccountMetadata>()}>
           <ArticleScreen ev={article(content, tags)} naddr={nip19.naddrEncode({ ...ptr })} ptr={ptr} />
         </AccountsProvider>
       </EventStoreProvider>

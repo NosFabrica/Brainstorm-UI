@@ -3,7 +3,7 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
-import { useRoute, Redirect, Link, useLocation } from "wouter";
+import { useRoute, Redirect, Link } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
@@ -46,7 +46,6 @@ export default function HopsPathPage() {
   const [displayMode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
   const tierRing = useTierRing();
-  const [, navigate] = useLocation();
   const goBack = useGoBack();
   const [, params] = useRoute("/p/:id/hops");
   const rawId = params?.id || "";

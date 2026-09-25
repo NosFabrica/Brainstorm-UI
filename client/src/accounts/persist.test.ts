@@ -1,12 +1,14 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import type { SerializedAccount } from "applesauce-accounts";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { nsecEncode } from "nostr-tools/nip19";
 import { bytesToHex } from "nostr-tools/utils";
 
 import { createManager } from "./manager";
 import { LocalAccount } from "./local-account";
-import { updateMetadata } from "./metadata";
+import { updateMetadata, type AccountMetadata } from "./metadata";
+import type { LocalSignerData } from "./local-signer";
 import { ACCOUNTS_KEY, ACTIVE_KEY, BACKUP_KEY, QUARANTINE_KEY, type StorageSeam } from "./persist";
 import {
   createFakeUnlockCache,
@@ -16,7 +18,9 @@ import {
   PASSWORD,
 } from "./test-fakes";
 
-function read(store: StorageSeam["device"], key: string): any {
+type Stored = SerializedAccount<LocalSignerData, AccountMetadata>;
+
+function read(store: StorageSeam["device"], key: string): Stored[] {
   const raw = store.getItem(key);
   return raw === null ? null : JSON.parse(raw);
 }
@@ -50,8 +54,8 @@ describe("account persistence", () => {
     });
     const { account: tab } = await addAccount(manager, unlockCache, { remembered: false });
 
-    expect(read(storage.device, ACCOUNTS_KEY).map((e: any) => e.id)).toEqual([kept.id]);
-    expect(read(storage.tab, ACCOUNTS_KEY).map((e: any) => e.id)).toEqual([tab.id]);
+    expect(read(storage.device, ACCOUNTS_KEY).map((e) => e.id)).toEqual([kept.id]);
+    expect(read(storage.tab, ACCOUNTS_KEY).map((e) => e.id)).toEqual([tab.id]);
   });
 
   it("restores accounts, metadata and the Active Account on the next load", async () => {
@@ -89,7 +93,7 @@ describe("account persistence", () => {
       session: { token: "fresh", isAdmin: false },
     });
 
-    expect(read(storage.device, ACCOUNTS_KEY)[0].metadata.session.token).toBe("fresh");
+    expect(read(storage.device, ACCOUNTS_KEY)[0].metadata?.session?.token).toBe("fresh");
   });
 
   it("saves the Unlock cache the first unlock mints, so the next load is silent", async () => {
@@ -136,7 +140,7 @@ describe("account persistence", () => {
     // the envelope that no longer decrypts left storage, not just memory
     const stored = read(storage.device, ACCOUNTS_KEY)[0].signer;
     expect(stored.envelope).not.toBe(stale);
-    expect(await unlockCache.decrypt(stored.envelope, account.pubkey)).toBeInstanceOf(Uint8Array);
+    expect(await unlockCache.decrypt(stored.envelope!, account.pubkey)).toBeInstanceOf(Uint8Array);
     expect(stored.ncryptsec).toMatch(/^ncryptsec1/);
   });
 
@@ -372,7 +376,7 @@ describe("an account this build could not read, on a build that can", () => {
     id = "future";
     metadata: Record<string, unknown> = {};
     constructor(public pubkey: string, public signer: unknown) {}
-    static fromJSON(json: any) {
+    static fromJSON(json: SerializedAccount<unknown, Record<string, unknown>>) {
       const account = new FutureAccount(json.pubkey, json.signer);
       account.id = json.id;
       account.metadata = json.metadata ?? {};
@@ -432,7 +436,7 @@ describe("an account this build could not read, on a build that can", () => {
     const { manager } = withFutureType(storage);
 
     expect(manager.accounts).toHaveLength(1);
-    expect((manager.getAccount("future") as any)?.signer).toEqual({ secret: "x" });
+    expect((manager.getAccount("future") as unknown as FutureAccount | undefined)?.signer).toEqual({ secret: "x" });
     expect(read(storage.device, QUARANTINE_KEY)).toEqual([]);
   });
 

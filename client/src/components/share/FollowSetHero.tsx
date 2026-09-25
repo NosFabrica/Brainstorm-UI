@@ -8,7 +8,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import type { NostrEvent } from "nostr-tools";
 import { ListChecks } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";

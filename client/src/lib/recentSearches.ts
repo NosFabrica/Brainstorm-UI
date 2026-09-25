@@ -59,7 +59,7 @@ export function recentKey(item: RecentItem): string {
 }
 
 // Tolerate old records: pre-profile entries were bare { q, t } with no `type`.
-function normalize(e: any): RecentItem | null {
+function normalize(e: Record<string, unknown> | null): RecentItem | null {
   if (!e || typeof e.t !== "number") return null;
   if (e.type === "profile") {
     if (typeof e.pubkey !== "string" || typeof e.npub !== "string" || typeof e.label !== "string") return null;

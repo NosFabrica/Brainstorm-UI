@@ -7,11 +7,11 @@ import { CrossTabIdentity } from "./CrossTabIdentity";
 
 /** Just enough of the mirror's stream to subscribe to — rxjs can't be imported this early. */
 const mirror = vi.hoisted(() => {
-  const handlers = new Set<(change: any) => void>();
+  const handlers = new Set<(change: MirroredChange) => void>();
   return {
-    emit: (change: unknown) => handlers.forEach((handler) => handler(change)),
+    emit: (change: MirroredChange) => handlers.forEach((handler) => handler(change)),
     changes$: {
-      subscribe(handler: (change: any) => void) {
+      subscribe(handler: (change: MirroredChange) => void) {
         handlers.add(handler);
         return { unsubscribe: () => handlers.delete(handler) };
       },

@@ -39,6 +39,7 @@ export function AutoActivateBrainstorm() {
 
     once.mark(pk);
     void ensureBrainstormTrustAnchor(pk, taPubkey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `once` is a new object each render; its ref is stable
   }, [pk, history.isSuccess, history.data]);
 
   return null;

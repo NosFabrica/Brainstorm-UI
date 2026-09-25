@@ -117,7 +117,7 @@ async function completeLogin(account: BrainstormAccount, token: string): Promise
       await loadRelayList(pubkey).catch(() => null);
       const { fetchContactList } = await import("@/services/socialActions");
       const ev = await fetchContactList(pubkey);
-      if (ev) recordFollowList(pubkey, ev as any);
+      if (ev) recordFollowList(pubkey, ev);
     } catch { /* the dashboard's relay verification is the fallback */ }
   })();
 

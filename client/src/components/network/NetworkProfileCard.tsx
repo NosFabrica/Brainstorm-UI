@@ -1,7 +1,6 @@
 import { useState, useMemo, memo } from "react";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierRing } from "@/components/score/VerificationCoin";
-import { tierForScore01 } from "@/components/score/VerificationCoin";
 import { rungFraction } from "@/lib/trustLadder";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { nip19 } from "nostr-tools";
@@ -27,7 +26,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { BrainLogo } from "@/components/BrainLogo";
-import { toPubkeys } from "@/services/graphHelpers";
+import { toPubkeys, type GraphEntry } from "@/services/graphHelpers";
+import type { ProfileContent } from "applesauce-core/helpers/profile";
 import {
   detailMetrics,
   metricIcons,
@@ -40,12 +40,17 @@ import {
   useNetworkCardView,
 } from "@/components/network/cardContext";
 
+type DetailGraph = {
+  influence?: number | null;
+  [key: string]: number | GraphEntry[] | null | undefined;
+};
+
 export interface NetworkProfileCardProps {
   pk: string;
-  profile: any | undefined;
+  profile: ProfileContent | undefined;
   trustScore: number | null | undefined;
-  graphData: any | undefined;
-  detail: any | undefined;
+  graphData: { muted_by?: string[]; reported_by?: string[] } | undefined;
+  detail: DetailGraph | null | undefined;
   stats: Record<string, { verified: number; total: number }> | undefined;
   isExpanded: boolean;
   isCopied: boolean;
@@ -79,8 +84,6 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   const [displayMode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
   const {
-    trustCacheRef,
-    activeGroupRef,
     getPubkeyGroups,
     onToggleExpanded,
     onCopyNpub,
@@ -301,7 +304,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     // (full counts for followed_by/following/muting/reporting, plus precise
     // influence). Keys not in the seed render an "—" placeholder instead of
     // a misleading "0" until the fetch completes.
-    const seedDetail: any | null =
+    const seedDetail: DetailGraph | null =
       graphData || trustScore != null
         ? {
             muted_by: graphData?.muted_by ?? [],
@@ -314,7 +317,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     // muted_by/reported_by we keep those arrays so the verified-subset
     // display (which requires per-pubkey influence maps) stays intact.
     // Influence falls back to the row's trustScore if overview omits it.
-    const effectiveDetail: any | null = detail
+    const effectiveDetail: DetailGraph | null = detail
       ? {
           ...detail,
           ...(Array.isArray(graphData?.muted_by)

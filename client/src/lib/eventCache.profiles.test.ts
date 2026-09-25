@@ -38,7 +38,7 @@ const readProfiles = async (pubkeys: string[]) => {
 
 beforeEach(() => {
   // A fresh device each time.
-  indexedDB = new IDBFactory();
+  globalThis.indexedDB = new IDBFactory();
   __useCacheStore(undefined);
   __resetEventCache();
 });

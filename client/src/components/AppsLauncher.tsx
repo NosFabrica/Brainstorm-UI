@@ -43,7 +43,7 @@ interface AppsLauncherProps {
   variant?: "dark" | "light";
 }
 
-export function AppsLauncher({ user, calcDone = false, active, className, variant = "dark" }: AppsLauncherProps) {
+export function AppsLauncher({ active, className, variant = "dark" }: AppsLauncherProps) {
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
   const isLight = variant === "light";

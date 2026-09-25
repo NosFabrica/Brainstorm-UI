@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
  * search over relay long-form is also an infrastructure project, not a filter.
  */
 export default function ReadingPage() {
-  const [, navigate] = useLocation();
+  useLocation();
   const goBack = useGoBack();
   const user = useActiveAccountDisplay();
   const observer = user?.pubkey ?? "";

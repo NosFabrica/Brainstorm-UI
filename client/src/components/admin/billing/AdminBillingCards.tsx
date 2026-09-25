@@ -57,8 +57,8 @@ import {
 import { fetchProfileMap } from "@/services/nostr";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
-import { tone, type Tone } from "@/lib/tones";
-import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
+import { type Tone } from "@/lib/tones";
+import { npubFromPubkey } from "@/lib/shareId";
 import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection, groupSignups, splitExhausted, type SignupHandle, firstSentence } from "./divergenceSections";
 import { StatTile } from "@/components/ui/stat-tile";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";

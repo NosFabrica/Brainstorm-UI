@@ -30,7 +30,7 @@ function Rows() {
 
 function renderWith(manager: AccountManager<AccountMetadata>) {
   return render(
-    <AccountsProvider manager={manager as any}>
+    <AccountsProvider manager={manager as unknown as AccountManager}>
       <Rows />
     </AccountsProvider>,
   );
@@ -50,7 +50,7 @@ describe("the picker's rows", () => {
     const account = new LocalAccount(pubkey, new LocalSigner(pubkey, { envelope }, { unlockCache }));
     updateMetadata(account as unknown as BrainstormAccount, { remembered: true, name: "Alice" });
     const manager = new AccountManager<AccountMetadata>();
-    manager.addAccount(account as any);
+    manager.addAccount(account as unknown as BrainstormAccount);
 
     renderWith(manager);
 
@@ -65,7 +65,7 @@ describe("the picker's rows", () => {
     const account = new ExtensionAccount<AccountMetadata>(pubkey, new ExtensionSigner());
     updateMetadata(account as unknown as BrainstormAccount, { remembered: true, name: "Bob" });
     const manager = new AccountManager<AccountMetadata>();
-    manager.addAccount(account as any);
+    manager.addAccount(account as unknown as BrainstormAccount);
 
     renderWith(manager);
 
@@ -83,7 +83,7 @@ describe("the picker's rows", () => {
     const account = new ExtensionAccount<AccountMetadata>(pubkey, new ExtensionSigner());
     updateMetadata(account as unknown as BrainstormAccount, { remembered: false, name: "Carol" });
     const manager = new AccountManager<AccountMetadata>();
-    manager.addAccount(account as any);
+    manager.addAccount(account as unknown as BrainstormAccount);
 
     renderWith(manager);
 

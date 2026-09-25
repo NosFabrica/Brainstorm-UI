@@ -100,7 +100,6 @@ export default function LoginPage() {
       return;
     }
     if (signedInOnArrival.current && !addRequested.current) navigate(nextPath, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, nextPath]);
 
   // Returning users (extension/nsec) land where they intended (home, or ?next=) —

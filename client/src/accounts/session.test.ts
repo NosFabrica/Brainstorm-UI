@@ -6,7 +6,7 @@ import { generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 
 import { LocalAccount } from "./local-account";
-import { getMetadata, updateMetadata, type BrainstormAccount } from "./metadata";
+import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import {
   createSessions,
   hasSession,
@@ -60,7 +60,7 @@ function createFakeTransport(): FakeTransport {
 }
 
 /** An Account that can always sign without asking — an extension or a bunker. */
-class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, any> {
+class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
   static readonly type = "test-always-signable";
 }
 
@@ -114,7 +114,7 @@ describe("authenticate", () => {
     expect(pubkey).toBe(account.pubkey);
     expect(event.kind).toBe(LOGIN_KIND);
     expect(event.tags).toContainEqual(["challenge", transport.challenges[0]]);
-    expect(verifyEvent(event as any)).toBe(true);
+    expect(verifyEvent(event)).toBe(true);
   });
 
   it("writes isAdmin onto the session at the moment the token is minted", async () => {

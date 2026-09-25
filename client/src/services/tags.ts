@@ -53,7 +53,6 @@ import {
   tagRelays,
   TRUST_RELAYS,
   Z_HANDLE_PUBKEYS,
-  NIP85_AUTHOR_PUBKEYS,
   TRUST_SETTINGS,
   TAG_FOR_NOSTR_PUBKEY_Z,
 } from "@/config/tagging";

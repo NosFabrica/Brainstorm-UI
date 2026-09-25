@@ -5,7 +5,7 @@ import { PrivateKeySigner } from "applesauce-signers";
 import { generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
 
 import { LocalAccount } from "./local-account";
-import type { BrainstormAccount } from "./metadata";
+import type { AccountMetadata, BrainstormAccount } from "./metadata";
 import { isUnlockCancelled, UnlockCancelled } from "./local-signer";
 import {
   activeAccount,
@@ -21,7 +21,7 @@ import { RemoteSignerTimeoutError } from "./remote-signer";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 /** An Account that signs without asking — an extension or a bunker. */
-class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, any> {
+class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
   static readonly type = "test-always-signable";
 }
 
@@ -91,7 +91,7 @@ describe("signing as an account", () => {
   // were signed by whatever extension happened to be installed.
   it("never reaches for window.nostr when the account holds its own key", async () => {
     const extensionKey = generateSecretKey();
-    (globalThis as any).window = {
+    (globalThis as { window?: unknown }).window = {
       nostr: {
         getPublicKey: async () => getPublicKey(extensionKey),
         signEvent: async () => {
@@ -107,7 +107,7 @@ describe("signing as an account", () => {
       expect(event.pubkey).toBe(account.pubkey);
       expect(event.pubkey).not.toBe(getPublicKey(extensionKey));
     } finally {
-      delete (globalThis as any).window;
+      delete (globalThis as { window?: unknown }).window;
     }
   });
 });

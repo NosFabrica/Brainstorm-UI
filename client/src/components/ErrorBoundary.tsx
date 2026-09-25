@@ -16,7 +16,6 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: s
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // eslint-disable-next-line no-console
     console.error("[app] a page crashed while rendering", error, info.componentStack);
   }
 

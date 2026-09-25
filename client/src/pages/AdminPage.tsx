@@ -7,7 +7,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
-import { BrainLogo } from "@/components/BrainLogo";
 import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
@@ -18,20 +17,11 @@ import { unreadCount } from "@/lib/supportSeen";
 import { AdminBillingCards } from "@/components/admin/billing/AdminBillingCards";
 import { PlanMappingsCard } from "@/components/admin/billing/PlanMappingsCard";
 import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
-import { ResyncControl } from "@/components/admin/ResyncControl";
 import { UserActionsMenu } from "@/components/admin/UserActionsMenu";
 import type { SchedulingItem } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -53,12 +43,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Home,
   Search,
-  LogOut,
-  Settings as SettingsIcon,
   Users,
-  HelpCircle,
   Shield,
   Activity,
   Server,
@@ -74,9 +60,6 @@ import {
   ChevronRight,
   Wifi,
   WifiOff,
-  Database,
-  Cpu,
-  Zap,
   FileText,
   UserCheck,
   Copy,
@@ -104,7 +87,6 @@ import {
 import { parseAdminTab, type AdminTab } from "./adminTabs";
 import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
-import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
 import { fetchProfile, searchNostrProfiles, type NostrSearchResult } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -261,20 +243,12 @@ interface RelayLatency {
 }
 
 const PRIMARY_RELAY = "wss://dcosl.brainstorm.world";
-const SESSION_START = new Date();
+const NONE: never[] = [];
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
   return n.toLocaleString();
-}
-
-function formatUptime(since: Date): string {
-  const diff = Date.now() - since.getTime();
-  const mins = Math.floor(diff / 60_000);
-  const hrs = Math.floor(mins / 60);
-  if (hrs > 0) return `${hrs}h ${mins % 60}m`;
-  return `${mins}m`;
 }
 
 function timeAgo(dateStr?: string): string {
@@ -436,10 +410,6 @@ function bucketActivity(
     else if (s === "failed" || s === "failure") buckets[idx].failed++;
   }
   return buckets;
-}
-
-function bucketActivityByHour(activity: { updated_at: string; status?: string | null }[], hours: number, now: number): HourlyBucket[] {
-  return bucketActivity(activity, hours, 3600000, now);
 }
 
 function compareActivityWindows(activity: { updated_at: string; status?: string | null }[], windowMs: number, now: number) {
@@ -1751,7 +1721,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
 }
 
 export default function AdminPage() {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const user = useActiveAccountDisplay();
   const [mobileTabDropdownOpen, setMobileTabDropdownOpen] = useState(false);
@@ -1806,7 +1776,7 @@ export default function AdminPage() {
   const [selectedActivityRows, setSelectedActivityRows] = useState<Map<number, string>>(new Map());
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkStatuses, setBulkStatuses] = useState<Map<string, "queued" | "running" | "success" | "failed">>(new Map());
-  const [bulkErrors, setBulkErrors] = useState<Map<string, string>>(new Map());
+  const [, setBulkErrors] = useState<Map<string, string>>(new Map());
   const [bulkConfirm, setBulkConfirm] = useState<{ pubkeys: string[]; source: "users" | "activity" | "retry" } | null>(null);
   const [fetchingMatching, setFetchingMatching] = useState(false);
   const [bulkLastResult, setBulkLastResult] = useState<{ source: "users" | "activity"; successes: string[]; failures: { pubkey: string; error: string }[] } | null>(null);
@@ -1815,7 +1785,7 @@ export default function AdminPage() {
   const [lookupMode, setLookupMode] = useState<"lookup" | "onboard">("lookup");
   const [lookupInput, setLookupInput] = useState("");
   const [lookupRunning, setLookupRunning] = useState(false);
-  const [lookupResult, setLookupResult] = useState<{ success: boolean; message: string; data?: Record<string, unknown> } | null>(null);
+  const [, setLookupResult] = useState<{ success: boolean; message: string; data?: Record<string, unknown> } | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupNameResults, setLookupNameResults] = useState<{ pubkey: string; name?: string; picture?: string }[]>([]);
   const [highlightedPubkey, setHighlightedPubkey] = useState<string | null>(() => {
@@ -1941,6 +1911,7 @@ export default function AdminPage() {
   const schedulingPolicies = schedulingPoliciesQuery.data ?? [];
 
   const adminUsersData = adminUsersQuery.data;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a stable [] would change when the profile-fetch effect reruns
   const adminUsersList = adminUsersData?.items ?? [];
   const adminUsersTotal = adminUsersData?.total ?? 0;
   const adminUsersTotalPages = adminUsersData?.pages ?? 1;
@@ -1979,6 +1950,7 @@ export default function AdminPage() {
     refetchOnWindowFocus: "always",
   });
   const activityData = adminActivityQuery.data;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a stable [] would change when the profile-fetch effect reruns
   const activityItems = activityData?.items ?? [];
   const activityTotal = activityData?.total ?? 0;
   const activityTotalPages = activityData?.pages ?? 1;
@@ -2133,6 +2105,7 @@ export default function AdminPage() {
       });
     })();
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- userProfiles is written here; adding it would loop
   }, [adminUsersList, overviewUsersQuery.data, activityItems]);
 
   const probeRelayLatency = useCallback(async (url: string): Promise<RelayLatency> => {
@@ -2181,14 +2154,9 @@ export default function AdminPage() {
   };
 
   const grapeRank: GrapeRankData | null = grapeRankQuery.data?.data ?? null;
-  const calcDone = grapeRank?.internal_publication_status?.toLowerCase() === "success";
-  const taStatus = grapeRank?.ta_status ?? null;
-  const calcStatus = grapeRank?.status ?? null;
   const queuePosition = typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
-  const lastUpdated = grapeRank?.updated_at ?? null;
-  const lastCreated = grapeRank?.created_at ?? null;
 
-  const overviewAllUsers = overviewUsersQuery.data?.items ?? [];
+  const overviewAllUsers = overviewUsersQuery.data?.items ?? NONE;
   // pubkey → current scheduling tier, for Platform Activity rows (best-effort:
   // only covers users in the loaded set; activity records don't carry the tier).
   const schedulingTierByPubkey = useMemo(() => {
@@ -2198,7 +2166,7 @@ export default function AdminPage() {
     }
     return m;
   }, [overviewAllUsers]);
-  const overviewAllActivity = overviewActivityQuery.data?.items ?? [];
+  const overviewAllActivity = overviewActivityQuery.data?.items ?? NONE;
   // Coverage of the loaded activity feed — surfaced so admins know how far the
   // trend windows actually reach (7d/30d may exceed the loaded records).
   const activityCoverage = useMemo(() => {

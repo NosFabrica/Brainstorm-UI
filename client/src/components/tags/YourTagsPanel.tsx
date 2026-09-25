@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Loader2, PinOff, Tag as TagIcon } from "lucide-react";
+import { ChevronDown, PinOff, Tag as TagIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
@@ -67,8 +67,8 @@ export function YourTagsPanel() {
     /* unlinkable */
   }
 
-  const tagsOnMe = onMe?.tags ?? [];
-  const said = mySaid ?? [];
+  const tagsOnMe = useMemo(() => onMe?.tags ?? [], [onMe]);
+  const said = useMemo(() => mySaid ?? [], [mySaid]);
   const [saidShown, setSaidShown] = useState(SAID_PREVIEW);
   const [stance, setStance] = useState<Stance>("all");
 

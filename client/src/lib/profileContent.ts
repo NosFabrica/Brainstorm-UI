@@ -10,7 +10,7 @@ import { getProfileContent, isValidProfile, type ProfileContent } from "applesau
 export function profileContentOf(event: NostrEvent | null | undefined): ProfileContent | undefined {
   if (!event) return undefined;
   try {
-    if (isValidProfile(event as any)) return getProfileContent(event as any);
+    if (isValidProfile(event)) return getProfileContent(event);
   } catch {}
   if (typeof event.content === "string") {
     try {

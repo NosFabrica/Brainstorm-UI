@@ -32,7 +32,6 @@ const MAX_AVATAR_SIZE = 400;
 const MAX_BANNER_WIDTH = 1200;
 const MAX_BANNER_HEIGHT = 400;
 const JPEG_QUALITY = 0.82;
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 function resizeImage(file: File, maxW: number, maxH: number, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {

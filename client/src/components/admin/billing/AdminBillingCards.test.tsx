@@ -83,7 +83,7 @@ vi.mock("@/services/api", () => ({
 // Brainstorm's own profile search — names live on relays, not in the users table.
 const searchByText = vi.fn(async (_q: string) => ({ results: [] as Array<{ pubkey: string; npub: string; name?: string; displayName?: string; picture?: string }>, total: 0, timeMs: 1 }));
 vi.mock("@/lib/profileSearch", () => ({
-  searchByText: (q: string, pov: string, user?: string, max?: number) => searchByText(q),
+  searchByText: (q: string, _pov: string, _user?: string, _max?: number) => searchByText(q),
 }));
 
 const toast = vi.fn();

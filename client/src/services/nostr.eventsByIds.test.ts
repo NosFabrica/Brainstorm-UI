@@ -28,9 +28,8 @@ vi.mock("@/lib/eventStore", () => ({
 }));
 
 let searchRelaySubject: Subject<{ type: string; event?: NostrEvent }> | null = null;
-const searchReqMock = vi.fn((filter: unknown) => {
+const searchReqMock = vi.fn((_filter: unknown) => {
   searchRelaySubject = new Subject();
-  searchReqMock.mock.lastCall; // filter recorded via mock args
   return new Observable((subscriber) => {
     const inner = searchRelaySubject!.subscribe(subscriber);
     return () => inner.unsubscribe();

@@ -3,7 +3,7 @@ import { useLocation, useSearch } from "wouter";
 import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { pushRecentQuery, pushRecentScoped } from "@/lib/recentSearches";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { nip19 } from "nostr-tools";
 import { resolveNip05 } from "@/lib/nip05";
 import { ArrowRight, Loader2 } from "lucide-react";
@@ -170,17 +170,6 @@ export default function Landing() {
   const handleLogout = useCallback(() => {
     logout();
   }, []);
-
-  // Gate the Network app tile until a trust graph has been calculated. We read
-  // the locally cached completion flag so the search-first home stays instant
-  // (no blocking API call just to render the launcher).
-  const calcDone = useMemo(() => {
-    try {
-      return localStorage.getItem("brainstorm_calc_completed") === "true";
-    } catch {
-      return false;
-    }
-  }, [user]);
 
   // Mark this browser as having seen the search hints, so the next visit is
   // treated as returning (calm static placeholder). Set once, on first mount.
@@ -423,6 +412,7 @@ export default function Landing() {
     if (focusedScopeRef.current === scope.pubkey) return;
     focusedScopeRef.current = scope.pubkey;
     boxRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scope is rebuilt each render; keyed on pubkey
   }, [scope?.pubkey]);
 
   const clearSearch = useCallback((opts?: { refocus?: boolean }) => {

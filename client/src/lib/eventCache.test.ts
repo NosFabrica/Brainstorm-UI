@@ -46,7 +46,7 @@ beforeEach(async () => {
   vi.resetModules();
   delete snapshot.event;
   // A fresh device each time — no connection to close, no delete to be blocked.
-  indexedDB = new IDBFactory();
+  globalThis.indexedDB = new IDBFactory();
   cache = await import("./eventCache");
   cache.__useCacheStore(undefined);
 });

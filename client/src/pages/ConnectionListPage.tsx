@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
-import { useRoute, Redirect, Link, useLocation } from "wouter";
+import { useRoute, Redirect, Link } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { Loader2, Users, SlidersHorizontal } from "lucide-react";
@@ -12,8 +12,7 @@ import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { InfoHint } from "@/components/InfoHint";
-import { TrustScoreModal, useScorePov, PovToggle, type ScorePov } from "@/components/score/TrustScorePov";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { TrustScoreModal, useScorePov, PovToggle } from "@/components/score/TrustScorePov";
 import { useHasSession } from "@/hooks/useHasSession";
 import { PersonListRow } from "@/components/PersonListRow";
 import { TIER_LABELS } from "@/services/trustThreshold";
@@ -34,7 +33,6 @@ const TYPE_MAP: Record<
 const PAGE = 20;
 
 export default function ConnectionListPage() {
-  const [, navigate] = useLocation();
   const goBack = useGoBack();
   const [, params] = useRoute("/p/:id/:type");
   const me = useActiveAccountDisplay();

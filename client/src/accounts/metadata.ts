@@ -1,4 +1,5 @@
 import type { IAccount } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 
 /**
  * Everything the app keeps per Account. Rides in `SerializedAccount.metadata`, so
@@ -27,7 +28,7 @@ export type AccountMetadata = {
   perspective?: "nosfabrica" | "mywot";
 };
 
-export type BrainstormAccount = IAccount<any, any, AccountMetadata>;
+export type BrainstormAccount = IAccount<ISigner, unknown, AccountMetadata>;
 
 const EMPTY: AccountMetadata = { remembered: false };
 

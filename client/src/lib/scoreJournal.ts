@@ -88,8 +88,8 @@ export async function hydrateScoreJournal(pubkey: string): Promise<ScoreEntry[]>
   const local = load(pubkey);
   if (!pubkey) return local;
   const remote = await fetchAlertPrefs(6000, SCORE_JOURNAL_D_TAG);
-  const list = Array.isArray((remote as any)?.entries) ? ((remote as any).entries as unknown[]) : [];
-  const parsed = list.filter((e): e is ScoreEntry => !!e && typeof (e as any).t === "number" && typeof (e as any).score === "number");
+  const list = Array.isArray(remote?.entries) ? (remote.entries as unknown[]) : [];
+  const parsed = list.filter((e): e is ScoreEntry => !!e && typeof (e as ScoreEntry).t === "number" && typeof (e as ScoreEntry).score === "number");
   if (parsed.length === 0) return local;
   const merged = persist(pubkey, [...local, ...parsed]);
   return merged;

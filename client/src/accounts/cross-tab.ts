@@ -14,6 +14,7 @@
  * tab keeps signing as an identity this browser no longer holds.
  */
 import type { AccountManager, BaseAccount } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 import { EMPTY, map, merge, Subject, switchMap, type Observable } from "rxjs";
 
 import { LocalAccount } from "./local-account";
@@ -117,7 +118,7 @@ export type Mirror = {
 };
 
 function metadataOf(account: BrainstormAccount): Observable<unknown> {
-  return (account as unknown as BaseAccount<any, any, AccountMetadata>).metadata$;
+  return (account as unknown as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$;
 }
 
 export function createMirror({
@@ -229,7 +230,7 @@ export function createMirror({
     // to stay as we are than to sign out over a message we can't act on.
     const account = held(accountId);
     if (!account) return;
-    manager.setActive(account as any);
+    manager.setActive(account);
     changes.next({ account, previous });
   }
 
@@ -245,7 +246,7 @@ export function createMirror({
     const previous = (manager.active ?? null) as BrainstormAccount | null;
     const wasActive = previous?.id === account.id;
 
-    manager.removeAccount(account as any);
+    manager.removeAccount(account);
     // The security-relevant half: an in-memory key must not outlive its Account.
     if (account instanceof LocalAccount) account.signer.lock();
 

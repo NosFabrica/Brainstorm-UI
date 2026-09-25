@@ -70,6 +70,7 @@ export function AutoScoreReturning() {
     once.mark(pk);
     try { localStorage.setItem(accountKey("brainstorm_auto_score_kicked", pk), "true"); } catch { /* ignore */ }
     void triggerScoringAndAnchor(pk);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `once` is a new object each render but ref-backed
   }, [pk, history.isSuccess, history.data]);
 
   return null;

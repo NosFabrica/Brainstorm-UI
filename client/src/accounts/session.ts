@@ -6,6 +6,7 @@
  */
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { AccountManager, BaseAccount, EventTemplate } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 import { distinctUntilChanged, map, of, startWith, switchMap, type Observable } from "rxjs";
 
 import { extractAdminFlag } from "@/lib/jwt";
@@ -109,7 +110,7 @@ export function activeHasSession$(
     switchMap((active) => {
       if (!active) return of(false);
       const account = active as unknown as BrainstormAccount;
-      return (active as BaseAccount<any, any, AccountMetadata>).metadata$.pipe(
+      return (active as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$.pipe(
         startWith(null),
         map(() => hasSession(account)),
       );

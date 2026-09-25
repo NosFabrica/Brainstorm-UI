@@ -1,6 +1,5 @@
 import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TIER_LABELS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
-import { tierForScore01 } from "@/components/score/VerificationCoin";
 import { rungFraction, rungFor, type Granularity } from "@/lib/trustLadder";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 

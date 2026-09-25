@@ -197,7 +197,7 @@ export function useNetworkArticles(
     },
   });
 
-  const authors = authorsQuery.data ?? [];
+  const authors = useMemo(() => authorsQuery.data ?? [], [authorsQuery.data]);
   const authorKeys = useMemo(() => authors.map((a) => a.pubkey), [authors]);
   const byPubkey = useMemo(() => new Map(authors.map((a) => [a.pubkey, a])), [authors]);
 

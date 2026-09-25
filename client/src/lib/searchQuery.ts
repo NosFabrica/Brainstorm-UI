@@ -95,10 +95,12 @@ const PARTIAL_GROUP = /(^|\s)(group):(\S*)$/i;
 // hyphen, and emoji with ZWJ and the variation selector so a family emoji is not cut short.
 const WORD = "\\p{L}\\p{M}\\p{N}_";
 const EMOJI = "\\p{Extended_Pictographic}\\u200D\\uFE0F";
+// eslint-disable-next-line no-misleading-character-class -- ZWJ/VS16 are wanted as single chars
 const HASHTAG = new RegExp(`(^|[^${WORD}])#([${WORD}${EMOJI}-]+)`, "gu");
 
 // The punctuation a lifted hashtag strands (`#bitcoin.` leaves `.`). `#`, `"` and `-` are not
 // orphans: they are NIP-50's own operators.
+// eslint-disable-next-line no-misleading-character-class -- see HASHTAG
 const ORPHAN = new RegExp(`(^|\\s)[^${WORD}${EMOJI}#"-]+(?=\\s|$)`, "gu");
 
 /** The leftover words, with the punctuation a lifted token stranded removed. */

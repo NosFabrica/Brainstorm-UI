@@ -42,7 +42,7 @@ function asciiDocToMarkdown(content: string): string {
     // image::url[alt] → ![alt](url)
     .replace(/^image::(\S+?)\[([^\]]*)\]/gm, (_m, url: string, alt: string) => `![${alt}](${url})`)
     // link:url[label] and url[label] → [label](url); a bare URL is left alone.
-    .replace(/(?:link:)?(https?:\/\/[^\s\[\]]+)\[([^\]]+)\]/g, (_m, url: string, label: string) => `[${label}](${url})`);
+    .replace(/(?:link:)?(https?:\/\/[^\s[\]]+)\[([^\]]+)\]/g, (_m, url: string, label: string) => `[${label}](${url})`);
 }
 
 export function wikiToMarkdown(content: string): string {

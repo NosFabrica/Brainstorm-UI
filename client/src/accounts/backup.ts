@@ -7,6 +7,7 @@
  * backup triggered straight after a page load threw "no key available".
  */
 import type { AccountManager, BaseAccount } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 import { distinctUntilChanged, map, merge, of, startWith, switchMap, type Observable } from "rxjs";
 
 import { LocalAccount } from "./local-account";
@@ -130,7 +131,7 @@ export function backupNeedStream(
     switchMap((account) => {
       if (!account) return of(null);
       const changed$ = (account.signer as { changed$?: Observable<unknown> })?.changed$;
-      const metadata$ = (account as BaseAccount<any, any, AccountMetadata>).metadata$;
+      const metadata$ = (account as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$;
       return merge(metadata$, ...(changed$ ? [changed$] : [])).pipe(
         startWith(null),
         map(() => backupNeed(account as BrainstormAccount)),

@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useProfile } from "@/hooks/useProfile";
 import { getProfilePicture, type ProfileContent } from "applesauce-core/helpers/profile";
-import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Sparkles, Wand2 } from "lucide-react";
+import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
 import { fetchAssistantPointer } from "@/services/nostr";

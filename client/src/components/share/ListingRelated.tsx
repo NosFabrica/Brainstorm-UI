@@ -83,6 +83,7 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
     return () => {
       alive = false;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on event identity
   }, [event.id]);
 
   if (mine.length === 0 && similar.length === 0 && options.length === 0) return null;

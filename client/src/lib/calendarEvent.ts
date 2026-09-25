@@ -115,7 +115,7 @@ export function shortPlace(location: string | undefined | null): string {
   if (!location) return "";
   const parts: string[] = [];
   for (const raw of location.split(/,\s*/)) {
-    let part = raw.trim().replace(/\s+\d{4,}(?:-\d+)?$/, "").trim(); // "PA 16652" → "PA"
+    const part = raw.trim().replace(/\s+\d{4,}(?:-\d+)?$/, "").trim(); // "PA 16652" → "PA"
     if (!part || /^\d+$/.test(part) || COUNTRY.test(part) || STREET.test(part)) continue;
     if (parts[parts.length - 1]?.toLowerCase() === part.toLowerCase()) continue;
     parts.push(part);

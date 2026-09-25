@@ -44,15 +44,17 @@ export function hasEscalated(atReports: number | null, currentReports: number): 
   return currentReports >= Math.max(atReports * 2, atReports + 5);
 }
 
-function normalize(raw: any): IgnoredEntry[] {
+type RawEntry = { pubkey?: unknown; atReports?: unknown } | null;
+
+function normalize(raw: { entries?: unknown; pubkeys?: unknown } | null | undefined): IgnoredEntry[] {
   if (Array.isArray(raw?.entries)) {
     return raw.entries
-      .filter((e: any) => e && typeof e.pubkey === "string")
-      .map((e: any) => ({ pubkey: e.pubkey, atReports: typeof e.atReports === "number" ? e.atReports : null }));
+      .filter((e: RawEntry): e is { pubkey: string; atReports?: unknown } => !!e && typeof e.pubkey === "string")
+      .map((e: { pubkey: string; atReports?: unknown }) => ({ pubkey: e.pubkey, atReports: typeof e.atReports === "number" ? e.atReports : null }));
   }
   // Legacy shape: { pubkeys: string[] } with no baseline recorded.
   if (Array.isArray(raw?.pubkeys)) {
-    return raw.pubkeys.filter((p: any) => typeof p === "string").map((pubkey: string) => ({ pubkey, atReports: null }));
+    return raw.pubkeys.filter((p: unknown): p is string => typeof p === "string").map((pubkey: string) => ({ pubkey, atReports: null }));
   }
   return [];
 }

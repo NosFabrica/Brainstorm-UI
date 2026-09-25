@@ -113,7 +113,7 @@ export default function HashtagPage() {
     staleTime: 60_000,
   });
 
-  const candidates = contentQuery.data?.events ?? [];
+  const candidates = useMemo(() => contentQuery.data?.events ?? [], [contentQuery.data]);
   const scores = useMemo(() => contentQuery.data?.scores ?? new Map<string, number>(), [contentQuery.data]);
 
   // Page-local filter + sort: strictness (threshold) and Top/Latest re-apply instantly.

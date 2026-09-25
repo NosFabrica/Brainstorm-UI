@@ -175,7 +175,7 @@ function extractPageTokens(pagePath: string): string[] {
 
     const blocksNode = getObjectProp(sectionEl, "blocks");
     if (!blocksNode || !ts.isArrayLiteralExpression(blocksNode)) {
-      fail(`${where}: SECTIONS[${si}] (\"${sectionTitle}\") has no \`blocks\` array.`);
+      fail(`${where}: SECTIONS[${si}] ("${sectionTitle}") has no \`blocks\` array.`);
     }
     blocksNode.elements.forEach((blockEl, bi) => {
       if (!ts.isObjectLiteralExpression(blockEl)) {

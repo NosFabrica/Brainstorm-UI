@@ -3,20 +3,15 @@ import { scopedSearchHref } from "@/lib/searchSyntax";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
-import { AdminBadge } from "@/components/AdminBadge";
 import { useGoBack } from "@/hooks/useGoBack";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
 import { ProfileRecentPosts } from "@/components/profile/ProfileRecentPosts";
 import {
-  Home,
-  LogOut,
   X,
   Loader2,
   Copy,
   Check,
-  Settings as SettingsIcon,
-  BookOpen,
   ArrowLeft,
   ArrowRight,
   ArrowLeftRight,
@@ -36,10 +31,6 @@ import {
   Volume2,
   Flag,
   MoreVertical,
-  HelpCircle,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Share2,
   Globe,
   Eye,
@@ -54,9 +45,7 @@ import { WotStrengthCard } from "@/components/WotStrengthCard";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { copyToClipboard } from "@/lib/clipboard";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
-import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
-import { FEATURES } from "@/config/featureFlags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -66,12 +55,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type ReportMetadata } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
@@ -99,7 +86,6 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { DegreeChip } from "@/components/DegreeChip";
 import { SignInButton } from "@/components/SignInButton";
-import { useActivePerspective, type ActivePerspective } from "@/hooks/useActivePerspective";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
@@ -206,7 +192,7 @@ const SharedConnectionIcon = ({ className }: { className?: string }) => (
 
 
 
-function AdminHistoryStatusBadge({ value, type }: { value: string | null; type: "status" | "ta" | "pub" }) {
+function AdminHistoryStatusBadge({ value, type: _type }: { value: string | null; type: "status" | "ta" | "pub" }) {
   if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "success" || lower === "done" || lower === "published"
@@ -1047,12 +1033,8 @@ export default function ProfilePage() {
     retry: false,
   });
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
-  const calcDone = useMemo(() => {
-    if (calcDoneNow) {
-      try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
-      return true;
-    }
-    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  useEffect(() => {
+    if (calcDoneNow) try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
   }, [calcDoneNow]);
 
   // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
@@ -1204,7 +1186,7 @@ export default function ProfilePage() {
   // Collapse backend tier_counts onto the FE display keys via the same
   // GR_TIER_TO_UI map that names a single row's tier, so a bucket count and a
   // row badge can't land in different slices. Slices still sum to `total`.
-  const grTierCountsToUI = (tc: any): Record<string, number> => {
+  const grTierCountsToUI = (tc: Record<string, number> | null | undefined): Record<string, number> => {
     const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
     for (const [grTier, uiKey] of Object.entries(GR_TIER_TO_UI)) {
       counts[uiKey] += tc?.[grTier] ?? 0;
@@ -1701,6 +1683,7 @@ export default function ProfilePage() {
         : { key: "verified", name: "Verified", color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" };
     }
     return TIER_DISPLAY_CONFIG.find(t => t.key === uiKey) ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as-is; granularity omitted, may be stale on toggle
   }, [profileOverviewQuery.data]);
 
   const confidenceGuidance = useMemo(() => {
@@ -1751,21 +1734,6 @@ export default function ProfilePage() {
     if (!serverStats || serverStats.total === 0) return null;
     return { counts: grTierCountsToUI(serverStats.tier_counts), total: serverStats.total };
   }, [sectionStats]);
-
-  const getTrustForPk = useCallback((pk: string): number => {
-    const cached = expandTrustCache.get(pk);
-    if (cached !== undefined && cached !== null) return cached;
-    for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"] as const) {
-      const val = sectionInfluenceMaps[groupKey].get(pk);
-      if (val !== undefined && val !== null) return val;
-    }
-    return -1;
-  }, [sectionInfluenceMaps]);
-
-  const getNameForPk = useCallback((pk: string): string => {
-    const profile = expandProfileCache.get(pk);
-    return (profile?.display_name || profile?.name || "").toLowerCase();
-  }, []);
 
   const getTierBreakdown = useCallback((sectionKey: string): { tier: string; count: number; color: string }[] | null => {
     // Server-side tier counts only — see followerTierBreakdown.
@@ -1896,6 +1864,7 @@ export default function ProfilePage() {
   }, [fetchSectionProfiles]);
 
   // Map section key → infinite query (for cursor-paginated fetchNextPage).
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- query results change identity per render anyway
   const sectionQueries: Record<string, {
     hasNextPage?: boolean;
     isFetchingNextPage?: boolean;
@@ -2010,12 +1979,11 @@ export default function ProfilePage() {
   if (isAuthRedirecting()) return null;
 
   const isAnon = !user;
-  const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
   // X-style stat numbers: full under 10k ("1,234"), compact above ("114K").
   const fmtStat = (n: number) =>
     n >= 10000 ? new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n) : n.toLocaleString();
 
-  const renderTrustBadge = (idSuffix: string = "") => {
+  const renderTrustBadge = () => {
     if (!profileResult || profileResult.influence === undefined || !profileTier) return null;
 
     // Own profile → the network's view of you (null = not yet scored, shown as
@@ -2969,7 +2937,6 @@ export default function ProfilePage() {
                           </div>
                         )}
                         {profileResult.muted_by !== undefined && (() => {
-                          const mbIsArray = Array.isArray(profileResult.muted_by);
                           const mbExpandable = mutedByCount > 0;
                           return (
                           <div>
@@ -3006,7 +2973,6 @@ export default function ProfilePage() {
                           );
                         })()}
                         {profileResult.reported_by !== undefined && (() => {
-                          const rbIsArray = Array.isArray(profileResult.reported_by);
                           const rbExpandable = reportedByCount > 0;
                           return (
                           <div>
@@ -3043,7 +3009,6 @@ export default function ProfilePage() {
                           );
                         })()}
                         {profileResult.muting !== undefined && (() => {
-                          const mtIsArray = Array.isArray(profileResult.muting);
                           const mtExpandable = mutingCount > 0;
                           return (
                           <div>
@@ -3074,7 +3039,6 @@ export default function ProfilePage() {
                           );
                         })()}
                         {profileResult.reporting !== undefined && (() => {
-                          const rpIsArray = Array.isArray(profileResult.reporting);
                           const rpExpandable = reportingCount > 0;
                           return (
                           <div>

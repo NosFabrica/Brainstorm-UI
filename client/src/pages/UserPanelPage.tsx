@@ -61,7 +61,6 @@ import {
   Sparkles,
   Activity,
   Globe,
-  Award,
   Star,
   Eye,
   Signal,
@@ -192,7 +191,7 @@ function StatusLevelBar({ currentLevel }: { currentLevel: number }) {
 
 export default function UserPanelPage() {
   const tierRing = useTierRing();
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const user = useActiveAccountDisplay();
   const [agentState, setAgentState] = useState<AgentState>(getDefaultAgentState);
@@ -212,7 +211,7 @@ export default function UserPanelPage() {
   const [scoreSortField, setScoreSortField] = useState<SortField>("score");
   const [scoreSortDir, setScoreSortDir] = useState<SortDir>("desc");
   const [followedProfiles, setFollowedProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
-  const [previousScores, setPreviousScores] = useState<Map<string, number>>(() => {
+  const [previousScores] = useState<Map<string, number>>(() => {
     try {
       const stored = localStorage.getItem("brainstorm_previous_scores");
       if (stored) return new Map(JSON.parse(stored));
@@ -573,7 +572,6 @@ export default function UserPanelPage() {
 
   const statusConfig = AGENT_STATUS_CONFIG[agentState.status];
   const agentIsLive = agentState.status !== "dormant" && agentState.status !== "activating";
-  const earnedAchievements = ACHIEVEMENTS.filter(a => a.check(agentState));
   const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
 
   return (

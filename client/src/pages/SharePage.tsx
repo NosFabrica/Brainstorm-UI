@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useRoute, useSearch, useLocation, Link, Redirect } from "wouter";
+import { useRoute, useLocation, Link, Redirect } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, Image as ImageIcon, FileText, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, ShieldCheck, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
+import { MessageSquare, Image as ImageIcon, FileText, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
@@ -16,7 +16,6 @@ import { useActiveAccount } from "applesauce-react/hooks";
 import { fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchProfileMap, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { externalIdentitiesOf } from "@/lib/profileContent";
-import { PROFILE_RELAYS } from "@/lib/relays";
 import { dedupeRelays, parseRelayList } from "@/lib/relayRouting";
 import { parseIdentities } from "@/lib/externalIdentity";
 import { ProfileDetails } from "@/components/share/ProfileDetails";
@@ -60,7 +59,6 @@ import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
 import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
@@ -68,7 +66,6 @@ import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useShareUrl } from "@/hooks/useShareUrl";
 import { useShareMeta } from "@/hooks/useShareMeta";
-import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
@@ -80,16 +77,6 @@ import { Nip05Handle } from "@/components/Nip05Check";
 const NO_RELAYS: string[] = [];
 
 type ProfileContentLike = Record<string, string | undefined>;
-
-function timeAgo(ts?: number): string {
-  if (!ts) return "";
-  const s = Math.floor(Date.now() / 1000 - ts);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  if (s < 2592000) return `${Math.floor(s / 86400)}d`;
-  return `${Math.floor(s / 2592000)}mo`;
-}
 
 export default function SharePage() {
   const tierRing = useTierRing();
@@ -254,6 +241,7 @@ export default function SharePage() {
       name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
       picture: profs?.get(pk)?.picture,
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as-is; with pinned followers scores can go stale
   }, [effectiveFollowerPubkeys, followedByProfilesQuery.data]);
 
   // A wider follower list (resolved) for the owner's "Followed by" picker — only
@@ -494,7 +482,6 @@ export default function SharePage() {
       if (typeof c === "number" && c > 0 && c <= nowSec && c > newest) newest = c;
     }
     return newest;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, eventsQuery.data]);
   const overview = overviewQuery.data as { influence?: number | null; counts?: Record<string, number> } | undefined;
   // The overview score is viewer-relative: house/network POV when logged out,
@@ -522,10 +509,7 @@ export default function SharePage() {
   const allFollowers = num(stats?.followed_by?.total);
   const followingTotal = num(stats?.following?.total);
   const verifiedFollowing = num(stats?.following?.verified);
-  // The muter/reporter counts themselves render in <NegativeSignalStats>; the
-  // reporter count is read here too, for the flag banner.
-  const verifiedReporters = num(stats?.reported_by?.verified);
-  const allReporters = num(stats?.reported_by?.total);
+  // The muter/reporter counts themselves render in <NegativeSignalStats>.
   // Flagged = reported by more than 5 verified accounts, +1 forgiven per 750
   // verified followers. The verdict reads the HOUSE ledger regardless of the
   // toggle — same verdict for every viewer — and so does the banner's evidence
@@ -545,11 +529,6 @@ export default function SharePage() {
   // (no house influence once that query settles) as "not yet indexed by
   // Brainstorm" so the UI can show the live-from-relays note.
   const foundViaRelays = !!liveProfile.profile && houseRankQuery.isFetched && houseScore01 == null;
-  // A shared link is public, so the badge ALWAYS shows the network (house) score
-  // — the same number every recipient sees — never the viewer's personalized POV.
-  // (When logged out, `score01` already equals the house score, so it's a safe
-  // fallback if the dedicated house-influence query hasn't resolved.)
-  const primaryScore01 = houseScore01 ?? (loggedIn ? null : score01);
 
   // Photos = images from kind-20 picture events (every imeta URL is a photo) +
   // images embedded in recent notes (MIME/extension-detected). Broken URLs that
@@ -718,7 +697,7 @@ export default function SharePage() {
   // The featured post counts too: pinned months ago, it is rarely among the
   // latest notes, and without it here its @mentions read as "@nprofile1q…"
   // (Joe Martin's pinned music video, 2026-09-05).
-  const noteEvents = (notesQuery.data ?? []) as MinimalEvent[];
+  const noteEvents = useMemo(() => (notesQuery.data ?? []) as MinimalEvent[], [notesQuery.data]);
   // Everything these notes refer to — quoted events, articles, and a profile
   // for everyone mentioned, answered or quoted, plus the bio's own mentions —
   // through the hook the search page shares (one recipe, both pages).

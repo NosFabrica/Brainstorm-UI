@@ -5,7 +5,7 @@
  * shop page. No checkout of ours: payment happens where the seller sells.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 
 // The seller's other listings, for a listing published outside Conduit whose seller sells on Conduit.
 const recentMock = vi.fn(async (_pubkey: string, _kinds: number[], _limit: number) => [] as unknown[]);

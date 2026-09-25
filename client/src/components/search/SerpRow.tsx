@@ -27,7 +27,7 @@ import { TranslateLine } from "@/components/share/TranslateLine";
 import { useLightbox } from "@/components/share/Lightbox";
 import { eventStore } from "@/lib/eventStore";
 import { MentionChip } from "@/components/share/MentionChip";
-import { fetchEventsByIds, fetchProfileMap } from "@/services/nostr";
+import { fetchEventsByIds } from "@/services/nostr";
 import { highlightTerms } from "@/lib/highlight";
 import { parseNewsShape } from "@/lib/newsShape";
 import { wavlakeTrackId } from "@/lib/wavlake";

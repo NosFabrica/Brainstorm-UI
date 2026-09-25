@@ -96,7 +96,7 @@ describe("remembering a profile", () => {
   it("writes nothing when nothing changed, so no save is triggered", () => {
     const a = account({ name: "Lira", picture: "pic" });
     const seen = vi.fn();
-    (a as unknown as BaseAccount<any, any, AccountMetadata>).metadata$.subscribe(seen);
+    (a as unknown as TestAccount).metadata$.subscribe(seen);
     seen.mockClear();
 
     rememberProfile(a, { name: "Lira", picture: "pic" });
@@ -124,8 +124,8 @@ describe("the active account's display", () => {
     const { manager, seen, stop } = watch();
     const a = account({ name: "Lira" });
 
-    manager.addAccount(a as any);
-    manager.setActive(a as any);
+    manager.addAccount(a);
+    manager.setActive(a);
 
     expect(seen.at(-1)).toMatchObject({ pubkey: a.pubkey, displayName: "Lira" });
     stop();
@@ -134,8 +134,8 @@ describe("the active account's display", () => {
   it("emits again when the profile metadata arrives after login", () => {
     const { manager, seen, stop } = watch();
     const a = account();
-    manager.addAccount(a as any);
-    manager.setActive(a as any);
+    manager.addAccount(a);
+    manager.setActive(a);
 
     rememberProfile(a, { name: "Lira", picture: "pic" });
 
@@ -146,8 +146,8 @@ describe("the active account's display", () => {
   it("ignores metadata writes that change nothing it shows", () => {
     const { manager, seen, stop } = watch();
     const a = account({ name: "Lira" });
-    manager.addAccount(a as any);
-    manager.setActive(a as any);
+    manager.addAccount(a);
+    manager.setActive(a);
     const before = seen.length;
 
     a.metadata = { ...a.metadata!, initialSetupDone: true };
@@ -162,8 +162,8 @@ describe("the active account's display", () => {
   it("drops the admin claim when the session goes, and returns it when one is minted", () => {
     const { manager, seen, stop } = watch();
     const a = account({ session: { token: "t", isAdmin: true } });
-    manager.addAccount(a as any);
-    manager.setActive(a as any);
+    manager.addAccount(a);
+    manager.setActive(a);
     expect(seen.at(-1)?.isAdmin).toBe(true);
 
     updateMetadata(a, { session: undefined });
@@ -177,10 +177,10 @@ describe("the active account's display", () => {
   it("goes back to null when the account is signed out", () => {
     const { manager, seen, stop } = watch();
     const a = account();
-    manager.addAccount(a as any);
-    manager.setActive(a as any);
+    manager.addAccount(a);
+    manager.setActive(a);
 
-    manager.removeAccount(a as any);
+    manager.removeAccount(a);
 
     expect(seen.at(-1)).toBeNull();
     stop();

@@ -20,7 +20,6 @@ import { ReadingText } from "@/components/share/ReadingText";
 export function LiveHero({ event }: { event: MinimalEvent }) {
   const tag = (k: string) => event.tags.find((t) => t[0] === k)?.[1];
   const title = tag("title") || tag("summary") || "Live stream";
-  const status = (tag("status") || "").toLowerCase();
   const image = tag("image") || tag("thumb");
   const streaming = tag("streaming");
   const recording = tag("recording");

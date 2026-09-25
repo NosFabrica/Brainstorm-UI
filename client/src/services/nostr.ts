@@ -1,4 +1,4 @@
-import { nip19, finalizeEvent, generateSecretKey, verifyEvent } from "nostr-tools";
+import { nip19, finalizeEvent, generateSecretKey, verifyEvent, type EventTemplate } from "nostr-tools";
 import { env } from "@/lib/runtimeEnv";
 import { declaresTrustProvider, listRows, mergeDesignation, type ListDesignation } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
@@ -9,7 +9,7 @@ import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { publishUntilEnough } from "@/lib/publishQuorum";
-import { addressLoader, loadReplaceable } from "@/lib/loaders";
+import { loadReplaceable } from "@/lib/loaders";
 import { profileContentOf } from "@/lib/profileContent";
 import {
   dedupeRelays,
@@ -25,7 +25,6 @@ const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
 const NIP85_RELAY_URL = RAW_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
 
 if (!NIP85_RELAY_URL) {
-  // eslint-disable-next-line no-console
   console.error(
     "[nostr] VITE_NIP85_RELAY_URL is not set. NIP-85 publish/read flows will fail. " +
       "Set VITE_NIP85_RELAY_URL at build time (see README and Dockerfile).",
@@ -49,10 +48,6 @@ import {
   isValidProfile,
 } from "applesauce-core/helpers/profile";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
-import { ExtensionMissingError } from "applesauce-signers";
-import { apiClient } from "./api";
-import { sessions, SessionTransportError } from "@/accounts/session";
-import { LocalAccount } from "@/accounts/local-account";
 import {
   activeAccount,
   canSignSilently,
@@ -63,28 +58,8 @@ import {
   signingFailure,
   type PublishOutcome,
 } from "@/accounts/signing";
-import {
-  accountFor,
-  accountsFor,
-  activateAccount,
-  adoptAccount,
-  extensionAccount,
-  forgetAccount,
-  localAccount,
-  signOutActiveAccount,
-} from "@/accounts/login";
-import { updateMetadata, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
-import { activePubkey, identityHas, rememberProfile } from "@/accounts/display";
-import {
-  openPastedKey,
-  UNUSABLE_BACKUP_MESSAGE,
-  type RestoreFailure,
-} from "@/accounts/restore";
-import { queryClient } from "@/lib/queryClient";
-import { extractAdminFlag } from "@/lib/jwt";
-import { recordFollowList } from "@/lib/followStore";
-import { accountKey, clearAccountStorage, clearSessionScopedStorage } from "@/lib/accountStorage";
-import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
+import { type BrainstormAccount } from "@/accounts/metadata";
+import { rememberProfile } from "@/accounts/display";
 import { NostrEvent } from "applesauce-core/helpers";
 
 
@@ -97,7 +72,7 @@ import { NostrEvent } from "applesauce-core/helpers";
  */
 export function signEventWithEphemeralKey(event: Record<string, unknown>): Record<string, unknown> {
   const sk = generateSecretKey();
-  return finalizeEvent(event as any, sk) as unknown as Record<string, unknown>;
+  return finalizeEvent(event as unknown as EventTemplate, sk) as unknown as Record<string, unknown>;
 }
 
 
@@ -381,13 +356,13 @@ export async function fetchAssistantPointer(
 
     if (!newest) return null;
 
-    let parsed: any = null;
-    try { parsed = JSON.parse((newest as any).content || "{}"); } catch { return null; }
+    let parsed: Record<string, unknown> | null = null;
+    try { parsed = JSON.parse(newest.content || "{}"); } catch { return null; }
     const pubkey = typeof parsed?.pubkey === "string" ? parsed.pubkey : null;
     const eventId = typeof parsed?.event_id === "string" ? parsed.event_id : null;
     if (!pubkey || !eventId) return null;
-    const publishedAt = Number(parsed.published_at) ||
-      ((newest as any).created_at ? (newest as any).created_at * 1000 : Date.now());
+    const publishedAt = Number(parsed?.published_at) ||
+      (newest.created_at ? newest.created_at * 1000 : Date.now());
     return { pubkey, eventId, publishedAt };
   } catch {
     return null;
@@ -440,7 +415,7 @@ export async function fetchProfilePrefs(
       timeoutMs,
     });
     if (!newest) return null;
-    try { return JSON.parse((newest as any).content || "{}"); } catch { return null; }
+    try { return JSON.parse(newest.content || "{}"); } catch { return null; }
   } catch {
     return null;
   }
@@ -621,7 +596,7 @@ export async function getVerifiedProfileLud16(
   const event = await fetchProfileEvent(pubkey, timeoutMs);
   if (!event) return { lud16: null, verified: false };
   try {
-    if (event.pubkey !== pubkey || !verifyEvent(event as any)) {
+    if (event.pubkey !== pubkey || !verifyEvent(event)) {
       return { lud16: null, verified: false };
     }
   } catch {
@@ -1089,8 +1064,8 @@ export async function fetchProfileMap(
 
   const keep = (event: NostrEvent | null | undefined) => {
     try {
-      if (!event || !isValidProfile(event as any)) return false;
-      const content = getProfileContent(event as any);
+      if (!event || !isValidProfile(event)) return false;
+      const content = getProfileContent(event);
       if (!content) return false;
       map.set(event.pubkey, content);
       return true;
@@ -1308,7 +1283,7 @@ export async function publishToRelays(
       (url) =>
         pool
           .relay(url)
-          .publish(signedEvent as any, { timeout: timeoutMs })
+          .publish(signedEvent, { timeout: timeoutMs })
           .then((r) => ({ ok: r.ok, from: url, message: r.message })),
       { need: opts.need, timeoutMs },
     );
@@ -1317,7 +1292,7 @@ export async function publishToRelays(
   }
 
   try {
-    const responses = await pool.publish(writeRelays, signedEvent as any);
+    const responses = await pool.publish(writeRelays, signedEvent);
     // `accepted` lets callers judge how broadly the event propagated, rather than
     // treating a single relay's "ok" as fully published.
     const accepted = responses.filter(r => r.ok).length;
@@ -1343,27 +1318,6 @@ try {
   const decoded = nip19.decode(SEED_FOLLOW_NPUB);
   if (decoded.type === "npub") SEED_FOLLOW_HEX = decoded.data as string;
 } catch {}
-
-/**
- * Build → sign as the Active Account → publish, verifying the signer didn't
- * mutate the kind before broadcasting. Returns the publish result.
- */
-async function signAndPublish(
-  template: { kind: number; tags: string[][]; content: string },
-  expectedKind: number,
-): Promise<PublishOutcome> {
-  const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
-  try {
-    const signed = await signAs(account, template);
-    if (signed.kind !== expectedKind) {
-      return { success: false, error: "Signer returned an unexpected event kind" };
-    }
-    return await publishToRelays(signed);
-  } catch (e) {
-    return signingFailure(e);
-  }
-}
 
 /**
  * Publish the user's profile metadata (kind 0) and reflect it in the header.
@@ -1477,7 +1431,7 @@ async function announceRelayListAs(account: BrainstormAccount): Promise<PublishO
   if (existing) {
     const relays = dedupeRelays([...parseRelayList(existing).write, ...PROFILE_RELAYS]);
     try {
-      const responses = await pool.publish(relays, existing as any);
+      const responses = await pool.publish(relays, existing);
       const accepted = responses.filter((r) => r.ok).length;
       return accepted
         ? { success: true, relay: responses.find((r) => r.ok)?.from }
@@ -1608,7 +1562,6 @@ export function searchNostrProfiles(
 ): Promise<NostrSearchResult[]> {
   const { limit = 10, timeoutMs = 5000 } = options;
   if (!WOT_SEARCH_RELAY) {
-    // eslint-disable-next-line no-console
     console.error(
       "[nostr] VITE_WOT_SEARCH_RELAY is not set — Nostr profile search is disabled. " +
         "Set VITE_WOT_SEARCH_RELAY at build/deploy time (see README and Dockerfile).",

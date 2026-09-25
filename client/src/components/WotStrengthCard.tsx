@@ -4,7 +4,6 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { shareTierFor } from "@/components/share/TrustScoreBadge";
 import { TrustScoreModal, PovTag, povChrome, useScorePov } from "@/components/score/TrustScorePov";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
-import { tierForScore01 } from "@/components/score/VerificationCoin";
 import { rungFraction } from "@/lib/trustLadder";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 

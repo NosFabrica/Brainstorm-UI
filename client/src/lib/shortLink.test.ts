@@ -11,7 +11,6 @@ import { describe, expect, it } from "vitest";
 import { MAX_SHARE_RELAYS, qrPayload, shortLinkPath, shortLinkUrl } from "./shortLink";
 
 const ORIGIN = "https://brainstorm.world";
-const LONG = `${ORIGIN}/p/npub1abc`;
 const CODE = "AB3XK9QZ";
 
 describe("building the link", () => {

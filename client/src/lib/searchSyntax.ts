@@ -25,7 +25,7 @@
  */
 import { nip19 } from "nostr-tools";
 import {
-  buildFilters, dayBound, parseQuery, tokenize, ymd,
+  dayBound, parseQuery, tokenize, ymd,
   type ParsedQuery,
 } from "@/lib/searchQuery";
 

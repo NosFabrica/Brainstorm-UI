@@ -30,8 +30,8 @@ async function ingestFollowList(signed: Record<string, unknown>): Promise<void> 
     try {
       await apiClient.submitFollowList(signed);
       return;
-    } catch (e: any) {
-      if (e?.status === 429) return; // intentional rate-limit — respect it, stop
+    } catch (e) {
+      if ((e as { status?: number } | null)?.status === 429) return; // intentional rate-limit — respect it, stop
       if (attempt === backoffMs.length) return; // transient: gave up after retries
       await new Promise((r) => setTimeout(r, backoffMs[attempt]));
     }
@@ -267,7 +267,7 @@ async function publishContactList(
     });
     const res = await publishToRelays(signed);
     if (res.success) {
-      recordFollowList(account.pubkey, signed as any, { authoritative: true });
+      recordFollowList(account.pubkey, signed, { authoritative: true });
       // GATE: ingest the follows server-side and WAIT for it before returning, so
       // the caller's subsequent GrapeRank trigger scores fresh follows (not stale
       // relay-propagation state). Best-effort — never fails the follow.
@@ -321,7 +321,7 @@ export async function followUser(
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
   if (unverifiedNew && !opts.allowFromScratch) return UNCONFIRMED_BASE;
-  if (base) recordFollowList(account.pubkey, base as any); // remember the largest seen
+  if (base) recordFollowList(account.pubkey, base); // remember the largest seen
   const baseTags = base?.tags ?? []; // confirmed new key (or user-confirmed): genuinely empty list
 
   if (baseTags.some(isPTagFor(targetPubkey))) return { success: true };
@@ -337,7 +337,7 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
   if (unsafe || !base) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
-  recordFollowList(account.pubkey, base as any);
+  recordFollowList(account.pubkey, base);
 
   if (!base.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
@@ -364,7 +364,7 @@ export async function followPubkeys(
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
   if (unverifiedNew && !opts.allowFromScratch) return UNCONFIRMED_BASE;
-  if (base) recordFollowList(account.pubkey, base as any);
+  if (base) recordFollowList(account.pubkey, base);
   const baseTags = base?.tags ?? [];
   const have = new Set(baseTags.filter((t) => t[0] === "p").map((t) => t[1]));
   const additions = wanted.filter((pk) => !have.has(pk));

@@ -18,7 +18,7 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { useLightbox } from "@/components/share/Lightbox";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { MediaImg } from "@/components/ui/media-img";
-import { parseNewsShape, type NewsShape } from "@/lib/newsShape";
+import { parseNewsShape } from "@/lib/newsShape";
 import { eventPath } from "@/lib/shareId";
 import { articleBrief } from "@/lib/wiki";
 import { Headline } from "@/components/search/SerpRow";

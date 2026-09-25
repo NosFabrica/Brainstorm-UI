@@ -33,7 +33,6 @@
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import ts from "typescript";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,13 +56,6 @@ function fail(message: string): never {
 }
 
 const SRC = fs.readFileSync(LANDING, "utf8");
-const SF = ts.createSourceFile(
-  LANDING,
-  SRC,
-  ts.ScriptTarget.Latest,
-  true,
-  ts.ScriptKind.TSX,
-);
 
 /** Whitespace-normalized full source, for resilient substring assertions. */
 const NORM = SRC.replace(/\s+/g, " ");

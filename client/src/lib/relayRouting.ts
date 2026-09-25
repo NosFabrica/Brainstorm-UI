@@ -27,7 +27,6 @@ import { whenHydrated } from "./eventCache";
 import { loadReplaceable } from "./loaders";
 import { PROFILE_RELAYS } from "./relays";
 import {
-  EMPTY_LIST,
   RELAY_LIST_KIND,
   dedupeRelays,
   parseRelayList,

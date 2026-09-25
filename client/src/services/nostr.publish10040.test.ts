@@ -8,7 +8,7 @@
  * Node, not jsdom: the event is really signed, as in `nostr.publishProfile.test.ts`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { finalizeEvent, getPublicKey } from "nostr-tools/pure";
+import { finalizeEvent } from "nostr-tools/pure";
 
 const publish = vi.fn();
 const relayPublish = vi.fn();
@@ -55,7 +55,6 @@ vi.mock("@/lib/runtimeEnv", () => ({
 }));
 
 const SECRET = new Uint8Array(32).fill(7);
-const PUBKEY = getPublicKey(SECRET);
 
 const NIP85 = "wss://nip85-staging.example";
 

@@ -32,8 +32,8 @@ function signIn(): TestAccount {
   const key = generateSecretKey();
   const account = new TestAccount(getPublicKey(key), new PrivateKeySigner(key));
   account.metadata = { remembered: true };
-  accountManager.addAccount(account as any);
-  accountManager.setActive(account as any);
+  accountManager.addAccount(account);
+  accountManager.setActive(account);
   return account;
 }
 

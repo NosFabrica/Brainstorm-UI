@@ -22,6 +22,7 @@ import { LinkedText } from "@/components/LinkedText";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { onlySelfDeclared } from "@/lib/tagCounts";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import type { TagCarrier } from "@/services/tags";
 
 /**
  * `/tags/:author/:slug` — everyone the network says carries one tag.
@@ -74,12 +75,13 @@ function useTagMeta(name: string, count: number, active: boolean) {
 
 /** Below this many people a filter bar is furniture; badges carry it instead. */
 const FILTER_THRESHOLD = 10;
+const NO_CARRIERS: TagCarrier[] = [];
 
 type CarrierSort = "vouched" | "recent";
 
 export default function TagPage() {
   const [, params] = useRoute("/tags/:author/:slug");
-  const [, navigate] = useLocation();
+  useLocation();
   const goBack = useGoBack();
   const [sort, setSort] = useState<CarrierSort>("vouched");
   const [hideSelfDeclared, setHideSelfDeclared] = useState(false);
@@ -96,8 +98,8 @@ export default function TagPage() {
 
   const detailQuery = useTagDetail(authorPubkey, slug);
   const vote = useTagVote(authorPubkey, slug);
-  const carriers = detailQuery.data?.carriers ?? [];
-  const disputed = detailQuery.data?.disputed ?? [];
+  const carriers = detailQuery.data?.carriers ?? NO_CARRIERS;
+  const disputed = detailQuery.data?.disputed ?? NO_CARRIERS;
   const elementId = detailQuery.data?.elementId ?? "";
 
   // Saving a tag to your own list. Off unless TAG_PINS_ENABLED — the kit puts

@@ -6,6 +6,7 @@
  * browsing, or plain HTTP — it is every page load, not an occasional state.
  */
 import type { AccountManager, BaseAccount } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 import { distinctUntilChanged, from, map, merge, of, startWith, switchMap, type Observable } from "rxjs";
 
 import { LocalAccount } from "./local-account";
@@ -37,7 +38,7 @@ export function deferredSession$(
     switchMap((active) => {
       if (!active) return of(null);
       const account = active as unknown as BrainstormAccount;
-      const metadata$ = (active as BaseAccount<any, any, AccountMetadata>).metadata$;
+      const metadata$ = (active as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$;
       const changed$ =
         active instanceof LocalAccount ? merge(metadata$, active.signer.unlocked$) : metadata$;
       return changed$.pipe(

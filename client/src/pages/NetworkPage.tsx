@@ -46,6 +46,7 @@ import { DeferredSessionNotice } from "@/components/DeferredSession";
 import {
   getProfileContent,
   isValidProfile,
+  type ProfileContent,
 } from "applesauce-core/helpers/profile";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import {
@@ -57,7 +58,6 @@ import {
 } from "@/hooks/useSelf";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
-import { BrainLogo } from "@/components/BrainLogo";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
 import { NetworkProfileCard } from "@/components/network/NetworkProfileCard";
@@ -70,95 +70,6 @@ import {
 } from "@/components/network/cardContext";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
-
-const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
-  id: i,
-  x: 8 + Math.random() * 84,
-  y: 8 + Math.random() * 84,
-  size: Math.random() * 2.5 + 1.5,
-  popDelay: i * 1.2 + Math.random() * 2,
-  floatDuration: Math.random() * 20 + 22,
-  floatDelay: Math.random() * 6,
-}));
-
-const connectionPairs = [
-  [0, 3],
-  [1, 4],
-  [2, 5],
-  [3, 7],
-  [4, 8],
-  [5, 9],
-  [0, 6],
-  [1, 7],
-  [2, 8],
-  [6, 9],
-];
-
-const decorativeText = [
-  "trust_score: 0.847",
-  "npub1qd9...k7a2",
-  "hops: 3",
-  "relay: wss://nos.lol",
-  "verify(sig)",
-  "WOT(u) = f(G, seeds)",
-  "muted_by: 0",
-  "followers: 142",
-  "influence: 1.0",
-  "kind: 22242",
-  "relay: wss://damus.io",
-  "G = (V, E, W)",
-  "score = f(hops)",
-  "compute(graperank)",
-  "npub1z8f...m4c9",
-  "following: 87",
-  "attenuation: 0.5",
-  "rigor: 0.25",
-];
-
-function estimateNetworkLineLength(a: number, b: number): number {
-  const dx = floatingNodes[a].x - floatingNodes[b].x;
-  const dy = floatingNodes[a].y - floatingNodes[b].y;
-  return Math.sqrt(dx * dx + dy * dy) * 12;
-}
-
-const connectionLineStyles: React.CSSProperties[] = connectionPairs.map(
-  ([a, b], i) => {
-    const len = estimateNetworkLineLength(a, b);
-    return {
-      ["--dash" as string]: len,
-      animation: `networkLineDraw ${1.2 + (i % 3) * 0.4}s ease-out ${i * 0.8 + 0.3}s forwards, networkLinePulse 12s ease-in-out ${i * 0.8 + 0.3 + 1.5}s infinite`,
-    } as React.CSSProperties;
-  },
-);
-
-const connectionLineDashArrays = connectionPairs.map(([a, b]) =>
-  estimateNetworkLineLength(a, b),
-);
-
-const floatingNodeStyles: React.CSSProperties[] = floatingNodes.map((node) => ({
-  left: `${node.x}%`,
-  top: `${node.y}%`,
-  width: node.size + 5,
-  height: node.size + 5,
-  opacity: 0,
-  transform: "scale(0)",
-  animation: `networkNodePop 0.6s ease-out ${node.popDelay}s forwards, networkNodeFloat ${node.floatDuration}s ease-in-out ${node.popDelay + 0.6}s infinite`,
-}));
-
-const decorativeTextStyles: React.CSSProperties[] = decorativeText.map(
-  (_, i) => {
-    const col = i % 4;
-    const row = Math.floor(i / 4);
-    const left = 3 + col * 24 + (row % 2) * 10;
-    const top = 80 + row * 220;
-    return {
-      left: `${left}%`,
-      top: `${top}px`,
-      opacity: 0,
-      animation: `networkCalcFloat 10s ease-in-out ${i * 1.2 + 1}s infinite`,
-    };
-  },
-);
 
 /**
  * The Network row expander now uses the lightweight `/user/:pk/overview`
@@ -316,7 +227,7 @@ export default function NetworkPage() {
 
   const PAGE_SIZE = 100;
 
-  const profileCache = useRef<Map<string, any>>(new Map());
+  const profileCache = useRef<Map<string, ProfileContent>>(new Map());
   // Pubkeys we've already tried to fetch a kind-0 profile for (whether or not
   // one came back). Lets a row fall back to its npub instead of an endless
   // skeleton when no profile exists. See the gate in NetworkProfileCard.
@@ -505,7 +416,7 @@ export default function NetworkPage() {
     for (const groupKey of allGroups) {
       const items = networkData[groupKey];
       if (!items || items.length === 0) continue;
-      const influenceMap = toInfluenceMap(items as any);
+      const influenceMap = toInfluenceMap(items);
       influenceMap.forEach((influence, pk) => {
         if (!trustCache.current.has(pk)) {
           trustCache.current.set(pk, influence);
@@ -730,7 +641,7 @@ export default function NetworkPage() {
 
   const groupPubkeySets = useMemo(() => {
     if (!networkData) return null;
-    const sets: Record<GroupKey, Set<string>> = {} as any;
+    const sets = {} as Record<GroupKey, Set<string>>;
     (
       [
         "followed_by",
@@ -784,9 +695,9 @@ export default function NetworkPage() {
       const counts = overviewQuery.data?.data?.counts;
       const stats = statsQuery.data?.data;
       if (verifiedOnly && isVerifiableGroup(key)) {
-        return (stats as any)?.[key]?.verified ?? 0;
+        return stats?.[key]?.verified ?? 0;
       }
-      return (counts as any)?.[key] ?? 0;
+      return counts?.[key] ?? 0;
     },
     [verifiedOnly, overviewQuery.data, statsQuery.data],
   );
@@ -814,6 +725,7 @@ export default function NetworkPage() {
       });
     }
     return pubkeys;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadedCount re-runs search as profileCache fills
   }, [activeGroup, searchFilter, getGroupPubkeys, loadedCount]);
 
   useEffect(() => {
@@ -844,6 +756,7 @@ export default function NetworkPage() {
 
     return () => {
       clearTimeout(timer);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- counter, not a DOM ref; bump invalidates in-flight search
       searchAbortRef.current++;
       setSearchLoading(false);
     };
@@ -986,6 +899,7 @@ export default function NetworkPage() {
   // query param drives ORDER BY in /connections). No client-side re-sort.
   const visiblePubkeys = useMemo(
     () => filteredPubkeys(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- extra deps bust the memo when ref-backed caches fill
     [filteredPubkeys, trustFilter, trustLoadedCount],
   );
 
@@ -1010,7 +924,7 @@ export default function NetworkPage() {
     // Falls back to overview/stats only when no fetch has landed yet.
     const hasSearch = !!searchFilter.trim();
     const serverFilteredTotal: number | undefined = (
-      activeConn?.data?.pages?.[0] as any
+      activeConn?.data?.pages?.[0] as { data?: { total?: number } } | undefined
     )?.data?.total;
     const activeServerCount = hasSearch
       ? visiblePubkeys.length
@@ -1019,7 +933,7 @@ export default function NetworkPage() {
           ? (overviewQuery.data?.data?.flagged_count ?? 0)
           : verifiedOnly
             ? (statsQuery.data?.data?.[activeGroup]?.verified ?? 0)
-            : ((overviewQuery.data?.data?.counts as any)?.[activeGroup] ?? 0)));
+            : (overviewQuery.data?.data?.counts?.[activeGroup] ?? 0)));
     const loadedTotalItems = visiblePubkeys.length;
     const totalItems = Math.max(loadedTotalItems, activeServerCount);
     const totalPages = Math.ceil(totalItems / PAGE_SIZE);
@@ -1054,6 +968,7 @@ export default function NetworkPage() {
         items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE),
       };
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- extra deps bust the memo when ref-backed caches fill
   }, [
     currentPage,
     visiblePubkeys,
@@ -1095,6 +1010,7 @@ export default function NetworkPage() {
     if (muterReporterPks.size > 0) {
       fetchTrustScores(Array.from(muterReporterPks));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run on page change only; fetchers are cache-guarded
   }, [visiblePubkeyPage]);
 
   if (!user) return null;
@@ -1393,7 +1309,7 @@ export default function NetworkPage() {
                     if (!group) return null;
                     const count = getGroupCount(group.key);
                     const totalCount =
-                      (overviewQuery.data?.data?.counts as any)?.[group.key] ??
+                      overviewQuery.data?.data?.counts?.[group.key] ??
                       0;
                     const isActive = activeGroup === group.key;
                     const showVerified =

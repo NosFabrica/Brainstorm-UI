@@ -30,8 +30,7 @@ import { FlaggedChip, FollowedByLine, PanelIdentityChip, PanelVouches } from "@/
 import { ZapModal } from "@/components/ZapModal";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
-import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
-import { EventDateTile } from "@/components/share/EventDateTile";
+import { parseCalendarEvent } from "@/lib/calendarEvent";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EventRow } from "@/components/search/EventRow";
@@ -240,6 +239,7 @@ function KnowledgePanelBody({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
   }, [person?.pubkey]);
   useEffect(() => {
     if (!person) {
@@ -257,6 +257,7 @@ function KnowledgePanelBody({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
   }, [person?.pubkey]);
   useEffect(() => {
     if (!person) {
@@ -277,6 +278,7 @@ function KnowledgePanelBody({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
   }, [person?.pubkey]);
 
   useEffect(() => {
@@ -309,6 +311,7 @@ function KnowledgePanelBody({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
   }, [person?.pubkey]);
 
   // Everything the panel knows is about THIS query: a new one starts blank.

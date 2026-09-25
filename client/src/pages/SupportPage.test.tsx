@@ -61,7 +61,7 @@ describe("SupportPage (through the real seam)", () => {
     const t = await createTicket({ subject: "Meta check", body: "hello", category: "billing" });
 
     renderWithProviders(<SupportPage />);
-    let card = await screen.findByTestId(`ticket-${t.id}`);
+    const card = await screen.findByTestId(`ticket-${t.id}`);
     expect(card.textContent).toContain("Billing & plan");
     // The opened date leads the card from its left rail.
     expect(screen.getByTestId(`ticket-date-${t.id}`)).toBeInTheDocument();

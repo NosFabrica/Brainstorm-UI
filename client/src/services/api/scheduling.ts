@@ -4,7 +4,7 @@
  */
 
 import type { AdminUserDetail } from "./admin";
-import { adminJson, fetch, jsonBody } from "./core";
+import { adminJson, jsonBody } from "./core";
 
 export interface SchedulingItem {
   id: number;

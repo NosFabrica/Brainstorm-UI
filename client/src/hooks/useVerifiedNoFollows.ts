@@ -39,7 +39,7 @@ export function useVerifiedNoFollows(pubkey: string | null | undefined): NoFollo
       try { await fetchOutboxRelayList(pubkey!); } catch { /* best-effort warm */ }
       const ev = await fetchContactList(pubkey!);
       if (ev) {
-        recordFollowList(pubkey!, ev as any);
+        recordFollowList(pubkey!, ev);
         return "has-follows" as const;
       }
       return "none" as const;

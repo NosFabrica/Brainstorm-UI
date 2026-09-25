@@ -120,7 +120,7 @@ export function adoptAccount(account: BrainstormAccount, metadata: AccountMetada
   let carried: Partial<AccountMetadata> = {};
   for (const held of [...accountManager.accounts]) {
     if (held === account || held.pubkey !== account.pubkey || held.type !== account.type) continue;
-    const { session, remembered, ...rest } = getMetadata(held as BrainstormAccount);
+    const { session: _session, remembered: _remembered, ...rest } = getMetadata(held as BrainstormAccount);
     carried = rest;
     carryBackup(held as BrainstormAccount, account);
     forgetAccount(held as BrainstormAccount);

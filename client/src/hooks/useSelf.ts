@@ -95,7 +95,7 @@ export function useSelfConnections(
         with_total: withTotal && !pageParam,
       }),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage: any) => lastPage?.data?.next_cursor ?? undefined,
+    getNextPageParam: (lastPage: ConnectionsPage) => lastPage?.data?.next_cursor ?? undefined,
     enabled: !!pubkey && (opts?.enabled ?? false),
     staleTime: 60_000,
     // Filter values live in the queryKey, so changing a filter spawns a new
@@ -117,7 +117,9 @@ export type ConnectionItem = {
   tier: Tier | null;
 };
 
-export function flattenConnections(pages: any[] | undefined): ConnectionItem[] {
+type ConnectionsPage = { data?: { items?: ConnectionItem[]; next_cursor?: string | null } };
+
+export function flattenConnections(pages: ConnectionsPage[] | undefined): ConnectionItem[] {
   if (!pages) return [];
   const out: ConnectionItem[] = [];
   for (const page of pages) {

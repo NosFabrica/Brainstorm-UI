@@ -8,13 +8,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
-import { nip19 } from "nostr-tools";
-import type { NostrEvent } from "nostr-tools";
+import { nip19, type NostrEvent } from "nostr-tools";
 import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
 import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, queryWords, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch, scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
-import { eventStore } from "@/lib/eventStore";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PersonCard } from "@/components/search/PersonCard";
 import { QuietTrustChrome } from "@/components/score/VerificationCoin";
@@ -352,7 +350,6 @@ const RANK_FLOORS: { value: number | null; label: string }[] = [
  *  the tokens OUT of the visible box and in the URL's `f` instead. */
 function FiltersPanel({
   query,
-  pov,
   userPubkey,
   tab,
   onQueryRewrite,
@@ -695,6 +692,7 @@ export function SearchResults({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
   }, [tab, query, panelPerson?.pubkey]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [syntaxOpen, setSyntaxOpen] = useState(false);
@@ -765,7 +763,6 @@ export function SearchResults({
       if (typeof at === "number" && typeof cancelAnimationFrame === "function") cancelAnimationFrame(at);
     };
     // Once per mount of a composed page: the recall is read from a ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composed, composedKey]);
 
   useEffect(() => {
@@ -1670,7 +1667,7 @@ export function SearchResults({
               >
                 All
               </button>
-              {repoStateFacets.map(([st, count]) => (
+              {repoStateFacets.map(([st]) => (
                 <button
                   key={st}
                   type="button"
@@ -1684,7 +1681,7 @@ export function SearchResults({
               {repoStateFacets.length > 0 && repoLabelFacets.length > 0 && (
                 <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
               )}
-              {repoLabelFacets.map(([label, count]) => (
+              {repoLabelFacets.map(([label]) => (
                 <button
                   key={label}
                   type="button"
@@ -1819,7 +1816,7 @@ export function SearchResults({
               >
                 All
               </button>
-              {shopFacets.map(([cat, count]) => (
+              {shopFacets.map(([cat]) => (
                 <button
                   key={cat}
                   type="button"
@@ -1859,7 +1856,7 @@ export function SearchResults({
               >
                 All
               </button>
-              {appFacets.map(([platform, count]) => (
+              {appFacets.map(([platform]) => (
                 <button
                   key={platform}
                   type="button"

@@ -5,14 +5,9 @@ import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { ladderFor, type Bucket } from "@/lib/trustLadder";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
-import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
 import amethystLogoImg from "@/assets/amethyst-logo.webp";
-import nostriaHeroImg from "../assets/nostria-hero.png";
-import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
-import nostriaTeaserImg from "../assets/nostria-teaser.png";
 import nostriaIconImg from "../assets/nostria-icon.png";
-import brainstormHeroImg from "@assets/image_1773159756760.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -29,59 +24,17 @@ import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useShareUrl } from "@/hooks/useShareUrl";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  LogOut,
-  User as UserIcon,
-  Check,
   Loader2,
-  TrendingUp,
   Users,
-  UserPlus,
-  UserMinus,
-  VolumeX,
   ShieldAlert,
-  Star,
-  Home,
   Info,
   RefreshCw,
-  Network,
   X,
-  ChevronRight,
   ChevronDown,
-  Award,
-  ExternalLink,
-  Search,
-  Settings as SettingsIcon,
-  BookOpen,
-  Smartphone,
-  ArrowRight,
-  Download,
   Keyboard,
-  Code,
-  Music,
-  Palette,
-  Bitcoin,
-  Ban,
-  Sparkles,
-  CheckCircle2,
-  Terminal,
-  Mail,
-  HelpCircle,
-  Shield,
-  Copy,
 } from "lucide-react";
-import { AgentIcon } from "@/components/AgentIcon";
-import { FEATURES } from "@/config/featureFlags";
 import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import {
@@ -95,15 +48,7 @@ import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { ToastAction } from "@/components/ui/toast";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
-import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Slider } from "@/components/ui/slider";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,7 +58,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cacheProfile, fetchProfile, fetchOutboxRelayList } from "@/services/nostr";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
@@ -126,40 +70,33 @@ import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
-import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 import {
   ActivateBrainstormPanel,
   needsActivationPrompt,
 } from "@/components/ActivateBrainstormPanel";
 
-import protocolDevImg from "@/assets/stock_images/protocol_dev.jpg";
-import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
-import digitalArtImg from "@/assets/stock_images/digital_art.jpg";
-import musicSceneImg from "@/assets/stock_images/music_scene.jpg";
 import { identityHas } from "@/accounts/display";
 import { accountKey } from "@/lib/accountStorage";
 
 
+interface GrapeRankResult {
+  status?: unknown;
+  ta_status?: unknown;
+  internal_publication_status?: unknown;
+  average?: unknown;
+  score?: unknown;
+  graperank?: unknown;
+  confidence?: unknown;
+  value?: unknown;
+  how_many_others_with_priority?: unknown;
+  created_at?: string;
+  updated_at?: string;
+  count_values?: unknown;
+  graperank_preset_used?: string | null;
+}
+
 const isStatusDone = (s: unknown): boolean => typeof s === "string" && s.toLowerCase() === "success";
-
-const INTEREST_CLUSTERS = [
-  { id: "dev", label: "Protocol Devs", icon: Code, count: 1240, color: "bg-blue-500", unit: "builders", image: protocolDevImg },
-  { id: "btc", label: "Bitcoiners", icon: Bitcoin, count: 8500, color: "bg-orange-500", unit: "peers", image: bitcoinImg },
-  { id: "art", label: "Digital Artists", icon: Palette, count: 3200, color: "bg-brand-deep", unit: "creators", image: digitalArtImg },
-  { id: "music", label: "Music Scene", icon: Music, count: 1800, color: "bg-brand-accent", unit: "artists", image: musicSceneImg },
-];
-
-
-const NETWORK_METRICS = [
-  { key: "followed_by", label: "Followers", icon: UserPlus, color: "text-emerald-500", bgColor: "bg-emerald-500" },
-  { key: "following", label: "Following", icon: Users, color: "text-brand-primary", bgColor: "bg-brand-primary" },
-  { key: "muted_by", label: "Muted By", icon: VolumeX, color: "text-amber-500", bgColor: "bg-amber-500" },
-  { key: "muting", label: "Muting", icon: UserMinus, color: "text-slate-500", bgColor: "bg-slate-400" },
-  { key: "reported_by", label: "Reported By", icon: ShieldAlert, color: "text-red-500", bgColor: "bg-red-500" },
-  { key: "reporting", label: "Reporting", icon: ShieldAlert, color: "text-orange-500", bgColor: "bg-orange-500" },
-] as const;
-
 
 // "Maybe later" on the Select-Brainstorm card is remembered per-account so it
 // doesn't re-nag on every reload, but re-surfaces once after a cooldown.
@@ -184,14 +121,14 @@ function readInviteCardSeen(pubkey?: string): boolean {
 }
 
 export default function DashboardPage() {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [hopRange, setHopRange] = useState([1, 3]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
-  const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
+  const [networkViewMode] = useState<"trust" | "activity">("trust");
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [wotExpanded, setWotExpanded] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
@@ -273,7 +210,7 @@ export default function DashboardPage() {
     if (!user) navigate("/", { replace: true });
   }, [user, navigate]);
 
-  const { preset: trustPreset } = useTrustPresetSync(!!user);
+  useTrustPresetSync(!!user);
 
   const needsProfile = !!user && !user.displayName && !user.picture;
   useQuery({
@@ -314,7 +251,7 @@ export default function DashboardPage() {
     refetchInterval: (query) => {
       const d = query.state.data?.data;
       if (!d || typeof d !== "object") return 60_000;
-      const done = isStatusDone((d as any).ta_status);
+      const done = isStatusDone((d as GrapeRankResult).ta_status);
       if (done && recalcTriggeredAtRef.current) {
         const elapsed = Date.now() - recalcTriggeredAtRef.current;
         if (elapsed < 25 * 60 * 1000) return 60_000;
@@ -326,7 +263,7 @@ export default function DashboardPage() {
 
   const prevStatusDoneRef = useRef<boolean | null>(null);
   useEffect(() => {
-    const d = grapeRankQuery.data?.data as any;
+    const d = grapeRankQuery.data?.data as GrapeRankResult | undefined;
     if (!d || typeof d !== "object") return;
     const done = isStatusDone(d.ta_status) || isStatusDone(d.internal_publication_status);
     if (prevStatusDoneRef.current === false && done) {
@@ -394,6 +331,7 @@ export default function DashboardPage() {
       // The flag itself was cleared inside checkExistingTrustProvider.
       if (nip85Activated) setNip85Activated(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- provider data is already keyed on pubkey
   }, [trustServiceProvider.data, nip85Activated]);
 
   const showActivatePrompt = needsActivationPrompt({
@@ -407,14 +345,12 @@ export default function DashboardPage() {
   // /user/history response already carries it. Signing is always performable.
 
   const grapeRankRaw = grapeRankQuery.data?.data;
-  const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
+  const grapeRank: GrapeRankResult | null = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
 
   const handleLogout = () => {
     logout();
     navigate("/");
   };
-
-  const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
 
   const followersCount = overview?.counts?.followed_by ?? 0;
   const followingCount = overview?.counts?.following ?? 0;
@@ -427,43 +363,37 @@ export default function DashboardPage() {
   const verifiedFollowersCount = stats?.followed_by?.verified ?? 0;
   const verifiedFollowingCount = stats?.following?.verified ?? 0;
 
-  const grapeRankStatus = grapeRank
-    ? (grapeRank as any).status || "complete"
-    : triggerGrapeRankMutation.isPending
-    ? "calculating"
-    : "idle";
-
   const grapeRankScoreNum = grapeRank
     ? [
-        (grapeRank as any).average,
-        (grapeRank as any).score,
-        (grapeRank as any).graperank,
-        (grapeRank as any).confidence,
-        (grapeRank as any).value,
-      ].find((v) => typeof v === "number") ?? null
+        grapeRank.average,
+        grapeRank.score,
+        grapeRank.graperank,
+        grapeRank.confidence,
+        grapeRank.value,
+      ].find((v): v is number => typeof v === "number") ?? null
     : null;
   const grapeRankScore = grapeRankScoreNum !== null
     ? grapeRankScoreNum.toFixed(4)
     : null;
 
   const queuePosition = grapeRank
-    ? typeof (grapeRank as any).how_many_others_with_priority === "number"
-      ? (grapeRank as any).how_many_others_with_priority
+    ? typeof grapeRank.how_many_others_with_priority === "number"
+      ? grapeRank.how_many_others_with_priority
       : null
     : null;
 
-  const grapeRankCreatedAt = grapeRank && (grapeRank as any).created_at ? new Date((grapeRank as any).created_at.endsWith("Z") ? (grapeRank as any).created_at : (grapeRank as any).created_at + "Z") : null;
-  const grapeRankUpdatedAt = grapeRank && (grapeRank as any).updated_at ? new Date((grapeRank as any).updated_at.endsWith("Z") ? (grapeRank as any).updated_at : (grapeRank as any).updated_at + "Z") : null;
+  const grapeRankCreatedAt = grapeRank && grapeRank.created_at ? new Date(grapeRank.created_at.endsWith("Z") ? grapeRank.created_at : grapeRank.created_at + "Z") : null;
+  const grapeRankUpdatedAt = grapeRank && grapeRank.updated_at ? new Date(grapeRank.updated_at.endsWith("Z") ? grapeRank.updated_at : grapeRank.updated_at + "Z") : null;
 
-  const calcDone = grapeRank ? isStatusDone((grapeRank as any).internal_publication_status) : false;
-  const publishDone = calcDone && grapeRank ? isStatusDone((grapeRank as any).ta_status) : false;
+  const calcDone = grapeRank ? isStatusDone(grapeRank.internal_publication_status) : false;
+  const publishDone = calcDone && grapeRank ? isStatusDone(grapeRank.ta_status) : false;
 
   const isGrapeRankFailed = grapeRank
-    ? typeof (grapeRank as any).status === "string" && (grapeRank as any).status.toLowerCase() === "failure"
+    ? typeof grapeRank.status === "string" && grapeRank.status.toLowerCase() === "failure"
     : false;
 
   const isPublishFailed = calcDone && grapeRank
-    ? typeof (grapeRank as any).ta_status === "string" && (grapeRank as any).ta_status.toLowerCase() === "failure"
+    ? typeof grapeRank.ta_status === "string" && grapeRank.ta_status.toLowerCase() === "failure"
     : false;
 
   // The backend count alone lied here: it reads 0 until GrapeRank first ingests
@@ -508,7 +438,7 @@ export default function DashboardPage() {
     prevCalcDoneRef.current = calcDone;
   }, [calcDone]);
 
-  const [retryCount, setRetryCount] = useState(0);
+  const [, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (!isGrapeRankFailed && !isPublishFailed) {
@@ -532,6 +462,7 @@ export default function DashboardPage() {
       wasAutoTriggeredRef.current = true;
       triggerGrapeRankMutation.mutate();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation object is new each render
   }, [
     grapeRankQuery.isSuccess,
     grapeRank,
@@ -541,21 +472,6 @@ export default function DashboardPage() {
     hasNoFollowing,
     followingCount,
   ]);
-
-  const formatRelativeTime = (date: Date | null): string => {
-    if (!date || isNaN(date.getTime())) return "";
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    if (diffSec < 60) return "just now";
-    const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
-    const diffDays = Math.floor(diffHr / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
 
   const formatTimestamp = (date: Date | null): string => {
     if (!date || isNaN(date.getTime())) return "";
@@ -579,7 +495,7 @@ export default function DashboardPage() {
 
   const countValues = useMemo(() => {
     if (!grapeRank) return null;
-    const raw = (grapeRank as any).count_values;
+    const raw = grapeRank.count_values;
     if (!raw) return null;
     try {
       const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -638,6 +554,7 @@ export default function DashboardPage() {
       const count = Math.floor(base * Math.pow(8, hopRange[1]));
       setExtendedNetworkCount(count > 1000000 ? 1000000 : count);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- TIER_CONFIG/aggregateByHopRange are per-render, derived from countValues
   }, [hopRange, countValues]);
 
   const enhancedPieData = useMemo(() => {
@@ -666,6 +583,7 @@ export default function DashboardPage() {
       else multiplier = 1 + (currentHops - 1) * 0.8;
       return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
     }).filter(d => d.value > 0 || d.name === "Flagged");
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- TIER_CONFIG/aggregateByHopRange are per-render, derived from countValues
   }, [countValues, hopRange, followersCount, followingCount, mutedByCount, mutingCount, flaggedCount]);
 
   const pieData = useMemo(() => {
@@ -680,8 +598,6 @@ export default function DashboardPage() {
       { name: rung("flagged").label, value: sum((n) => n === "Flagged"), color: rung("flagged").color },
     ].filter((d) => d.value > 0 || d.name === "Flagged");
   }, [enhancedPieData, granularity]);
-
-  const totalNetworkProfiles = pieData.reduce((acc: number, curr: { value: number }) => acc + curr.value, 0);
 
   const activityBreakdown = [
     { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#059669" },
@@ -700,10 +616,7 @@ export default function DashboardPage() {
     },
   ];
 
-  const totalActivityProfiles = activityBreakdown.reduce((acc, curr) => acc + curr.value, 0);
-
   const currentPieData: Array<{ name: string; value: number; color: string }> = networkViewMode === "trust" ? pieData : activityBreakdown;
-  const totalCurrentProfiles = networkViewMode === "trust" ? totalNetworkProfiles : totalActivityProfiles;
 
   // Stats `tier_counts` field names now match the GR `count_values` keys
   // used by TIER_CONFIG — pass straight through.
@@ -750,6 +663,7 @@ export default function DashboardPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleExport is per-render; user dep re-binds it
   }, [navigate, user]);
 
   // Per-pubkey — a global flag would leak one account's "has scores" state onto

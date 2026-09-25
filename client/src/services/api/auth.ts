@@ -2,6 +2,7 @@
  * The NIP-98 style challenge exchange that mints a session.
  */
 
+import type { NostrEvent } from "nostr-tools";
 import { fetch, getBrainstormApi } from "./core";
 
 export const authApi = {
@@ -17,7 +18,7 @@ export const authApi = {
     return data.data.challenge;
   },
 
-  async verifyAuthChallenge(pubkey: string, signedEvent: any) {
+  async verifyAuthChallenge(pubkey: string, signedEvent: NostrEvent) {
     const response = await fetch(
       `${getBrainstormApi()}/authChallenge/${pubkey}/verify`,
       {

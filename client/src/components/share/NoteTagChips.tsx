@@ -1,7 +1,7 @@
 import type React from "react";
 import { useState } from "react";
 import { Link } from "wouter";
-import { Check, Loader2, Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {

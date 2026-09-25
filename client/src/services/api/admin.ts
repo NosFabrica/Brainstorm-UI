@@ -3,7 +3,7 @@
  * the assistant profile publishes and Trusted Lists.
  */
 
-import { adminJson, authenticatedFetch, extractApiError, fetch, getBrainstormApi } from "./core";
+import { adminJson, authenticatedFetch, extractApiError, getBrainstormApi } from "./core";
 
 /** granted ≠ live scheduling; `admin_overrides` shares the shape (source = admin). */
 /**
@@ -118,7 +118,6 @@ export const adminApi = {
       let detail = errorData?.detail || errorData?.message || "";
       if (typeof detail === "object") detail = JSON.stringify(detail);
       // Log technical details for debugging, but surface a friendly message to the user.
-      // eslint-disable-next-line no-console
       console.warn("[assistantProfile] publish failed", { status: response.status, detail });
       throw new Error("Could not publish your assistant right now. Please try again in a moment.");
     }

@@ -130,7 +130,6 @@ export function usePolicyMembers(policyId: number, enabled = true) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pubkeyKey]);
 
   const members: PolicyMember[] = useMemo(

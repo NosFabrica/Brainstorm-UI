@@ -32,7 +32,6 @@ export const fetch: typeof globalThis.fetch = (input, init) =>
   isRedirectingToLogin ? globalThis.fetch(input, init) : observeApiFetch(globalThis.fetch(input, init), String(input));
 
 if (!API_BASE_URL) {
-  // eslint-disable-next-line no-console
   console.error(
     "[api] VITE_API_URL is not set. The frontend cannot reach the Brainstorm Backend. " +
       "Set VITE_API_URL at build time (see README and Dockerfile).",

@@ -16,12 +16,10 @@ import { filterPodcastIndex } from "@/lib/dlists";
 import { parseTrack } from "@/lib/trackEvent";
 import { setPlaylist } from "@/lib/audioPlayer";
 import { Clock, HelpCircle } from "lucide-react";
-import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing, QuietTrustChrome } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { SerpRow } from "@/components/search/SerpRow";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
@@ -52,7 +50,6 @@ import { UNKNOWN_EXPLAINER, bucketFor } from "@/lib/trustLadder";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   kind0ToSearchResult,
-  searchStream,
   TAB_KINDS,
   type SearchGroup,
   type SearchHit,
@@ -431,7 +428,6 @@ function ComposedResultsBody({
   const calendarAddr = (e: { kind: number; pubkey: string; tags: string[][] }) => `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
   const happeningEventAddrs = useMemo(
     () => (happeningF ? happeningF.hits.filter((h) => h.event.kind === 31922 || h.event.kind === 31923).map((h) => calendarAddr(h.event)) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [happeningF],
   );
   const happeningAddrKey = happeningEventAddrs.join(",");

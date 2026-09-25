@@ -64,6 +64,7 @@ export function MoreFromAuthor({
     const originals = evs.filter((e) => !(e.tags || []).some((t) => t[0] === "e"));
     const pick = originals.length >= 2 ? originals : evs;
     return pick.sort((a, b) => b.created_at - a.created_at).slice(0, 4);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keep pre-lint deps; excludeContent tracks excludeId
   }, [q.data, excludeId]);
 
   // Resolve every referenced pubkey (@-mentions AND reply targets) so notes

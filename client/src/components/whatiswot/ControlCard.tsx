@@ -166,7 +166,6 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                       { label: '×', color: 'slate', isOperator: true },
                       { label: 'w_ij', sub: 'weight', color: 'amber', expanded: 'Edge weight between nodes i→j. Derived from explicit attestations (follows, endorsements) plus implicit behavioral signals (interactions, replies).', insight: 'Weights stored as signed events on relays' },
                     ].map((item, i) => {
-                      const formulaIndex = item.isOperator ? -1 : [0, 1, 2, 3].filter((_, idx) => idx === Math.floor(i / 2))[0];
                       const actualIndex = i === 0 ? 0 : i === 2 ? 1 : i === 4 ? 2 : i === 6 ? 3 : -1;
                       return item.isOperator ? (
                         <span key={i} className="text-slate-500 text-sm px-0.5">{item.label}</span>

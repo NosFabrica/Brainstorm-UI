@@ -156,6 +156,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
     }
     // Re-prefills on an account switch; metadata changes alone don't disturb
     // whatever the user is currently typing.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- prefill on account switch only, see above
   }, [display?.pubkey]);
 
   const busy = state === "saving";

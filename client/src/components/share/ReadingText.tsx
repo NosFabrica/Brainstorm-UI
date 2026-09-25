@@ -211,6 +211,7 @@ export function ReadingText({
       if (!s) cache.set(t, (s = parseInlineMarkdown(t.value)));
       return s;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fresh cache per parsed text
   }, [blocks]);
 
   const quiet = (t: NoteToken, key: string): ReactNode => {

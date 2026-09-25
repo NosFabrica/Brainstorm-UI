@@ -5,7 +5,7 @@ import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisp
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { bucketFor, rungFor, UNKNOWN_EXPLAINER, type Glyph } from "@/lib/trustLadder";
 import type { ScorePov } from "@/components/score/TrustScorePov";
-import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
+import { type VerificationTier } from "@/lib/verificationTier";
 
 
 /**

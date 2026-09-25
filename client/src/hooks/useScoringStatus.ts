@@ -10,6 +10,8 @@ export type ScoringStatus = "idle" | "calculating" | "publishing" | "ready" | "f
 const isDone = (s: unknown) => typeof s === "string" && s.toLowerCase() === "success";
 const isFail = (s: unknown) => typeof s === "string" && s.toLowerCase() === "failure";
 
+type GrapeRankResult = { data?: { internal_publication_status?: unknown; ta_status?: unknown; status?: unknown } };
+
 /**
  * App-wide Web-of-Trust scoring status for the logged-in user, derived from
  * `/user/graperankResult` (+ the trust anchor via `useHasMywot`) plus a local
@@ -36,14 +38,14 @@ export function useScoringStatus(): {
     enabled,
     staleTime: 10_000,
     refetchInterval: (query) => {
-      const d = (query.state.data as any)?.data;
+      const d = (query.state.data as GrapeRankResult | undefined)?.data;
       if (!d) return 20_000;
       const done = isDone(d.internal_publication_status) && isDone(d.ta_status);
       return done || isFail(d.status) ? false : 15_000;
     },
   });
 
-  const d = (q.data as any)?.data;
+  const d = (q.data as GrapeRankResult | undefined)?.data;
   const calcDone = isDone(d?.internal_publication_status);
   const publishDone = calcDone && isDone(d?.ta_status);
   const failed = isFail(d?.status);

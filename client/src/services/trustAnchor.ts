@@ -174,8 +174,8 @@ export async function publishBrainstormTrustAnchor(
   let nip85Relay: string;
   try {
     nip85Relay = getNip85RelayUrl();
-  } catch (err: any) {
-    return { status: "error", message: err?.message || "NIP-85 relay URL is not configured." };
+  } catch (err) {
+    return { status: "error", message: (err as Error | undefined)?.message || "NIP-85 relay URL is not configured." };
   }
 
   const lists = opts.lists === undefined ? await listsToName(pubkey, taPubkey) : opts.lists;

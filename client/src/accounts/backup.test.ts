@@ -51,7 +51,7 @@ async function lockedAccount(requestPassword = fakePrompt()) {
 /** An Account whose key lives elsewhere — an extension or a bunker. */
 function foreignAccount(): BrainstormAccount {
   const secretKey = generateSecretKey();
-  class ExternalAccount extends BaseAccount<PrivateKeySigner, never, any> {
+  class ExternalAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
     static readonly type = "test-external";
   }
   return new ExternalAccount(
@@ -350,8 +350,8 @@ describe("the active account's backup need over time", () => {
     const { manager, seen, stop } = watch();
     const { account } = await lockedAccount();
 
-    manager.addAccount(account as any);
-    manager.setActive(account as any);
+    manager.addAccount(account);
+    manager.setActive(account);
 
     expect(seen.at(-1)).toBe("download");
     stop();
@@ -361,8 +361,8 @@ describe("the active account's backup need over time", () => {
   it("drops to nothing the moment the backup is handed over", async () => {
     const { manager, seen, stop } = watch();
     const { account } = await lockedAccount();
-    manager.addAccount(account as any);
-    manager.setActive(account as any);
+    manager.addAccount(account);
+    manager.setActive(account);
 
     markBackedUp(account);
 
@@ -376,8 +376,8 @@ describe("the active account's backup need over time", () => {
     const { manager, seen, stop } = watch();
     const unlockCache = createFakeUnlockCache();
     const account = await LocalAccount.fromKey(generateSecretKey(), { unlockCache });
-    manager.addAccount(account as any);
-    manager.setActive(account as any);
+    manager.addAccount(account);
+    manager.setActive(account);
     expect(seen.at(-1)).toBe("recovery-password");
 
     await setRecoveryPassword(PASSWORD, { account, logn: LOW_LOGN });

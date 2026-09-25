@@ -5,7 +5,8 @@
  * ever drop an entry: what cannot be loaded is quarantined next to it, and the
  * blob as it was found is kept as a backup.
  */
-import { AccountManager, BaseAccount, type IAccount } from "applesauce-accounts";
+import { AccountManager, BaseAccount, type SerializedAccount } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 import { map, merge, of, startWith, switchMap, type Observable } from "rxjs";
 
 import { LocalAccount } from "./local-account";
@@ -177,7 +178,7 @@ export function createPersistence(
   /** Deserialise one entry into the manager, or park it. */
   function restore(store: StorageLike, entry: unknown, remembered: boolean): BrainstormAccount | null {
     try {
-      const account = AccountManager.deserialize([...manager.types.values()], entry as any);
+      const account = AccountManager.deserialize([...manager.types.values()], entry as SerializedAccount<unknown, AccountMetadata>);
       // an entry that doesn't say takes `remembered` from where it was found
       account.metadata = { remembered, ...(account.metadata ?? {}) };
       manager.addAccount(account);
@@ -232,7 +233,7 @@ export function createPersistence(
    */
   function adoptQuarantined(store: StorageLike, entry: unknown, remembered: boolean): boolean {
     try {
-      const account = AccountManager.deserialize([...manager.types.values()], entry as any);
+      const account = AccountManager.deserialize([...manager.types.values()], entry as SerializedAccount<unknown, AccountMetadata>);
       // Already restored from the main blob: the parked copy is an older
       // serialisation, so drop it rather than let `lastGood` take the stale JSON.
       if (manager.getAccount(account.id)) return true;
@@ -255,7 +256,7 @@ export function createPersistence(
     return entry ? restore(storage.device, entry, true) : null;
   }
 
-  function serialise(account: IAccount<any, any, AccountMetadata>): unknown {
+  function serialise(account: BrainstormAccount): unknown {
     try {
       const json = account.toJSON();
       lastGood.set(account.id, json);
@@ -321,9 +322,9 @@ export function createPersistence(
    * mints an Unlock cache, and a stale one is discarded, neither of which touches
    * metadata. Saving off `accounts$` alone would silently miss both.
    */
-  function changes(account: IAccount<any, any, AccountMetadata>): Observable<unknown>[] {
+  function changes(account: BrainstormAccount): Observable<unknown>[] {
     const streams: Observable<unknown>[] = [
-      (account as BaseAccount<any, any, AccountMetadata>).metadata$,
+      (account as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$,
     ];
     const signer = account.signer as { changed$?: Observable<unknown> } | undefined;
     if (signer?.changed$) streams.push(signer.changed$);

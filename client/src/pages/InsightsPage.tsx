@@ -25,11 +25,21 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { PlanCard } from "@/components/billing/PlanCard";
 
-// Ladder order for tier-movement arrows in non-number display modes.
-const TIER_ORDER_ASC: VerificationTier[] = ["unverified", "low", "neutral", "trusted", "high"];
-
 const TIER_LABEL: Record<VerificationTier, string> = {
   high: TIER_LABELS.high, trusted: TIER_LABELS.trusted, neutral: TIER_LABELS.neutral, low: TIER_LABELS.low, unverified: TIER_LABELS.unverified,
+};
+
+/** One GrapeRank run as /user/graperankResult and history records return it. */
+type GrapeRankRun = {
+  private_id?: string | number;
+  status?: string | null;
+  internal_publication_status?: string | null;
+  ta_status?: string | null;
+  graperank_preset_used?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  trigger_source?: string | null;
+  how_many_others_with_priority?: number;
 };
 
 const isDone = (s: unknown) => typeof s === "string" && s.toLowerCase() === "success";
@@ -101,7 +111,7 @@ export default function InsightsPage() {
     // card said "In progress" forever after the server had finished. Poll only
     // while a run is actually in flight; go quiet the moment it settles.
     refetchInterval: (query) => {
-      const raw = query.state.data as any;
+      const raw = query.state.data as (GrapeRankRun & { data?: GrapeRankRun }) | undefined;
       const g = raw?.internal_publication_status !== undefined ? raw : raw?.data;
       if (!g) return false;
       const settled =
@@ -130,7 +140,7 @@ export default function InsightsPage() {
   const overview = overviewQuery.data?.data ?? null;
   const stats = statsQuery.data?.data ?? null;
   const history = historyQuery.data?.data ?? null;
-  const grapeRank = grapeRankQuery.data as any;
+  const grapeRank = grapeRankQuery.data as GrapeRankRun | undefined;
 
   const globalInfluence = houseQuery.data ?? null;
   const tier = globalInfluence != null ? tierForScore01(globalInfluence) : null;
@@ -202,10 +212,11 @@ export default function InsightsPage() {
   // records array (admins get the full table via /admin/users/:pubkey/history;
   // the user endpoint currently returns a summary, so this needs a small backend
   // addition before it populates).
-  const calcRecords: any[] = Array.isArray((history as any)?.items)
-    ? (history as any).items
-    : Array.isArray((history as any)?.records)
-      ? (history as any).records
+  const calcHistory = history as { items?: unknown; records?: unknown } | null;
+  const calcRecords: GrapeRankRun[] = Array.isArray(calcHistory?.items)
+    ? calcHistory.items
+    : Array.isArray(calcHistory?.records)
+      ? calcHistory.records
       : [];
 
   const handleLogout = () => logout();

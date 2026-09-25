@@ -358,7 +358,7 @@ function preformatted(group: string[]): "diff" | "art" | null {
   // Mostly punctuation: box drawing, ASCII shapes.
   const symbolic = (l: string) => {
     // Emoji are words here, not drawing: a line of 🎉🔥 is a reaction.
-    const t = l.replace(/[\s\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u200d\ufe0f]/gu, "");
+    const t = l.replace(/[\s\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\ufe0f]|\u200d/gu, "");
     // Combining marks belong to their letters (vocalized Arabic, Hebrew, Devanagari).
     return t.length > 4 && t.replace(/[\p{L}\p{M}\p{N}]/gu, "").length / t.length > 0.5;
   };

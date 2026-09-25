@@ -8,9 +8,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { presetDisplayLabel, presetDescription, presetDisplayLabelFromBackend, type TrustPreset } from "@/services/trustThreshold";
 import { PresetBadge } from "@/components/PresetBadge";
 import { useTrustPresetSync, useSetTrustPreset } from "@/hooks/useTrustPresetSync";
-import { AdminBadge } from "@/components/AdminBadge";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,21 +19,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Home,
-  Search,
-  LogOut,
   Settings as SettingsIcon,
   X,
-  BookOpen,
-  Users,
   Check,
   Loader2,
   ArrowRight,
@@ -46,10 +30,7 @@ import {
   CreditCard,
   Code2,
   Mail,
-  HelpCircle,
   ExternalLink,
-  Globe,
-  Shield,
   Copy,
   User,
   ShieldCheck,
@@ -66,10 +47,8 @@ import {
 import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { AgentIcon } from "@/components/AgentIcon";
 import { InfoHint } from "@/components/InfoHint";
 import { copyToClipboard } from "@/lib/clipboard";
-import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, fetchTrustProviderList } from "@/services/nostr";
@@ -90,7 +69,6 @@ import {
   revealSecretKey,
   setRecoveryPassword,
 } from "@/accounts/backup";
-import { storePasswordCredential } from "@/lib/credentialManager";
 import { CodeBlock } from "@/components/CodeBlock";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
@@ -168,7 +146,7 @@ const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
 ];
 
 export default function SettingsPage() {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
   const search = useSearch();
   const tabParam = new URLSearchParams(search).get("tab");
   const activeTab: SettingsTab =
@@ -233,7 +211,7 @@ export default function SettingsPage() {
     },
     onSettledOk: (preset) => {
       setOptimisticPreset(null);
-      const lastResult = queryClient.getQueryData<any>(["/user/graperankResult"]);
+      const lastResult = queryClient.getQueryData<{ data?: { graperank_preset_used?: string } }>(["/user/graperankResult"]);
       const previousUsedLabel = presetDisplayLabelFromBackend(lastResult?.data?.graperank_preset_used);
       const newLabel = presetDisplayLabel(preset);
       const description = previousUsedLabel
@@ -495,12 +473,8 @@ export default function SettingsPage() {
   };
 
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
-  const calcDone = useMemo(() => {
-    if (calcDoneNow) {
-      try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
-      return true;
-    }
-    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  useEffect(() => {
+    if (calcDoneNow) try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
   }, [calcDoneNow]);
   const isRecalcInProgress = grapeRankData?.data?.internal_publication_status === "waiting" || grapeRankData?.data?.status === "waiting";
   const isGrapeRankFailedState = (typeof grapeRankData?.data?.status === "string" && grapeRankData.data.status.toLowerCase() === "failure") || (typeof grapeRankData?.data?.ta_status === "string" && grapeRankData.data.ta_status.toLowerCase() === "failure");

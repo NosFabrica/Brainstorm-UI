@@ -21,7 +21,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountManager } from "applesauce-accounts";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
-import { nip19 } from "nostr-tools";
+import { nip19, type NostrEvent } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
 import { setTechnicalView } from "@/lib/technicalView";
@@ -75,7 +75,7 @@ const renderPage = () =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}>
       <EventStoreProvider eventStore={eventStore}>
-        <AccountsProvider manager={new AccountManager<AccountMetadata>() as any}>
+        <AccountsProvider manager={new AccountManager<AccountMetadata>()}>
           <EventPage />
         </AccountsProvider>
       </EventStoreProvider>
@@ -321,19 +321,19 @@ describe("a copy the device already holds", () => {
     ({ ...event(30023, "held", "Held", [], content), id: id.repeat(64), created_at });
 
   it("shows at once, and gives way to a newer version when one arrives", async () => {
-    eventStore.add(version("a", 1_700_000_000, "The version on the device.") as any);
+    eventStore.add(version("a", 1_700_000_000, "The version on the device.") as NostrEvent);
     served.mockReturnValue(new Promise(() => {})); // the relays never finish
     window.history.pushState({}, "", `/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "held" })}`);
     renderPage();
 
     expect(await screen.findByTestId("article-body")).toHaveTextContent("The version on the device.");
 
-    act(() => { eventStore.add(version("b", 1_700_000_100, "The author's edit, just in.") as any); });
+    act(() => { eventStore.add(version("b", 1_700_000_100, "The author's edit, just in.") as NostrEvent); });
     await waitFor(() => expect(screen.getByTestId("article-body")).toHaveTextContent("The author's edit, just in."));
   });
 
   it("does not fall back to an older version the relays hand back", async () => {
-    eventStore.add(version("c", 1_800_000_000, "Newest, already here.") as any);
+    eventStore.add(version("c", 1_800_000_000, "Newest, already here.") as NostrEvent);
     served.mockReturnValue(version("d", 1_600_000_000, "An old copy from a stale relay."));
     window.history.pushState({}, "", `/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "held" })}`);
     renderPage();
@@ -351,7 +351,7 @@ describe("an event by id the device already holds", () => {
 
   it("renders from the store without asking the relays", async () => {
     const note = { id: "4".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_700_000_000, content: "A note the device already has.", sig: "s".repeat(128), tags: [] };
-    eventStore.add(note as any);
+    eventStore.add(note);
     eventsByIds.mockClear();
     window.history.pushState({}, "", `/e/${nip19.noteEncode(note.id)}`);
     renderPage();

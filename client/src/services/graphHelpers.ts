@@ -18,13 +18,13 @@ export function toInfluenceMap(arr: GraphEntry[] | undefined | null): Map<string
   return map;
 }
 
-export function getFlaggedPubkeys(networkData: Record<string, any>, threshold: number): Set<string> {
+export function getFlaggedPubkeys(networkData: Record<string, unknown>, threshold: number): Set<string> {
   const flagged = new Set<string>();
   const arrayKeys = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
   for (const key of arrayKeys) {
     const arr = networkData[key];
     if (!Array.isArray(arr)) continue;
-    for (const item of arr) {
+    for (const item of arr as GraphEntry[]) {
       if (typeof item === "string") continue;
       if (
         typeof item.influence === "number" &&
