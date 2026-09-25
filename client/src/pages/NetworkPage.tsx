@@ -1176,7 +1176,7 @@ export default function NetworkPage() {
             className="text-left relative z-10 mb-8 pt-2"
             data-testid="section-network-header"
           >
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-brand-primary/5 blur-[60px] rounded-full pointer-events-none" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-brand-primary/5 blur-[60px] will-change-transform rounded-full pointer-events-none" />
             <PageHeader
               kicker="Network Explorer"
               title={<>Your <span className="text-brand-link">Network</span></>}

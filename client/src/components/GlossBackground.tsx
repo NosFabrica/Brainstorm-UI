@@ -16,15 +16,18 @@ export function GlossBackground() {
           grows as results stream in would otherwise move them on every arrival. */}
       <div className="absolute inset-x-0 top-0 h-[100dvh]">
         {/* Soft aurora mesh — cool, pale washes; slightly brighter in dark so the
-            Aurora glow reads on the Ink base. */}
-        <div className="absolute -top-[16%] left-[2%] h-[52%] w-[52%] rounded-full bg-brand-accent/16 dark:bg-brand-accent/[0.14] blur-[130px]" />
-        <div className="absolute -top-[10%] right-[4%] h-[48%] w-[46%] rounded-full bg-[#a78bfa]/11 dark:bg-[#a78bfa]/[0.16] blur-[140px]" />
-        <div className="absolute top-[20%] -right-[12%] h-[46%] w-[44%] rounded-full bg-[#7dd3fc]/10 dark:bg-[#7dd3fc]/[0.10] blur-[150px]" />
-        <div className="absolute top-[6%] -left-[12%] h-[46%] w-[42%] rounded-full bg-brand-deep/[0.06] dark:bg-brand-primary/[0.12] blur-[150px]" />
+            Aurora glow reads on the Ink base. Every blurred wash is its own layer
+            (will-change-transform): iOS Safari otherwise re-rasterizes these
+            100px+ blurs whenever anything above them repaints — ~260ms per
+            keystroke in the search box. */}
+        <div className="absolute -top-[16%] left-[2%] h-[52%] w-[52%] rounded-full bg-brand-accent/16 dark:bg-brand-accent/[0.14] blur-[130px] will-change-transform" />
+        <div className="absolute -top-[10%] right-[4%] h-[48%] w-[46%] rounded-full bg-[#a78bfa]/11 dark:bg-[#a78bfa]/[0.16] blur-[140px] will-change-transform" />
+        <div className="absolute top-[20%] -right-[12%] h-[46%] w-[44%] rounded-full bg-[#7dd3fc]/10 dark:bg-[#7dd3fc]/[0.10] blur-[150px] will-change-transform" />
+        <div className="absolute top-[6%] -left-[12%] h-[46%] w-[42%] rounded-full bg-brand-deep/[0.06] dark:bg-brand-primary/[0.12] blur-[150px] will-change-transform" />
 
         {/* Bright gloss highlight behind the hero/search — a white sheen in light;
             hidden in dark (the aurora washes carry the glow there). */}
-        <div className="absolute top-[2%] left-1/2 h-[46%] w-[78%] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse_at_center,_rgba(255,255,255,0.7),_transparent_72%)] blur-2xl dark:hidden" />
+        <div className="absolute top-[2%] left-1/2 h-[46%] w-[78%] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse_at_center,_rgba(255,255,255,0.7),_transparent_72%)] blur-2xl will-change-transform dark:hidden" />
       </div>
 
       {/* Clean fade at the bottom to ground the page — to white in light, to Ink in dark. */}
