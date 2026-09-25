@@ -54,6 +54,10 @@ import { isSellable, parseListing } from "@/lib/listing";
 import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
+import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
+import { useTaggedMusicians } from "@/hooks/useTaggedMusicians";
+import { usePersonFountain } from "@/hooks/usePersonFountain";
+import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
@@ -140,23 +144,20 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
   { key: "media", label: "Media" },
   { key: "shop", label: "Shop" },
 ];
-const MORE_TABS: { key: SearchTab; label: string }[] = [
-  { key: "articles", label: "Articles" },
-  { key: "apps", label: "Apps" },
-  // Long-form articles wearing zap.cooking's tag: the same kind as Articles,
-  // which keeps showing them labelled Recipe — this is where people look.
-  { key: "recipes", label: "Recipes" },
-  { key: "repos", label: "Repos" },
-  { key: "issues", label: "Issues" },
-  { key: "prs", label: "PRs" },
-  // Protocol specs (kind 30817), by the name people search for. They stay in
-  // Articles too, labelled Spec — this is where people look.
-  { key: "nips", label: "NIPs" },
-  { key: "events", label: "Events" },
-  { key: "music", label: "Music" },
-  { key: "live", label: "Live" },
-  { key: "lists", label: "Lists" },
+/**
+ * Behind More, grouped by what a person is doing — consumer things first,
+ * developer things last (Benjamin, 2026-09-24: ten flat rows mixing Recipes
+ * with PRs read like a settings list). Recipes are long-form articles
+ * wearing zap.cooking's tag and NIPs are protocol specs (kind 30817); both
+ * stay in Articles too, labelled — these are where people look for them.
+ */
+const MORE_GROUPS: { title: string | null; tabs: { key: SearchTab; label: string }[] }[] = [
+  { title: "Read & listen", tabs: [{ key: "articles", label: "Articles" }, { key: "music", label: "Music" }, { key: "recipes", label: "Recipes" }] },
+  { title: "Happening", tabs: [{ key: "events", label: "Events" }, { key: "live", label: "Live" }] },
+  { title: "Build", tabs: [{ key: "apps", label: "Apps" }, { key: "repos", label: "Repos" }, { key: "issues", label: "Issues" }, { key: "prs", label: "PRs" }, { key: "nips", label: "NIPs" }] },
+  { title: null, tabs: [{ key: "lists", label: "Lists" }] },
 ];
+const MORE_TABS: { key: SearchTab; label: string }[] = MORE_GROUPS.flatMap((g) => g.tabs);
 const TABS = [...PRIMARY_TABS, ...MORE_TABS];
 
 const TAB_KEYS = new Set(TABS.map((t) => t.key));
@@ -212,26 +213,35 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
           aria-label="More result types"
           className="absolute right-0 top-full z-20 mt-1 min-w-[9rem] rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
-          {MORE_TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="menuitem"
-              aria-current={tab === t.key ? "true" : undefined}
-              onClick={() => {
-                setOpen(false);
-                onChange(t.key);
-              }}
-              className={
-                "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                (tab === t.key
-                  ? "font-semibold text-brand-deep dark:text-brand-link"
-                  : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
-              }
-              data-testid={`search-tab-${t.key}`}
-            >
-              {t.label}
-            </button>
+          {MORE_GROUPS.map((g, gi) => (
+            <div key={g.title ?? "rest"} className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""} role="group" aria-label={g.title ?? undefined}>
+              {g.title && (
+                <div className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500" data-testid={`search-tab-group-${g.title.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
+                  {g.title}
+                </div>
+              )}
+              {g.tabs.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="menuitem"
+                  aria-current={tab === t.key ? "true" : undefined}
+                  onClick={() => {
+                    setOpen(false);
+                    onChange(t.key);
+                  }}
+                  className={
+                    "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
+                    (tab === t.key
+                      ? "font-semibold text-brand-deep dark:text-brand-link"
+                      : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
+                  }
+                  data-testid={`search-tab-${t.key}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       )}
@@ -620,17 +630,19 @@ export function SearchResults({
   const [personMedia, setPersonMedia] = useState<SearchHit[]>([]);
   useEffect(() => {
     setPersonMedia([]);
-    // The Media tab and the composed Everything page both lead with it.
+    // The Media tab and the composed Everything page both lead with it; the
+    // Music tab leads with the person's own tracks the same way.
     const everything = tab === "everything" && !/(^|\s)sort:/i.test(query);
-    if ((tab !== "media" && !everything) || !panelPerson) return;
+    const music = tab === "music" && !scopeOf(query);
+    if ((tab !== "media" && !everything && !music) || !panelPerson) return;
     let cancelled = false;
     const who = panelPerson;
-    fetchRecentByKinds(who.pubkey, [1, 20, 21, 22, 34235, 34236], 40)
+    fetchRecentByKinds(who.pubkey, music ? [31337] : [1, 20, 21, 22, 34235, 34236], 40)
       .then((events) => {
         if (cancelled) return;
         setPersonMedia(
           events
-            .filter((e) => mediaUrlOf(e as NostrEvent) !== null)
+            .filter((e) => music || mediaUrlOf(e as NostrEvent) !== null)
             .map((e) => ({ event: e as NostrEvent, author: who, rank: null })),
         );
       })
@@ -780,11 +792,16 @@ export function SearchResults({
     // articles wear the recipe tag too. One source of truth says which is
     // which, here, so the count line, the chips and the cards agree.
     if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
+    // A named person's own tracks join the Music tab's hits, once each.
+    if (tab === "music") {
+      const seen = new Set(base.map((h) => h.event.id));
+      return [...base, ...personMedia.filter((h) => !seen.has(h.event.id))];
+    }
     if (tab !== "media" || !mediaNotes) return base;
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
     return [...base, ...visual];
-  }, [snapshot, mediaNotes, tab]);
+  }, [snapshot, mediaNotes, tab, personMedia]);
   // The person's own media is its own group above the list; the list drops its duplicates.
   const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -842,20 +859,51 @@ export function SearchResults({
   const scope = scopeOf(query);
   const scopedTo = scope?.pubkey ?? null;
   const wavlakeWords = useWavlakeSearch(query, tab === "music" && !scope);
-  const catalogue = useArtistCatalogue(tab === "music" ? scopedTo : null);
+  // The V4V lists from Podcast Index (the team, 2026-09-24): the Music tab's
+  // third source, asked of the tag hub on the tab, never for one person's
+  // catalogue — the lists are not per person. The words narrow them here.
+  const podcastIndexAll = usePodcastIndexMusic(tab === "music" && !scope);
+  const podcastIndex = useMemo(() => ({ ...filterPodcastIndex(query, podcastIndexAll), loading: podcastIndexAll.loading }), [query, podcastIndexAll]);
+  // The people the network tagged Musician — the tagging list; the tab narrows them by the words.
+  const tagged = useTaggedMusicians(tab === "music" && !scope);
+  // Words that name a person find that person's music, as their profile does
+  // (Benjamin, 2026-09-24: "handled" said Nothing found while Handled's
+  // profile played two songs — the relay holds no track events for them and
+  // Wavlake's word search knows no "handled"). The Media tab leads with a
+  // named person's own media; the Music tab leads with their own music: the
+  // catalogue the scoped view reads, joined to whatever the words found.
+  const musicPerson = tab === "music" && !scope ? panelPerson : null;
+  // What the person linked on Fountain — the panel plays it; so does the view.
+  const fountain = usePersonFountain(tab === "music" ? (scopedTo ?? musicPerson?.pubkey ?? null) : null);
+  const catalogue = useArtistCatalogue(tab === "music" ? (scopedTo ?? musicPerson?.pubkey ?? null) : null, { name: scopedTo ? undefined : musicPerson ? getDisplayLabel(musicPerson) : undefined });
   const wavlake = useMemo(() => {
-    if (!scope) return wavlakeWords;
+    if (!scope) {
+      if (!musicPerson) return wavlakeWords;
+      const seenSongs = new Set(wavlakeWords.songs.map((s) => s.id));
+      const seenArtists = new Set(wavlakeWords.artists.map((a) => a.id));
+      return {
+        artists: catalogue.artist && !seenArtists.has(catalogue.artist.id) ? [catalogue.artist, ...wavlakeWords.artists] : wavlakeWords.artists,
+        albums: wavlakeWords.albums,
+        songs: [...catalogue.songs.filter((s) => !seenSongs.has(s.id)), ...wavlakeWords.songs],
+        loading: wavlakeWords.loading || catalogue.loading,
+      };
+    }
     const words = scope.rest.toLowerCase().split(/\s+/).filter(Boolean);
     const songs = words.length === 0 ? catalogue.songs : catalogue.songs.filter((s) => words.every((w) => s.title.toLowerCase().includes(w)));
     return { artists: catalogue.artist ? [catalogue.artist] : [], albums: [], songs, loading: catalogue.loading };
-  }, [scope, wavlakeWords, catalogue]);
+  }, [scope, wavlakeWords, catalogue, musicPerson]);
   const mediaSettled = tab !== "media" || !!mediaNotes?.eose || !!mediaNotes?.error;
   const searching =
     personMedia.length === 0 &&
     (!snapshot || (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading)) || (tab === "media" && !mediaSettled && hits.length === 0));
-  const noResults = !!snapshot?.eose && mediaSettled && hits.length === 0 && personMedia.length === 0 && (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0));
+  const noResults =
+    !!snapshot?.eose &&
+    mediaSettled &&
+    hits.length === 0 &&
+    personMedia.length === 0 &&
+    (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0 && !fountain.loading && fountain.items.length === 0 && !podcastIndex.loading && podcastIndex.songs.length === 0 && podcastIndex.musicians.length === 0 && !tagged.loading && filterTaggedPeople(query, tagged.people).length === 0 && (query.trim() !== "" || tagged.people.length === 0)));
   // What the count line counts, when it shows: every source the tab shows.
-  const extraCount = (tab === "music" ? wavlake.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
+  const extraCount = (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
   const peopleIdx = useRef(0);
   peopleIdx.current = 0;
 
@@ -1410,6 +1458,25 @@ export function SearchResults({
             </div>
           ))}
         </div>
+      ) : noResults && tab === "music" && scopedTo ? (
+        // A person's music view with nothing here yet: say so, and offer the
+        // person — a face in a music context opens their music, and this is
+        // where a Bandcamp-only musician lands.
+        <div className="mt-4 sm:mt-6" data-testid="music-scoped-empty">
+          <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+            <EmptyState
+              icon={Radar}
+              compact
+              title={`No songs from ${panelPerson ? getDisplayLabel(panelPerson) : "them"} here yet`}
+              description="Nothing on Nostr or Wavlake under their key so far."
+              action={
+                <Link href={`/p/${(() => { try { return nip19.npubEncode(scopedTo); } catch { return scopedTo; } })()}`} className="text-sm font-semibold text-brand-link hover:underline">
+                  See their profile →
+                </Link>
+              }
+            />
+          </div>
+        </div>
       ) : noResults ? (
         <div className="mt-4 sm:mt-6" data-testid="container-no-results">
           <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
@@ -1681,7 +1748,7 @@ export function SearchResults({
             </div>
           )}
           {tab === "music" ? (
-            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} scoreOf={scoreOf} onOpenProfile={openProfile} />
+            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} podcastIndex={podcastIndex} tagged={tagged} fountain={fountain} person={panelPerson} scoreOf={scoreOf} onOpenProfile={openProfile} />
           ) : (
           <div
             className={

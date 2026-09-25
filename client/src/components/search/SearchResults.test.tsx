@@ -10,7 +10,7 @@ import { setTechnicalView } from "@/lib/technicalView";
 // The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot } from "@/services/search";
 
@@ -69,6 +69,9 @@ const profileMapMock = new Map<string, { name?: string; picture?: string }>();
 const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 // Events the notes on the page quote — a test that wants a quote resolved seeds one.
 const refEventsMock = vi.fn<(ids: string[]) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
+// The tag hub's answer for the Music tab's V4V lists (kind-9999 items by `#z`); nothing unless a test says so.
+const dlistFetchMock = vi.fn((_filter: Record<string, unknown>, _relays?: string[]) => Promise.resolve([] as NostrEvent[]));
+vi.mock("@/services/musicTags", () => ({ fetchTaggedMusicians: async () => [] }));
 vi.mock("@/services/nostr", () => ({
   // The person panel asks for the person's tracks and streams; nobody here has any.
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
@@ -76,6 +79,7 @@ vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
   fetchEventsByIds: (ids: string[]) => refEventsMock(ids),
   fetchAddressableEvents: () => Promise.resolve(new Map()),
+  fetchEventsByFilter: (filter: Record<string, unknown>, relays?: string[]) => dlistFetchMock(filter, relays),
 }));
 
 // The relay expresses rank as ORDER only — per-author scores come from the
@@ -106,6 +110,9 @@ const wavlakeTrendingMock = vi.fn<(opts?: { genre?: string }) => Promise<Wavlake
 type Catalogue = import("@/hooks/useArtistCatalogue").ArtistCatalogue;
 const catalogueMock = vi.fn<(pubkey: string | null | undefined) => Catalogue>(() => ({ artist: null, songs: [], loading: false }));
 vi.mock("@/hooks/useArtistCatalogue", () => ({ useArtistCatalogue: (pk: string | null | undefined) => catalogueMock(pk) }));
+// Fountain's pages, asked for the item behind a link a note carries; nothing unless a test says so.
+const fountainItemMock = vi.fn<(url: string) => Promise<import("@/lib/fountain").FountainItem | null>>(async () => null);
+vi.mock("@/lib/fountain", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/fountain")>()), fetchFountainItem: (url: string) => fountainItemMock(url) }));
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
@@ -318,6 +325,19 @@ describe("SearchResults", () => {
   // Benjamin: the nine-tab strip was "distracting and takes up a lot of
   // space". Google's shape: five tabs in view, the rest behind More ▾, and
   // the chosen overflow tab takes the More slot so you can see where you are.
+  // Benjamin (2026-09-24): ten flat rows mixing Recipes with PRs read like a
+  // settings list. The menu is grouped by what a person is doing, consumer
+  // things first and developer things last.
+  it("groups More by what you're doing: Read & listen, Happening, Build, then Lists", () => {
+    render(<SearchResults query="jack" pov="nosfabrica" />);
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    const menu = screen.getByRole("menu");
+    const groups = [...menu.querySelectorAll('[data-testid^="search-tab-group-"]')].map((el) => el.textContent);
+    expect(groups).toEqual(["Read & listen", "Happening", "Build"]);
+    const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]:not([data-testid^="search-tab-group-"])')].map((el) => el.getAttribute("data-testid"));
+    expect(items).toEqual(["search-tab-articles", "search-tab-music", "search-tab-recipes", "search-tab-events", "search-tab-live", "search-tab-apps", "search-tab-repos", "search-tab-issues", "search-tab-prs", "search-tab-nips", "search-tab-lists"]);
+  });
+
   // Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
   // Articles is the first thing behind More.
   it("shows five verticals — Media then Shop — and folds Articles first behind More", () => {
@@ -333,7 +353,7 @@ describe("SearchResults", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     const menu = screen.getByRole("menu");
-    const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]')].map((el) => el.getAttribute("data-testid"));
+    const items = [...menu.querySelectorAll('[role="menuitem"]')].map((el) => el.getAttribute("data-testid"));
     expect(items[0]).toBe("search-tab-articles");
     for (const t of ["apps", "repos", "issues", "prs", "events", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
 
@@ -2531,6 +2551,80 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("knowledge-panel-profile").getAttribute("href")).toBe("/p/npub1panel");
   });
 
+  // Benjamin (2026-09-24): Handled's profile shows two songs and `from:Handled`
+  // finds them, but "handled" on the Music tab said Nothing found — the relay
+  // holds no track events for them and Wavlake's word search knows no
+  // "handled". The Media tab already leads with a named person's own media;
+  // the Music tab now leads with a named person's own music.
+  it("on the Music tab, words that name a person find that person's music, as their profile does", async () => {
+    setUrlTab("music");
+    const handled = { pubkey: "c".repeat(64), npub: nip19.npubEncode("c".repeat(64)), name: "Handled", picture: "https://img/handled.jpg", wotRank: 0.8, wotFollowers: 36 };
+    catalogueMock.mockImplementation((pk) =>
+      pk === handled.pubkey
+        ? {
+            artist: { id: "wl-handled", name: "Handled", artworkUrl: "https://img/handled.jpg", artistNpub: handled.npub },
+            songs: [
+              { id: "wavlake:paper-thin", title: "Paper Thin", artist: "Handled", audio: "https://cdn/paper-thin.mp3", durationSec: 297, url: "https://wavlake.com/track/paper-thin", source: "wavlake", artistNpub: handled.npub },
+              { id: "wavlake:need-you-whole", title: "Need You Whole", artist: "Handled", audio: "https://cdn/nyw.mp3", durationSec: 219, url: "https://wavlake.com/track/nyw", source: "wavlake", artistNpub: handled.npub },
+            ],
+            loading: false,
+          }
+        : { artist: null, songs: [], loading: false },
+    );
+    suggestMock.mockResolvedValue([handled]);
+    render(<SearchResults query="handled" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 50 });
+    await screen.findByTestId("search-knowledge-panel");
+    const songs = await screen.findByTestId("music-songs");
+    expect(within(songs).getByTestId("wavlake-song-wavlake:paper-thin")).toHaveTextContent("Paper Thin");
+    expect(within(songs).getByTestId("wavlake-song-wavlake:need-you-whole")).toBeInTheDocument();
+    expect(screen.getByTestId("music-top-result")).toHaveTextContent("Handled");
+    expect(screen.queryByTestId("container-no-results")).toBeNull();
+  });
+
+  it("a person's music view with no songs here says so and offers the profile, instead of a blank Nothing found", async () => {
+    setUrlTab("music");
+    const pk = "d".repeat(64);
+    const npub = nip19.npubEncode(pk);
+    suggestMock.mockResolvedValue([{ pubkey: pk, npub, name: "Matt Finlay", wotRank: 0.5, wotFollowers: 10 }]);
+    render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 50 });
+    const empty = await screen.findByTestId("music-scoped-empty");
+    expect(empty).toHaveTextContent("No songs from Matt Finlay here yet");
+    expect(within(empty).getByRole("link", { name: /profile/i })).toHaveAttribute("href", `/p/${npub}`);
+    expect(screen.queryByTestId("container-no-results")).toBeNull();
+  });
+
+  // Benjamin (2026-09-24): Matt Finlay is the first face on the Musicians
+  // shelf and his music view was empty — his music lives on Fountain, linked
+  // from his notes, which the panel beside the empty state was already playing.
+  it("a person's music view plays the songs they linked on Fountain, as their panel does", async () => {
+    setUrlTab("music");
+    const pk = "d".repeat(64);
+    const npub = nip19.npubEncode(pk);
+    suggestMock.mockResolvedValue([{ pubkey: pk, npub, name: "Matt Finlay", wotRank: 0.5, wotFollowers: 10 }]);
+    recentByKindsMock.mockImplementation(async (pubkey, kinds) =>
+      pubkey === pk && kinds.includes(1)
+        ? [ev("f1", 1, pk, "New one out now https://fountain.fm/track/abc123"), ev("f2", 1, pk, "Homegrown ep 4 https://fountain.fm/episode/ep4")]
+        : [],
+    );
+    fountainItemMock.mockImplementation(async (url: string) =>
+      url.includes("abc123")
+        ? { kind: "track", id: "abc123", show: "Matt Finlay", title: "Homegrown Blues", description: null, image: "https://img/hb.jpg", audio: "https://cdn/hb.mp3", url }
+        : { kind: "episode", id: "ep4", show: "Homegrown", title: "Episode 4 • Listen on Fountain", description: null, image: null, audio: "https://cdn/ep4.mp3", url },
+    );
+    render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 50 });
+    const songs = await screen.findByTestId("music-songs");
+    const row = within(songs).getByTestId("fountain-song-fountain:abc123");
+    expect(row).toHaveTextContent("Homegrown Blues");
+    expect(within(row).getByTestId("track-source")).toHaveAttribute("title", "Fountain");
+    expect(within(songs).getByTestId("fountain-song-fountain:ep4")).toHaveTextContent("Episode 4");
+    expect(within(songs).getByTestId("fountain-song-fountain:ep4")).not.toHaveTextContent("Listen on Fountain");
+    expect(screen.getByTestId("music-top-result")).toHaveTextContent("1 song · 1 episode");
+    expect(screen.queryByTestId("music-scoped-empty")).toBeNull();
+  });
+
   it("keeps quiet when the top person is only a weak match", async () => {
     setUrlTab("notes");
     suggestMock.mockResolvedValueOnce([
@@ -2738,5 +2832,55 @@ describe("when the search relay is down", () => {
     serverStatusMock.mockReturnValue({ api: "ok", search: "ok", recovery: 1, checking: false, nextProbeAt: null });
     rerender(<SearchResults query="nostr" pov="nosfabrica" />);
     expect(allStreams.filter((c) => !isPanelProbe(c.query, c.params)).length).toBe(before + 1);
+  });
+});
+
+describe("the Music tab's V4V lists from Podcast Index", () => {
+  // The team (2026-09-24): the V4V Songs and V4V Musicians D-lists feed the
+  // music category. Their items live on the tag hub, not the search relay.
+  const AUTHOR = "77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3";
+  const SONGS = `39998:${AUTHOR}:b504f5a8-949f-4d31-ad14-8afcebde2b34`;
+  const MUSICIANS = `39998:${AUTHOR}:c7e2e5f1-2258-4d9d-92ed-d29b9837a82a`;
+  const songItem = ev("s1", 9999, AUTHOR, "", [["z", SONGS], ["t", "https://podcastindex.org/podcast/4148683#4"], ["title", "Step Into the Light"], ["artist", "Torcon 7"], ["url", "https://mp3s.podcastindex.org/Step_Into_The_Light.mp3"], ["duration", "316"], ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"]]);
+  const musicianItem = ev("m1", 9999, AUTHOR, "", [["z", MUSICIANS], ["t", "a94f5cc9"], ["name", "Torcon 7"], ["feedId", "4148683"], ["feedGuid", "a94f5cc9"], ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"]]);
+
+  beforeEach(async () => {
+    dlistFetchMock.mockReset();
+    dlistFetchMock.mockResolvedValue([]);
+    (await import("@/services/dlists")).__resetPodcastIndexCache();
+  });
+
+  it("browsing the Music tab shows the lists even when the relay has no native tracks", async () => {
+    setUrlTab("music");
+    dlistFetchMock.mockResolvedValue([songItem, musicianItem]);
+    render(<SearchResults query="" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 150 });
+    const songs = await screen.findByTestId("music-podcastindex-songs");
+    expect(songs).toHaveTextContent("Step Into the Light");
+    expect(screen.getByTestId("music-podcastindex-musicians")).toHaveTextContent("Torcon 7");
+    expect(screen.queryByTestId("container-no-results")).toBeNull();
+    expect(dlistFetchMock).toHaveBeenCalledWith(expect.objectContaining({ kinds: [9999], "#z": [SONGS, MUSICIANS] }), expect.anything());
+  });
+
+  it("a search scoped to one person never asks the hub — the lists are not per person", async () => {
+    setUrlTab("music");
+    render(<SearchResults query={`from:${nip19.npubEncode("b".repeat(64))}`} pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 150 });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(dlistFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("with words, the lists narrow to what answers them", async () => {
+    setUrlTab("music");
+    dlistFetchMock.mockResolvedValue([songItem, musicianItem]);
+    const { rerender } = render(<SearchResults query="jazz" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 150 });
+    await waitFor(() => expect(dlistFetchMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByTestId(/^podcastindex-song-/)).toBeNull();
+    rerender(<SearchResults query="torcon" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 150 });
+    await screen.findByTestId(/^podcastindex-song-/);
+    expect(within(screen.getByTestId("music-artists")).getByTestId(/^music-artist-podcastindex-/)).toBeInTheDocument();
   });
 });
