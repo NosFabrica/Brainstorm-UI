@@ -633,3 +633,31 @@ describe("a scoped search is remembered in RECENT", () => {
     expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${VINNEY_NPUB} sunset`);
   });
 });
+
+// iOS Safari ends the field's editing on the tap — keyboard down, page scrolled back — before it
+// synthesizes the click, which then misses the moved button: the search waited for a second tap.
+describe("tapping the search button on a touch screen", () => {
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("searches on the touch itself, without waiting for a click", async () => {
+    render(<Landing />);
+    typeInBox("podcaster");
+    const button = screen.getByTestId("button-home-search");
+    const tap = fireEvent.touchEnd(button, { changedTouches: [{ clientX: 0, clientY: 0 }] });
+    expect(tap).toBe(false); // the late click is cancelled
+    await waitFor(() => expect(mainStreamCalls().some(([q]) => q === "podcaster")).toBe(true));
+    expect(new URLSearchParams(window.location.search).get("q")).toBe("podcaster");
+  });
+
+  it("a drag that ends off the button is a scroll, not a search", () => {
+    render(<Landing />);
+    typeInBox("podcaster");
+    fireEvent.touchEnd(screen.getByTestId("button-home-search"), { changedTouches: [{ clientX: 500, clientY: 500 }] });
+    expect(mainStreamCalls()).toHaveLength(0);
+  });
+});

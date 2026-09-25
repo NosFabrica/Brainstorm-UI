@@ -1131,6 +1131,22 @@ export default function Landing() {
                   // handleSearch() no-ops on an empty query, so an idle click is
                   // harmless.
                   disabled={isSearching}
+                  // iOS Safari: a tap here while the field is being edited ends the editing
+                  // first — the keyboard drops, the page scrolls back down — and the click it
+                  // synthesizes afterwards lands wherever the button has moved away from, so the
+                  // search never runs until a second tap. Submit on the touch itself, and cancel
+                  // the late click so it can't hit whatever the results put under the finger.
+                  onTouchEnd={(e) => {
+                    const t = e.changedTouches[0];
+                    const r = e.currentTarget.getBoundingClientRect();
+                    // A drag that started here and ended elsewhere is a scroll, not a tap.
+                    if (!t || t.clientX < r.left || t.clientX > r.right || t.clientY < r.top || t.clientY > r.bottom) return;
+                    e.preventDefault();
+                    if (isSearching) return;
+                    (document.activeElement as HTMLElement | null)?.blur?.();
+                    cancelSuggest();
+                    void handleSearch();
+                  }}
                   className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"
                 >
