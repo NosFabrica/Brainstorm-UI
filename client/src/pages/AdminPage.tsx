@@ -1911,8 +1911,7 @@ export default function AdminPage() {
   const schedulingPolicies = schedulingPoliciesQuery.data ?? [];
 
   const adminUsersData = adminUsersQuery.data;
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- a stable [] would change when the profile-fetch effect reruns
-  const adminUsersList = adminUsersData?.items ?? [];
+  const adminUsersList = adminUsersData?.items ?? NONE;
   const adminUsersTotal = adminUsersData?.total ?? 0;
   const adminUsersTotalPages = adminUsersData?.pages ?? 1;
 
@@ -1950,8 +1949,7 @@ export default function AdminPage() {
     refetchOnWindowFocus: "always",
   });
   const activityData = adminActivityQuery.data;
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- a stable [] would change when the profile-fetch effect reruns
-  const activityItems = activityData?.items ?? [];
+  const activityItems = activityData?.items ?? NONE;
   const activityTotal = activityData?.total ?? 0;
   const activityTotalPages = activityData?.pages ?? 1;
 

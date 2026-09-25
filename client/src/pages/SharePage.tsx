@@ -241,8 +241,7 @@ export default function SharePage() {
       name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
       picture: profs?.get(pk)?.picture,
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as-is; with pinned followers scores can go stale
-  }, [effectiveFollowerPubkeys, followedByProfilesQuery.data]);
+  }, [effectiveFollowerPubkeys, followedByProfilesQuery.data, followedByScores]);
 
   // A wider follower list (resolved) for the owner's "Followed by" picker — only
   // fetched while the Customize panel is open.

@@ -1671,20 +1671,7 @@ export default function ProfilePage() {
   ];
 
   const [granularity] = useTierGranularity();
-  const profileTier = useMemo(() => {
-    const backendTier = profileOverviewQuery.data?.tier;
-    if (!backendTier) return null;
-    const uiKey = GR_TIER_TO_UI[backendTier] ?? "unverified";
-    // Decision 1/7: under Simple the backend's verdict folds to Verified (any
-    // tier at or above the line) or Unknown — Flagged is the banner's job here.
-    if (granularity === "simple") {
-      return uiKey === "unverified"
-        ? { key: "unknown", name: "Unknown", color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" }
-        : { key: "verified", name: "Verified", color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" };
-    }
-    return TIER_DISPLAY_CONFIG.find(t => t.key === uiKey) ?? null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- kept as-is; granularity omitted, may be stale on toggle
-  }, [profileOverviewQuery.data]);
+  const hasTier = !!profileOverviewQuery.data?.tier;
 
   const confidenceGuidance = useMemo(() => {
     if (!profileResult || profileResult.influence === undefined) return null;
@@ -1984,7 +1971,7 @@ export default function ProfilePage() {
     n >= 10000 ? new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n) : n.toLocaleString();
 
   const renderTrustBadge = () => {
-    if (!profileResult || profileResult.influence === undefined || !profileTier) return null;
+    if (!profileResult || profileResult.influence === undefined || !hasTier) return null;
 
     // Own profile → the network's view of you (null = not yet scored, shown as
     // such in the card); anyone else → your personalized view of them.
