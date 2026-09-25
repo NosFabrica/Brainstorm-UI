@@ -81,6 +81,7 @@ import {
   fetchEventRsvps,
   searchStream,
   suggestProfiles,
+  suggestListings,
   kindsForTab,
   TAB_KINDS,
   type SearchSnapshot, type SearchHit, type SearchTab } from "./search";
@@ -931,6 +932,55 @@ describe("suggestProfiles", () => {
   });
 });
 
+// Benjamin (2026-09-24), the Google reflex: type "Satoshi Smiley" and go
+// straight to the T-shirt. Product titles ride the same typeahead as people.
+describe("suggestListings", () => {
+  const listing = (id: string, title: string, tags: string[][] = [], pubkey = "a".repeat(64)): NostrEvent =>
+    ({ id, kind: 30402, pubkey, tags: [["d", id], ["title", title], ["price", "21", "USD"], ...tags], content: "", created_at: 1, sig: "s" }) as NostrEvent;
+
+  it("asks the Shop index and resolves at EOSE with sellable listings whose titles hold every typed word", async () => {
+    const { subject } = controllable();
+    const pending = suggestListings("satoshi smiley", { pov: "nosfabrica" }, { limit: 3 });
+    await tick();
+    expect(askedFilters(0)[0].kinds).toEqual([30402]);
+    subject.next(frame(listing("t1", "Satoshi Smiley T-shirt")));
+    subject.next(frame(listing("t2", "Satoshi Mug")));
+    subject.next(frame(listing("t3", "Smiley Satoshi Hoodie", [["status", "sold"]])));
+    subject.next(frame({ ...listing("t4", "Satoshi Smiley Cap"), tags: [["d", "t4"], ["title", "Satoshi Smiley Cap"]] }));
+    subject.next(frame(listing("t5", "SATOSHI smiley Sticker")));
+    subject.next(EOSE);
+    expect((await pending).map((h) => h.event.id)).toEqual(["t1", "t5"]);
+  });
+
+  it("one product is one row, and the limit holds", async () => {
+    const { subject } = controllable();
+    const pending = suggestListings("soap", { pov: "nosfabrica" }, { limit: 2 });
+    await tick();
+    subject.next(frame(listing("s1", "Tallow Soap", [["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]])));
+    subject.next(frame(listing("s2", "Tallow Soap")));
+    subject.next(frame(listing("s3", "Lavender Soap")));
+    subject.next(frame(listing("s4", "Rose Soap")));
+    subject.next(EOSE);
+    expect((await pending).map((h) => h.event.id)).toEqual(["s1", "s3"]);
+  });
+
+  it("a query with no plain words asks nothing", async () => {
+    controllable();
+    expect(await suggestListings("from:npub1abc", { pov: "nosfabrica" })).toEqual([]);
+    expect(reqMock).not.toHaveBeenCalled();
+  });
+
+  it("closes its subscription when the caller aborts", async () => {
+    const { torndown } = controllable();
+    const controller = new AbortController();
+    const pending = suggestListings("soap", { pov: "nosfabrica" }, { signal: controller.signal, timeoutMs: 60_000 });
+    await tick();
+    controller.abort();
+    expect(await pending).toEqual([]);
+    expect(torndown.count).toBe(1);
+  });
+});
+
 /** Multi-REQ fake: every req() call gets its own subject; filters recorded. */
 function multiReq() {
   const calls: { filter: Record<string, unknown>; subject: Subject<ReqFrame>; closed: boolean }[] = [];
@@ -1683,6 +1733,21 @@ describe("fetchSimilarListings", () => {
     const similar = await pending;
     expect(similar.map((e) => e.tags.find((t) => t[0] === "d")?.[1])).toEqual(["stein", "cup"]);
     expect(similar[0].created_at).toBe(2);
+  });
+  // Staci's soap (2026-09-24): the relay's first 40 in "Health & Beauty" were
+  // all hers, so dropping the seller left nothing similar — while the relay
+  // held 53 from other sellers just past that window.
+  it("asks deep enough that one prolific seller cannot fill the window and leave nothing similar", async () => {
+    const { subject } = controllable();
+    const me = "a".repeat(64);
+    const pending = fetchSimilarListings(["soap"], `30402:${me}:soap-1`, { excludePubkey: me });
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as { limit: number };
+    expect(filter.limit).toBeGreaterThanOrEqual(150);
+    for (let i = 0; i < 40; i++) subject.next(frame(listing(me, `mine-${i}`, ["soap"], i)));
+    subject.next(frame(listing("c".repeat(64), "bar", ["soap"], 50)));
+    subject.next(EOSE);
+    expect((await pending).map((e) => e.pubkey)).toEqual(["c".repeat(64)]);
   });
 });
 

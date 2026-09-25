@@ -22,7 +22,8 @@ import { reportSearchFailure } from "@/lib/serverStatus";
 import { searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
-import { liftQuery, searchFilters } from "@/lib/searchSyntax";
+import { liftQuery, searchFilters, typeaheadWords } from "@/lib/searchSyntax";
+import { isSellable, parseListing } from "@/lib/listing";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
@@ -1367,7 +1368,10 @@ export function fetchSimilarListings(
     const wanted = new Set(categories.map((c) => c.toLowerCase()));
     const byAddress = new Map<string, NostrEvent>();
     const sub = relay
-      .req({ kinds: [30402], "#t": categories, search: "include:spam", limit: 40 })
+      // Deep on purpose: the seller's own listings are dropped below, and one
+      // prolific seller can own the first forty in a category (Staci's 67 in
+      // "Health & Beauty", 2026-09-24, left nothing similar at 40; 200 found 53).
+      .req({ kinds: [30402], "#t": categories, search: "include:spam", limit: 200 })
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
           const ev = msg.event;
@@ -1655,6 +1659,43 @@ export function suggestProfileHits(
   params: Pick<SearchParams, "pov" | "userPubkey">,
   opts?: { limit?: number; timeoutMs?: number; signal?: AbortSignal },
 ): Promise<SearchHit[]> {
+  return collectHits(query, { ...params, tab: "people" }, opts, (hit) => (hit.author ? hit.event.pubkey : null));
+}
+
+/**
+ * Product titles in the typeahead — "Satoshi Smiley T-shirt", straight to
+ * the listing. Only listings for sale now, only titles that hold every
+ * typed word, one row per product (a seller's same-title copies count
+ * once). A query with no plain words asks nothing.
+ */
+export function suggestListings(
+  query: string,
+  params: Pick<SearchParams, "pov" | "userPubkey">,
+  opts?: { limit?: number; timeoutMs?: number; signal?: AbortSignal },
+): Promise<SearchHit[]> {
+  const words = (typeaheadWords(query) ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return Promise.resolve([]);
+  return collectHits(query, { ...params, tab: "shop" }, { limit: 3, ...opts }, (hit) => {
+    const l = parseListing(hit.event);
+    if (!l || !isSellable(l)) return null;
+    const title = l.title.toLowerCase();
+    if (!words.every((w) => title.includes(w))) return null;
+    return `${hit.event.pubkey}|${title.replace(/\s+/g, " ").trim()}`;
+  });
+}
+
+/**
+ * A stream turned into one answer: the first hit per key, in arrival order,
+ * resolved at EOSE or the deadline with whatever arrived — never rejects (a
+ * silent suggest beats a broken one). `keyOf` says which hits count and
+ * which are the same one.
+ */
+function collectHits(
+  query: string,
+  params: Pick<SearchParams, "pov" | "userPubkey" | "tab">,
+  opts: { limit?: number; timeoutMs?: number; signal?: AbortSignal } | undefined,
+  keyOf: (hit: SearchHit) => string | null,
+): Promise<SearchHit[]> {
   const limit = opts?.limit ?? 10;
   const timeoutMs = opts?.timeoutMs ?? 4000;
   const signal = opts?.signal;
@@ -1677,10 +1718,11 @@ export function suggestProfileHits(
     }
     cancel = searchStream(
       query,
-      { tab: "people", pov: params.pov, userPubkey: params.userPubkey, limit },
+      { tab: params.tab, pov: params.pov, userPubkey: params.userPubkey, limit },
       (snapshot) => {
         for (const hit of snapshot.hits) {
-          if (hit.author && !seen.has(hit.event.pubkey)) seen.set(hit.event.pubkey, hit);
+          const key = keyOf(hit);
+          if (key !== null && !seen.has(key)) seen.set(key, hit);
         }
         if (snapshot.eose || snapshot.error) finish();
       },

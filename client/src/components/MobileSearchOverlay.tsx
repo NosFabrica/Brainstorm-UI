@@ -11,7 +11,9 @@ import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { useTagMatches } from "@/hooks/useTags";
-import { npubFromPubkey } from "@/lib/shareId";
+import { eventPath, npubFromPubkey } from "@/lib/shareId";
+import { suggestListings, type SearchHit } from "@/services/search";
+import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
 /** Fire from anywhere (a header magnifier) to open mobile search. */
 export const OPEN_MOBILE_SEARCH_EVENT = "open-mobile-search";
 
@@ -47,6 +49,8 @@ export function MobileSearchOverlay() {
   const [q, setQ] = useState("");
   const [recents, setRecents] = useState<RecentItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
+  // Product titles under the people — straight to the listing.
+  const [products, setProducts] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
   const speed = useConnectionSpeed();
   // Tag suggestions cost the whole catalogue; a poor connection does without.
@@ -98,12 +102,16 @@ export function MobileSearchOverlay() {
     // against them is noise. Under 2 chars there's nothing worth querying.
     if (term.length < 2 || isLikelyNpub(term) || isHexPubkey(term) || isNip05Handle(term)) {
       setResults([]);
+      setProducts([]);
       setSearching(false);
       return;
     }
     setSearching(true);
     const request = new AbortController();
     timerRef.current = window.setTimeout(async () => {
+      void suggestListings(term, { pov, userPubkey: observerPubkey }, { limit: 3, signal: request.signal }).then((hits) => {
+        if (reqRef.current === reqId) setProducts(hits);
+      });
       try {
         const { results: hits } = await searchByText(term, pov, observerPubkey, 10, request.signal);
         if (reqRef.current !== reqId) return;
@@ -126,6 +134,11 @@ export function MobileSearchOverlay() {
     pushRecentProfile({ pubkey: r.pubkey, npub: r.npub, label, picture: r.picture, nip05: r.nip05 });
     setOpen(false);
     navigate(`/p/${r.npub}`);
+  };
+
+  const openListing = (hit: SearchHit) => {
+    setOpen(false);
+    navigate(eventPath(hit.event));
   };
 
   const submit = (value: string) => {
@@ -239,10 +252,17 @@ export function MobileSearchOverlay() {
                 </button>
               );
             })}
-            {searching && results.length === 0 && (
+            {products.length > 0 && (
+              <div className="mt-1 border-t border-slate-100 pt-1 dark:border-slate-800/60" data-testid="mobile-search-products">
+                {products.map((h, i) => (
+                  <ListingSuggestionRow key={h.event.id} hit={h} onSelect={() => openListing(h)} testId={`mobile-search-product-${i}`} />
+                ))}
+              </div>
+            )}
+            {searching && results.length === 0 && products.length === 0 && (
               <p className="px-2 py-4 text-xs text-slate-400 dark:text-slate-500" data-testid="mobile-search-searching">Searching…</p>
             )}
-            {!searching && results.length === 0 && q.trim().length >= 2 && (
+            {!searching && results.length === 0 && products.length === 0 && q.trim().length >= 2 && (
               <p className="px-2 py-4 text-xs text-slate-400 dark:text-slate-500" data-testid="mobile-search-no-results">No people matched — try the full search below.</p>
             )}
             {/* Always available, so a query that suggests nothing is never a dead end

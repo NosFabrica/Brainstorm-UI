@@ -1,5 +1,6 @@
 import { parseTrack } from "@/lib/trackEvent";
-import { formatListingPrice, parseListing } from "@/lib/listing";
+import { formatListingPrice, listingCardLine, parseListing } from "@/lib/listing";
+import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRate";
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
@@ -1374,7 +1375,8 @@ export function ListingCard({
   score,
   showAuthor = true,
   group,
-}: {
+ sellerListings,
+  rates }: {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
@@ -1382,16 +1384,22 @@ export function ListingCard({
   /** When this card stands for one product published as several listings
    *  (sizes, colours): the shared title and how many options there are. */
   group?: { title: string; options: number };
+  /** The seller's other listings on the page: a Conduit seller's listing published elsewhere still opens on Conduit. */
+  sellerListings?: NostrEvent[];
+  /** The page's Bitcoin price, when it has one: the buyer's own money goes under the seller's price. */
+  rates?: BtcRates | null;
 }) {
   const l = parseListing(event);
   if (!l) return null;
-  // The app that sold it, by name, when we know it; else the seller's own link.
-  const app = sourceAppFor(event);
+  const converted = l.price && rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
+  // The verb says where a tap lands: "Buy on Conduit" when we know the
+  // marketplace by name, "Visit <host>" on a seller's own link.
+  const app = sourceAppFor(event, { sellerListings });
   const host = l.shopUrl ? hostOf(l.shopUrl) ?? undefined : undefined;
   const open = app
-    ? { url: app.url, label: `Open in ${app.name}`, host: app.host, icon: app.icon }
+    ? { url: app.url, label: `Buy on ${app.name}`, host: app.host, icon: app.icon }
     : l.shopUrl
-      ? { url: l.shopUrl, label: "Visit shop", host, icon: undefined }
+      ? { url: l.shopUrl, label: host ? `Visit ${host}` : "Visit shop", host, icon: undefined }
       : null;
   return (
     <CardShell
@@ -1413,8 +1421,11 @@ export function ListingCard({
             <ShoppingBag className="h-7 w-7" />
           </span>
         )}
-        <span className="absolute left-2 top-2 rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold text-white" data-testid={`listing-price-${event.id}`}>
-          {l.price ? formatListingPrice(l.price) : "Price on request"}
+        <span className="absolute left-2 top-2 flex flex-col rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold leading-tight text-white">
+          <span data-testid={`listing-price-${event.id}`}>{l.price ? formatListingPrice(l.price) : "Price on request"}</span>
+          {converted && (
+            <span className="text-[10px] font-medium text-white/75" data-testid={`listing-price-converted-${event.id}`}>{converted}</span>
+          )}
         </span>
         {l.images.length > 1 && (
           <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{l.images.length} photos</span>
@@ -1426,8 +1437,8 @@ export function ListingCard({
         )}
       </div>
       <p className={`mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${open ? "pr-2" : ""}`}>{group?.title ?? l.title}</p>
-      {(l.location || l.summary) && (
-        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{l.location ?? l.summary}</p>
+      {listingCardLine(l) && (
+        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400" data-testid={`listing-meta-${event.id}`}>{listingCardLine(l)}</p>
       )}
       {showAuthor && (
         <div className="mt-2">
