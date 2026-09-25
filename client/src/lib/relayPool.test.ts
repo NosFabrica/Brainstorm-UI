@@ -35,6 +35,7 @@ class FakeSocket {
   authed = false;
   constructor(public url: string) {
     setTimeout(() => {
+      if (this.url.startsWith(FLAKY) && flakyDropsLeft > 0) { flakyDropsLeft--; this.readyState = 3; this.onerror?.({ type: "error" }); this.onclose?.({ wasClean: false, code: 1006 }); return; }
       if (this.url.startsWith(DEAD)) { this.readyState = 3; this.onerror?.({ type: "error" }); this.onclose?.({ wasClean: false, code: 1006 }); return; }
       this.readyState = 1; this.onopen?.({});
     }, 0);
@@ -65,7 +66,15 @@ const GATED = "wss://gated.example";
 const DEAD = "wss://dead.example";
 /** A relay that connects and then says nothing — no event, no EOSE. */
 const SLOW = "wss://slow.example";
+/**
+ * A relay whose next `flakyDropsLeft` connections drop. After a drop the
+ * library waits out a reconnect backoff (2s after the first) before the relay
+ * is ready to take a REQ again.
+ */
+const FLAKY = "wss://flaky.example";
+let flakyDropsLeft = 0;
 scripts.set(OPEN, (id, send) => { send(["EVENT", id, EVENT]); send(["EOSE", id]); });
+scripts.set(FLAKY, (id, send) => { send(["EVENT", id, EVENT]); send(["EOSE", id]); });
 scripts.set(GATED, (id, send, socket) => {
   if (socket.authed) { send(["EVENT", id, GATED_EVENT]); send(["EOSE", id]); return; }
   send(["AUTH", "challenge-xyz"]);
@@ -119,6 +128,18 @@ describe("the app's relay pool", () => {
     expect(took).toBeGreaterThan(500); // it did wait for the straggler a moment
     expect(took).toBeLessThan(2500);
   }, 4000);
+
+  // A gated relay or a dead one now fails in milliseconds. A relay waiting out
+  // its reconnect backoff has not reported anything yet, so the library's own
+  // rule took that one failure as "every relay is done" and the read came back
+  // empty. The read must count every relay it asked.
+  it("waits for a relay that is reconnecting, even when another has already failed", async () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    flakyDropsLeft = 1;
+    await read(pool, [FLAKY]); // its socket drops; the relay now waits out its backoff
+    const events = await read(pool, [DEAD, FLAKY]);
+    expect(events.map((e) => e.id)).toEqual([EVENT.id]);
+  }, 6000);
 
   // Only one-shot reads skip a gated relay. A live subscription (the NIP-46
   // signer's, for one) waits for the login and then gets that relay's events.

@@ -19,8 +19,9 @@
  * next read if it gets authenticated meanwhile. A relay that cannot be reached
  * is skipped the same way: no single relay decides when a read is done.
  */
-import { Relay, RelayGroup, RelayPool, type RelayOptions } from "applesauce-relay";
+import { Relay, RelayGroup, RelayPool, type GroupRequestCompleteOperator, type RelayOptions } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
+import { filter, map, scan } from "rxjs";
 
 /**
  * How long an idle socket stays open. The library's 30s means a pause between
@@ -53,13 +54,35 @@ class ReadFirstRelay extends Relay {
  */
 export const STRAGGLER_GRACE_MS = 1200;
 
-/** A read is done when every relay has answered, or a grace after the first did. */
-const readComplete = () => RelayGroup.completeOnAny(RelayGroup.completeAfterFirstRelay(STRAGGLER_GRACE_MS), RelayGroup.completeOnAllEose());
+/**
+ * Every relay asked has answered or failed. The library's own rule counts only
+ * the relays that have reported so far, so a relay that fails fast — a gated
+ * one, a dead one, both now skipped in milliseconds — ended a read on its own
+ * while the relays that could answer were still connecting, and the read came
+ * back empty. This one counts against the list that was asked.
+ */
+function everyAskedRelayDone(relays: string[]): GroupRequestCompleteOperator {
+  const asked = new Set(relays.map((url) => normalizeURL(url)));
+  return (messages) =>
+    messages.pipe(
+      filter((message) => message.type === "EOSE" || message.type === "ERROR"),
+      scan((done, message) => done.add(message.from), new Set<string>()),
+      map((done) => [...asked].every((url) => done.has(url))),
+    );
+}
+
+/** A read is done when every relay asked has answered, or a grace after the first did. */
+const readComplete = (relays: Parameters<RelayPool["request"]>[0]) =>
+  RelayGroup.completeOnAny(
+    RelayGroup.completeAfterFirstRelay(STRAGGLER_GRACE_MS),
+    // A live list of relays has no fixed "asked"; the library's rule stands there.
+    Array.isArray(relays) ? everyAskedRelayDone(relays) : RelayGroup.completeOnAllEose(),
+  );
 
 class ReadFirstPool extends RelayPool {
   /** Every one-shot read gets the app's completion rule unless the caller brings its own. */
   request(relays: Parameters<RelayPool["request"]>[0], filters: Parameters<RelayPool["request"]>[1], opts?: Parameters<RelayPool["request"]>[2]): ReturnType<RelayPool["request"]> {
-    return super.request(relays, filters, { complete: readComplete(), ...opts });
+    return super.request(relays, filters, { complete: readComplete(relays), ...opts });
   }
 
   /** Live subscriptions wait for a gated relay's login; see ReadFirstRelay. */
