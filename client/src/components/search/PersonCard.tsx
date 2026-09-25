@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 /**
  * One person in the results column — the exact card the home search has
  * always rendered (avatar + tier ring + coin, nip05/lightning/website rows,
@@ -13,8 +12,6 @@ import { FlaggedChip, PersonCardSlot } from "@/components/search/EndorsementLine
 import { copyToClipboard } from "@/lib/clipboard";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { useNip05 } from "@/hooks/useNip05";
-import { usePersonContent } from "@/hooks/usePersonContent";
-import { PersonContentChips } from "@/components/search/PersonContentChips";
 
 function truncateAbout(text: string, maxLen = 120): string {
   if (text.length <= maxLen) return text;
@@ -52,8 +49,6 @@ export function PersonCard({
   const coinReplaced = useCoinReplacedByRing();
   // The kind-0 nip05 is only a claim: check it, and drop it if the domain names someone else.
   const nip05Status = useNip05(result.nip05, result.pubkey);
-  // What they publish — chips in the bottom row, one tap to their shop, recipes, streams.
-  const personContent = usePersonContent(useMemo(() => [result.pubkey], [result.pubkey]));
   const websiteDisplay = result.website
     ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "")
     : null;
@@ -144,12 +139,6 @@ export function PersonCard({
             className="mt-1.5"
           />
           <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
-            <PersonContentChips
-              pubkey={result.pubkey}
-              name={getDisplayLabel(result)}
-              content={personContent.get(result.pubkey)}
-              className="sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-            />
             {result.wotFollowers != null && (
               <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60" data-testid={`badge-followers-${idx}`}>
                 <Users className="h-2.5 w-2.5" />

@@ -1,11 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { scopedSearchHref } from "@/lib/searchSyntax";
+import { render, screen, waitFor } from "@testing-library/react";
 import { __resetNip05Cache } from "@/lib/nip05";
 
 // The endorsement slots need accounts and the server; this suite is about the handle.
-const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
-vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/components/search/EndorsementLine", () => ({
   FlaggedChip: () => null,
   PersonCardSlot: () => null,
@@ -58,37 +55,5 @@ describe("PersonCard nip05", () => {
     first.unmount();
     render(<PersonCard result={person(HZRD)} idx={2} pov="nosfabrica" onOpen={() => {}} />);
     expect(screen.getByTestId("text-nip05-2")).toHaveAttribute("data-nip05-status", "verified");
-  });
-});
-
-describe("what the person publishes", () => {
-  const shop = { key: "shop", label: "Shop", tab: "shop", liveNow: false };
-  const live = { key: "live", label: "Live", tab: "live", liveNow: true };
-  beforeEach(() => {
-    contentMock.mockReset();
-  });
-
-  it("wears chips in the card's bottom row, the live one with its dot", () => {
-    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, { chips: [shop, live] }])));
-    render(<PersonCard result={person(HZRD)} idx={0} pov="nosfabrica" onOpen={() => {}} />);
-    const card = screen.getByTestId("result-profile-0");
-    const chip = within(card).getByTestId("person-content-chip-shop");
-    expect(chip.getAttribute("href")).toBe(scopedSearchHref(HZRD, "shop"));
-    expect(chip).toHaveAttribute("aria-label", "hzrd149's shop");
-    expect(within(card).getByTestId("person-content-live-dot")).toBeInTheDocument();
-  });
-
-  it("a chip click does not open the card", () => {
-    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, { chips: [shop] }])));
-    const onOpen = vi.fn();
-    render(<PersonCard result={person(HZRD)} idx={0} pov="nosfabrica" onOpen={onOpen} />);
-    fireEvent.click(screen.getByTestId("person-content-chip-shop"));
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it("an unanswered card keeps the slot", () => {
-    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, undefined])));
-    render(<PersonCard result={person(HZRD)} idx={0} pov="nosfabrica" onOpen={() => {}} />);
-    expect(screen.getByTestId("person-content-chips")).toHaveAttribute("data-state", "pending");
   });
 });
