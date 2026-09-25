@@ -27,6 +27,7 @@ import { isGitItem } from "@/lib/gitStatus";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { DesignationHero } from "@/components/share/DesignationHero";
 import { StructuralHero } from "@/components/share/StructuralHero";
+import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
@@ -371,6 +372,9 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
                 />
               )}
             </div>
+
+            {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
+            {ptr && <TechnicalStrip event={note} ids={nevent ? [{ label: "nevent", value: nevent }] : []} className="mb-3" />}
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`} data-testid="event-note">

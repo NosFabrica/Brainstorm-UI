@@ -121,6 +121,7 @@ import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 import { RelayAuthCard } from "@/components/settings/RelayAuthCard";
+import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
 
 type SettingsTab = "profile" | "trust" | "billing" | "about";
 
@@ -1457,6 +1458,7 @@ export default function SettingsPage() {
             <TagRelaysCard />
           </div>
           <RelayAuthCard />
+          <TechnicalViewCard />
         </div>
       )}
     </div>

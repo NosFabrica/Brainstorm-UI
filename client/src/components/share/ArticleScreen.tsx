@@ -20,10 +20,13 @@ import { prepareArticleBody } from "@/lib/articleBody";
 import { htmlToText, looksLikeHtml, stripStrayHtml } from "@/lib/htmlText";
 import { ReadingText } from "@/components/share/ReadingText";
 import { Chip } from "@/components/ui/chip";
+import { KindPill } from "@/components/ui/kind-pill";
+import { specKindTags } from "@/lib/kindLabel";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
 import { EntityMenu } from "@/components/share/EntityMenu";
+import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
@@ -224,8 +227,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   // wearing the name its author gave it — a number alone tells a reader nothing.
   const coveredKinds = useMemo(() => {
     if (ev?.kind !== 30817) return [] as { kind: string; label?: string }[];
-    const byKind = new Map<string, string | undefined>();
-    for (const t of ev.tags) if (t[0] === "k" && /^\d+$/.test(t[1] ?? "")) byKind.set(t[1], t[2] || undefined); // "nip" is not a kind
+    const byKind = new Map<string, string | undefined>(specKindTags(ev).map((k) => [k.kind, k.label]));
     for (const k of prepared.kinds) byKind.set(k.kind, k.label ?? byKind.get(k.kind));
     // In order, however the author tagged them.
     return [...byKind.entries()].map(([kind, label]) => ({ kind, label })).sort((a, b) => Number(a.kind) - Number(b.kind));
@@ -270,7 +272,10 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             {image && (
               <img src={image} alt="" className="w-full max-h-80 object-cover rounded-2xl border border-slate-200 dark:border-slate-800" />
             )}
-            <h1 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+            {/* A spec says so before its title (Benjamin, 2026-09-24: only a spec —
+                an essay, a wiki page or a recipe looks like what it is). */}
+            <KindPill event={ev} mixed={ev.kind === 30817} className="mt-5" />
+            <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
               {title}
             </h1>
             {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
@@ -372,6 +377,8 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
                 )}
               </div>
             </div>
+            {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
+            <TechnicalStrip event={ev} ids={naddr ? [{ label: "naddr", value: naddr }] : []} className="mt-2" />
 
             {/* Full article body — Brainstorm is the reading destination. */}
             {/* Inline code wears no decorative backticks (the typography plugin's
