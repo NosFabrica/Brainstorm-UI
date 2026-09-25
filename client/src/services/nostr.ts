@@ -7,6 +7,7 @@ import { searchRelay } from "@/lib/searchRelay";
 import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
+import { isBlankEvent } from "@/lib/blankEvent";
 import { publishUntilEnough } from "@/lib/publishQuorum";
 import { addressLoader, loadReplaceable } from "@/lib/loaders";
 import { profileContentOf } from "@/lib/profileContent";
@@ -729,7 +730,8 @@ async function runPersonBatch(pubkey: string, batch: PersonBatch): Promise<void>
       requestAll(batch.relays, filters, batch.timeoutMs),
       fetchFromSearchRelayByFilters(filters, batch.timeoutMs),
     ]);
-    all = [...fromRelays, ...fromSearch];
+    // A husk deleted by overwriting is not content (lib/blankEvent).
+    all = [...fromRelays, ...fromSearch].filter((e) => !isBlankEvent(e));
   } catch {
     // Everyone in the batch is waiting on this one request: a failure answers
     // them all with nothing, the way a failed request of their own would have.
@@ -926,7 +928,8 @@ export async function fetchEventsByFilter(
   timeoutMs = 6000,
 ): Promise<NostrEvent[]> {
   const targetRelays = relays.length ? relays : PROFILE_RELAYS;
-  return requestAll(targetRelays, filter as Parameters<typeof pool.request>[1], timeoutMs);
+  const events = await requestAll(targetRelays, filter as Parameters<typeof pool.request>[1], timeoutMs);
+  return events.filter((e) => !isBlankEvent(e));
 }
 
 /**
@@ -953,7 +956,8 @@ export async function fetchEventsByAuthors(
 ): Promise<NostrEvent[]> {
   if (!pubkeys.length) return [];
   const plan = await planOutboxReads(pubkeys, fallback, { maxConnections });
-  return requestAllByRelay(plan, filter as Parameters<typeof requestAllByRelay>[1], timeoutMs);
+  const events = await requestAllByRelay(plan, filter as Parameters<typeof requestAllByRelay>[1], timeoutMs);
+  return events.filter((e) => !isBlankEvent(e));
 }
 
 /**
@@ -973,7 +977,7 @@ export async function fetchNotesByHashtag(
     CONTENT_RELAYS,
     opts.timeoutMs ?? 6000,
   );
-  return events.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
+  return events.filter((e) => !isBlankEvent(e)).sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
 }
 
 /**
@@ -1027,12 +1031,18 @@ export async function fetchAddressableEvents(
   // authors at four relays each is eighty sockets opened at once for one render.
   const direct = dedupeRelays([...relays, ...valid.flatMap((c) => c.relays ?? [])]);
   const asked = direct.length ? direct : PROFILE_RELAYS;
+  // Done the moment every wanted address has a copy — the page does not wait
+  // for the remaining relays to say "nothing else" (an article took 5.5s
+  // behind an author's dead relay, 2026-09-24). A newer version on a slower
+  // relay reaches the store on later reads; the reader has the article now.
+  const wantedKey = (event: NostrEvent) => `${event.kind}:${event.pubkey}:${event.tags.find((tag) => tag[0] === "d")?.[1] ?? ""}`;
+  const enough = { enough: (collected: Map<string, NostrEvent>) => { const seen = new Set<string>(); for (const e of collected.values()) seen.add(wantedKey(e)); return [...wanted].every((k) => seen.has(k)); } };
   const [events, routed] = await Promise.all([
-    requestAll(asked, filter, timeoutMs),
+    requestAll(asked, filter, timeoutMs, enough),
     planOutboxReads(authors, [])
       .then((plan) => dedupeRelays(plan.relays).filter((relay) => !asked.includes(relay)))
       .catch(() => [] as string[])
-      .then((extra) => (extra.length ? requestAll(extra, filter, timeoutMs) : [])),
+      .then((extra) => (extra.length ? requestAll(extra, filter, timeoutMs, enough) : [])),
   ]);
   for (const event of [...events, ...routed]) keep(event);
 

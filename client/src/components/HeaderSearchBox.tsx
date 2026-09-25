@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useLocation } from "wouter";
 import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -16,6 +16,14 @@ import { useTagMatches } from "@/hooks/useTags";
 import type { TagSummary } from "@/services/tags";import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { typeaheadWords } from "@/lib/searchSyntax";
+import { suggestListings, type SearchHit } from "@/services/search";
+import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
+import { eventPath } from "@/lib/shareId";
+import { PersonContentChips } from "@/components/search/PersonContentChips";
+import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
+import { intentTarget, searchIntent } from "@/lib/personContent";
+import { scopedSearchHref } from "@/lib/searchSyntax";
+import { usePersonContent } from "@/hooks/usePersonContent";
 
 /**
  * Desktop header search with live, debounced typeahead (mirrors the landing box,
@@ -23,6 +31,8 @@ import { typeaheadWords } from "@/lib/searchSyntax";
  * to that profile; submitting free text routes to the home results surface
  * (`/?q=`). Rendered inline in PublicPageHeader on ≥sm; mobile uses the icon.
  */
+
+
 export function HeaderSearchBox({
   className = "",
   placeholder = "Search Brainstorm",
@@ -43,9 +53,13 @@ export function HeaderSearchBox({
   const [, navigate] = useLocation();
   const [q, setQ] = useState("");
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  // Product titles under the people — straight to the listing.
+  const [products, setProducts] = useState<SearchHit[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(-1);
+  // What each suggested person publishes — chips on their row, one tap to it.
+  const personContent = usePersonContent(useMemo(() => suggestions.map((r) => r.pubkey), [suggestions]));
   const timer = useRef<number>();
   const reqId = useRef(0);
   const request = useRef<AbortController | null>(null);
@@ -75,17 +89,24 @@ export function HeaderSearchBox({
     // A `#topic` query resolves to the trust-ranked content feed, not profiles —
     // keep the dropdown open (for the topic row) but skip the profile search.
     if (parseTopicQuery(value).isTopic) {
-      setSuggestions([]); setLoading(false); setOpen(true); return;
+      setSuggestions([]); setProducts([]); setLoading(false); setOpen(true); return;
     }
     // Filters and half-typed prefixes are not names: `doi:` must not list people called "doi".
     if (query.length < 2 || typeaheadWords(value) === null || isLikelyNpub(query) || isHexPubkey(query) || isNip05Handle(query)) {
-      setSuggestions([]); setOpen(false); setLoading(false); return;
+      setSuggestions([]); setProducts([]); setOpen(false); setLoading(false); return;
     }
     setLoading(true); setOpen(true);
     timer.current = window.setTimeout(async () => {
       try {
         request.current = new AbortController();
-        const { results } = await searchByText(query, effectivePov, observerPubkey, 10, request.current.signal);
+        const signal = request.current.signal;
+        void suggestListings(query, { pov: effectivePov, userPubkey: observerPubkey }, { limit: 3, signal }).then((hits) => {
+          if (reqId.current !== id) return;
+          setProducts(hits);
+          if (hits.length) setOpen(true);
+        });
+        // "staci shop" looks up "staci"; the category word becomes the intent row.
+        const { results } = await searchByText(searchIntent(query)?.name ?? query, effectivePov, observerPubkey, 10, signal);
         if (reqId.current !== id) return;
         setSuggestions(results.slice(0, 7)); setActive(-1); setOpen(true);
       } catch {
@@ -127,6 +148,11 @@ export function HeaderSearchBox({
     navigate(profileHref(r.npub));
   };
 
+  const goListing = (hit: SearchHit) => {
+    setOpen(false);
+    navigate(eventPath(hit.event));
+  };
+
   const goTopic = (tag: string) => {
     if (!tag) return;
     setOpen(false);
@@ -164,6 +190,8 @@ export function HeaderSearchBox({
   };
 
   const topic = parseTopicQuery(q);
+  // "staci shop": the person named, if a suggested one has that category — the intent row's target.
+  const intent = useMemo(() => intentTarget(searchIntent(q), suggestions, personContent), [q, suggestions, personContent]);
   // `#topic` queries already route to the hashtag feed — don't offer a second answer.
   // Only while the dropdown is open: text left after submit mustn't keep the catalogue live.
   const tagMatches = useTagMatches(topic.isTopic || !open ? "" : q);
@@ -199,16 +227,21 @@ export function HeaderSearchBox({
           )}
         </div>
       </form>
-      {open && (topic.isTopic || loading || suggestions.length > 0 || tagMatches.length > 0) && (
+      {open && (topic.isTopic || loading || suggestions.length > 0 || products.length > 0 || tagMatches.length > 0 || !!intent) && (
         <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/10" role="listbox" data-testid="header-search-suggestions">
           {topic.isTopic ? (
             <TopicSuggestionRow tag={topic.tag} active onSelect={() => goTopic(topic.tag)} testId="header-search-topic" />
-          ) : loading && suggestions.length === 0 && tagMatches.length === 0 ? (
+          ) : loading && suggestions.length === 0 && products.length === 0 && tagMatches.length === 0 ? (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-slate-400 dark:text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Searching…
             </div>
           ) : (
             <>
+            {intent && (
+              <div className="border-b border-slate-100 dark:border-slate-800/60">
+                <IntentSuggestionRow name={nameOf(intent.person as SearchResult)} chip={intent.chip} onSelect={() => { setOpen(false); navigate(scopedSearchHref(intent.person.pubkey, intent.chip.tab)); }} testId="header-search-intent" />
+              </div>
+            )}
             {tagMatches.length > 0 && (
               <div className="border-b border-slate-100 dark:border-slate-800/60" data-testid="header-search-tags">
                 {tagMatches.map((t) => (
@@ -222,14 +255,14 @@ export function HeaderSearchBox({
               </div>
             )}
             {suggestions.map((r, i) => (
-              <button
+              // A div, not a button: the chips inside are links, and the input keeps focus anyway.
+              <div
                 key={r.pubkey}
-                type="button"
                 role="option"
                 aria-selected={i === active}
                 onMouseEnter={() => setActive(i)}
                 onClick={() => goProfile(r)}
-                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${i === active ? "bg-slate-50 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                className={`group flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors ${i === active ? "bg-slate-50 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                 data-testid={`header-search-opt-${i}`}
               >
                 <Avatar className={`h-8 w-8 shrink-0 border border-slate-200 dark:border-slate-800 ${tierRing(r.wotRank) ?? ""}`}>
@@ -240,6 +273,14 @@ export function HeaderSearchBox({
                   <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{nameOf(r)}</p>
                   {r.nip05 && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{r.nip05}</p>}
                 </div>
+                <PersonContentChips
+                  pubkey={r.pubkey}
+                  name={nameOf(r)}
+                  content={personContent.get(r.pubkey)}
+                  onNavigate={() => setOpen(false)}
+                  linkTabIndex={-1}
+                  className="sm:opacity-0 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100 sm:group-focus-within:opacity-100"
+                />
                 {/* Same coin as the results page, the profile hero and every
                     people list. It also fixes a scale bug this pill had: it
                     printed `wotRank` raw, which is 0..1, so a 93 would have read
@@ -252,8 +293,15 @@ export function HeaderSearchBox({
                     className={tierRing(r.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
                   />
                 )}
-              </button>
+              </div>
             ))}
+            {products.length > 0 && (
+              <div className="border-t border-slate-100 dark:border-slate-800/60" data-testid="header-search-products">
+                {products.map((h, i) => (
+                  <ListingSuggestionRow key={h.event.id} hit={h} onSelect={() => goListing(h)} testId={`header-search-product-${i}`} />
+                ))}
+              </div>
+            )}
             </>
           )}
         </div>

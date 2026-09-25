@@ -81,6 +81,7 @@ import {
   fetchEventRsvps,
   searchStream,
   suggestProfiles,
+  suggestListings,
   kindsForTab,
   TAB_KINDS,
   type SearchSnapshot, type SearchHit, type SearchTab } from "./search";
@@ -176,6 +177,24 @@ describe("searchStream", () => {
     expect(filter.kinds).toEqual([30817]);
     expect(filter["#k"]).toEqual(["5905"]);
     expect(filter.search).toMatch(/^observer:/);
+  });
+
+  // Zap Cooking's overwritten recipes (2026-09-24): the search relay still
+  // holds the husks — content "", a tombstone tag, a "[Deleted]" title — and
+  // they were "[Deleted]" cards on every tab. A husk never becomes a hit.
+  it("never turns a husk deleted by overwriting into a hit", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("tea", { tab: "articles", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    const husk = { ...ev("h1", 30023, "b".repeat(64), ""), tags: [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]] } as NostrEvent;
+    const article = { ...ev("a1", 30023, "b".repeat(64), "# Cheese foam tea"), tags: [["d", "cheese-foam-tea-2"], ["title", "Cheese foam tea"]] } as NostrEvent;
+    subject.next(frame(husk));
+    subject.next(frame(article));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.eose).toBe(true);
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["a1"]);
   });
 
   it("streams people hits incrementally, with the house observer on the wire", async () => {
@@ -931,6 +950,55 @@ describe("suggestProfiles", () => {
   });
 });
 
+// Benjamin (2026-09-24), the Google reflex: type "Satoshi Smiley" and go
+// straight to the T-shirt. Product titles ride the same typeahead as people.
+describe("suggestListings", () => {
+  const listing = (id: string, title: string, tags: string[][] = [], pubkey = "a".repeat(64)): NostrEvent =>
+    ({ id, kind: 30402, pubkey, tags: [["d", id], ["title", title], ["price", "21", "USD"], ...tags], content: "", created_at: 1, sig: "s" }) as NostrEvent;
+
+  it("asks the Shop index and resolves at EOSE with sellable listings whose titles hold every typed word", async () => {
+    const { subject } = controllable();
+    const pending = suggestListings("satoshi smiley", { pov: "nosfabrica" }, { limit: 3 });
+    await tick();
+    expect(askedFilters(0)[0].kinds).toEqual([30402]);
+    subject.next(frame(listing("t1", "Satoshi Smiley T-shirt")));
+    subject.next(frame(listing("t2", "Satoshi Mug")));
+    subject.next(frame(listing("t3", "Smiley Satoshi Hoodie", [["status", "sold"]])));
+    subject.next(frame({ ...listing("t4", "Satoshi Smiley Cap"), tags: [["d", "t4"], ["title", "Satoshi Smiley Cap"]] }));
+    subject.next(frame(listing("t5", "SATOSHI smiley Sticker")));
+    subject.next(EOSE);
+    expect((await pending).map((h) => h.event.id)).toEqual(["t1", "t5"]);
+  });
+
+  it("one product is one row, and the limit holds", async () => {
+    const { subject } = controllable();
+    const pending = suggestListings("soap", { pov: "nosfabrica" }, { limit: 2 });
+    await tick();
+    subject.next(frame(listing("s1", "Tallow Soap", [["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]])));
+    subject.next(frame(listing("s2", "Tallow Soap")));
+    subject.next(frame(listing("s3", "Lavender Soap")));
+    subject.next(frame(listing("s4", "Rose Soap")));
+    subject.next(EOSE);
+    expect((await pending).map((h) => h.event.id)).toEqual(["s1", "s3"]);
+  });
+
+  it("a query with no plain words asks nothing", async () => {
+    controllable();
+    expect(await suggestListings("from:npub1abc", { pov: "nosfabrica" })).toEqual([]);
+    expect(reqMock).not.toHaveBeenCalled();
+  });
+
+  it("closes its subscription when the caller aborts", async () => {
+    const { torndown } = controllable();
+    const controller = new AbortController();
+    const pending = suggestListings("soap", { pov: "nosfabrica" }, { signal: controller.signal, timeoutMs: 60_000 });
+    await tick();
+    controller.abort();
+    expect(await pending).toEqual([]);
+    expect(torndown.count).toBe(1);
+  });
+});
+
 /** Multi-REQ fake: every req() call gets its own subject; filters recorded. */
 function multiReq() {
   const calls: { filter: Record<string, unknown>; subject: Subject<ReqFrame>; closed: boolean }[] = [];
@@ -1683,6 +1751,21 @@ describe("fetchSimilarListings", () => {
     const similar = await pending;
     expect(similar.map((e) => e.tags.find((t) => t[0] === "d")?.[1])).toEqual(["stein", "cup"]);
     expect(similar[0].created_at).toBe(2);
+  });
+  // Staci's soap (2026-09-24): the relay's first 40 in "Health & Beauty" were
+  // all hers, so dropping the seller left nothing similar — while the relay
+  // held 53 from other sellers just past that window.
+  it("asks deep enough that one prolific seller cannot fill the window and leave nothing similar", async () => {
+    const { subject } = controllable();
+    const me = "a".repeat(64);
+    const pending = fetchSimilarListings(["soap"], `30402:${me}:soap-1`, { excludePubkey: me });
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as { limit: number };
+    expect(filter.limit).toBeGreaterThanOrEqual(150);
+    for (let i = 0; i < 40; i++) subject.next(frame(listing(me, `mine-${i}`, ["soap"], i)));
+    subject.next(frame(listing("c".repeat(64), "bar", ["soap"], 50)));
+    subject.next(EOSE);
+    expect((await pending).map((e) => e.pubkey)).toEqual(["c".repeat(64)]);
   });
 });
 

@@ -69,6 +69,20 @@ describe("fetchAddressableEvents", () => {
     expect(searchReqMock).not.toHaveBeenCalled();
   });
 
+  // An article page waited for every relay to say "nothing else" after the
+  // article had already arrived (5.5s on a page whose author lists a dead
+  // relay, 2026-09-24). A read for named addresses is done the moment every
+  // one of them has a copy; the store keeps refreshing newer versions later.
+  it("asks the read to stop the moment every wanted address has a copy", async () => {
+    requestAllMock.mockResolvedValueOnce([isis()]);
+    await fetchAddressableEvents([ptr], ptr.relays);
+    const opts = requestAllMock.mock.calls[0][3] as { enough?: (collected: Map<string, NostrEvent>) => boolean };
+    expect(opts?.enough).toBeTypeOf("function");
+    const other = { ...isis(), id: "2".repeat(64), tags: [["d", "osiris"]] } as NostrEvent;
+    expect(opts.enough!(new Map([[other.id, other]]))).toBe(false);
+    expect(opts.enough!(new Map([[other.id, other], [isis().id, isis()]]))).toBe(true);
+  });
+
   it("falls back to the search relay (with a lens) for an address the content relays lack", async () => {
     requestAllMock.mockResolvedValueOnce([]);
     const pending = fetchAddressableEvents([ptr], ptr.relays);

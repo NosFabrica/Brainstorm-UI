@@ -24,6 +24,7 @@ import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers
 import { nip19 } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
+import { setTechnicalView } from "@/lib/technicalView";
 
 const AUTHOR = "9".repeat(64);
 const eventsByIds = vi.fn(async (..._args: unknown[]) => [] as unknown[]);
@@ -94,6 +95,22 @@ const open = async (ev: ReturnType<typeof event>) => {
 describe("the article reader", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  // Zap Cooking's "cheese-foam-tea" (2026-09-24): deleted by overwriting, its
+  // address still resolves — to content "", a tombstone tag and a "[Deleted]"
+  // title, which read as an article called "[Deleted]". The page says what
+  // happened instead.
+  it("a link to an article deleted by overwriting says so, and shows no article", async () => {
+    const husk = { ...event(30023, "cheese-foam-tea", "[Deleted]", [["deleted", "true"]], ""), tags: [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]] };
+    served.mockReturnValue(husk);
+    const naddr = nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "cheese-foam-tea" });
+    window.history.pushState({}, "", `/e/${naddr}`);
+    renderPage();
+    const notice = await screen.findByTestId("event-deleted");
+    expect(notice).toHaveTextContent(/deleted by its author/i);
+    expect(screen.queryByTestId("article-body")).toBeNull();
+    expect(screen.queryByText("[Deleted]")).toBeNull();
+  });
+
   it("offers a recipe's own home — Open in Zap.cooking — beside the menu", async () => {
     const naddr = await open(article([["t", "zapcooking"], ["t", "zapcooking-girik"]]));
 
@@ -109,6 +126,36 @@ describe("the article reader", () => {
 
     expect(screen.queryByTestId("article-source-app")).toBeNull();
     expect(screen.getByTestId("article-menu")).toBeInTheDocument();
+  });
+});
+
+describe("what the reader says a page is", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // The team (2026-09-24): a spec from Nostr Hub has no NIP number; the page
+  // says what it is in the same pill every card wears, above the title.
+  it("names the kind above the title: Spec, Recipe", async () => {
+    await open(spec(30817, []));
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
+  });
+
+  // The technical view's line under the byline: kind and ids, a click to copy.
+  it("with the technical view on, the page carries its kind and address", async () => {
+    setTechnicalView(true);
+    localStorage.setItem("brainstorm_active_account", "acct-1");
+    const naddr = await open(spec(30817, []));
+    const strip = screen.getByTestId("technical-strip");
+    expect(strip).toHaveTextContent("kind 30817");
+    expect(strip).toHaveTextContent(`naddr ${naddr.slice(0, 8)}…${naddr.slice(-4)}`);
+    setTechnicalView(false);
+    localStorage.removeItem("brainstorm_active_account");
+  });
+
+  // Benjamin (2026-09-24): only a spec. An essay, a wiki page or a recipe
+  // looks like what it is; the word above the title would be noise.
+  it("says nothing above a recipe or an essay", async () => {
+    await open(article([["t", "zapcooking"]]));
+    expect(screen.queryByTestId("kind-pill")).toBeNull();
   });
 });
 

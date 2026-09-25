@@ -1,6 +1,6 @@
 import { useState, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
-import { FileText, BadgeCheck, ArrowRight } from "lucide-react";
+import { BadgeCheck, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
@@ -16,7 +16,12 @@ import recipeCover from "@/assets/cooking-recipe-easy-recipe-steps-cover.webp";
 export const SPEC_COVER_ALT = "Nostr Implementation — decentralized network specs";
 export const RECIPE_COVER_ALT = "Cooking Recipe — easy recipe steps";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { isBlankEvent } from "@/lib/blankEvent";
+import { DeletedStub } from "@/components/share/DeletedStub";
 import { sourceAppFor } from "@/lib/sourceApp";
+import { specKindTags } from "@/lib/kindLabel";
+import { KindPill } from "@/components/ui/kind-pill";
+import { ViaRelay } from "@/components/ui/via-relay";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -36,23 +41,31 @@ function ago(ts?: number): string {
 /**
  * A long-form article (NIP-23 kind-30023) teaser: cover image, title, a short
  * brief, and the author — with a "Read article" web-reader link and an
- * "Open in app" handoff. Responsive: image stacks on top on mobile, sits to the
- * left on desktop. Replaces an ugly raw `naddr`/article URL.
+ * "Open in app" handoff. Responsive to its OWN width, not the viewport's: the
+ * cover stacks on top when the card is narrow and sits to the left when it
+ * has room. A viewport breakpoint put a card inside a two-column grid on a
+ * desktop side by side at 280px — the title in a 90px column and the
+ * button wrapping (Benjamin, 2026-09-24: "this looks bad"). Replaces an
+ * ugly raw `naddr`/article URL.
  */
 /** How many of a spec's kinds a card shows; the spec page has them all. */
 const KIND_CHIPS_SHOWN = 6;
 
-export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [] }: {
+export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [], mixed = true }: {
   trustScore01?: number | null;
   event: MinimalEvent;
   author?: ProfileLite;
   /** The kinds the search asked for — shown first, so a reader sees why the card matched. */
   leadKinds?: string[];
+  /** Whether the surface mixes kinds. The Recipes and NIPs tabs hold one and say so; the pill stays away there. */
+  mixed?: boolean;
 }) {
   const tierRing = useTierRing();
   // Callers that fetched a score pass it (dashboard/reading cards); the
   // profile's article list doesn't — self-serve from the shared house cache.
   const fallbackScoreOf = useAuthorScores(trustScore01 == null ? [event.pubkey] : []);
+  // Deleted by overwriting: a quiet stub in the card's place, nothing to click.
+  if (isBlankEvent(event)) return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   const title = tagVal(event, "title") || "Untitled article";
   // A wiki page (NIP-54) has no summary tag; its opening words stand in.
@@ -60,10 +73,12 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
   // A spec (kind 30817) says which event kinds it covers in `k` tags.
   const isSpec = event.kind === 30817;
   // Each is the NIPs tab's filter: the specs that cover that kind. In order.
-  const allKinds = isSpec ? [...new Set(event.tags.filter((t) => t[0] === "k" && /^\d+$/.test(t[1] ?? "")).map((t) => t[1]))].sort((a, b) => Number(a) - Number(b)) : [];
+  // Each with the name its author gave it: with no NIP number to lean on, the
+  // kind's own name is what tells a reader what the chip means.
+  const allKinds = isSpec ? specKindTags(event) : [];
   // A capability profile lists forty kinds; six keep every card the same
   // height, the searched kind leading, the rest counted.
-  const lead = leadKinds.filter((k) => allKinds.includes(k));
+  const lead = allKinds.filter((k) => leadKinds.includes(k.kind));
   const coveredKinds = [...lead, ...allKinds.filter((k) => !lead.includes(k))].slice(0, KIND_CHIPS_SHOWN);
   const moreKinds = allKinds.length - coveredKinds.length;
   const summary = articleBrief(event);
@@ -94,11 +109,14 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
 
   return (
     <div
-      className={`mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors" : ""}`}
+      className={`not-prose mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 @container ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors" : ""}`}
       data-testid="embedded-article"
       onClick={onCardClick}
     >
-      <div className="flex flex-col sm:flex-row">
+      {/* `@[26rem]`: the card's own width at which the cover moves beside the
+          text — the 11rem cover, its margins, and room for a title. Written
+          out in full: Tailwind only sees class names it can read whole. */}
+      <div className="flex flex-col @[26rem]:flex-row">
         {/* One shape for every card — 16:9, the shape covers are — so the
             same cover never crops differently from card to card, and a
             banner shows edge to edge. Dimensions declared: no jump on load. */}
@@ -110,25 +128,24 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
           loading="lazy"
           decoding="async"
           onError={() => setImgBroken(true)}
-          className="aspect-video w-full object-cover shrink-0 bg-slate-100 dark:bg-slate-800 sm:m-3 sm:w-44 sm:self-start sm:rounded-lg"
+          className="aspect-video w-full object-cover shrink-0 bg-slate-100 dark:bg-slate-800 @[26rem]:m-3 @[26rem]:w-44 @[26rem]:self-start @[26rem]:rounded-lg"
         />
 
         <div className="min-w-0 flex-1 p-3">
-          <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-primary">
-            <FileText className="h-3 w-3" /> {isWiki ? "Wiki" : isSpec ? "Spec" : sourceAppFor(event)?.noun ?? "Article"}
-          </p>
+          <KindPill event={event} mixed={mixed} />
           <p className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 mt-0.5">{title}</p>
           {summary && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{summary}</p>}
           {coveredKinds.length > 0 && (
             <p className="mt-1 flex flex-wrap gap-1 font-mono text-[10px] text-slate-400 dark:text-slate-500" data-testid="article-kinds">
-              {coveredKinds.map((k) => (
+              {coveredKinds.map(({ kind, label }) => (
                 <Link
-                  key={k}
-                  href={`/?t=nips&q=${encodeURIComponent(`kind:${k}`)}`}
-                  title={`Specs that cover kind ${k}`}
-                  className="rounded bg-slate-100 px-1 py-0.5 transition-colors hover:text-brand-deep dark:bg-slate-800 dark:hover:text-brand-link"
+                  key={kind}
+                  href={`/?t=nips&q=${encodeURIComponent(`kind:${kind}`)}`}
+                  title={label ? `${label} — specs that cover kind ${kind}` : `Specs that cover kind ${kind}`}
+                  className="inline-flex max-w-full items-center rounded bg-slate-100 px-1 py-0.5 transition-colors hover:text-brand-deep dark:bg-slate-800 dark:hover:text-brand-link"
                 >
-                  kind {k}
+                  {kind}
+                  {label && <span className="truncate max-w-[10rem] text-slate-500 dark:text-slate-400"> · {label}</span>}
                 </Link>
               ))}
               {moreKinds > 0 && (
@@ -147,6 +164,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
             <span className="font-medium text-slate-600 dark:text-slate-300 truncate">{name}</span>
             {nip05Verified && <BadgeCheck className="h-3 w-3 text-sky-500 shrink-0" />}
             {event.created_at ? <span className="text-slate-400 dark:text-slate-500 ml-auto shrink-0">{ago(event.created_at)}</span> : null}
+            <ViaRelay event={event} />
           </div>
 
           {/* Read the full article on Brainstorm's on-site reader. */}

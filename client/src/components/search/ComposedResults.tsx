@@ -7,10 +7,12 @@
  * Media rides a compact row. Sections with nothing to show don't render.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ListingCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import { ListingCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
 import { isSellable, parseListing } from "@/lib/listing";
 import { noteTitle } from "@/lib/noteTitle";
 import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
+import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
+import { filterPodcastIndex } from "@/lib/dlists";
 import { parseTrack } from "@/lib/trackEvent";
 import { setPlaylist } from "@/lib/audioPlayer";
 import { Clock, HelpCircle } from "lucide-react";
@@ -19,7 +21,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing, QuietTrustChrome } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { SerpRow, kindTypeLabel } from "@/components/search/SerpRow";
+import { SerpRow } from "@/components/search/SerpRow";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
@@ -386,14 +389,20 @@ function ComposedResultsBody({
   const wavlake = useWavlakeSongs(query, true);
   const listen = useMemo(() => (musicF?.hits ?? []).filter((h) => parseTrack(h.event) !== null).slice(0, 4), [musicF]);
   const listenWavlake = useMemo(() => wavlake.songs.slice(0, Math.max(0, 4 - listen.length)), [wavlake.songs, listen.length]);
+  // The value-for-value lists (the team, 2026-09-24) are the third source:
+  // up to three songs that answer the words, after Wavlake's. Everything
+  // with words is where most searches start; with no words there are none.
+  const podcastIndexAll = usePodcastIndexMusic(query.trim() !== "");
+  const listenPodcast = useMemo(() => filterPodcastIndex(query, podcastIndexAll).songs.slice(0, 3), [query, podcastIndexAll]);
   // The row is a queue: a song that ends hands off to the next one shown.
   useEffect(() => {
-    if (listen.length + listenWavlake.length === 0) return;
+    if (listen.length + listenWavlake.length + listenPodcast.length === 0) return;
     setPlaylist([
       ...listen.map((h) => parseTrack(h.event)!).map((tr) => ({ id: tr.id, src: tr.audio })),
       ...listenWavlake.map((s) => ({ id: s.id, src: s.audio })),
+      ...listenPodcast.map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist })),
     ]);
-  }, [listen, listenWavlake]);
+  }, [listen, listenWavlake, listenPodcast]);
 
   const visited = useMemo(() => visitedPubkeys(), []);
   // The strip scrolls with a plain mouse wheel too — same feel as the facet chips.
@@ -546,7 +555,7 @@ function ComposedResultsBody({
               {/* The section says "Articles" for the rows, so an essay needs no
                   label — a spec (30817) rides here too and must not pass for one. */}
               {articleRows.map((c) => (
-                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} showType={c.primary.event.kind === 30817} />
+                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
               ))}
             </div>
           )}
@@ -578,7 +587,7 @@ function ComposedResultsBody({
         </Section>
       )}
 
-      {listen.length + listenWavlake.length > 0 && (
+      {listen.length + listenWavlake.length + listenPodcast.length > 0 && (
         <Section id="listen" kicker="Listen" tab="music" onTabChange={onTabChange}>
           {/* Rows, not boxes: a stream of songs reads like a list. */}
           <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -587,6 +596,9 @@ function ComposedResultsBody({
             ))}
             {listenWavlake.map((song) => (
               <WavlakeSongCard key={song.id} song={song} flat />
+            ))}
+            {listenPodcast.map((song) => (
+              <PodcastIndexSongCard key={song.id} song={song} flat />
             ))}
           </div>
         </Section>
@@ -603,7 +615,7 @@ function ComposedResultsBody({
                 query={query}
                 renderRow={
                   c.primary.event.kind === 31922 || c.primary.event.kind === 31923
-                    ? (h) => <EventRow hit={h} score={scoreOf(h.event.pubkey)} going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0} />
+                    ? (h) => <EventRow hit={h} score={scoreOf(h.event.pubkey)} going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0} showKind />
                     : undefined
                 }
               />

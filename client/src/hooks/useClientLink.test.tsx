@@ -15,7 +15,7 @@ vi.mock("@/services/clientLinks", () => ({ resolveClientLink: (r: unknown) => re
 
 import { useClientLink } from "./useClientLink";
 
-const ref = { kind: "profile" as const, name: "alice" };
+const ref = { kind: "profile" as const, nip05: "alice@primal.net" };
 const entity: ClientLinkEntity = { kind: "profile", pubkey: "a".repeat(64), npub: "npub1x" };
 
 beforeEach(() => {

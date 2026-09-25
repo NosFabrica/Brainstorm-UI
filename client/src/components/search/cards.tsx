@@ -1,7 +1,13 @@
 import { parseTrack } from "@/lib/trackEvent";
-import { formatListingPrice, parseListing } from "@/lib/listing";
+import { formatListingPrice, listingCardLine, parseListing } from "@/lib/listing";
+import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRate";
 import type { WavlakeSong } from "@/lib/wavlake";
+import type { PodcastSong } from "@/lib/dlists";
+import type { FountainItem } from "@/lib/fountain";
 import { useEffect, useState } from "react";
+import { useConnectionSpeed } from "@/lib/connection";
+import { MediaImg } from "@/components/ui/media-img";
+import { useAvatarSrc } from "@/lib/avatarSrc";
 /**
  * Typed result cards for the verticals with no existing precedent —
  * media, code & git, live events, lists. Each is a compact, self-contained
@@ -24,8 +30,11 @@ import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
-import { profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
-import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitLabelsOf, type GitState } from "@/lib/gitStatus";
+import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
+import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
+import { KindPill } from "@/components/ui/kind-pill";
+import { ViaRelay } from "@/components/ui/via-relay";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
@@ -68,14 +77,19 @@ function AuthorRow({
   author,
   score,
   created_at,
+  trailing,
 }: {
   author: SearchResult | null;
   score?: number | null;
   created_at: number;
+  /** What the row ends with — the card's kind pill. */
+  trailing?: React.ReactNode;
 }) {
   const tierRing = useTierRing();
+  // Wraps: on a narrow card (four across on the Shop tab) a pill that does not
+  // fit beside the date drops to its own line instead of crossing the border.
   return (
-    <div className="flex items-center gap-2 min-w-0">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
       <Avatar className={`h-6 w-6 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}>
         {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">
@@ -86,6 +100,7 @@ function AuthorRow({
         {author ? getDisplayLabel(author) : "Unknown"}
       </span>
       <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{fmtWhen(created_at)}</span>
+      {trailing}
     </div>
   );
 }
@@ -277,7 +292,7 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
       className="relative w-full cursor-pointer rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150 p-3 sm:p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
       data-testid={`media-card-${event.id}`}
     >
-      <AuthorRow author={author} score={score} created_at={event.created_at} />
+      <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<><KindPill event={event} mixed={false} /><ViaRelay event={event} /></>} />
       {caption && (
         <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-200 break-words line-clamp-2">
           {caption.split(/(nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi).map((part, i) =>
@@ -299,8 +314,9 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
           />
         </div>
       ) : (isImage || poster) && url ? (
-        <img
+        <MediaImg
           src={isImage ? url : (poster as string)}
+          preset="media_1280"
           alt=""
           loading="lazy"
           className="mt-2 w-full max-h-96 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-cover"
@@ -378,7 +394,10 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
       <div className="flex h-full flex-col">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+            <div className="flex items-center gap-2 min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+              <KindPill event={event} mixed={false} />
+            </div>
             {summary && (
             <p
               className="mt-0.5 min-h-[2rem] text-xs leading-4 text-slate-500 dark:text-slate-400 break-words line-clamp-2"
@@ -502,11 +521,11 @@ export function RepoCard({
 }) {
   // One card for NIP-34: repo announcements (30617, the Repos tab), issues
   // (1621, the Issues tab), patches and pull requests (1617/1618, the PRs
-  // tab). A repo wears no chip; a patch or issue says what it is and names the
-  // repo it belongs to (from its a-tag) — the context that makes a lone "fix: …"
-  // card mean something.
+  // tab). Each says what it is in the one pill every card wears — a patch or
+  // pull request in the info tone, an issue in warning, a repo plain — and a
+  // patch or issue names the repo it belongs to (from its a-tag), the context
+  // that makes a lone "fix: …" card mean something.
   const isRepo = event.kind === 30617;
-  const typeLabel = isRepo ? null : gitItemLabel(event.kind);
   const typeTone: "info" | "warning" = event.kind === 1617 || event.kind === 1618 ? "info" : "warning";
   // A repo is named by its announcement; an issue, patch or PR by the one
   // title rule — a patch without a subject tag is titled from its own text.
@@ -566,7 +585,9 @@ export function RepoCard({
               leaves it room so a long title's type chip never slides under it. */}
           <div className={`flex items-center gap-2 min-w-0 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
-            {typeLabel && <Chip size="sm" tone={typeTone}>{typeLabel}</Chip>}
+            {/* A patch, pull request or issue announces itself, as it always has;
+                a repo on the Repos tab says Repo only with kind labels on. */}
+            {isRepo ? <KindPill event={event} mixed={false} /> : <Chip size="sm" tone={typeTone} data-testid="kind-pill">{kindTypeLabel(event.kind)}</Chip>}
           </div>
           {isRepo && forkOf && (
             <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500" data-testid={`repo-fork-of-${event.id}`}>
@@ -692,6 +713,7 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
               so a long title and the live chip never run beneath it. */}
           <div className={`flex items-center gap-2 min-w-0 ${openIn ? "pr-14" : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+            <KindPill event={event} mixed={false} />
             {status && (
               <Chip size="sm" tone={LIVE_TONES[status] ?? "neutral"} dot={status === "live"} data-testid={`live-status-${event.id}`}>
                 {status}
@@ -734,7 +756,13 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
   const faces = useFaceProfiles(hostIsAuthor ? [] : [hostPk as string]);
   const hostProfile = hostIsAuthor ? undefined : faces.get(hostPk as string);
   const channelName = hostProfile ? hostProfile.display_name || hostProfile.name || "" : author ? getDisplayLabel(author) : "";
+  const speed = useConnectionSpeed();
   const channelPicture = hostProfile ? hostProfile.picture : author?.picture;
+  // One thumbnail URL for both draws below, so the blurred backdrop and the
+  // circle share a single request. AvatarImage further down keeps the original
+  // and does its own.
+  const { src: channelThumb, onError: channelThumbFailed, spent: channelThumbSpent } = useAvatarSrc(channelPicture ?? undefined, "sm", speed);
+  const channelArt = speed === "very-slow" || channelThumbSpent ? null : channelThumb;
   const tierRing = useTierRing();
   const ring = tierRing(hostIsAuthor ? score : hostScore, false, "sm", true) ?? "";
   const category = liveCategoryOf(event);
@@ -754,11 +782,11 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
         <div className="relative aspect-video overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
           {image && !posterBroken ? (
             <img src={image} alt="" loading="lazy" onError={() => setPosterBroken(true)} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-          ) : channelPicture ? (
+          ) : channelArt ? (
             <div className="relative h-full w-full" data-testid={`live-art-${event.id}`}>
-              <img src={channelPicture} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl opacity-60" />
+              <img src={channelArt} alt="" aria-hidden="true" onError={channelThumbFailed} className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl opacity-60" />
               <span className="absolute inset-0 bg-slate-900/30" aria-hidden="true" />
-              <img src={channelPicture} alt="" className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full object-cover ring-2 ring-white/80" />
+              <img src={channelArt} alt="" onError={channelThumbFailed} className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full object-cover ring-2 ring-white/80" />
             </div>
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900" data-testid={`live-art-${event.id}`}>
@@ -788,12 +816,13 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
         </div>
         <p className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-slate-900 dark:text-slate-100">{title}</p>
       </Link>
-      <div className={`mt-1.5 flex items-center gap-2 ${openIn ? "pr-7" : ""}`}>
+      <div className={`mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 ${openIn ? "pr-7" : ""}`}>
         <Avatar className={`h-6 w-6 shrink-0 ${ring}`}>
           {channelPicture ? <AvatarImage src={channelPicture} alt="" className="object-cover" /> : null}
           <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
         </Avatar>
         <span className="min-w-0 truncate text-xs text-slate-600 dark:text-slate-300">{channelName}</span>
+        <KindPill event={event} mixed={false} />
         {/* The category waits for a wider tile: on a phone's 166px it cut 46 of
             66 host names ("The Old Timey Computer Show" kept 27px). */}
         {category && <span className="hidden sm:inline shrink-0 truncate text-[11px] text-slate-400 dark:text-slate-500">· {category}</span>}
@@ -901,12 +930,15 @@ export function EventCard({
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          {cal.startSec > 0 && (
-            <p className={`text-xs font-semibold ${past ? "text-slate-400 dark:text-slate-500" : "text-brand-deep dark:text-brand-link"}`} data-testid={`event-time-${event.id}`}>
-              {formatEventTime(cal.startSec, cal.isDateOnly)}
-              {past && <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">· {relativeEventTime(cal.startSec)}</span>}
-            </p>
-          )}
+          <div className="flex items-center gap-2 min-w-0">
+            {cal.startSec > 0 && (
+              <p className={`min-w-0 truncate text-xs font-semibold ${past ? "text-slate-400 dark:text-slate-500" : "text-brand-deep dark:text-brand-link"}`} data-testid={`event-time-${event.id}`}>
+                {formatEventTime(cal.startSec, cal.isDateOnly)}
+                {past && <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">· {relativeEventTime(cal.startSec)}</span>}
+              </p>
+            )}
+            <KindPill event={event} mixed={false} />
+          </div>
           <p className={`mt-0.5 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 line-clamp-2 ${openIn ? "pr-24" : corner ? "sm:pr-24" : ""}`}>{cal.title}</p>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
             <Avatar className={`h-4 w-4 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
@@ -1054,6 +1086,7 @@ export function ListCard({
   const header = (
     <div className="flex items-center gap-2 min-w-0">
       <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+      <KindPill event={event} mixed={false} />
       <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
         {folded
           ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}`
@@ -1158,7 +1191,7 @@ export function ListCard({
             </div>
           ) : (
             <div className="mt-1.5">
-              <AuthorRow author={author} score={score} created_at={event.created_at} />
+              <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<><KindPill event={event} mixed={false} /><ViaRelay event={event} /></>} />
             </div>
           )}
         </div>
@@ -1193,6 +1226,7 @@ export function TrackCard({ event, author, flat }: { event: NostrEvent; author: 
         artistHref={author ? `/p/${author.npub}` : undefined}
         artistPubkey={event.pubkey}
         flat={flat}
+        badge={<KindPill event={event} mixed={false} />}
       />
     </div>
   );
@@ -1230,6 +1264,57 @@ export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: bool
   );
 }
 
+/**
+ * A song from the V4V Songs list (Podcast Index) — the same row as a native
+ * track, the source named, the title opening the artist's music here.
+ */
+export function PodcastIndexSongCard({ song, flat, artistHref }: { song: PodcastSong; flat?: boolean; /** The artist's Nostr profile, when the musician is also on Nostr. */ artistHref?: string }) {
+  const [, navigate] = useLocation();
+  const here = artistHref ?? podcastIndexHref(song.artist || song.title);
+  return (
+    <div data-testid={`podcastindex-song-${song.id}`}>
+      <EmbeddedTrackCard
+        id={song.id}
+        title={song.title}
+        artist={song.artist || undefined}
+        cover={song.cover}
+        audio={song.audio}
+        durationSec={song.durationSec}
+        sourceLabel="Podcast Index"
+        sourceHost="podcastindex.org"
+        onOpen={() => navigate(here)}
+        pageUrl={here}
+        supportUrl={song.url}
+        artistHref={artistHref}
+        flat={flat}
+      />
+    </div>
+  );
+}
+
+/**
+ * A song or episode a person linked on Fountain — the same row as a track,
+ * the show as the artist line, Fountain named as the source. Fountain's page
+ * title carries its own call to action ("• Listen on Fountain"); the row does not.
+ */
+export function FountainSongCard({ item, flat }: { item: FountainItem; flat?: boolean }) {
+  return (
+    <div data-testid={`fountain-song-fountain:${item.id}`}>
+      <EmbeddedTrackCard
+        id={`fountain:${item.id}`}
+        title={item.title.replace(/\s*[•·|–-]\s*(?:Watch|Listen) on Fountain\s*$/i, "").trim() || item.title}
+        artist={item.show ?? undefined}
+        cover={item.image ?? undefined}
+        audio={item.audio}
+        sourceLabel="Fountain"
+        sourceHost="fountain.fm"
+        pageUrl={item.url}
+        flat={flat}
+      />
+    </div>
+  );
+}
+
 
 /**
  * A marketplace listing as a buyer sees it: the photo first, the price as
@@ -1243,7 +1328,8 @@ export function ListingCard({
   score,
   showAuthor = true,
   group,
-}: {
+ sellerListings,
+  rates }: {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
@@ -1251,16 +1337,22 @@ export function ListingCard({
   /** When this card stands for one product published as several listings
    *  (sizes, colours): the shared title and how many options there are. */
   group?: { title: string; options: number };
+  /** The seller's other listings on the page: a Conduit seller's listing published elsewhere still opens on Conduit. */
+  sellerListings?: NostrEvent[];
+  /** The page's Bitcoin price, when it has one: the buyer's own money goes under the seller's price. */
+  rates?: BtcRates | null;
 }) {
   const l = parseListing(event);
   if (!l) return null;
-  // The app that sold it, by name, when we know it; else the seller's own link.
-  const app = sourceAppFor(event);
+  const converted = l.price && rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
+  // The verb says where a tap lands: "Buy on Conduit" when we know the
+  // marketplace by name, "Visit <host>" on a seller's own link.
+  const app = sourceAppFor(event, { sellerListings });
   const host = l.shopUrl ? hostOf(l.shopUrl) ?? undefined : undefined;
   const open = app
-    ? { url: app.url, label: `Open in ${app.name}`, host: app.host, icon: app.icon }
+    ? { url: app.url, label: `Buy on ${app.name}`, host: app.host, icon: app.icon }
     : l.shopUrl
-      ? { url: l.shopUrl, label: "Visit shop", host, icon: undefined }
+      ? { url: l.shopUrl, label: host ? `Visit ${host}` : "Visit shop", host, icon: undefined }
       : null;
   return (
     <CardShell
@@ -1276,14 +1368,17 @@ export function ListingCard({
     >
       <div className="-mx-1 -mt-1 relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
         {l.images[0] ? (
-          <img src={l.images[0]} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+          <MediaImg src={l.images[0]} preset="media_640" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
             <ShoppingBag className="h-7 w-7" />
           </span>
         )}
-        <span className="absolute left-2 top-2 rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold text-white" data-testid={`listing-price-${event.id}`}>
-          {l.price ? formatListingPrice(l.price) : "Price on request"}
+        <span className="absolute left-2 top-2 flex flex-col rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold leading-tight text-white">
+          <span data-testid={`listing-price-${event.id}`}>{l.price ? formatListingPrice(l.price) : "Price on request"}</span>
+          {converted && (
+            <span className="text-[10px] font-medium text-white/75" data-testid={`listing-price-converted-${event.id}`}>{converted}</span>
+          )}
         </span>
         {l.images.length > 1 && (
           <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{l.images.length} photos</span>
@@ -1295,12 +1390,12 @@ export function ListingCard({
         )}
       </div>
       <p className={`mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${open ? "pr-2" : ""}`}>{group?.title ?? l.title}</p>
-      {(l.location || l.summary) && (
-        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{l.location ?? l.summary}</p>
+      {listingCardLine(l) && (
+        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400" data-testid={`listing-meta-${event.id}`}>{listingCardLine(l)}</p>
       )}
       {showAuthor && (
         <div className="mt-2">
-          <AuthorRow author={author} score={score} created_at={event.created_at} />
+          <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<><KindPill event={event} mixed={false} /><ViaRelay event={event} /></>} />
         </div>
       )}
     </CardShell>

@@ -20,6 +20,8 @@ import type { NostrEvent } from "nostr-tools";
 import { readFilters, scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
 import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
 import { useNip05 } from "@/hooks/useNip05";
+import { usePersonContent } from "@/hooks/usePersonContent";
+import { PersonContentChips } from "@/components/search/PersonContentChips";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip, useQuietTrustChrome, QuietTrustChrome } from "@/components/score/VerificationCoin";
@@ -148,6 +150,7 @@ function KnowledgePanelBody({
   sections,
   onOpen,
   onPerson,
+  onTab,
   className = "",
 }: {
   query: string;
@@ -160,6 +163,8 @@ function KnowledgePanelBody({
   sections?: PanelSections;
   /** Who the panel settled on (null when it did not) — the results page leads with their own media. */
   onPerson?: (person: SearchResult | null) => void;
+  /** The results page's tab switch: a content chip in the panel changes the tab in place. */
+  onTab?: (tab: string) => void;
   onOpen?: (person: SearchResult) => void;
   className?: string;
 }) {
@@ -167,6 +172,8 @@ function KnowledgePanelBody({
   // Search's quiet chrome: the coin is for screen readers; the word speaks only as the exception.
   const quietChrome = useQuietTrustChrome();
   const [person, setPerson] = useState<SearchResult | null>(null);
+  // What they publish — the same chips as the search rows, under "Followed by".
+  const personContent = usePersonContent(useMemo(() => (person ? [person.pubkey] : []), [person?.pubkey])); // eslint-disable-line react-hooks/exhaustive-deps
   // Only a handle its domain vouches for gets the check (lib/nip05).
   const nip05Status = useNip05(person?.nip05, person?.pubkey);
   const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
@@ -810,7 +817,7 @@ function KnowledgePanelBody({
       <div className="flex items-center gap-3">
         <div className="relative shrink-0">
           <Avatar className={`h-14 w-14 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}>
-            {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
+            {person.picture ? <AvatarImage size="lg" src={person.picture} alt="" className="object-cover" /> : null}
             <AvatarFallback className="overflow-hidden">
               <DefaultAvatarImg />
             </AvatarFallback>
@@ -870,6 +877,15 @@ function KnowledgePanelBody({
       {/* Nostr's oldest review: who follows them — the most trusted faces, and
           how many verified accounts in all. Then the trust reviews proper. */}
       <FollowedByLine pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} testId="person-followed-by" className="mt-2.5" />
+      {/* What they publish, one tap to each — the tab switches in place under a scope. */}
+      <PersonContentChips
+        pubkey={person.pubkey}
+        name={getDisplayLabel(person)}
+        content={personContent.get(person.pubkey)}
+        onPick={onTab ? (c) => onTab(c.tab) : undefined}
+        className="mt-2.5"
+        testId="panel-content-chips"
+      />
       <PanelVouches pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} />
       {/* The two freshest blocks — a live stream or replay first — then one
           quiet row for the rest. Benjamin, after keeping every block: "I think

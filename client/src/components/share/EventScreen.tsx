@@ -3,6 +3,8 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { naddrForEvent } from "@/lib/articleLinks";
+import { isBlankEvent } from "@/lib/blankEvent";
+import { DeletedStub } from "@/components/share/DeletedStub";
 import { Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
@@ -27,6 +29,9 @@ import { isGitItem } from "@/lib/gitStatus";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { DesignationHero } from "@/components/share/DesignationHero";
 import { StructuralHero } from "@/components/share/StructuralHero";
+import { TechnicalStrip } from "@/components/share/TechnicalStrip";
+import { DListHero } from "@/components/share/DListHero";
+import { dlistOfEvent } from "@/lib/dlists";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
@@ -39,6 +44,7 @@ import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { useLightbox } from "@/components/share/Lightbox";
 import { EntityMenu } from "@/components/share/EntityMenu";
+import { originClientOf } from "@/lib/openInApp";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS } from "@/lib/shareId";
@@ -53,7 +59,7 @@ import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { Nip05Check } from "@/components/Nip05Check";
 
 
-type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
+type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string; website?: string };
 export type EventPointer = { id: string; relays?: string[]; author?: string };
 
 /** Addressable kinds (30000–39999) are commented on by coordinate, not id —
@@ -151,6 +157,9 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   });
   const note = (event ?? eventQuery.data) as MinimalEvent | null | undefined;
 
+  // Deleted by overwriting (lib/blankEvent): the address still resolves, to a
+  // husk. Say what happened rather than render an article called "[Deleted]".
+  if (note && isBlankEvent(note)) return <DeletedEvent />;
   // The kind decides, before any of the event layout's own queries run.
   if (note && READER_KINDS.has(note.kind)) {
     const d = note.tags.find((t) => t[0] === "d")?.[1] ?? "";
@@ -159,6 +168,22 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
     if (naddr) return <ArticleScreen ev={note as ArticleEvent} naddr={naddr} ptr={{ kind: note.kind, pubkey: note.pubkey, identifier: d, relays: relayHints }} />;
   }
   return <EventView ptr={ptr} note={note} loading={eventQuery.isLoading} />;
+}
+
+function DeletedEvent() {
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
+      <PublicPageHeader />
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+        <div className="py-10" data-testid="event-deleted">
+          <DeletedStub />
+          <p className="mt-4 text-center">
+            <Link href="/" className="text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
+          </p>
+        </div>
+      </main>
+    </div>
+  );
 }
 
 function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: MinimalEvent | null | undefined; loading: boolean }) {
@@ -259,6 +284,13 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
   );
 
   const openInApp = nostrUriForEvent(ptr?.id || "", relayHints, authorPk || undefined);
+  // Whether the hero below is one of the kind-specific ones, or the generic
+  // fallback (media, text, or the structural card). Mirrors the chain in the
+  // JSX: a kind with no hero of its own is the one whose publishing client
+  // is worth a way back to (the team, 2026-09-24: "open in original client").
+  const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 10040, 31337, 30402, 31922, 31923]);
+  const renderedGenerically =
+    !!note && !isGitItem(note.kind) && !DEDICATED_KINDS.has(note.kind) && !VIDEO_EVENT_KINDS.has(note.kind) && !NOTE_KINDS.has(note.kind);
   // The ⋯ in the header: copies of the event's ids and "Open in" another
   // client. The URL may have carried a bare id or a note1 — a real nevent
   // is what to copy and what the web apps want.
@@ -359,7 +391,7 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
               </Link>
               {ptr && nevent && (
                 <EntityMenu
-                  entity={{ kind: "event", eventKind: note.kind, bech32: nevent, uri: openInApp }}
+                  entity={{ kind: "event", eventKind: note.kind, bech32: nevent, uri: openInApp, origin: renderedGenerically ? originClientOf(note) : undefined }}
                   copies={[
                     ...(naddr ? [{ id: "naddr", label: "Copy naddr", value: naddr, hint: "Its address: always the latest version" }] : []),
                     { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
@@ -372,9 +404,14 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
               )}
             </div>
 
+            {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
+            {ptr && <TechnicalStrip event={note} ids={nevent ? [{ label: "nevent", value: nevent }] : []} className="mb-3" />}
+
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`} data-testid="event-note">
-              {isGitItem(note.kind) ? (
+              {dlistOfEvent(note) ? (
+                <DListHero event={note} />
+              ) : isGitItem(note.kind) ? (
                 <GitItemHero event={note} author={{ name: profile.name, displayName: profile.display_name, bot: (profile as { bot?: boolean }).bot === true }} />
               ) : note.kind === 30311 ? (
                 <LiveHero event={note} />
@@ -391,7 +428,7 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
-                <ListingHero event={note} />
+                <ListingHero event={note} sellerWebsite={profile.website} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
               ) : VIDEO_EVENT_KINDS.has(note.kind) ? (
