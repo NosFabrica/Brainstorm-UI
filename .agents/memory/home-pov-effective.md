@@ -25,6 +25,3 @@ degrade to house rather than issue a broken personalized query.
 highlight (`aria-pressed`) and the issued query both keyed on `effectivePov`, not
 the raw stored `pov`. A change to POV re-runs the active search via an effect
 keyed on `effectivePov` (guarded by a `prevPovRef`).
-
-Guarded by `scripts/home-pov-toggle.test.ts` (validation step `home-pov-toggle`),
-a static AST/source test — there is no DOM runner in this repo.
