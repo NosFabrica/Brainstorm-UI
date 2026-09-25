@@ -179,6 +179,24 @@ describe("searchStream", () => {
     expect(filter.search).toMatch(/^observer:/);
   });
 
+  // Zap Cooking's overwritten recipes (2026-09-24): the search relay still
+  // holds the husks — content "", a tombstone tag, a "[Deleted]" title — and
+  // they were "[Deleted]" cards on every tab. A husk never becomes a hit.
+  it("never turns a husk deleted by overwriting into a hit", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("tea", { tab: "articles", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    const husk = { ...ev("h1", 30023, "b".repeat(64), ""), tags: [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]] } as NostrEvent;
+    const article = { ...ev("a1", 30023, "b".repeat(64), "# Cheese foam tea"), tags: [["d", "cheese-foam-tea-2"], ["title", "Cheese foam tea"]] } as NostrEvent;
+    subject.next(frame(husk));
+    subject.next(frame(article));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.eose).toBe(true);
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["a1"]);
+  });
+
   it("streams people hits incrementally, with the house observer on the wire", async () => {
     const { subject } = controllable();
     const snaps: SearchSnapshot[] = [];

@@ -95,6 +95,22 @@ const open = async (ev: ReturnType<typeof event>) => {
 describe("the article reader", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  // Zap Cooking's "cheese-foam-tea" (2026-09-24): deleted by overwriting, its
+  // address still resolves — to content "", a tombstone tag and a "[Deleted]"
+  // title, which read as an article called "[Deleted]". The page says what
+  // happened instead.
+  it("a link to an article deleted by overwriting says so, and shows no article", async () => {
+    const husk = { ...event(30023, "cheese-foam-tea", "[Deleted]", [["deleted", "true"]], ""), tags: [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]] };
+    served.mockReturnValue(husk);
+    const naddr = nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "cheese-foam-tea" });
+    window.history.pushState({}, "", `/e/${naddr}`);
+    renderPage();
+    const notice = await screen.findByTestId("event-deleted");
+    expect(notice).toHaveTextContent(/deleted by its author/i);
+    expect(screen.queryByTestId("article-body")).toBeNull();
+    expect(screen.queryByText("[Deleted]")).toBeNull();
+  });
+
   it("offers a recipe's own home — Open in Zap.cooking — beside the menu", async () => {
     const naddr = await open(article([["t", "zapcooking"], ["t", "zapcooking-girik"]]));
 

@@ -93,5 +93,31 @@ describe("EmbeddedNoteCard", () => {
     const quoted = await screen.findByTestId("embedded-quote");
     await waitFor(() => expect(quoted).toHaveTextContent("@Max"));
     expect(quoted).not.toHaveTextContent("npub1");
+
+  });
+});
+
+// feat/hide-blank-events: a quoted note its author deleted by overwriting is a
+// quiet stub in the quote's place — the reader still learns what the note was
+// about, and nothing asks to be clicked.
+const HUSK_PK = "a".repeat(64);
+const husk = (content: string, tags: string[][] = []) =>
+  ({ id: "e".repeat(64), kind: 1, pubkey: HUSK_PK, tags, content, created_at: 1_700_000_000 }) as import("@/lib/noteRefs").MinimalEvent;
+
+describe("EmbeddedNoteCard — deleted by overwriting", () => {
+  it("a quoted note deleted by overwriting is a quiet stub — named when we know who, generic when we don't", () => {
+    const { rerender } = renderWithProviders(<EmbeddedNoteCard event={husk("")} author={{ display_name: "Zap Cooking" }} href="/e/x" />);
+    const stub = screen.getByTestId("embedded-deleted");
+    expect(stub).toHaveTextContent("Zap Cooking deleted this post.");
+    expect(screen.queryByTestId("embedded-note")).toBeNull();
+    expect(stub.querySelector("a, button, img")).toBeNull();
+    rerender(<EmbeddedNoteCard event={husk("")} href="/e/x" />);
+    expect(screen.getByTestId("embedded-deleted")).toHaveTextContent("This post was deleted by its author.");
+  });
+
+  it("a note with words is a note", () => {
+    renderWithProviders(<EmbeddedNoteCard event={husk("gm")} author={{ display_name: "Zap Cooking" }} />);
+    expect(screen.getByTestId("embedded-note")).toHaveTextContent("gm");
+    expect(screen.queryByTestId("embedded-deleted")).toBeNull();
   });
 });
