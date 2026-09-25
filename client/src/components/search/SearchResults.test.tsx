@@ -317,6 +317,24 @@ describe("SearchResults", () => {
   // the chosen overflow tab takes the More slot so you can see where you are.
   // Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
   // Articles is the first thing behind More.
+  // Benjamin (2026-09-25): agent suites — verifying and hiring agents — are on the
+  // roadmap. More says so under Build, quietly, without promising an empty page.
+  it("More teases Agents as coming — named, muted, and not a door yet", () => {
+    render(<SearchResults query="jack" pov="nosfabrica" />);
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    const menu = screen.getByRole("menu");
+    const soon = within(menu).getByTestId("search-tab-agents-soon");
+    expect(soon).toHaveTextContent("Agents");
+    expect(soon).toHaveTextContent("Soon");
+    expect(soon).toHaveAttribute("aria-disabled", "true");
+    expect(soon.getAttribute("title")).toMatch(/hire agents/i);
+    const before = mainStreamCalls().length;
+    fireEvent.click(soon);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(mainStreamCalls().length).toBe(before);
+    expect(screen.getByTestId("search-tab-everything").getAttribute("aria-selected")).toBe("true");
+  });
+
   it("shows five verticals — Media then Shop — and folds Articles first behind More", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     const row = ["everything", "people", "notes", "media", "shop"].map((t) => screen.getByTestId(`search-tab-${t}`));

@@ -157,6 +157,10 @@ const MORE_TABS: { key: SearchTab; label: string }[] = [
   { key: "live", label: "Live" },
   { key: "lists", label: "Lists" },
 ];
+/** Where we're going, said under More without a door: agent suites — verifying and hiring agents — are on the roadmap (Benjamin, 2026-09-25). */
+const SOON_TABS: { key: string; label: string; title: string }[] = [
+  { key: "agents", label: "Agents", title: "Verify and hire agents — coming to Brainstorm" },
+];
 const TABS = [...PRIMARY_TABS, ...MORE_TABS];
 
 const TAB_KEYS = new Set(TABS.map((t) => t.key));
@@ -232,6 +236,20 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
             >
               {t.label}
             </button>
+          ))}
+          {SOON_TABS.map((t) => (
+            // A muted row, not a door: the Apps launcher's "Soon" treatment.
+            <div
+              key={t.key}
+              role="menuitem"
+              aria-disabled="true"
+              title={t.title}
+              className="flex w-full cursor-default items-center justify-between rounded-lg px-3 py-1.5 text-left text-[13px] text-slate-400 dark:text-slate-500"
+              data-testid={`search-tab-${t.key}-soon`}
+            >
+              {t.label}
+              <span className="ml-3 text-[9px] font-bold uppercase tracking-[0.15em] text-slate-300 dark:text-slate-600">Soon</span>
+            </div>
           ))}
         </div>
       )}
