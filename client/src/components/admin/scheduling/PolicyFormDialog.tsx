@@ -43,6 +43,7 @@ const schema = z.object({
   enabled: z.boolean(),
   is_default: z.boolean(),
   is_public: z.boolean(),
+  support_included: z.boolean(),
   manual_quota_limit: z.number().int().min(0, "Quota must be zero or more"),
   manual_quota_window_seconds: z.number().int().positive("Window must be at least 1 second"),
 });
@@ -73,11 +74,17 @@ export function PolicyFormDialog({
     enabled: true,
     is_default: false,
     is_public: false,
+    support_included: false,
     manual_quota_limit: 20,
     manual_quota_window_seconds: 604800,
   };
   // A server too old to report a field leaves it unset; the defaults decide.
-  const seed: Body = { ...DEFAULTS, ...initial, is_public: initial?.is_public ?? false };
+  const seed: Body = {
+    ...DEFAULTS,
+    ...initial,
+    is_public: initial?.is_public ?? false,
+    support_included: initial?.support_included ?? false,
+  };
   const interval = decompose(seed.schedule_interval_seconds);
   const window = decompose(seed.manual_quota_window_seconds);
 
@@ -91,6 +98,7 @@ export function PolicyFormDialog({
   const [enabled, setEnabled] = useState(seed.enabled);
   const [isDefault, setIsDefault] = useState(seed.is_default);
   const [isPublic, setIsPublic] = useState(seed.is_public);
+  const [supportIncluded, setSupportIncluded] = useState(seed.support_included);
   const [errors, setErrors] = useState<Partial<Record<keyof Body, string>>>({});
 
   function buildBody(): Body {
@@ -101,6 +109,7 @@ export function PolicyFormDialog({
       enabled,
       is_default: isDefault,
       is_public: isPublic,
+      support_included: supportIncluded,
       manual_quota_limit: Number(quotaLimit),
       manual_quota_window_seconds: Math.round(Number(windowValue) * Number(windowUnit)),
     };
@@ -256,6 +265,21 @@ export function PolicyFormDialog({
             </div>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               A plan mapped to this policy can be sold on the pricing page.
+            </p>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <input
+                id="policy-support"
+                type="checkbox"
+                checked={supportIncluded}
+                onChange={(e) => setSupportIncluded(e.target.checked)}
+              />
+              <Label htmlFor="policy-support">Includes priority support</Label>
+            </div>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Users on this policy can file support tickets. Without it they can still read the ones they have.
             </p>
           </div>
           {showDefaultWarning && (
