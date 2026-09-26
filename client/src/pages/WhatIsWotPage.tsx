@@ -16,6 +16,8 @@ import {
   Store,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { SearchBox } from "@/components/search/SearchBox";
+import { SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
 import { Card } from "@/components/ui/card";
 import { tone as getTone } from "@/lib/tones";
 import {
@@ -257,34 +259,27 @@ export default function WhatIsWotPage() {
               sink. No setup, no jargon. It just works.
             </p>
 
-            {/* Live search — type and get real, trust-ranked results */}
-            <form
-              onSubmit={(e) => { e.preventDefault(); runSearch(query); }}
-              role="search"
+            {/* Live search — the same box as home and every header (pills,
+                suggestions, recents); a search hands off to the home results. */}
+            <SearchBox
               className="mt-8 max-w-xl mx-auto"
-            >
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500 pointer-events-none" />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search for real people and trusted voices"
-                  aria-label="Search Brainstorm"
-                  className="w-full rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-4 pl-12 pr-14 sm:pr-[7.5rem] text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[0_10px_34px_-12px_rgb(var(--brand-deep)/0.25)] focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition"
-                  data-testid="input-wot-search"
-                />
+              value={query}
+              onChange={setQuery}
+              onClear={() => setQuery("")}
+              placeholder={<span className={SEARCH_PLACEHOLDER_CLASS}>Search for real people and trusted voices</span>}
+              ariaLabel="Search Brainstorm"
+              trailing={
                 <button
                   type="submit"
                   aria-label="Search"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-3 sm:px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary active:scale-[0.98] transition-colors shadow-[0_4px_14px_rgb(var(--brand-primary)/0.25)]"
+                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-1.5 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0"
                   data-testid="button-wot-search-submit"
                 >
-                  <Search className="h-4 w-4" />
                   <span className="hidden sm:inline">Search</span>
+                  <ArrowRight className="h-4 w-4" />
                 </button>
-              </div>
-            </form>
+              }
+            />
 
             {/* Example queries — one click runs the real search */}
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
