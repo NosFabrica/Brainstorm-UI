@@ -57,7 +57,7 @@ import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
 import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
-import { personAssist, queryWords, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel, typeaheadWords } from "@/lib/searchSyntax";
+import { personAssist, queryWords, scopeOf, splitFilters, type PersonAssist, seeAllLabel, typeaheadWords } from "@/lib/searchSyntax";
 import { SearchField } from "@/components/search/SearchField";
 import type { SearchFieldHandle } from "@/lib/searchFieldDom";
 import { useProfileMap } from "@/hooks/useProfileMap";
@@ -1095,10 +1095,6 @@ export default function Landing() {
                     }
                     return false;
                   }}
-                  // The scoped box says what typing will do ON THIS TAB, with the person's
-                  // name — drawn after their pill, where an overlay would cover it.
-                  hint={scope && !words ? scopedPlaceholder(activeTab, scopeName) : ""}
-                  hintTestId="text-scope-placeholder"
                   placeholder={
                     <span
                       className={`truncate text-slate-400 dark:text-slate-500 text-base transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}

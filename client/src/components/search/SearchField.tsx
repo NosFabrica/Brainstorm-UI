@@ -37,8 +37,6 @@ export function SearchField({
   onBlur,
   onPointerDown,
   placeholder,
-  hint = "",
-  hintTestId,
   ariaLabel,
   className,
   inputClassName,
@@ -65,12 +63,6 @@ export function SearchField({
   onPointerDown?: () => void;
   /** Drawn over an EMPTY field. A node, so a caller can fade it between examples. */
   placeholder?: ReactNode;
-  /**
-   * Muted words drawn after the last pill — "Search Alice's notes" beside a `from:` pill. An
-   * overlay cannot do this job: it would land on top of the pills.
-   */
-  hint?: string;
-  hintTestId?: string;
   ariaLabel?: string;
   className?: string;
   inputClassName?: string;
@@ -175,7 +167,6 @@ export function SearchField({
   // Profiles and group names land after a render; the pills re-label in place.
   useEffect(() => { handleRef.current?.repaint(); }, [profiles, namedAt]);
 
-  useEffect(() => { handleRef.current?.setHint(hint, hintTestId); }, [hint, hintTestId, value]);
 
   // --- the group lookup, debounced, with the last rows left up while the next answer runs.
   useEffect(() => {
@@ -333,7 +324,10 @@ export function SearchField({
           // next word lands glued to it (`#nostrlabel:`). `break-words` so a pasted npub
           // wraps instead of widening the box past the page.
           "w-full min-w-0 whitespace-pre-wrap break-words bg-transparent py-1.5 text-base leading-[1.55] text-slate-900 outline-none dark:text-slate-100",
-          "[&>span]:mx-[1px]",
+          // Pills sit 1px off the text before them and 6px clear of what follows: the caret, and
+          // the words typed after a pill, start clear of its border instead of on it. Sideways
+          // margin never touches the line box.
+          "[&>span]:ml-[1px] [&>span]:mr-1.5",
           inputClassName,
         )}
         data-testid={testId}

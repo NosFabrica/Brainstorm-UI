@@ -261,13 +261,15 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
     window.history.replaceState({}, "", `/?q=from%3A${npub}&t=music`);
   });
 
-  it("the empty box names the tab's things and the person, and follows a tab change", async () => {
+  // The pill already says who ("from: Joe Martin"); a gray "Search Joe Martin's music" beside
+  // it wrapped to a second line and gave the caret somewhere wrong to sit on iOS. Gone.
+  it("the scoped box is the person's pill and nothing else — no hint beside it", async () => {
     render(<Landing />);
-    await waitFor(() => expect(screen.getByTestId("text-scope-placeholder")).toHaveTextContent("Search Joe Martin's music"));
-    fireEvent.click(screen.getByTestId("search-tab-notes"));
-    await waitFor(() => expect(screen.getByTestId("text-scope-placeholder")).toHaveTextContent("Search Joe Martin's notes"));
-    fireEvent.click(screen.getByTestId("search-tab-everything"));
-    await waitFor(() => expect(screen.getByTestId("text-scope-placeholder")).toHaveTextContent("Search everything from Joe Martin"));
+    const chip = await screen.findByTestId("search-scope-chip");
+    await waitFor(() => expect(chip).toHaveTextContent("Joe Martin"));
+    expect(screen.queryByTestId("text-scope-placeholder")).toBeNull();
+    expect(screen.getByTestId("input-home-search")).not.toHaveTextContent(/Search Joe Martin/);
+    expect(boxValue()).toBe(`from:${npub}`);
     expect(screen.getByTestId("form-home-search")).not.toHaveTextContent("npub1");
   });
 
