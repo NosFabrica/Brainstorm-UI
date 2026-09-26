@@ -401,6 +401,10 @@ function FiltersPanel({
   const column =
     "flex min-w-0 flex-1 basis-[8.5rem] flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:flex-none sm:basis-auto";
   const control = `${field} w-full sm:w-44`;
+  // iOS Safari gives a date input its own minimum width, wider than half a phone row, so
+  // From/To day stuck out past Sort and Time (and past the panel). Without the native
+  // appearance it takes the column's width like the selects; its value then sits left, as theirs do.
+  const dateControl = `${control} min-w-0 appearance-none [&::-webkit-date-and-time-value]:text-left`;
 
   return (
     <div
@@ -457,7 +461,7 @@ function FiltersPanel({
             From day
             <input
               type="date"
-              className={control}
+              className={dateControl}
               value={state.since ?? ""}
               onChange={(e) => write({ since: e.target.value || null })}
               data-testid="filter-since"
@@ -467,7 +471,7 @@ function FiltersPanel({
             To day
             <input
               type="date"
-              className={control}
+              className={dateControl}
               value={state.until ?? ""}
               onChange={(e) => write({ until: e.target.value || null })}
               data-testid="filter-until"
