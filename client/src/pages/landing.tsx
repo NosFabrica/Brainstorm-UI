@@ -203,6 +203,26 @@ export default function Landing() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [hasSearched]);
+  // Safari's chrome takes this page's own color while it is up. iOS Safari paints the
+  // theme-color past the page's end — into the strip its toolbar gives up when the box
+  // takes focus — and the app's ink (#0a0e18) ran as a black band under the white home
+  // screen, with the status bar above it just as dark. Restored on the way out.
+  // Read off <html>'s `dark` class, which lib/theme toggles, so a theme switch follows.
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (!meta) return;
+    const before = meta.content;
+    const root = document.documentElement;
+    // slate-950 / white: this page's own background.
+    const paint = () => { meta.content = root.classList.contains("dark") ? "#020617" : "#ffffff"; };
+    paint();
+    const themeChange = new MutationObserver(paint);
+    themeChange.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => {
+      themeChange.disconnect();
+      meta.content = before;
+    };
+  }, []);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   // The box is a contenteditable now, so what the page holds is the field's own handle
   // (focus, select, caret) rather than an <input> element.
@@ -906,12 +926,15 @@ export default function Landing() {
       {/* Aurora glow behind the hero — soft at rest, blooms when the search goes
           active, so the wordmark + search feel alive without any idle noise. Drawn
           already soft — the size and falloff a 100px CSS blur used to give it —
-          because iOS re-rasterized that blur on every keystroke in the box. */}
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute left-1/2 top-[44dvh] z-0 h-[980px] w-[1280px] -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
-        style={{ background: "radial-gradient(closest-side, rgba(114,55,255,0.075) 0%, rgba(90,110,250,0.06) 25%, rgba(19,210,229,0.035) 50%, rgba(19,210,229,0.012) 75%, transparent 100%)" }}
-      />
+          because iOS re-rasterized that blur on every keystroke in the box. Clipped to
+          the page, as GlossBackground's washes are: its lower half used to hang past a
+          one-screen page, and the page scrolled into nothing to show it. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <div
+          className={`absolute left-1/2 top-[44dvh] h-[980px] w-[1280px] -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
+          style={{ background: "radial-gradient(closest-side, rgba(114,55,255,0.075) 0%, rgba(90,110,250,0.06) 25%, rgba(19,210,229,0.035) 50%, rgba(19,210,229,0.012) 75%, transparent 100%)" }}
+        />
+      </div>
 
       {/* Homepage top bar (Google-search pattern): the center stays empty so the
           search box owns it. B symbol left · account actions right — transparent

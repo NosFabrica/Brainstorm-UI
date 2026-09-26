@@ -719,3 +719,29 @@ describe("tapping the search button on a touch screen", () => {
     expect(mainStreamCalls()).toHaveLength(0);
   });
 });
+
+// iOS Safari paints theme-color past the page's end — into the strip its toolbar gives up
+// when the box takes focus — and the app's ink ran as a black band under the white home.
+describe("Safari's chrome on the home page", () => {
+  beforeEach(() => {
+    cleanup();
+    window.history.replaceState({}, "", "/");
+    document.head.querySelector('meta[name="theme-color"]')?.remove();
+    const meta = document.createElement("meta");
+    meta.name = "theme-color";
+    meta.content = "#0a0e18";
+    document.head.appendChild(meta);
+  });
+  const themeColor = () => document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!.content;
+
+  it("takes the page's own color while it is up, follows the theme, and gives the ink back", async () => {
+    const { unmount } = render(<Landing />);
+    expect(themeColor()).toBe("#ffffff");
+    document.documentElement.classList.add("dark");
+    await waitFor(() => expect(themeColor()).toBe("#020617"));
+    document.documentElement.classList.remove("dark");
+    await waitFor(() => expect(themeColor()).toBe("#ffffff"));
+    unmount();
+    expect(themeColor()).toBe("#0a0e18");
+  });
+});

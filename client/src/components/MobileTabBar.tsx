@@ -31,7 +31,6 @@ export function MobileTabBar() {
   // Out of the way while typing, as a native tab bar is under the keyboard. iOS Safari
   // shrinks its own toolbar when a field takes focus without telling the page, and this bar
   // stayed where the toolbar used to end, with results showing through the strip below it.
-  // The space it reserves stays, so the page does not jump while someone types.
   const editing = useEditingText();
 
   // Reserve space so the fixed bar never covers page content or the site footer.
@@ -42,11 +41,14 @@ export function MobileTabBar() {
   // the back-to-top button — landed on top of this bar and covered the tab labels.
   // Publishing the occupied height as a CSS variable gives them all one number to
   // offset by, and it self-zeroes on desktop where this component renders nothing.
+  //
+  // Only while the bar is there: kept while it stepped aside for typing, the reserved space
+  // showed as a gray band under a one-screen page and let it scroll into the theme color.
   useEffect(() => {
-    if (!isMobile) return;
+    if (!isMobile || editing) return;
     // The ledger (lib/bottomChrome) sums this with the now-playing bar's height.
     return registerBottomChrome("tabbar", "calc(4rem + env(safe-area-inset-bottom))");
-  }, [isMobile]);
+  }, [isMobile, editing]);
 
   if (!isMobile) return null;
 
