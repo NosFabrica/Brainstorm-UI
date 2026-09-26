@@ -60,8 +60,6 @@ export interface SearchFieldHandlers {
 
 export interface SearchFieldHandle {
   getValue: () => string;
-  /** The muted words drawn after the last pill, or "" for none. */
-  setHint: (text: string, testId?: string) => void;
   /** A programmatic set is a restore, never a keystroke: it fires no onEdit. */
   setValue: (v: string) => void;
   /** Re-label the pills, for when profiles or group names land after a render. */
@@ -116,9 +114,11 @@ const shortAddr = (coord: string): string => {
  * line box. Anything taller stretches the line, and the bar grows the moment a token forms.
  * The 2.8px left over is also what separates wrapped rows.
  */
+// `relative -top-px`: centered on the line (align-middle), the pill's smaller text sat 1px
+// below the words beside it. Relative, so the nudge moves the paint, never the line box.
 const PILL =
   "inline-flex max-w-full select-none items-center gap-1.5 whitespace-nowrap rounded-full border" +
-  " pl-2 pr-1 align-middle text-sm font-medium leading-5";
+  " relative -top-px pl-2 pr-1 align-middle text-sm font-medium leading-5";
 
 const pillClass = (t: Parameters<typeof tone>[0]): string => {
   const c = tone(t);
@@ -136,14 +136,14 @@ const pillClass = (t: Parameters<typeof tone>[0]): string => {
  * first and are ordinary text pills as far as their left edge is concerned — cutting their
  * padding too left the prefix 3px from the edge where every other pill's text sits at 9px.
  */
-const FACE_PILL = "!pl-0.5";
+const FACE_PILL = "!pl-[3px]";
 /**
- * The face sits inside the pill's 20px content box with a pixel to spare, so a person pill
- * stands the same 22px as every other one. ScopeChip's face was 24px because it stood alone
- * beside the text; these sit in a row with the rest of the grammar, in a bar whose height they
- * are not allowed to change.
+ * The face is the text's height, not the pill's: 14px, the size of the pill's text-sm, so it
+ * sits the same 3px inside the border the words do. At 18px it filled the pill edge to edge.
+ * A person pill still stands the same 22px as every other one, in a bar whose height it is not
+ * allowed to change; a face-first pill's left padding matches that 3px (FACE_PILL).
  */
-const FACE_SIZE = "h-[18px] w-[18px] shrink-0 rounded-full object-cover";
+const FACE_SIZE = "h-3.5 w-3.5 shrink-0 rounded-full object-cover";
 /** The prefix inside a pill — `since`, `group:`, `site:` — a shade quieter than its value. */
 const KEY_CLASS = "opacity-70";
 const VALUE_CLASS = "max-w-[14rem] truncate";
@@ -177,26 +177,35 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
   const isChip = (n: Node | null): n is HTMLElement =>
     !!n && n.nodeType === 1 && (n as HTMLElement).dataset?.token != null;
   /**
-   * The trailing hint — "Search Alice's notes" where the pills leave off. It lives inside the
-   * field rather than over it, because an overlay would land on top of the pills; it is worth
-   * nothing to the value, so every offset below steps straight past it.
+   * The caret's anchor after a trailing pill. A pill is contenteditable=false, and with no
+   * text node after it iOS WebKit has nowhere to draw the caret: it drew it inside the pill,
+   * or at the far end of the box, while typing still landed after the pill. A zero-width
+   * space gives the caret a home. It is worth nothing: every offset and the value skip it.
    */
-  const isHint = (n: Node | null): n is HTMLElement =>
-    !!n && n.nodeType === 1 && (n as HTMLElement).dataset?.hint != null;
+  const ANCHOR = "\u200B";
+  const visible = (s: string): string => s.replace(/\u200B/g, "");
+  const textOf = (t: Text): string => visible(t.data);
   const lenOf = (n: Node): number =>
     n.nodeType === 3
-      ? (n as Text).data.length
-      : isHint(n)
-        ? 0
-        : isChip(n)
-          ? (n.dataset.token as string).length
-          : (n.textContent || "").length;
+      ? textOf(n as Text).length
+      : isChip(n)
+        ? (n.dataset.token as string).length
+        : (n.textContent || "").length;
+  /** The DOM offset in a text node with `k` visible characters before it, past any anchor there. */
+  function domOffset(t: Text, k: number): number {
+    let seen = 0;
+    for (let j = 0; j < t.data.length; j++) {
+      if (t.data[j] === ANCHOR) continue;
+      if (seen === k) return j;
+      seen++;
+    }
+    return t.data.length;
+  }
 
   function readValue(): string {
     let out = "";
     for (const n of Array.from(el.childNodes)) {
-      if (isHint(n)) continue;
-      out += n.nodeType === 3 ? (n as Text).data : isChip(n) ? n.dataset.token : n.textContent || "";
+      out += n.nodeType === 3 ? textOf(n as Text) : isChip(n) ? n.dataset.token : n.textContent || "";
     }
     // A contenteditable inserts NBSP to keep trailing spaces, which the grammar cannot tokenize.
     return out.replace(/\u00a0/g, " ");
@@ -210,7 +219,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     }
     let i = 0;
     for (const n of Array.from(el.childNodes)) {
-      if (n === node) return i + (n.nodeType === 3 ? offset : lenOf(n));
+      if (n === node) return i + (n.nodeType === 3 ? visible((n as Text).data.slice(0, offset)).length : lenOf(n));
       if (n.nodeType === 1 && n.contains(node)) return i + lenOf(n);
       i += lenOf(n);
     }
@@ -261,12 +270,12 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
 
   /** The box as the DOM holds it: text before the leading scope pills, the pills, the rest. */
   function scopeParts(): { lead: string; scope: string[]; between: string; rest: string; leadNodes: number } | null {
-    const nodes = Array.from(el.childNodes).filter((n) => !isHint(n));
+    const nodes = Array.from(el.childNodes);
     let i = 0;
     let lead = "";
     while (i < nodes.length && !isScopeChip(nodes[i])) {
       if (isChip(nodes[i])) return null; // another pill leads: no scope to keep first
-      lead += (nodes[i] as Text).data ?? nodes[i].textContent ?? "";
+      lead += nodes[i].nodeType === 3 ? textOf(nodes[i] as Text) : nodes[i].textContent ?? "";
       i++;
     }
     if (i >= nodes.length) return null;
@@ -276,11 +285,11 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       const n = nodes[i];
       if (isScopeChip(n)) { scope.push(n.dataset.token as string); i++; continue; }
       // Whitespace between two scope pills belongs to the scope; anything else ends it.
-      if (n.nodeType === 3 && /^\s*$/.test((n as Text).data) && i + 1 < nodes.length && isScopeChip(nodes[i + 1])) { between += (n as Text).data; i++; continue; }
+      if (n.nodeType === 3 && /^\s*$/.test(textOf(n as Text)) && i + 1 < nodes.length && isScopeChip(nodes[i + 1])) { between += textOf(n as Text); i++; continue; }
       break;
     }
     let rest = "";
-    for (; i < nodes.length; i++) rest += nodes[i].nodeType === 3 ? (nodes[i] as Text).data : isChip(nodes[i]) ? (nodes[i] as HTMLElement).dataset.token : nodes[i].textContent || "";
+    for (; i < nodes.length; i++) rest += nodes[i].nodeType === 3 ? textOf(nodes[i] as Text) : isChip(nodes[i]) ? (nodes[i] as HTMLElement).dataset.token : nodes[i].textContent || "";
     return { lead: lead.replace(/\u00a0/g, " "), scope, between, rest: rest.replace(/\u00a0/g, " "), leadNodes: 0 };
   }
 
@@ -339,9 +348,14 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     let placed = false;
     for (const n of Array.from(el.childNodes)) {
       const len = lenOf(n);
+      // Just past a pill with text after it: the caret goes in that text, where iOS draws it.
+      if (n.nodeType === 1 && index === i + len && n.nextSibling?.nodeType === 3) {
+        i += len;
+        continue;
+      }
       if (index <= i + len) {
         // Never inside a pill: it is contenteditable=false.
-        if (n.nodeType === 3) r.setStart(n, Math.max(0, index - i));
+        if (n.nodeType === 3) r.setStart(n, domOffset(n as Text, Math.max(0, index - i)));
         else if (index <= i) r.setStartBefore(n);
         else r.setStartAfter(n);
         placed = true;
@@ -589,20 +603,9 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     }
   }
 
-  /** The hint text currently asked for; re-applied after every rebuild of the nodes. */
-  let hint = "";
-  let hintTestId = "search-field-hint";
-
-  function drawHint(): void {
-    const had = el.querySelector<HTMLElement>("[data-hint]");
-    if (!hint) { had?.remove(); return; }
-    const span = had ?? document.createElement("span");
-    span.dataset.hint = "1";
-    span.dataset.testid = hintTestId;
-    span.contentEditable = "false";
-    span.className = "pointer-events-none select-none text-slate-400 dark:text-slate-500";
-    span.textContent = hint;
-    if (!had) el.appendChild(span);
+  /** A trailing pill gets the caret's anchor after it; see ANCHOR. */
+  function anchorCaret(): void {
+    if (isChip(el.lastChild)) el.appendChild(document.createTextNode(ANCHOR));
   }
 
   function render(text: string, caret: number | null, typingAt: number | null = caret): void {
@@ -622,7 +625,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
         unknown.push(seg.pubkey);
       }
     }
-    drawHint();
+    anchorCaret();
     if (caret != null) setCaret(caret);
     ledWithScope = leadsWithScope();
     if (unknown.length) handlers.needPeople(unknown);
@@ -638,7 +641,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     const want = drawable(text, typingAt).filter((s) => s.type !== "text").map((s) => s.raw);
     const have: string[] = [];
     for (const n of Array.from(el.childNodes)) {
-      if (n.nodeType === 3 || isHint(n)) continue;
+      if (n.nodeType === 3) continue;
       if (!isChip(n)) return true;
       have.push(n.dataset.token as string);
     }
@@ -721,7 +724,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     const text = readValue();
     // The browser leaves a `<br>` behind when the last character goes.
     if (!text) {
-      if (el.innerHTML) { el.innerHTML = ""; drawHint(); }
+      if (el.innerHTML) el.innerHTML = "";
     } else if (!(e as InputEvent).isComposing) {
       // Never re-render mid-composition: rebuilding the nodes under an IME tears down its text.
       const at = caretIndex();
@@ -752,8 +755,31 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
    * The other door Enter comes through, and on a phone the only one: a soft keyboard's action
    * key arrives as an inserted line break. The break is refused; text committed with it is kept.
    */
+  /**
+   * Backspace right after a pill takes the pill, in one press. The browser would delete the
+   * invisible anchor first and leave the pill for a second press; the anchor is not a character.
+   */
+  function backspaceOverAnchor(e: InputEvent): boolean {
+    const sel = document.getSelection();
+    const r = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+    if (!r || !r.collapsed || r.startContainer.nodeType !== 3) return false;
+    const t = r.startContainer as Text;
+    if (t.parentNode !== el || !t.data.slice(0, r.startOffset).split("").every((c) => c === ANCHOR)) return false;
+    const pill = t.previousSibling;
+    if (!isChip(pill)) return false;
+    e.preventDefault();
+    const at = caretIndex();
+    const text = readValue();
+    const len = (pill.dataset.token as string).length;
+    render(text.slice(0, at - len) + text.slice(at), at - len);
+    updateToken();
+    handlers.onEdit(readValue());
+    return true;
+  }
+
   const onBeforeInput = (e: InputEvent) => {
     const t = e.inputType;
+    if (t === "deleteContentBackward" && backspaceOverAnchor(e)) return;
     const typed = t === "insertText" && e.data && NEWLINE.test(e.data) ? e.data : null;
     if (!typed && t !== "insertLineBreak" && t !== "insertParagraph") return;
     const rest = typed ? typed.replace(NEWLINES, "") : "";
@@ -860,17 +886,16 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
   return {
     getValue: readValue,
     setValue,
-    setHint(text: string, testId?: string) {
-      const next = String(text ?? "");
-      if (testId) hintTestId = testId;
-      if (next === hint) return;
-      hint = next;
-      drawHint();
-    },
     repaint,
     replaceToken,
     settle,
-    focus: () => el.focus(),
+    // The caret goes to the end, not wherever the browser puts it: arriving on a scoped search,
+    // iOS put it in front of the pill, and the focus handler read the not-yet-placed selection
+    // as "at the end" and left it there.
+    focus: () => {
+      el.focus();
+      setCaret(readValue().length);
+    },
     select() {
       const sel = document.getSelection();
       if (!sel) return;

@@ -57,7 +57,7 @@ import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
 import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
-import { personAssist, queryWords, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel, typeaheadWords } from "@/lib/searchSyntax";
+import { personAssist, queryWords, scopeOf, splitFilters, type PersonAssist, seeAllLabel, typeaheadWords } from "@/lib/searchSyntax";
 import { SearchField } from "@/components/search/SearchField";
 import type { SearchFieldHandle } from "@/lib/searchFieldDom";
 import { useProfileMap } from "@/hooks/useProfileMap";
@@ -203,6 +203,26 @@ export default function Landing() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [hasSearched]);
+  // Safari's chrome takes this page's own color while it is up. iOS Safari paints the
+  // theme-color past the page's end — into the strip its toolbar gives up when the box
+  // takes focus — and the app's ink (#0a0e18) ran as a black band under the white home
+  // screen, with the status bar above it just as dark. Restored on the way out.
+  // Read off <html>'s `dark` class, which lib/theme toggles, so a theme switch follows.
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (!meta) return;
+    const before = meta.content;
+    const root = document.documentElement;
+    // slate-950 / white: this page's own background.
+    const paint = () => { meta.content = root.classList.contains("dark") ? "#020617" : "#ffffff"; };
+    paint();
+    const themeChange = new MutationObserver(paint);
+    themeChange.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => {
+      themeChange.disconnect();
+      meta.content = before;
+    };
+  }, []);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   // The box is a contenteditable now, so what the page holds is the field's own handle
   // (focus, select, caret) rather than an <input> element.
@@ -906,12 +926,15 @@ export default function Landing() {
       {/* Aurora glow behind the hero — soft at rest, blooms when the search goes
           active, so the wordmark + search feel alive without any idle noise. Drawn
           already soft — the size and falloff a 100px CSS blur used to give it —
-          because iOS re-rasterized that blur on every keystroke in the box. */}
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute left-1/2 top-[44dvh] z-0 h-[980px] w-[1280px] -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
-        style={{ background: "radial-gradient(closest-side, rgba(114,55,255,0.075) 0%, rgba(90,110,250,0.06) 25%, rgba(19,210,229,0.035) 50%, rgba(19,210,229,0.012) 75%, transparent 100%)" }}
-      />
+          because iOS re-rasterized that blur on every keystroke in the box. Clipped to
+          the page, as GlossBackground's washes are: its lower half used to hang past a
+          one-screen page, and the page scrolled into nothing to show it. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <div
+          className={`absolute left-1/2 top-[44dvh] h-[980px] w-[1280px] -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
+          style={{ background: "radial-gradient(closest-side, rgba(114,55,255,0.075) 0%, rgba(90,110,250,0.06) 25%, rgba(19,210,229,0.035) 50%, rgba(19,210,229,0.012) 75%, transparent 100%)" }}
+        />
+      </div>
 
       {/* Homepage top bar (Google-search pattern): the center stays empty so the
           search box owns it. B symbol left · account actions right — transparent
@@ -1029,14 +1052,17 @@ export default function Landing() {
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
               {/* (accent-discipline preview) focus "bloom" glow removed — the
                   crisp border + shadow below is the guideline focus treatment. */}
-              <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-brand-primary/[0.4] focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
+              <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-brand-primary/[0.4] focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
                 {hasSearched && isSearching ? (
                   <Loader2 className="h-5 w-5 shrink-0 animate-spin text-brand-primary" data-testid="band-searching" />
                 ) : (
                   <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
                 )}
+                {/* py-1 (the field's own is py-1.5), with the box's py-1.5 and the button's: a bar
+                    snug around its one line of pills and words, 8px shorter than it was. */}
                 <SearchField
                   className="flex-1"
+                  inputClassName="py-1"
                   fieldRef={(h) => { inputRef.current = h; }}
                   value={query}
                   onChange={(next) => {
@@ -1095,10 +1121,6 @@ export default function Landing() {
                     }
                     return false;
                   }}
-                  // The scoped box says what typing will do ON THIS TAB, with the person's
-                  // name — drawn after their pill, where an overlay would cover it.
-                  hint={scope && !words ? scopedPlaceholder(activeTab, scopeName) : ""}
-                  hintTestId="text-scope-placeholder"
                   placeholder={
                     <span
                       className={`truncate text-slate-400 dark:text-slate-500 text-base transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
@@ -1173,7 +1195,7 @@ export default function Landing() {
                     cancelSuggest();
                     void handleSearch(inputRef.current?.getValue());
                   }}
-                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-1.5 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"
                 >
                   {isSearching ? (

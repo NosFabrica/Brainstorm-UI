@@ -5,6 +5,7 @@ import { Search, Home, Users, LogIn } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useEditingText } from "@/hooks/useEditingText";
 import { logout } from "@/accounts/login-flow";
 import type { AccountDisplay } from "@/accounts/display";
 import { useAccountSheetOpen, openAccountSheet } from "@/lib/accountSheetStore";
@@ -27,6 +28,10 @@ export function MobileTabBar() {
   const user = useActiveAccountDisplay();
   const [location, navigate] = useLocation();
   const sheetOpen = useAccountSheetOpen();
+  // Out of the way while typing, as a native tab bar is under the keyboard. iOS Safari
+  // shrinks its own toolbar when a field takes focus without telling the page, and this bar
+  // stayed where the toolbar used to end, with results showing through the strip below it.
+  const editing = useEditingText();
 
   // Reserve space so the fixed bar never covers page content or the site footer.
   //
@@ -36,11 +41,14 @@ export function MobileTabBar() {
   // the back-to-top button — landed on top of this bar and covered the tab labels.
   // Publishing the occupied height as a CSS variable gives them all one number to
   // offset by, and it self-zeroes on desktop where this component renders nothing.
+  //
+  // Only while the bar is there: kept while it stepped aside for typing, the reserved space
+  // showed as a gray band under a one-screen page and let it scroll into the theme color.
   useEffect(() => {
-    if (!isMobile) return;
+    if (!isMobile || editing) return;
     // The ledger (lib/bottomChrome) sums this with the now-playing bar's height.
     return registerBottomChrome("tabbar", "calc(4rem + env(safe-area-inset-bottom))");
-  }, [isMobile]);
+  }, [isMobile, editing]);
 
   if (!isMobile) return null;
 
@@ -50,7 +58,12 @@ export function MobileTabBar() {
   return (
     <>
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/70 dark:border-white/10 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl backdrop-saturate-150"
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/70 dark:border-white/10 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl backdrop-saturate-150 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none",
+          // Faded as well as moved: Safari keeps drawing the page in the strip its toolbar
+          // gave up, so a bar only slid down its own height was still there, untappable.
+          editing && "pointer-events-none opacity-0",
+        )}
         style={{
           paddingBottom: "env(safe-area-inset-bottom)",
           // iOS Safari (worst in a standalone PWA) mis-composites a `position:
@@ -62,11 +75,13 @@ export function MobileTabBar() {
           // Safe here: a transform on this element creates a containing block for
           // its DESCENDANTS only, and the nav's children are just the tab buttons —
           // the account sheet is a sibling, not a child.
-          transform: "translateZ(0)",
+          transform: editing ? "translate3d(0, 100%, 0)" : "translateZ(0)",
           WebkitBackfaceVisibility: "hidden",
         }}
         aria-label="Primary"
+        aria-hidden={editing || undefined}
         data-testid="mobile-tab-bar"
+        data-editing={editing ? "true" : undefined}
       >
         <div className="mx-auto flex max-w-lg items-stretch">
           {user ? (

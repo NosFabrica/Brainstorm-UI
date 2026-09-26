@@ -395,11 +395,11 @@ describe("what running it in a browser caught", () => {
     expect(from.dataset.token).toContain("from:");
     for (const textFirst of [from, to, observer]) {
       expect(textFirst.firstElementChild?.tagName).toBe("SPAN");
-      expect(textFirst.className).not.toContain("!pl-0.5");
+      expect(textFirst.className).not.toContain("!pl-[3px]");
     }
     // A bare key has no prefix, so its face is first and the cut is right.
     expect(bare.firstElementChild?.tagName).toBe("IMG");
-    expect(bare.className).toContain("!pl-0.5");
+    expect(bare.className).toContain("!pl-[3px]");
   });
 
   it("the neutral pill is outlined like the tinted ones", () => {
@@ -444,14 +444,16 @@ describe("the scope pill stays first", () => {
     sel.addRange(r);
   };
   /** Where the caret is, as an offset into the value — a pill is worth its whole token. */
+  // Value offsets, as the field counts them: a pill is its token, the caret's zero-width anchor is nothing.
+  const visible = (t: string) => t.replace(/\u200B/g, "");
   const caretIndex = () => {
     const el = box();
     const r = document.getSelection()!.getRangeAt(0);
     let i = 0;
     for (const n of Array.from(el.childNodes)) {
-      if (n === r.startContainer) return i + (n.nodeType === 3 ? r.startOffset : 0);
+      if (n === r.startContainer) return i + (n.nodeType === 3 ? visible((n.textContent ?? "").slice(0, r.startOffset)).length : 0);
       if (r.startContainer === el) { if (Array.from(el.childNodes).indexOf(n) >= r.startOffset) return i; }
-      i += n.nodeType === 3 ? (n.textContent ?? "").length : ((n as HTMLElement).dataset.token ?? "").length;
+      i += n.nodeType === 3 ? visible(n.textContent ?? "").length : ((n as HTMLElement).dataset.token ?? "").length;
     }
     return i;
   };
@@ -495,6 +497,42 @@ describe("the scope pill stays first", () => {
     caretAt(box(), 0);
     fireEvent.click(box());
     expect(caretIndex()).toBe(scoped.length);
+  });
+
+  // iOS drew the caret inside the pill on arrival, and at the far end of the box after a tap:
+  // behind a non-editable pill there was no text node for it. A zero-width anchor is its home,
+  // and it is worth nothing to the value.
+  it("a trailing pill has a text node after it, and the caret lands in it", () => {
+    const { onChange } = mount({ value: scoped });
+    const after = chip().nextSibling;
+    expect(after?.nodeType).toBe(3);
+    caretAt(box(), 0);
+    fireEvent.click(box());
+    expect(document.getSelection()!.getRangeAt(0).startContainer).toBe(after);
+    expect(caretIndex()).toBe(scoped.length);
+    expect(box().value).toBe(scoped);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("words typed into the anchor carry no trace of it", () => {
+    const { onChange } = mount({ value: scoped });
+    const last = box().lastChild as Text;
+    expect(last.previousSibling).toBe(chip());
+    last.data += "dog";
+    fireEvent.input(box());
+    expect(onChange).toHaveBeenLastCalledWith(`${scoped} dog`);
+    expect(box().value).not.toMatch(/\u200B/);
+  });
+
+  it("backspace right after the pill takes the pill in one press", () => {
+    const { onChange } = mount({ value: scoped });
+    const after = chip().nextSibling as Text;
+    caretAt(after, after.data.length);
+    const ev = new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true });
+    fireEvent(box(), ev);
+    expect(ev.defaultPrevented).toBe(true);
+    expect(chip()).toBeNull();
+    expect(onChange).toHaveBeenLastCalledWith("");
   });
 
   it("words already behind the scope are left exactly where they are", () => {

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, personAssist, personScope, readFilters, scopeOf, scopedPlaceholder, scopedSearchHref, seeAllLabel, sinceForPreset, splitFilters, typeaheadWords } from "./searchSyntax";
+import { activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, personAssist, personScope, readFilters, scopeOf, scopedSearchHref, seeAllLabel, sinceForPreset, splitFilters, typeaheadWords } from "./searchSyntax";
 
 // The relay knows no hops and has no verification of its own, so those two
 // controls are done on the CLIENT — but they still speak grammar:
@@ -308,28 +308,6 @@ describe("scopeOf — the one from: token the box shows as a person, and the wor
     expect(scopeOf(`to:${npub}`)).toBeNull();
     expect(scopeOf("joe martin")).toBeNull();
     expect(scopeOf("from:nobody")).toBeNull();
-  });
-});
-
-// The box scoped to a person says what typing will do ON THIS TAB, with their
-// name — Facebook's "Search Sam's profile", YouTube's channel search. Never
-// the raw key, and never a blank while the name is still arriving.
-describe("scopedPlaceholder — the empty scoped box, per tab, with their name", () => {
-  it("Everything and People search everything from them", () => {
-    expect(scopedPlaceholder("everything", "means")).toBe("Search everything from means");
-    expect(scopedPlaceholder("people", "means")).toBe("Search everything from means");
-  });
-  it("a content tab names its kind", () => {
-    expect(scopedPlaceholder("notes", "means")).toBe("Search means's notes");
-    expect(scopedPlaceholder("articles", "means")).toBe("Search means's articles");
-    expect(scopedPlaceholder("media", "means")).toBe("Search means's media");
-    expect(scopedPlaceholder("music", "means")).toBe("Search means's music");
-    expect(scopedPlaceholder("live", "means")).toBe("Search means's live streams");
-    expect(scopedPlaceholder("shop", "means")).toBe("Search means's shop");
-  });
-  it("an unknown tab and a name still on its way fall back to something true", () => {
-    expect(scopedPlaceholder("whatever", "means")).toBe("Search everything from means");
-    expect(scopedPlaceholder("notes", null)).toBe("Search their posts");
   });
 });
 

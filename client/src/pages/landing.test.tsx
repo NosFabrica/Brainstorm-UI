@@ -261,13 +261,15 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
     window.history.replaceState({}, "", `/?q=from%3A${npub}&t=music`);
   });
 
-  it("the empty box names the tab's things and the person, and follows a tab change", async () => {
+  // The pill already says who ("from: Joe Martin"); a gray "Search Joe Martin's music" beside
+  // it wrapped to a second line and gave the caret somewhere wrong to sit on iOS. Gone.
+  it("the scoped box is the person's pill and nothing else — no hint beside it", async () => {
     render(<Landing />);
-    await waitFor(() => expect(screen.getByTestId("text-scope-placeholder")).toHaveTextContent("Search Joe Martin's music"));
-    fireEvent.click(screen.getByTestId("search-tab-notes"));
-    await waitFor(() => expect(screen.getByTestId("text-scope-placeholder")).toHaveTextContent("Search Joe Martin's notes"));
-    fireEvent.click(screen.getByTestId("search-tab-everything"));
-    await waitFor(() => expect(screen.getByTestId("text-scope-placeholder")).toHaveTextContent("Search everything from Joe Martin"));
+    const chip = await screen.findByTestId("search-scope-chip");
+    await waitFor(() => expect(chip).toHaveTextContent("Joe Martin"));
+    expect(screen.queryByTestId("text-scope-placeholder")).toBeNull();
+    expect(screen.getByTestId("input-home-search")).not.toHaveTextContent(/Search Joe Martin/);
+    expect(boxValue()).toBe(`from:${npub}`);
     expect(screen.getByTestId("form-home-search")).not.toHaveTextContent("npub1");
   });
 
@@ -715,5 +717,31 @@ describe("tapping the search button on a touch screen", () => {
     fireEvent.touchStart(b, { touches: [IN, { clientX: 100, clientY: 100 }], changedTouches: [IN] });
     fireEvent.touchEnd(b, { touches: [], changedTouches: [IN] });
     expect(mainStreamCalls()).toHaveLength(0);
+  });
+});
+
+// iOS Safari paints theme-color past the page's end — into the strip its toolbar gives up
+// when the box takes focus — and the app's ink ran as a black band under the white home.
+describe("Safari's chrome on the home page", () => {
+  beforeEach(() => {
+    cleanup();
+    window.history.replaceState({}, "", "/");
+    document.head.querySelector('meta[name="theme-color"]')?.remove();
+    const meta = document.createElement("meta");
+    meta.name = "theme-color";
+    meta.content = "#0a0e18";
+    document.head.appendChild(meta);
+  });
+  const themeColor = () => document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!.content;
+
+  it("takes the page's own color while it is up, follows the theme, and gives the ink back", async () => {
+    const { unmount } = render(<Landing />);
+    expect(themeColor()).toBe("#ffffff");
+    document.documentElement.classList.add("dark");
+    await waitFor(() => expect(themeColor()).toBe("#020617"));
+    document.documentElement.classList.remove("dark");
+    await waitFor(() => expect(themeColor()).toBe("#ffffff"));
+    unmount();
+    expect(themeColor()).toBe("#0a0e18");
   });
 });
