@@ -60,10 +60,22 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
   /** Whether the surface mixes kinds. The Recipes and NIPs tabs hold one and say so; the pill stays away there. */
   mixed?: boolean;
 }) {
+  // Deleted by overwriting: a quiet stub in the card's place, nothing to click.
+  // The hooks still run for it — an article overwritten while its card is on
+  // screen turns blank on a later render, and the hook count must not move —
+  // but they ask about nothing: a stub shows no score and no verified badge.
+  const blank = isBlankEvent(event);
   const tierRing = useTierRing();
   // Callers that fetched a score pass it (dashboard/reading cards); the
   // profile's article list doesn't — self-serve from the shared house cache.
-  const fallbackScoreOf = useAuthorScores(trustScore01 == null ? [event.pubkey] : []);
+  const fallbackScoreOf = useAuthorScores(trustScore01 == null && !blank ? [event.pubkey] : []);
+  // Fall back to the branded Brainstorm cover when an article has no image or
+  // its image URL fails to load (dead host, hotlink block, etc.).
+  const [imgBroken, setImgBroken] = useState(false);
+  const nip05Verified = useNip05(blank ? undefined : author?.nip05, event.pubkey) === "verified";
+  const [, navigate] = useLocation();
+  if (blank) return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
+
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   const title = tagVal(event, "title") || "Untitled article";
   // A wiki page (NIP-54) has no summary tag; its opening words stand in.
@@ -81,22 +93,13 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
   const moreKinds = allKinds.length - coveredKinds.length;
   const summary = articleBrief(event);
   const image = tagVal(event, "image");
-  // Fall back to the branded Brainstorm cover when an article has no image or
-  // its image URL fails to load (dead host, hotlink block, etc.).
-  const [imgBroken, setImgBroken] = useState(false);
   // A spec wears the NIP cover, a recipe the recipe cover, the rest the article one.
   const fallbackCover = isSpec ? specCover : sourceAppFor(event)?.noun === "Recipe" ? recipeCover : articleDefault;
   const coverSrc = !image || imgBroken ? fallbackCover : image;
   const coverAlt = coverSrc === specCover ? SPEC_COVER_ALT : coverSrc === recipeCover ? RECIPE_COVER_ALT : "";
   const name = author?.display_name || author?.name || "Unknown";
-  const nip05Verified = useNip05(author?.nip05, event.pubkey) === "verified";
   const naddr = naddrForEvent(event);
   const href = naddr ? `/e/${naddr}` : undefined;
-  const [, navigate] = useLocation();
-  // Deleted by overwriting: a quiet stub in the card's place, nothing to click.
-  // Below every hook: an article overwritten while its card is on screen turns
-  // blank on a later render, and an early return would change the hook count.
-  if (isBlankEvent(event)) return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
 
   // Whole card is clickable (matches EmbeddedNoteCard). Clicks on the inner
   // "Read article" link / author link keep their own behavior, and

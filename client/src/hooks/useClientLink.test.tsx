@@ -55,4 +55,23 @@ describe("useClientLink", () => {
     expect(errors).not.toHaveBeenCalled();
     errors.mockRestore();
   });
+
+  // A search row's link changes when the row turns into a news card: the render
+  // that sees the new ref showed the old link's article for a frame.
+  it("never answers a new ref with the old ref's entity, not even for a render", async () => {
+    resolveMock.mockResolvedValueOnce(entity).mockReturnValueOnce(new Promise(() => {}));
+    const other = { kind: "profile" as const, nip05: "bob@primal.net" };
+    const seen: Array<{ nip05: string; state: ReturnType<typeof useClientLink> }> = [];
+    const { rerender } = renderHook(({ r }) => {
+      const state = useClientLink(r);
+      seen.push({ nip05: r.nip05, state });
+      return state;
+    }, { initialProps: { r: ref } });
+    await waitFor(() => expect(seen.at(-1)?.state).toEqual({ status: "done", entity }));
+    rerender({ r: other });
+    const forOther = seen.filter((s) => s.nip05 === "bob@primal.net");
+    expect(forOther.length).toBeGreaterThan(0);
+    expect(forOther.every((s) => s.state.entity === null)).toBe(true);
+    expect(forOther[0].state.status).toBe("loading");
+  });
 });

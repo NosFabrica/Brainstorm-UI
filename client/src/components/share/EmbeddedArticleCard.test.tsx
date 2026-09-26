@@ -13,6 +13,9 @@ import type { MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedArticleCard } from "./EmbeddedArticleCard";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
+// The author's NIP-05 check is a fetch of their domain — watched, never made.
+const verifyNip05 = vi.hoisted(() => vi.fn(() => new Promise<never>(() => {})));
+vi.mock("@/lib/nip05", () => ({ verifyNip05, peekNip05: () => undefined }));
 
 const PK = "a".repeat(64);
 function page(kind: number, content: string, tags: string[][]): MinimalEvent {
@@ -33,6 +36,16 @@ describe("EmbeddedArticleCard", () => {
     expect(screen.getByTestId("embedded-article")).toBeInTheDocument();
     rerender(<EmbeddedArticleCard event={page(30023, "", [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]])} author={who} />);
     expect(screen.getByTestId("embedded-deleted")).toHaveTextContent("Zap Cooking deleted this post.");
+  });
+
+  // A stub shows no verified badge, so it has no reason to fetch the author's domain.
+  it("a deleted article asks nothing about its author's NIP-05", () => {
+    verifyNip05.mockClear();
+    render(<EmbeddedArticleCard event={page(30023, "", [["d", "gone"], ["deleted", "true"]])} author={{ name: "zapcooking", nip05: "_@zap.cooking" }} />);
+    expect(screen.getByTestId("embedded-deleted")).toBeInTheDocument();
+    expect(verifyNip05).not.toHaveBeenCalled();
+    render(<EmbeddedArticleCard event={page(30023, "# Tea", [["d", "tea"], ["title", "Tea"]])} author={{ name: "zapcooking", nip05: "_@zap.cooking" }} />);
+    expect(verifyNip05).toHaveBeenCalledTimes(1);
   });
 
   it("an article deleted by overwriting is a quiet stub naming who deleted it — no title, no cover, nothing to click", () => {
