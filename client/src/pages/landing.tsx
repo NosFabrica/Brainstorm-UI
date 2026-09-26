@@ -1,84 +1,39 @@
 import { HomeFooter } from "@/components/HomeFooter";
-import { Link, useLocation, useSearch } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
-import { copyToClipboard } from "@/lib/clipboard";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem, pushRecentScoped } from "@/lib/recentSearches";
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
+import { pushRecentQuery, pushRecentScoped } from "@/lib/recentSearches";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { nip19 } from "nostr-tools";
 import { resolveNip05 } from "@/lib/nip05";
-import {
-  Search,
-  ArrowRight,
-  Loader2,
-  Check,
-  X,
-  SlidersHorizontal,
-  Clock,
-  Radio,
-  CalendarDays,
-  Newspaper,
-  Image as ImageIcon,
-  MessageSquare,
-  Users,
-  Package,
-  ListChecks,
-  ShoppingBag,
-} from "lucide-react";
-import { CATEGORY_ICON } from "@/lib/dlists";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
 import { FinishSetupBanner } from "@/components/FinishSetupBanner";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { fetchProfile } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
-import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { queryClient } from "@/lib/queryClient";
-import { apiClient } from "@/services/api";
-import { useActivePerspective } from "@/hooks/useActivePerspective";
-import { useHasMywot } from "@/hooks/useHasMywot";
-import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { AccountCards } from "@/components/AccountCards";
-import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
   getDisplayLabel,
   isLikelyNpub,
   isHexPubkey,
   isNip05Handle,
-  typeaheadPause,
-  type SearchResult,
 } from "@/lib/profileSearch";
-import { suggestListings, suggestProfileHits, suggestProfiles, tabLabel, type SearchHit } from "@/services/search";
-import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
+import { type SearchHit } from "@/services/search";
 import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
-import { personAssist, queryWords, scopeOf, splitFilters, type PersonAssist, seeAllLabel, typeaheadWords } from "@/lib/searchSyntax";
-import { SearchField } from "@/components/search/SearchField";
-import { SEARCH_BOX_CLASS, SEARCH_CLEAR_CLASS, SEARCH_ICON_CLASS, SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
-import type { SearchFieldHandle } from "@/lib/searchFieldDom";
+import { queryWords, scopeOf, splitFilters } from "@/lib/searchSyntax";
+import { SearchBox, type SearchBoxHandle } from "@/components/search/SearchBox";
+import { SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
+import { useSearchPov } from "@/hooks/useSearchPov";
+import { useOpenProfile } from "@/hooks/useOpenProfile";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
-import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
-import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
-import { PersonContentChips } from "@/components/search/PersonContentChips";
-import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
-import { intentTarget, searchIntent } from "@/lib/personContent";
-import { usePersonContent } from "@/hooks/usePersonContent";
-import { useTagMatches } from "@/hooks/useTags";
-import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { eventPath, npubFromPubkey } from "@/lib/shareId";
-import { scopedSearchHref } from "@/lib/searchSyntax";
+import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
-import { useConnectionSpeed } from "@/lib/connection";
 
-// Anonymous visitors search from the NosFabrica ("house") POV. Logged-in users
-// stay on this search-first home and search from their active trust perspective.
-const ANON_POV = "nosfabrica" as const;
 
 // Example prompts the empty search box gently cycles through to teach
 // first-time visitors what they can search for. The first entry is the
@@ -107,8 +62,6 @@ const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
 const TAP_SLOP = 10;
 
 export default function Landing() {
-  const tierRing = useTierRing();
-  const coinReplaced = useCoinReplacedByRing();
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState(() => {
     try { return new URLSearchParams(window.location.search).get("q") || ""; } catch { return ""; }
@@ -119,14 +72,10 @@ export default function Landing() {
   const [filters, setFilters] = useState(() => {
     try { return new URLSearchParams(window.location.search).get("f") || ""; } catch { return ""; }
   });
-  const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
-  // Product titles under the people — "Satoshi Smiley T-shirt", straight to it.
-  const [productSuggestions, setProductSuggestions] = useState<SearchHit[]>([]);
   /** The typeahead's last answer, as hits, for the People section to start from. */
   const suggestedPeople = useRef<{ query: string; hits: SearchHit[] } | null>(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isSuggesting, setIsSuggesting] = useState(false);
-  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  // The box's suggestion dropdown — the hero lifts toward the top while it is open.
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [phIndex, setPhIndex] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -137,22 +86,6 @@ export default function Landing() {
   const [isFirstVisit] = useState(() => {
     try { return !localStorage.getItem(SEEN_SEARCH_HINTS_KEY); } catch { return true; }
   });
-  // Per-browser recent searches, shown under an empty, focused box (returning
-  // visitors only — a first-timer has none). `focused` gates that panel.
-  const [recent, setRecent] = useState<RecentItem[]>(() => getRecentItems());
-  // What each suggested or recent person publishes — chips on their row,
-  // one tap to their shop, recipes, streams. One ask per person per session.
-  const personContent = usePersonContent(
-    useMemo(() => [...suggestions.map((s) => s.pubkey), ...recent.flatMap((r) => (r.type === "profile" ? [r.pubkey] : []))], [suggestions, recent]),
-  );
-  const [focused, setFocused] = useState(false);
-  // Benjamin: "when users refresh to the home screen, don't have the search
-  // history dropdown [showing]" — the box autofocuses on load, and focus
-  // alone used to open recents. Google waits for a gesture: recents appear
-  // once the person has clicked or typed in the box, not on page load.
-  const [engaged, setEngaged] = useState(false);
-  const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
-
   // The SUBMITTED query — what SearchResults streams for. Distinct from
   // `query` (the live box text): results only change on submit/URL, never
   // per keystroke. SearchResults owns the stream, skeleton and count line.
@@ -172,19 +105,8 @@ export default function Landing() {
   // Brief in-box spinner while a NIP-05 handle resolves to a profile.
   const [isSearching, setIsSearching] = useState(false);
 
-  const suggestAbortRef = useRef(0);
   const searchAbortRef = useRef(0);
-  const suggestTimerRef = useRef<number | undefined>(undefined);
-  const suggestRequestRef = useRef<AbortController | null>(null);
   const phFadeTimerRef = useRef<number | undefined>(undefined);
-  const typedSinceSearchRef = useRef(false);
-  // True only when the highlighted suggestion was reached via keyboard arrows.
-  // Mouse hover sets the highlight for visuals/prefetch but leaves this false so
-  // pressing Enter still runs a full search instead of opening a hovered profile.
-  const kbdNavRef = useRef(false);
-  // Non-null while the dropdown is completing a from:/to: name fragment —
-  // picking a person then WRITES THE KEY instead of navigating.
-  const personAssistRef = useRef<PersonAssist | null>(null);
   // The animated hero container — the wordmark refresh replays its
   // load-in through the Web Animations API (a remount would re-trigger
   // the input's autoFocus and reopen the recents dropdown).
@@ -233,41 +155,17 @@ export default function Landing() {
       body.style.backgroundColor = bodyBefore;
     };
   }, []);
-  const searchContainerRef = useRef<HTMLDivElement>(null);
-  // The box is a contenteditable now, so what the page holds is the field's own handle
-  // (focus, select, caret) rather than an <input> element.
-  const inputRef = useRef<SearchFieldHandle | null>(null);
+  // The box — the one every search surface shares (components/search/SearchBox).
+  const boxRef = useRef<SearchBoxHandle | null>(null);
   // Where a touch on the → button began, and how far the page was scrolled then —
   // a finger that travelled, or a page that moved under it, was a scroll, not a tap.
   const searchTouchRef = useRef<{ x: number; y: number; scrollY: number } | null>(null);
-  // True while the field's own calendar or group picker owns the space under the box; the
-  // page's suggestion dropdown stands down rather than stacking two lists on one square.
-  const [fieldPicking, setFieldPicking] = useState(false);
   const didInitFromUrlRef = useRef(false);
-  const prefetchTimersRef = useRef<Map<string, number>>(new Map());
-
   // Live identity: the header avatar appears as soon as the profile metadata
-  // lands after login, without a refresh.
-  const user = useActiveAccountDisplay();
-  const speed = useConnectionSpeed();
-  const [pov, setPov] = useActivePerspective();
-  const { hasMywot } = useHasMywot();
-  // Permission to search from one's own perspective, per GET /user/isSearchObserver.
-  const { isSearchObserver } = useIsSearchObserver();
-  const canUseMywot = hasMywot && isSearchObserver;
-  // Relay hits carry no rank numbers (order-only wire) — the dropdown's rings
-  // and coins feed from the shared author-score cache, like every card.
-  const suggestScoreOf = useAuthorScores(useMemo(() => suggestions.map((x) => x.pubkey), [suggestions]));
-
-  // Logged-in users stay on this search-first home and search from their active
-  // trust perspective; "My WoT" gracefully falls back to the house view unless
-  // the user both has a personalized graph (hasMywot) and is permitted to be
-  // their own search observer (isSearchObserver). Anonymous visitors always use
-  // the house view.
-  const effectivePov = useMemo(() => {
-    if (!user) return ANON_POV;
-    return pov === "mywot" && !canUseMywot ? ANON_POV : pov;
-  }, [user, pov, canUseMywot]);
+  // lands after login, without a refresh. The perspective rule is the one the
+  // box's suggestions use, so results and suggestions rank alike.
+  const { user, setPov, effectivePov, hasMywot, isSearchObserver } = useSearchPov();
+  const { openProfile: goToProfile, prefetchEnter: handlePrefetchEnter, prefetchLeave: handlePrefetchLeave } = useOpenProfile();
 
   const handleLogout = useCallback(() => {
     logout();
@@ -315,268 +213,6 @@ export default function Landing() {
     };
   }, [isFirstVisit, prefersReducedMotion, query]);
 
-  // Keep the keyboard-highlighted suggestion scrolled into view.
-  useEffect(() => {
-    if (activeSuggestion < 0) return;
-    document.getElementById(`home-suggestion-opt-${activeSuggestion}`)?.scrollIntoView({ block: "nearest" });
-  }, [activeSuggestion]);
-
-  // Live, debounced profile suggestions as the user types (Google-style).
-  // Skips direct identifiers (npub / hex / NIP-05) since those resolve straight
-  // to a profile on submit. A request token is bumped on every keystroke so a
-  // slow earlier request can never overwrite newer suggestions.
-  const scheduleSuggest = useCallback((value: string) => {
-    window.clearTimeout(suggestTimerRef.current);
-    suggestRequestRef.current?.abort();
-    const reqId = ++suggestAbortRef.current;
-    const q = value.trim();
-    // Any edit to the query invalidates a prior keyboard selection so Enter
-    // falls back to a full search until the user arrow-navigates again.
-    kbdNavRef.current = false;
-    // Mid-typing `from:ja` / `to:ma` → offer people for the FRAGMENT; picking
-    // one writes the key into the query (nobody types an npub by hand).
-    const assist = personAssist(value);
-    personAssistRef.current = assist && assist.fragment.length >= 2 ? assist : null;
-    if (personAssistRef.current) {
-      typedSinceSearchRef.current = true;
-      setIsSuggesting(true);
-      setShowSuggestions(true);
-      suggestTimerRef.current = window.setTimeout(async () => {
-        try {
-          suggestRequestRef.current = new AbortController();
-          const people = await suggestProfiles(
-            personAssistRef.current!.fragment,
-            { pov: effectivePov, userPubkey: user?.pubkey },
-            { signal: suggestRequestRef.current.signal },
-          );
-          if (suggestAbortRef.current !== reqId) return;
-          setSuggestions(people.slice(0, 7));
-          setActiveSuggestion(-1);
-          kbdNavRef.current = false;
-          setShowSuggestions(true);
-        } catch {
-          if (suggestAbortRef.current !== reqId) return;
-          setSuggestions([]);
-      setProductSuggestions([]);
-        } finally {
-          if (suggestAbortRef.current === reqId) setIsSuggesting(false);
-        }
-      }, typeaheadPause(speed));
-      return;
-    }
-    // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
-    if (parseTopicQuery(value).isTopic) {
-      typedSinceSearchRef.current = true;
-      setSuggestions([]);
-      setProductSuggestions([]);
-      setIsSuggesting(false);
-      setShowSuggestions(true);
-      return;
-    }
-    // Filters and half-typed prefixes are not names: `doi:` must not list people called "doi".
-    // A person scope is the box's own frame, not a filter being typed; the words beside it are.
-    if (q.length < 2 || typeaheadWords(scopeOf(value)?.rest ?? value) === null || isLikelyNpub(q) || isHexPubkey(q) || isNip05Handle(q)) {
-      typedSinceSearchRef.current = false;
-      setSuggestions([]);
-      setProductSuggestions([]);
-      setShowSuggestions(false);
-      setIsSuggesting(false);
-      return;
-    }
-    typedSinceSearchRef.current = true;
-    setIsSuggesting(true);
-    setShowSuggestions(true);
-    suggestTimerRef.current = window.setTimeout(async () => {
-      try {
-        suggestRequestRef.current = new AbortController();
-        const signal = suggestRequestRef.current.signal;
-        // Products ask beside the people, on the same cancel; they land when they land.
-        void suggestListings(q, { pov: effectivePov, userPubkey: user?.pubkey }, { limit: 3, signal }).then((hits) => {
-          if (suggestAbortRef.current !== reqId) return;
-          setProductSuggestions(hits);
-          if (hits.length) setShowSuggestions(true);
-        });
-        // "staci shop" looks up "staci"; the category word becomes the intent row.
-        const lookup = searchIntent(q)?.name ?? q;
-        const suggestHits = await suggestProfileHits(lookup, { pov: effectivePov, userPubkey: user?.pubkey }, { signal });
-        if (suggestAbortRef.current !== reqId) return;
-        // Kept for the People section: submitting asks this very question again.
-        suggestedPeople.current = { query: q, hits: suggestHits };
-        setSuggestions(suggestHits.map((h) => h.author).filter((a): a is SearchResult => !!a).slice(0, 7));
-        setActiveSuggestion(-1);
-        kbdNavRef.current = false;
-        setShowSuggestions(true);
-      } catch {
-        if (suggestAbortRef.current !== reqId) return;
-        setSuggestions([]);
-      setProductSuggestions([]);
-      } finally {
-        if (suggestAbortRef.current === reqId) setIsSuggesting(false);
-      }
-    }, typeaheadPause(speed));
-  }, [effectivePov, user?.pubkey, speed]);
-
-  useEffect(() => {
-    return () => {
-      window.clearTimeout(suggestTimerRef.current);
-      suggestRequestRef.current?.abort();
-    };
-  }, []);
-
-  // Closing the dropdown drops the pending and in-flight suggestion alike.
-  useEffect(() => {
-    if (showSuggestions) return;
-    window.clearTimeout(suggestTimerRef.current);
-    suggestAbortRef.current++;
-    suggestRequestRef.current?.abort();
-  }, [showSuggestions]);
-
-  // Close the dropdown on outside click.
-  useEffect(() => {
-    if (!showSuggestions) return;
-    const onDown = (e: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [showSuggestions]);
-
-  const seedAndPrefetchProfile = useCallback((result: SearchResult) => {
-    const hex = (result.pubkey || "").toLowerCase();
-    if (!hex) return;
-    const seed: ProfileSeed = {
-      pubkey: hex,
-      npub: result.npub,
-      name: result.name,
-      displayName: result.displayName,
-      picture: result.picture,
-      about: result.about,
-      nip05: result.nip05,
-      banner: result.banner,
-      website: result.website,
-      lud16: result.lud16,
-      wotRank: result.wotRank ?? null,
-      wotFollowers: result.wotFollowers ?? null,
-      wotRankNosfabrica: result.wotRankNosfabrica ?? null,
-      wotRankMywot: result.wotRankMywot ?? null,
-      povFromSearch: effectivePov,
-    };
-    setProfileSeed(hex, seed);
-    queryClient.prefetchQuery({
-      queryKey: ["profile", hex],
-      queryFn: async () => {
-        const res = await apiClient.getUserByPubkey(hex);
-        return res?.data ?? null;
-      },
-      staleTime: 5 * 60_000,
-    }).catch(() => {});
-    queryClient.prefetchQuery({
-      queryKey: ["nostr-profile", hex],
-      queryFn: async () => (await fetchProfile(hex)) ?? null,
-      staleTime: 5 * 60_000,
-    }).catch(() => {});
-  }, [effectivePov]);
-
-  const goToProfile = useCallback((result: SearchResult) => {
-    // Remember the people opened from search in the "Recent" list (avatar + name),
-    // so they're one tap to get back to — not just the words typed into the box.
-    setRecent(pushRecentProfile({
-      pubkey: result.pubkey,
-      npub: result.npub,
-      label: getDisplayLabel(result),
-      picture: result.picture,
-      nip05: result.nip05,
-    }));
-    seedAndPrefetchProfile(result);
-    const hex = (result.pubkey || "").toLowerCase();
-    const hasNosfabricaRank =
-      typeof result.wotRankNosfabrica === "number" && Number.isFinite(result.wotRankNosfabrica);
-    const persistNosfabrica = hasNosfabricaRank && !!hex;
-    if (persistNosfabrica) {
-      setStoredSearchSeed(hex, {
-        pubkey: hex,
-        npub: result.npub,
-        name: result.name,
-        displayName: result.displayName,
-        picture: result.picture,
-        about: result.about,
-        nip05: result.nip05,
-        banner: result.banner,
-        website: result.website,
-        lud16: result.lud16,
-        wotRank: result.wotRank ?? null,
-        wotFollowers: result.wotFollowers ?? null,
-        wotRankNosfabrica: result.wotRankNosfabrica ?? null,
-        wotRankMywot: result.wotRankMywot ?? null,
-        povFromSearch: effectivePov,
-      });
-    }
-    // Context-aware destination: anonymous searchers go to the clean public /p
-    // page (our njump replacement + join funnel), logged-in members get the
-    // personalized /profile analysis. The Public-page / View-full-profile
-    // cross-links cover anyone who wants the other view.
-    if (!user) {
-      setLocation(`/p/${result.npub}`);
-      return;
-    }
-    const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
-    setLocation(`/p/${result.npub}${suffix ? `?${suffix.replace(/^&/, "")}` : ""}`);
-  }, [seedAndPrefetchProfile, setLocation, effectivePov, user]);
-
-  // What picking a dropdown person means depends on mode: completing a
-  // from:/to: fragment writes the key and keeps the user typing; otherwise
-  // it opens the profile as always.
-  const pickSuggestion = useCallback((result: SearchResult) => {
-    const assist = personAssistRef.current;
-    if (assist) {
-      personAssistRef.current = null;
-      setQuery(assist.complete(result.npub));
-      setSuggestions([]);
-      setActiveSuggestion(-1);
-      setShowSuggestions(false);
-      inputRef.current?.focus();
-      return;
-    }
-    goToProfile(result);
-  }, [goToProfile]);
-
-  const handlePrefetchEnter = useCallback((result: SearchResult) => {
-    const key = result.pubkey;
-    if (!key || prefetchTimersRef.current.has(key)) return;
-    const timer = window.setTimeout(() => {
-      prefetchTimersRef.current.delete(key);
-      seedAndPrefetchProfile(result);
-    }, 150);
-    prefetchTimersRef.current.set(key, timer);
-  }, [seedAndPrefetchProfile]);
-
-  const handlePrefetchLeave = useCallback((result: SearchResult) => {
-    const t = prefetchTimersRef.current.get(result.pubkey);
-    if (t !== undefined) {
-      window.clearTimeout(t);
-      prefetchTimersRef.current.delete(result.pubkey);
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      prefetchTimersRef.current.forEach((t) => window.clearTimeout(t));
-      prefetchTimersRef.current.clear();
-    };
-  }, []);
-
-  const cancelSuggest = useCallback(() => {
-    window.clearTimeout(suggestTimerRef.current);
-    suggestRequestRef.current?.abort();
-    suggestAbortRef.current++;
-    typedSinceSearchRef.current = false;
-    personAssistRef.current = null;
-    setShowSuggestions(false);
-    setIsSuggesting(false);
-  }, []);
-
   // Abandon whatever the results area is showing (and any stream still
   // running for it) without touching the query box. A bare tab in the URL
   // keeps browsing that tab; nothing at all returns to the pristine home.
@@ -613,15 +249,10 @@ export default function Landing() {
     // A scope is a step from somebody's profile, not words anyone typed, and a query with no
     // WORDS is a filter — `since:2026-09-16` on its own is what choosing a date preset while
     // browsing writes, and it is nothing to offer back in a list of recent searches.
-    if (!scopeOf(q) && queryWords(q)) setRecent(pushRecentQuery(q));
+    if (!scopeOf(q) && queryWords(q)) pushRecentQuery(q);
     // Running a full search cancels any pending/in-flight suggestion request and
     // closes the dropdown so it can't reopen on top of the results list.
-    window.clearTimeout(suggestTimerRef.current);
-    suggestRequestRef.current?.abort();
-    suggestAbortRef.current++;
-    typedSinceSearchRef.current = false;
-    setShowSuggestions(false);
-    setIsSuggesting(false);
+    boxRef.current?.closeSuggestions();
 
     // Put the query in the URL so Back returns to it with the box filled in —
     // for every kind of query, not just the text search below.
@@ -758,33 +389,12 @@ export default function Landing() {
     }
   }, [handleSearch]);
 
-  // A POV flip re-ranks the open results automatically — SearchResults
-  // restarts its stream when its `pov` prop changes. Only the mid-type
-  // suggestion dropdown needs a nudge here.
-  const prevPovRef = useRef(effectivePov);
-  useEffect(() => {
-    if (prevPovRef.current === effectivePov) return;
-    prevPovRef.current = effectivePov;
-    const q = query.trim();
-    if (typedSinceSearchRef.current && q.length >= 2) {
-      scheduleSuggest(query);
-    }
-  }, [effectivePov, query, scheduleSuggest]);
-
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    cancelSuggest();
-    handleSearch();
-  };
-
   // A query scoped to one person shows that person as a PILL inside the box — their face and
   // name where the grammar has `from:npub…`, never the raw key (Benjamin: "we should never
-  // show the raw scope"). The box holds the whole query now, the pill included, so the words
-  // beside it are whatever the grammar did not lift.
+  // show the raw scope").
   const scope = scopeOf(query);
-  const words = scope ? scope.rest : query;
-  // The person's name, for the placeholder — the chip's hook and cache, not a
-  // second fetch. A profile with no name stays "their": never a key.
+  // The person's name, for RECENT — the pill's hook and cache, not a second
+  // fetch. A profile with no name stays unnamed: never a key.
   const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
   const scopeProfile = scope ? scopeProfiles.get(scope.pubkey) : undefined;
   const scopeName = scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
@@ -798,7 +408,7 @@ export default function Landing() {
     const ran = scopeOf(submitted);
     if (!ran || !scopeName || ran.pubkey !== scope?.pubkey) return;
     const openedOn = new URLSearchParams(window.location.search).get("t") || "everything";
-    setRecent(pushRecentScoped({ pubkey: ran.pubkey, npub: npubFromPubkey(ran.pubkey), label: scopeName, picture: scopeProfile?.picture, tab: openedOn, words: ran.rest }));
+    pushRecentScoped({ pubkey: ran.pubkey, npub: npubFromPubkey(ran.pubkey), label: scopeName, picture: scopeProfile?.picture, tab: openedOn, words: ran.rest });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submitted, hasSearched, scopeName, scopeProfile?.picture]);
   // Arriving scoped — the profile's magnifier, a "View all" — the cursor is
@@ -812,26 +422,18 @@ export default function Landing() {
     }
     if (focusedScopeRef.current === scope.pubkey) return;
     focusedScopeRef.current = scope.pubkey;
-    inputRef.current?.focus();
+    boxRef.current?.focus();
   }, [scope?.pubkey]);
 
   const clearSearch = useCallback((opts?: { refocus?: boolean }) => {
     searchAbortRef.current++;
-    cancelSuggest();
     setQuery("");
     setFilters("");
-    setSuggestions([]);
-    setProductSuggestions([]);
-    setActiveSuggestion(-1);
     setSubmitted(null);
     setIsSearching(false);
     // Refocusing reopens the recents dropdown — right for the ⓧ clear
     // button, wrong for the wordmark (a "refresh", not an invitation).
-    // Clearing is a gesture: the box refocuses and recents may show (Google's X).
-    if (opts?.refocus !== false) {
-      setEngaged(true);
-      inputRef.current?.focus();
-    }
+    boxRef.current?.reset(opts);
     try {
       const url = new URL(window.location.href);
       if (url.searchParams.has("q") || url.searchParams.has("t") || url.searchParams.has("f")) {
@@ -841,12 +443,12 @@ export default function Landing() {
         window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
       }
     } catch {}
-  }, [cancelSuggest]);
+  }, []);
 
   // Browse a whole vertical with no keyword — Benjamin's "just show me all
   // the live events". Deep-linkable: ?t=<tab> with no ?q=.
   const browseVertical = useCallback((tabKey: string) => {
-    cancelSuggest();
+    boxRef.current?.closeSuggestions();
     setQuery("");
     try {
       const url = new URL(window.location.href);
@@ -855,74 +457,16 @@ export default function Landing() {
       window.history.pushState({}, "", url.pathname + url.search);
     } catch {}
     setSubmitted(filters.trim());
-  }, [cancelSuggest, filters]);
+  }, [filters]);
 
-  // The suggestions dropdown is open whenever we have something to show.
-  // We lift the search box toward the top when it opens (or once a search is
-  // under way) so the list/results have room.
-  // When the typed query is itself a nostr entity/link (npub/nevent/note/naddr/…),
-  // the dropdown's action row resolves it straight to the right landing page.
-  // Under a scope only the WORDS can be a pasted key — the scope's own npub
-  // is the person, not an entity to open.
-  const entityMatch = useMemo(() => resolveEntityToPath((scope ? words : query).trim()), [query, scope, words]);
-  const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
-  // Tags the query matches. Skipped entirely for `#topic` queries — those are
-  // already routed at the hashtag feed and shouldn't offer a second answer.
-  // Only while suggestions show — a query restored from the URL mustn't pull the whole catalogue.
-  const tagMatches = useTagMatches(topicMatch.isTopic || !showSuggestions ? "" : query);
-  // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
-  const intent = useMemo(() => intentTarget(searchIntent(query), suggestions, personContent), [query, suggestions, personContent]);
-  const dropdownOpen =
-    !fieldPicking &&
-    showSuggestions && (suggestions.length > 0 || productSuggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
-  // "Recent" shows under an empty, focused box before any search this session —
-  // never alongside the suggestions dropdown or a results list.
-  const showRecent = engaged && focused && query.trim() === "" && !hasSearched && !dropdownOpen;
+  const onPeopleSuggested = useCallback((q: string, hits: SearchHit[]) => {
+    // Kept for the People section: submitting asks this very question again.
+    suggestedPeople.current = { query: q, hits };
+  }, []);
+
+  // We lift the search box toward the top when its dropdown opens (or once a
+  // search is under way) so the list/results have room.
   const lifted = hasSearched || isSearching || query.trim().length > 0;
-
-  // Measure the room left below the search box and cap whichever panel is open.
-  // Both panels are `absolute top-full`, so without a cap they run straight off
-  // the bottom of the page — and the page root is `overflow-hidden`, so the
-  // overrun is CLIPPED rather than scrollable (unreachable, not just ugly). This
-  // used to fire for the suggestions dropdown only, which left "Recent" — the
-  // panel a returning visitor sees first, before typing a single character —
-  // uncapped: in landscape it ran ~40px past the viewport with its last rows
-  // buried under the footer links.
-  useLayoutEffect(() => {
-    if (!dropdownOpen && !showRecent) return;
-    const recompute = () => {
-      const el = searchContainerRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const vv = window.visualViewport;
-      const available = vv
-        ? vv.height - (rect.bottom - vv.offsetTop) - 8 - 16
-        : window.innerHeight - rect.bottom - 8 - 16;
-      setSuggestMaxH(Math.max(0, Math.floor(available)));
-    };
-    recompute();
-    let raf = 0;
-    const loop = () => {
-      recompute();
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    const stop = window.setTimeout(() => cancelAnimationFrame(raf), 650);
-    const vv = window.visualViewport;
-    window.addEventListener("resize", recompute);
-    window.addEventListener("scroll", recompute, true);
-    vv?.addEventListener("resize", recompute);
-    vv?.addEventListener("scroll", recompute);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(stop);
-      window.removeEventListener("resize", recompute);
-      window.removeEventListener("scroll", recompute, true);
-      vv?.removeEventListener("resize", recompute);
-      vv?.removeEventListener("scroll", recompute);
-    };
-  }, [dropdownOpen, showRecent]);
-
 
   // 100dvh, not 100vh: on iOS the toolbar eats a big share of a LANDSCAPE
   // viewport, and 100vh measures the large (toolbar-hidden) viewport — so the
@@ -1055,113 +599,36 @@ export default function Landing() {
             )}
           </div>
 
-          <div ref={searchContainerRef} className={hasSearched ? "relative order-3 basis-full sm:order-2 sm:basis-auto sm:flex-1 sm:min-w-0 sm:max-w-2xl sm:mx-auto" : "relative"}>
-            <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
-              {/* (accent-discipline preview) focus "bloom" glow removed — the
-                  crisp border + shadow below is the guideline focus treatment. */}
-              <div className={SEARCH_BOX_CLASS}>
-                {hasSearched && isSearching ? (
-                  <Loader2 className="h-5 w-5 shrink-0 animate-spin text-brand-primary" data-testid="band-searching" />
-                ) : (
-                  <Search className={SEARCH_ICON_CLASS} />
-                )}
-                {/* py-1 (the field's own is py-1.5), with the box's py-1.5 and the button's: a bar
-                    snug around its one line of pills and words, 8px shorter than it was. */}
-                <SearchField
-                  className="flex-1"
-                  inputClassName="py-1"
-                  fieldRef={(h) => { inputRef.current = h; }}
-                  value={query}
-                  onChange={(next) => {
-                    setEngaged(true);
-                    setQuery(next);
-                    scheduleSuggest(next);
-                  }}
-                  onPickerChange={setFieldPicking}
-                  // Dropping a filter is a decision: the page acts on it at once rather than
-                  // waiting for Enter. Emptying the box is the ⓧ gesture — back to the home.
-                  onRemoveToken={(next) => {
-                    if (!next.trim()) { clearSearch(); return; }
-                    if (hasSearched) void handleSearch(next);
-                  }}
-                  onFocus={() => {
-                    setFocused(true);
-                    if (typedSinceSearchRef.current && suggestions.length > 0 && query.trim().length >= 2) setShowSuggestions(true);
-                  }}
-                  onBlur={() => setFocused(false)}
-                  onPointerDown={() => setEngaged(true)}
-                  onEnter={(typed) => {
-                    // Only open a single profile when the user explicitly arrow-keyed
-                    // to a suggestion. Plain typing + Enter (even with the mouse
-                    // resting over the dropdown) always runs a full text search.
-                    if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion] && personAssistRef.current) {
-                      pickSuggestion(suggestions[activeSuggestion]);
-                      return;
-                    }
-                    if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
-                      goToProfile(suggestions[activeSuggestion]);
-                      return;
-                    }
-                    cancelSuggest();
-                    // `typed`, not the `query` state: a soft keyboard's action key commits
-                    // text and submits in one event, and React has not re-rendered yet.
-                    void handleSearch(typed);
-                    // On a touch screen a search is done typing: the keyboard goes, as native
-                    // search does, and the tab bar (hidden while a field has focus) comes back
-                    // over the results. A desktop keeps the box focused for the next query.
-                    if (window.matchMedia?.("(pointer: coarse)").matches) {
-                      (document.activeElement as HTMLElement | null)?.blur?.();
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    setEngaged(true);
-                    if (e.key === "ArrowDown" && showSuggestions && suggestions.length > 0) {
-                      e.preventDefault();
-                      kbdNavRef.current = true;
-                      setActiveSuggestion((i) => Math.min(i + 1, suggestions.length - 1));
-                      return true;
-                    }
-                    if (e.key === "ArrowUp" && showSuggestions && suggestions.length > 0) {
-                      e.preventDefault();
-                      kbdNavRef.current = true;
-                      setActiveSuggestion((i) => Math.max(i - 1, -1));
-                      return true;
-                    }
-                    if (e.key === "Escape") {
-                      setShowSuggestions(false);
-                      setActiveSuggestion(-1);
-                      return true;
-                    }
-                    return false;
-                  }}
-                  placeholder={
+          <SearchBox
+            boxRef={boxRef}
+            className={hasSearched ? "order-3 basis-full sm:order-2 sm:basis-auto sm:flex-1 sm:min-w-0 sm:max-w-2xl sm:mx-auto" : undefined}
+            value={query}
+            onChange={setQuery}
+            onSearch={(q) => { void handleSearch(q); }}
+            onClear={() => clearSearch()}
+            onBrowse={browseVertical}
+            // Dropping a filter is a decision: the page acts on it at once rather than
+            // waiting for Enter. Emptying the box is the ⓧ gesture — back to the home.
+            onRemoveToken={(next) => {
+              if (!next.trim()) { clearSearch(); return; }
+              if (hasSearched) void handleSearch(next);
+            }}
+            // "Recent" belongs to the pristine home, never alongside a results list.
+            recentsAllowed={!hasSearched}
+            busy={hasSearched && isSearching}
+            onPeopleSuggested={onPeopleSuggested}
+            onSuggestionsChange={setDropdownOpen}
+            autoFocus={!hasSearched}
+            placeholder={
                     <span
                       className={`${SEARCH_PLACEHOLDER_CLASS} transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
                       data-testid="text-home-placeholder"
                     >
                       {isFirstVisit && !prefersReducedMotion ? PLACEHOLDER_EXAMPLES[phIndex] : PLACEHOLDER_EXAMPLES[0]}
                     </span>
-                  }
-                  ariaLabel="Search people, topics, or handles"
-                  autoFocus={!hasSearched}
-                  combobox={{
-                    expanded: showSuggestions,
-                    controls: "home-search-suggestions",
-                    activeDescendant: showSuggestions && activeSuggestion >= 0 ? `home-suggestion-opt-${activeSuggestion}` : undefined,
-                  }}
-                  testId="input-home-search"
-                />
-                {query.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => clearSearch()}
-                    aria-label="Clear search"
-                    className={SEARCH_CLEAR_CLASS}
-                    data-testid="button-home-clear"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
+            }
+            trailing={
+              <>
                 {/* The band has no button: Enter searches, the magnifier spins
                     while it runs. The pristine landing keeps the purple call. */}
                 {!hasSearched && (
@@ -1205,8 +672,8 @@ export default function Landing() {
                     // prediction, an IME composition); the field has it, `query` is the last
                     // render's. So the box's own words, read after the blur, as onEnter does.
                     (document.activeElement as HTMLElement | null)?.blur?.();
-                    cancelSuggest();
-                    void handleSearch(inputRef.current?.getValue());
+                    boxRef.current?.closeSuggestions();
+                    void handleSearch(boxRef.current?.getValue());
                   }}
                   className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-1.5 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"
@@ -1221,307 +688,9 @@ export default function Landing() {
                   )}
                 </button>
                 )}
-              </div>
-            </form>
-
-            {dropdownOpen && (
-              <div
-                id="home-search-suggestions"
-                role="listbox"
-                className="absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left"
-                style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
-                data-testid="container-home-suggestions"
-              >
-                {topicMatch.isTopic ? (
-                  <TopicSuggestionRow
-                    tag={topicMatch.tag}
-                    active
-                    onSelect={() => { setShowSuggestions(false); if (topicMatch.tag) setLocation(topicPath(topicMatch.tag)); }}
-                    testId="home-topic"
-                  />
-                ) : isSuggesting && suggestions.length === 0 && tagMatches.length === 0 ? (
-                  <div className="px-4 py-3 flex items-center gap-2 text-slate-400 dark:text-slate-500 text-xs" data-testid="home-suggestions-loading">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
-                  </div>
-                ) : (
-                  <>
-                    {/* Tags first: far fewer of them than people, and they're a
-                        different kind of answer — "who is known for this"
-                        rather than "who is called this". */}
-                    {intent && (
-                      <div className="shrink-0 border-b border-slate-100 dark:border-slate-800/60">
-                        <IntentSuggestionRow
-                          name={getDisplayLabel(intent.person as SearchResult)}
-                          chip={intent.chip}
-                          onSelect={() => { setShowSuggestions(false); setLocation(scopedSearchHref(intent.person.pubkey, intent.chip.tab)); }}
-                          testId="home-intent-row"
-                        />
-                      </div>
-                    )}
-                    {tagMatches.length > 0 && (
-                      <div className="shrink-0 border-b border-slate-100 dark:border-slate-800/60" data-testid="home-tag-matches">
-                        {tagMatches.map((t) => (
-                          <TagSuggestionRow
-                            key={t.key}
-                            tag={t}
-                            onSelect={() => {
-                              const path = tagSuggestionPath(t, npubFromPubkey);
-                              if (!path) return;
-                              setShowSuggestions(false);
-                              setLocation(path);
-                            }}
-                            testId="home-tag-suggestion"
-                          />
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex-1 overflow-y-auto overscroll-contain min-h-0" data-testid="list-home-suggestions">
-                    {suggestions.map((s, i) => {
-                      const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
-                      const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
-                      return (
-                        // A div, not a button: the chips inside are links, and the
-                        // input keeps focus anyway (aria-activedescendant above).
-                        <div
-                          key={s.pubkey}
-                          id={`home-suggestion-opt-${i}`}
-                          role="option"
-                          aria-selected={i === activeSuggestion}
-                          className={`group w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors cursor-pointer ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
-                          onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); handlePrefetchEnter(s); }}
-                          onMouseLeave={() => handlePrefetchLeave(s)}
-                          onClick={() => pickSuggestion(s)}
-                          data-testid={`home-suggestion-${i}`}
-                        >
-                          <Avatar className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0 ${tierRing(rank) ?? ""}`}>
-                            {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
-                            <AvatarFallback className="overflow-hidden">
-                              <DefaultAvatarImg />
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate" data-testid={`home-suggestion-name-${i}`}>
-                              {getDisplayLabel(s)}
-                            </p>
-                            {handle && (
-                              <p className="text-xs text-brand-primary dark:text-brand-link truncate flex items-center gap-0.5">
-                                <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
-                                {handle}
-                              </p>
-                            )}
-                          </div>
-                          {/* What they publish, one tap to it. Desktop reveals on
-                              hover or the arrowed row; phones always show it. */}
-                          <PersonContentChips
-                            pubkey={s.pubkey}
-                            name={getDisplayLabel(s)}
-                            content={personContent.get(s.pubkey)}
-                            onNavigate={() => setShowSuggestions(false)}
-                            linkTabIndex={-1}
-                            className="sm:opacity-0 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100 sm:group-focus-within:opacity-100"
-                          />
-                          {/* Same coin as the results list below and every people
-                              list — it follows the viewer's display mode where
-                              this pill couldn't, and fixes the pill's scale bug:
-                              it printed `wotRank` raw (0..1), so 81 read "0.81". */}
-                          {rank != null && (
-                            <VerificationCoin
-                              score01={rank}
-                              pov={effectivePov === "mywot" ? "personalized" : "global"}
-                              size={22}
-                              className={tierRing(rank) && coinReplaced ? "sr-only" : "shrink-0"}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                    </div>
-                    {/* Products under the people: the thing itself, one tap away. */}
-                    {productSuggestions.length > 0 && (
-                      <div className="shrink-0 border-t border-slate-100 dark:border-slate-800/60" data-testid="home-product-suggestions">
-                        {productSuggestions.map((h, i) => (
-                          <ListingSuggestionRow
-                            key={h.event.id}
-                            hit={h}
-                            onSelect={() => { setShowSuggestions(false); setLocation(eventPath(h.event)); }}
-                            testId={`home-product-suggestion-${i}`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      className={`w-full shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 dark:border-slate-800/60 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 dark:bg-slate-800 text-brand-primary" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-brand-primary"}`}
-                      onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(-1); }}
-                      onMouseDown={(e) => { e.preventDefault(); setShowSuggestions(false); handleSearch(query); }}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowSuggestions(false); handleSearch(query); } }}
-                      data-testid="home-suggestion-see-all"
-                    >
-                      {entityMatch ? (
-                        <><ArrowRight className="h-3.5 w-3.5 shrink-0" />Open this {entityMatch.kind} →</>
-                      ) : (
-                        <><Search className="h-3.5 w-3.5 shrink-0" />{scope ? seeAllLabel(words, scopeName) : `See all results for "${query.trim()}"`}</>
-                      )}
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
-            {showRecent && (
-              <div
-                role="listbox"
-                aria-label="Recent searches"
-                className="absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left"
-                style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
-                data-testid="container-home-recent"
-              >
-                {/* Browse lives HERE now, not as standing page chrome — the
-                    empty focused box offers the verticals, Google-style. */}
-                {/* Phones wrap the chips into rows; from sm up they hold one line. */}
-                <div className="flex flex-wrap items-center gap-1 px-4 pt-3 pb-2 sm:flex-nowrap sm:overflow-x-auto" data-testid="browse-chips">
-                  <span className="w-full sm:w-auto sm:mr-0.5 mb-0.5 sm:mb-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Browse</span>
-                  {/* One chip per vertical, in the tab bar's order — the
-                      dropdown IS the tab set for keyword-less browsing. */}
-                  {[
-                    { tab: "people", label: "People", icon: Users },
-                    { tab: "notes", label: "Notes", icon: MessageSquare },
-                    { tab: "media", label: "Media", icon: ImageIcon },
-                    { tab: "shop", label: "Shop", icon: ShoppingBag },
-                    { tab: "apps", label: "Apps", icon: Package },
-                    { tab: "events", label: "Events", icon: CalendarDays },
-                    // The music category's icon comes from the D-list registry (the team, 2026-09-24).
-                    { tab: "music", label: "Music", icon: CATEGORY_ICON.music },
-                    { tab: "live", label: "Live", icon: Radio },
-                    { tab: "lists", label: "Lists", icon: ListChecks },
-                  ].map((c) => (
-                    <button
-                      key={c.tab}
-                      type="button"
-                      onMouseDown={(e) => { e.preventDefault(); setFocused(false); browseVertical(c.tab); }}
-                      // Quiet text links, not nine bordered pills (Benjamin:
-                      // "a lot of chips — shrink them or make it more subtle").
-                      // They wrap to a second line on phones instead of scrolling.
-                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-deep dark:hover:text-white transition-colors"
-                      data-testid={`browse-${c.tab}`}
-                    >
-                      <c.icon className="h-3 w-3 opacity-70" /> {c.label}
-                    </button>
-                  ))}
-                </div>
-                {recent.length > 0 && (
-                <div className="flex items-center justify-between px-4 pt-1 pb-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Recent</span>
-                  <button
-                    type="button"
-                    // onMouseDown + preventDefault keeps the input focused so the
-                    // click lands before the box blurs and closes this panel.
-                    onMouseDown={(e) => { e.preventDefault(); setRecent(clearRecentSearches()); }}
-                    className="text-[11px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors focus:outline-none focus-visible:text-brand-primary"
-                    data-testid="button-home-recent-clear"
-                  >
-                    Clear
-                  </button>
-                </div>
-                )}
-                {/* Rows scroll inside the capped panel — the "Recent" header and
-                    Clear stay pinned, matching the suggestions dropdown. */}
-                <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pb-1.5">
-                  {recent.map((item, i) => {
-                    // Two row shapes share the hover container + remove button:
-                    // a person you opened (avatar → re-open) or a text query
-                    // (clock → re-run). onMouseDown + preventDefault keeps the
-                    // input focused so the action lands before the panel closes.
-                    const handle = item.type === "profile" && item.nip05 ? item.nip05.replace(/^_@/, "") : null;
-                    const removeLabel = item.type === "profile"
-                      ? `Remove ${item.label} from recent`
-                      : item.type === "scoped"
-                        ? `Remove ${item.label}'s ${tabLabel(item.tab).toLowerCase()} from recent`
-                        : `Remove "${item.q}" from recent searches`;
-                    return (
-                      <div
-                        key={recentKey(item)}
-                        role="option"
-                        aria-selected={false}
-                        className="group/recent w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                        data-testid={`home-recent-${i}`}
-                      >
-                        {item.type === "profile" ? (
-                          <button
-                            type="button"
-                            className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
-                            onMouseDown={(e) => { e.preventDefault(); goToProfile({ pubkey: item.pubkey, npub: item.npub, name: item.label, picture: item.picture, nip05: item.nip05 } as SearchResult); }}
-                            data-testid={`home-recent-open-${i}`}
-                          >
-                            <Avatar className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
-                              {item.picture ? <AvatarImage src={item.picture} alt={item.label} className="object-cover" /> : null}
-                              <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{item.label}</p>
-                              {handle && (
-                                <p className="text-xs text-brand-primary dark:text-brand-link truncate flex items-center gap-0.5 leading-tight">
-                                  <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />{handle}
-                                </p>
-                              )}
-                            </div>
-                          </button>
-                        ) : item.type === "scoped" ? (
-                          // "vinney's media": the person's face, the tab, the words — re-run as the scoped search.
-                          <button
-                            type="button"
-                            className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
-                            onMouseDown={(e) => { e.preventDefault(); setFocused(false); setLocation(scopedSearchHref(item.pubkey, item.tab, item.words)); }}
-                            data-testid={`home-recent-scoped-${i}`}
-                          >
-                            <Avatar className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
-                              {item.picture ? <AvatarImage src={item.picture} alt={item.label} className="object-cover" /> : null}
-                              <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{item.label}</p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 truncate leading-tight" data-testid={`home-recent-scoped-what-${i}`}>
-                                {item.words ? `${tabLabel(item.tab)} · ${item.words}` : tabLabel(item.tab)}
-                              </p>
-                            </div>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
-                            onMouseDown={(e) => { e.preventDefault(); setQuery(item.q); handleSearch(item.q); }}
-                            data-testid={`home-recent-run-${i}`}
-                          >
-                            <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
-                            <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{item.q}</span>
-                          </button>
-                        )}
-                        {item.type === "profile" && (
-                          <PersonContentChips
-                            pubkey={item.pubkey}
-                            name={item.label}
-                            content={personContent.get(item.pubkey)}
-                            onNavigate={() => setFocused(false)}
-                            linkTabIndex={-1}
-                            className="sm:opacity-0 sm:group-hover/recent:opacity-100 sm:group-focus-within/recent:opacity-100"
-                          />
-                        )}
-                        <button
-                          type="button"
-                          aria-label={removeLabel}
-                          onMouseDown={(e) => { e.preventDefault(); setRecent(removeRecentItem(item)); }}
-                          className="opacity-0 group-hover/recent:opacity-100 focus:opacity-100 inline-flex items-center justify-center h-6 w-6 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                          data-testid={`home-recent-remove-${i}`}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+              </>
+            }
+          />
 
           {/* Band, right: the same account actions the pristine bar carries. */}
           {hasSearched && (

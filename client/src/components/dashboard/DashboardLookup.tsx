@@ -2,10 +2,10 @@ import { Telescope } from "lucide-react";
 import { HeaderSearchBox } from "@/components/HeaderSearchBox";
 
 /**
- * The dashboard's "Investigate" command bar — the research entry point. Reuses the
- * shared typeahead (HeaderSearchBox), but routes to the deep-dive analytics
- * (`/profile/:npub`) instead of the public share page, and resolves a pasted
- * npub/hex straight there. Accepts name search, npub, hex, or NIP-05.
+ * The dashboard's "Investigate" command bar — the research entry point. The same
+ * search box as everywhere else (HeaderSearchBox): a suggested person opens their
+ * profile, and a pasted npub, hex or NIP-05 resolves straight to it through the
+ * home results page.
  */
 export function DashboardLookup() {
   return (
@@ -14,8 +14,6 @@ export function DashboardLookup() {
       <HeaderSearchBox
         className="flex-1"
         placeholder="Look up anyone in your network…"
-        profileHref={(npub) => `/p/${npub}`}
-        resolveDirect
       />
     </div>
   );
