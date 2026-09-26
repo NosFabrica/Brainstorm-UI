@@ -1,5 +1,8 @@
-import { useLocation } from "wouter";
-import { Wordmark } from "@/components/Wordmark";
+import { Link } from "wouter";
+import { Search } from "lucide-react";
+import { BrainLogo } from "@/components/BrainLogo";
+import { HeaderSearchBox } from "@/components/HeaderSearchBox";
+import { openMobileSearch } from "@/components/MobileSearchOverlay";
 import { AdminBadge } from "@/components/AdminBadge";
 import { type AppKey } from "@/components/AppsLauncher";
 import { AccountMenu } from "@/components/AccountMenu";
@@ -22,50 +25,42 @@ interface AppHeaderProps {
 }
 
 /**
- * Single shared top navigation used by every authenticated page. Uniform,
- * Google-like: a transparent (frosted-on-scroll) bar with only the B mark on
- * the left and the apps launcher + account menu on the right. Primary
- * destinations (Search/Dashboard/Network) live inside the account menu; the
- * apps launcher holds the product family. On mobile the bottom tab bar +
- * account sheet own navigation, so the header is just the wordmark.
+ * Single shared top navigation used by every authenticated page. Uniform with the
+ * public-page header (PublicPageHeader) and the home results band: a transparent
+ * (frosted-on-scroll) bar with the B mark on the left, the search box — the one
+ * SearchBox every surface shares — beside it, and the finish-setup nudge, apps
+ * launcher + account menu on the right. Primary destinations (Search/Dashboard/
+ * Network) live inside the account menu. On a phone the box is a magnifier that
+ * opens the search sheet over the page.
  */
-export function AppHeader({ user, onLogout, calcDone = false, active, actions }: AppHeaderProps) {
-  const [, navigate] = useLocation();
+export function AppHeader({ user, onLogout, active, actions }: AppHeaderProps) {
   const isAdmin = user.isAdmin;
 
   return (
     <nav className="sticky top-0 z-40 backdrop-blur-md" data-testid="nav-app-header">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-        {/* Three regions instead of justify-between so the finish-setup banner
-            sits visually centered regardless of how the side clusters differ. */}
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 justify-self-start">
-            {/* Handwritten wordmark — the full brand signature (same as the
-                homepage hero). App-chrome pages (dashboard, network, settings,
-                FAQ, admin, /profile) have no header search bar, so the wordmark
-                anchors them; the search-bar headers (home, /p share pages) keep
-                the compact B mark. Gradient reads on light, white on dark. */}
-            <button
-              type="button"
-              className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
-              onClick={() => navigate("/")}
-              aria-label="Brainstorm home"
-              data-testid="button-app-brand"
-            >
-              <Wordmark height={26} className="shrink-0 dark:hidden" />
-              <Wordmark height={26} variant="white" className="hidden shrink-0 dark:block" />
-            </button>
-          </div>
+      <div className="max-w-7xl mx-auto flex min-h-14 items-center gap-3 px-4 sm:px-6 py-2 sm:py-3">
+        <Link href="/" className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50" aria-label="Brainstorm home" data-testid="button-app-brand">
+          {/* Gradient mark on light, white on dark — the search-bar headers' compact B. */}
+          <BrainLogo size={26} className="dark:hidden" />
+          <BrainLogo size={26} mono className="hidden text-white dark:block" />
+        </Link>
 
-          <div className="flex justify-center min-w-0">
-            <FinishSetupBanner />
-          </div>
+        <HeaderSearchBox className="hidden min-w-0 max-w-2xl flex-1 sm:block" />
 
-          <div className="flex items-center gap-2 sm:gap-3 justify-self-end">
-            {actions && <div className="hidden lg:flex items-center mr-1">{actions}</div>}
-            {isAdmin && <AdminBadge />}
-            <AccountMenu user={user} onLogout={onLogout} active={active} />
-          </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+          <FinishSetupBanner />
+          <button
+            type="button"
+            onClick={openMobileSearch}
+            aria-label="Search"
+            className="rounded-full p-2 text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-deep sm:hidden"
+            data-testid="app-search-mobile"
+          >
+            <Search className="h-5 w-5" />
+          </button>
+          {actions && <div className="hidden lg:flex items-center mr-1">{actions}</div>}
+          {isAdmin && <AdminBadge />}
+          <AccountMenu user={user} onLogout={onLogout} active={active} />
         </div>
       </div>
     </nav>

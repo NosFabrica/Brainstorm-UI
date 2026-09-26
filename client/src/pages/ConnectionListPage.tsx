@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
@@ -6,13 +7,10 @@ import { ArrowLeft, Loader2, Users, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
-import { logout } from "@/accounts/login-flow";
-import { AccountMenu } from "@/components/AccountMenu";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
-import { Wordmark } from "@/components/Wordmark";
 import { InfoHint } from "@/components/InfoHint";
 import { TrustScoreModal, useScorePov, PovToggle, type ScorePov } from "@/components/score/TrustScorePov";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
@@ -40,7 +38,6 @@ export default function ConnectionListPage() {
   const goBack = useGoBack();
   const [, params] = useRoute("/p/:id/:type");
   const me = useActiveAccountDisplay();
-  const handleLogout = () => logout();
   const rawId = params?.id || "";
   const type = params?.type || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
@@ -184,8 +181,12 @@ export default function ConnectionListPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
-      <header className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm sticky top-0 z-20">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
+      {/* The public pages' header — B mark, the shared search box, account — so
+          search stays one tap away below a profile too. Back rides the page. */}
+      <PublicPageHeader maxWidthClass="max-w-2xl" />
+
+      <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-6">
+        <div className="mb-4">
           {/* Pops history rather than navigating to the profile. As a <Link> this
               PUSHED a duplicate entry, so "Back" moved the user forward: the
               stack became [profile, list, profile] and the browser's own Back
@@ -208,17 +209,7 @@ export default function ConnectionListPage() {
           >
             <ArrowLeft className="h-4 w-4" /> Back to {subjectName.split(" ")[0]}
           </button>
-          <div className="ml-auto flex items-center gap-3">
-            <Link href="/" className="flex items-center" data-testid="conn-brand">
-              <Wordmark height={24} className="dark:hidden" />
-              <Wordmark height={24} variant="white" className="hidden dark:block" />
-            </Link>
-            {me && <AccountMenu user={me} onLogout={handleLogout} />}
-          </div>
         </div>
-      </header>
-
-      <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-6">
         <div className="mb-5">
           <div className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/30 bg-brand-deep/5 text-brand-deep">

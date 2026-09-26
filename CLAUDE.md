@@ -40,7 +40,7 @@ New UI **must** use the shared primitives instead of hand-rolling styles — thi
 - Section kicker → `<SectionHeader kicker=… />` (`components/ui/section-header.tsx`)
 - Tones (light+dark, one source of truth) → `lib/tones.ts`
 - Alerts → `ui/alert.tsx`; tabs → `ui/tabs.tsx`; buttons → `ui/button.tsx`
-- Search box → `<SearchBox>` (`components/search/SearchBox.tsx`) — the one box behind home, the shared-page header, the phone sheet and the dashboard lookup; never a second typeahead
+- Search box → `<SearchBox>` (`components/search/SearchBox.tsx`) — the one box behind home, every header (PublicPageHeader, AppHeader), the phone sheet and /what-is-wot; never a second typeahead
 
 Anchored to the designer's brand-guidelines p17 "UI Foundations" sheet. Full guide + what stays bespoke: `docs/design-system.md`. Interface icons are lucide today (guidelines spec Phosphor — migration deferred, not a bug).
 

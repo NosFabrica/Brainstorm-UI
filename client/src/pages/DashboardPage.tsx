@@ -18,7 +18,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
 import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule";
-import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
 import { TaggedYouModule } from "@/components/dashboard/TaggedYouModule";
@@ -1356,11 +1355,8 @@ export default function DashboardPage() {
 
           {activateModal}
 
-          {/* Investigate command bar — research entry point into the deep-dive
-              analytics (/profile/:npub) for anyone in your network. */}
-          <div className="mb-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 px-3 py-2.5 shadow-sm" data-testid="dashboard-lookup-bar">
-            <DashboardLookup />
-          </div>
+          {/* No lookup bar here: the header's search box is the same box, one
+              line up — two of them on one screen was one too many. */}
 
           {/* Stacked, never side-by-side: Network Alerts sits full-width on top,
               "Your Network" full-width below. Minimizing/expanding Alerts is a pure

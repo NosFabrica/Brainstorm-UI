@@ -22,6 +22,8 @@ const goBackMock = vi.fn();
 vi.mock("@/hooks/useGoBack", () => ({ useGoBack: () => goBackMock }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
+// The header carries the search box; this page's tests are about the listings under it.
+vi.mock("@/components/PublicPageHeader", () => ({ PublicPageHeader: () => <header data-testid="header" /> }));
 
 import { SellerListings } from "./SellingPage";
 

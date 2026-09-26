@@ -98,8 +98,8 @@ export interface SearchBoxHandle {
 }
 
 /**
- * THE search box — the home hero, the results band, the header on the shared pages
- * (/p, /e, /a, /t), the phone's search sheet and the dashboard lookup are all this one
+ * THE search box — the home hero, the results band, every header (the public pages' and
+ * the signed-in app's), the phone's search sheet and the /what-is-wot hero are all this one
  * component. They used to be three separate implementations that drifted: the header and
  * the sheet were plain inputs with their own typeahead, no filter pills, no `from:` people
  * completion and their own recents. Now what a query looks like and what the box offers

@@ -1,4 +1,5 @@
 import { useMemo, useState, type MouseEvent } from "react";
+import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
@@ -9,15 +10,12 @@ import { ArrowLeft, Loader2, ShieldAlert, Flag, UserPlus, Check, ChevronDown } f
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { fetchProfileMap } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
-import { logout } from "@/accounts/login-flow";
-import { AccountMenu } from "@/components/AccountMenu";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { reportUser, followUser, fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/services/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { Wordmark } from "@/components/Wordmark";
 import { ordinal } from "@/components/DegreeChip";
 import { shareTierFor } from "@/components/share/TrustScoreBadge";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
@@ -56,7 +54,6 @@ export default function HopsPathPage() {
   const relayHints = decoded?.relays || [];
 
   const me = useActiveAccountDisplay();
-  const handleLogout = () => logout();
   const myPubkey = me?.pubkey || "";
   // The path ORIGIN follows the perspective toggle — the viewer under
   // personalized (when usable), House otherwise, logged out included. The
@@ -199,8 +196,12 @@ export default function HopsPathPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto max-w-xl flex items-center gap-3 px-4 sm:px-6 h-14">
+      {/* The public pages' header — B mark, the shared search box, account — so
+          search stays one tap away below a profile too. Back rides the page. */}
+      <PublicPageHeader maxWidthClass="max-w-xl" />
+
+      <main className="mx-auto max-w-xl px-4 sm:px-6 py-8">
+        <div className="mb-4">
           {/* Pops history instead of pushing the profile again — same fix and
               same reasoning as ConnectionListPage. `backLink` is the fallback
               for a cold deep-link with nothing to pop. */}
@@ -212,17 +213,7 @@ export default function HopsPathPage() {
           >
             <ArrowLeft className="h-4 w-4" /> Back
           </button>
-          <div className="ml-auto flex items-center gap-3">
-            <Link href="/" className="flex items-center" aria-label="Brainstorm home">
-              <Wordmark height={24} className="dark:hidden" />
-              <Wordmark height={24} variant="white" className="hidden dark:block" />
-            </Link>
-            {me && <AccountMenu user={me} onLogout={handleLogout} />}
-          </div>
         </div>
-      </header>
-
-      <main className="mx-auto max-w-xl px-4 sm:px-6 py-8">
         <div className="flex items-center gap-2.5 mb-3">
           <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">Connection</span>
           <div className="h-px w-10 bg-brand-accent/40" />
