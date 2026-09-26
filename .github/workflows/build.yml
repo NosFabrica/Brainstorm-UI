@@ -44,6 +44,9 @@ jobs:
       - name: Typecheck
         run: npm run check
 
+      - name: Lint (rules of hooks)
+        run: npm run lint
+
       - name: Test
         run: npm test
 
