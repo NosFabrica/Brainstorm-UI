@@ -16,7 +16,8 @@ import { ExtensionMissingError } from "applesauce-signers";
 import { announceRelayList, cacheProfile, fetchProfile, publishProfile } from "@/services/nostr";
 import { loadRelayList } from "@/lib/relayRouting";
 import { clearHydratedStore } from "@/services/storeHydration";
-import { sessions, SessionTransportError } from "@/accounts/session";
+import { sessions, SessionTransportError, SESSION_SIGN_TIMEOUT_MS } from "@/accounts/session";
+import { isRemoteSignerTimeout, withTimeout } from "@/accounts/remote-signer";
 import { LocalAccount } from "@/accounts/local-account";
 import { activeAccount } from "@/accounts/signing";
 import {
@@ -67,6 +68,10 @@ export interface NostrUser {
 }
 
 /** Did the signer's own UI turn us down, rather than something breaking? */
+/** An extension that never answered — its prompt never opened, or was dropped. Not a refusal. */
+const EXTENSION_SILENT =
+  "Your extension didn't answer. Open it, approve the request, and try again — or use your key.";
+
 function refusedBySigner(err: unknown): boolean {
   const message = (err instanceof Error ? err.message : "").toLowerCase();
   return message.includes("denied") || message.includes("rejected") || message.includes("cancel");
@@ -132,9 +137,11 @@ export async function handleLogin(): Promise<NostrUser> {
   try {
     // Also the extension wait: the constructor asks for a pubkey, so an extension
     // that never appears or refuses fails here rather than at the first publish.
-    account = await extensionAccount();
+    // The same deadline as the challenge: an extension can drop this prompt too.
+    account = await withTimeout(extensionAccount(), SESSION_SIGN_TIMEOUT_MS);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
+    if (isRemoteSignerTimeout(err)) throw new LoginError("EXTENSION_FAILED", EXTENSION_SILENT);
     if (err instanceof ExtensionMissingError) {
       throw new LoginError(
         "NO_EXTENSION",
@@ -161,6 +168,7 @@ export async function handleLogin(): Promise<NostrUser> {
     if (err instanceof SessionTransportError) {
       throw new LoginError("SERVER_ERROR", msg || "Failed to reach server.");
     }
+    if (isRemoteSignerTimeout(err)) throw new LoginError("EXTENSION_FAILED", EXTENSION_SILENT);
     if (refusedBySigner(err)) {
       throw new LoginError(
         "SIGN_CANCELLED",
