@@ -102,6 +102,9 @@ const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
 
 
 
+/** How far (px) a finger or the page may move before a touch on → stops being a tap. */
+const TAP_SLOP = 10;
+
 export default function Landing() {
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
@@ -204,6 +207,9 @@ export default function Landing() {
   // The box is a contenteditable now, so what the page holds is the field's own handle
   // (focus, select, caret) rather than an <input> element.
   const inputRef = useRef<SearchFieldHandle | null>(null);
+  // Where a touch on the → button began, and how far the page was scrolled then —
+  // a finger that travelled, or a page that moved under it, was a scroll, not a tap.
+  const searchTouchRef = useRef<{ x: number; y: number; scrollY: number } | null>(null);
   // True while the field's own calendar or group picker owns the space under the box; the
   // page's suggestion dropdown stands down rather than stacking two lists on one square.
   const [fieldPicking, setFieldPicking] = useState(false);
@@ -1137,16 +1143,34 @@ export default function Landing() {
                   // synthesizes afterwards lands wherever the button has moved away from, so the
                   // search never runs until a second tap. Submit on the touch itself, and cancel
                   // the late click so it can't hit whatever the results put under the finger.
+                  onTouchStart={(e) => {
+                    const t = e.touches[0];
+                    // One finger is a tap; a second is a pinch, never a search.
+                    searchTouchRef.current = t && e.touches.length === 1 ? { x: t.clientX, y: t.clientY, scrollY: window.scrollY } : null;
+                  }}
+                  onTouchCancel={() => {
+                    searchTouchRef.current = null;
+                  }}
                   onTouchEnd={(e) => {
+                    const start = searchTouchRef.current;
+                    searchTouchRef.current = null;
                     const t = e.changedTouches[0];
                     const r = e.currentTarget.getBoundingClientRect();
-                    // A drag that started here and ended elsewhere is a scroll, not a tap.
-                    if (!t || t.clientX < r.left || t.clientX > r.right || t.clientY < r.top || t.clientY > r.bottom) return;
+                    // The button rides along with a scroll, so ending inside it proves nothing:
+                    // the finger has to stay put and the page with it. Anything else is left
+                    // to the browser (a scroll, or a click for it to synthesize).
+                    if (!start || !t || e.touches.length > 0) return;
+                    if (Math.abs(t.clientX - start.x) > TAP_SLOP || Math.abs(t.clientY - start.y) > TAP_SLOP) return;
+                    if (Math.abs(window.scrollY - start.scrollY) > TAP_SLOP) return;
+                    if (t.clientX < r.left || t.clientX > r.right || t.clientY < r.top || t.clientY > r.bottom) return;
                     e.preventDefault();
                     if (isSearching) return;
+                    // Dropping focus commits what the keyboard still held (autocorrect, a
+                    // prediction, an IME composition); the field has it, `query` is the last
+                    // render's. So the box's own words, read after the blur, as onEnter does.
                     (document.activeElement as HTMLElement | null)?.blur?.();
                     cancelSuggest();
-                    void handleSearch();
+                    void handleSearch(inputRef.current?.getValue());
                   }}
                   className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"

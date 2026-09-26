@@ -637,27 +637,83 @@ describe("a scoped search is remembered in RECENT", () => {
 // iOS Safari ends the field's editing on the tap — keyboard down, page scrolled back — before it
 // synthesizes the click, which then misses the moved button: the search waited for a second tap.
 describe("tapping the search button on a touch screen", () => {
+  // jsdom lays nothing out; the button gets a real box so the geometry is tested, not zeros.
+  const BOX = { left: 300, right: 360, top: 400, bottom: 440, width: 60, height: 40, x: 300, y: 400 };
+  const IN = { clientX: 330, clientY: 420 };
+  let scrollY = 0;
+  let scrollSpy: { mockRestore: () => void } | undefined;
+
   beforeEach(() => {
     cleanup();
     allStreams = [];
     streamMock.mockClear();
     window.history.replaceState({}, "", "/");
+    scrollY = 0;
+    scrollSpy = vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
   });
+  afterEach(() => scrollSpy?.mockRestore());
+
+  function button(): HTMLElement {
+    const b = screen.getByTestId("button-home-search");
+    b.getBoundingClientRect = () => ({ ...BOX, toJSON: () => BOX }) as DOMRect;
+    return b;
+  }
+  /** A one-finger touch from `from` to `to`; returns whether touchend was left un-cancelled. */
+  function touch(b: HTMLElement, from: { clientX: number; clientY: number }, to = from): boolean {
+    fireEvent.touchStart(b, { touches: [from], changedTouches: [from] });
+    return fireEvent.touchEnd(b, { touches: [], changedTouches: [to] });
+  }
 
   it("searches on the touch itself, without waiting for a click", async () => {
     render(<Landing />);
     typeInBox("podcaster");
-    const button = screen.getByTestId("button-home-search");
-    const tap = fireEvent.touchEnd(button, { changedTouches: [{ clientX: 0, clientY: 0 }] });
-    expect(tap).toBe(false); // the late click is cancelled
+    expect(touch(button(), IN)).toBe(false); // the late click is cancelled
     await waitFor(() => expect(mainStreamCalls().some(([q]) => q === "podcaster")).toBe(true));
     expect(new URLSearchParams(window.location.search).get("q")).toBe("podcaster");
+  });
+
+  // Dropping focus commits what the keyboard held (autocorrect, an IME composition) straight
+  // into the field; the page's state is a render behind. The search is what the box says.
+  it("searches the words in the box, not the last render's", async () => {
+    render(<Landing />);
+    const box = typeInBox("podcastr");
+    box.value = "podcaster"; // committed by the keyboard, no input event yet
+    touch(button(), IN);
+    await waitFor(() => expect(mainStreamCalls().some(([q]) => q === "podcaster")).toBe(true));
+    expect(mainStreamCalls().some(([q]) => q === "podcastr")).toBe(false);
+  });
+
+  // The button rides along with a scroll, so the finger ends over it anyway.
+  it("a swipe that starts on the button and scrolls the page is a scroll, not a search", () => {
+    render(<Landing />);
+    typeInBox("podcaster");
+    const b = button();
+    fireEvent.touchStart(b, { touches: [IN], changedTouches: [IN] });
+    scrollY = 180;
+    expect(fireEvent.touchEnd(b, { touches: [], changedTouches: [IN] })).toBe(true);
+    expect(mainStreamCalls()).toHaveLength(0);
+  });
+
+  it("a finger that travels, even inside the button, is not a tap", () => {
+    render(<Landing />);
+    typeInBox("podcaster");
+    expect(touch(button(), { clientX: 305, clientY: 405 }, { clientX: 355, clientY: 435 })).toBe(true);
+    expect(mainStreamCalls()).toHaveLength(0);
   });
 
   it("a drag that ends off the button is a scroll, not a search", () => {
     render(<Landing />);
     typeInBox("podcaster");
-    fireEvent.touchEnd(screen.getByTestId("button-home-search"), { changedTouches: [{ clientX: 500, clientY: 500 }] });
+    expect(touch(button(), IN, { clientX: 500, clientY: 500 })).toBe(true);
+    expect(mainStreamCalls()).toHaveLength(0);
+  });
+
+  it("a second finger makes it a pinch, not a search", () => {
+    render(<Landing />);
+    typeInBox("podcaster");
+    const b = button();
+    fireEvent.touchStart(b, { touches: [IN, { clientX: 100, clientY: 100 }], changedTouches: [IN] });
+    fireEvent.touchEnd(b, { touches: [], changedTouches: [IN] });
     expect(mainStreamCalls()).toHaveLength(0);
   });
 });
