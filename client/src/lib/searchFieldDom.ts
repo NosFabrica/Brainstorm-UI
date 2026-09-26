@@ -190,7 +190,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       ? textOf(n as Text).length
       : isChip(n)
         ? (n.dataset.token as string).length
-        : (n.textContent || "").length;
+        : visible(n.textContent || "").length;
   /** The DOM offset in a text node with `k` visible characters before it, past any anchor there. */
   function domOffset(t: Text, k: number): number {
     let seen = 0;
@@ -205,7 +205,9 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
   function readValue(): string {
     let out = "";
     for (const n of Array.from(el.childNodes)) {
-      out += n.nodeType === 3 ? textOf(n as Text) : isChip(n) ? n.dataset.token : n.textContent || "";
+      // An element that is not a pill is text WebKit wrapped (it does, after a non-editable
+      // inline), and may hold the anchor: read it the way a bare text node is read.
+      out += n.nodeType === 3 ? textOf(n as Text) : isChip(n) ? n.dataset.token : visible(n.textContent || "");
     }
     // A contenteditable inserts NBSP to keep trailing spaces, which the grammar cannot tokenize.
     return out.replace(/\u00a0/g, " ");
@@ -275,7 +277,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     let lead = "";
     while (i < nodes.length && !isScopeChip(nodes[i])) {
       if (isChip(nodes[i])) return null; // another pill leads: no scope to keep first
-      lead += nodes[i].nodeType === 3 ? textOf(nodes[i] as Text) : nodes[i].textContent ?? "";
+      lead += nodes[i].nodeType === 3 ? textOf(nodes[i] as Text) : visible(nodes[i].textContent ?? "");
       i++;
     }
     if (i >= nodes.length) return null;
@@ -289,7 +291,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       break;
     }
     let rest = "";
-    for (; i < nodes.length; i++) rest += nodes[i].nodeType === 3 ? textOf(nodes[i] as Text) : isChip(nodes[i]) ? (nodes[i] as HTMLElement).dataset.token : nodes[i].textContent || "";
+    for (; i < nodes.length; i++) rest += nodes[i].nodeType === 3 ? textOf(nodes[i] as Text) : isChip(nodes[i]) ? (nodes[i] as HTMLElement).dataset.token : visible(nodes[i].textContent || "");
     return { lead: lead.replace(/\u00a0/g, " "), scope, between, rest: rest.replace(/\u00a0/g, " "), leadNodes: 0 };
   }
 
@@ -729,6 +731,12 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       // Never re-render mid-composition: rebuilding the nodes under an IME tears down its text.
       const at = caretIndex();
       if (structureChanged(text, at)) render(text, at);
+      // An edit that took only the anchor (delete forward, a word delete) leaves the pill last
+      // with no text after it, and iOS no home for the caret; render() is not called for that.
+      else if (isChip(el.lastChild)) {
+        anchorCaret();
+        if (at === text.length) setCaret(at);
+      }
     }
     updateToken();
     ledWithScope = leadsWithScope();
@@ -738,7 +746,9 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
   /** Paste and drop insert text; left to the browser they would insert markup. */
   function insertPlain(e: Event, raw: string | null | undefined, at?: number | null): void {
     e.preventDefault();
-    const text = String(raw || "").replace(/\s+/g, " ");
+    // Zero-width spaces ride along in copied web text; here they are the caret's anchor,
+    // worth nothing, so kept they would put every offset after them one off.
+    const text = visible(String(raw || "")).replace(/\s+/g, " ");
     const [from, to] = at == null ? selectionRange() : [at, at];
     // `typingAt` null: a paste is not somebody midway through a word.
     replaceRange(from, to, text, from + text.length, null);
@@ -779,7 +789,8 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
 
   const onBeforeInput = (e: InputEvent) => {
     const t = e.inputType;
-    if (t === "deleteContentBackward" && backspaceOverAnchor(e)) return;
+    // A word or line delete right after a pill takes the pill too: the anchor is not a word.
+    if ((t === "deleteContentBackward" || t === "deleteWordBackward" || t === "deleteSoftLineBackward") && backspaceOverAnchor(e)) return;
     const typed = t === "insertText" && e.data && NEWLINE.test(e.data) ? e.data : null;
     if (!typed && t !== "insertLineBreak" && t !== "insertParagraph") return;
     const rest = typed ? typed.replace(NEWLINES, "") : "";
@@ -877,7 +888,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
 
   function setValue(v: string): void {
     // The last door a line break can come through; `?q=` carries whatever it carries.
-    const text = String(v ?? "").replace(NEWLINES, " ");
+    const text = visible(String(v ?? "")).replace(NEWLINES, " ");
     setToken(null);
     // typingAt null: a restore or a clear is not typing.
     render(text, document.activeElement === el ? text.length : null, null);
@@ -894,7 +905,9 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     // as "at the end" and left it there.
     focus: () => {
       el.focus();
-      setCaret(readValue().length);
+      // A hidden or detached box does not take focus; a selection placed in it anyway would
+      // sit in an unfocused field, and take the selection from wherever focus really is.
+      if (document.activeElement === el) setCaret(readValue().length);
     },
     select() {
       const sel = document.getSelection();
