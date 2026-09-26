@@ -25,6 +25,16 @@ describe("EmbeddedArticleCard", () => {
   // Zap Cooking's recipes deleted by overwriting (2026-09-24) rendered as
   // cards titled "[Deleted]" with the placeholder cover. A quiet stub in the
   // same frame says what happened and asks for nothing.
+  // The stub used to return before three hooks: an article overwritten while
+  // its card was on screen ran fewer hooks on the next render and React threw.
+  it("an article deleted while its card is on screen turns into the stub instead of crashing", () => {
+    const who = { name: "zapcooking", display_name: "Zap Cooking" };
+    const { rerender } = render(<EmbeddedArticleCard event={page(30023, "# Tea\n\nSteep.", [["d", "cheese-foam-tea"], ["title", "Cheese Foam Tea"]])} author={who} />);
+    expect(screen.getByTestId("embedded-article")).toBeInTheDocument();
+    rerender(<EmbeddedArticleCard event={page(30023, "", [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]])} author={who} />);
+    expect(screen.getByTestId("embedded-deleted")).toHaveTextContent("Zap Cooking deleted this post.");
+  });
+
   it("an article deleted by overwriting is a quiet stub naming who deleted it — no title, no cover, nothing to click", () => {
     render(<EmbeddedArticleCard event={page(30023, "", [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]])} author={{ name: "zapcooking", display_name: "Zap Cooking" }} />);
     const stub = screen.getByTestId("embedded-deleted");

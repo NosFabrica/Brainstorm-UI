@@ -480,4 +480,18 @@ it("a video-only result gets a first-frame thumb, not a blank", () => {
     expect(row).not.toHaveTextContent(/nostr:n/);
     expect(row).toHaveTextContent("word0");
   });
+
+  // Searching "Podcaster" took the whole page down (2026-09-25): a feed's
+  // "headline <image> lede <article>" note is a post until its author loads,
+  // then a news card — and the news return came before the row's link hook,
+  // so the second render ran one hook fewer and React threw.
+  it("a row that becomes a news card once its feed author loads still renders", () => {
+    const lede = "The long lede that follows the picture and runs on well past what a headline may hold, ".repeat(3);
+    const ev = note(`A podcast headline long enough to count https://cdn.example/cover.jpg ${lede} https://news.example/episode-1`);
+    const { rerender } = render(<SerpRow event={ev} author={null} score={0.7} query="podcast" />);
+    expect(screen.queryByTestId("news-headline")).toBeNull();
+    const feed = { ...author, name: "Podcast Feed", bot: true };
+    rerender(<SerpRow event={ev} author={feed} score={0.7} query="podcast" />);
+    expect(screen.getByTestId("news-headline")).toHaveTextContent("A podcast headline long enough to count");
+  });
 });

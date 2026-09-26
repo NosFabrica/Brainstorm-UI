@@ -64,8 +64,6 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
   // Callers that fetched a score pass it (dashboard/reading cards); the
   // profile's article list doesn't — self-serve from the shared house cache.
   const fallbackScoreOf = useAuthorScores(trustScore01 == null ? [event.pubkey] : []);
-  // Deleted by overwriting: a quiet stub in the card's place, nothing to click.
-  if (isBlankEvent(event)) return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   const title = tagVal(event, "title") || "Untitled article";
   // A wiki page (NIP-54) has no summary tag; its opening words stand in.
@@ -95,6 +93,10 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
   const naddr = naddrForEvent(event);
   const href = naddr ? `/e/${naddr}` : undefined;
   const [, navigate] = useLocation();
+  // Deleted by overwriting: a quiet stub in the card's place, nothing to click.
+  // Below every hook: an article overwritten while its card is on screen turns
+  // blank on a later render, and an early return would change the hook count.
+  if (isBlankEvent(event)) return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
 
   // Whole card is clickable (matches EmbeddedNoteCard). Clicks on the inner
   // "Read article" link / author link keep their own behavior, and
