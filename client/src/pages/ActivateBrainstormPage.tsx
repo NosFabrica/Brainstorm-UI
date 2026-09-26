@@ -68,7 +68,7 @@ export default function ActivateBrainstormPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
-      <AppHeader user={user} onLogout={() => { logout(); navigate("/"); }} />
+      <AppHeader user={user} onLogout={() => { logout(); navigate("/"); }} search={false} />
 
       <main className="flex items-center justify-center px-4 pb-28 pt-8 sm:px-6 sm:pt-12">
         <Card accent className="w-full max-w-xl overflow-hidden" data-testid="card-activate-page">

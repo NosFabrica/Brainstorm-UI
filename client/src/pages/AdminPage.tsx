@@ -2670,7 +2670,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-admin">
       <PageBackground />
 
-      <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="admin" />
+      <AppHeader user={user} onLogout={handleLogout} active="admin" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
         <DeferredSessionNotice className="mb-6" />

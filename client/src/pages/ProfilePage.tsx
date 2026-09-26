@@ -2062,7 +2062,7 @@ export default function ProfilePage() {
           />
         </header>
       ) : (
-      <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} />
+      <AppHeader user={user} onLogout={handleLogout} />
       )}
 
       <ShareProfileModal

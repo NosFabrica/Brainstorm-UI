@@ -14,9 +14,11 @@ interface InfoPageLayoutProps {
   children: ReactNode;
   testId?: string;
   active?: AppKey;
+  /** False on a page whose own content is a search box (/what-is-wot's hero). */
+  headerSearch?: boolean;
 }
 
-export function InfoPageLayout({ children, testId, active }: InfoPageLayoutProps) {
+export function InfoPageLayout({ children, testId, active, headerSearch = true }: InfoPageLayoutProps) {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
 
@@ -25,26 +27,24 @@ export function InfoPageLayout({ children, testId, active }: InfoPageLayoutProps
     navigate("/");
   };
 
-  const calcDone =
-    typeof window !== "undefined" &&
-    window.localStorage.getItem("brainstorm_calc_completed") === "true";
 
   if (isAuthRedirecting()) return null;
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden"
+      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-clip"
       data-testid={testId}
     >
       <PageBackground />
 
       {user ? (
-        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active={active} />
+        <AppHeader user={user} onLogout={handleLogout} active={active} search={headerSearch} />
       ) : (
         // Signed out: the public-page header — B mark, the shared search box, Sign in —
         // at the signed-in bar's width, so the bar is the same bar either way.
         <PublicPageHeader
           maxWidthClass="max-w-7xl"
+          search={headerSearch}
           actions={<SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-sign-in" />}
         />
       )}

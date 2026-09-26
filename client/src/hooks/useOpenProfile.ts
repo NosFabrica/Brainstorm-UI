@@ -6,16 +6,19 @@ import { fetchProfile } from "@/services/nostr";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { pushRecentProfile } from "@/lib/recentSearches";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
-import { useSearchPov } from "@/hooks/useSearchPov";
+import type { AccountDisplay } from "@/accounts/display";
+import type { ActivePerspective } from "@/hooks/useActivePerspective";
 
 /**
  * Opening a person found by search — from the box's suggestions, its recents, or the results
  * list. The profile page is seeded with what the search already knows (so it paints at once)
  * and its queries prefetched; hovering a row starts that early.
+ *
+ * Takes the viewer and perspective from the caller's `useSearchPov`, rather than running
+ * that hook stack a second time.
  */
-export function useOpenProfile() {
+export function useOpenProfile(user: AccountDisplay | null | undefined, effectivePov: ActivePerspective) {
   const [, setLocation] = useLocation();
-  const { user, effectivePov } = useSearchPov();
   const prefetchTimers = useRef<Map<string, number>>(new Map());
 
   const seedAndPrefetch = useCallback((result: SearchResult) => {

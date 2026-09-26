@@ -107,7 +107,7 @@ export default function FinishSetupPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
-      <AppHeader user={user} onLogout={() => { logout(); navigate("/"); }} />
+      <AppHeader user={user} onLogout={() => { logout(); navigate("/"); }} search={false} />
 
       <main className="mx-auto max-w-2xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
         <SectionHeader kicker="Finish setting up" className="mb-4" />

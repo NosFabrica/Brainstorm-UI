@@ -180,7 +180,7 @@ export function SearchBox({
   const coinReplaced = useCoinReplacedByRing();
   const [, navigate] = useLocation();
   const { user, effectivePov } = useSearchPov();
-  const { openProfile, prefetchEnter, prefetchLeave } = useOpenProfile();
+  const { openProfile, prefetchEnter, prefetchLeave } = useOpenProfile(user, effectivePov);
   const speed = useConnectionSpeed();
 
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);

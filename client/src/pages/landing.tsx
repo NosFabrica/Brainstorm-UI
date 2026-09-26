@@ -165,7 +165,7 @@ export default function Landing() {
   // lands after login, without a refresh. The perspective rule is the one the
   // box's suggestions use, so results and suggestions rank alike.
   const { user, setPov, effectivePov, hasMywot, isSearchObserver } = useSearchPov();
-  const { openProfile: goToProfile, prefetchEnter: handlePrefetchEnter, prefetchLeave: handlePrefetchLeave } = useOpenProfile();
+  const { openProfile: goToProfile, prefetchEnter: handlePrefetchEnter, prefetchLeave: handlePrefetchLeave } = useOpenProfile(user, effectivePov);
 
   const handleLogout = useCallback(() => {
     logout();

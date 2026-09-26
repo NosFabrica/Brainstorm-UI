@@ -231,7 +231,7 @@ export default function WhatIsWotPage() {
   };
 
   return (
-    <InfoPageLayout testId="page-what-is-wot">
+    <InfoPageLayout testId="page-what-is-wot" headerSearch={false}>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
         <div className="space-y-12 sm:space-y-16 animate-fade-up">
           {/* Hero */}

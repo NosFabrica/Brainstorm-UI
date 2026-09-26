@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, ShoppingBag } from "lucide-react";
+import { Loader2, ShoppingBag } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { decodeShareId } from "@/lib/shareId";
 import { fetchRecentByKinds } from "@/services/nostr";
@@ -36,20 +36,13 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
       {/* The public pages' header — B mark, the shared search box, account — so
-          search stays one tap away below a profile too. Back rides the page. */}
-      <PublicPageHeader maxWidthClass="max-w-3xl" />
+          search stays one tap away below a profile too, with Back pinned in it. */}
+      <PublicPageHeader
+        maxWidthClass="max-w-3xl"
+        back={{ label: `Back to ${first}`, onClick: () => goBack(`/p/${npub}`) }}
+      />
 
       <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-6">
-        <div className="mb-4">
-          <button
-            type="button"
-            onClick={() => goBack(`/p/${npub}`)}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors"
-            data-testid="selling-back"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to {first}
-          </button>
-        </div>
         <div className="mb-5 flex items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/30 bg-brand-deep/5 text-brand-deep">
             <ShoppingBag className="h-4 w-4" />

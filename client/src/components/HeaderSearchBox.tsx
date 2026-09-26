@@ -3,10 +3,11 @@ import { SearchBox } from "@/components/search/SearchBox";
 import { SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
 
 /**
- * The search box away from home, in every header on ≥sm: the public pages'
- * (PublicPageHeader) and the signed-in app's (AppHeader). It is the home page's own box (components/search/SearchBox) — same
- * pills, same suggestions, same recents — and a search from it is the box's default
- * trip away from home: straight to a topic, profile or note it names, else `/?q=`.
+ * The search box away from home, in every header on ≥sm (HeaderBar, under
+ * PublicPageHeader and AppHeader). It is the home page's own box
+ * (components/search/SearchBox) — same pills, same suggestions, same recents — and a
+ * search from it is the box's default trip away from home: straight to a topic,
+ * profile or note it names, else `/?q=`.
  */
 export function HeaderSearchBox({
   className = "",
