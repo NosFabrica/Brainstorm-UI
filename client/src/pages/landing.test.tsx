@@ -737,11 +737,56 @@ describe("Safari's chrome on the home page", () => {
   it("takes the page's own color while it is up, follows the theme, and gives the ink back", async () => {
     const { unmount } = render(<Landing />);
     expect(themeColor()).toBe("#ffffff");
+    // The body too: the tab bar's reserved space under a one-screen page showed its gray.
+    expect(document.body.style.backgroundColor).toBe("rgb(255, 255, 255)");
     document.documentElement.classList.add("dark");
     await waitFor(() => expect(themeColor()).toBe("#020617"));
     document.documentElement.classList.remove("dark");
     await waitFor(() => expect(themeColor()).toBe("#ffffff"));
     unmount();
     expect(themeColor()).toBe("#0a0e18");
+    expect(document.body.style.backgroundColor).toBe("");
+  });
+});
+
+// On a phone the box kept focus after Enter, so the tab bar — hidden while a field has focus —
+// stayed hidden over the results until the person happened to tap elsewhere.
+describe("submitting with Enter", () => {
+  let coarse = false;
+  let mm: { mockRestore: () => void } | undefined;
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    window.history.replaceState({}, "", "/");
+    mm = vi.spyOn(window, "matchMedia").mockImplementation((q: string) => ({
+      matches: q === "(pointer: coarse)" ? coarse : false,
+      media: q, onchange: null,
+      addListener: () => {}, removeListener: () => {}, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+    }) as MediaQueryList);
+  });
+  afterEach(() => mm?.mockRestore());
+
+  function enter() {
+    const box = typeInBox("podcaster");
+    box.focus();
+    fireEvent(box, new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }));
+    return box;
+  }
+
+  it("on a touch screen, lets go of the box so the keyboard and the tab bar trade places", async () => {
+    coarse = true;
+    render(<Landing />);
+    const box = enter();
+    await waitFor(() => expect(mainStreamCalls().some(([q]) => q === "podcaster")).toBe(true));
+    expect(document.activeElement).not.toBe(box);
+  });
+
+  it("with a mouse, keeps the box focused for the next query", async () => {
+    coarse = false;
+    render(<Landing />);
+    const box = enter();
+    await waitFor(() => expect(mainStreamCalls().some(([q]) => q === "podcaster")).toBe(true));
+    expect(document.activeElement).toBe(box);
   });
 });

@@ -4,7 +4,7 @@
  * Safari shrinks its toolbar for a focused field without telling the page, and the bar was
  * left floating over a strip of results.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { isTextEditing, useEditingText } from "./useEditingText";
 
@@ -36,6 +36,8 @@ describe("isTextEditing", () => {
     expect(isTextEditing(add("input", { type: "checkbox" }))).toBe(false);
     expect(isTextEditing(add("input", { type: "range" }))).toBe(false);
     expect(isTextEditing(add("input", { readonly: "" }))).toBe(false);
+    expect(isTextEditing(add("input", { disabled: "" }))).toBe(false);
+    expect(isTextEditing(add("textarea", { disabled: "" }))).toBe(false);
     expect(isTextEditing(document.body)).toBe(false);
     expect(isTextEditing(null)).toBe(false);
   });
@@ -60,5 +62,22 @@ describe("useEditingText", () => {
     act(() => b.focus());
     await new Promise((r) => setTimeout(r, 5));
     expect(result.current).toBe(true);
+  });
+});
+
+describe("useEditingText, unmounted mid-blur", () => {
+  it("leaves no timer behind to set state after it is gone", async () => {
+    vi.useFakeTimers();
+    const input = add("input");
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { unmount } = renderHook(() => useEditingText());
+    act(() => input.focus());
+    input.blur(); // schedules the read of where focus landed
+    unmount();
+    vi.runAllTimers();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+    vi.useRealTimers();
   });
 });

@@ -535,6 +535,40 @@ describe("the scope pill stays first", () => {
     expect(onChange).toHaveBeenLastCalledWith("");
   });
 
+  // Delete forward, or a word delete, took only the anchor: no re-render, so nothing put it
+  // back, and the pill was last again with nowhere for iOS to draw the caret.
+  it("an edit that takes only the anchor gets it back", () => {
+    mount({ value: scoped });
+    (chip().nextSibling as Text).remove();
+    expect(chip().nextSibling).toBeNull();
+    fireEvent.input(box());
+    expect(chip().nextSibling?.nodeType).toBe(3);
+    expect(box().value).toBe(scoped);
+  });
+
+  it("a word delete right after the pill takes the pill in one press", () => {
+    const { onChange } = mount({ value: scoped });
+    const after = chip().nextSibling as Text;
+    caretAt(after, after.data.length);
+    const ev = new InputEvent("beforeinput", { inputType: "deleteWordBackward", bubbles: true, cancelable: true });
+    fireEvent(box(), ev);
+    expect(ev.defaultPrevented).toBe(true);
+    expect(chip()).toBeNull();
+    expect(onChange).toHaveBeenLastCalledWith("");
+  });
+
+  // WebKit wraps text typed after a non-editable inline in an element of its own, anchor included.
+  it("the anchor inside text WebKit wrapped never reaches the value", () => {
+    const { onChange } = mount({ value: scoped });
+    const after = chip().nextSibling as Text;
+    const wrap = document.createElement("span");
+    wrap.textContent = `${after.data} dog`;
+    after.replaceWith(wrap);
+    fireEvent.input(box());
+    expect(onChange).toHaveBeenLastCalledWith(`${scoped} dog`);
+    expect(box().value).not.toMatch(/\u200B/);
+  });
+
   it("words already behind the scope are left exactly where they are", () => {
     const { onChange } = mount({ value: `${scoped} dog` });
     const last = box().lastChild as Text;
@@ -542,5 +576,23 @@ describe("the scope pill stays first", () => {
     fireEvent.click(box());
     expect(caretIndex()).toBe(`${scoped} dog`.length);
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+// Zero-width spaces ride along in copied web text. In this field one is the caret's anchor,
+// worth nothing, so text from outside is let in without them — or every offset after is one off.
+describe("zero-width spaces from outside", () => {
+  it("a paste leaves them out, and the caret lands at the end of what was pasted", () => {
+    const { onChange } = mount({ value: "" });
+    // jsdom has no DataTransfer; the field only asks for the plain text.
+    fireEvent.paste(box(), { clipboardData: { getData: () => "gm\u200B\u200B nostr" } });
+    expect(onChange).toHaveBeenLastCalledWith("gm nostr");
+    expect(box().textContent).not.toMatch(/\u200B/);
+  });
+
+  it("a value set from outside (?q=) leaves them out", () => {
+    mount({ value: "gm\u200Bnostr" });
+    expect(box().value).toBe("gmnostr");
+    expect(box().textContent).toBe("gmnostr");
   });
 });

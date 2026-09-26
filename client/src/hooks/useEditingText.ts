@@ -7,10 +7,14 @@ const TEXT_INPUTS = new Set(["text", "search", "email", "url", "tel", "password"
 export function isTextEditing(el: Element | null): boolean {
   if (!el) return false;
   if ((el as HTMLElement).isContentEditable) return true;
-  if (el.tagName === "TEXTAREA") return !(el as HTMLTextAreaElement).readOnly;
+  // Disabled or read-only, no keyboard comes up for it.
+  if (el.tagName === "TEXTAREA") {
+    const area = el as HTMLTextAreaElement;
+    return !area.readOnly && !area.disabled;
+  }
   if (el.tagName === "INPUT") {
     const input = el as HTMLInputElement;
-    return TEXT_INPUTS.has((input.getAttribute("type") ?? "").toLowerCase()) && !input.readOnly;
+    return TEXT_INPUTS.has((input.getAttribute("type") ?? "").toLowerCase()) && !input.readOnly && !input.disabled;
   }
   return false;
 }
@@ -28,11 +32,16 @@ export function useEditingText(): boolean {
   useEffect(() => {
     const sync = () => setEditing(isTextEditing(document.activeElement));
     // focusout fires before focus lands on the next element; read it once it has.
-    const onOut = () => setTimeout(sync, 0);
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const onOut = () => {
+      clearTimeout(pending);
+      pending = setTimeout(sync, 0);
+    };
     document.addEventListener("focusin", sync);
     document.addEventListener("focusout", onOut);
     sync();
     return () => {
+      clearTimeout(pending);
       document.removeEventListener("focusin", sync);
       document.removeEventListener("focusout", onOut);
     };
