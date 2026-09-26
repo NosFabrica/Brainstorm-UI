@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { fetchPillProfiles } from "@/services/searchFaces";
@@ -74,6 +74,9 @@ export function SearchField({
   combobox?: { expanded: boolean; controls: string; activeDescendant?: string };
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
+  // DOM ids for the popups: unique per field, since a page can hold two boxes (a header's
+  // and the phone sheet's). `testId` stays the test hook only.
+  const domId = useId();
   const handleRef = useRef<SearchFieldHandle | null>(null);
   const [token, setToken] = useState<ActiveToken | null>(null);
 
@@ -298,9 +301,12 @@ export function SearchField({
         contentEditable
         suppressContentEditableWarning
         spellCheck={false}
+        // A contenteditable gets a soft keyboard's "return" key unless told otherwise; the
+        // <input type="search"> it replaced showed "Search".
+        enterKeyHint="search"
         aria-label={ariaLabel}
         aria-expanded={pickerOpen || combobox?.expanded || false}
-        aria-controls={pickerOpen ? `${testId}-picker` : combobox?.controls}
+        aria-controls={pickerOpen ? `${domId}-picker` : combobox?.controls}
         aria-haspopup={pickerOpen ? (dateToken ? "dialog" : "listbox") : "listbox"}
         aria-autocomplete="list"
         onFocus={onFocus}
@@ -309,8 +315,8 @@ export function SearchField({
         aria-activedescendant={
           pickerOpen
             ? dateToken
-              ? cursor ? `${testId}-day-${ymd(cursor)}` : undefined
-              : groupActive >= 0 ? `${testId}-group-${groupActive}` : undefined
+              ? cursor ? `${domId}-day-${ymd(cursor)}` : undefined
+              : groupActive >= 0 ? `${domId}-group-${groupActive}` : undefined
             : combobox?.activeDescendant
         }
         className={cn(
@@ -340,7 +346,7 @@ export function SearchField({
 
       {pickerOpen && (
         <div
-          id={`${testId}-picker`}
+          id={`${domId}-picker`}
           role={dateToken ? "dialog" : "listbox"}
           aria-label={dateToken ? HEAD[dateToken.field] : "Groups"}
           className="absolute left-0 top-full z-50 mt-2 min-w-[18rem] max-w-[22rem] overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:border-slate-800 dark:bg-slate-900"
@@ -382,7 +388,7 @@ export function SearchField({
                   return (
                     <button
                       key={d.value}
-                      id={`${testId}-day-${d.value}`}
+                      id={`${domId}-day-${d.value}`}
                       type="button" tabIndex={-1} role="option" aria-selected={on}
                       aria-label={dayLabel(d.at)}
                       onClick={() => pickDay(d.value)}
@@ -431,7 +437,7 @@ export function SearchField({
                 groupRows.map((cand, i) => (
                   <button
                     key={`${cand.id}\u0000${cand.host ?? ""}`}
-                    id={`${testId}-group-${i}`}
+                    id={`${domId}-group-${i}`}
                     type="button" role="option" aria-selected={i === groupActive}
                     onMouseEnter={() => setGroupActive(i)}
                     onClick={() => pickGroup(cand)}

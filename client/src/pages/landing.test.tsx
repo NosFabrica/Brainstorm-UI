@@ -504,7 +504,7 @@ describe("the Browse row under the box", () => {
     const music = within(chips).getByTestId("browse-music");
     expect(music).toHaveTextContent("Music");
     expect(music.querySelector("svg.lucide-music")).not.toBeNull();
-    fireEvent.mouseDown(music);
+    fireEvent.click(music);
     expect(window.location.search).toContain("t=music");
   });
 });
@@ -630,7 +630,7 @@ describe("a scoped search is remembered in RECENT", () => {
     expect(row).toHaveTextContent("vinney…axkl");
     expect(within(row).getByTestId("home-recent-scoped-what-0")).toHaveTextContent("Media · sunset");
     expect(row).not.toHaveTextContent("npub1");
-    fireEvent.mouseDown(within(row).getByTestId("home-recent-scoped-0"));
+    fireEvent.click(within(row).getByTestId("home-recent-scoped-0"));
     await waitFor(() => expect(new URLSearchParams(window.location.search).get("t")).toBe("media"));
     expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${VINNEY_NPUB} sunset`);
   });
