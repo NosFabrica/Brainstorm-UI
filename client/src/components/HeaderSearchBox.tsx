@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation } from "wouter";
 import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -13,7 +13,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { useTagMatches } from "@/hooks/useTags";
-import type { TagSummary } from "@/services/tags";import { useHasMywot } from "@/hooks/useHasMywot";
+import type { TagSummary } from "@/services/tags";
+import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { typeaheadWords } from "@/lib/searchSyntax";
 import { suggestListings, type SearchHit } from "@/services/search";
@@ -24,12 +25,19 @@ import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
 import { intentTarget, searchIntent } from "@/lib/personContent";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { usePersonContent } from "@/hooks/usePersonContent";
+import { SearchField } from "@/components/search/SearchField";
+import type { SearchFieldHandle } from "@/lib/searchFieldDom";
+import { SEARCH_BOX_CLASS, SEARCH_CLEAR_CLASS, SEARCH_ICON_CLASS, SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
 
 /**
  * Desktop header search with live, debounced typeahead (mirrors the landing box,
  * reusing the same `searchByText` service). Picking a suggestion jumps straight
  * to that profile; submitting free text routes to the home results surface
  * (`/?q=`). Rendered inline in PublicPageHeader on ≥sm; mobile uses the icon.
+ *
+ * The box is the home page's own: the same `SearchField` (filters draw as pills,
+ * `since:`/`group:` open their pickers) in the same shell (`searchBoxChrome`), so
+ * a query looks the same typed here as on the results page it lands on.
  */
 
 
@@ -64,7 +72,9 @@ export function HeaderSearchBox({
   const reqId = useRef(0);
   const request = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const fieldRef = useRef<SearchFieldHandle | null>(null);
+  // The field's own date / group picker owns the space under the box while it is up.
+  const [picking, setPicking] = useState(false);
 
   // Search from the viewer's ACTIVE perspective — the same rule the landing box
   // uses — so header suggestions rank identically to the home results. Use the
@@ -166,12 +176,13 @@ export function HeaderSearchBox({
     navigate(path);
   };
 
-  const submit = (e?: FormEvent) => {
-    e?.preventDefault();
-    const topic = parseTopicQuery(q);
+  // `typed` is the field's own value when Enter lands: a soft keyboard's action key edits and
+  // submits in one event, before React has re-rendered `q`.
+  const submit = (typed: string = q) => {
+    const topic = parseTopicQuery(typed);
     if (topic.isTopic) { goTopic(topic.tag); return; }
-    if (active >= 0 && suggestions[active]) { goProfile(suggestions[active]); return; }
-    const query = q.trim();
+    if (open && active >= 0 && suggestions[active]) { goProfile(suggestions[active]); return; }
+    const query = typed.trim();
     if (!query) return;
     setOpen(false);
     // Investigate box: a pasted npub/hex jumps straight to the deep-dive profile.
@@ -182,11 +193,12 @@ export function HeaderSearchBox({
     navigate(`/?q=${encodeURIComponent(query)}`);
   };
 
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") { setOpen(false); setActive(-1); return; }
-    if (!open || suggestions.length === 0) return;
-    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, suggestions.length - 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, -1)); }
+  const onKeyDown = (e: KeyboardEvent): boolean => {
+    if (e.key === "Escape") { setOpen(false); setActive(-1); return true; }
+    if (!open || suggestions.length === 0) return false;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, suggestions.length - 1)); return true; }
+    if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, -1)); return true; }
+    return false;
   };
 
   const topic = parseTopicQuery(q);
@@ -198,28 +210,34 @@ export function HeaderSearchBox({
 
   return (
     <div ref={containerRef} className={`relative ${className}`} data-testid="header-search">
-      <form onSubmit={submit} role="search">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" aria-hidden="true" />
-          <input
-            ref={inputRef}
-            type="text"
+      <form onSubmit={(e: FormEvent) => { e.preventDefault(); submit(); }} role="search">
+        <div className={SEARCH_BOX_CLASS}>
+          <Search className={SEARCH_ICON_CLASS} aria-hidden="true" />
+          <SearchField
+            className="flex-1"
+            inputClassName="py-1"
+            fieldRef={(h) => { fieldRef.current = h; }}
             value={q}
-            onChange={(e) => { setQ(e.target.value); schedule(e.target.value); }}
-            onFocus={() => { if (suggestions.length) setOpen(true); }}
+            onChange={(next) => { setQ(next); schedule(next); }}
+            onEnter={submit}
             onKeyDown={onKeyDown}
-            placeholder={placeholder}
-            aria-label={placeholder}
-            autoComplete="off"
-            className="w-full rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-9 text-sm text-slate-900 dark:text-slate-100 transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
-            data-testid="header-search-input"
+            onPickerChange={setPicking}
+            onFocus={() => { if (suggestions.length) setOpen(true); }}
+            placeholder={<span className={SEARCH_PLACEHOLDER_CLASS}>{placeholder}</span>}
+            ariaLabel={placeholder}
+            combobox={{
+              expanded: open && !picking,
+              controls: "header-search-suggestions",
+              activeDescendant: open && active >= 0 ? `header-search-opt-${active}` : undefined,
+            }}
+            testId="header-search-input"
           />
           {q && (
             <button
               type="button"
-              onClick={() => { setQ(""); schedule(""); setOpen(false); inputRef.current?.focus(); }}
+              onClick={() => { setQ(""); schedule(""); setOpen(false); fieldRef.current?.focus(); }}
               aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 dark:text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300"
+              className={SEARCH_CLEAR_CLASS}
               data-testid="header-search-clear"
             >
               <X className="h-4 w-4" />
@@ -227,8 +245,8 @@ export function HeaderSearchBox({
           )}
         </div>
       </form>
-      {open && (topic.isTopic || loading || suggestions.length > 0 || products.length > 0 || tagMatches.length > 0 || !!intent) && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/10" role="listbox" data-testid="header-search-suggestions">
+      {open && !picking && (topic.isTopic || loading || suggestions.length > 0 || products.length > 0 || tagMatches.length > 0 || !!intent) && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/10" role="listbox" id="header-search-suggestions" data-testid="header-search-suggestions">
           {topic.isTopic ? (
             <TopicSuggestionRow tag={topic.tag} active onSelect={() => goTopic(topic.tag)} testId="header-search-topic" />
           ) : loading && suggestions.length === 0 && products.length === 0 && tagMatches.length === 0 ? (
@@ -258,6 +276,7 @@ export function HeaderSearchBox({
               // A div, not a button: the chips inside are links, and the input keeps focus anyway.
               <div
                 key={r.pubkey}
+                id={`header-search-opt-${i}`}
                 role="option"
                 aria-selected={i === active}
                 onMouseEnter={() => setActive(i)}

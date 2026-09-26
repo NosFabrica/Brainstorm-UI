@@ -22,12 +22,17 @@ import { HeaderSearchBox } from "./HeaderSearchBox";
 import { nip19 } from "nostr-tools";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 
-const input = () => screen.getByTestId("header-search-input");
+const input = () => screen.getByTestId("header-search-input") as HTMLElement & { value: string };
+/** A keystroke, as the contenteditable field hears one. */
+function type(value: string) {
+  input().value = value;
+  fireEvent.input(input());
+}
 const signalOf = (call: number) => searchMock.mock.calls[call][4] as AbortSignal | undefined;
 
 function typeSlowly(word: string) {
   for (let i = 1; i <= word.length; i++) {
-    fireEvent.change(input(), { target: { value: word.slice(0, i) } });
+    type(word.slice(0, i));
     act(() => { vi.advanceTimersByTime(200); });
   }
 }
@@ -64,16 +69,16 @@ describe("typing in the header search", () => {
 
   it("cancels a request that's under way when the next key lands", () => {
     render(<HeaderSearchBox />);
-    fireEvent.change(input(), { target: { value: "vito" } });
+    type("vito");
     act(() => { vi.advanceTimersByTime(400); });
     expect(signalOf(0)?.aborted).toBe(false);
-    fireEvent.change(input(), { target: { value: "vitor" } });
+    type("vitor");
     expect(signalOf(0)?.aborted).toBe(true);
   });
 
   it("cancels it when the box goes away", () => {
     const { unmount } = render(<HeaderSearchBox />);
-    fireEvent.change(input(), { target: { value: "vitor" } });
+    type("vitor");
     act(() => { vi.advanceTimersByTime(400); });
     unmount();
     expect(signalOf(0)?.aborted).toBe(true);
@@ -81,7 +86,7 @@ describe("typing in the header search", () => {
 
   it("sends nothing when the box is closed during the pause, and it stays closed", () => {
     render(<HeaderSearchBox />);
-    fireEvent.change(input(), { target: { value: "vitor" } });
+    type("vitor");
     fireEvent.keyDown(input(), { key: "Escape" });
     act(() => { vi.advanceTimersByTime(400); });
     expect(searchMock).not.toHaveBeenCalled();
@@ -90,7 +95,7 @@ describe("typing in the header search", () => {
 
   it("cancels a request when the box closes, and it stays closed", async () => {
     render(<HeaderSearchBox />);
-    fireEvent.change(input(), { target: { value: "vitor" } });
+    type("vitor");
     act(() => { vi.advanceTimersByTime(400); });
     fireEvent.keyDown(input(), { key: "Escape" });
     await act(async () => {});
@@ -106,7 +111,7 @@ describe("typing in the header search", () => {
       rank: null,
     }]);
     render(<HeaderSearchBox />);
-    fireEvent.change(input(), { target: { value: "satoshi" } });
+    type("satoshi");
     act(() => { vi.advanceTimersByTime(400); });
     await act(async () => {});
     const row = screen.getByTestId("header-search-product-0");
@@ -118,9 +123,20 @@ describe("typing in the header search", () => {
 
   it("goes to the results right away on Enter", () => {
     render(<HeaderSearchBox />);
-    fireEvent.change(input(), { target: { value: "vitor" } });
-    fireEvent.submit(input().closest("form")!);
+    type("vitor");
+    fireEvent(input(), new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }));
     expect(window.location.search).toBe("?q=vitor");
+  });
+});
+
+describe("the box itself", () => {
+  it("is the home page's field: a filter draws as a pill, and Enter searches the text as typed", () => {
+    render(<HeaderSearchBox />);
+    type("gm since:2026-01-02 ");
+    const pill = input().querySelector("[data-token]") as HTMLElement | null;
+    expect(pill?.dataset.token).toBe("since:2026-01-02");
+    fireEvent(input(), new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }));
+    expect(new URLSearchParams(window.location.search).get("q")).toBe("gm since:2026-01-02");
   });
 });
 
@@ -136,7 +152,7 @@ describe("what a suggested person publishes", () => {
 
   it("a suggested person wears chips linking to their scoped search, on a row that is not a button", async () => {
     render(<HeaderSearchBox />);
-    fireEvent.change(input(), { target: { value: "staci" } });
+    type("staci");
     act(() => { vi.advanceTimersByTime(400); });
     await act(async () => {});
     const row = screen.getByTestId("header-search-opt-0");
@@ -150,7 +166,7 @@ describe("what a suggested person publishes", () => {
 
   it("\"staci shop\" looks Staci up and offers her shop first", async () => {
     render(<HeaderSearchBox />);
-    fireEvent.change(input(), { target: { value: "staci shop" } });
+    type("staci shop");
     act(() => { vi.advanceTimersByTime(400); });
     await act(async () => {});
     expect(searchMock.mock.calls.at(-1)?.[0]).toBe("staci");
@@ -163,7 +179,7 @@ describe("what a suggested person publishes", () => {
 
   it("a chip tap closes the list and lands on the scoped tab", async () => {
     render(<HeaderSearchBox />);
-    fireEvent.change(input(), { target: { value: "staci" } });
+    type("staci");
     act(() => { vi.advanceTimersByTime(400); });
     await act(async () => {});
     fireEvent.click(screen.getByTestId("person-content-chip-shop"));

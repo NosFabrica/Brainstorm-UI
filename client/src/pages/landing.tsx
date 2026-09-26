@@ -59,6 +59,7 @@ import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
 import { personAssist, queryWords, scopeOf, splitFilters, type PersonAssist, seeAllLabel, typeaheadWords } from "@/lib/searchSyntax";
 import { SearchField } from "@/components/search/SearchField";
+import { SEARCH_BOX_CLASS, SEARCH_CLEAR_CLASS, SEARCH_ICON_CLASS, SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
 import type { SearchFieldHandle } from "@/lib/searchFieldDom";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
@@ -1058,11 +1059,11 @@ export default function Landing() {
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
               {/* (accent-discipline preview) focus "bloom" glow removed — the
                   crisp border + shadow below is the guideline focus treatment. */}
-              <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-brand-primary/[0.4] focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
+              <div className={SEARCH_BOX_CLASS}>
                 {hasSearched && isSearching ? (
                   <Loader2 className="h-5 w-5 shrink-0 animate-spin text-brand-primary" data-testid="band-searching" />
                 ) : (
-                  <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
+                  <Search className={SEARCH_ICON_CLASS} />
                 )}
                 {/* py-1 (the field's own is py-1.5), with the box's py-1.5 and the button's: a bar
                     snug around its one line of pills and words, 8px shorter than it was. */}
@@ -1135,7 +1136,7 @@ export default function Landing() {
                   }}
                   placeholder={
                     <span
-                      className={`truncate text-slate-400 dark:text-slate-500 text-base transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
+                      className={`${SEARCH_PLACEHOLDER_CLASS} transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
                       data-testid="text-home-placeholder"
                     >
                       {isFirstVisit && !prefersReducedMotion ? PLACEHOLDER_EXAMPLES[phIndex] : PLACEHOLDER_EXAMPLES[0]}
@@ -1155,7 +1156,7 @@ export default function Landing() {
                     type="button"
                     onClick={() => clearSearch()}
                     aria-label="Clear search"
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+                    className={SEARCH_CLEAR_CLASS}
                     data-testid="button-home-clear"
                   >
                     <X className="h-4 w-4" />

@@ -47,7 +47,7 @@ export function PublicPageHeader({
           : "border-b border-transparent bg-transparent"
       }`}
     >
-      <div className={`${maxWidthClass} mx-auto flex h-14 items-center gap-3 px-4 sm:px-6`}>
+      <div className={`${maxWidthClass} mx-auto flex min-h-14 items-center gap-3 px-4 sm:px-6`}>
         <Link href="/" className="flex shrink-0 items-center" aria-label="Brainstorm home" data-testid="public-brand">
           {/* White B mark on the dark header; the gradient reads better on the
               light (frosted white) header, so keep it in light mode. */}
@@ -55,7 +55,9 @@ export function PublicPageHeader({
           <BrainLogo size={26} mono className="hidden text-white dark:block" />
         </Link>
 
-        <HeaderSearchBox className="hidden max-w-md flex-1 sm:block" />
+        {/* The home page's box, at the width it has there (max-w-2xl) — capped by
+            the page's own column on the narrower pages. */}
+        <HeaderSearchBox className="hidden min-w-0 max-w-2xl flex-1 sm:block" />
 
         <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           {/* Opens search OVER the page. This was a <Link href="/">, which navigated
