@@ -114,9 +114,11 @@ const shortAddr = (coord: string): string => {
  * line box. Anything taller stretches the line, and the bar grows the moment a token forms.
  * The 2.8px left over is also what separates wrapped rows.
  */
+// `relative -top-px`: centered on the line (align-middle), the pill's smaller text sat 1px
+// below the words beside it. Relative, so the nudge moves the paint, never the line box.
 const PILL =
   "inline-flex max-w-full select-none items-center gap-1.5 whitespace-nowrap rounded-full border" +
-  " pl-2 pr-1 align-middle text-sm font-medium leading-5";
+  " relative -top-px pl-2 pr-1 align-middle text-sm font-medium leading-5";
 
 const pillClass = (t: Parameters<typeof tone>[0]): string => {
   const c = tone(t);

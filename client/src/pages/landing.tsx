@@ -1052,14 +1052,17 @@ export default function Landing() {
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
               {/* (accent-discipline preview) focus "bloom" glow removed — the
                   crisp border + shadow below is the guideline focus treatment. */}
-              <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-brand-primary/[0.4] focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
+              <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-brand-primary/[0.4] focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
                 {hasSearched && isSearching ? (
                   <Loader2 className="h-5 w-5 shrink-0 animate-spin text-brand-primary" data-testid="band-searching" />
                 ) : (
                   <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
                 )}
+                {/* py-1 (the field's own is py-1.5), with the box's py-1.5 and the button's: a bar
+                    snug around its one line of pills and words, 8px shorter than it was. */}
                 <SearchField
                   className="flex-1"
+                  inputClassName="py-1"
                   fieldRef={(h) => { inputRef.current = h; }}
                   value={query}
                   onChange={(next) => {
@@ -1192,7 +1195,7 @@ export default function Landing() {
                     cancelSuggest();
                     void handleSearch(inputRef.current?.getValue());
                   }}
-                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-1.5 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"
                 >
                   {isSearching ? (
