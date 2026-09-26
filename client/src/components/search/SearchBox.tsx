@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type MutableRefObject, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent, type MutableRefObject, type ReactNode } from "react";
 import { useLocation } from "wouter";
+import { nip19 } from "nostr-tools";
 import {
   ArrowRight,
   CalendarDays,
@@ -46,6 +47,30 @@ import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
 import { SEARCH_BOX_CLASS, SEARCH_CLEAR_CLASS, SEARCH_ICON_CLASS } from "@/components/search/searchBoxChrome";
 
 const NO_PUBKEYS: string[] = [];
+
+/**
+ * A row's mousedown must not take focus from the field — the field's blur would close the
+ * panel before the click lands. The action itself rides `onClick`, so Enter and Space work.
+ */
+const keepFocus = (e: ReactMouseEvent) => e.preventDefault();
+
+/**
+ * Words that name one place — a lone `#topic`, a pubkey, a pasted note or article — go
+ * straight there, the way the home page sends them, instead of loading the results page
+ * only for it to redirect. A NIP-05 handle needs a lookup, so it takes the results route.
+ */
+function directPath(q: string): string | null {
+  const topic = parseTopicQuery(q);
+  if (topic.isTopic) return topic.tag ? topicPath(topic.tag) : null;
+  if (isHexPubkey(q)) return `/p/${nip19.npubEncode(q.toLowerCase())}`;
+  if (isLikelyNpub(q)) {
+    try {
+      if (nip19.decode(q).type === "npub") return `/p/${q}`;
+    } catch { /* not an npub after all */ }
+  }
+  const ent = resolveEntityToPath(q);
+  return ent && (ent.kind === "note" || ent.kind === "article") ? ent.path : null;
+}
 
 /** One chip per vertical, in the results tab bar's order — the empty box's way to browse. */
 const BROWSE = [
@@ -113,12 +138,15 @@ export function SearchBox({
 }: {
   value: string;
   onChange: (next: string) => void;
-  /** Enter, "See all results", a recent query: run a search for these words. */
-  onSearch: (q: string) => void;
+  /**
+   * Enter, "See all results", a recent query: run a search for these words. Default: the
+   * trip away from home — straight to a topic, profile or note the words name, else `/?q=`.
+   */
+  onSearch?: (q: string) => void;
   /** The ⓧ emptied the box. */
   onClear: () => void;
-  /** A Browse chip: that vertical, no words. */
-  onBrowse: (tab: string) => void;
+  /** A Browse chip: that vertical, no words. Default: `/?t=`. */
+  onBrowse?: (tab: string) => void;
   /** A pill's × dropped a token; the value the box is left with. */
   onRemoveToken?: (next: string) => void;
   /** The box is sending the reader somewhere (a person, a listing, a tag…). */
@@ -163,11 +191,6 @@ export function SearchBox({
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
   // Per-browser recent searches, shown under an empty, focused box.
   const [recent, setRecent] = useState<RecentItem[]>(() => getRecentItems());
-  // What each suggested or recent person publishes — chips on their row,
-  // one tap to their shop, recipes, streams. One ask per person per session.
-  const personContent = usePersonContent(
-    useMemo(() => [...suggestions.map((s) => s.pubkey), ...recent.flatMap((r) => (r.type === "profile" ? [r.pubkey] : []))], [suggestions, recent]),
-  );
   const [focused, setFocused] = useState(false);
   // Benjamin: "when users refresh to the home screen, don't have the search
   // history dropdown [showing]" — the box autofocuses on load, and focus
@@ -402,7 +425,14 @@ export function SearchBox({
 
   const runSearch = (q: string) => {
     cancelSuggest();
-    onSearch(q);
+    if (onSearch) { onSearch(q); return; }
+    const words = q.trim();
+    if (words) leave(directPath(words) ?? `/?q=${encodeURIComponent(words)}`);
+  };
+
+  const browse = (tab: string) => {
+    if (onBrowse) onBrowse(tab);
+    else leave(`/?t=${encodeURIComponent(tab)}`);
   };
 
   // A query scoped to one person: "See all results for "guitar" from Joe Martin", never the key.
@@ -423,7 +453,6 @@ export function SearchBox({
   // Only while suggestions show — a query restored from the URL mustn't pull the whole catalogue.
   const tagMatches = useTagMatches(topicMatch.isTopic || !showSuggestions ? "" : value);
   // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
-  const intent = useMemo(() => intentTarget(searchIntent(value), suggestions, personContent), [value, suggestions, personContent]);
   const dropdownOpen =
     !fieldPicking &&
     (sheet
@@ -433,6 +462,18 @@ export function SearchBox({
   // "Recent" shows under an empty, focused box — never alongside the suggestions. The sheet
   // was opened to search, so it shows them at once.
   const showRecent = recentsAllowed && value.trim() === "" && !dropdownOpen && (sheet || (engaged && focused));
+  // What each suggested or recent person publishes — chips on their row, one tap to their
+  // shop, recipes, streams. One ask per person per session. Recent people only while their
+  // panel is up: the header box sits on every shared page, and a reader who never touches
+  // it must not cost a lookup per person they once opened.
+  const personContent = usePersonContent(
+    useMemo(
+      () => [...suggestions.map((s) => s.pubkey), ...(showRecent ? recent.flatMap((r) => (r.type === "profile" ? [r.pubkey] : [])) : [])],
+      [suggestions, recent, showRecent],
+    ),
+  );
+  // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
+  const intent = useMemo(() => intentTarget(searchIntent(value), suggestions, personContent), [value, suggestions, personContent]);
 
   // Recents change as the reader searches elsewhere — read them fresh each time they show.
   useEffect(() => {
@@ -734,15 +775,17 @@ export function SearchBox({
           data-testid="container-home-recent"
         >
           {/* Browse lives HERE, not as standing page chrome — the empty focused
-              box offers the verticals, Google-style. Phones wrap the chips into
-              rows; from sm up they hold one line. */}
-          <div className="flex flex-wrap items-center gap-1 px-4 pt-3 pb-2 sm:flex-nowrap sm:overflow-x-auto" data-testid="browse-chips">
+              box offers the verticals, Google-style. The chips wrap: the home box
+              holds them on one line, the narrower header box on two, and a phone
+              puts the label on a line of its own. */}
+          <div className="flex flex-wrap items-center gap-1 px-4 pt-3 pb-2" data-testid="browse-chips">
             <span className="w-full sm:w-auto sm:mr-0.5 mb-0.5 sm:mb-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Browse</span>
             {BROWSE.map((c) => (
               <button
                 key={c.tab}
                 type="button"
-                onMouseDown={(e) => { e.preventDefault(); setFocused(false); cancelSuggest(); onBrowse(c.tab); }}
+                onMouseDown={keepFocus}
+                onClick={() => { setFocused(false); cancelSuggest(); browse(c.tab); }}
                 // Quiet text links, not nine bordered pills (Benjamin:
                 // "a lot of chips — shrink them or make it more subtle").
                 className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-deep dark:hover:text-white transition-colors"
@@ -757,9 +800,8 @@ export function SearchBox({
               <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Recent</span>
               <button
                 type="button"
-                // onMouseDown + preventDefault keeps the field focused so the
-                // click lands before the box blurs and closes this panel.
-                onMouseDown={(e) => { e.preventDefault(); setRecent(clearRecentSearches()); }}
+                onMouseDown={keepFocus}
+                onClick={() => setRecent(clearRecentSearches())}
                 className="text-[11px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors focus:outline-none focus-visible:text-brand-primary"
                 data-testid="button-home-recent-clear"
               >
@@ -792,7 +834,8 @@ export function SearchBox({
                     <button
                       type="button"
                       className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
-                      onMouseDown={(e) => { e.preventDefault(); goToProfile({ pubkey: item.pubkey, npub: item.npub, name: item.label, picture: item.picture, nip05: item.nip05 } as SearchResult); }}
+                      onMouseDown={keepFocus}
+                      onClick={() => goToProfile({ pubkey: item.pubkey, npub: item.npub, name: item.label, picture: item.picture, nip05: item.nip05 } as SearchResult)}
                       data-testid={`home-recent-open-${i}`}
                     >
                       <Avatar className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
@@ -813,7 +856,8 @@ export function SearchBox({
                     <button
                       type="button"
                       className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
-                      onMouseDown={(e) => { e.preventDefault(); leave(scopedSearchHref(item.pubkey, item.tab, item.words)); }}
+                      onMouseDown={keepFocus}
+                      onClick={() => leave(scopedSearchHref(item.pubkey, item.tab, item.words))}
                       data-testid={`home-recent-scoped-${i}`}
                     >
                       <Avatar className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
@@ -831,7 +875,8 @@ export function SearchBox({
                     <button
                       type="button"
                       className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
-                      onMouseDown={(e) => { e.preventDefault(); onChange(item.q); runSearch(item.q); }}
+                      onMouseDown={keepFocus}
+                      onClick={() => { onChange(item.q); runSearch(item.q); }}
                       data-testid={`home-recent-run-${i}`}
                     >
                       <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
@@ -851,7 +896,8 @@ export function SearchBox({
                   <button
                     type="button"
                     aria-label={removeLabel}
-                    onMouseDown={(e) => { e.preventDefault(); setRecent(removeRecentItem(item)); }}
+                    onMouseDown={keepFocus}
+                    onClick={() => setRecent(removeRecentItem(item))}
                     className={cn(
                       "inline-flex items-center justify-center h-6 w-6 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
                       // A phone has no hover to reveal it: the sheet always shows the ×.

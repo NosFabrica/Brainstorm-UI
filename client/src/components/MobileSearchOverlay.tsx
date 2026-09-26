@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
 import { SearchBox } from "@/components/search/SearchBox";
 import { SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
 
@@ -31,25 +30,23 @@ export function openMobileSearch() {
  */
 
 export function MobileSearchOverlay() {
-  const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    // Every opening starts from an empty box — set with the opening, so the sheet never
+    // mounts on the last query and then clears it.
+    const onOpen = () => { setQ(""); setOpen(true); };
     window.addEventListener(OPEN_MOBILE_SEARCH_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_MOBILE_SEARCH_EVENT, onOpen);
   }, []);
 
-  // Every opening starts from an empty box.
-  useEffect(() => {
-    if (open) setQ("");
-  }, [open]);
-
   // Escape closes; body scroll locks so the page behind doesn't move under the sheet.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    // An Escape the field already took — closing its calendar or group picker — is not
+    // the sheet's to act on.
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) setOpen(false); };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -58,11 +55,6 @@ export function MobileSearchOverlay() {
       document.body.style.overflow = prev;
     };
   }, [open]);
-
-  const go = (path: string) => {
-    setOpen(false);
-    navigate(path);
-  };
 
   if (!open) return null;
 
@@ -77,12 +69,7 @@ export function MobileSearchOverlay() {
         rowStyle={{ paddingTop: "max(env(safe-area-inset-top), 0.625rem)" }}
         value={q}
         onChange={setQ}
-        onSearch={(query) => {
-          const words = query.trim();
-          if (words) go(`/?q=${encodeURIComponent(words)}`);
-        }}
         onClear={() => setQ("")}
-        onBrowse={(tab) => go(`/?t=${encodeURIComponent(tab)}`)}
         onLeave={() => setOpen(false)}
         autoFocus
         placeholder={<span className={SEARCH_PLACEHOLDER_CLASS}>Search Brainstorm…</span>}

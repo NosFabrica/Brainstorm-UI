@@ -151,9 +151,44 @@ describe("typing in the mobile search sheet", () => {
 describe("the sheet as it opens", () => {
   it("offers the Browse row at once, without waiting for a tap in the box", () => {
     renderOpen();
-    fireEvent.mouseDown(screen.getByTestId("browse-music"));
+    fireEvent.click(screen.getByTestId("browse-music"));
     expect(sheetOpen()).toBe(false);
     expect(window.location.search).toBe("?t=music");
+  });
+});
+
+describe("closing the sheet", () => {
+  it("Escape closes it", () => {
+    renderOpen();
+    fireEvent.keyDown(input(), { key: "Escape" });
+    expect(sheetOpen()).toBe(false);
+  });
+
+  it("an Escape the field took — closing its date picker — leaves the sheet and the words", () => {
+    renderOpen();
+    input().value = "gm since:";
+    const last = input().lastChild as Node;
+    const range = document.createRange();
+    range.setStart(last, last.nodeType === 3 ? (last.textContent ?? "").length : last.childNodes.length);
+    range.collapse(true);
+    document.getSelection()!.removeAllRanges();
+    document.getSelection()!.addRange(range);
+    fireEvent.input(input());
+    expect(screen.getByTestId("input-home-search-picker")).toBeInTheDocument();
+    fireEvent.keyDown(input(), { key: "Escape" });
+    expect(screen.queryByTestId("input-home-search-picker")).toBeNull();
+    expect(sheetOpen()).toBe(true);
+    expect(input().value).toBe("gm since:");
+  });
+
+  it("opens empty again after a search, never on the last query", () => {
+    renderOpen();
+    type("vitor");
+    fireEvent(input(), new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }));
+    expect(sheetOpen()).toBe(false);
+    act(() => { openMobileSearch(); });
+    expect(input().value).toBe("");
+    expect(screen.queryByTestId("container-home-suggestions")).toBeNull();
   });
 });
 
@@ -222,7 +257,7 @@ describe("a scoped search in the sheet's recents", () => {
     expect(row).toHaveTextContent("vinney…axkl");
     expect(screen.getByTestId("home-recent-scoped-what-0")).toHaveTextContent("Media");
     expect(row).not.toHaveTextContent("npub1");
-    fireEvent.mouseDown(row);
+    fireEvent.click(row);
     expect(sheetOpen()).toBe(false);
     expect(new URLSearchParams(window.location.search).get("t")).toBe("media");
     expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${VINNEY_NPUB}`);

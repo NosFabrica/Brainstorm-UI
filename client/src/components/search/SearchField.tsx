@@ -298,6 +298,9 @@ export function SearchField({
         contentEditable
         suppressContentEditableWarning
         spellCheck={false}
+        // A contenteditable gets a soft keyboard's "return" key unless told otherwise; the
+        // <input type="search"> it replaced showed "Search".
+        enterKeyHint="search"
         aria-label={ariaLabel}
         aria-expanded={pickerOpen || combobox?.expanded || false}
         aria-controls={pickerOpen ? `${testId}-picker` : combobox?.controls}

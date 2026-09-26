@@ -37,7 +37,7 @@ vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
 import { HeaderSearchBox } from "./HeaderSearchBox";
 import { nip19 } from "nostr-tools";
 import { scopedSearchHref } from "@/lib/searchSyntax";
-import { clearRecentSearches, pushRecentQuery } from "@/lib/recentSearches";
+import { clearRecentSearches, pushRecentProfile, pushRecentQuery } from "@/lib/recentSearches";
 
 const input = () => screen.getByTestId("input-home-search") as HTMLElement & { value: string };
 const signalOf = (call: number) => (suggestMock.mock.calls[call][2] as { signal?: AbortSignal } | undefined)?.signal;
@@ -164,6 +164,25 @@ describe("typing in the header search", () => {
     expect(window.location.search).toBe("?q=vitor");
   });
 
+  it("a lone #topic goes straight to the topic page, not through the results page", () => {
+    render(<HeaderSearchBox />);
+    type("#bitcoin");
+    enter();
+    expect(window.location.pathname).toBe("/t/bitcoin");
+  });
+
+  it("a pasted npub or hex key goes straight to the profile", () => {
+    const KEY = "a".repeat(64);
+    const npub = nip19.npubEncode(KEY);
+    render(<HeaderSearchBox />);
+    type(npub);
+    enter();
+    expect(window.location.pathname).toBe(`/p/${npub}`);
+    type(KEY);
+    enter();
+    expect(window.location.pathname).toBe(`/p/${npub}`);
+  });
+
   it("draws a filter as a pill, and Enter searches the text as typed", () => {
     render(<HeaderSearchBox />);
     type("gm since:2026-01-02 ");
@@ -186,14 +205,36 @@ describe("the empty box", () => {
     focusBox();
     const row = screen.getByTestId("home-recent-0");
     expect(row).toHaveTextContent("bitcoin meetups");
-    fireEvent.mouseDown(within(row).getByTestId("home-recent-run-0"));
+    fireEvent.click(within(row).getByTestId("home-recent-run-0"));
+    expect(new URLSearchParams(window.location.search).get("q")).toBe("bitcoin meetups");
+  });
+
+  it("asks what a recent person publishes only once the panel is up", () => {
+    const STACI = "5".repeat(64);
+    pushRecentProfile({ pubkey: STACI, npub: nip19.npubEncode(STACI), label: "Staci" });
+    render(<HeaderSearchBox />);
+    expect(contentMock.mock.calls.flatMap(([pks]) => pks)).not.toContain(STACI);
+    focusBox();
+    expect(contentMock).toHaveBeenLastCalledWith([STACI]);
+  });
+
+  it("a recent row answers the keyboard: the field keeps focus on mousedown, the action rides the click", () => {
+    pushRecentQuery("bitcoin meetups");
+    render(<HeaderSearchBox />);
+    focusBox();
+    const run = screen.getByTestId("home-recent-run-0");
+    // mousedown alone does nothing but keep the field's focus…
+    expect(fireEvent.mouseDown(run)).toBe(false);
+    expect(window.location.pathname).toBe("/p/somebody");
+    // …and Enter or Space on the focused button is a click.
+    fireEvent.click(run);
     expect(new URLSearchParams(window.location.search).get("q")).toBe("bitcoin meetups");
   });
 
   it("offers the Browse row, and a chip opens that vertical", () => {
     render(<HeaderSearchBox />);
     focusBox();
-    fireEvent.mouseDown(screen.getByTestId("browse-shop"));
+    fireEvent.click(screen.getByTestId("browse-shop"));
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("?t=shop");
   });
