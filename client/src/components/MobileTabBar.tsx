@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { registerBottomChrome } from "@/lib/bottomChrome";
 import { useLocation } from "wouter";
 import { Search, Home, Users, LogIn } from "lucide-react";
@@ -32,6 +32,13 @@ export function MobileTabBar() {
   // shrinks its own toolbar when a field takes focus without telling the page, and this bar
   // stayed where the toolbar used to end, with results showing through the strip below it.
   const editing = useEditingText();
+  const navRef = useRef<HTMLElement | null>(null);
+  // Hidden is out of reach too: `inert` takes the buttons out of the tab order, which
+  // aria-hidden alone does not (Tab reached invisible buttons, and Enter still navigated).
+  // Set on the node: React 18's types do not know the attribute.
+  useEffect(() => {
+    navRef.current?.toggleAttribute("inert", editing);
+  }, [editing]);
 
   // Reserve space so the fixed bar never covers page content or the site footer.
   //
@@ -42,13 +49,14 @@ export function MobileTabBar() {
   // Publishing the occupied height as a CSS variable gives them all one number to
   // offset by, and it self-zeroes on desktop where this component renders nothing.
   //
-  // Only while the bar is there: kept while it stepped aside for typing, the reserved space
-  // showed as a gray band under a one-screen page and let it scroll into the theme color.
+  // Kept while the bar steps aside for typing: released, it changed the body's padding on
+  // every focus and blur, which reflowed the page (a scroll at the bottom jumped) and dropped
+  // the now-playing bar into the strip at once while this one was still fading.
   useEffect(() => {
-    if (!isMobile || editing) return;
+    if (!isMobile) return;
     // The ledger (lib/bottomChrome) sums this with the now-playing bar's height.
     return registerBottomChrome("tabbar", "calc(4rem + env(safe-area-inset-bottom))");
-  }, [isMobile, editing]);
+  }, [isMobile]);
 
   if (!isMobile) return null;
 
@@ -58,6 +66,7 @@ export function MobileTabBar() {
   return (
     <>
       <nav
+        ref={navRef}
         className={cn(
           "fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/70 dark:border-white/10 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl backdrop-saturate-150 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none",
           // Faded as well as moved: Safari keeps drawing the page in the strip its toolbar

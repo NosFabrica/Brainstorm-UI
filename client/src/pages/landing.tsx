@@ -207,20 +207,29 @@ export default function Landing() {
   // theme-color past the page's end — into the strip its toolbar gives up when the box
   // takes focus — and the app's ink (#0a0e18) ran as a black band under the white home
   // screen, with the status bar above it just as dark. Restored on the way out.
+  // The body takes it too: the phone tab bar's reserved space (body padding) stays while the
+  // bar steps aside for typing — releasing it reflowed every page on each focus — and under a
+  // one-screen page that space showed the app's gray.
   // Read off <html>'s `dark` class, which lib/theme toggles, so a theme switch follows.
   useEffect(() => {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (!meta) return;
-    const before = meta.content;
+    const before = meta?.content;
     const root = document.documentElement;
-    // slate-950 / white: this page's own background.
-    const paint = () => { meta.content = root.classList.contains("dark") ? "#020617" : "#ffffff"; };
+    const body = document.body;
+    const bodyBefore = body.style.backgroundColor;
+    const paint = () => {
+      // slate-950 / white: this page's own background.
+      const color = root.classList.contains("dark") ? "#020617" : "#ffffff";
+      if (meta) meta.content = color;
+      body.style.backgroundColor = color;
+    };
     paint();
     const themeChange = new MutationObserver(paint);
     themeChange.observe(root, { attributes: true, attributeFilter: ["class"] });
     return () => {
       themeChange.disconnect();
-      meta.content = before;
+      if (meta && before != null) meta.content = before;
+      body.style.backgroundColor = bodyBefore;
     };
   }, []);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -778,9 +787,6 @@ export default function Landing() {
   const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
   const scopeProfile = scope ? scopeProfiles.get(scope.pubkey) : undefined;
   const scopeName = scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
-  // Which results tab is showing, so the box can say "Search means's notes";
-  // seeded from the URL, then told by the results as tabs change.
-  const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(window.location.search).get("t") || "everything");
   // A search of one person's things is a search — RECENT remembers it the way the chip that
   // opened it read: the face, the name, the tab it opened on, never the key. Recorded from
   // the search that RAN (not each keystroke), once the person's name is known. Tabs browsed
@@ -1099,6 +1105,12 @@ export default function Landing() {
                     // `typed`, not the `query` state: a soft keyboard's action key commits
                     // text and submits in one event, and React has not re-rendered yet.
                     void handleSearch(typed);
+                    // On a touch screen a search is done typing: the keyboard goes, as native
+                    // search does, and the tab bar (hidden while a field has focus) comes back
+                    // over the results. A desktop keeps the box focused for the next query.
+                    if (window.matchMedia?.("(pointer: coarse)").matches) {
+                      (document.activeElement as HTMLElement | null)?.blur?.();
+                    }
                   }}
                   onKeyDown={(e) => {
                     setEngaged(true);
@@ -1570,7 +1582,6 @@ export default function Landing() {
           <>
           <BackToTop />
           <SearchResults
-            onTabChange={setActiveTab}
             peopleSeed={suggestedPeople.current?.query === (submitted ?? "") ? suggestedPeople.current.hits : undefined}
             query={submitted ?? ""}
             pov={effectivePov}
