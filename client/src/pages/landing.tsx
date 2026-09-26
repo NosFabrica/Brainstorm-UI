@@ -904,12 +904,13 @@ export default function Landing() {
     <div className="min-h-[100dvh] bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative [overflow-x:clip]" data-testid="page-home">
       <GlossBackground />
       {/* Aurora glow behind the hero — soft at rest, blooms when the search goes
-          active, so the wordmark + search feel alive without any idle noise. Its
-          own layer, like GlossBackground's washes, so typing never repaints the blur. */}
+          active, so the wordmark + search feel alive without any idle noise. Drawn
+          already soft — the size and falloff a 100px CSS blur used to give it —
+          because iOS re-rasterized that blur on every keystroke in the box. */}
       <div
         aria-hidden="true"
-        className={`pointer-events-none absolute left-1/2 top-[44dvh] z-0 h-[380px] w-[680px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] blur-[100px] will-change-transform transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
-        style={{ background: "radial-gradient(ellipse at center, rgba(114,55,255,0.16) 0%, rgba(19,210,229,0.10) 45%, transparent 72%)" }}
+        className={`pointer-events-none absolute left-1/2 top-[44dvh] z-0 h-[980px] w-[1280px] -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
+        style={{ background: "radial-gradient(closest-side, rgba(114,55,255,0.075) 0%, rgba(90,110,250,0.06) 25%, rgba(19,210,229,0.035) 50%, rgba(19,210,229,0.012) 75%, transparent 100%)" }}
       />
 
       {/* Homepage top bar (Google-search pattern): the center stays empty so the
