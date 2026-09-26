@@ -20,15 +20,18 @@ function initial(ref: ClientRef | null): ClientLinkState {
 }
 
 export function useClientLink(ref: ClientRef | null): ClientLinkState {
-  const [state, setState] = useState<ClientLinkState>(() => initial(ref));
   const key = ref ? clientLinkKey(ref) : null;
+  // The answer is kept with the key it answers. When the ref changes, the render
+  // that sees the new key must not show the old link's entity for a frame while
+  // the effect catches up (the useNip05 pattern).
+  const [held, setHeld] = useState<{ key: string | null; state: ClientLinkState }>(() => ({ key, state: initial(ref) }));
   useEffect(() => {
     const start = initial(ref);
-    setState(start);
+    setHeld({ key, state: start });
     if (!ref || start.status === "done") return;
     let cancelled = false;
     void resolveClientLink(ref).then((entity) => {
-      if (!cancelled) setState({ status: "done", entity });
+      if (!cancelled) setHeld({ key, state: { status: "done", entity } });
     });
     return () => {
       cancelled = true;
@@ -36,5 +39,5 @@ export function useClientLink(ref: ClientRef | null): ClientLinkState {
     // The ref is rebuilt per render; its key is its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
-  return state;
+  return held.key === key ? held.state : initial(ref);
 }

@@ -26,8 +26,9 @@ export function GlossBackground() {
         <div className="absolute top-[6%] -left-[12%] h-[46%] w-[42%] rounded-full bg-brand-deep/[0.06] dark:bg-brand-primary/[0.12] blur-[150px] will-change-transform" />
 
         {/* Bright gloss highlight behind the hero/search — a white sheen in light;
-            hidden in dark (the aurora washes carry the glow there). */}
-        <div className="absolute top-[2%] left-1/2 h-[46%] w-[78%] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse_at_center,_rgba(255,255,255,0.7),_transparent_72%)] blur-2xl will-change-transform dark:hidden" />
+            hidden in dark (the aurora washes carry the glow there). Its gradient
+            fades out on its own; it needs no blur, and so no layer. */}
+        <div className="absolute top-[2%] left-1/2 h-[46%] w-[78%] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse_at_center,_rgba(255,255,255,0.7),_transparent_72%)] dark:hidden" />
       </div>
 
       {/* Clean fade at the bottom to ground the page — to white in light, to Ink in dark. */}

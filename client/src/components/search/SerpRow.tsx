@@ -403,6 +403,35 @@ export function SerpRow({
   const title = tagVal(event, "title") ?? tagVal(event, "name");
   const news = !title && event.content ? parseNewsShape(event.content, { imageSplitsHeadline: isFeedAccount(author) }) : null;
 
+  // A wiki page is AsciiDoc; the row shows its words, not "[[comedian]]".
+  // A designation is its rows, read for people; anything else with no
+  // content gets the author's own NIP-31 `alt` line, when they wrote one.
+  // Ciphertext and JSON are not for reading: the row says what they are.
+  // A news or song row returns before any of this is shown, so it reads nothing.
+  const shape = news || event.kind === 10040 || event.kind === 30818 ? null : contentShape(event.content);
+  const opaque = shape?.kind === "encrypted" || shape?.kind === "json";
+  const body = news
+    ? ""
+    : opaque
+      ? tagVal(event, "alt") || ""
+      : event.kind === 10040
+        ? describeDesignation(event).summary
+        : (event.kind === 30818 ? wikiPlainText(event.content) : event.content) || tagVal(event, "summary") || tagVal(event, "description") || tagVal(event, "alt") || "";
+  const shapeLine = shape?.kind === "encrypted" ? "Encrypted — only its owner can read it" : shape?.kind === "json" ? `Structured data · ${shape.fields} ${shape.fields === 1 ? "field" : "fields"}` : null;
+  // Same link a feed would card for this note, so the two never disagree.
+  const cardLink = body ? primaryLink(parseNoteContent(body)) : null;
+  // A Primal link names a Nostr thing: an article is its card, the way the
+  // note card on a profile shows it (Benjamin, 2026-09-25: megistus's row
+  // said "primal.net" where the profile showed White Noise's "We're back").
+  // Asked on every render, above the news and song returns: a row turns into
+  // a news card when a feed author loads, and the hook count must not move.
+  // A news row has no body, so it asks about nothing.
+  const cardRef = cardLink ? clientRef(cardLink) : null;
+  const cardEntity = useClientLink(cardRef);
+  const linkedArticle = cardEntity.status === "done" && cardEntity.entity?.kind === "article" ? cardEntity.entity : null;
+  // While a Primal link resolves, no metadata card either: it would flash and go.
+  const plainCardLink = cardLink && !cardRef ? cardLink : cardLink && cardEntity.status === "done" && cardEntity.entity === null ? cardLink : null;
+
   const rowProps = {
     role: "link" as const,
     tabIndex: 0,
@@ -504,29 +533,6 @@ export function SerpRow({
     );
   }
 
-  // A wiki page is AsciiDoc; the row shows its words, not "[[comedian]]".
-  // A designation is its rows, read for people; anything else with no
-  // content gets the author's own NIP-31 `alt` line, when they wrote one.
-  // Ciphertext and JSON are not for reading: the row says what they are.
-  const shape = event.kind === 10040 || event.kind === 30818 ? null : contentShape(event.content);
-  const opaque = shape?.kind === "encrypted" || shape?.kind === "json";
-  const body = opaque
-    ? tagVal(event, "alt") || ""
-    : event.kind === 10040
-      ? describeDesignation(event).summary
-      : (event.kind === 30818 ? wikiPlainText(event.content) : event.content) || tagVal(event, "summary") || tagVal(event, "description") || tagVal(event, "alt") || "";
-  const shapeLine = shape?.kind === "encrypted" ? "Encrypted — only its owner can read it" : shape?.kind === "json" ? `Structured data · ${shape.fields} ${shape.fields === 1 ? "field" : "fields"}` : null;
-  // Same link a feed would card for this note, so the two never disagree.
-  const cardLink = primaryLink(parseNoteContent(body));
-  // A Primal link names a Nostr thing: an article is its card, the way the
-  // note card on a profile shows it (Benjamin, 2026-09-25: megistus's row
-  // said "primal.net" where the profile showed White Noise's "We're back").
-  // Asked unconditionally — the hook count must not move between renders.
-  const cardRef = cardLink ? clientRef(cardLink) : null;
-  const cardEntity = useClientLink(cardRef);
-  const linkedArticle = cardEntity.status === "done" && cardEntity.entity?.kind === "article" ? cardEntity.entity : null;
-  // While a Primal link resolves, no metadata card either: it would flash and go.
-  const plainCardLink = cardLink && !cardRef ? cardLink : cardLink && cardEntity.status === "done" && cardEntity.entity === null ? cardLink : null;
   // The picture on the right is this URL; a chip for it in the text is the
   // same picture's address, said again.
   const thumb = rowThumbMedia(event);
