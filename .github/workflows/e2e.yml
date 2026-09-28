@@ -13,6 +13,7 @@ jobs:
   e2e:
     name: Smoke against staging
     runs-on: ubuntu-latest
+    environment: staging-e2e
     timeout-minutes: 20
     steps:
       - name: Checkout
