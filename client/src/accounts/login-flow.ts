@@ -13,9 +13,11 @@
 import { nip19, getPublicKey, generateSecretKey } from "nostr-tools";
 import { ExtensionMissingError } from "applesauce-signers";
 
-import { cacheProfile, fetchProfile, publishProfile, publishRelayList } from "@/services/nostr";
-import { PROFILE_RELAYS } from "@/lib/relays";
-import { sessions, SessionTransportError } from "@/accounts/session";
+import { announceRelayList, cacheProfile, fetchProfile, publishProfile } from "@/services/nostr";
+import { loadRelayList } from "@/lib/relayRouting";
+import { clearHydratedStore } from "@/services/storeHydration";
+import { sessions, SessionTransportError, SESSION_SIGN_TIMEOUT_MS } from "@/accounts/session";
+import { isRemoteSignerTimeout, withTimeout } from "@/accounts/remote-signer";
 import { LocalAccount } from "@/accounts/local-account";
 import { activeAccount } from "@/accounts/signing";
 import {
@@ -66,6 +68,10 @@ export interface NostrUser {
 }
 
 /** Did the signer's own UI turn us down, rather than something breaking? */
+/** An extension that never answered — its prompt never opened, or was dropped. Not a refusal. */
+const EXTENSION_SILENT =
+  "Your extension didn't answer. Open it, approve the request, and try again — or use your key.";
+
 function refusedBySigner(err: unknown): boolean {
   const message = (err instanceof Error ? err.message : "").toLowerCase();
   return message.includes("denied") || message.includes("rejected") || message.includes("cancel");
@@ -104,13 +110,13 @@ async function completeLogin(account: BrainstormAccount, token: string): Promise
   // new-user follow picker.
   void (async () => {
     try {
+      // The relay list FIRST, and unconditionally. Every read and every publish
+      // this session makes is routed by it, and nothing else loads it as a
+      // matter of course — so without this the whole app falls back to the
+      // hardcoded relay set and the user's own relays are never asked.
+      await loadRelayList(pubkey).catch(() => null);
       const { fetchContactList } = await import("@/services/socialActions");
-      let ev = await fetchContactList(pubkey);
-      if (!ev) {
-        const { fetchOutboxRelayList } = await import("@/services/nostr");
-        await fetchOutboxRelayList(pubkey).catch(() => undefined);
-        ev = await fetchContactList(pubkey);
-      }
+      const ev = await fetchContactList(pubkey);
       if (ev) recordFollowList(pubkey, ev as any);
     } catch { /* the dashboard's relay verification is the fallback */ }
   })();
@@ -131,9 +137,11 @@ export async function handleLogin(): Promise<NostrUser> {
   try {
     // Also the extension wait: the constructor asks for a pubkey, so an extension
     // that never appears or refuses fails here rather than at the first publish.
-    account = await extensionAccount();
+    // The same deadline as the challenge: an extension can drop this prompt too.
+    account = await withTimeout(extensionAccount(), SESSION_SIGN_TIMEOUT_MS);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
+    if (isRemoteSignerTimeout(err)) throw new LoginError("EXTENSION_FAILED", EXTENSION_SILENT);
     if (err instanceof ExtensionMissingError) {
       throw new LoginError(
         "NO_EXTENSION",
@@ -160,6 +168,7 @@ export async function handleLogin(): Promise<NostrUser> {
     if (err instanceof SessionTransportError) {
       throw new LoginError("SERVER_ERROR", msg || "Failed to reach server.");
     }
+    if (isRemoteSignerTimeout(err)) throw new LoginError("EXTENSION_FAILED", EXTENSION_SILENT);
     if (refusedBySigner(err)) {
       throw new LoginError(
         "SIGN_CANCELLED",
@@ -309,6 +318,9 @@ export function logout() {
   // rather than a list kept here. What it keeps on this device stays: it is still
   // listed, and signing back in should find its follows and prefs where it left them.
   if (prevPubkey) clearSessionScopedStorage(prevPubkey);
+  // The cached events go too: which profiles someone looked at is a browsing
+  // trail, and it should not outlive the session on a shared device.
+  clearHydratedStore();
   // Not per-Account: this one says "somebody has scored on this browser", which is
   // what the public pages render, so it must not survive into an anonymous visit.
   try { localStorage.removeItem("brainstorm_calc_completed"); } catch { /* ignore */ }
@@ -330,7 +342,10 @@ export async function runInitialSetup(
   if (profile.about) content.about = profile.about;
   if (profile.picture) content.picture = profile.picture;
   try { await publishProfile(content); } catch {}
-  try { await publishRelayList(PROFILE_RELAYS); } catch {}
+  // `announceRelayList`, not `publishRelayList`: this runs for any account
+  // finishing signup, and a replaceable kind-10002 carrying our defaults would
+  // overwrite a list an existing key already has elsewhere.
+  try { await announceRelayList(); } catch {}
 
   // NOTE: we intentionally do NOT publish a seed follow list or trigger scoring
   // here. New users choose who to follow in the post-signup "Build your network"

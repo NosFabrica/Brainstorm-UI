@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
+import { ProfileImg } from "@/components/ui/profile-img";
 import { nip19 } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
@@ -58,11 +59,11 @@ export function MentionChip({ uri, plain = false }: { uri: string; /** The name 
     <span onClick={(e) => e.stopPropagation()}>
       <Link
         href={`/p/${npub}`}
-        className="inline-flex max-w-full items-center gap-1 align-middle rounded-md bg-brand-primary/5 dark:bg-brand-primary/15 px-1.5 py-0.5 text-[13px] font-medium text-brand-link no-underline hover:bg-brand-primary/10 dark:hover:bg-brand-primary/25 transition-colors"
+        className="not-prose inline-flex max-w-full items-center gap-1 align-middle rounded-md bg-brand-primary/5 dark:bg-brand-primary/15 px-1.5 py-0.5 text-[13px] font-medium text-brand-link no-underline hover:bg-brand-primary/10 dark:hover:bg-brand-primary/25 transition-colors"
         data-testid="mention-chip"
       >
         {profile?.picture && (
-          <img src={profile.picture} alt="" loading="lazy" className="h-3.5 w-3.5 shrink-0 rounded-full object-cover" />
+          <ProfileImg src={profile.picture} alt="" loading="lazy" className="h-3.5 w-3.5 shrink-0 rounded-full object-cover" />
         )}
         <span className="truncate">@{name}</span>
       </Link>

@@ -1,0 +1,26 @@
+{
+  "_comment": "Decentralized Lists (kind-39998 headers on the tag hub) the app reads as content. A list's coordinate is 39998:<author>:<d>; its items are kind-9999 events whose z tag names that coordinate. `tags` are the tagging-hub tags (kind-39999 tag elements) whose trusted carriers a category lists as people.",
+  "author": "77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3",
+  "lists": [
+    {
+      "d": "b504f5a8-949f-4d31-ad14-8afcebde2b34",
+      "name": "V4V Songs",
+      "category": "music",
+      "shape": "song"
+    },
+    {
+      "d": "c7e2e5f1-2258-4d9d-92ed-d29b9837a82a",
+      "name": "V4V Musicians",
+      "category": "music",
+      "shape": "musician"
+    }
+  ],
+  "tags": [
+    {
+      "author": "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450",
+      "slug": "musician",
+      "name": "Musician",
+      "category": "music"
+    }
+  ]
+}

@@ -109,4 +109,16 @@ describe("NowPlayingBar — the app's one player bar", () => {
     act(() => toggleTrack("a", "https://cdn/a.mp3"));
     expect(screen.getByTestId("now-playing-bar")).toHaveTextContent("A");
   });
+
+  it("offers Previous beside Next — the reflex from every other player — off at the first track, back a step after that", () => {
+    // Benjamin (2026-09-24): it has to work from what users already know.
+    setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "One" }, { id: "b", src: "https://cdn/b.mp3", title: "Two" }]);
+    act(() => toggleTrack("a", "https://cdn/a.mp3", { title: "One" }));
+    render(<NowPlayingBar />);
+    expect(screen.getByTestId("now-playing-prev")).toBeDisabled();
+    act(() => toggleTrack("b", "https://cdn/b.mp3", { title: "Two" }));
+    expect(screen.getByTestId("now-playing-prev")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("now-playing-prev"));
+    expect(screen.getByTestId("now-playing-bar")).toHaveTextContent("One");
+  });
 });

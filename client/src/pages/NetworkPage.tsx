@@ -1110,7 +1110,7 @@ export default function NetworkPage() {
         className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col"
         data-testid="page-network-gate"
       >
-        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="network" />
+        <AppHeader user={user} onLogout={handleLogout} active="network" />
         {/* Top-aligned on a phone (where the viewport is mostly filled anyway), but
             vertically centred from sm: up — on a tall desktop window a short block
             pinned to the top left the page looking truncated rather than composed.
@@ -1157,7 +1157,7 @@ export default function NetworkPage() {
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden"
+      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-clip"
       data-testid="page-network"
     >
       <GlossBackground />
@@ -1165,7 +1165,7 @@ export default function NetworkPage() {
       <AppHeader
         user={user}
         onLogout={handleLogout}
-        calcDone={calcDone}
+       
         active="network"
       />
 
@@ -1176,7 +1176,7 @@ export default function NetworkPage() {
             className="text-left relative z-10 mb-8 pt-2"
             data-testid="section-network-header"
           >
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-brand-primary/5 blur-[60px] rounded-full pointer-events-none" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-brand-primary/5 blur-[60px] will-change-transform rounded-full pointer-events-none" />
             <PageHeader
               kicker="Network Explorer"
               title={<>Your <span className="text-brand-link">Network</span></>}

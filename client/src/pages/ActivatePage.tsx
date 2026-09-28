@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Search as SearchIcon, Network as NetworkIcon, Gauge, BadgeCheck } from "lucide-react";
+import { ArrowRight, Search as SearchIcon, Network as NetworkIcon, Gauge } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { fetchProfile } from "@/services/nostr";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
@@ -13,6 +13,7 @@ import { initialsFor } from "@/lib/profileDefaults";
 import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
 import { OnboardingHeader } from "@/components/OnboardingHeader";
+import { Nip05Check } from "@/components/Nip05Check";
 
 /**
  * First-run for EXISTING Nostr users (logged in via extension/nsec) who already
@@ -108,7 +109,7 @@ export default function ActivatePage() {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-base font-bold text-slate-900 dark:text-slate-100 truncate">{name}</span>
-              {prof?.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
+              <Nip05Check nip05={prof?.nip05} pubkey={pubkey} className="h-4 w-4 text-sky-500 shrink-0" />
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               <span className="font-semibold text-slate-700 dark:text-slate-200">{followingCount}</span> following

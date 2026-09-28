@@ -18,7 +18,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
 import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule";
-import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
 import { TaggedYouModule } from "@/components/dashboard/TaggedYouModule";
@@ -27,6 +26,7 @@ import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesMod
 import { ClientShelf } from "@/components/dashboard/ClientShelf";
 import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -208,6 +208,7 @@ export default function DashboardPage() {
   // "Your network is live — invite friends" card: shown once, the first time the
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
+  const inviteShareUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteShareOpen });
   const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => readInviteCardSeen(user?.pubkey));
 
   // Lazy initialisers run once, and switching accounts in-app does not remount
@@ -846,7 +847,7 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-dashboard">
         <PageBackground />
 
-        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
+        <AppHeader user={user} onLogout={handleLogout} active="dashboard" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
 
@@ -1259,7 +1260,7 @@ export default function DashboardPage() {
                 displayName={user.displayName || "You"}
                 picture={user.picture}
                 nip05={user.nip05}
-                canonicalUrl={typeof window !== "undefined" ? `${window.location.origin}/p/${user.npub}` : ""}
+                shareUrl={inviteShareUrl}
                 // No trust pill on an invite: the score is self-referential (your own POV
                 // ≈ 100) and meaningless for a brand-new account — the invite is about
                 // "join & start connected to you", not a score flex.
@@ -1354,11 +1355,8 @@ export default function DashboardPage() {
 
           {activateModal}
 
-          {/* Investigate command bar — research entry point into the deep-dive
-              analytics (/profile/:npub) for anyone in your network. */}
-          <div className="mb-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 px-3 py-2.5 shadow-sm" data-testid="dashboard-lookup-bar">
-            <DashboardLookup />
-          </div>
+          {/* No lookup bar here: the header's search box is the same box, one
+              line up — two of them on one screen was one too many. */}
 
           {/* Stacked, never side-by-side: Network Alerts sits full-width on top,
               "Your Network" full-width below. Minimizing/expanding Alerts is a pure

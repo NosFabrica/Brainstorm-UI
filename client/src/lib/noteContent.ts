@@ -16,7 +16,8 @@ export type NoteToken =
   | { type: "video"; value: string }
   | { type: "audio"; value: string }
   | { type: "live"; value: string }
-  | { type: "mention"; bech32: string }
+  /** `url`: the web link the entity was found inside (njump, primal, …). */
+  | { type: "mention"; bech32: string; url?: string }
   | { type: "hashtag"; value: string };
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?.*)?$/i;
@@ -138,7 +139,7 @@ function classifyUrl(url: string): NoteToken {
   // A web URL that wraps a nostr entity becomes a mention so it can render as a
   // rich card instead of a long ugly link.
   const bech = extractBech32FromUrl(url);
-  if (bech) return { type: "mention", bech32: bech };
+  if (bech) return { type: "mention", bech32: bech, url };
   return { type: "url", value: url };
 }
 
@@ -155,7 +156,7 @@ export function primaryLink(tokens: NoteToken[]): string | null {
 }
 
 /** Sheds prose punctuation; keeps a closing paren the URL itself opened (Wikipedia). */
-function trimProse(url: string): string {
+export function trimProse(url: string): string {
   let out = url.replace(/[,;!?]+$/, "");
   const count = (re: RegExp) => out.match(re)?.length ?? 0;
   while (out.endsWith(")") && count(/\(/g) < count(/\)/g)) {

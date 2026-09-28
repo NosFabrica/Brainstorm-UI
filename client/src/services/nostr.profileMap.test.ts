@@ -42,7 +42,12 @@ describe("fetchProfileMap", () => {
 
     const map = await fetchProfileMap([A]);
     expect(map.get(A)?.name).toBe("answered");
-    expect(loadReplaceableMock).not.toHaveBeenCalled();
+    // No kind-0 asked of the profile relays — which is the claim. The kind-10002
+    // that also goes out is the routing warm (lib/relayRouting), not the
+    // profile: a person on screen may be RSVPed to or vouched for a moment
+    // later, and a relay-list lookup at THAT point is dead air before signing.
+    const kindsAsked = loadReplaceableMock.mock.calls.map((call) => call[0]);
+    expect(kindsAsked).not.toContain(0);
   });
 
   it("falls back to the profile relays for anyone the search relay has never seen", async () => {

@@ -64,6 +64,7 @@ import {
   fetchPersonVouches,
   fetchVouchReplies,
   fetchNipPage,
+  fetchSpecsForKind,
   fetchPersonSets,
   fetchReleases,
   fetchRepoActivity,
@@ -80,6 +81,7 @@ import {
   fetchEventRsvps,
   searchStream,
   suggestProfiles,
+  suggestListings,
   kindsForTab,
   TAB_KINDS,
   type SearchSnapshot, type SearchHit, type SearchTab } from "./search";
@@ -113,9 +115,88 @@ async function tick() {
   await Promise.resolve();
 }
 
+/**
+ * The filters one REQ carried. searchStream now sends a UNION — a `#tag`, a
+ * `group:`, a `label:` or a NIP-73 scope asks several questions ORed in one
+ * subscription — so `[0]` is the primary filter and the rest are its side
+ * questions. Everything else in this file still sends a single filter.
+ */
+function askedFilters(call = 0): Record<string, unknown>[] {
+  const arg = reqMock.mock.calls[call][0];
+  return (Array.isArray(arg) ? arg : [arg]) as Record<string, unknown>[];
+}
+const asked = (call = 0) => askedFilters(call)[0];
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("searchStream", () => {
+  it("a typed kind narrows the tab it is on — spec: on Articles asks for specs alone", async () => {
+    controllable();
+
+    searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = asked() as { kinds?: number[]; search: string };
+    expect(filter.kinds).toEqual([30817]);
+    expect(filter.search).toMatch(/^dvm observer:/);
+  });
+
+  /**
+   * Recipes are ordinary long-form articles with zap.cooking's tag on them, so
+   * a Recipes vertical is not a kind of its own — it is the article kind narrowed
+   * by tag on the relay (probed on the search relay, 2026-09-22: the tag alone
+   * returns the newest recipes; tag plus words returns "chili, but only recipes").
+   */
+  it("the Recipes tab asks the relay for articles tagged as recipes, words and all", async () => {
+    controllable();
+
+    searchStream("chili", { tab: "recipes", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = asked() as { kinds?: number[]; "#t"?: string[]; search: string };
+    expect(filter.kinds).toEqual([30023]);
+    expect(filter["#t"]).toEqual(expect.arrayContaining(["zapcooking", "nostrcooking"]));
+    expect(filter.search).toMatch(/^chili observer:/);
+  });
+
+  /**
+   * On the NIPs tab a kind is what a spec COVERS, not what it is: `kind:5905`
+   * asks for the specs that define kind 5905, through the `k` tag they carry
+   * (probed on the search relay, 2026-09-23: `#k` narrows specs server-side;
+   * the relay holds no kind-5905 events at all, so the events meaning would
+   * always be empty there). Intersecting the tab's kinds with the typed one
+   * left the tab asking nothing.
+   */
+  it("on NIPs, a typed kind asks for the specs that cover it", async () => {
+    controllable();
+
+    searchStream("kind:5905", { tab: "nips", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = asked() as { kinds?: number[]; "#k"?: string[]; search: string };
+    expect(filter.kinds).toEqual([30817]);
+    expect(filter["#k"]).toEqual(["5905"]);
+    expect(filter.search).toMatch(/^observer:/);
+  });
+
+  // Zap Cooking's overwritten recipes (2026-09-24): the search relay still
+  // holds the husks — content "", a tombstone tag, a "[Deleted]" title — and
+  // they were "[Deleted]" cards on every tab. A husk never becomes a hit.
+  it("never turns a husk deleted by overwriting into a hit", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("tea", { tab: "articles", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    const husk = { ...ev("h1", 30023, "b".repeat(64), ""), tags: [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]] } as NostrEvent;
+    const article = { ...ev("a1", 30023, "b".repeat(64), "# Cheese foam tea"), tags: [["d", "cheese-foam-tea-2"], ["title", "Cheese foam tea"]] } as NostrEvent;
+    subject.next(frame(husk));
+    subject.next(frame(article));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.eose).toBe(true);
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["a1"]);
+  });
+
   it("streams people hits incrementally, with the house observer on the wire", async () => {
     const { subject } = controllable();
     const snaps: SearchSnapshot[] = [];
@@ -125,7 +206,7 @@ describe("searchStream", () => {
 
     // The wire: query text passes through verbatim, observer appended, tab → kinds.
     expect(reqMock).toHaveBeenCalledTimes(1);
-    const filter = reqMock.mock.calls[0][0] as { kinds?: number[]; search: string; limit: number };
+    const filter = asked() as { kinds?: number[]; search: string; limit: number };
     expect(filter.kinds).toEqual([0]);
     expect(filter.search).toBe(`jack observer:${HOUSE}`);
     expect(filter.limit).toBeGreaterThan(0);
@@ -216,6 +297,27 @@ describe("searchStream — grouped", () => {
     expect(filters[1].search).toBe(`bitcoin observer:${HOUSE}`);
     expect(filters[1].limit).toBe(8);
   });
+
+  /**
+   * Everything is one request with a filter per section, each routed by kind.
+   * A typed kind must narrow each section, not replace its kinds — or Latest,
+   * Happening and Media all ask for specs and every section fills with them
+   * (seen live, 2026-09-22). A section left with no kinds asks nothing and
+   * finishes empty.
+   */
+  it("on Everything, a typed kind narrows each section, and empties the ones it doesn't fit", async () => {
+    controllable();
+    const notes: SearchSnapshot[] = [];
+
+    searchStream("dvm spec:", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica", limit: 5, group: "search-everything" }, () => {});
+    await settle();
+
+    const filters = reqMock.mock.calls[0][0] as { kinds?: number[] }[];
+    expect(filters.map((f) => f.kinds)).toEqual([[30817]]); // Articles alone asked
+    expect(notes.at(-1)).toMatchObject({ hits: [], eose: true });
+  });
+
 
   it("gives each member only the events its filter asked for, and settles them together", async () => {
     const { subject } = controllable();
@@ -342,11 +444,11 @@ describe("searchStream — more", () => {
     handle.more();
     await tick();
     expect(reqMock).toHaveBeenCalledTimes(2);
-    const page2 = reqMock.mock.calls[1][0] as { until?: number; limit: number; search: string; kinds?: number[] };
+    const page2 = asked(1) as { until?: number; limit: number; search: string; kinds?: number[] };
     expect(page2.until).toBe(1000);
     expect(page2.limit).toBe(3);
-    expect(page2.search).toBe((reqMock.mock.calls[0][0] as { search: string }).search);
-    expect(page2.kinds).toEqual((reqMock.mock.calls[0][0] as { kinds?: number[] }).kinds);
+    expect(page2.search).toBe((asked() as { search: string }).search);
+    expect(page2.kinds).toEqual((asked() as { kinds?: number[] }).kinds);
 
     second.next(frame(note("n3", 1000))); // the boundary second comes back — once
     second.next(frame(note("n4", 900)));
@@ -398,7 +500,7 @@ describe("searchStream — more", () => {
     await tick();
     handle.more();
     await tick();
-    const page2 = reqMock.mock.calls[1][0] as { until?: number; limit: number };
+    const page2 = asked(1) as { until?: number; limit: number };
     expect(page2.until).toBeUndefined();
     expect(page2.limit).toBe(6);
     for (const [id, at] of [["r1", 5], ["r2", 9], ["r3", 2], ["r4", 7], ["r5", 1]] as const) second.next(frame(note(id, at)));
@@ -494,7 +596,7 @@ describe("searchStream — seeded from a previous life", () => {
     expect(snaps.at(-1)!.eose).toBe(true);
     handle.more();
     await tick();
-    expect((reqMock.mock.calls[1][0] as { until?: number }).until).toBe(1000);
+    expect((asked(1) as { until?: number }).until).toBe(1000);
     second.next(frame(note("n4", 900)));
     second.next(EOSE);
     await tick();
@@ -511,7 +613,7 @@ describe("searchStream — a person's live streams", () => {
     controllable();
     searchStream(`from:${MAR_NPUB} sort:recent`, { tab: "live", pov: "nosfabrica" }, () => {});
     await tick();
-    const filter = reqMock.mock.calls[0][0] as { kinds?: number[]; authors?: string[]; "#p"?: string[] };
+    const filter = asked() as { kinds?: number[]; authors?: string[]; "#p"?: string[] };
     expect(filter.kinds).toEqual([30311, 30312, 30313]);
     expect(filter["#p"]).toEqual([MAR]);
     expect(filter.authors).toBeUndefined();
@@ -598,24 +700,133 @@ describe("browse mode — no keyword at all", () => {
     controllable();
     searchStream("", { tab: "live", pov: "nosfabrica" }, () => {});
     await tick();
-    const filter = reqMock.mock.calls[0][0] as { kinds?: number[]; search: string };
+    const filter = asked() as { kinds?: number[]; search: string };
     expect(filter.kinds).toEqual(TAB_KINDS.live);
     expect(filter.search).toBe(`observer:${HOUSE}`);
   });
 });
 
 describe("token lifting", () => {
-  // The relay never sees from:/to:/#tag/since:/until: — they become NIP-01
-  // filter fields (probed: sending them through matches nothing).
+  // The relay never sees from:/to:/#tag/since:/until:/group:/label:/the NIP-73
+  // scopes — they become NIP-01 filter fields (probed: sending them through
+  // matches nothing). A tag asks more than one question, so what goes on the
+  // wire is a union ORed in one subscription, exactly as the relay's own
+  // operator page builds it.
   it("lifts from: into the authors field before the wire", async () => {
     controllable();
     const alice = "a".repeat(64);
-    searchStream(`gm from:${alice} #Nostr`, { tab: "notes", pov: "nosfabrica" }, () => {});
+    searchStream(`gm from:${alice}`, { tab: "notes", pov: "nosfabrica" }, () => {});
     await tick();
-    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    const filter = asked();
     expect(filter.authors).toEqual([alice]);
-    expect(filter["#t"]).toEqual(["nostr"]);
     expect(filter.search).toBe(`gm observer:${HOUSE}`);
+  });
+
+  it("a #tag asks #t, #l and the NIP-22 comments written on it, every casing", async () => {
+    controllable();
+    searchStream("gm #Nostr", { tab: "notes", pov: "nosfabrica" }, () => {});
+    await tick();
+    const union = askedFilters();
+    expect(union.map((f) => Object.keys(f).find((k) => k.startsWith("#")))).toEqual(["#t", "#l", "#I", "#i"]);
+    // Normalised to lowercase first, then asked in every casing the store may hold.
+    expect(union[0]["#t"]).toEqual(["nostr", "Nostr", "NOSTR"]);
+    // The words, the lens and the tab ride every filter of the union.
+    for (const f of union) expect(f.search).toBe(`gm observer:${HOUSE}`);
+  });
+
+  it("a group: asks #h, and does not drag the group's metadata into the results", async () => {
+    controllable();
+    searchStream("group:abc", { tab: "notes", pov: "nosfabrica" }, () => {});
+    await tick();
+    const union = askedFilters();
+    expect(union).toHaveLength(1);
+    expect(union[0]["#h"]).toEqual(["abc"]);
+  });
+
+  it("a NIP-73 scope asks the comments written on that thing, in every spelling", async () => {
+    controllable();
+    searchStream("isbn:978-0593330005", { tab: "notes", pov: "nosfabrica" }, () => {});
+    await tick();
+    const union = askedFilters();
+    expect(union.every((f) => (f.kinds as number[])[0] === 1111)).toBe(true);
+    expect(union[0]["#I"]).toEqual(["isbn:9780593330005", "isbn:978-0593330005"]);
+  });
+
+  it("a to: pointer becomes the #e question about that event", async () => {
+    controllable();
+    const note = nip19.noteEncode("b".repeat(64));
+    searchStream(`to:${note}`, { tab: "notes", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(asked()["#e"]).toEqual(["b".repeat(64)]);
+  });
+});
+
+// A union cannot be paged by walking `until` back. `oldest` is the oldest second ANY filter
+// returned, so rewinding them all to it skips whatever a filter held between its own oldest
+// and that one — silently, and for good.
+describe("paging a union", () => {
+  function pages(n: number) {
+    const subjects = Array.from({ length: n }, () => new Subject<ReqFrame>());
+    reqMock.mockImplementation(() => {
+      const idx = reqMock.mock.calls.length - 1;
+      return new Observable<ReqFrame>((subscriber) => {
+        const inner = subjects[idx].subscribe(subscriber);
+        return () => inner.unsubscribe();
+      });
+    });
+    return subjects;
+  }
+  const note = (id: string, created_at: number, tags: string[][] = []): NostrEvent =>
+    ({ id, kind: 1, pubkey: "a".repeat(64), tags, content: id, created_at, sig: "s" }) as NostrEvent;
+
+  it("grows its limits instead of rewinding every filter to the oldest second any of them saw", async () => {
+    const [first] = pages(2);
+    const handle = searchStream("#nostr sort:recent", { tab: "notes", pov: "nosfabrica", limit: 4 }, () => {});
+    await tick();
+    const page1 = askedFilters();
+    expect(page1.length).toBeGreaterThan(1);
+    // `#t` reaches far back; a side filter stops early. The old cursor would have rewound
+    // `#t` to 900 and lost everything it had between 900 and its own oldest.
+    first.next(frame(note("a", 5000)));
+    first.next(frame(note("b", 900)));
+    first.next(EOSE);
+    await tick();
+
+    handle.more();
+    await tick();
+    const page2 = askedFilters(1);
+    for (const f of page2) expect(f.until).toBeUndefined();
+    // Every filter grew in proportion, side questions included.
+    expect(page2.map((f) => f.limit)).toEqual(page1.map((f) => (f.limit as number) * 2));
+  });
+
+  it("a single filter still walks back — that is what `until` is for", async () => {
+    const [first] = pages(2);
+    const handle = searchStream("gm sort:recent", { tab: "notes", pov: "nosfabrica", limit: 2 }, () => {});
+    await tick();
+    expect(askedFilters()).toHaveLength(1);
+    first.next(frame(note("a", 5000)));
+    first.next(frame(note("b", 900)));
+    first.next(EOSE);
+    await tick();
+    handle.more();
+    await tick();
+    expect(asked(1).until).toBe(900);
+  });
+
+  it("a union is exhausted when a page brings nothing new, not when its total runs short", async () => {
+    const [first] = pages(3);
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream("#nostr sort:recent", { tab: "notes", pov: "nosfabrica", limit: 4 }, (s) => snaps.push(s));
+    await tick();
+    // Fewer events than the union's limits add up to — one filter simply had nothing. That
+    // must not read as "the whole search is done".
+    first.next(frame(note("a", 5000)));
+    first.next(EOSE);
+    await tick();
+    handle.more();
+    await tick();
+    expect(reqMock).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -669,7 +880,7 @@ describe("the observer lens", () => {
     const me = "1".repeat(64);
     searchStream("jack", { tab: "people", pov: "mywot", userPubkey: me }, () => {});
     await tick();
-    expect((reqMock.mock.calls[0][0] as { search: string }).search).toBe(`jack observer:${me}`);
+    expect((asked() as { search: string }).search).toBe(`jack observer:${me}`);
   });
 
   it("never double-tags a query that already names a lens", async () => {
@@ -678,8 +889,8 @@ describe("the observer lens", () => {
     await tick();
     searchStream("jack include:spam", { tab: "people", pov: "nosfabrica" }, () => {});
     await tick();
-    expect((reqMock.mock.calls[0][0] as { search: string }).search).toBe("jack observer:" + "2".repeat(64));
-    expect((reqMock.mock.calls[1][0] as { search: string }).search).toBe("jack include:spam");
+    expect((asked() as { search: string }).search).toBe("jack observer:" + "2".repeat(64));
+    expect((asked(1) as { search: string }).search).toBe("jack include:spam");
   });
 
   it("falls back to include:spam when no observer can be resolved", async () => {
@@ -689,7 +900,7 @@ describe("the observer lens", () => {
     controllable();
     searchStream("jack", { tab: "people", pov: "nosfabrica" }, () => {});
     await tick();
-    expect((reqMock.mock.calls[0][0] as { search: string }).search).toBe("jack include:spam");
+    expect((asked() as { search: string }).search).toBe("jack include:spam");
   });
 });
 
@@ -736,6 +947,55 @@ describe("suggestProfiles", () => {
     controller.abort();
     expect(await suggestProfiles("vito", { pov: "nosfabrica" }, { signal: controller.signal, timeoutMs: 60_000 })).toEqual([]);
     expect(reqMock).not.toHaveBeenCalled();
+  });
+});
+
+// Benjamin (2026-09-24), the Google reflex: type "Satoshi Smiley" and go
+// straight to the T-shirt. Product titles ride the same typeahead as people.
+describe("suggestListings", () => {
+  const listing = (id: string, title: string, tags: string[][] = [], pubkey = "a".repeat(64)): NostrEvent =>
+    ({ id, kind: 30402, pubkey, tags: [["d", id], ["title", title], ["price", "21", "USD"], ...tags], content: "", created_at: 1, sig: "s" }) as NostrEvent;
+
+  it("asks the Shop index and resolves at EOSE with sellable listings whose titles hold every typed word", async () => {
+    const { subject } = controllable();
+    const pending = suggestListings("satoshi smiley", { pov: "nosfabrica" }, { limit: 3 });
+    await tick();
+    expect(askedFilters(0)[0].kinds).toEqual([30402]);
+    subject.next(frame(listing("t1", "Satoshi Smiley T-shirt")));
+    subject.next(frame(listing("t2", "Satoshi Mug")));
+    subject.next(frame(listing("t3", "Smiley Satoshi Hoodie", [["status", "sold"]])));
+    subject.next(frame({ ...listing("t4", "Satoshi Smiley Cap"), tags: [["d", "t4"], ["title", "Satoshi Smiley Cap"]] }));
+    subject.next(frame(listing("t5", "SATOSHI smiley Sticker")));
+    subject.next(EOSE);
+    expect((await pending).map((h) => h.event.id)).toEqual(["t1", "t5"]);
+  });
+
+  it("one product is one row, and the limit holds", async () => {
+    const { subject } = controllable();
+    const pending = suggestListings("soap", { pov: "nosfabrica" }, { limit: 2 });
+    await tick();
+    subject.next(frame(listing("s1", "Tallow Soap", [["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]])));
+    subject.next(frame(listing("s2", "Tallow Soap")));
+    subject.next(frame(listing("s3", "Lavender Soap")));
+    subject.next(frame(listing("s4", "Rose Soap")));
+    subject.next(EOSE);
+    expect((await pending).map((h) => h.event.id)).toEqual(["s1", "s3"]);
+  });
+
+  it("a query with no plain words asks nothing", async () => {
+    controllable();
+    expect(await suggestListings("from:npub1abc", { pov: "nosfabrica" })).toEqual([]);
+    expect(reqMock).not.toHaveBeenCalled();
+  });
+
+  it("closes its subscription when the caller aborts", async () => {
+    const { torndown } = controllable();
+    const controller = new AbortController();
+    const pending = suggestListings("soap", { pov: "nosfabrica" }, { signal: controller.signal, timeoutMs: 60_000 });
+    await tick();
+    controller.abort();
+    expect(await pending).toEqual([]);
+    expect(torndown.count).toBe(1);
   });
 });
 
@@ -1009,6 +1269,32 @@ describe("author hydration on a slow relay", () => {
     const open = openLookups(calls);
     expect(open).toHaveLength(4);
     expect(open.at(-1)!.filter.authors).toEqual([author(5), author(6)]);
+  });
+});
+
+describe("fetchSpecsForKind", () => {
+  // A structural event's page names the spec that defines its kind — the
+  // relay narrows specs by the `k` tags they carry (probed 2026-09-23).
+  it("asks for the specs whose k tags name the kind, and resolves them", async () => {
+    const { subject } = controllable();
+    const pending = fetchSpecsForKind(10040);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([30817]);
+    expect(filter["#k"]).toEqual(["10040"]);
+    expect(filter.search).toBe("include:spam");
+
+    subject.next(frame({ id: "s1", kind: 30817, pubkey: "b".repeat(64), tags: [["d", "trusted-assertions"], ["title", "Trusted Assertions"], ["k", "10040"]], content: "# TA", created_at: 1, sig: "s" } as NostrEvent));
+    subject.next(EOSE);
+    expect((await pending).map((e) => e.id)).toEqual(["s1"]);
+  });
+
+  it("resolves empty when no spec covers the kind", async () => {
+    const { subject } = controllable();
+    const pending = fetchSpecsForKind(99999);
+    await tick();
+    subject.next(EOSE);
+    expect(await pending).toEqual([]);
   });
 });
 
@@ -1303,7 +1589,7 @@ describe("searchStream since", () => {
   it("passes an epoch `since` straight into the NIP-01 filter", async () => {
     searchStream("", { tab: "notes", pov: "nosfabrica", since: 1_760_000_000 }, () => {});
     await vi.waitFor(() => expect(reqMock).toHaveBeenCalledTimes(1));
-    const filter = reqMock.mock.calls[0][0] as { since?: number; search: string };
+    const filter = asked() as { since?: number; search: string };
     expect(filter.since).toBe(1_760_000_000);
     expect(filter.search).toBe("observer:" + "f".repeat(64));
   });
@@ -1465,6 +1751,21 @@ describe("fetchSimilarListings", () => {
     const similar = await pending;
     expect(similar.map((e) => e.tags.find((t) => t[0] === "d")?.[1])).toEqual(["stein", "cup"]);
     expect(similar[0].created_at).toBe(2);
+  });
+  // Staci's soap (2026-09-24): the relay's first 40 in "Health & Beauty" were
+  // all hers, so dropping the seller left nothing similar — while the relay
+  // held 53 from other sellers just past that window.
+  it("asks deep enough that one prolific seller cannot fill the window and leave nothing similar", async () => {
+    const { subject } = controllable();
+    const me = "a".repeat(64);
+    const pending = fetchSimilarListings(["soap"], `30402:${me}:soap-1`, { excludePubkey: me });
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as { limit: number };
+    expect(filter.limit).toBeGreaterThanOrEqual(150);
+    for (let i = 0; i < 40; i++) subject.next(frame(listing(me, `mine-${i}`, ["soap"], i)));
+    subject.next(frame(listing("c".repeat(64), "bar", ["soap"], 50)));
+    subject.next(EOSE);
+    expect((await pending).map((e) => e.pubkey)).toEqual(["c".repeat(64)]);
   });
 });
 
@@ -1689,12 +1990,26 @@ describe("kindsForTab", () => {
     expect(kindsForTab("everything")).toBeUndefined();
   });
 
+  // Option A for NIPs in search: a spec (kind 30817, Markdown, addressable —
+  // what the search relay already indexes) is read like an article.
+  it("Articles asks for specs too", () => {
+    expect(kindsForTab("articles")).toContain(30817);
+  });
+
+  // Benjamin (2026-09-23): for adoption, NIPs get their own entry under More
+  // — the word people actually search — while staying labelled inside Articles.
+  it("NIPs is a vertical of its own: specs alone", () => {
+    expect(kindsForTab("nips")).toEqual([30817]);
+  });
+
   // Vitor's split: "Code & git" mixed content types (and probing showed its
   // snippet kind was ~90% JSON junk). Apps = Zap Store listings; Repos = the
   // genuinely git-shaped kinds. Kind 1337 leaves the tabs entirely.
-  it("splits the old code tab into Apps and Repos, junk kind dropped", () => {
+  it("splits the old code tab into Apps, Repos, Issues and PRs, junk kind dropped", () => {
     expect(kindsForTab("apps")).toEqual([32267]);
-    expect(kindsForTab("repos")).toEqual([30617, 1617, 1618, 1621]);
+    expect(kindsForTab("repos")).toEqual([30617]);
+    expect(kindsForTab("issues")).toEqual([1621]);
+    expect(kindsForTab("prs")).toEqual([1617, 1618]);
     expect("code" in TAB_KINDS).toBe(false);
     expect(Object.values(TAB_KINDS).flat()).not.toContain(1337);
   });

@@ -40,6 +40,8 @@ vi.mock("@/lib/eventStore", () => ({
     getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
     getEvent: () => undefined,
     add: (event: NostrEvent) => event,
+    // Nothing new arrives in these cases; the hooks only listen.
+    insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
   },
 }));
 

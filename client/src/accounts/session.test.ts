@@ -17,6 +17,7 @@ import {
   type SessionTransport,
 } from "./session";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
+import { isRemoteSignerTimeout } from "./remote-signer";
 
 function base64url(value: unknown): string {
   return btoa(JSON.stringify(value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -199,6 +200,49 @@ describe("serialising the exchange across tabs", () => {
     const fresh = await sessions.authenticate(account);
 
     expect(fresh).not.toBe(stale);
+  });
+});
+
+describe("a signer that never answers the challenge", () => {
+  /** Web Locks' behaviour: one holder at a time, the rest wait their turn. */
+  function mutex() {
+    let tail: Promise<unknown> = Promise.resolve();
+    return <T,>(_name: string, task: () => Promise<T>): Promise<T> => {
+      const run = tail.then(task, task);
+      tail = run.catch(() => undefined);
+      return run;
+    };
+  }
+
+  // Nostore on iOS drops its own prompt without answering the page: the sign-in
+  // spun forever, holding the lock, and every other tab's sign-in queued behind it.
+  it("gives up at the deadline and lets the sign-in queued behind it through", async () => {
+    const transport = createFakeTransport();
+    const lock = mutex();
+    const tabA = createSessions(transport, { lock, signTimeoutMs: 20 });
+    const tabB = createSessions(transport, { lock, signTimeoutMs: 20 });
+    const account = signableAccount();
+    vi.spyOn(account, "signEvent").mockReturnValueOnce(new Promise(() => {}));
+
+    const stuck = tabA.authenticate(account);
+    const queued = tabB.authenticate(account);
+
+    const failure = await stuck.catch((e: unknown) => e);
+    expect(isRemoteSignerTimeout(failure)).toBe(true);
+    expect((failure as Error).message).toMatch(/didn't answer the sign-in request/);
+    expect(typeof (await queued)).toBe("string");
+    expect(transport.verified).toHaveLength(1);
+  });
+
+  it("can be retried in the same tab once it gave up", async () => {
+    const transport = createFakeTransport();
+    const sessions = createSessions(transport, { signTimeoutMs: 20 });
+    const account = signableAccount();
+    vi.spyOn(account, "signEvent").mockReturnValueOnce(new Promise(() => {}));
+
+    await expect(sessions.authenticate(account)).rejects.toThrow(/didn't answer/);
+    expect(hasSession(account)).toBe(false);
+    await expect(sessions.authenticate(account)).resolves.toEqual(expect.any(String));
   });
 });
 

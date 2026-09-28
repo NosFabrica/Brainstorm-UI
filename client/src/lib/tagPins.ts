@@ -90,6 +90,7 @@ export function buildTagPin({
   viewerPubkey,
   taPubkeys,
   curationMethod,
+  relayHint,
 }: {
   slug: string;
   tagAuthorPubkey: string;
@@ -97,6 +98,12 @@ export function buildTagPin({
   viewerPubkey: string;
   taPubkeys: string[];
   curationMethod?: CurationMethod;
+  /**
+   * Where the TAG AUTHOR writes. Both the `e` and the `a` below name their
+   * event, not the viewer's, so this is their relay — passed in rather than
+   * looked up, to keep this a pure builder.
+   */
+  relayHint?: string;
 }): UnsignedPin {
   // Both pubkeys become permanent signed coordinates; a malformed one mints an
   // undiscoverable pin under the user's real key. Fail loud, as the SDK's own
@@ -114,8 +121,10 @@ export function buildTagPin({
     kind: TAG_ELEMENT_KIND,
     tags: [
       ["d", pinDTag(slug, tagAuthorPubkey, viewerPubkey)],
-      ["e", tagEventId],
-      ["a", tagElementAddr(tagAuthorPubkey, slug)],
+      relayHint ? ["e", tagEventId, relayHint] : ["e", tagEventId],
+      relayHint
+        ? ["a", tagElementAddr(tagAuthorPubkey, slug), relayHint]
+        : ["a", tagElementAddr(tagAuthorPubkey, slug)],
       ...taPubkeys.map((ta) => ["z", conceptTagPinning(ta)]),
       ["curation-method", curationJson],
     ],

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { outboxRelays } from "@/lib/relayRouting";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
@@ -36,7 +37,15 @@ export function MoreFromAuthor({
 
   const q = useQuery({
     queryKey: ["more-from-author", pubkey, excludeId ?? ""],
-    queryFn: () => fetchEventsByFilter({ authors: [pubkey], kinds: [1], limit: 12 }, relays, 6000),
+    // The author's own write relays first — "more from this author" is exactly
+    // the query the outbox model exists for, and a prolific author who does not
+    // publish to the big shared relays looks silent without it.
+    queryFn: async () =>
+      fetchEventsByFilter(
+        { authors: [pubkey], kinds: [1], limit: 12 },
+        await outboxRelays(pubkey, relays),
+        6000,
+      ),
     enabled: !!pubkey,
     staleTime: 60_000,
     retry: false,

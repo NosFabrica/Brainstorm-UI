@@ -2,7 +2,8 @@ import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { MessageSquare, ArrowRight, SlidersHorizontal, Loader2 } from "lucide-react";
-import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
+import { fetchEventsByFilter } from "@/services/nostr";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { fetchCommentsByAddress } from "@/services/search";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
@@ -133,14 +134,7 @@ export function EventThread({
     () => Array.from(new Set([...replies.map((r) => r.pubkey), ...refs.pubkeys])),
     [replies, refs],
   );
-  const profilesQuery = useQuery({
-    queryKey: ["thread-profiles", eventId, authorPubkeys],
-    queryFn: () => fetchProfileMap(authorPubkeys),
-    enabled: authorPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = (profilesQuery.data ?? new Map()) as Map<string, ProfileLite>;
+  const profiles = useLiveProfiles(authorPubkeys) as Map<string, ProfileLite>;
 
   // --- Trust filter (logged-in) -------------------------------------------
   const [minTrust, setMinTrust] = useState(0);

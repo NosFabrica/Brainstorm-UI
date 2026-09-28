@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchEventsByFilter } from "@/services/nostr";
+import { fetchEventsByAuthors } from "@/services/nostr";
 import { CONTENT_RELAYS } from "@/lib/relays";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { type NostrEvent } from "applesauce-core/helpers";
@@ -173,7 +173,13 @@ export function useNetworkArticles(
       const mine = getFollowedPubkeys(await fetchContactList(observer));
       if (mine.size === 0) return [];
       const sample = Array.from(mine).slice(0, SAMPLE_FOLLOWS);
-      const lists = await fetchEventsByFilter({ kinds: [3], authors: sample }, CONTENT_RELAYS, 8000);
+      // Routed per author rather than blasted at a fixed set — see
+      // `fetchEventsByAuthors`. The candidate pool is only as wide as the
+      // contact lists we actually reach.
+      const lists = await fetchEventsByAuthors(sample, { kinds: [3] }, {
+        fallback: CONTENT_RELAYS,
+        timeoutMs: 8000,
+      });
 
       // Co-follow tally across my follows' follows.
       const co = new Map<string, number>();
@@ -204,14 +210,20 @@ export function useNetworkArticles(
       // through. Widen once (not forever) if the fresh window comes back thin,
       // so smaller networks still see something without resurfacing ancient posts.
       const freshSince = now - FRESH_WINDOW_DAYS * DAY;
-      const fresh = await fetchEventsByFilter(
-        { kinds: [ARTICLE_KIND], authors: authorKeys, since: freshSince, limit: 200 },
-        CONTENT_RELAYS,
+      // Up to 400 authors. Sent as one filter to a fixed relay set this was the
+      // worst case in the app: every relay received all 400 names and answered
+      // for the few it carried. Routed, each connection is asked only about its
+      // own authors — and the authors nobody indexed are actually reachable.
+      const fresh = await fetchEventsByAuthors(
+        authorKeys,
+        { kinds: [ARTICLE_KIND], since: freshSince, limit: 200 },
+        { fallback: CONTENT_RELAYS },
       );
       if (fresh.length >= 8) return { events: fresh, freshSince };
-      const wider = await fetchEventsByFilter(
-        { kinds: [ARTICLE_KIND], authors: authorKeys, since: now - FALLBACK_WINDOW_DAYS * DAY, limit: 200 },
-        CONTENT_RELAYS,
+      const wider = await fetchEventsByAuthors(
+        authorKeys,
+        { kinds: [ARTICLE_KIND], since: now - FALLBACK_WINDOW_DAYS * DAY, limit: 200 },
+        { fallback: CONTENT_RELAYS },
       );
       // UNION, not replace. The old code swapped the whole set for the wider one,
       // so a thin fresh window meant every slot competed on equal footing with

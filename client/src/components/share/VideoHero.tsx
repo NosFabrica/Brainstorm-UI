@@ -8,6 +8,7 @@
 import { extractVideoPoster, extractVideoUrls } from "@/lib/noteContent";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { ReadingText } from "@/components/share/ReadingText";
 
 export function VideoHero({ event }: { event: MinimalEvent }) {
   const speed = useConnectionSpeed();
@@ -39,7 +40,7 @@ export function VideoHero({ event }: { event: MinimalEvent }) {
         </h1>
       )}
       {summary && summary !== title && (
-        <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300">{summary}</p>
+        <ReadingText text={summary} className="mt-3" />
       )}
     </div>
   );

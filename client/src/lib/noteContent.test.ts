@@ -3,6 +3,7 @@
  * Born from a live bug: a note whose content is a data:image/gif;base64 URI
  * rendered as a wall of base64 text on the event page's More-from strip.
  */
+import { nip19 } from "nostr-tools";
 import { describe, expect, it } from "vitest";
 import { parseNoteContent, plainTextPreview, primaryLink, unwrapMarkdownLinks } from "./noteContent";
 
@@ -105,5 +106,41 @@ describe("inline markdown in notes", () => {
     expect(parseNoteContent("[122.jpg](https://m.stacker.news/12345)")).toEqual([
       { type: "image", value: "https://m.stacker.news/12345" },
     ]);
+  });
+});
+
+/**
+ * Primal's pretty URLs are resolved elsewhere (lib/clientLinks); a Primal URL
+ * that already carries a bech32 keeps becoming a mention here, first.
+ */
+describe("Primal URLs that carry a bech32", () => {
+  it("stay mentions — the pretty-URL grammar never sees them", () => {
+    const naddr = nip19.naddrEncode({ kind: 30023, pubkey: "a".repeat(64), identifier: "were-back" });
+    const npub = nip19.npubEncode("b".repeat(64));
+    expect(parseNoteContent(`https://primal.net/e/${naddr}`)).toEqual([{ type: "mention", bech32: naddr, url: `https://primal.net/e/${naddr}` }]);
+    expect(parseNoteContent(`https://primal.net/p/${npub}`)).toEqual([{ type: "mention", bech32: npub, url: `https://primal.net/p/${npub}` }]);
+    expect(parseNoteContent("https://primal.net/whitenoise/were-back")).toEqual([{ type: "url", value: "https://primal.net/whitenoise/were-back" }]);
+  });
+});
+
+describe("parseNoteContent — client links that carry the entity", () => {
+  // The team (2026-09-24): keep readers in Brainstorm instead of bouncing to
+  // another client. A link that carries the nevent/naddr/npub is the entity,
+  // whichever client's site wraps it.
+  const PK = "a".repeat(64);
+  const npub = nip19.npubEncode(PK);
+  const note = nip19.noteEncode("b".repeat(64));
+  const naddr = nip19.naddrEncode({ kind: 30023, pubkey: PK, identifier: "hello" });
+  const nprofile = nip19.nprofileEncode({ pubkey: PK });
+
+  it("Damus, nostr.band, Coracle and YakiHonne links become mentions of what they carry", () => {
+    const urls = [
+      `https://damus.io/${note}`,
+      `https://nostr.band/${npub}`,
+      `https://coracle.social/people/${nprofile}`,
+      `https://yakihonne.com/article/${naddr}`,
+    ];
+    const tokens = parseNoteContent(urls.join(" ")).filter((t) => t.type === "mention");
+    expect(tokens.map((t) => (t as { bech32: string }).bech32)).toEqual([note, npub, nprofile, naddr]);
   });
 });

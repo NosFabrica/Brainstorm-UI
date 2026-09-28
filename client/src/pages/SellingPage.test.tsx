@@ -5,20 +5,32 @@
  * is named; there is a way back.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { NostrEvent } from "nostr-tools";
 
 const recentMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>();
-const profileMock = vi.fn(async () => ({ name: "borntobefree", display_name: "Born To Be Free", picture: "https://img/me.jpg" }));
+const profileMock = vi.fn(async () => ({
+  id: "f".repeat(64), kind: 0, pubkey: "ab".repeat(32), created_at: 1, tags: [], sig: "",
+  content: JSON.stringify({ name: "borntobefree", display_name: "Born To Be Free", picture: "https://img/me.jpg" }),
+}));
 vi.mock("@/services/nostr", () => ({
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentMock(pubkey, kinds, limit),
-  fetchProfileForShare: () => profileMock(),
+  refreshProfileEvent: () => profileMock(),
 }));
 const goBackMock = vi.fn();
 vi.mock("@/hooks/useGoBack", () => ({ useGoBack: () => goBackMock }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
+// The header carries the search box; this page's tests are about the listings under it —
+// and the Back it pins, rendered from the props the page hands it.
+vi.mock("@/components/PublicPageHeader", () => ({
+  PublicPageHeader: ({ back }: { back?: { label: string; onClick: () => void } }) => (
+    <header data-testid="header">
+      {back && <button type="button" aria-label={back.label} onClick={back.onClick} data-testid="header-back" />}
+    </header>
+  ),
+}));
 
 import { SellerListings } from "./SellingPage";
 
@@ -49,7 +61,10 @@ describe("SellerListings", () => {
     expect(cards[0]).toHaveTextContent("Shirt 8");
     expect(screen.queryByText("Gone")).toBeNull();
     expect(recentMock).toHaveBeenCalledWith(SELLER, [30402], expect.any(Number));
-    expect(screen.getByTestId("selling-back")).toHaveTextContent("Back to Born");
+    const back = screen.getByTestId("header-back");
+    expect(back).toHaveAttribute("aria-label", "Back to Born");
+    fireEvent.click(back);
+    expect(goBackMock).toHaveBeenCalledWith("/p/npub1seller");
   });
 
   it("says so when there is nothing for sale", async () => {

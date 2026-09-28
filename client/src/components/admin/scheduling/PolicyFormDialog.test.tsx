@@ -28,6 +28,7 @@ describe("PolicyFormDialog", () => {
       enabled: true,
       is_default: false,
       is_public: false,
+      support_included: false,
       manual_quota_limit: 20,
       manual_quota_window_seconds: 604800,
     });
@@ -89,6 +90,28 @@ describe("PolicyFormDialog", () => {
       <PolicyFormDialog open mode="edit" initial={{ ...DAILY, is_public: true }} onOpenChange={() => {}} onSubmit={vi.fn()} />,
     );
     expect(screen.getByLabelText("Public")).toBeChecked();
+  });
+
+  it("toggles priority support, sending only that change", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PolicyFormDialog open mode="edit" initial={DAILY} onOpenChange={() => {}} onSubmit={onSubmit} />,
+    );
+
+    const toggle = screen.getByLabelText("Includes priority support");
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith({ support_included: true });
+  });
+
+  it("shows a policy that already includes support as ticked", () => {
+    render(
+      <PolicyFormDialog open mode="edit" initial={{ ...DAILY, support_included: true }} onOpenChange={() => {}} onSubmit={vi.fn()} />,
+    );
+    expect(screen.getByLabelText("Includes priority support")).toBeChecked();
   });
 
   it("rejects a priority outside 0–10", async () => {

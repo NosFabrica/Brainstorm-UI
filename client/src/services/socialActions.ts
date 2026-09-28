@@ -2,9 +2,10 @@ import { ContactsFactory } from "applesauce-common/factories";
 import { MuteListFactory } from "applesauce-common/factories";
 import { verifyEvent } from "nostr-tools";
 
-import { publishToRelays, loadOutboxRelayListFromDb, fetchOutboxRelayList } from "./nostr";
+import { publishToRelays, fetchOutboxRelayList } from "./nostr";
 import { requestAll, requestNewest, requestNewestRaw, requestNewestWithReach } from "@/lib/relayRequest";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { outboxRelays, outboxRelaysFromDb, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { eventStore } from "@/lib/eventStore";
 import { isRelayUrl } from "@/config/tagging";
 import { identityHas } from "@/accounts/display";
@@ -74,9 +75,16 @@ function pickAuthoritativeBase(candidates: (NostrEvent | null | undefined)[]): N
   return best;
 }
 
-/** The newest kind-3 or kind-10000 across the user's write relays. */
+/**
+ * The newest kind-3 or kind-10000 across the user's write relays.
+ *
+ * The relay list is LOADED, not read from whatever happens to be in the store.
+ * This read is the wipe guard's evidence — "we found no follow list" is what
+ * lets a from-scratch kind-3 replace a real one — so asking the wrong relays
+ * here is the most expensive miss in the app.
+ */
 async function fetchReplaceableEvent(pubkey: string, kind: number, timeoutMs = 10000): Promise<NostrEvent | null> {
-  const relays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+  const relays = await outboxRelays(pubkey, PROFILE_RELAYS);
   const newest = await requestNewest(relays, { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);
   return (newest as NostrEvent) ?? null;
 }
@@ -172,7 +180,10 @@ async function resolveContactBase(
     try { await fetchOutboxRelayList(pubkey); } catch { /* best-effort warm */ }
     base = pickAuthoritativeBase([await fetchContactList(pubkey), stored]);
     if (!base) {
-      const probe = await probeContactList(pubkey, loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS));
+      // Store-only on purpose: the `fetchOutboxRelayList` above just put the
+      // kind-10002 in the store, which is what makes this the user's REAL
+      // write relays rather than the bootstrap set.
+      const probe = await probeContactList(pubkey, outboxRelaysFromDb(pubkey, PROFILE_RELAYS));
       base = probe.event;
       provablyNew = probe.provenAbsent;
     }
@@ -212,6 +223,22 @@ const UNCONFIRMED_BASE: FollowOutcome = {
   needsBaseConfirmation: true,
   error: "We couldn't confirm an existing follow list for this key — try again in a moment.",
 };
+
+/**
+ * A follow, with a relay hint when we have one.
+ *
+ * NIP-02 is `["p", <pubkey>, <relay>, <petname>]`, and those hints are how
+ * OTHER clients bootstrap routing for the people you follow — a reader with
+ * your list and no kind-10002 for someone in it has nowhere else to look. We
+ * consume hints everywhere and, until now, contributed none.
+ *
+ * `addContact` takes the hint from a pointer's first relay, so a bare pubkey
+ * string (what this passed before) silently produced a bare tag.
+ */
+function contact(pubkey: string): string | { pubkey: string; relays: string[] } {
+  const hint = relayHintFor(pubkey);
+  return hint ? { pubkey, relays: [hint] } : pubkey;
+}
 
 /** A `p` tag naming this pubkey — how every follow and mute list is indexed. */
 const isPTagFor = (pubkey: string) => (tag: string[]) => tag[0] === "p" && tag[1] === pubkey;
@@ -299,7 +326,7 @@ export async function followUser(
 
   if (baseTags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  return publishContactList(account, base, (f) => f.addContact(targetPubkey));
+  return publishContactList(account, base, (f) => f.addContact(contact(targetPubkey)));
 }
 
 export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<PublishOutcome> {
@@ -344,7 +371,7 @@ export async function followPubkeys(
   if (!additions.length) return { success: true };
 
   return publishContactList(account, base, (f) =>
-    additions.reduce((acc, pk) => acc.addContact(pk), f),
+    additions.reduce((acc, pk) => acc.addContact(contact(pk)), f),
   );
 }
 
@@ -502,7 +529,7 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
   const account = activeAccount();
   if (!account) return null;
   const collected = await requestAll(
-    PROFILE_RELAYS,
+    await outboxRelays(account.pubkey, PROFILE_RELAYS),
     { kinds: [1984], authors: [account.pubkey], "#p": [targetPubkey] },
     timeoutMs,
   );
@@ -535,7 +562,12 @@ export async function unreportUser(targetPubkey: string): Promise<PublishOutcome
   try {
     const signed = await signAs(account, {
       kind: 5,
-      tags: [...mine.eventIds.map((id) => ["e", id]), ["k", "1984"]],
+      // These `e`s name the viewer's OWN reports, so the hint is where THEY
+      // write — not where the person reported does.
+      tags: [
+        ...mine.eventIds.map((id) => tagWithHint("e", id, relayHintFor(account.pubkey))),
+        ["k", "1984"],
+      ],
       content: "",
     });
     return await publishToRelays(signed);

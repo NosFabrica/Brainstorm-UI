@@ -46,6 +46,51 @@ export function wavlakeTrackId(url: string): string | undefined {
 export const wavlakeTrackUrl = (id: string) => `https://wavlake.com/track/${id}`;
 
 const cache = new Map<string, WavlakeTrack | null>(); // null = resolved-but-failed
+const inFlight = new Map<string, Promise<WavlakeTrack | null>>();
+
+/** A Wavlake track's metadata by id — the stream among it — asked once; null when Wavlake has nothing. */
+export function fetchWavlakeTrack(id: string): Promise<WavlakeTrack | null> {
+  if (cache.has(id)) return Promise.resolve(cache.get(id)!);
+  const pending = inFlight.get(id);
+  if (pending) return pending;
+  const p = fetch(`https://catalog.wavlake.com/v1/tracks/${id}`)
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+    .then((j) => {
+      const d = j?.data;
+      if (!d?.liveUrl) throw new Error("no media");
+      const track: WavlakeTrack = {
+        id,
+        title: d.title || "Untitled track",
+        artist: d.artist || "",
+        artworkUrl: d.artworkUrl || d.avatarUrl || undefined,
+        audioUrl: d.liveUrl,
+        duration: Number(d.duration) || undefined,
+        artistNpub: d.artistNpub || undefined,
+      };
+      cache.set(id, track);
+      return track;
+    })
+    .catch(() => {
+      cache.set(id, null);
+      return null;
+    })
+    .finally(() => inFlight.delete(id));
+  inFlight.set(id, p);
+  return p;
+}
+
+/**
+ * The stream behind an audio URL. A track event that names its song by its
+ * Wavlake page (zapstr publishes these: Joe Martin's "High Gravity", 2026-09-24)
+ * hands the player an HTML page; Wavlake's catalogue has the mp3. Any other
+ * URL answers itself, as does a page Wavlake no longer knows.
+ */
+export async function resolveAudioSrc(src: string): Promise<string> {
+  const id = wavlakeTrackId(src);
+  if (!id) return src;
+  const track = await fetchWavlakeTrack(id);
+  return track?.audioUrl ?? src;
+}
 
 /** Fetch + cache Wavlake track metadata. Returns { loading, track, error }. */
 export function useWavlakeTrack(id: string | undefined) {
@@ -63,27 +108,9 @@ export function useWavlakeTrack(id: string | undefined) {
     }
     let cancelled = false;
     setState({ loading: true, track: null, error: false });
-    fetch(`https://catalog.wavlake.com/v1/tracks/${id}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((j) => {
-        const d = j?.data;
-        if (!d?.liveUrl) throw new Error("no media");
-        const track: WavlakeTrack = {
-          id,
-          title: d.title || "Untitled track",
-          artist: d.artist || "",
-          artworkUrl: d.artworkUrl || d.avatarUrl || undefined,
-          audioUrl: d.liveUrl,
-          duration: Number(d.duration) || undefined,
-          artistNpub: d.artistNpub || undefined,
-        };
-        cache.set(id, track);
-        if (!cancelled) setState({ loading: false, track, error: false });
-      })
-      .catch(() => {
-        cache.set(id, null);
-        if (!cancelled) setState({ loading: false, track: null, error: true });
-      });
+    void fetchWavlakeTrack(id).then((track) => {
+      if (!cancelled) setState({ loading: false, track, error: track === null });
+    });
     return () => { cancelled = true; };
   }, [id]);
 

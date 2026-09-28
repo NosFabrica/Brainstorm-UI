@@ -54,6 +54,20 @@ Tinted pill for tags, status badges, counts (p17 "Tags & Badges").
 <Chip tone="success" size="sm">Saved</Chip>
 ```
 
+### KindPill — `components/ui/kind-pill.tsx`
+The Chip that says what a content item *is* — Spec, Article, Listing, App, Event, Stream, Track… —
+fed by the one registry in `lib/kindLabel.ts`. **By default only a spec is named**, where it sits among
+other kinds (the Articles tab, Everything's Articles section, the reader page): a spec from Nostr Hub has
+no NIP number, and the word is what says what it is. Every other kind stays unlabelled until a signed-in
+reader turns on *Kind labels on every card* (Settings › Advanced, per device, `lib/technicalView.ts`) —
+the team's and technical readers' view, where every card, row and tile says its kind. Always slate: a kind
+is a label, not a status, and colour is kept for trust and interaction. Never a link, never on a person.
+A NIP number is never derived or invented.
+```tsx
+<KindPill event={hit.event} />
+<KindPill label="News" />   // where the content's shape is the label
+```
+
 ## StatTile — `components/ui/stat-tile.tsx`
 Metric tile (p15: icon + value + label).
 ```tsx
@@ -83,6 +97,18 @@ backup nag, the plan you are on). Reach for `accent` rather than spelling out a
 <Card>…</Card>
 <Card interactive onClick={…}>…</Card>
 <Card accent={isMine}>…</Card>
+```
+
+## ReadingText — `components/share/ReadingText.tsx`
+Any body of network prose shown in full on an event page — a note, a listing's
+description, a calendar event's About, a video summary. Owns the reading type
+(`post` for the event itself, `body` for a description under a hero title),
+paragraphs, light markdown, HTML-to-text, and the prose pass that finds
+headlines, captions and section heads in unmarked text (`lib/noteBlocks.ts`).
+Don't hand-roll `whitespace-pre-line text-sm leading-relaxed` for these.
+```tsx
+<ReadingText text={listing.description} className="mt-4" />
+<ReadingText tokens={tokens} size="post" renderToken={rich} />   // NoteContent
 ```
 
 ## Also use the existing themed primitives

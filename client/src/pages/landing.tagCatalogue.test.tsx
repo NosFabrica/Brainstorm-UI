@@ -26,6 +26,7 @@ vi.mock("@/services/nostr", () => ({
   fetchAddressableEvents: async () => new Map(),
 }));
 vi.mock("@/services/api", () => ({ apiClient: new Proxy({}, { get: () => async () => null }) }));
+vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: () => new Map() }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.85 }));
 vi.mock("@/hooks/useAppEndorsements", () => ({ useAppEndorsements: () => null }));
@@ -45,6 +46,17 @@ vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 import Landing from "./landing";
 
 const renderLanding = () => renderWithProviders(<Landing />).queryClient;
+
+/**
+ * Type into the box. It is a contenteditable (the grammar's tokens draw as pills there), so a
+ * value set plus an `input` is one keystroke — `fireEvent.change` means nothing to it.
+ */
+function typeInBox(text: string): HTMLElement & { value: string } {
+  const box = screen.getByTestId("input-home-search") as HTMLElement & { value: string };
+  box.value = text;
+  fireEvent.input(box);
+  return box;
+}
 
 describe("the tag catalogue on the home search", () => {
   beforeEach(() => {
@@ -67,7 +79,7 @@ describe("the tag catalogue on the home search", () => {
     ]);
     window.history.replaceState({}, "", "/");
     renderLanding();
-    fireEvent.change(screen.getByTestId("input-home-search"), { target: { value: "bitc" } });
+    typeInBox("bitc");
     expect(await screen.findByTestId("home-tag-suggestion")).toHaveTextContent("Bitcoiners");
     expect(fetchTagIndexMock).toHaveBeenCalledTimes(1);
   });
@@ -75,8 +87,7 @@ describe("the tag catalogue on the home search", () => {
   it("stops being wanted once the dropdown closes, so a refresh doesn't pull it again", async () => {
     window.history.replaceState({}, "", "/");
     const qc = renderLanding();
-    const input = screen.getByTestId("input-home-search");
-    fireEvent.change(input, { target: { value: "bitc" } });
+    const input = typeInBox("bitc");
     await waitFor(() => expect(fetchTagIndexMock).toHaveBeenCalledTimes(1));
     fireEvent.keyDown(input, { key: "Escape" });
     // What the app does to every live query when the API recovers.

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Globe } from "lucide-react";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { FountainCard } from "@/components/share/FountainCard";
@@ -8,7 +8,9 @@ import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
 import { useLightbox } from "@/components/share/Lightbox";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { useNearViewport } from "@/hooks/useNearViewport";
+import { MediaImg } from "@/components/ui/media-img";
 import { useConnectionSpeed } from "@/lib/connection";
+import { echoContext, isEchoed } from "@/lib/echoedText";
 
 /**
  * Link previews for a note's links. A browser can't read another site's Open
@@ -80,7 +82,7 @@ export function LinkChip({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noopener"
-      className="inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+      className="not-prose inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
       data-testid="link-chip"
     >
       <Favicon host={u?.hostname || ""} className="h-3.5 w-3.5 rounded-sm shrink-0 object-contain" />
@@ -99,9 +101,11 @@ function youtubeId(u: URL): string | null {
 /**
  * The rich preview for a note's primary link. `showImage={false}` when the surrounding note or row already shows its own
  * picture: news posts often attach the article's image, and the card's
- * og:image would be the same picture twice.
+ * og:image would be the same picture twice. `context` is the text already on
+ * screen: a title or description it already says is dropped, so a feed bot's
+ * headline + link doesn't render the headline twice.
  */
-export function LinkPreviewCard({ url, showImage = true }: { url: string; showImage?: boolean }) {
+export function LinkPreviewCard({ url, showImage = true, context }: { url: string; showImage?: boolean; context?: string }) {
   const u = parse(url);
   if (!u) return null;
   const host = u.hostname.replace(/^www\./, "");
@@ -136,7 +140,7 @@ export function LinkPreviewCard({ url, showImage = true }: { url: string; showIm
 
   // Plain links: a card when the preview service has something to show;
   // otherwise nothing, and the inline chip speaks for the link.
-  return <UnfurledCard url={url} host={host} showImage={showImage} />;
+  return <UnfurledCard url={url} host={host} showImage={showImage} context={context} />;
 }
 
 /** Start asking a little before the card is read, so it is usually filled. */
@@ -155,9 +159,11 @@ function isJustTheSiteName(title: string, host: string): boolean {
  * inline chip already names the link, and an empty box repeating it is worse
  * than the card popping in when a real answer lands.
  */
-function UnfurledCard({ url, host, showImage }: { url: string; host: string; showImage: boolean }) {
+function UnfurledCard({ url, host, showImage, context }: { url: string; host: string; showImage: boolean; context?: string }) {
   const openLightbox = useLightbox();
   const [fetched, setMeta] = useState<Unfurled | null>(null);
+  // The note's text, tokenized once rather than per check per render.
+  const echoCtx = useMemo(() => echoContext(context), [context]);
   const [imgFailed, setImgFailed] = useState(false);
   // Nothing is drawn until there is an answer, so a zero-height marker is
   // what gets observed. Only ask for the links a reader actually scrolls to.
@@ -223,6 +229,51 @@ function UnfurledCard({ url, host, showImage }: { url: string; host: string; sho
     return <span ref={ref} aria-hidden className="block h-0" data-testid="link-card-pending" />;
   }
   const siteName = meta.siteName ?? null;
+  const source = (
+    <span className="flex min-w-0 items-center gap-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+      <Favicon host={host} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
+      <span className="truncate">
+        {siteName ?? host}
+        {siteName && siteName.toLowerCase() !== host.toLowerCase() ? ` \u00b7 ${host}` : ""}
+      </span>
+    </span>
+  );
+  // Only what the note hasn't already said.
+  const newTitle = title && !isEchoed(title, echoCtx) ? title : null;
+  const newDescription = meta.description && !isEchoed(meta.description, echoCtx) ? meta.description : null;
+
+  if (!newTitle && !newDescription) {
+    // The words are all on screen already. With a picture, the card is the
+    // picture and where it leads; without one, nothing — the inline chip
+    // already names the link.
+    if (image) {
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener"
+          onClick={(e) => e.stopPropagation()}
+          className="mt-2 block max-w-md overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+          data-testid="link-card-media"
+        >
+          <img
+            src={image}
+            alt=""
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setImgFailed(true)}
+            className="aspect-[1.91/1] w-full object-cover bg-slate-100 dark:bg-slate-800"
+            data-testid="link-card-image"
+          />
+          <span className="flex items-center gap-1 px-3 py-1.5">
+            {source}
+            <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
+          </span>
+        </a>
+      );
+    }
+    return <span ref={ref} aria-hidden className="block h-0" data-testid="link-card-echoed" />;
+  }
 
   return (
     <a
@@ -230,15 +281,16 @@ function UnfurledCard({ url, host, showImage }: { url: string; host: string; sho
       target="_blank"
       rel="noopener"
       onClick={(e) => e.stopPropagation()}
-      className="mt-2 flex h-24 items-stretch gap-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
+      className={`mt-2 flex items-stretch gap-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all ${image ? "h-24" : ""}`}
       data-testid="link-card"
       // h-24 = 96px holds py-2 16 + meta 16 + title 2x20 + desc 1x16 + gaps 4 = 92. Clamps and leadings are the budget.
     >
       {image && (
         // Whoever posted the link chose this host, so it learns the reader's
         // IP either way — it does not also get to learn what they were reading.
-        <img
+        <MediaImg
           src={image}
+          preset="media_320"
           alt=""
           loading="lazy"
           referrerPolicy="no-referrer"
@@ -248,21 +300,16 @@ function UnfurledCard({ url, host, showImage }: { url: string; host: string; sho
         />
       )}
       <div className={`flex min-w-0 flex-1 flex-col justify-center py-2 pr-3 ${image ? "pl-1" : "pl-3"}`}>
-        <span className="flex items-center gap-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
-          <Favicon host={host} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
-          <span className="truncate">
-            {siteName ?? host}
-            {siteName && siteName.toLowerCase() !== host.toLowerCase() ? ` \u00b7 ${host}` : ""}
-          </span>
-        </span>
-        {title && (
+        {source}
+        {newTitle && (
           <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-5 text-slate-900 dark:text-slate-100">
-            {title}
+            {newTitle}
           </span>
         )}
-        {meta.description && (
-          <span className="mt-0.5 line-clamp-1 text-xs leading-4 text-slate-600 dark:text-slate-300">
-            {meta.description}
+        {newDescription && (
+          // Without a title the lede gets the title's two lines.
+          <span className={`mt-0.5 text-xs leading-4 text-slate-600 dark:text-slate-300 ${newTitle ? "line-clamp-1" : "line-clamp-2"}`}>
+            {newDescription}
           </span>
         )}
       </div>

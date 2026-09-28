@@ -151,7 +151,7 @@ function FeedBlock({
           <TopStories stories={stories} stripRef={storiesRef} />
           <div className="space-y-0.5">
             {latestClusters.map((c) => (
-              <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query="" engagementOf={engagementOf} />
+              <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query="" engagementOf={engagementOf} showType={false} />
             ))}
           </div>
         </Section>

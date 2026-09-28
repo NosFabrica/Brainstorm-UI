@@ -34,6 +34,10 @@ export function wavlakeArtistHref(artist: Pick<WavlakeArtist, "name" | "artistNp
 export function wavlakeSongHref(song: Pick<WavlakeSong, "artist" | "artistNpub">): string {
   return wavlakeArtistHref({ name: song.artist, artistNpub: song.artistNpub });
 }
+/** A Podcast Index song or musician has no Nostr key: their music here, by name. */
+export function podcastIndexHref(name: string): string {
+  return `/?q=${encodeURIComponent(name)}&t=music`;
+}
 
 export async function moreFromArtist(current: TrackMeta & { id: string }, limit = 12): Promise<PlaylistTrack[]> {
   try {

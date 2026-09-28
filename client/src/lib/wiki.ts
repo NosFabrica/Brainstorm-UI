@@ -71,13 +71,43 @@ export function wikiPlainText(content: string): string {
 }
 
 /**
+ * What a publisher writes into the summary tag when the author wrote
+ * nothing. Geyser's is the one seen in the wild ("Mission Day!", 2026-09-24);
+ * the rest are the usual shapes of an empty field passed through a template.
+ */
+const PLACEHOLDER_SUMMARY = /^(?:no (?:description|summary)(?: available| provided)?\.?|n\/?a|none|null|undefined|-)$/i;
+
+/** The author's own summary — never a publisher's placeholder — or "". */
+export function articleSummary(event: { tags: string[][] }): string {
+  const summary = event.tags.find((t) => t[0] === "summary")?.[1]?.trim() ?? "";
+  return PLACEHOLDER_SUMMARY.test(summary) ? "" : summary;
+}
+
+/** A markdown body as words: no marks, no links, no images, one line. */
+function markdownWords(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/https?:\/\/\S+|nostr:[a-z0-9]+/gi, " ")
+    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+\.\s+)/gm, "")
+    .replace(/(\*\*|__|[*_`~]|\\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * The line under an article's title on a card. A long-form article says it
- * in its summary tag; a wiki page has none, so its opening words stand in.
+ * in its summary tag; without one — or with only a publisher's placeholder
+ * there — its opening words stand in, as a wiki page's always have.
  */
 export function articleBrief(event: { kind: number; content: string; tags: string[][] }, max = 220): string {
-  const summary = event.tags.find((t) => t[0] === "summary")?.[1];
+  const summary = articleSummary(event);
   if (summary) return summary;
-  if (event.kind !== 30818) return "";
-  const words = wikiPlainText(event.content);
+  let words = event.kind === 30818 ? wikiPlainText(event.content) : markdownWords(event.content);
+  // A body that opens with its own title goes on from there; one that is
+  // only the title has nothing to add under it.
+  const title = event.tags.find((t) => t[0] === "title")?.[1]?.trim();
+  if (title && words.toLowerCase().startsWith(title.toLowerCase())) words = words.slice(title.length).replace(/^[\s:—–-]+/, "");
   return words.length > max ? `${words.slice(0, max).replace(/\s+\S*$/, "")}…` : words;
 }

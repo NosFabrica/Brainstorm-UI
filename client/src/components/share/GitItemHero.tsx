@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { Link } from "wouter";
 import { Bot, GitBranch, GitCommitHorizontal, MessageSquare } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
@@ -23,7 +24,7 @@ const DIFF_FOLD = 120;
  */
 export function GitItemHero({ event, author }: { event: GitItem; author?: AgentAuthor }) {
   const title = gitItemTitleOf(event);
-  const kindLabel = event.kind === 1617 ? "Patch" : event.kind === 1618 ? "Pull request" : "Issue";
+  const kindLabel = kindTypeLabel(event.kind);
   const address = event.tags.find((t) => t[0] === "a")?.[1] ?? null;
   const repoName = gitRepoNameOf(event);
   const labels = gitLabelsOf(event);
@@ -147,7 +148,9 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
             </div>
           )}
           {patch.message && (
-            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200" data-testid="git-patch-message">
+            // A commit message is literal: "#42" is an issue, "deploy.sh" a
+            // file — the reading renderer would make them a hashtag and a link.
+            <p className="mt-2 max-w-[68ch] whitespace-pre-wrap break-words text-[15px] sm:text-base leading-[1.65] text-slate-700 dark:text-slate-200" data-testid="git-patch-message">
               {patch.message}
             </p>
           )}

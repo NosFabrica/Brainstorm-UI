@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseListing, isSellable, formatListingPrice } from "./listing";
+import { parseListing, isSellable, formatListingPrice, listingCardLine } from "./listing";
 
 // NIP-99 as the marketplaces publish it (probed 2026-09-04: Shopstr,
 // Barattolo, bitpopart, Conduit): title, price [amount, currency], images,
@@ -89,5 +89,31 @@ describe("formatListingPrice — shown exactly as priced, never converted", () =
 
   it("names the cadence when a price recurs", () => {
     expect(formatListingPrice({ amount: 5, currency: "USD", frequency: "month" })).toBe("$5 / month");
+  });
+});
+
+describe("listingCardLine — one quiet line: where it is, what shipping costs", () => {
+  const base = { id: "l1", pubkey: "a".repeat(64), d: "l1", title: "Mug", summary: "A summary", description: "", price: { amount: 12, currency: "USD" }, images: [], location: null as string | null, status: "active", hidden: false, categories: [], shopUrl: null, shipping: [] as { name: string; amount: number; currency: string }[], createdAt: 0 };
+
+  it("country and shipping, when both are known", () => {
+    expect(listingCardLine({ ...base, location: "Gubbio (PG)", shipping: [{ name: "Italia", amount: 500, currency: "SATS" }] })).toBe("Gubbio (PG) · 500 sats shipping");
+  });
+
+  it("free shipping is the good news, said plainly", () => {
+    expect(listingCardLine({ ...base, location: "United States", shipping: [{ name: "US", amount: 0, currency: "USD" }, { name: "World", amount: 20, currency: "USD" }] })).toBe("United States · Free shipping");
+  });
+
+  it("several paid options say where the price starts", () => {
+    expect(listingCardLine({ ...base, shipping: [{ name: "Italia", amount: 500, currency: "SATS" }, { name: "Europa", amount: 1500, currency: "SATS" }] })).toBe("Shipping from 500 sats");
+  });
+
+  it("shipping priced in no money of its own borrows the listing's", () => {
+    expect(listingCardLine({ ...base, shipping: [{ name: "US", amount: 5, currency: "" }] })).toBe("$5 shipping");
+  });
+
+  it("one part alone, and the summary when neither is known", () => {
+    expect(listingCardLine({ ...base, location: "Austin, TX" })).toBe("Austin, TX");
+    expect(listingCardLine(base)).toBe("A summary");
+    expect(listingCardLine({ ...base, summary: null })).toBeNull();
   });
 });

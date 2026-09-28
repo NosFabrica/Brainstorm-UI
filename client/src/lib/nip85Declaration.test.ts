@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NostrEvent } from "applesauce-core/helpers";
 
-import { declaresLists, declaresTrustProvider, listRows, mergeDesignation } from "./nip85Declaration";
+import { declaresLists, declaresTrustProvider, describeDesignation, listRows, mergeDesignation } from "./nip85Declaration";
 
 const TA = "a".repeat(64);
 const OTHER_TA = "b".repeat(64);
@@ -121,5 +121,38 @@ describe("declaresLists", () => {
     expect(declaresLists(event10040(listRows(LISTS).slice(0, 2)), LISTS)).toBe(false);
     expect(declaresLists(event10040(listRows({ ...LISTS, key: OTHER_TA })), LISTS)).toBe(false);
     expect(declaresLists(undefined, LISTS)).toBe(false);
+  });
+});
+
+/**
+ * A 10040 read for people. Every one on the search relay is a Brainstorm
+ * activation — empty content, rows pointing at scores.brainstorm.world — and
+ * rendered as a blank "Post" row and an empty page (Benjamin, 2026-09-23,
+ * `kind:10040` on Everything). The description is what a row and a page say.
+ */
+describe("describeDesignation", () => {
+  it("names the signals, the lists, and the provider, for an activation of ours", () => {
+    const d = describeDesignation(event10040([
+      ["30382:rank", TA, "wss://scores.brainstorm.world"],
+      ["30382:followers", TA, "wss://scores.brainstorm.world"],
+      ["30392", TA, "wss://scores.brainstorm.world"],
+      ["30393", TA, "wss://scores.brainstorm.world"],
+    ]));
+    expect(d.signals).toEqual(["Rank", "Followers"]);
+    expect(d.lists).toBe(true);
+    expect(d.providers).toEqual([{ pubkey: TA, relay: "wss://scores.brainstorm.world", brainstorm: true }]);
+    expect(d.summary).toBe("Activated Brainstorm trust signals · Rank, Followers, Trusted Lists");
+  });
+
+  it("says whose signals they are when the provider is not ours", () => {
+    const d = describeDesignation(event10040([["30382:rank", OTHER_TA, "wss://nip85.example.com"]]));
+    expect(d.signals).toEqual(["Rank"]);
+    expect(d.lists).toBe(false);
+    expect(d.providers).toEqual([{ pubkey: OTHER_TA, relay: "wss://nip85.example.com", brainstorm: false }]);
+    expect(d.summary).toBe("Trusts a provider for Rank");
+  });
+
+  it("an empty designation says so", () => {
+    expect(describeDesignation(event10040([])).summary).toBe("No trust provider designated");
   });
 });

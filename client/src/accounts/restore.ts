@@ -44,7 +44,10 @@ export function extractKeyToken(pasted: string): RestoreToken | null {
  * this has an opinion about.
  */
 export function backupWorkFactor(ncryptsec: string): number | undefined {
-  const data = ncryptsec.trim().toLowerCase().split("1").slice(1).join("1");
+  const payload = ncryptsec.trim().toLowerCase();
+  // Any other bech32 (an nsec) decodes too, and its first key byte can pass for the version.
+  if (!payload.startsWith("ncryptsec1")) return undefined;
+  const data = payload.slice("ncryptsec1".length);
   if (data.length < 4) return undefined;
 
   const words: number[] = [];

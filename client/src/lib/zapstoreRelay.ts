@@ -13,7 +13,8 @@ export const ZAPSTORE_RELAY_URL = "wss://relay.zapstore.dev/";
 let cached: Relay | null | undefined;
 
 export function zapstoreRelay(): Relay | null {
-  if (cached !== undefined) return cached;
+  // Ask again if the pool has since dropped it (see searchRelay).
+  if (cached && pool.relays.get(cached.url) === cached) return cached;
   cached = pool.relay(ZAPSTORE_RELAY_URL);
   return cached;
 }

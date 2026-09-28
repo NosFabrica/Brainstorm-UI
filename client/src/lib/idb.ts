@@ -5,7 +5,12 @@
  * aborts.
  */
 
-export function openDb(name: string, version: number, upgrade: (db: IDBDatabase) => void): Promise<IDBDatabase> {
+export function openDb(
+  name: string,
+  /** Omit to adopt whatever version exists, rather than demanding a number. */
+  version: number | undefined,
+  upgrade: (db: IDBDatabase) => void,
+): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(name, version);
     req.onupgradeneeded = () => upgrade(req.result);

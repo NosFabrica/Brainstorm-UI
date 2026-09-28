@@ -23,6 +23,7 @@ vi.mock("./session", () => ({
     authenticate: (account: BrainstormAccount) => authenticate(account),
   },
   SessionTransportError: class SessionTransportError extends Error {},
+  SESSION_SIGN_TIMEOUT_MS: 90_000,
 }));
 vi.mock("@/lib/queryClient", () => ({ queryClient: { clear: () => clear() } }));
 vi.mock("@/services/api", () => ({ apiClient: {} }));
@@ -153,5 +154,26 @@ describe("adding another account while signed in", () => {
     await signInWithExternalSigner(signedIn as unknown as BrainstormAccount);
 
     expect(clear).not.toHaveBeenCalled();
+  });
+});
+
+describe("an extension that never answers the sign-in", () => {
+  afterEach(() => {
+    delete (window as { nostr?: unknown }).nostr;
+  });
+
+  // Nostore on iOS can drop its prompt without answering; the session gives up at
+  // its deadline, and the login screen says what happened instead of "couldn't sign".
+  it("says the extension didn't answer, and how to go on", async () => {
+    const { handleLogin, LoginError } = await import("./login-flow");
+    const { RemoteSignerTimeoutError } = await import("./remote-signer");
+    (window as { nostr?: unknown }).nostr = { getPublicKey: async () => "a".repeat(64), signEvent: async () => ({}) };
+    authenticate.mockRejectedValueOnce(new RemoteSignerTimeoutError("Your signer didn't answer the sign-in request."));
+
+    const failure = await handleLogin().catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(LoginError);
+    expect((failure as InstanceType<typeof LoginError>).code).toBe("EXTENSION_FAILED");
+    expect((failure as Error).message).toBe("Your extension didn't answer. Open it, approve the request, and try again — or use your key.");
   });
 });

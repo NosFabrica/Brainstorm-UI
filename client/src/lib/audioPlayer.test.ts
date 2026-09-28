@@ -9,6 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { closePlayer, extendPlaylist, peekNext, playNext, setPlaylist, stopAllMedia, toggleTrack, togglePlayback } from "./audioPlayer";
 import { installSoloPlayback } from "./playback";
 
+// Wavlake's catalogue, asked for the stream behind a track page; the page URL answers itself otherwise.
+const resolveMock = vi.fn(async (src: string) => (src.includes("wavlake.com/track/") ? "https://cdn.wavlake.example/track/e1c2e15d.mp3" : src));
+vi.mock("@/lib/wavlake", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/wavlake")>()), resolveAudioSrc: (src: string) => resolveMock(src) }));
+
 type Handler = (() => void) | null;
 const handlers = new Map<string, Handler>();
 const session = { metadata: null as null | { title: string; artist: string; artwork: { src: string }[] }, setActionHandler: vi.fn((name: string, h: Handler) => handlers.set(name, h)) };
@@ -133,5 +137,19 @@ describe("audioPlayer — takes the floor", () => {
     Object.defineProperty(HTMLMediaElement.prototype, "paused", { get: () => true, configurable: true });
     togglePlayback();
     expect(streamPause).toHaveBeenCalledTimes(2);
+  });
+
+  it("a track whose media is a Wavlake page plays Wavlake's stream for it, not the page", async () => {
+    // Benjamin (2026-09-24), on Joe Martin's "High Gravity": why couldn't it
+    // play? Its event's media tag is the song's Wavlake page, an HTML page.
+    const played: string[] = [];
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (this: HTMLMediaElement) {
+      played.push(this.src);
+      return Promise.resolve();
+    });
+    toggleTrack("hg", "https://www.wavlake.com/track/e1c2e15d-656c-41de-a52c-6771292a7312", { title: "High Gravity" });
+    await vi.waitFor(() => expect(played).toContain("https://cdn.wavlake.example/track/e1c2e15d.mp3"));
+    expect(played).not.toContain("https://www.wavlake.com/track/e1c2e15d-656c-41de-a52c-6771292a7312");
+    expect(resolveMock).toHaveBeenCalledWith("https://www.wavlake.com/track/e1c2e15d-656c-41de-a52c-6771292a7312");
   });
 });

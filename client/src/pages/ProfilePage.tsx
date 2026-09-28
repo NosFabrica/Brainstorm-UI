@@ -43,11 +43,11 @@ import {
   Share2,
   Globe,
   Eye,
-  BadgeCheck,
   AlertTriangle,
 } from "lucide-react";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { ZapModal } from "@/components/ZapModal";
 import { FlashIcon } from "@/components/FlashIcon";
 import { WotStrengthCard } from "@/components/WotStrengthCard";
@@ -107,6 +107,7 @@ import { useHasSession } from "@/hooks/useHasSession";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { useTierRing } from "@/components/score/VerificationCoin";
+import { Nip05Handle } from "@/components/Nip05Check";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -1973,6 +1974,8 @@ export default function ProfilePage() {
     try { return nip19.npubEncode(npubParam); } catch { return npubParam; }
   }, [npubParam]);
 
+  const profileShareUrl = useShareUrl({ npub: displayNpub, enabled: shareOpen });
+
   // Fetch the NosFabrica ("house") perspective influence (0..1) for the viewed
   // profile on mount, so the dual-meter widget renders regardless of entry point
   // (Search, Network, deep link, etc). Uses an unauthenticated overview request
@@ -2059,7 +2062,7 @@ export default function ProfilePage() {
           />
         </header>
       ) : (
-      <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} />
+      <AppHeader user={user} onLogout={handleLogout} />
       )}
 
       <ShareProfileModal
@@ -2069,7 +2072,7 @@ export default function ProfilePage() {
         displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
         picture={displayNostrProfile?.picture}
         nip05={displayNostrProfile?.nip05}
-        canonicalUrl={typeof window !== "undefined" && displayNpub ? `${window.location.origin}/p/${displayNpub}` : ""}
+        shareUrl={profileShareUrl}
         score01={typeof nosfabricaRankQuery.data === "number" ? nosfabricaRankQuery.data : null}
       />
 
@@ -2199,7 +2202,7 @@ export default function ProfilePage() {
                 <div className="flex items-start gap-3 sm:gap-4 mb-4">
                   <Avatar className={`h-12 w-12 sm:h-16 sm:w-16 border-2 border-brand-primary/15 dark:border-brand-primary/25 shadow-md shrink-0 ${tierRing(houseInfluence01) ?? ""}`}>
                     {displayNostrProfile?.picture && (
-                      <AvatarImage src={displayNostrProfile.picture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
+                      <AvatarImage size="lg" src={displayNostrProfile.picture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                     )}
                     <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-base sm:text-lg font-bold">
                       {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
@@ -2289,7 +2292,7 @@ export default function ProfilePage() {
                     const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
                       <Avatar className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16 ${tierRing(profileResult?.influence ?? houseInfluence01) ?? ""}`}>
-                        <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
+                        <AvatarImage size="lg" src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                         <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-base sm:text-lg font-bold">
                           {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
                         </AvatarFallback>
@@ -2306,12 +2309,13 @@ export default function ProfilePage() {
                           <h3 className="w-full sm:w-auto text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
                             {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
                           </h3>
-                          {displayNostrProfile?.nip05 && (
-                            <span className="inline-flex items-center gap-1 min-w-0 max-w-full text-[11px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium" data-testid="text-profile-nip05" title="Verified handle (NIP-05)">
-                              <BadgeCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-brand-primary" />
-                              <span className="truncate">{displayNostrProfile.nip05}</span>
-                            </span>
-                          )}
+                          <Nip05Handle
+                            nip05={displayNostrProfile?.nip05}
+                            pubkey={hexPubkey}
+                            className="inline-flex items-center gap-1 min-w-0 max-w-full text-[11px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium"
+                            iconClassName="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-brand-primary"
+                            testId="text-profile-nip05"
+                          />
                           {hexPubkey && getCurrentAssistantPubkey() === hexPubkey && (
                             <Badge
                               variant="secondary"

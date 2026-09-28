@@ -13,9 +13,10 @@ import { ListsUpdatePill } from "./ListsUpdate";
  *
  * Responsive like the rest of the header: the full sentence + count on
  * desktop, sentence only on tablet, just the ⚠ + "Finish setup" chip on
- * phones.
+ * phones. `labelFrom` moves the sentence's breakpoint: beside the app
+ * header's search box there is only room for it from `xl`.
  */
-export function FinishSetupBanner() {
+export function FinishSetupBanner({ labelFrom = "sm" }: { labelFrom?: "sm" | "xl" } = {}) {
   const [location, navigate] = useLocation();
   const { signedIn, remaining, listsPending } = useFinishSetup();
   const amber = tone("amber");
@@ -34,11 +35,11 @@ export function FinishSetupBanner() {
       data-testid="banner-finish-setup"
     >
       <AlertTriangle className={`h-3.5 w-3.5 shrink-0 ${amber.icon}`} />
-      <span className="hidden whitespace-nowrap text-[13px] font-bold text-amber-900 dark:text-amber-200 sm:block">
+      <span className={`hidden whitespace-nowrap text-[13px] font-bold text-amber-900 dark:text-amber-200 ${labelFrom === "xl" ? "xl:block" : "sm:block"}`}>
         Finish setting up your account
       </span>
       <span
-        className={`hidden whitespace-nowrap text-xs font-semibold tabular-nums lg:block ${amber.text}`}
+        className={`hidden whitespace-nowrap text-xs font-semibold tabular-nums ${labelFrom === "xl" ? "2xl:block" : "lg:block"} ${amber.text}`}
         data-testid="banner-finish-setup-count"
       >
         · {remaining} {remaining === 1 ? "step" : "steps"} left

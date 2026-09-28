@@ -68,4 +68,11 @@ describe("fetchFountainItem", () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("blocked"); }));
     expect(await fetchFountainItem("https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3")).toBeNull();
   });
+
+  it("decodes numeric entities too — Fountain writes an apostrophe as &#x27;", () => {
+    // Live (2026-09-24): "A Skeptic&#x27;s Journey" showed with the entity in it.
+    const html = EPISODE_HTML.replace(/og:title" content="[^"]*"/, 'og:title" content="DJ Valerie B LOVE Podcast • NEVER in a Trillion Years - A Skeptic&#x27;s Journey &#8211; part 1"');
+    const item = parseFountainPage(html, "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3");
+    expect(item?.title).toBe("NEVER in a Trillion Years - A Skeptic's Journey – part 1");
+  });
 });

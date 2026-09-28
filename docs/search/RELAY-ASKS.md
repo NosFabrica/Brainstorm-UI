@@ -192,3 +192,15 @@ Probed the same day against the staging relay:
 Ask: an `offset:` (or opaque cursor) for ranked queries, so a ranked page 2 is
 "the next 100" rather than "the first 200 again"; and a result total on EOSE
 (ties to #5) so the UI can say "showing 300 of 1,204" instead of just "more".
+
+## 15. What a person publishes — seven `limit:1` probes in one REQ (2026-09-24)
+
+The search rows wear chips for what a person publishes (Shop, Recipes, Live…). One
+REQ per person carries seven filters `{ kinds, authors:[pk], limit:1, search:"include:spam" }`
+— one per category, recipes as `kinds:[30023]` + `#t` zapcooking/nostrcooking — and EOSE answers in ~100ms (Staci → shop; Zap Cooking →
+articles, shop). `include:spam` is the lens: the relay refuses a filter without one.
+A People page of forty cards is forty such REQs on the socket, each answered and
+closed; the UI remembers answers for the session and never re-asks.
+
+Ask: nothing yet. A `COUNT` by author and kind would let the chips say "29 items";
+the `limit:1` probe is enough to say "has some".

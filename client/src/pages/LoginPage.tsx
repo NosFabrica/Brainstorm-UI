@@ -183,7 +183,9 @@ export default function LoginPage() {
       </div>
 
       {/* Right column — sign-in focus */}
-      <main className="flex-1 flex flex-col px-5 py-8 sm:p-8">
+      {/* min-w-0: a flex item won't shrink below its content by default, and a saved
+          account's npub is one unbreakable line — it pushed the page past a phone's width. */}
+      <main className="flex-1 min-w-0 flex flex-col px-5 py-8 sm:p-8">
         <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0">
         <div className="w-full max-w-[420px] flex flex-col animate-fade-up">
           {/* Mobile brand header (hidden on desktop) — the handwritten wordmark

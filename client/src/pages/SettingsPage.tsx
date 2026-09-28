@@ -120,6 +120,8 @@ import nostrLogo from "@assets/download_1774042580188.png";
 import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
+import { RelayAuthCard } from "@/components/settings/RelayAuthCard";
+import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
 
 type SettingsTab = "profile" | "trust" | "billing" | "about";
 
@@ -1455,6 +1457,8 @@ export default function SettingsPage() {
           >
             <TagRelaysCard />
           </div>
+          <RelayAuthCard />
+          <TechnicalViewCard />
         </div>
       )}
     </div>
@@ -1731,7 +1735,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-settings">
       <GlossBackground />
-      <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="settings" />
+      <AppHeader user={user} onLogout={handleLogout} active="settings" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
         <DeferredSessionNotice className="mb-6" />

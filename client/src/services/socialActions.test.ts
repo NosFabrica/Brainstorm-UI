@@ -36,8 +36,22 @@ const relayList: string[] = ["wss://one"];
 
 vi.mock("./nostr", () => ({
   publishToRelays: (...args: unknown[]) => publishToRelays(...(args as [])),
-  loadOutboxRelayListFromDb: () => [...relayList],
   fetchOutboxRelayList: (...args: unknown[]) => fetchOutboxRelayList(...(args as [])),
+}));
+
+/**
+ * Write relays are resolved through `lib/relayRouting` now, not through
+ * `services/nostr`, so the seam these tests steer with lives here. Both shapes
+ * answer with `relayList` verbatim: the real ones normalize (`wss://one` ->
+ * `wss://one/`) and add the bootstrap set, and `deadRelays` and the pool mock
+ * match on the exact strings a test wrote.
+ */
+vi.mock("@/lib/relayRouting", () => ({
+  outboxRelays: async () => [...relayList],
+  outboxRelaysFromDb: () => [...relayList],
+  relayHintFor: () => undefined,
+  tagWithHint: (name: string, value: string, hint?: string) =>
+    hint ? [name, value, hint] : [name, value],
 }));
 
 vi.mock("@/accounts/display", () => ({
@@ -96,7 +110,18 @@ vi.mock("@/lib/relayPool", () => ({
   },
 }));
 const storeAdd = vi.fn((e: unknown) => e);
-vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => storeAdd(e) } }));
+// `getReplaceable` is what NIP-65 routing reads to find the author's write
+// relays; these cases never seed one, so routing falls back to the defaults.
+vi.mock("@/lib/eventStore", () => ({
+  eventStore: { add: (e: unknown) => storeAdd(e), getReplaceable: () => undefined },
+}));
+// Routing may go to the relays for a kind-10002. These cases are about the
+// follow/mute logic, not about discovery, so the lookup answers "nothing".
+vi.mock("@/lib/loaders", () => ({
+  addressLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  idLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  loadReplaceable: async () => undefined,
+}));
 // The real module drags in deployment config; the recovery path only needs the shape check.
 vi.mock("@/config/tagging", () => ({
   isRelayUrl: (url: string) => /^wss?:\/\/[^\s/$.?#][^\s]*$/i.test(url.trim()),

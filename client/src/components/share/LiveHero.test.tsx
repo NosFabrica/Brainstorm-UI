@@ -64,7 +64,7 @@ describe("LiveHero", () => {
   it("a stream's description links its URLs and names its mentions", () => {
     const npub = "npub1de6l09erjl9r990q7n9ql0rwh8x8n059ht7a267n0q3qe28wua8q20q0sd";
     render(<LiveHero event={stream([["status", "ended"], ["summary", `Let's Fo Live 🔵 https://mar101xy.com/live with nostr:${npub}`]])} />);
-    const chip = screen.getByTestId("link-chip");
+    const chip = screen.getByTestId("reading-link");
     expect(chip.getAttribute("href")).toBe("https://mar101xy.com/live");
     expect(chip).toHaveTextContent("mar101xy.com");
     expect(screen.getByTestId("mention-chip")).toBeInTheDocument();

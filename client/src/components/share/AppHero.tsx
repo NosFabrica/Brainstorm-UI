@@ -39,6 +39,7 @@ import {
   type ReleaseAsset,
 } from "@/services/search";
 import { formatBytes } from "@/lib/formatBytes";
+import { ReadingText } from "@/components/share/ReadingText";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type AppEvent = {
@@ -576,9 +577,7 @@ export function AppHero({ event }: { event: AppEvent }) {
 
       {/* The listing's own description. */}
       {event.content?.trim() && (
-        <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
-          {event.content}
-        </p>
+        <ReadingText text={event.content} className="mt-4" testId="app-hero-description" />
       )}
 
       {/* What people say — Google's shared endorsements, on Nostr. No stars

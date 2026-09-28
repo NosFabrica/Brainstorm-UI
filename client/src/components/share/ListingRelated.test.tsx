@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import type { NostrEvent } from "nostr-tools";
+import { nip19, type NostrEvent } from "nostr-tools";
 
 const recentMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>();
 const profileMapMock = vi.fn<(pks: string[]) => Promise<Map<string, Record<string, unknown>>>>();
@@ -60,6 +60,48 @@ describe("ListingRelated", () => {
     expect(titles).toEqual(["Tallow cream", "Lip balm"]);
     expect(within(row).queryByText("Unknown")).toBeNull();
     expect(screen.queryByTestId("listing-similar")).toBeNull();
+  });
+
+  // Staci's shop (2026-09-24): her 30 newest listings were copies marked
+  // hidden, so a row that asked for 30 showed nothing under her soap while
+  // her profile, asking deeper, showed 36 products.
+  it("asks deep enough that a run of hidden copies cannot empty the row", async () => {
+    const hidden = Array.from({ length: 30 }, (_, i) => listing(SELLER, `copy-${i}`, `Hidden copy ${i}`, 5000 + i, [["visibility", "hidden"]]));
+    recentMock.mockImplementation(async (_pk, _kinds, limit) => (limit >= 100 ? [...hidden, listing(SELLER, "cream", "Tallow cream", 3000)] : hidden));
+    render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
+    const row = await screen.findByTestId("listing-more-from-seller");
+    expect(row).toHaveTextContent("Tallow cream");
+    expect(row).not.toHaveTextContent("Hidden copy");
+  });
+
+  // Four is a teaser; the seller's page has everything. The heading says how
+  // many and leads there — only when there is more than the row shows.
+  it("the row's heading leads to everything the seller has, counted, when there is more than four", async () => {
+    recentMock.mockResolvedValue([SELF, ...["a", "b", "c", "d", "e", "f"].map((d, i) => listing(SELLER, d, `Product ${d}`, 2000 + i))]);
+    render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
+    const row = await screen.findByTestId("listing-more-from-seller");
+    expect(within(row).getAllByTestId(/^listing-card-/)).toHaveLength(4);
+    const all = within(row).getByTestId("listing-seller-all");
+    expect(all).toHaveTextContent("See all 6");
+    expect(all.getAttribute("href")).toBe(`/p/${nip19.npubEncode(SELLER)}/selling`);
+  });
+
+  it("four or fewer products need no door — the row is everything", async () => {
+    recentMock.mockResolvedValue([SELF, listing(SELLER, "a", "Product a", 2000), listing(SELLER, "b", "Product b", 2001)]);
+    render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
+    const row = await screen.findByTestId("listing-more-from-seller");
+    expect(within(row).queryByTestId("listing-seller-all")).toBeNull();
+  });
+
+  // Benjamin (2026-09-24): the row sat flush under the description card. It
+  // keeps the same distance from its neighbours as the posts strip below it.
+  it("stands off the description above and the sections below, like the posts strip", async () => {
+    recentMock.mockResolvedValue([SELF, listing(SELLER, "a", "Product a", 2000)]);
+    render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
+    const block = await screen.findByTestId("listing-related");
+    expect(block.className).toMatch(/\bmt-8\b/);
+    expect(block.className).toMatch(/\bmb-8\b/);
+    expect(block.className).toMatch(/\bspace-y-8\b/);
   });
 
   it("offers similar listings from other sellers, named, asked for by this listing's categories", async () => {

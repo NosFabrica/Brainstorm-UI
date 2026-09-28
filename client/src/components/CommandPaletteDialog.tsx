@@ -28,6 +28,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { useTheme } from "@/lib/theme";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { logout } from "@/accounts/login-flow";
@@ -58,8 +59,7 @@ export function CommandPaletteDialog({ open, onOpenChange }: { open: boolean; on
     toast({ title: "Copied!", description: "npub copied to clipboard" });
   };
 
-  const inviteUrl =
-    typeof window !== "undefined" && user?.npub ? `${window.location.origin}/p/${user.npub}` : "";
+  const inviteUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteOpen });
 
   return (
     <>
@@ -165,7 +165,7 @@ export function CommandPaletteDialog({ open, onOpenChange }: { open: boolean; on
           displayName={user.displayName || "You"}
           picture={user.picture}
           nip05={user.nip05}
-          canonicalUrl={inviteUrl}
+          shareUrl={inviteUrl}
         />
       )}
     </>

@@ -1,23 +1,53 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ExternalLink, MapPin, MessageCircle, ShoppingBag, Truck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
-import { NotesInline } from "@/components/share/NotesInline";
 import { Favicon } from "@/components/share/LinkPreview";
-import { formatListingPrice, isSellable, parseListing, plainMarkdown } from "@/lib/listing";
+import { formatListingPrice, isSellable, parseListing } from "@/lib/listing";
+import { sourceAppFor } from "@/lib/sourceApp";
+import { secondPriceLine, viewerCurrency } from "@/lib/exchangeRate";
+import { useBtcRates } from "@/hooks/useBtcRates";
+import { fetchRecentByKinds } from "@/services/nostr";
 import { nostrUriFor } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { ReadingText } from "@/components/share/ReadingText";
 
 /**
  * A kind-30402 listing on its event page: the photos, the price as the seller
  * wrote it, where it is, how it ships, the description with its links live —
  * and two ways to act. "Message seller" opens the seller in the reader's own
- * Nostr app, where their keys and conversations already live; "Visit shop"
- * goes to the seller's page for this listing when the app published one.
- * There is no checkout of ours: payment happens where the seller sells.
+ * Nostr app, where their keys and conversations already live; the second
+ * button goes to the listing's own page — "Buy on Conduit" when we know which
+ * marketplace sold it, or "Visit <host>" on whatever link the seller
+ * published. There is no checkout of ours: payment happens where
+ * the seller sells.
  */
-export function ListingHero({ event }: { event: MinimalEvent }) {
+export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /** The seller's own website, from their profile — the way in when the listing names no shop and no app we know. */ sellerWebsite?: string | null }) {
   const l = parseListing({ ...event, id: event.id, pubkey: event.pubkey, kind: event.kind, created_at: event.created_at, tags: event.tags, content: event.content ?? "" });
   const [photo, setPhoto] = useState(0);
+  // The app that sold it wins over a stray shop link: that is where the
+  // product actually lives and checks out.
+  // A listing published outside Conduit by a seller who sells on Conduit still
+  // opens there: the seller's other listings say whether they do.
+  const [sellerListings, setSellerListings] = useState<MinimalEvent[]>([]);
+  useEffect(() => {
+    setSellerListings([]);
+    if (sourceAppFor(event)) return;
+    let alive = true;
+    fetchRecentByKinds(event.pubkey, [30402], 40)
+      .then((evs) => { if (alive) setSellerListings(evs as MinimalEvent[]); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [event.id, event.pubkey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const app = sourceAppFor(event, { sellerListings });
+  // The seller's price leads; what it is in the buyer's own money sits under it.
+  const rates = useBtcRates();
+  const websiteHost = (() => {
+    try {
+      return sellerWebsite && /^https?:\/\//i.test(sellerWebsite) ? new URL(sellerWebsite).hostname.replace(/^www\./, "") : null;
+    } catch {
+      return null;
+    }
+  })();
   if (!l) return null;
   const sellable = isSellable(l);
   // Sold, hidden, inactive: a status worth a chip. Merely priceless is not.
@@ -43,9 +73,13 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
           </span>
         )}
         {l.price ? (
-          <span className="absolute left-3 top-3 rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold text-white" data-testid="listing-hero-price">
-          {formatListingPrice(l.price)}
-        </span>
+          <span className="absolute left-3 top-3 flex flex-col rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold leading-tight text-white">
+            <span data-testid="listing-hero-price">{formatListingPrice(l.price)}</span>
+            {(() => {
+              const converted = rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
+              return converted ? <span className="text-xs font-medium text-white/75" data-testid="listing-hero-price-converted">{converted}</span> : null;
+            })()}
+          </span>
         ) : (
           <span className="absolute left-3 top-3 rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold text-white" data-testid="listing-hero-price-unknown">Price on request</span>
         )}
@@ -99,7 +133,18 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
         >
           <MessageCircle className="h-4 w-4" /> Message seller
         </a>
-        {l.shopUrl && shopHost && (
+        {app ? (
+          <a
+            href={app.url}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
+            data-testid="listing-hero-shop"
+            title={`Opens ${app.host} in a new tab`}
+          >
+            <img src={app.icon} alt="" className="h-3.5 w-3.5 rounded-sm" /> Buy on {app.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+          </a>
+        ) : l.shopUrl && shopHost ? (
           <a
             href={l.shopUrl}
             target="_blank"
@@ -108,9 +153,22 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
             data-testid="listing-hero-shop"
             title={`Opens ${shopHost} in a new tab`}
           >
-            <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit shop <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+            <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit {shopHost} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
           </a>
-        )}
+        ) : websiteHost ? (
+          // No shop on the listing and no marketplace we know (The Bitcoin
+          // Shop UK, via Gamma Markets): the seller's own website is the way in.
+          <a
+            href={sellerWebsite!}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
+            data-testid="listing-hero-shop"
+            title={`Opens ${websiteHost} in a new tab`}
+          >
+            <Favicon host={websiteHost} className="h-3.5 w-3.5" /> Visit {websiteHost} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+          </a>
+        ) : null}
       </div>
       <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
         Messaging opens your Nostr app. Payment happens with the seller, in their app.
@@ -133,9 +191,7 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
       )}
 
       {(l.description || l.summary) && (
-        <p className="mt-4 whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300" data-testid="listing-hero-description">
-          <NotesInline text={plainMarkdown(l.description || (l.summary as string))} />
-        </p>
+        <ReadingText text={l.description || (l.summary as string)} className="mt-4" testId="listing-hero-description" />
       )}
     </div>
   );

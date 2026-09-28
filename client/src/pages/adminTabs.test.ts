@@ -9,7 +9,7 @@ describe("parseAdminTab", () => {
   });
 
   it("keeps the tabs it always opened", () => {
-    for (const t of ["users", "activity", "health", "scheduling", "billing"] as const) {
+    for (const t of ["users", "activity", "health", "scheduling", "billing", "support"] as const) {
       expect(parseAdminTab(t, { assistants: false })).toBe(t);
     }
   });

@@ -10,11 +10,11 @@ import {
   UserCircle,
   UserPlus,
   HelpCircle,
+  LifeBuoy,
   Settings as SettingsIcon,
   Shield,
   LogOut,
   ChevronRight,
-  BadgeCheck,
   Tag as TagIcon,
   CalendarClock,
   Gauge,
@@ -22,6 +22,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { AccountSwitcher } from "@/components/AccountSwitcherPane";
@@ -32,6 +33,8 @@ import { removalLosesKey } from "@/accounts/picker";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import type { AccountDisplay } from "@/accounts/display";
 import { apiClient } from "@/services/api";
+import { SUPPORT_QUERY_KEY, fetchSupport } from "@/services/support";
+import { unreadCount } from "@/lib/supportSeen";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +46,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { AppKey } from "@/components/AppsLauncher";
+import { Nip05Handle } from "@/components/Nip05Check";
 
 /**
  * Where "add another account" goes. Adding one is an errand, not a destination, so
@@ -85,7 +89,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
     retry: false,
   });
 
-  const inviteUrl = typeof window !== "undefined" && user?.npub ? `${window.location.origin}/p/${user.npub}` : "";
+  const inviteUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteOpen });
 
   const onNavigate = (path: string) => { close(); navigate(path); };
   const onInvite = () => { close(); setInviteOpen(true); };
@@ -110,7 +114,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
         displayName={user.displayName || "You"}
         picture={user.picture}
         nip05={user.nip05}
-        canonicalUrl={inviteUrl}
+        shareUrl={inviteUrl}
         score01={typeof houseScoreQuery.data === "number" ? houseScoreQuery.data : null}
       />
 
@@ -214,10 +218,17 @@ export function AccountMenuBody({
   const { isFree } = useSubscription();
   const { billingAvailable, solePurchasableName } = useBillingPlans();
   const [pane, setPane] = useState<"menu" | "switcher">("menu");
-  // Verified handle for the identity line. A "_@domain" nip05 is a bare-domain
-  // identity — show just the domain rather than the placeholder underscore.
+  // Unread support replies light the Support row's dot. Cheap: the query is
+  // shared with /support and only fires while the menu is open.
+  const supportQuery = useQuery({
+    queryKey: SUPPORT_QUERY_KEY,
+    queryFn: fetchSupport,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const supportUnread = unreadCount("user", supportQuery.data?.tickets ?? []);
+  // The identity line's handle — checked against its domain by Nip05Handle.
   const rawNip05 = user.nip05?.trim();
-  const nip05 = rawNip05 ? rawNip05.replace(/^_@/, "") : "";
   // Same gate every other PovToggle uses: you need a finished calculation
   // before "my perspective" means anything. Without it the control renders as
   // an honest single Brainstorm chip rather than a switch that does nothing.
@@ -259,12 +270,13 @@ export function AccountMenuBody({
             <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100" data-testid="text-menu-name">
               {user.displayName || "Anonymous"}
             </span>
-            {nip05 && (
-              <span className="mt-0.5 flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300" data-testid="text-menu-nip05">
-                <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-brand-primary dark:text-brand-link" />
-                <span className="truncate">{nip05}</span>
-              </span>
-            )}
+            <Nip05Handle
+              nip05={rawNip05}
+              pubkey={user.pubkey}
+              className="mt-0.5 flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300"
+              iconClassName="h-3.5 w-3.5 shrink-0 text-brand-primary dark:text-brand-link"
+              testId="text-menu-nip05"
+            />
             <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">Switch account</span>
           </span>
           <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
@@ -409,6 +421,7 @@ export function AccountMenuBody({
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
+        <MenuRow icon={LifeBuoy} label="Support" onClick={() => onNavigate("/support")} testId="dropdown-support" dot={supportUnread > 0} />
       </div>
 
       {/* Appearance — compact full-width segmented row */}
@@ -454,12 +467,15 @@ function MenuRow({
   onClick,
   tone = "default",
   testId,
+  dot = false,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
   tone?: "default" | "danger";
   testId?: string;
+  /** Attention dot after the label — e.g. an unread support reply. */
+  dot?: boolean;
 }) {
   const toneCls =
     tone === "danger"
@@ -474,6 +490,7 @@ function MenuRow({
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span>{label}</span>
+      {dot && <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-brand-accent" aria-label="New activity" data-testid={testId ? `${testId}-dot` : undefined} />}
     </button>
   );
 }

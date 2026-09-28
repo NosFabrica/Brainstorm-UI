@@ -65,6 +65,19 @@ describe("SchedulingCard", () => {
     expect(screen.queryByTestId(`policy-public-${DAILY.id}`)).toBeNull();
   });
 
+  it("marks the policies that include priority support", async () => {
+    vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([
+      { ...WEEKLY, support_included: true },
+      DAILY,
+    ]);
+
+    renderWithProviders(<SchedulingCard active />);
+
+    await screen.findByText("Weekly");
+    expect(screen.getByTestId(`policy-support-${WEEKLY.id}`)).toHaveTextContent("Support");
+    expect(screen.queryByTestId(`policy-support-${DAILY.id}`)).toBeNull();
+  });
+
   it("renders the schedule interval human-readable", async () => {
     vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([WEEKLY, DAILY]);
 

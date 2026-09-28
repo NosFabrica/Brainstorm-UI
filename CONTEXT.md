@@ -116,7 +116,11 @@ How constrained the device says its network is — read from the browser
 (`lib/connection.ts`), never chosen by the User, and always one of three:
 **Normal**, **Slow**, **Very slow**. Slow trims what loads on its own — the
 tag catalogue, the next page of results, link previews, video metadata. Very
-slow also drops remote avatars for initials. A browser that says nothing
+slow also drops remote avatars for initials. A **Thumbnail** that fails is
+retried as the original picture only on Normal. A browser that says nothing
 (every iOS browser) is Normal, so it behaves as it always has.
 _Not to be confused with_ the Network page and network reach, which are about
 a person's graph, not their radio.
+- **Thumbnail** — a profile picture resized by the image proxy (`/img/`,
+  `lib/avatarSrc.ts`): `sm` 128px for lists, `lg` 256px for avatars 56px and
+  up. Off when `VITE_IMG_PROXY` is unset; the original picture is used.

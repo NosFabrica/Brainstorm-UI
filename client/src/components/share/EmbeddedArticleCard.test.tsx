@@ -4,12 +4,18 @@
  * AsciiDoc page mirrored from Wikipedia an "Article". It reads the page's
  * words as its brief and says what it is.
  */
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { setTechnicalView } from "@/lib/technicalView";
+// The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
+beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
+import { render, screen, within } from "@testing-library/react";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedArticleCard } from "./EmbeddedArticleCard";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
+// The author's NIP-05 check is a fetch of their domain — watched, never made.
+const verifyNip05 = vi.hoisted(() => vi.fn(() => new Promise<never>(() => {})));
+vi.mock("@/lib/nip05", () => ({ verifyNip05, peekNip05: () => undefined }));
 
 const PK = "a".repeat(64);
 function page(kind: number, content: string, tags: string[][]): MinimalEvent {
@@ -17,7 +23,43 @@ function page(kind: number, content: string, tags: string[][]): MinimalEvent {
 }
 
 describe("EmbeddedArticleCard", () => {
+  afterEach(() => setTechnicalView(false));
+
+  // Zap Cooking's recipes deleted by overwriting (2026-09-24) rendered as
+  // cards titled "[Deleted]" with the placeholder cover. A quiet stub in the
+  // same frame says what happened and asks for nothing.
+  // The stub used to return before three hooks: an article overwritten while
+  // its card was on screen ran fewer hooks on the next render and React threw.
+  it("an article deleted while its card is on screen turns into the stub instead of crashing", () => {
+    const who = { name: "zapcooking", display_name: "Zap Cooking" };
+    const { rerender } = render(<EmbeddedArticleCard event={page(30023, "# Tea\n\nSteep.", [["d", "cheese-foam-tea"], ["title", "Cheese Foam Tea"]])} author={who} />);
+    expect(screen.getByTestId("embedded-article")).toBeInTheDocument();
+    rerender(<EmbeddedArticleCard event={page(30023, "", [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]])} author={who} />);
+    expect(screen.getByTestId("embedded-deleted")).toHaveTextContent("Zap Cooking deleted this post.");
+  });
+
+  // A stub shows no verified badge, so it has no reason to fetch the author's domain.
+  it("a deleted article asks nothing about its author's NIP-05", () => {
+    verifyNip05.mockClear();
+    render(<EmbeddedArticleCard event={page(30023, "", [["d", "gone"], ["deleted", "true"]])} author={{ name: "zapcooking", nip05: "_@zap.cooking" }} />);
+    expect(screen.getByTestId("embedded-deleted")).toBeInTheDocument();
+    expect(verifyNip05).not.toHaveBeenCalled();
+    render(<EmbeddedArticleCard event={page(30023, "# Tea", [["d", "tea"], ["title", "Tea"]])} author={{ name: "zapcooking", nip05: "_@zap.cooking" }} />);
+    expect(verifyNip05).toHaveBeenCalledTimes(1);
+  });
+
+  it("an article deleted by overwriting is a quiet stub naming who deleted it — no title, no cover, nothing to click", () => {
+    render(<EmbeddedArticleCard event={page(30023, "", [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]])} author={{ name: "zapcooking", display_name: "Zap Cooking" }} />);
+    const stub = screen.getByTestId("embedded-deleted");
+    expect(stub).toHaveTextContent("Zap Cooking deleted this post.");
+    expect(screen.queryByTestId("embedded-article")).toBeNull();
+    expect(screen.queryByText("[Deleted]")).toBeNull();
+    expect(stub.querySelector("img")).toBeNull();
+    expect(stub.querySelector("a, button")).toBeNull();
+  });
+
   it("a wiki page without a summary shows its words as the brief and calls itself a Wiki", () => {
+    setTechnicalView(true); // the card names its kind in the switched-on view
     const wiki = page(30818, "A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)", [["d", "list-of-comedians"], ["title", "List of comedians"]]);
     render(<EmbeddedArticleCard event={wiki} author={{ name: "GitCitadel" }} />);
     const card = screen.getByTestId("embedded-article");
@@ -28,12 +70,146 @@ describe("EmbeddedArticleCard", () => {
     expect(card).not.toHaveTextContent("Article");
   });
 
+  // A spec (kind 30817) reads like an article and says what it is — and which kinds it covers.
+  it("a spec calls itself a Spec and names the kinds it covers", () => {
+    const spec = page(30817, "# Scheduler DVM", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["summary", "Schedule signed events for later."], ["k", "5905", "DVM Job Request"], ["k", "7000"]]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "nogringo" }} />);
+    const card = screen.getByTestId("embedded-article");
+    expect(card).toHaveTextContent("Spec");
+    expect(card).not.toHaveTextContent("Article");
+    expect(card).toHaveTextContent("Schedule signed events for later.");
+    expect(screen.getByTestId("article-kinds")).toHaveTextContent("5905");
+    expect(screen.getByTestId("article-kinds")).toHaveTextContent("7000");
+  });
+
+  // The team (2026-09-24): a spec from Nostr Hub has no NIP number; the
+  // kind's word, as the one pill every card wears, is what says what it is.
+  it("the type is the design-system pill, the same on every card", () => {
+    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} />);
+    expect(within(screen.getByTestId("embedded-article")).getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
+  });
+
+  it("stays unlabelled on a surface that holds one kind — the Recipes or NIPs tab", () => {
+    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} mixed={false} />);
+    expect(screen.queryByTestId("kind-pill")).toBeNull();
+  });
+
+  // Specs wore the generic Brainstorm article cover (Benjamin, 2026-09-23:
+  // "when showing Specs in search lets use this image — name it for SEO").
+  // A spec with no image of its own gets the NIP cover, named and described
+  // for what it is.
+  it("a spec without an image wears the NIP cover, named for search engines", () => {
+    const spec = page(30817, "# Trusted Assertions", [["d", "trusted-assertions"], ["title", "Trusted Assertions"], ["k", "10040"]]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "Russell" }} />);
+    const img = screen.getByTestId("embedded-article").querySelector("img")!;
+    expect(img.getAttribute("src")).toMatch(/nostr-implementation-decentralized-network-specs-cover/);
+    expect(img.getAttribute("alt")).toBe("Nostr Implementation — decentralized network specs");
+  });
+
+  // NoorNote's capability profile lists forty kinds; its card ran to nine
+  // rows of chips beside cards with one (Benjamin, 2026-09-23: "a limit on
+  // how many show, so they all look aligned"). Six, then how many more —
+  // the spec page has them all — and the kind the search asked for leads,
+  // so a reader sees why the card matched.
+  it("shows six kinds and counts the rest, with the searched kind first", () => {
+    const kinds = [0, 1, 3, 4, 5, 6, 7, 8, 13, 14, 30078, 30311, 32267].map((k) => ["k", String(k)]);
+    const spec = page(30817, "# NoorNote", [["d", "noornote"], ["title", "NoorNote"], ...kinds]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "alp" }} leadKinds={["30078"]} />);
+    const row = screen.getByTestId("article-kinds");
+    expect([...row.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["30078", "0", "1", "3", "4", "5"]);
+    expect(screen.getByTestId("article-kinds-more")).toHaveTextContent("+7 more");
+  });
+
+  // "Read article" under a SPEC label contradicts itself (Benjamin, 2026-09-23).
+  it("the button says what it opens: spec, wiki, article", () => {
+    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} />);
+    expect(screen.getByTestId("article-read")).toHaveTextContent(/^Read spec$/);
+  });
+  it("a wiki page reads as a wiki", () => {
+    render(<EmbeddedArticleCard event={page(30818, "A page.", [["d", "x"], ["title", "X"]])} author={{ name: "GitCitadel" }} />);
+    expect(screen.getByTestId("article-read")).toHaveTextContent(/^Read wiki$/);
+  });
+
+  // Thumbnails stretched to the card's text height and cropped a different
+  // slice of the same cover on every card (Benjamin, 2026-09-23: "why are
+  // the Brainstorm article images different sizes?"; the NIP banner's edges
+  // cut off). One shape for every card — 16:9, the shape covers are — with
+  // its dimensions declared so the page does not jump as they load.
+  it("every card's thumbnail is the same 16:9 shape, declared up front", () => {
+    const spec = page(30817, "# TA", [["d", "ta"], ["title", "TA"]]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "ManiMe" }} />);
+    const img = screen.getByTestId("embedded-article").querySelector("img")!;
+    expect(img.className).toMatch(/\baspect-video\b/);
+    expect(img.className).not.toMatch(/self-stretch|object-top/);
+    expect(img.getAttribute("width")).toBe("1280");
+    expect(img.getAttribute("height")).toBe("720");
+    expect(img.getAttribute("decoding")).toBe("async");
+  });
+
+  // A `k` tag that is not a number ("nip", seen on Trusted Assertions
+  // (Sovereign Version)) is not a kind — no chip, no broken search.
+  it("only numeric k tags are kinds", () => {
+    const spec = page(30817, "# TA", [["d", "ta"], ["title", "TA"], ["k", "10040"], ["k", "nip"]]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "ManiMe" }} />);
+    expect([...screen.getByTestId("article-kinds").querySelectorAll("a")].map((a) => a.textContent)).toEqual(["10040"]);
+  });
+
+  // The kind chips are the NIPs tab's filter — no chip row on the tab itself
+  // (the team's "too busy"; Benjamin 2026-09-23). Each opens the specs that
+  // cover that kind, in numeric order.
+  it("a spec's kind chips open the specs that cover that kind", () => {
+    // The team (2026-09-24): with no NIP number to lean on, the kind's own
+    // name — the one its author put on the k tag — is what a chip shows.
+    const spec = page(30817, "# Scheduler DVM", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "7000"], ["k", "5905", "DVM Job Request"]]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "nogringo" }} />);
+    const links = [...screen.getByTestId("article-kinds").querySelectorAll("a")];
+    expect(links.map((a) => a.textContent)).toEqual(["5905 · DVM Job Request", "7000"]);
+    expect(links[0].getAttribute("href")).toBe("/?t=nips&q=kind%3A5905");
+  });
+
   it("a long-form article keeps its own summary and its name", () => {
+    setTechnicalView(true); // the card names its kind in the switched-on view
     const article = page(30023, "# Why\n\nBody **bold**.", [["d", "why"], ["title", "Why Bitcoin"], ["summary", "A short case for sound money."]]);
     render(<EmbeddedArticleCard event={article} author={{ name: "Max" }} />);
     const card = screen.getByTestId("embedded-article");
     expect(card).toHaveTextContent("A short case for sound money.");
     expect(card).not.toHaveTextContent("Body");
     expect(card).toHaveTextContent("Article");
+  });
+
+  // A recipe on zap.cooking is a kind-30023 with a tag; calling it an article is wrong.
+  // A recipe wore the generic Brainstorm article cover (Benjamin, 2026-09-23).
+  // Without a picture of its own it wears the recipe cover — the file named
+  // for what it shows, the alt text saying it — like specs wear theirs.
+  it("a recipe without a picture wears the recipe cover, named for search engines", () => {
+    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]);
+    render(<EmbeddedArticleCard event={recipe} author={{ name: "Joe" }} />);
+    const img = screen.getByTestId("embedded-article").querySelector("img")!;
+    expect(img.getAttribute("src")).toMatch(/cooking-recipe-easy-recipe-steps-cover/);
+    expect(img.getAttribute("alt")).toBe("Cooking Recipe — easy recipe steps");
+  });
+
+  // "Read article" under a RECIPE label contradicts itself.
+  it("a recipe's button says Read recipe", () => {
+    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]);
+    render(<EmbeddedArticleCard event={recipe} author={{ name: "Joe" }} />);
+    expect(screen.getByTestId("article-read")).toHaveTextContent(/^Read recipe$/);
+  });
+
+  it("a recipe with its own picture keeps it", () => {
+    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"], ["image", "https://img.example/girik.jpg"]]);
+    render(<EmbeddedArticleCard event={recipe} author={{ name: "Joe" }} />);
+    const img = screen.getByTestId("embedded-article").querySelector("img")!;
+    expect(img.getAttribute("src")).toBe("https://img.example/girik.jpg");
+    expect(img.getAttribute("alt")).toBe("");
+  });
+
+  it("a zap.cooking recipe calls itself a Recipe", () => {
+    setTechnicalView(true); // the card names its kind in the switched-on view
+    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["summary", "Handmade dough, chicken and rice."], ["t", "zapcooking"], ["t", "zapcooking-girik"]]);
+    render(<EmbeddedArticleCard event={recipe} author={{ name: "SkyLords" }} />);
+    const card = screen.getByTestId("embedded-article");
+    expect(card).toHaveTextContent("Recipe");
+    expect(card).not.toHaveTextContent("Article");
   });
 });

@@ -6,14 +6,16 @@
  * mark — and reveals pause on hover; the small bars beside the title are gone.
  */
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { EmbeddedTrackCard } from "./EmbeddedTrackCard";
 
 let state = { isActive: false, isPlaying: false, isLoading: false, isError: false, currentTime: 0, duration: 0 };
+const toggleTrackMock = vi.fn();
 vi.mock("@/lib/audioPlayer", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/audioPlayer")>()),
   useTrackPlayer: () => state,
   useTrackDuration: () => 200,
+  toggleTrack: (...args: unknown[]) => toggleTrackMock(...args),
 }));
 
 const track = { id: "t1", title: "Hand Me Down Heart", artist: "Joe Martin", cover: "https://img/hmdh.jpg", audio: "https://cdn/hmdh.mp3" };
@@ -56,5 +58,30 @@ describe("EmbeddedTrackCard — the playing mark lives on the cover", () => {
     expect(chip.querySelector('[data-testid="favicon"]')).toHaveAttribute("src", expect.stringContaining("wavlake.com"));
     expect(chip.closest("a")).toBeNull();
     expect(chip.querySelector("a")).toBeNull();
+  });
+});
+
+describe("EmbeddedTrackCard — a tap on the row plays, like Spotify", () => {
+  // Benjamin (2026-09-24): users must find it because it works from what they
+  // already know. In Spotify and Apple Music the row plays; the title opens.
+  it("tapping the row plays the track; tapping the title opens it", () => {
+    toggleTrackMock.mockClear();
+    const onOpen = vi.fn();
+    render(<EmbeddedTrackCard {...track} onOpen={onOpen} flat />);
+    fireEvent.click(screen.getByTestId("embedded-track"));
+    expect(toggleTrackMock).toHaveBeenCalledWith("t1", "https://cdn/hmdh.mp3", expect.objectContaining({ title: "Hand Me Down Heart" }));
+    expect(onOpen).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Hand Me Down Heart"));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(toggleTrackMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a row with nothing to play still opens on tap", () => {
+    toggleTrackMock.mockClear();
+    const onOpen = vi.fn();
+    render(<EmbeddedTrackCard id="t2" title="Silent" onOpen={onOpen} flat />);
+    fireEvent.click(screen.getByTestId("embedded-track"));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(toggleTrackMock).not.toHaveBeenCalled();
   });
 });

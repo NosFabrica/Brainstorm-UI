@@ -1,19 +1,17 @@
 import { useMemo } from "react";
-import { Link, useRoute } from "wouter";
+import { PublicPageHeader } from "@/components/PublicPageHeader";
+import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, ShoppingBag } from "lucide-react";
+import { Loader2, ShoppingBag } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { decodeShareId } from "@/lib/shareId";
-import { fetchProfileForShare, fetchRecentByKinds } from "@/services/nostr";
+import { fetchRecentByKinds } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { LISTING_KIND } from "@/lib/listing";
 import { productsFromEvents } from "@/lib/listingVariants";
 import { ListingCard } from "@/components/search/cards";
 import { Chip } from "@/components/ui/chip";
-import { Wordmark } from "@/components/Wordmark";
-import { AccountMenu } from "@/components/AccountMenu";
-import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useGoBack } from "@/hooks/useGoBack";
-import { logout } from "@/accounts/login-flow";
 
 /**
  * Everything a person has for sale. The share page keeps a short shelf and
@@ -22,15 +20,8 @@ import { logout } from "@/accounts/login-flow";
  */
 export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; npub: string; relayHints: string[] }) {
   const goBack = useGoBack();
-  const me = useActiveAccountDisplay();
 
-  const profileQuery = useQuery({
-    queryKey: ["share-profile", pubkey],
-    queryFn: () => fetchProfileForShare(pubkey, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const { profile } = useLiveProfile(pubkey, relayHints);
   const listingsQuery = useQuery({
     queryKey: ["seller-listings", pubkey],
     queryFn: () => fetchRecentByKinds(pubkey, [LISTING_KIND], 100, { relayHints }),
@@ -39,31 +30,17 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
     retry: false,
   });
   const products = useMemo(() => productsFromEvents(listingsQuery.data ?? []), [listingsQuery.data]);
-  const profile = profileQuery.data;
   const name = profile?.display_name || profile?.name || `${npub.slice(0, 12)}…`;
   const first = name.split(" ")[0];
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
-      <header className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm sticky top-0 z-20">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => goBack(`/p/${npub}`)}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors"
-            data-testid="selling-back"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to {first}
-          </button>
-          <div className="ml-auto flex items-center gap-3">
-            <Link href="/" className="flex items-center">
-              <Wordmark height={24} className="dark:hidden" />
-              <Wordmark height={24} variant="white" className="hidden dark:block" />
-            </Link>
-            {me && <AccountMenu user={me} onLogout={() => logout()} />}
-          </div>
-        </div>
-      </header>
+      {/* The public pages' header — B mark, the shared search box, account — so
+          search stays one tap away below a profile too, with Back pinned in it. */}
+      <PublicPageHeader
+        maxWidthClass="max-w-3xl"
+        back={{ label: `Back to ${first}`, onClick: () => goBack(`/p/${npub}`) }}
+      />
 
       <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-6">
         <div className="mb-5 flex items-center gap-2.5">

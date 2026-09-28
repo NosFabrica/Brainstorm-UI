@@ -3,7 +3,7 @@ import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TierTile } from "@/components/score/TierTile";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
@@ -88,6 +88,7 @@ export function ShareNoteCard({
   addrByCoord,
   href,
   forceExpanded = false,
+  reading = false,
   showAuthor = false,
   authorScore,
   tags,
@@ -100,6 +101,8 @@ export function ShareNoteCard({
   href?: string;
   /** Show the full note with no "Show more" (used on the /e single-post view). */
   forceExpanded?: boolean;
+  /** Set the body for reading — the /e single-post view (see NoteContent). */
+  reading?: boolean;
   /** Show a clickable author header (avatar + name) — for multi-author feeds
    *  like the hashtag/topic page, where the poster isn't otherwise implied. */
   showAuthor?: boolean;
@@ -155,7 +158,17 @@ export function ShareNoteCard({
         <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
           <Repeat2 className="h-3.5 w-3.5 text-emerald-600" /> Reposted
         </p>
-        {inner ? (
+        {inner && reading && inner.kind === 1 ? (
+          // On the repost's own page the reposted note IS the content — set
+          // it for reading, not shrunk into a quote card.
+          <>
+            <ShareNoteCard event={inner} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded reading showAuthor />
+            {/* Its replies live on its own page. */}
+            <Link href={eventPath(inner)} className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline" data-testid="repost-open-original">
+              Open the original note and its replies →
+            </Link>
+          </>
+        ) : inner ? (
           <EmbeddedNoteCard event={inner} author={profiles.get(inner.pubkey)} profiles={profiles} href={eventPath(inner)} />
         ) : (
           <p className="text-sm text-slate-400 dark:text-slate-500">Reposted a note</p>
@@ -245,7 +258,7 @@ export function ShareNoteCard({
       )}
 
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
-        <NoteContent content={event.content} compact profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} embeddedIds={new Set(quoted.map((q) => q.id))} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
+        <NoteContent content={event.content} compact={!reading} reading={reading} profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} embeddedIds={new Set(quoted.map((q) => q.id))} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
         {/* X's "Translate post" for notes in another language — on-device, quiet. */}
         {event.content?.trim() && <TranslateLine text={event.content} />}
         {collapsed && (

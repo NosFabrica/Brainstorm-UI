@@ -39,6 +39,9 @@ export type OpenEntity =
       bech32: string;
       /** The `nostr:` URI for the OS default handler; "" when nothing native can open it. */
       uri: string;
+      /** The client that published it, as its NIP-89 `client` tag names it — offered as a way
+       *  back to the original when Brainstorm renders the kind only generically. */
+      origin?: string;
     };
 
 /**
@@ -62,7 +65,7 @@ const WEB_KINDS: Record<"ditto" | "primal", ReadonlySet<number>> = {
   primal: new Set([1, 30023]),
 };
 
-export type AppLinkId = "ditto" | "nostria" | "primal" | "nostrband" | "amethyst" | "default";
+export type AppLinkId = "ditto" | "nostria" | "primal" | "nostrband" | "amethyst" | "default" | "origin";
 export type AppLink = { id: AppLinkId; label: string; href: string; /** Opens in a new tab (a web app), not a scheme the OS handles. */ external: boolean };
 
 const AMETHYST_PACKAGE = "com.vitorpamplona.amethyst";
@@ -75,6 +78,43 @@ export function amethystIntentUrl(bech32: string): string {
 function primalUrl(e: OpenEntity): string {
   const seg = e.kind === "profile" ? "p" : e.kind === "article" ? "a" : "e";
   return `https://primal.net/${seg}/${e.bech32}`;
+}
+
+/**
+ * The clients a `client` tag names that we know a web route for, keyed by the
+ * name as clients stamp it, lowercased. The routes are each client's own
+ * bech32 pages; a client not listed here (a wallet, a bot, a native-only app)
+ * is not offered — a dead link is worse than none.
+ */
+type EventEntity = Extract<OpenEntity, { kind: "event" | "article" }>;
+const ORIGIN_CLIENTS: Record<string, { label: string; url: (e: EventEntity) => string }> = {
+  primal: { label: "Primal", url: primalUrl },
+  ditto: { label: "Ditto", url: (e) => `https://ditto.pub/${e.bech32}` },
+  damus: { label: "Damus", url: (e) => `https://damus.io/${e.bech32}` },
+  coracle: { label: "Coracle", url: (e) => `https://coracle.social/notes/${e.bech32}` },
+  snort: { label: "Snort", url: (e) => `https://snort.social/${e.bech32}` },
+  iris: { label: "Iris", url: (e) => `https://iris.to/${e.bech32}` },
+  nostter: { label: "Nostter", url: (e) => `https://nostter.app/${e.bech32}` },
+  jumble: { label: "Jumble", url: (e) => `https://jumble.social/notes/${e.bech32}` },
+  yakihonne: { label: "YakiHonne", url: (e) => (e.kind === "article" ? `https://yakihonne.com/article/${e.bech32}` : `https://yakihonne.com/notes/${e.bech32}`) },
+  habla: { label: "Habla", url: (e) => `https://habla.news/a/${e.bech32}` },
+  "habla.news": { label: "Habla", url: (e) => `https://habla.news/a/${e.bech32}` },
+  highlighter: { label: "Highlighter", url: (e) => `https://highlighter.com/a/${e.bech32}` },
+  "zap.stream": { label: "zap.stream", url: (e) => `https://zap.stream/${e.bech32}` },
+  nostrudel: { label: "noStrudel", url: (e) => `https://nostrudel.ninja/l/${e.bech32}` },
+};
+
+/** The NIP-89 `client` tag's name, as stamped: `["client", "<name>", "31990:<pubkey>:<d>", "<relay>"]`. */
+export function originClientOf(event: { tags: string[][] }): string | undefined {
+  return event.tags.find((t) => t[0] === "client")?.[1]?.trim() || undefined;
+}
+
+function originLink(entity: EventEntity, offered: AppLink[]): AppLink | null {
+  const name = entity.origin?.trim().toLowerCase();
+  const client = name && ORIGIN_CLIENTS[name];
+  if (!client) return null;
+  if (offered.some((l) => l.label === client.label)) return null;
+  return { id: "origin", label: client.label, href: client.url(entity), external: true };
 }
 
 export function appLinksFor(entity: OpenEntity, ua?: string): AppLink[] {
@@ -97,5 +137,11 @@ export function appLinksFor(entity: OpenEntity, ua?: string): AppLink[] {
   const native = entity.uri !== "";
   if (native && isAndroid(ua)) links.push({ id: "amethyst", label: "Amethyst", href: amethystIntentUrl(entity.bech32), external: false });
   if (native && isPhoneOS(ua)) links.push({ id: "default", label: "Default app", href: entity.uri, external: false });
+  // Last: the client that published it, when it is one we can link to and
+  // not one already on the list — the way back to the original.
+  if (entity.kind !== "profile") {
+    const origin = originLink(entity, links);
+    if (origin) links.push(origin);
+  }
   return links;
 }

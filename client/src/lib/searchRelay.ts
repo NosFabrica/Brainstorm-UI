@@ -13,9 +13,12 @@ import { env } from "./runtimeEnv";
 import { watchRelay } from "@/lib/serverStatus";
 
 let cached: Relay | null | undefined;
+let unwatch: (() => void) | undefined;
 
 export function searchRelay(): Relay | null {
-  if (cached !== undefined) return cached;
+  // A relay the pool has since dropped (services/relayAuth drops one signed in
+  // as an account that may no longer sign) is closed for good; ask again.
+  if (cached !== undefined && (cached === null || pool.relays.get(cached.url) === cached)) return cached;
   const url = env.VITE_SEARCH_RELAY_URL.trim();
   if (!url) {
     console.error(
@@ -27,6 +30,7 @@ export function searchRelay(): Relay | null {
   cached = pool.relay(url);
   // The server-status store reads this socket's own reconnect signals, so
   // the search page can say it is running behind instead of showing a skeleton.
-  watchRelay(cached);
+  unwatch?.();
+  unwatch = watchRelay(cached);
   return cached;
 }
