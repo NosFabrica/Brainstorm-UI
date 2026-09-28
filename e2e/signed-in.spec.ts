@@ -27,7 +27,8 @@ test("signed-in journey", async ({ page }) => {
   await test.step("dashboard", async () => {
     await openMenu("account-nav-dashboard")();
     await expect.soft(page.getByTestId("page-dashboard")).toBeVisible();
-    await expect.soft(page.getByTestId("card-overall-trust-score")).toBeVisible();
+    // The score slot switches between nothing, the score card and the NIP-85 badge with calculation state.
+    await expect.soft(page.getByTestId("section-dashboard-header-copy")).toBeVisible();
   });
 
   await test.step("network", async () => {
@@ -38,7 +39,10 @@ test("signed-in journey", async ({ page }) => {
 
   await test.step("insights", async () => {
     await openMenu("dropdown-insights")();
-    await expect.soft(page.getByTestId("insights-score-row").first()).toBeVisible();
+    await expect.soft(page.getByRole("heading", { name: "My Insights" })).toBeVisible();
+    // History is journalled in the browser, so a fresh CI browser always shows it empty.
+    await expect.soft(page.getByTestId("insights-score-history")).toBeVisible();
+    await expect.soft(page.getByTestId("insights-recalculate")).toBeVisible();
   });
 
   await test.step("my tags", async () => {
@@ -56,7 +60,8 @@ test("signed-in journey", async ({ page }) => {
   // Only linked from data-dependent dashboard cards, so reached by URL.
   await test.step("alerts", async () => {
     await page.goto("/alerts");
-    await expect.soft(page.getByTestId("alerts-count")).toBeVisible();
+    await expect.soft(page.getByRole("heading", { name: "Network Alerts" })).toBeVisible();
+    await expect.soft(page.getByTestId("alerts-search")).toBeVisible();
   });
 
   await test.step("reading", async () => {
