@@ -4,10 +4,11 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [main]
+    types: [opened, reopened, ready_for_review]
 
 concurrency:
   group: e2e-staging
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   e2e:
