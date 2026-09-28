@@ -15,7 +15,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 
-const SIGNERS: Record<SignerKind, { label: string; icon: typeof Chrome; tone: "indigo" | "amber" | "sky" | "emerald" }> = {
+const SIGNERS: Record<
+  SignerKind,
+  { label: string; icon: typeof Chrome; tone: "indigo" | "amber" | "sky" | "emerald" }
+> = {
   extension: { label: "Extension", icon: Chrome, tone: "indigo" },
   key: { label: "Key", icon: KeyRound, tone: "amber" },
   remote: { label: "Remote signer", icon: Radio, tone: "sky" },
@@ -37,9 +40,7 @@ export function AccountFace({ identity, className }: { identity: PickerIdentity;
       {identity.picture ? (
         <AvatarImage src={identity.picture} alt={identity.name || identity.npub} className="object-cover" />
       ) : null}
-      <AvatarFallback className="bg-brand-primary/15 text-brand-primary font-bold">
-        {initial}
-      </AvatarFallback>
+      <AvatarFallback className="bg-brand-primary/15 font-bold text-brand-primary">{initial}</AvatarFallback>
     </Avatar>
   );
 }
@@ -47,9 +48,7 @@ export function AccountFace({ identity, className }: { identity: PickerIdentity;
 export function AccountNames({ identity }: { identity: PickerIdentity }) {
   return (
     <span className="min-w-0 flex-1 text-left">
-      <span className="block truncate text-sm font-semibold text-foreground">
-        {identity.name || "Account"}
-      </span>
+      <span className="block truncate text-sm font-semibold text-foreground">{identity.name || "Account"}</span>
       <span className="block truncate text-xs text-muted-foreground">{identity.npub}</span>
     </span>
   );
@@ -69,12 +68,7 @@ export function AccountRowChips({ row }: { row: PickerRow }) {
         </Chip>
       )}
       {health && (
-        <Chip
-          tone={health.tone}
-          size="sm"
-          icon={health.icon}
-          data-testid={`chip-health-${row.account.id}`}
-        >
+        <Chip tone={health.tone} size="sm" icon={health.icon} data-testid={`chip-health-${row.account.id}`}>
           {health.label}
         </Chip>
       )}

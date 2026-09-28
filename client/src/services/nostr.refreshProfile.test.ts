@@ -27,7 +27,15 @@ import { PROFILE_RELAYS } from "@/lib/relays";
 
 const PK = "5".repeat(64);
 const kind0 = (created_at: number, name: string) =>
-  ({ id: String(created_at).padStart(64, "0"), kind: 0, pubkey: PK, created_at, content: JSON.stringify({ name }), tags: [], sig: "s" }) as NostrEvent;
+  ({
+    id: String(created_at).padStart(64, "0"),
+    kind: 0,
+    pubkey: PK,
+    created_at,
+    content: JSON.stringify({ name }),
+    tags: [],
+    sig: "s",
+  }) as NostrEvent;
 
 beforeEach(() => {
   requestAllMock.mockReset();

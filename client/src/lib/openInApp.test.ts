@@ -26,7 +26,11 @@ describe("appLinksFor", () => {
   it("on a desktop a profile opens on the web — Ditto, Nostria, Primal — and nothing native", () => {
     const links = appLinksFor(profile, MAC);
     expect(links.map((l) => l.id)).toEqual(["ditto", "nostria", "primal"]);
-    expect(links.map((l) => l.href)).toEqual([`https://ditto.pub/${npub}`, `https://nostria.app/p/${npub}`, `https://primal.net/p/${npub}`]);
+    expect(links.map((l) => l.href)).toEqual([
+      `https://ditto.pub/${npub}`,
+      `https://nostria.app/p/${npub}`,
+      `https://primal.net/p/${npub}`,
+    ]);
     expect(links.every((l) => l.external)).toBe(true);
   });
 
@@ -57,7 +61,10 @@ describe("appLinksFor", () => {
   it("a hashtag opens on Primal's search and nostr.band, and nothing native even on Android", () => {
     const links = appLinksFor({ kind: "hashtag", bech32: "bitcoin", uri: "" }, PIXEL);
     expect(links.map((l) => l.id)).toEqual(["primal", "nostrband"]);
-    expect(links.map((l) => l.href)).toEqual(["https://primal.net/search/%23bitcoin", "https://nostr.band/?q=%23bitcoin"]);
+    expect(links.map((l) => l.href)).toEqual([
+      "https://primal.net/search/%23bitcoin",
+      "https://nostr.band/?q=%23bitcoin",
+    ]);
     expect(links.every((l) => l.external)).toBe(true);
   });
 
@@ -96,12 +103,33 @@ describe("appLinksFor — the client that published it", () => {
   // The team (2026-09-24): when Brainstorm renders an event only partially,
   // offer the client named in its NIP-89 `client` tag as a way back to the
   // original — an "open in original client" fallback.
-  const generic = (origin: string): OpenEntity => ({ kind: "event", eventKind: 30078, bech32: nevent, uri: `nostr:${nevent}`, origin });
+  const generic = (origin: string): OpenEntity => ({
+    kind: "event",
+    eventKind: 30078,
+    bech32: nevent,
+    uri: `nostr:${nevent}`,
+    origin,
+  });
 
   it("a client we can link to is offered last, by its own name, at its page for this event", () => {
-    expect(appLinksFor(generic("Coracle"), MAC).at(-1)).toEqual({ id: "origin", label: "Coracle", href: `https://coracle.social/notes/${nevent}`, external: true });
-    expect(appLinksFor(generic("nostter"), MAC).at(-1)).toEqual({ id: "origin", label: "Nostter", href: `https://nostter.app/${nevent}`, external: true });
-    expect(appLinksFor(generic("Damus"), MAC).at(-1)).toEqual({ id: "origin", label: "Damus", href: `https://damus.io/${nevent}`, external: true });
+    expect(appLinksFor(generic("Coracle"), MAC).at(-1)).toEqual({
+      id: "origin",
+      label: "Coracle",
+      href: `https://coracle.social/notes/${nevent}`,
+      external: true,
+    });
+    expect(appLinksFor(generic("nostter"), MAC).at(-1)).toEqual({
+      id: "origin",
+      label: "Nostter",
+      href: `https://nostter.app/${nevent}`,
+      external: true,
+    });
+    expect(appLinksFor(generic("Damus"), MAC).at(-1)).toEqual({
+      id: "origin",
+      label: "Damus",
+      href: `https://damus.io/${nevent}`,
+      external: true,
+    });
   });
 
   it("a client we cannot link to adds nothing, and one already offered is not offered twice", () => {
@@ -112,7 +140,18 @@ describe("appLinksFor — the client that published it", () => {
 
   it("an article opens at the client's article route", () => {
     const naddr = nip19.naddrEncode({ kind: 30023, pubkey: "a".repeat(64), identifier: "x" });
-    const article: OpenEntity = { kind: "article", eventKind: 30023, bech32: naddr, uri: `nostr:${naddr}`, origin: "habla.news" };
-    expect(appLinksFor(article, MAC).at(-1)).toEqual({ id: "origin", label: "Habla", href: `https://habla.news/a/${naddr}`, external: true });
+    const article: OpenEntity = {
+      kind: "article",
+      eventKind: 30023,
+      bech32: naddr,
+      uri: `nostr:${naddr}`,
+      origin: "habla.news",
+    };
+    expect(appLinksFor(article, MAC).at(-1)).toEqual({
+      id: "origin",
+      label: "Habla",
+      href: `https://habla.news/a/${naddr}`,
+      external: true,
+    });
   });
 });

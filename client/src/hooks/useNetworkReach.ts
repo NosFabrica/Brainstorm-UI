@@ -24,10 +24,14 @@ async function build(pubkey: string): Promise<NetworkReach> {
     // Routed: each of the sampled follows is asked for on the relays THEY write
     // to. A fixed content-relay set finds only the follows who happen to publish
     // there, which silently shrinks the two-hop set it is meant to build.
-    const lists = await fetchEventsByAuthors(sample, { kinds: [3] }, {
-      fallback: CONTENT_RELAYS,
-      timeoutMs: 8000,
-    }).catch(() => []);
+    const lists = await fetchEventsByAuthors(
+      sample,
+      { kinds: [3] },
+      {
+        fallback: CONTENT_RELAYS,
+        timeoutMs: 8000,
+      },
+    ).catch(() => []);
     for (const list of lists) {
       for (const pk of getFollowedPubkeys(list)) {
         if (pk !== pubkey) friends.add(pk);

@@ -94,9 +94,16 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
       const target = targets[targets.length - 1];
       if (!target) continue;
       const cur = m.get(target) ?? { replies: 0, reposts: 0, reactions: 0, score: 0 };
-      if (ev.kind === 1) { cur.replies++; cur.score += W_REPLY; }
-      else if (ev.kind === 6) { cur.reposts++; cur.score += W_REPOST; }
-      else { cur.reactions++; cur.score += W_REACTION; }
+      if (ev.kind === 1) {
+        cur.replies++;
+        cur.score += W_REPLY;
+      } else if (ev.kind === 6) {
+        cur.reposts++;
+        cur.score += W_REPOST;
+      } else {
+        cur.reactions++;
+        cur.score += W_REACTION;
+      }
       m.set(target, cur);
     }
     return m;
@@ -123,7 +130,10 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
 
   // Parents of replies, so "replying to…" renders with real context.
   const parentIds = useMemo(
-    () => Array.from(new Set(notes.flatMap((e) => (e.tags ?? []).filter((t: string[]) => t[0] === "e").map((t: string[]) => t[1])))).slice(0, 24),
+    () =>
+      Array.from(
+        new Set(notes.flatMap((e) => (e.tags ?? []).filter((t: string[]) => t[0] === "e").map((t: string[]) => t[1]))),
+      ).slice(0, 24),
     [notes],
   );
   const parentsQuery = useQuery({
@@ -167,8 +177,8 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
         mode === val
-          ? "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm"
-          : "text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white",
+          ? "bg-white text-slate-800 shadow-sm dark:bg-slate-900 dark:text-slate-100"
+          : "text-slate-500 hover:text-brand-deep dark:text-slate-400 dark:hover:text-white",
       )}
       data-testid={`thread-tab-${val}`}
     >
@@ -181,60 +191,101 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
     // hashtags jump straight to /t/:tag (their trust-ranked feed), mentions
     // confirm then open the profile. Without it these render as dead buttons.
     <ShareNavProvider>
-    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-6" data-testid="card-network-thread">
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
-          <MessagesSquare className="h-3.5 w-3.5" />
+      <Card
+        className="mb-6 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+        data-testid="card-network-thread"
+      >
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="rounded-lg border border-slate-100 bg-white p-1.5 text-brand-deep shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-800 dark:ring-slate-800">
+            <MessagesSquare className="h-3.5 w-3.5" />
+          </div>
+          <span
+            className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            From your network
+          </span>
+          <div
+            className="ml-auto inline-flex items-center rounded-full border border-slate-200 bg-slate-100/70 p-0.5 dark:border-slate-800 dark:bg-slate-800/50"
+            role="group"
+            aria-label="Feed mode"
+          >
+            {tab("trending", "Trending", Flame)}
+            {tab("latest", "Latest", Clock)}
+          </div>
         </div>
-        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-          From your network
-        </span>
-        <div className="ml-auto inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5" role="group" aria-label="Feed mode">
-          {tab("trending", "Trending", Flame)}
-          {tab("latest", "Latest", Clock)}
-        </div>
-      </div>
 
-      {loading && notes.length === 0 ? (
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="network-thread-loading">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Catching up on your network…
-        </div>
-      ) : (
-        // Flows with the page rather than living in an inner scrollbox: a feed
-        // inside a scrollbox reads as a widget, not a place you settle into.
-        // Centered reading column: a social feed run at the full ~1500px card
-        // width makes every image a giant band. ~640px is the width real feeds
-        // use, so cropped media reads as tasteful on desktop and mobile alike.
-        <div className="mx-auto max-w-xl divide-y divide-slate-100 dark:divide-slate-800/60" data-testid="network-thread-list">
-          {notes.map((e) => {
-            const s = scores.get(e.id);
-            return (
-              <div key={e.id} className="py-2 first:pt-0" data-testid="network-thread-note">
-                <ShareNoteCard event={e} profiles={profiles} eventsById={eventsById} href={eventPath(e)} showAuthor authorScore={authorScoreOf(e.pubkey)} />
-                {mode === "trending" && s && s.score > 0 && (
-                  <div className="mt-1 flex items-center gap-3 px-1 text-[11px] text-slate-400 dark:text-slate-500" data-testid="network-thread-engagement">
-                    {s.replies > 0 && <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{s.replies}</span>}
-                    {s.reposts > 0 && <span className="inline-flex items-center gap-1"><Repeat2 className="h-3 w-3" />{s.reposts}</span>}
-                    {s.reactions > 0 && <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" />{s.reactions}</span>}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+        {loading && notes.length === 0 ? (
+          <div
+            className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
+            data-testid="network-thread-loading"
+          >
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Catching up on your network…
+          </div>
+        ) : (
+          // Flows with the page rather than living in an inner scrollbox: a feed
+          // inside a scrollbox reads as a widget, not a place you settle into.
+          // Centered reading column: a social feed run at the full ~1500px card
+          // width makes every image a giant band. ~640px is the width real feeds
+          // use, so cropped media reads as tasteful on desktop and mobile alike.
+          <div
+            className="mx-auto max-w-xl divide-y divide-slate-100 dark:divide-slate-800/60"
+            data-testid="network-thread-list"
+          >
+            {notes.map((e) => {
+              const s = scores.get(e.id);
+              return (
+                <div key={e.id} className="py-2 first:pt-0" data-testid="network-thread-note">
+                  <ShareNoteCard
+                    event={e}
+                    profiles={profiles}
+                    eventsById={eventsById}
+                    href={eventPath(e)}
+                    showAuthor
+                    authorScore={authorScoreOf(e.pubkey)}
+                  />
+                  {mode === "trending" && s && s.score > 0 && (
+                    <div
+                      className="mt-1 flex items-center gap-3 px-1 text-[11px] text-slate-400 dark:text-slate-500"
+                      data-testid="network-thread-engagement"
+                    >
+                      {s.replies > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <MessageSquare className="h-3 w-3" />
+                          {s.replies}
+                        </span>
+                      )}
+                      {s.reposts > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <Repeat2 className="h-3 w-3" />
+                          {s.reposts}
+                        </span>
+                      )}
+                      {s.reactions > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <Heart className="h-3 w-3" />
+                          {s.reactions}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-      {!loading && notes.length > 0 && (
-        <button
-          type="button"
-          onClick={() => navigate("/network?group=following&view=list")}
-          className="mt-2 self-start text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
-          data-testid="network-thread-view-all"
-        >
-          See everyone you follow →
-        </button>
-      )}
-    </Card>
+        {!loading && notes.length > 0 && (
+          <button
+            type="button"
+            onClick={() => navigate("/network?group=following&view=list")}
+            className="mt-2 self-start rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid="network-thread-view-all"
+          >
+            See everyone you follow →
+          </button>
+        )}
+      </Card>
     </ShareNavProvider>
   );
 }

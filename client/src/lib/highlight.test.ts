@@ -2,8 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { highlightTerms } from "./highlight";
 
-const joined = (segs: { text: string; hit: boolean }[]) =>
-  segs.map((s) => (s.hit ? `**${s.text}**` : s.text)).join("");
+const joined = (segs: { text: string; hit: boolean }[]) => segs.map((s) => (s.hit ? `**${s.text}**` : s.text)).join("");
 
 describe("highlightTerms — Google-style query bolding in snippets", () => {
   it("bolds each query word where it appears, case-insensitively", () => {
@@ -19,9 +18,9 @@ describe("highlightTerms — Google-style query bolding in snippets", () => {
   });
 
   it("never highlights syntax tokens — only the text words of the query", () => {
-    expect(
-      joined(highlightTerms("sort of recent news from liverpool", "liverpool sort:recent from:npub1x")),
-    ).toBe("sort of recent news from **liverpool**");
+    expect(joined(highlightTerms("sort of recent news from liverpool", "liverpool sort:recent from:npub1x"))).toBe(
+      "sort of recent news from **liverpool**",
+    );
   });
 
   it("returns the whole text unhighlighted when the query has no text words", () => {

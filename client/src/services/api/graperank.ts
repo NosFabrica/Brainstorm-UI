@@ -13,12 +13,9 @@ export interface TrustSignals {
 
 export const grapeRankApi = {
   async triggerGrapeRank() {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/graperank`,
-      {
-        method: "POST",
-      },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/graperank`, {
+      method: "POST",
+    });
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
       let detail = errorData?.detail || errorData?.message || "";
@@ -27,8 +24,7 @@ export const grapeRankApi = {
       const lowerDetail = detail.toLowerCase();
       let friendlyMessage: string;
       if (status === 502 || status === 503 || status === 504) {
-        friendlyMessage =
-          "The Brainstorm server is temporarily unavailable. Please wait a few minutes and try again.";
+        friendlyMessage = "The Brainstorm server is temporarily unavailable. Please wait a few minutes and try again.";
       } else if (
         status === 429 ||
         lowerDetail.includes("rate") ||
@@ -36,11 +32,9 @@ export const grapeRankApi = {
         lowerDetail.includes("wait") ||
         lowerDetail.includes("cooldown")
       ) {
-        friendlyMessage =
-          "Please wait a few minutes before recalculating. The server needs time between requests.";
+        friendlyMessage = "Please wait a few minutes before recalculating. The server needs time between requests.";
       } else {
-        friendlyMessage =
-          "Something went wrong. Please wait a moment and try again.";
+        friendlyMessage = "Something went wrong. Please wait a moment and try again.";
       }
       throw new Error(friendlyMessage);
     }
@@ -48,9 +42,7 @@ export const grapeRankApi = {
   },
 
   async getGrapeRankResult() {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/graperankResult`,
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/graperankResult`);
     if (!response.ok) {
       throw new Error(`Failed to fetch GrapeRank data (${response.status})`);
     }
@@ -65,10 +57,7 @@ export const grapeRankApi = {
    * Returns null if the backend has no overview for the pubkey (not yet indexed
    * by Brainstorm) or the request fails.
    */
-  async getHouseInfluence(
-    pubkey: string,
-    timeoutMs: number = 8000,
-  ): Promise<number | null> {
+  async getHouseInfluence(pubkey: string, timeoutMs: number = 8000): Promise<number | null> {
     if (!pubkey) return null;
     try {
       // Plain fetch (no session token) → NosFabrica/house perspective.
@@ -88,10 +77,7 @@ export const grapeRankApi = {
    * Trust signals for many authors in one unauthenticated call (house
    * Perspective). Never throws: a failed batch answers an empty map.
    */
-  async getTrustSignals(
-    pubkeys: string[],
-    timeoutMs: number = 8000,
-  ): Promise<Map<string, TrustSignals>> {
+  async getTrustSignals(pubkeys: string[], timeoutMs: number = 8000): Promise<Map<string, TrustSignals>> {
     const out = new Map<string, TrustSignals>();
     try {
       const response = await fetch(`${getBrainstormApi()}/user/trustSignals`, {
@@ -122,13 +108,9 @@ export const grapeRankApi = {
     message?: string;
     data?: { preset?: string };
   }> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/graperank/preset`,
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/graperank/preset`);
     if (!response.ok) {
-      throw new Error(
-        `Failed to load your trust perspective preset (${response.status}).`,
-      );
+      throw new Error(`Failed to load your trust perspective preset (${response.status}).`);
     }
     return await response.json();
   },
@@ -136,18 +118,13 @@ export const grapeRankApi = {
   async setGrapeRankPreset(
     preset: "DEFAULT" | "PERMISSIVE" | "RESTRICTIVE",
   ): Promise<{ code?: number; message?: string; data?: { preset?: string } }> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/graperank/preset`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preset }),
-      },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/graperank/preset`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preset }),
+    });
     if (!response.ok) {
-      throw new Error(
-        `Couldn't save your trust perspective. Please try again (${response.status}).`,
-      );
+      throw new Error(`Couldn't save your trust perspective. Please try again (${response.status}).`);
     }
     return await response.json();
   },

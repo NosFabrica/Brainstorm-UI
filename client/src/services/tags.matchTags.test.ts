@@ -28,11 +28,7 @@ const names = (rows: TagSummary[]) => rows.map((r) => r.name);
 
 describe("matchTags", () => {
   it("puts an exact match first even when its creator is unknown", () => {
-    const index = [
-      tag("LFO Collective"),
-      tag("Old LFO Crew"),
-      tag("LFO", { unverified: true, people: 54 }),
-    ];
+    const index = [tag("LFO Collective"), tag("Old LFO Crew"), tag("LFO", { unverified: true, people: 54 })];
     expect(names(matchTags(index, "LFO"))[0]).toBe("LFO");
   });
 
@@ -55,10 +51,7 @@ describe("matchTags", () => {
   });
 
   it("keeps usage order among equally-matching tags of the same standing", () => {
-    const index = [
-      tag("Music One", { people: 3 }),
-      tag("Music Two", { people: 99 }),
-    ];
+    const index = [tag("Music One", { people: 3 }), tag("Music Two", { people: 99 })];
     // The catalogue arrives pre-sorted by usage; the sort must be stable
     // rather than re-deriving an order of its own.
     expect(names(matchTags(index, "music"))).toEqual(["Music One", "Music Two"]);

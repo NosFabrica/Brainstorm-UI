@@ -128,9 +128,7 @@ export async function encryptSecret(secret: Uint8Array, pubkeyHex: string): Prom
   const key = await getDeviceKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const aad = new TextEncoder().encode(pubkeyHex);
-  const ct = new Uint8Array(
-    await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad }, key, secret),
-  );
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: aad }, key, secret));
   return `${VERSION}:${b64encode(iv)}:${b64encode(ct)}`;
 }
 

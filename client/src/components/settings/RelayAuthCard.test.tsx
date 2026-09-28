@@ -10,7 +10,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { relayAuthAllowed } from "@/lib/relayAuthPref";
 
 const PK = "a".repeat(64);
-vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: PK, npub: "npub1x", name: "Ben" }) }));
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({
+  useActiveAccountDisplay: () => ({ pubkey: PK, npub: "npub1x", name: "Ben" }),
+}));
 
 import { RelayAuthCard } from "./RelayAuthCard";
 

@@ -27,10 +27,7 @@ class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, Account
 
 function signableAccount(): BrainstormAccount {
   const secretKey = generateSecretKey();
-  const account = new AlwaysSignableAccount(
-    getPublicKey(secretKey),
-    new PrivateKeySigner(secretKey),
-  );
+  const account = new AlwaysSignableAccount(getPublicKey(secretKey), new PrivateKeySigner(secretKey));
   account.metadata = { remembered: true };
   return account as unknown as BrainstormAccount;
 }

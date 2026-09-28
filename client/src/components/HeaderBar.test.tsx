@@ -16,7 +16,10 @@ import { HeaderBar } from "./HeaderBar";
 function at(width: number) {
   Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
 }
-afterEach(() => { cleanup(); at(1024); });
+afterEach(() => {
+  cleanup();
+  at(1024);
+});
 
 describe("the header bar", () => {
   it("mounts the search box on a wide screen, with no magnifier", () => {

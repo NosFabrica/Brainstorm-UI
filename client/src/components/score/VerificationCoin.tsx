@@ -7,7 +7,6 @@ import { bucketFor, rungFor, UNKNOWN_EXPLAINER, type Glyph } from "@/lib/trustLa
 import type { ScorePov } from "@/components/score/TrustScorePov";
 import { type VerificationTier } from "@/lib/verificationTier";
 
-
 /**
  * VerificationCoin — the sitewide, label-less Verification Score badge.
  *
@@ -61,7 +60,6 @@ export const TIER_STEP: Record<VerificationTier, number> = {
   high: 5,
 };
 
-
 /**
  * Which tiers need dark text, computed from WCAG contrast against each fill
  * rather than chosen by eye:
@@ -98,12 +96,10 @@ export const TIER_STEP: Record<VerificationTier, number> = {
 const POV_RING: Record<ScorePov, string> = {
   // Aurora Purple (#7237ff) — "yours". Same hue as brand-primary and the `high`
   // tier fill, which is exactly why the white/slate separator step exists.
-  personalized:
-    "shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#7237ff] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_4px_#7237ff]",
+  personalized: "shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#7237ff] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_4px_#7237ff]",
   // slate-300 / slate-600 — the neutral everyone's-view outline, lifted in dark
   // mode so it doesn't vanish into the card.
-  global:
-    "shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#cbd5e1] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_4px_#475569]",
+  global: "shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#cbd5e1] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_4px_#475569]",
 };
 
 /**
@@ -121,12 +117,18 @@ const POV_RING: Record<ScorePov, string> = {
 // (decision 4 reuses three of these hues) share one static table — Tailwind's
 // JIT needs the literals.
 const RING_BY_HUE: Record<string, string> = {
-  [TRUST_TIER_COLORS.highlyTrusted]: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#7237ff] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#7237ff]",
-  [TRUST_TIER_COLORS.trusted]: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#13d2e5] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#13d2e5]",
-  [TRUST_TIER_COLORS.neutral]: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#665487] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#665487]",
-  [TRUST_TIER_COLORS.lowTrust]: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#f59e0b] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#f59e0b]",
-  [TRUST_TIER_COLORS.unverified]: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#8c929e] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#8c929e]",
-  [TRUST_TIER_COLORS.flagged]: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#ef4444] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#ef4444]",
+  [TRUST_TIER_COLORS.highlyTrusted]:
+    "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#7237ff] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#7237ff]",
+  [TRUST_TIER_COLORS.trusted]:
+    "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#13d2e5] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#13d2e5]",
+  [TRUST_TIER_COLORS.neutral]:
+    "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#665487] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#665487]",
+  [TRUST_TIER_COLORS.lowTrust]:
+    "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#f59e0b] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#f59e0b]",
+  [TRUST_TIER_COLORS.unverified]:
+    "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#8c929e] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#8c929e]",
+  [TRUST_TIER_COLORS.flagged]:
+    "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#ef4444] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#ef4444]",
 };
 
 const GLYPH_ICON: Record<Exclude<Glyph, "none">, typeof Check> = { check: Check, question: HelpCircle, flag: Flag };
@@ -135,12 +137,18 @@ const GLYPH_ICON: Record<Exclude<Glyph, "none">, typeof Check> = { check: Check,
 // step + 2px band. The full ring's 2+3px is ~40% of a 24px face and clips
 // against neighbours in overlapped piles.
 const RING_BY_HUE_SM: Record<string, string> = {
-  [TRUST_TIER_COLORS.highlyTrusted]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#7237ff] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#7237ff]",
-  [TRUST_TIER_COLORS.trusted]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#13d2e5] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#13d2e5]",
-  [TRUST_TIER_COLORS.neutral]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#665487] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#665487]",
-  [TRUST_TIER_COLORS.lowTrust]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#f59e0b] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#f59e0b]",
-  [TRUST_TIER_COLORS.unverified]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#8c929e] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#8c929e]",
-  [TRUST_TIER_COLORS.flagged]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#ef4444] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#ef4444]",
+  [TRUST_TIER_COLORS.highlyTrusted]:
+    "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#7237ff] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#7237ff]",
+  [TRUST_TIER_COLORS.trusted]:
+    "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#13d2e5] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#13d2e5]",
+  [TRUST_TIER_COLORS.neutral]:
+    "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#665487] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#665487]",
+  [TRUST_TIER_COLORS.lowTrust]:
+    "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#f59e0b] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#f59e0b]",
+  [TRUST_TIER_COLORS.unverified]:
+    "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#8c929e] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#8c929e]",
+  [TRUST_TIER_COLORS.flagged]:
+    "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#ef4444] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#ef4444]",
 };
 
 /**
@@ -309,12 +317,11 @@ export function VerificationCoin({
   const pipGap = Math.max(2, Math.round(pillH * 0.15));
   const pillPadX = Math.round(pillH * 0.32);
   const compact = hasMark && (displayMode !== "number" || !hasScore);
-  const frame =
-    !compact
-      ? { width: size, height: size }
-      : displayMode === "level"
-        ? { height: pillH, paddingLeft: pillPadX, paddingRight: pillPadX }
-        : { width: dotSize, height: dotSize };
+  const frame = !compact
+    ? { width: size, height: size }
+    : displayMode === "level"
+      ? { height: pillH, paddingLeft: pillPadX, paddingRight: pillPadX }
+      : { width: dotSize, height: dotSize };
 
   const Comp = onClick ? "button" : "div";
   return (
@@ -323,7 +330,7 @@ export function VerificationCoin({
       onClick={onClick}
       aria-label={label}
       title={title}
-      className={`inline-flex items-center justify-center rounded-full font-bold leading-none tabular-nums ${hasMark ? "" : "border-2 border-dashed border-slate-300 dark:border-slate-600"} ${ring && hasMark ? POV_RING[pov] : ""} ${onClick ? "transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary" : ""} ${className}`}
+      className={`inline-flex items-center justify-center rounded-full font-bold tabular-nums leading-none ${hasMark ? "" : "border-2 border-dashed border-slate-300 dark:border-slate-600"} ${ring && hasMark ? POV_RING[pov] : ""} ${onClick ? "transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary" : ""} ${className}`}
       style={{
         ...frame,
         backgroundColor: fill,
@@ -345,12 +352,7 @@ export function VerificationCoin({
       ) : displayMode === "number" && hasScore ? (
         pct
       ) : displayMode === "level" ? (
-        <span
-          className="inline-flex items-center"
-          style={{ gap: pipGap }}
-          data-testid="coin-pips"
-          aria-hidden
-        >
+        <span className="inline-flex items-center" style={{ gap: pipGap }} data-testid="coin-pips" aria-hidden>
           {Array.from({ length: rung.total }, (_, i) => i + 1).map((step) => (
             <span
               key={step}
@@ -368,7 +370,14 @@ export function VerificationCoin({
         (() => {
           const Icon = GLYPH_ICON[rung.glyph];
           const px = Math.max(8, Math.round(dotSize * 0.68));
-          return <Icon aria-hidden strokeWidth={3} style={{ width: px, height: px }} data-testid={`coin-glyph-${rung.glyph}`} />;
+          return (
+            <Icon
+              aria-hidden
+              strokeWidth={3}
+              style={{ width: px, height: px }}
+              data-testid={`coin-glyph-${rung.glyph}`}
+            />
+          );
         })()
       ) : null}
     </Comp>

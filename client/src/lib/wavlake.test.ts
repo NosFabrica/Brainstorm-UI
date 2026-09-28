@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { findWavlakeArtist, searchWavlakeTracks, searchWavlake, fetchWavlakeTrending, wavlakeTrackId, mergeArtistAudio, __resetWavlakeCatalogue, type WavlakeSong } from "./wavlake";
+import {
+  findWavlakeArtist,
+  searchWavlakeTracks,
+  searchWavlake,
+  fetchWavlakeTrending,
+  wavlakeTrackId,
+  mergeArtistAudio,
+  __resetWavlakeCatalogue,
+  type WavlakeSong,
+} from "./wavlake";
 
 // Wavlake's public API as probed 2026-09-04: search names artists and albums,
 // an artist lists albums, an album lists tracks with the mp3.
@@ -29,11 +38,20 @@ const catalogue: Record<string, unknown> = {
   "search?term=ainsley%20costello": {
     success: true,
     data: [
-      { id: ARTIST, type: "artist", name: "Ainsley Costello", url: "ainsley-costello", avatarUrl: "https://img/ainsley.jpg" },
+      {
+        id: ARTIST,
+        type: "artist",
+        name: "Ainsley Costello",
+        url: "ainsley-costello",
+        avatarUrl: "https://img/ainsley.jpg",
+      },
       { id: "9dc4", type: "album", name: "Two Ships JSTR REMIX", avatarUrl: "https://img/ainsley.jpg" },
     ],
   },
-  "search?term=ainsley": { success: true, data: [{ id: ARTIST, type: "artist", name: "Ainsley Costello", url: "ainsley-costello" }] },
+  "search?term=ainsley": {
+    success: true,
+    data: [{ id: ARTIST, type: "artist", name: "Ainsley Costello", url: "ainsley-costello" }],
+  },
   // Live: Wavlake leads "nova" with Freddy Donovan — the letters inside a word.
   "search?term=nova": {
     success: true,
@@ -57,13 +75,34 @@ const catalogue: Record<string, unknown> = {
     id: ALBUM_NEW,
     title: "Two Ships",
     albumArtUrl: "https://img/two-ships.jpg",
-    tracks: [{ id: "04cead49", title: "Two Ships", artist: "Ainsley Costello", albumTitle: "Two Ships", duration: 217, mediaUrl: "https://cdn/two-ships.mp3", msatTotal: "519508000", artistNpub: "" }],
+    tracks: [
+      {
+        id: "04cead49",
+        title: "Two Ships",
+        artist: "Ainsley Costello",
+        albumTitle: "Two Ships",
+        duration: 217,
+        mediaUrl: "https://cdn/two-ships.mp3",
+        msatTotal: "519508000",
+        artistNpub: "",
+      },
+    ],
   },
   [`content/album/${ALBUM_OLD}`]: {
     id: ALBUM_OLD,
     title: "Old Times",
     albumArtUrl: "https://img/old-times.jpg",
-    tracks: [{ id: "0ld1", title: "Old Song", artist: "Ainsley Costello", albumTitle: "Old Times", duration: 180, mediaUrl: "https://cdn/old.mp3", msatTotal: "1000" }],
+    tracks: [
+      {
+        id: "0ld1",
+        title: "Old Song",
+        artist: "Ainsley Costello",
+        albumTitle: "Old Times",
+        duration: 180,
+        mediaUrl: "https://cdn/old.mp3",
+        msatTotal: "1000",
+      },
+    ],
   },
 };
 
@@ -78,7 +117,10 @@ beforeEach(() => {
         .filter((k) => url.endsWith(k) || url.includes(`/${k}`))
         .sort((a, b) => b.length - a.length)[0];
       if (!key) return new Response("not found", { status: 404 });
-      return new Response(JSON.stringify(catalogue[key]), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify(catalogue[key]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
     }),
   );
 });
@@ -102,12 +144,17 @@ describe("Wavlake as a second music source", () => {
 
   it("finds an artist by exact name, never by a loose contains", async () => {
     expect((await findWavlakeArtist({ name: "Ainsley Costello" }))?.id).toBe(ARTIST);
-    expect((await findWavlakeArtist({ name: "ainsley" }))).toBeNull();
-    expect((await findWavlakeArtist({ name: "NOVA" }))).toBeNull();
+    expect(await findWavlakeArtist({ name: "ainsley" })).toBeNull();
+    expect(await findWavlakeArtist({ name: "NOVA" })).toBeNull();
   });
 
   it("answers nothing, quietly, when Wavlake is unreachable", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
     expect(await searchWavlakeTracks("ainsley costello")).toEqual([]);
     expect(await findWavlakeArtist({ name: "Ainsley Costello" })).toBeNull();
   });
@@ -136,7 +183,12 @@ describe("Wavlake's trending — top tracks by sats, a week at a time", () => {
   });
 
   it("is empty, not an error, when Wavlake is unreachable", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
     expect(await fetchWavlakeTrending()).toEqual([]);
   });
 });
@@ -147,9 +199,23 @@ describe("searchWavlake — artists, albums and songs for the words", () => {
   it("returns the matching artists and albums beside the songs", async () => {
     const found = await searchWavlake("ainsley costello");
     expect(found.artists).toEqual([
-      { id: ARTIST, name: "Ainsley Costello", url: "https://wavlake.com/ainsley-costello", artworkUrl: "https://img/ainsley.jpg", artistNpub: "" },
+      {
+        id: ARTIST,
+        name: "Ainsley Costello",
+        url: "https://wavlake.com/ainsley-costello",
+        artworkUrl: "https://img/ainsley.jpg",
+        artistNpub: "",
+      },
     ]);
-    expect(found.albums).toEqual([{ id: "9dc4", title: "Two Ships JSTR REMIX", artist: "", artworkUrl: "https://img/ainsley.jpg", url: "https://wavlake.com/album/9dc4" }]);
+    expect(found.albums).toEqual([
+      {
+        id: "9dc4",
+        title: "Two Ships JSTR REMIX",
+        artist: "",
+        artworkUrl: "https://img/ainsley.jpg",
+        url: "https://wavlake.com/album/9dc4",
+      },
+    ]);
     expect(found.songs.map((t) => t.title)).toEqual(["Two Ships", "Old Song"]);
   });
 
@@ -159,7 +225,12 @@ describe("searchWavlake — artists, albums and songs for the words", () => {
   });
 
   it("answers three empty lists when Wavlake is unreachable", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    );
     expect(await searchWavlake("ainsley costello")).toEqual({ artists: [], albums: [], songs: [] });
   });
 });
@@ -170,29 +241,60 @@ describe("searchWavlake — artists, albums and songs for the words", () => {
 // of its `track` parameter answers at catalog.wavlake.com/v1/tracks/<id>.
 describe("wavlakeTrackId — StableKraft links carry Wavlake track ids", () => {
   it("reads the track id from a stablekraft.app album link", () => {
-    expect(wavlakeTrackId("https://stablekraft.app/album/empty-passenger-seat-1768077672996?track=empty-passenger-seat-1768077672996-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d")).toBe("d2e8e9cc-6f5d-44e6-8144-b7500545fb2d");
-    expect(wavlakeTrackId("https://www.stablekraft.app/album/x?track=x-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d&ref=1")).toBe("d2e8e9cc-6f5d-44e6-8144-b7500545fb2d");
+    expect(
+      wavlakeTrackId(
+        "https://stablekraft.app/album/empty-passenger-seat-1768077672996?track=empty-passenger-seat-1768077672996-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d",
+      ),
+    ).toBe("d2e8e9cc-6f5d-44e6-8144-b7500545fb2d");
+    expect(
+      wavlakeTrackId("https://www.stablekraft.app/album/x?track=x-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d&ref=1"),
+    ).toBe("d2e8e9cc-6f5d-44e6-8144-b7500545fb2d");
   });
   it("leaves a StableKraft album page without a track, and other sites, alone", () => {
     expect(wavlakeTrackId("https://stablekraft.app/album/empty-passenger-seat-1768077672996")).toBeUndefined();
     expect(wavlakeTrackId("https://example.com/album/x?track=x-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d")).toBeUndefined();
-    expect(wavlakeTrackId("https://wavlake.com/track/81c98053-ce9b-4824-b689-fe0934fe7b00")).toBe("81c98053-ce9b-4824-b689-fe0934fe7b00");
+    expect(wavlakeTrackId("https://wavlake.com/track/81c98053-ce9b-4824-b689-fe0934fe7b00")).toBe(
+      "81c98053-ce9b-4824-b689-fe0934fe7b00",
+    );
   });
 });
 
 // The profile's Audio block: the person's relay tracks first, then their
 // Wavlake songs, the same song never twice, three in all.
 describe("mergeArtistAudio — one shelf from two sources", () => {
-  const song = (id: string, title: string): WavlakeSong => ({ id: `wavlake:${id}`, title, artist: "Joe Martin", audio: `https://cdn/${id}.mp3`, url: `https://wavlake.com/track/${id}`, source: "wavlake", artistNpub: "" });
+  const song = (id: string, title: string): WavlakeSong => ({
+    id: `wavlake:${id}`,
+    title,
+    artist: "Joe Martin",
+    audio: `https://cdn/${id}.mp3`,
+    url: `https://wavlake.com/track/${id}`,
+    source: "wavlake",
+    artistNpub: "",
+  });
   it("relay tracks lead, Wavlake fills to the cap", () => {
-    const out = mergeArtistAudio([{ id: "n1", title: "High Gravity", audio: "https://cdn/hg.mp3" }], [song("a", "Hand Me Down Heart"), song("b", "Checkmate"), song("c", "Coal Town")], 3);
+    const out = mergeArtistAudio(
+      [{ id: "n1", title: "High Gravity", audio: "https://cdn/hg.mp3" }],
+      [song("a", "Hand Me Down Heart"), song("b", "Checkmate"), song("c", "Coal Town")],
+      3,
+    );
     expect(out.native.map((t) => t.id)).toEqual(["n1"]);
     expect(out.songs.map((s) => s.title)).toEqual(["Hand Me Down Heart", "Checkmate"]);
   });
   it("a relay track that IS a Wavlake song — by its id in the audio URL, or the same title — shows once", () => {
     const out = mergeArtistAudio(
-      [{ id: "n1", title: "Checkmate", audio: "https://d12wklypp119aj.cloudfront.net/track/bbbb2222-6f5d-44e6-8144-b7500545fb2d.mp3" }, { id: "n2", title: "hand me down heart", audio: "https://cdn/x.mp3" }],
-      [song("aaaa1111-6f5d-44e6-8144-b7500545fb2d", "Hand Me Down Heart"), song("bbbb2222-6f5d-44e6-8144-b7500545fb2d", "Checkmate"), song("cccc3333-6f5d-44e6-8144-b7500545fb2d", "Coal Town")],
+      [
+        {
+          id: "n1",
+          title: "Checkmate",
+          audio: "https://d12wklypp119aj.cloudfront.net/track/bbbb2222-6f5d-44e6-8144-b7500545fb2d.mp3",
+        },
+        { id: "n2", title: "hand me down heart", audio: "https://cdn/x.mp3" },
+      ],
+      [
+        song("aaaa1111-6f5d-44e6-8144-b7500545fb2d", "Hand Me Down Heart"),
+        song("bbbb2222-6f5d-44e6-8144-b7500545fb2d", "Checkmate"),
+        song("cccc3333-6f5d-44e6-8144-b7500545fb2d", "Coal Town"),
+      ],
       3,
     );
     expect(out.native).toHaveLength(2);

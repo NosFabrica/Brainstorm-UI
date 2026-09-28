@@ -27,7 +27,14 @@ describe("NowPlayingBar — the app's one player bar", () => {
   it("is absent until something plays, then names it, links it, and wears its art", () => {
     render(<NowPlayingBar />);
     expect(screen.queryByTestId("now-playing-bar")).toBeNull();
-    act(() => toggleTrack("t1", "https://cdn/hmdh.mp3", { title: "Hand Me Down Heart", artist: "Joe Martin", cover: "https://img/hmdh.jpg", href: "/e/note1abc" }));
+    act(() =>
+      toggleTrack("t1", "https://cdn/hmdh.mp3", {
+        title: "Hand Me Down Heart",
+        artist: "Joe Martin",
+        cover: "https://img/hmdh.jpg",
+        href: "/e/note1abc",
+      }),
+    );
     const bar = screen.getByTestId("now-playing-bar");
     expect(bar).toHaveTextContent("Hand Me Down Heart");
     expect(screen.getByTestId("now-playing-link").getAttribute("href")).toBe("/e/note1abc");
@@ -40,7 +47,13 @@ describe("NowPlayingBar — the app's one player bar", () => {
 
   it("a song on another site links out; the page makes room under the bar", () => {
     render(<NowPlayingBar />);
-    act(() => toggleTrack("wavlake:1", "https://cdn/a.mp3", { title: "Two Ships", artist: "Ainsley", href: "https://wavlake.com/track/1" }));
+    act(() =>
+      toggleTrack("wavlake:1", "https://cdn/a.mp3", {
+        title: "Two Ships",
+        artist: "Ainsley",
+        href: "https://wavlake.com/track/1",
+      }),
+    );
     const link = screen.getByTestId("now-playing-link");
     expect(link.getAttribute("href")).toBe("https://wavlake.com/track/1");
     expect(link.getAttribute("target")).toBe("_blank");
@@ -54,12 +67,21 @@ describe("NowPlayingBar — the app's one player bar", () => {
     moreMock.mockResolvedValue([{ id: "t2", src: "https://cdn/t2.mp3", title: "Duende", artist: "NOVA" }]);
     render(<NowPlayingBar />);
     setPlaylist([]);
-    act(() => toggleTrack("t1", "https://cdn/t1.mp3", { title: "Old Carbon", artist: "NOVA", artistHref: "/p/npub1nova", artistPubkey: "d".repeat(64) }));
+    act(() =>
+      toggleTrack("t1", "https://cdn/t1.mp3", {
+        title: "Old Carbon",
+        artist: "NOVA",
+        artistHref: "/p/npub1nova",
+        artistPubkey: "d".repeat(64),
+      }),
+    );
     expect(screen.getByTestId("now-playing-artist").getAttribute("href")).toBe("/p/npub1nova");
     expect(screen.getByTestId("now-playing-next")).toBeDisabled();
     await screen.findByTestId("now-playing-up-next");
     expect(screen.getByTestId("now-playing-up-next")).toHaveTextContent("Duende");
-    expect(moreMock).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", artist: "NOVA", artistPubkey: "d".repeat(64) }));
+    expect(moreMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "t1", artist: "NOVA", artistPubkey: "d".repeat(64) }),
+    );
     expect(screen.getByTestId("now-playing-next")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("now-playing-next"));
     expect(screen.getByTestId("now-playing-title")).toHaveTextContent("Duende");
@@ -79,7 +101,13 @@ describe("NowPlayingBar — the app's one player bar", () => {
     expect(bar.className).toMatch(/np-rise/);
     expect(screen.getByTestId("now-playing-title").className).toMatch(/text-white/);
     expect(screen.queryByTestId("now-playing-backdrop")).toBeNull();
-    act(() => toggleTrack("art", "https://cdn/art.mp3", { title: "Pale Cover", artist: "Joe Martin", cover: "https://img/pale.jpg" }));
+    act(() =>
+      toggleTrack("art", "https://cdn/art.mp3", {
+        title: "Pale Cover",
+        artist: "Joe Martin",
+        cover: "https://img/pale.jpg",
+      }),
+    );
     expect(screen.getByTestId("now-playing-backdrop")).toBeInTheDocument();
     expect(screen.getByTestId("now-playing-scrim")).toBeInTheDocument();
     expect(screen.getByTestId("now-playing-title").className).toMatch(/text-white/);
@@ -89,14 +117,20 @@ describe("NowPlayingBar — the app's one player bar", () => {
   // most, and where "more from this artist" earns its keep. It shows everywhere.
   it("keeps Next on phones", () => {
     render(<NowPlayingBar />);
-    setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "A" }, { id: "b", src: "https://cdn/b.mp3", title: "B" }]);
+    setPlaylist([
+      { id: "a", src: "https://cdn/a.mp3", title: "A" },
+      { id: "b", src: "https://cdn/b.mp3", title: "B" },
+    ]);
     act(() => toggleTrack("a", "https://cdn/a.mp3"));
     expect(screen.getByTestId("now-playing-next").className).not.toMatch(/\bhidden\b/);
   });
 
   it("the X stops the sound and takes the bar away, and the room goes with it", async () => {
     render(<NowPlayingBar />);
-    setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "A" }, { id: "b", src: "https://cdn/b.mp3", title: "B" }]);
+    setPlaylist([
+      { id: "a", src: "https://cdn/a.mp3", title: "A" },
+      { id: "b", src: "https://cdn/b.mp3", title: "B" },
+    ]);
     act(() => toggleTrack("a", "https://cdn/a.mp3"));
     expect(screen.getByTestId("now-playing-bar")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("now-playing-close"));
@@ -112,7 +146,10 @@ describe("NowPlayingBar — the app's one player bar", () => {
 
   it("offers Previous beside Next — the reflex from every other player — off at the first track, back a step after that", () => {
     // Benjamin (2026-09-24): it has to work from what users already know.
-    setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "One" }, { id: "b", src: "https://cdn/b.mp3", title: "Two" }]);
+    setPlaylist([
+      { id: "a", src: "https://cdn/a.mp3", title: "One" },
+      { id: "b", src: "https://cdn/b.mp3", title: "Two" },
+    ]);
     act(() => toggleTrack("a", "https://cdn/a.mp3", { title: "One" }));
     render(<NowPlayingBar />);
     expect(screen.getByTestId("now-playing-prev")).toBeDisabled();

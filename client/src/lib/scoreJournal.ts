@@ -57,9 +57,13 @@ function persist(pubkey: string, entries: ScoreEntry[]): ScoreEntry[] {
     const existing = byTime.get(e.t);
     if (!existing) byTime.set(e.t, e);
   }
-  const next = Array.from(byTime.values()).sort((a, b) => b.t - a.t).slice(0, MAX_ENTRIES);
+  const next = Array.from(byTime.values())
+    .sort((a, b) => b.t - a.t)
+    .slice(0, MAX_ENTRIES);
   if (pubkey) {
-    try { localStorage.setItem(storageKey(pubkey), JSON.stringify(next)); } catch {}
+    try {
+      localStorage.setItem(storageKey(pubkey), JSON.stringify(next));
+    } catch {}
   }
   return next;
 }
@@ -89,7 +93,10 @@ export async function hydrateScoreJournal(pubkey: string): Promise<ScoreEntry[]>
   if (!pubkey) return local;
   const remote = await fetchAlertPrefs(6000, SCORE_JOURNAL_D_TAG);
   const list = Array.isArray(remote?.entries) ? (remote.entries as unknown[]) : [];
-  const parsed = list.filter((e): e is ScoreEntry => !!e && typeof (e as ScoreEntry).t === "number" && typeof (e as ScoreEntry).score === "number");
+  const parsed = list.filter(
+    (e): e is ScoreEntry =>
+      !!e && typeof (e as ScoreEntry).t === "number" && typeof (e as ScoreEntry).score === "number",
+  );
   if (parsed.length === 0) return local;
   const merged = persist(pubkey, [...local, ...parsed]);
   return merged;

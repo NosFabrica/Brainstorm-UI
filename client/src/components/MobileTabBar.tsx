@@ -68,7 +68,7 @@ export function MobileTabBar() {
       <nav
         ref={navRef}
         className={cn(
-          "fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/70 dark:border-white/10 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl backdrop-saturate-150 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none",
+          "fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/70 bg-white/85 backdrop-blur-xl backdrop-saturate-150 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none dark:border-white/10 dark:bg-slate-950/85",
           // Faded as well as moved: Safari keeps drawing the page in the strip its toolbar
           // gave up, so a bar only slid down its own height was still there, untappable.
           editing && "pointer-events-none opacity-0",
@@ -95,22 +95,58 @@ export function MobileTabBar() {
         <div className="mx-auto flex max-w-lg items-stretch">
           {user ? (
             <>
-              <TabButton label="Search" icon={Search} active={isActive("/")} onClick={() => go("/")} testId="tab-search" />
-              <TabButton label="Dashboard" icon={Home} active={isActive("/dashboard")} onClick={() => go("/dashboard")} testId="tab-dashboard" />
-              <TabButton label="Network" icon={Users} active={isActive("/network")} onClick={() => go("/network")} testId="tab-network" />
+              <TabButton
+                label="Search"
+                icon={Search}
+                active={isActive("/")}
+                onClick={() => go("/")}
+                testId="tab-search"
+              />
+              <TabButton
+                label="Dashboard"
+                icon={Home}
+                active={isActive("/dashboard")}
+                onClick={() => go("/dashboard")}
+                testId="tab-dashboard"
+              />
+              <TabButton
+                label="Network"
+                icon={Users}
+                active={isActive("/network")}
+                onClick={() => go("/network")}
+                testId="tab-network"
+              />
               <YouTab user={user} active={sheetOpen} onClick={openAccountSheet} />
             </>
           ) : (
             <>
-              <TabButton label="Search" icon={Search} active={isActive("/")} onClick={() => go("/")} testId="tab-search" />
-              <TabButton label="Sign in" icon={LogIn} active={isActive("/login")} onClick={() => go("/login")} testId="tab-signin" />
+              <TabButton
+                label="Search"
+                icon={Search}
+                active={isActive("/")}
+                onClick={() => go("/")}
+                testId="tab-search"
+              />
+              <TabButton
+                label="Sign in"
+                icon={LogIn}
+                active={isActive("/login")}
+                onClick={() => go("/login")}
+                testId="tab-signin"
+              />
             </>
           )}
         </div>
       </nav>
 
       {user && (
-        <MobileAccountSheet user={user} onLogout={() => { logout(); navigate("/"); }} />
+        <MobileAccountSheet
+          user={user}
+          onLogout={() => {
+            logout();
+            navigate("/");
+          }}
+        />
       )}
     </>
   );
@@ -136,7 +172,9 @@ function TabButton({
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 outline-none transition-colors",
-        active ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200",
+        active
+          ? "text-brand-primary dark:text-brand-link"
+          : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
       )}
       data-testid={testId}
     >
@@ -158,7 +196,12 @@ function YouTab({ user, active, onClick }: { user: AccountDisplay; active: boole
       )}
       data-testid="tab-you"
     >
-      <span className={cn("block rounded-full p-[1.5px] transition-colors", active ? "bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep" : "bg-transparent")}>
+      <span
+        className={cn(
+          "block rounded-full p-[1.5px] transition-colors",
+          active ? "bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep" : "bg-transparent",
+        )}
+      >
         <Avatar className="h-[22px] w-[22px]">
           <AvatarImage src={user.picture} alt="" className="object-cover" />
           <AvatarFallback className="bg-white text-[10px] font-bold text-[#0A0E18]">

@@ -30,7 +30,11 @@ export function CarrierMeta({
     return p?.display_name || p?.name || `${pk.slice(0, 8)}…`;
   };
   const linkFor = (pk: string) => {
-    try { return `/p/${npubFromPubkey(pk)}`; } catch { return null; }
+    try {
+      return `/p/${npubFromPubkey(pk)}`;
+    } catch {
+      return null;
+    }
   };
   // Three keeps the row one line; the rest are a tap away rather than hidden.
   // "Who vouched" is the whole point of attribution — a name you can't open
@@ -54,10 +58,18 @@ export function CarrierMeta({
 
   const badges: Array<{ label: string; tone: string; testId: string }> = [];
   if (onlySelfDeclared(carrier)) {
-    badges.push({ label: "Self-declared", tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400", testId: "badge-self" });
+    badges.push({
+      label: "Self-declared",
+      tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+      testId: "badge-self",
+    });
   }
   if (carrier.disputes > 0 || carrier.subjectDisagreed) {
-    badges.push({ label: "Contested", tone: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400", testId: "badge-contested" });
+    badges.push({
+      label: "Contested",
+      tone: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+      testId: "badge-contested",
+    });
   }
 
   return (
@@ -146,10 +158,7 @@ export function CarrierMeta({
       {carrier.subjectDisagreed && !isViewer && (
         // The subject's objection gets its own line and its own colour. It
         // cannot remove the tag, so it had better be impossible to miss.
-        <p
-          className="text-[11px] font-medium text-amber-600 dark:text-amber-500"
-          data-testid="tag-subject-disagrees"
-        >
+        <p className="text-[11px] font-medium text-amber-600 dark:text-amber-500" data-testid="tag-subject-disagrees">
           They disagree with this tag
         </p>
       )}

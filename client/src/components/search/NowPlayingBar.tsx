@@ -1,7 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { Loader2, Pause, Play, SkipForward, X, SkipBack } from "lucide-react";
-import { closePlayer, extendPlaylist, formatTime, peekNext, peekPrev, playNext, playPrev, seekTrack, togglePlayback, trackMeta, usePlayerState } from "@/lib/audioPlayer";
+import {
+  closePlayer,
+  extendPlaylist,
+  formatTime,
+  peekNext,
+  peekPrev,
+  playNext,
+  playPrev,
+  seekTrack,
+  togglePlayback,
+  trackMeta,
+  usePlayerState,
+} from "@/lib/audioPlayer";
 import { moreFromArtist } from "@/lib/upNext";
 import { registerBottomChrome } from "@/lib/bottomChrome";
 import { Equalizer } from "@/components/share/EmbeddedTrackCard";
@@ -26,7 +38,12 @@ export function NowPlayingBar() {
   // Closing drops the bar out of view first, then stops the sound.
   const [leaving, setLeaving] = useState(false);
   const leaveTimer = useRef<number | null>(null);
-  useEffect(() => () => { if (leaveTimer.current) window.clearTimeout(leaveTimer.current); }, []);
+  useEffect(
+    () => () => {
+      if (leaveTimer.current) window.clearTimeout(leaveTimer.current);
+    },
+    [],
+  );
   const close = () => {
     if (leaving) return;
     setLeaving(true);
@@ -73,9 +90,19 @@ export function NowPlayingBar() {
   const external = !!current.href && /^https?:\/\//i.test(current.href);
   const title = current.href ? (
     external ? (
-      <a href={current.href} target="_blank" rel="noopener noreferrer" className="hover:underline" data-testid="now-playing-link">{current.title}</a>
+      <a
+        href={current.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="hover:underline"
+        data-testid="now-playing-link"
+      >
+        {current.title}
+      </a>
     ) : (
-      <Link href={current.href} className="hover:underline" data-testid="now-playing-link">{current.title}</Link>
+      <Link href={current.href} className="hover:underline" data-testid="now-playing-link">
+        {current.title}
+      </Link>
     )
   ) : (
     current.title
@@ -94,8 +121,18 @@ export function NowPlayingBar() {
     >
       {current.cover && (
         <>
-          <img src={current.cover} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full scale-150 object-cover blur-2xl opacity-60 will-change-transform" data-testid="now-playing-backdrop" />
-          <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/70 to-slate-950/85" aria-hidden="true" data-testid="now-playing-scrim" />
+          <img
+            src={current.cover}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 h-full w-full scale-150 object-cover opacity-60 blur-2xl will-change-transform"
+            data-testid="now-playing-backdrop"
+          />
+          <span
+            className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/70 to-slate-950/85"
+            aria-hidden="true"
+            data-testid="now-playing-scrim"
+          />
         </>
       )}
       <div className="relative mx-auto flex max-w-6xl items-center gap-3 px-3 py-2 sm:px-4">
@@ -104,7 +141,9 @@ export function NowPlayingBar() {
             src={current.cover || audioDefault}
             alt=""
             className="h-full w-full object-cover"
-            onError={(e) => { if (!e.currentTarget.src.includes("audio-default")) e.currentTarget.src = audioDefault; }}
+            onError={(e) => {
+              if (!e.currentTarget.src.includes("audio-default")) e.currentTarget.src = audioDefault;
+            }}
           />
           {playing && (
             <span className="absolute inset-0 flex items-center justify-center bg-black/40">
@@ -114,10 +153,16 @@ export function NowPlayingBar() {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <p className="truncate text-sm font-semibold text-white" data-testid="now-playing-title">{title}</p>
+            <p className="truncate text-sm font-semibold text-white" data-testid="now-playing-title">
+              {title}
+            </p>
             {current.artist &&
               (current.artistHref ? (
-                <Link href={current.artistHref} className="hidden truncate text-xs text-white/70 hover:underline sm:block" data-testid="now-playing-artist">
+                <Link
+                  href={current.artistHref}
+                  className="hidden truncate text-xs text-white/70 hover:underline sm:block"
+                  data-testid="now-playing-artist"
+                >
                   {current.artist}
                 </Link>
               ) : (
@@ -138,7 +183,9 @@ export function NowPlayingBar() {
               <div className="absolute inset-y-0 left-0 rounded-full bg-white" style={{ width: `${pct}%` }} />
             </div>
             <span className="hidden shrink-0 text-[11px] font-medium tabular-nums text-white/70 sm:inline">
-              {player.status === "error" ? "Couldn't play" : `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`}
+              {player.status === "error"
+                ? "Couldn't play"
+                : `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`}
             </span>
           </div>
           {upNext?.title && (
@@ -164,7 +211,13 @@ export function NowPlayingBar() {
           aria-label={playing ? "Pause" : "Play"}
           data-testid="now-playing-toggle"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : playing ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 translate-x-[1px] fill-current" />}
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : playing ? (
+            <Pause className="h-4 w-4 fill-current" />
+          ) : (
+            <Play className="h-4 w-4 translate-x-[1px] fill-current" />
+          )}
         </button>
         <button
           type="button"

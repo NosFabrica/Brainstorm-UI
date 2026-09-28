@@ -41,7 +41,10 @@ class ReadFirstRelay extends Relay {
     return super.req(filters, { waitForAuth: false, ...opts });
   }
 
-  subscription(filters: Parameters<Relay["subscription"]>[0], opts?: Parameters<Relay["subscription"]>[1]): ReturnType<Relay["subscription"]> {
+  subscription(
+    filters: Parameters<Relay["subscription"]>[0],
+    opts?: Parameters<Relay["subscription"]>[1],
+  ): ReturnType<Relay["subscription"]> {
     return super.subscription(filters, { waitForAuth: true, ...opts });
   }
 }
@@ -81,17 +84,28 @@ const readComplete = (relays: Parameters<RelayPool["request"]>[0]) =>
 
 class ReadFirstPool extends RelayPool {
   /** Every one-shot read gets the app's completion rule unless the caller brings its own. */
-  request(relays: Parameters<RelayPool["request"]>[0], filters: Parameters<RelayPool["request"]>[1], opts?: Parameters<RelayPool["request"]>[2]): ReturnType<RelayPool["request"]> {
+  request(
+    relays: Parameters<RelayPool["request"]>[0],
+    filters: Parameters<RelayPool["request"]>[1],
+    opts?: Parameters<RelayPool["request"]>[2],
+  ): ReturnType<RelayPool["request"]> {
     return super.request(relays, filters, { complete: readComplete(relays), ...opts });
   }
 
   /** Live subscriptions wait for a gated relay's login; see ReadFirstRelay. */
-  subscription(relays: Parameters<RelayPool["subscription"]>[0], filters: Parameters<RelayPool["subscription"]>[1], options?: Parameters<RelayPool["subscription"]>[2]): ReturnType<RelayPool["subscription"]> {
+  subscription(
+    relays: Parameters<RelayPool["subscription"]>[0],
+    filters: Parameters<RelayPool["subscription"]>[1],
+    options?: Parameters<RelayPool["subscription"]>[2],
+  ): ReturnType<RelayPool["subscription"]> {
     return super.subscription(relays, filters, { waitForAuth: true, ...options });
   }
 
   /** The same for per-relay filters, which `outboxSubscription` rides on too. */
-  subscriptionMap(relays: Parameters<RelayPool["subscriptionMap"]>[0], options?: Parameters<RelayPool["subscriptionMap"]>[1]): ReturnType<RelayPool["subscriptionMap"]> {
+  subscriptionMap(
+    relays: Parameters<RelayPool["subscriptionMap"]>[0],
+    options?: Parameters<RelayPool["subscriptionMap"]>[1],
+  ): ReturnType<RelayPool["subscriptionMap"]> {
     return super.subscriptionMap(relays, { waitForAuth: true, ...options });
   }
 

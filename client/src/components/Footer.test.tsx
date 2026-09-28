@@ -21,7 +21,9 @@ describe("Footer", () => {
   // now the only links were on /login, which a signed-in reader never sees.
   it("links Privacy and Terms after Roadmap", () => {
     render(<Footer />);
-    const labels = Array.from(screen.getByRole("navigation").querySelectorAll("button")).map((b) => b.textContent?.trim());
+    const labels = Array.from(screen.getByRole("navigation").querySelectorAll("button")).map((b) =>
+      b.textContent?.trim(),
+    );
     expect(labels.slice(-3)).toEqual(["Roadmap", "Privacy", "Terms"]);
 
     fireEvent.click(screen.getByRole("button", { name: "Privacy" }));
@@ -37,7 +39,9 @@ describe("Footer", () => {
     sub.isPaid = true;
     sub.isFree = false;
     render(<Footer />);
-    const labels = Array.from(screen.getByRole("navigation").querySelectorAll("button")).map((b) => b.textContent?.trim());
+    const labels = Array.from(screen.getByRole("navigation").querySelectorAll("button")).map((b) =>
+      b.textContent?.trim(),
+    );
     expect(labels).toEqual(["Built on Nostr", "What is Web of Trust?", "Privacy", "Terms"]);
   });
 
@@ -46,7 +50,9 @@ describe("Footer", () => {
   it("holds Pricing and Roadmap back while it doesn't know what they hold", () => {
     sub.isFree = false;
     render(<Footer />);
-    const labels = Array.from(screen.getByRole("navigation").querySelectorAll("button")).map((b) => b.textContent?.trim());
+    const labels = Array.from(screen.getByRole("navigation").querySelectorAll("button")).map((b) =>
+      b.textContent?.trim(),
+    );
     expect(labels).toEqual(["Built on Nostr", "What is Web of Trust?", "Privacy", "Terms"]);
   });
 

@@ -16,13 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { useProfileBits, type ProfileBits } from "@/components/admin/useProfileBits";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -84,7 +78,7 @@ function RequesterCell({
   const label = requesterLabel(pubkey);
   return (
     <span
-      className="flex items-center gap-2 min-w-0 cursor-pointer hover:opacity-80"
+      className="flex min-w-0 cursor-pointer items-center gap-2 hover:opacity-80"
       role="button"
       tabIndex={0}
       title="Show all tickets from this user"
@@ -95,22 +89,26 @@ function RequesterCell({
       data-testid={`requester-${pubkey.slice(0, 8)}`}
     >
       <Avatar className="h-6 w-6 shrink-0">
-        {profile?.picture ? <AvatarImage src={profile.picture} alt={profile?.name || "User"} className="object-cover" /> : null}
-        <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">
+        {profile?.picture ? (
+          <AvatarImage src={profile.picture} alt={profile?.name || "User"} className="object-cover" />
+        ) : null}
+        <AvatarFallback className="border border-slate-200 bg-slate-100 text-[10px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
           {profile?.name?.charAt(0)?.toUpperCase() || "?"}
         </AvatarFallback>
       </Avatar>
-      <span className="flex flex-col min-w-0 leading-tight">
-        <span className="truncate max-w-[140px] font-medium">{profile?.name || label}</span>
+      <span className="flex min-w-0 flex-col leading-tight">
+        <span className="max-w-[140px] truncate font-medium">{profile?.name || label}</span>
         {profile?.name && (
-          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[140px]">{label}</span>
+          <span className="max-w-[140px] truncate font-mono text-[10px] text-slate-400 dark:text-slate-500">
+            {label}
+          </span>
         )}
       </span>
       <button
         type="button"
         title="Copy npub"
         aria-label="Copy npub"
-        className="shrink-0 rounded p-1 text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+        className="shrink-0 rounded p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-500 dark:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-400"
         onClick={(e) => {
           e.stopPropagation();
           try {
@@ -150,7 +148,12 @@ const TIME_WINDOWS = [
   { key: "30d", label: "Last 30 days", ms: 30 * 86_400_000 },
 ] as const;
 
-function SortHeader({ label, sortKey, sort, onSort }: {
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+}: {
   label: string;
   sortKey: SortKey;
   sort: SortState;
@@ -160,13 +163,17 @@ function SortHeader({ label, sortKey, sort, onSort }: {
   return (
     <button
       type="button"
-      className="flex items-center gap-1 uppercase tracking-wide font-semibold hover:text-slate-800 dark:hover:text-slate-200 transition-colors whitespace-nowrap"
+      className="flex items-center gap-1 whitespace-nowrap font-semibold uppercase tracking-wide transition-colors hover:text-slate-800 dark:hover:text-slate-200"
       onClick={() => onSort(sortKey)}
       data-testid={`sort-support-${sortKey}`}
     >
       {label}
       {active ? (
-        sort!.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+        sort!.dir === "asc" ? (
+          <ChevronUp className="h-3 w-3" />
+        ) : (
+          <ChevronDown className="h-3 w-3" />
+        )
       ) : (
         <ChevronsUpDown className="h-3 w-3 opacity-40" />
       )}
@@ -196,19 +203,22 @@ export function filterAndSort(
     if (!q) return true;
     const name = profiles.get(t.pubkey)?.name?.toLowerCase() || "";
     return (
-      t.subject.toLowerCase().includes(q) ||
-      requesterLabel(t.pubkey).toLowerCase().includes(q) ||
-      name.includes(q)
+      t.subject.toLowerCase().includes(q) || requesterLabel(t.pubkey).toLowerCase().includes(q) || name.includes(q)
     );
   });
   if (sort) {
     const value = (t: AdminSupportTicket): string => {
       switch (sort.key) {
-        case "created": return t.createdAt;
-        case "subject": return t.subject.toLowerCase();
-        case "category": return categoryLabel(t.category).toLowerCase();
-        case "status": return t.status;
-        case "updated": return t.lastMessageAt;
+        case "created":
+          return t.createdAt;
+        case "subject":
+          return t.subject.toLowerCase();
+        case "category":
+          return categoryLabel(t.category).toLowerCase();
+        case "status":
+          return t.status;
+        case "updated":
+          return t.lastMessageAt;
       }
     };
     const dir = sort.dir === "asc" ? 1 : -1;
@@ -288,14 +298,14 @@ export function AdminSupportCards({ active }: { active: boolean }) {
             placeholder="Search subject, requester…"
             value={filters.search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
+            className="w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-1.5 pr-7 text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
             data-testid="input-support-search"
           />
           {filters.search && (
             <button
               type="button"
               onClick={() => setSearch("")}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
               data-testid="button-support-clear-search"
             >
               <XCircle className="h-3.5 w-3.5" />
@@ -303,34 +313,49 @@ export function AdminSupportCards({ active }: { active: boolean }) {
           )}
         </div>
         <Select value={filters.status} onValueChange={(status) => setFilter({ status })}>
-          <SelectTrigger className="w-32 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-support-status">
+          <SelectTrigger
+            className="h-8 w-32 rounded-xl border-slate-200 text-xs dark:border-slate-800"
+            data-testid="select-support-status"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             {statuses.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={filters.category} onValueChange={(category) => setFilter({ category })}>
-          <SelectTrigger className="w-40 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-support-category">
+          <SelectTrigger
+            className="h-8 w-40 rounded-xl border-slate-200 text-xs dark:border-slate-800"
+            data-testid="select-support-category"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
             {categories.map((c) => (
-              <SelectItem key={c} value={c}>{categoryLabel(c)}</SelectItem>
+              <SelectItem key={c} value={c}>
+                {categoryLabel(c)}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={filters.window} onValueChange={(window) => setFilter({ window })}>
-          <SelectTrigger className="w-36 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-support-window">
+          <SelectTrigger
+            className="h-8 w-36 rounded-xl border-slate-200 text-xs dark:border-slate-800"
+            data-testid="select-support-window"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {TIME_WINDOWS.map((w) => (
-              <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
+              <SelectItem key={w.key} value={w.key}>
+                {w.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -338,7 +363,7 @@ export function AdminSupportCards({ active }: { active: boolean }) {
           <button
             type="button"
             onClick={() => setFilter({ showClosed: !filters.showClosed })}
-            className="rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
             data-testid="toggle-closed"
           >
             {filters.showClosed ? "Hide closed" : `Show closed (${closedCount})`}
@@ -362,12 +387,22 @@ export function AdminSupportCards({ active }: { active: boolean }) {
           <table className="w-full min-w-[640px]" data-testid="table-admin-support">
             <thead>
               <tr className="border-b border-brand-accent/10">
-                <th className={th}><SortHeader label="Opened" sortKey="created" sort={sort} onSort={toggleSort} /></th>
-                <th className={th}><SortHeader label="Subject" sortKey="subject" sort={sort} onSort={toggleSort} /></th>
-                <th className={th}><SortHeader label="Category" sortKey="category" sort={sort} onSort={toggleSort} /></th>
+                <th className={th}>
+                  <SortHeader label="Opened" sortKey="created" sort={sort} onSort={toggleSort} />
+                </th>
+                <th className={th}>
+                  <SortHeader label="Subject" sortKey="subject" sort={sort} onSort={toggleSort} />
+                </th>
+                <th className={th}>
+                  <SortHeader label="Category" sortKey="category" sort={sort} onSort={toggleSort} />
+                </th>
                 <th className={th}>From</th>
-                <th className={th}><SortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /></th>
-                <th className={th}><SortHeader label="Updated" sortKey="updated" sort={sort} onSort={toggleSort} /></th>
+                <th className={th}>
+                  <SortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />
+                </th>
+                <th className={th}>
+                  <SortHeader label="Updated" sortKey="updated" sort={sort} onSort={toggleSort} />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -381,7 +416,9 @@ export function AdminSupportCards({ active }: { active: boolean }) {
                   <td className={`${td} whitespace-nowrap`}>
                     <span className="flex flex-col leading-tight">
                       <span className="text-[13px] font-semibold tabular-nums">{fmtDate(t.createdAt)}</span>
-                      <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">{fmtTime(t.createdAt)}</span>
+                      <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">
+                        {fmtTime(t.createdAt)}
+                      </span>
                     </span>
                   </td>
                   <td className={`${td} font-medium`}>
@@ -406,9 +443,14 @@ export function AdminSupportCards({ active }: { active: boolean }) {
                   </td>
                   <td className={td}>
                     <span className="flex flex-col items-start gap-0.5">
-                      <Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip>
+                      <Chip tone={statusTone(t.status)} size="sm">
+                        {t.status}
+                      </Chip>
                       {t.closedAt && (
-                        <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-testid={`closed-at-${t.id}`}>
+                        <span
+                          className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500"
+                          data-testid={`closed-at-${t.id}`}
+                        >
                           {fmtWhen(t.closedAt)}
                         </span>
                       )}
@@ -479,9 +521,16 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
       setDraft("");
       setEditingCannedId(null);
       await refresh();
-      toast({ title: "Reply sent", description: "The user sees it in their thread; email notification goes out when configured." });
+      toast({
+        title: "Reply sent",
+        description: "The user sees it in their thread; email notification goes out when configured.",
+      });
     } catch (e) {
-      toast({ title: "Reply failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      toast({
+        title: "Reply failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setBusy(false);
     }
@@ -493,7 +542,11 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
       await adminReopenTicket(id);
       await refresh();
     } catch (e) {
-      toast({ title: "Reopen failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      toast({
+        title: "Reopen failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setBusy(false);
     }
@@ -510,7 +563,11 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
         description: message ? "Closing message sent — replying reopens it for them." : "Closed without a message.",
       });
     } catch (e) {
-      toast({ title: "Close failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      toast({
+        title: "Close failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setBusy(false);
     }
@@ -522,7 +579,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
           data-testid="admin-thread-back"
         >
           <ArrowLeft className="h-4 w-4" /> All tickets
@@ -532,7 +589,10 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
             variant="outline"
             size="sm"
             disabled={busy}
-            onClick={() => { setClosingMessage(DEFAULT_CLOSING_MESSAGE); setCloseOpen(true); }}
+            onClick={() => {
+              setClosingMessage(DEFAULT_CLOSING_MESSAGE);
+              setCloseOpen(true);
+            }}
             className="gap-1.5"
             data-testid="admin-close-ticket"
           >
@@ -548,15 +608,15 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
           <DialogHeader>
             <DialogTitle>Close this ticket?</DialogTitle>
             <DialogDescription>
-              The user keeps the history, and replying reopens it for them. You can send a closing
-              message with it — edit it below, or close silently.
+              The user keeps the history, and replying reopens it for them. You can send a closing message with it —
+              edit it below, or close silently.
             </DialogDescription>
           </DialogHeader>
           <textarea
             value={closingMessage}
             onChange={(e) => setClosingMessage(e.target.value.slice(0, 4000))}
             rows={3}
-            className="w-full resize-y rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+            className="w-full resize-y rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
             data-testid="close-message-input"
           />
           <DialogFooter className="gap-2">
@@ -566,7 +626,11 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
             <Button variant="outline" disabled={busy} onClick={() => void close()} data-testid="close-silent">
               Close without message
             </Button>
-            <Button disabled={busy || !closingMessage.trim()} onClick={() => void close(closingMessage)} data-testid="close-send">
+            <Button
+              disabled={busy || !closingMessage.trim()}
+              onClick={() => void close(closingMessage)}
+              data-testid="close-send"
+            >
               {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Send &amp; close
             </Button>
           </DialogFooter>
@@ -580,12 +644,16 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-center gap-2.5">
-            <h4 className="min-w-0 break-words text-base font-bold" style={{ fontFamily: "var(--font-display)" }}>{ticket.subject}</h4>
-            <Chip tone={statusTone(ticket.status)} size="sm" data-testid="admin-thread-status">{ticket.status}</Chip>
+            <h4 className="min-w-0 break-words text-base font-bold" style={{ fontFamily: "var(--font-display)" }}>
+              {ticket.subject}
+            </h4>
+            <Chip tone={statusTone(ticket.status)} size="sm" data-testid="admin-thread-status">
+              {ticket.status}
+            </Chip>
             {/* Recategorize in place: low-stakes, reversible, on the record. */}
             <select
               aria-label="Ticket category"
-              className="h-7 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-1.5 text-xs text-slate-600 dark:text-slate-300"
+              className="h-7 rounded-lg border border-slate-200 bg-white px-1.5 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
               value={SUPPORT_CATEGORIES.some((c) => c.key === ticket.category) ? ticket.category : ""}
               onChange={(e) => {
                 const next = e.target.value;
@@ -597,7 +665,9 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
                 <option value="">{ticket.category || "uncategorized"}</option>
               )}
               {SUPPORT_CATEGORIES.map((c) => (
-                <option key={c.key} value={c.key}>{c.label}</option>
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
               ))}
             </select>
           </div>
@@ -605,13 +675,15 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
           {/* Who it's from, and where the notification email goes — the two
               questions an admin asks before typing a reply. */}
           {requester && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300" data-testid="admin-thread-requester">
+            <div
+              className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300"
+              data-testid="admin-thread-requester"
+            >
               <span className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">From</span>
-                <RequesterCell
-                  pubkey={requester.pubkey}
-                  profile={requesterProfiles.get(requester.pubkey)}
-                />
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  From
+                </span>
+                <RequesterCell pubkey={requester.pubkey} profile={requesterProfiles.get(requester.pubkey)} />
               </span>
               <span className="flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
@@ -634,7 +706,11 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
           )}
 
           {diagnostics && (
-            <details className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-3 py-2" open data-testid="admin-diagnostics">
+            <details
+              className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60"
+              open
+              data-testid="admin-diagnostics"
+            >
               <summary className="cursor-pointer text-xs font-semibold text-slate-600 dark:text-slate-300">
                 Diagnostics (sent with the ticket)
               </summary>
@@ -655,116 +731,129 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
               <p className="text-sm text-slate-400 dark:text-slate-500" data-testid="admin-thread-closed">
                 Closed. The user can reply to reopen it.
               </p>
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => void reopen()} data-testid="admin-reopen-ticket">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => void reopen()}
+                data-testid="admin-reopen-ticket"
+              >
                 Reopen
               </Button>
             </div>
           ) : (
             <>
-            {/* The answers that repeat: insert a saved reply, edit, send. */}
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <select
-                aria-label="Insert saved reply"
-                className="h-7 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-1.5 text-xs text-slate-600 dark:text-slate-300"
-                value=""
-                onChange={(e) => {
-                  const snippet = canned.find((c) => c.id === e.target.value);
-                  if (!snippet) return;
-                  setEditingCannedId(draft.trim() ? null : snippet.id);
-                  setDraft((d) => (d.trim() ? `${d}\n\n${snippet.body}` : snippet.body));
-                }}
-                data-testid="canned-select"
-              >
-                <option value="">Insert saved reply…</option>
-                {canned.map((c) => (
-                  <option key={c.id} value={c.id}>{c.title}</option>
-                ))}
-              </select>
-              {editingCanned && draft.trim() && draft !== editingCanned.body && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => cannedReplies.update(editingCanned.id, draft)}
-                  data-testid="canned-update"
+              {/* The answers that repeat: insert a saved reply, edit, send. */}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <select
+                  aria-label="Insert saved reply"
+                  className="h-7 rounded-lg border border-slate-200 bg-white px-1.5 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                  value=""
+                  onChange={(e) => {
+                    const snippet = canned.find((c) => c.id === e.target.value);
+                    if (!snippet) return;
+                    setEditingCannedId(draft.trim() ? null : snippet.id);
+                    setDraft((d) => (d.trim() ? `${d}\n\n${snippet.body}` : snippet.body));
+                  }}
+                  data-testid="canned-select"
                 >
-                  Update “{editingCanned.title}”
-                </Button>
-              )}
-              {draft.trim() && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => cannedReplies.save(draft)}
-                  data-testid="canned-save"
-                >
-                  Save as canned reply
-                </Button>
-              )}
-              {canned.length > 0 && (
-                <details className="text-xs text-slate-400 dark:text-slate-500">
-                  <summary className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300">Manage</summary>
-                  <ul className="mt-1 space-y-0.5">
-                    {canned.map((c) => (
-                      <li key={c.id} className="flex items-center gap-1.5">
-                        <span className="truncate max-w-[220px]">{c.title}</span>
-                        {confirmDeleteId === c.id ? (
-                          <span className="flex items-center gap-1.5">
+                  <option value="">Insert saved reply…</option>
+                  {canned.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+                {editingCanned && draft.trim() && draft !== editingCanned.body && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => cannedReplies.update(editingCanned.id, draft)}
+                    data-testid="canned-update"
+                  >
+                    Update “{editingCanned.title}”
+                  </Button>
+                )}
+                {draft.trim() && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => cannedReplies.save(draft)}
+                    data-testid="canned-save"
+                  >
+                    Save as canned reply
+                  </Button>
+                )}
+                {canned.length > 0 && (
+                  <details className="text-xs text-slate-400 dark:text-slate-500">
+                    <summary className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300">Manage</summary>
+                    <ul className="mt-1 space-y-0.5">
+                      {canned.map((c) => (
+                        <li key={c.id} className="flex items-center gap-1.5">
+                          <span className="max-w-[220px] truncate">{c.title}</span>
+                          {confirmDeleteId === c.id ? (
+                            <span className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                className="font-medium text-red-500 hover:text-red-600"
+                                onClick={() => {
+                                  cannedReplies.remove(c.id);
+                                  setConfirmDeleteId(null);
+                                }}
+                                data-testid={`canned-delete-confirm-${c.id}`}
+                              >
+                                Delete — it won’t come back
+                              </button>
+                              <button
+                                type="button"
+                                className="hover:text-slate-600 dark:hover:text-slate-300"
+                                onClick={() => setConfirmDeleteId(null)}
+                                data-testid={`canned-delete-cancel-${c.id}`}
+                              >
+                                Keep
+                              </button>
+                            </span>
+                          ) : (
                             <button
                               type="button"
-                              className="font-medium text-red-500 hover:text-red-600"
-                              onClick={() => {
-                                cannedReplies.remove(c.id);
-                                setConfirmDeleteId(null);
-                              }}
-                              data-testid={`canned-delete-confirm-${c.id}`}
+                              aria-label={`Delete saved reply ${c.title}`}
+                              className="text-slate-300 hover:text-red-500 dark:text-slate-600"
+                              onClick={() => setConfirmDeleteId(c.id)}
+                              data-testid={`canned-delete-${c.id}`}
                             >
-                              Delete — it won’t come back
+                              <XCircle className="h-3 w-3" />
                             </button>
-                            <button
-                              type="button"
-                              className="hover:text-slate-600 dark:hover:text-slate-300"
-                              onClick={() => setConfirmDeleteId(null)}
-                              data-testid={`canned-delete-cancel-${c.id}`}
-                            >
-                              Keep
-                            </button>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            aria-label={`Delete saved reply ${c.title}`}
-                            className="text-slate-300 dark:text-slate-600 hover:text-red-500"
-                            onClick={() => setConfirmDeleteId(c.id)}
-                            data-testid={`canned-delete-${c.id}`}
-                          >
-                            <XCircle className="h-3 w-3" />
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-            </div>
-            <div className="mt-2 flex items-end gap-2">
-              <textarea
-                value={draft}
-                onChange={(e) => {
-                  const next = e.target.value.slice(0, 4000);
-                  setDraft(next);
-                  if (!next.trim()) setEditingCannedId(null);
-                }}
-                placeholder={`Reply as Brainstorm Support…`}
-                rows={3}
-                className="w-full resize-y rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
-                data-testid="admin-reply-input"
-              />
-              <Button onClick={() => void reply()} disabled={busy || !draft.trim()} className="gap-1.5 shrink-0" data-testid="admin-reply-send">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Reply
-              </Button>
-            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+              <div className="mt-2 flex items-end gap-2">
+                <textarea
+                  value={draft}
+                  onChange={(e) => {
+                    const next = e.target.value.slice(0, 4000);
+                    setDraft(next);
+                    if (!next.trim()) setEditingCannedId(null);
+                  }}
+                  placeholder={`Reply as Brainstorm Support…`}
+                  rows={3}
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
+                  data-testid="admin-reply-input"
+                />
+                <Button
+                  onClick={() => void reply()}
+                  disabled={busy || !draft.trim()}
+                  className="shrink-0 gap-1.5"
+                  data-testid="admin-reply-send"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Reply
+                </Button>
+              </div>
             </>
           )}
         </>

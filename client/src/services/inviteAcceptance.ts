@@ -44,7 +44,7 @@ function writeSet(key: string, set: Set<string>) {
 
 /** followed_by items are either bare pubkey strings or `{ pubkey }` objects. */
 function parsePubkeys(res: unknown): string[] {
-  const items = ((res as { data?: { items?: Array<string | { pubkey?: string }> } })?.data?.items ?? []);
+  const items = (res as { data?: { items?: Array<string | { pubkey?: string }> } })?.data?.items ?? [];
   return items.map((e) => (typeof e === "string" ? e : e?.pubkey)).filter((p): p is string => !!p);
 }
 
@@ -55,9 +55,21 @@ const mkDemo = (hex: string, name: string, picture: string): NewJoiner => ({
   picture,
 });
 const ALL_DEMO: NewJoiner[] = [
-  mkDemo("1111111111111111111111111111111111111111111111111111111111111111", "Ava Chen", "https://randomuser.me/api/portraits/women/44.jpg"),
-  mkDemo("2222222222222222222222222222222222222222222222222222222222222222", "Marcus Reid", "https://randomuser.me/api/portraits/men/32.jpg"),
-  mkDemo("3333333333333333333333333333333333333333333333333333333333333333", "Priya Nair", "https://randomuser.me/api/portraits/women/68.jpg"),
+  mkDemo(
+    "1111111111111111111111111111111111111111111111111111111111111111",
+    "Ava Chen",
+    "https://randomuser.me/api/portraits/women/44.jpg",
+  ),
+  mkDemo(
+    "2222222222222222222222222222222222222222222222222222222222222222",
+    "Marcus Reid",
+    "https://randomuser.me/api/portraits/men/32.jpg",
+  ),
+  mkDemo(
+    "3333333333333333333333333333333333333333333333333333333333333333",
+    "Priya Nair",
+    "https://randomuser.me/api/portraits/women/68.jpg",
+  ),
 ];
 /** Demo joiners minus any already acknowledged (welcomed/dismissed) — so the QA
  *  flow behaves like production: welcoming removes them and reveals the payoff. */

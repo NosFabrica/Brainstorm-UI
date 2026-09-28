@@ -17,7 +17,20 @@ import { useAvatarSrc } from "@/lib/avatarSrc";
  * primitives per CLAUDE.md: Chip for status/counts, shared tier ring.
  */
 import { Link, useLocation } from "wouter";
-import { Bot, Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, MapPin, MessageSquare, Package, Radio, ShoppingBag } from "lucide-react";
+import {
+  Bot,
+  Code2,
+  ExternalLink,
+  File,
+  FileAudio,
+  FileVideo,
+  ListChecks,
+  MapPin,
+  MessageSquare,
+  Package,
+  Radio,
+  ShoppingBag,
+} from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -87,8 +100,10 @@ function AuthorRow({
   // Wraps: on a narrow card (four across on the Shop tab) a pill that does not
   // fit beside the date drops to its own line instead of crossing the border.
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
-      <Avatar className={`h-6 w-6 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}>
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      <Avatar
+        className={`h-6 w-6 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}
+      >
         {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">
           <DefaultAvatarImg />
@@ -121,12 +136,14 @@ function CuratorFooter({
 }) {
   const tierRing = useTierRing();
   return (
-    <div className="flex w-full items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800/60 pt-2">
+    <div className="flex w-full items-center justify-between gap-3 border-t border-slate-100 pt-2 dark:border-slate-800/60">
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="shrink-0 text-[10px] font-medium uppercase leading-none tracking-wide text-slate-400 dark:text-slate-500">
           {kicker}
         </span>
-        <Avatar className={`h-5 w-5 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
+        <Avatar
+          className={`h-5 w-5 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}
+        >
           {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
           <AvatarFallback className="overflow-hidden">
             <DefaultAvatarImg />
@@ -142,7 +159,9 @@ function CuratorFooter({
           )}
         </span>
       </span>
-      <span className="shrink-0 text-[11px] leading-none text-slate-400 dark:text-slate-500">{fmtWhen(created_at)}</span>
+      <span className="shrink-0 text-[11px] leading-none text-slate-400 dark:text-slate-500">
+        {fmtWhen(created_at)}
+      </span>
     </div>
   );
 }
@@ -190,35 +209,53 @@ function CardShell({
   const iconOnly = openInPlacement === "corner-icon";
   return (
     <div
-      className={`relative w-full rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150 ${fill ? "h-full" : ""}`}
+      className={`relative w-full rounded-xl border border-slate-100 bg-white/70 transition-all duration-150 hover:border-slate-200 hover:bg-white hover:shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800 dark:hover:bg-slate-900 ${fill ? "h-full" : ""}`}
       data-testid={testId}
     >
-      <Link href={eventPath(event)} className={`block p-3 sm:p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-xl ${fill ? "h-full" : ""}`}>
+      <Link
+        href={eventPath(event)}
+        className={`block rounded-xl p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 sm:p-4 ${fill ? "h-full" : ""}`}
+      >
         {children}
       </Link>
-      {corner && <span className="absolute right-2.5 top-2.5" data-testid="card-corner">{corner}</span>}
+      {corner && (
+        <span className="absolute right-2.5 top-2.5" data-testid="card-corner">
+          {corner}
+        </span>
+      )}
       {openInUrl && (
-        <span className={footer ? "absolute bottom-2.5 right-2.5 sm:bottom-3 sm:right-3" : "absolute right-2.5 top-2.5"} data-testid={openInSlotTestId}>
+        <span
+          className={footer ? "absolute bottom-2.5 right-2.5 sm:bottom-3 sm:right-3" : "absolute right-2.5 top-2.5"}
+          data-testid={openInSlotTestId}
+        >
           <a
             href={openInUrl}
             target="_blank"
             rel="noopener"
             onClick={(e) => e.stopPropagation()}
-            title={iconOnly ? openInLabel ?? "Open in…" : undefined}
-            aria-label={iconOnly ? openInLabel ?? "Open in…" : undefined}
+            title={iconOnly ? (openInLabel ?? "Open in…") : undefined}
+            aria-label={iconOnly ? (openInLabel ?? "Open in…") : undefined}
             className={
               footer
-                ? "inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-brand-deep dark:text-brand-link hover:border-brand-accent/40 hover:bg-brand-primary/5 transition-colors"
+                ? "inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-brand-deep transition-colors hover:border-brand-accent/40 hover:bg-brand-primary/5 dark:border-slate-700 dark:bg-slate-900 dark:text-brand-link"
                 : iconOnly
-                  ? "flex h-6 w-6 items-center justify-center rounded-full bg-white/90 dark:bg-slate-900/90 shadow-sm ring-1 ring-black/5 dark:ring-white/10 hover:bg-white dark:hover:bg-slate-900 transition-colors"
-                  : "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-brand-link hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  ? "flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm ring-1 ring-black/5 transition-colors hover:bg-white dark:bg-slate-900/90 dark:ring-white/10 dark:hover:bg-slate-900"
+                  : "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium text-slate-400 transition-colors hover:bg-slate-50 hover:text-brand-deep dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-brand-link"
             }
             data-testid={openInTestId}
           >
             {openInIcon ? (
-              <img src={openInIcon} alt="" className={iconOnly ? "h-3.5 w-3.5 shrink-0 rounded-sm" : "h-3 w-3 shrink-0 rounded-sm"} data-testid="favicon" />
+              <img
+                src={openInIcon}
+                alt=""
+                className={iconOnly ? "h-3.5 w-3.5 shrink-0 rounded-sm" : "h-3 w-3 shrink-0 rounded-sm"}
+                data-testid="favicon"
+              />
             ) : openInHost ? (
-              <Favicon host={openInHost} className={iconOnly ? "h-3.5 w-3.5 shrink-0 rounded-sm" : "h-3 w-3 shrink-0 rounded-sm"} />
+              <Favicon
+                host={openInHost}
+                className={iconOnly ? "h-3.5 w-3.5 shrink-0 rounded-sm" : "h-3 w-3 shrink-0 rounded-sm"}
+              />
             ) : (
               <ExternalLink className={iconOnly ? "h-3 w-3 text-slate-500" : "h-2.5 w-2.5"} />
             )}
@@ -245,7 +282,15 @@ function naddrOf(event: NostrEvent): string | null {
 export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
 import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf } from "@/lib/mediaKind";
 
-export function MediaCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+export function MediaCard({
+  event,
+  author,
+  score,
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+}) {
   const [, navigate] = useLocation();
   const url = mediaUrlOf(event);
   const poster = mediaPosterOf(event);
@@ -287,15 +332,27 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
           open();
         }
       }}
-      className="relative w-full cursor-pointer rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150 p-3 sm:p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      className="relative w-full cursor-pointer rounded-xl border border-slate-100 bg-white/70 p-3 transition-all duration-150 hover:border-slate-200 hover:bg-white hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800 dark:hover:bg-slate-900 sm:p-4"
       data-testid={`media-card-${event.id}`}
     >
-      <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<><KindPill event={event} mixed={false} /><ViaRelay event={event} /></>} />
+      <AuthorRow
+        author={author}
+        score={score}
+        created_at={event.created_at}
+        trailing={
+          <>
+            <KindPill event={event} mixed={false} />
+            <ViaRelay event={event} />
+          </>
+        }
+      />
       {caption && (
-        <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-200 break-words line-clamp-2">
-          {caption.split(/(nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi).map((part, i) =>
-            /^nostr:/i.test(part) ? <MentionChip key={i} uri={part} /> : <span key={i}>{part}</span>,
-          )}
+        <p className="mt-1.5 line-clamp-2 break-words text-sm text-slate-700 dark:text-slate-200">
+          {caption
+            .split(/(nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi)
+            .map((part, i) =>
+              /^nostr:/i.test(part) ? <MentionChip key={i} uri={part} /> : <span key={i}>{part}</span>,
+            )}
         </p>
       )}
       {isVideo && url ? (
@@ -317,7 +374,7 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
           preset="media_1280"
           alt=""
           loading="lazy"
-          className="mt-2 w-full max-h-96 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-cover"
+          className="mt-2 max-h-96 w-full rounded-xl border border-slate-200 bg-slate-50 object-cover dark:border-slate-800 dark:bg-slate-900"
           data-testid={`media-thumb-${event.id}`}
         />
       ) : (
@@ -332,8 +389,7 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
           tells a reader nothing, and the picture speaks for itself. */}
       {brand && !isAudio && (
         <p className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
-          via{" "}
-          {/* The partner's own mark, with its x-height of clear space. */}
+          via {/* The partner's own mark, with its x-height of clear space. */}
           <span className="inline-flex items-center px-1 py-0.5">
             <brand.Wordmark />
           </span>
@@ -365,7 +421,15 @@ export function platformWords(event: NostrEvent): string[] {
  * site (falling back to its repository). Vitor's split, the
  * Apps half: listings stop masquerading as "code".
  */
-export function AppCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+export function AppCard({
+  event,
+  author,
+  score,
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+}) {
   const name = tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled app";
   const summary = tagVal(event, "summary") ?? event.content.slice(0, 200);
   const icon = tagVal(event, "icon") ?? tagVal(event, "image");
@@ -378,7 +442,7 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
       event={event}
       openInUrl={getIt}
       openInLabel="Get it"
-      openInHost={getIt ? hostOf(getIt) ?? undefined : undefined}
+      openInHost={getIt ? (hostOf(getIt) ?? undefined) : undefined}
       openInTestId={`app-get-${event.id}`}
       openInPlacement="footer"
       openInSlotTestId={`app-get-slot-${event.id}`}
@@ -392,30 +456,41 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
       <div className="flex h-full flex-col">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
               <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
               <KindPill event={event} mixed={false} />
             </div>
             {summary && (
-            <p
-              className="mt-0.5 min-h-[2rem] text-xs leading-4 text-slate-500 dark:text-slate-400 break-words line-clamp-2"
-              data-testid={`app-summary-${event.id}`}
-            >
-              {summary}
-            </p>
-          )}
+              <p
+                className="mt-0.5 line-clamp-2 min-h-[2rem] break-words text-xs leading-4 text-slate-500 dark:text-slate-400"
+                data-testid={`app-summary-${event.id}`}
+              >
+                {summary}
+              </p>
+            )}
             {/* The chips live in the text column, beside the icon: with no
                 summary they rise to sit under the name instead of leaving the
                 icon's height as a gap (PlayOnDlna on a phone). */}
-            <div className="mt-2 flex h-5 items-center gap-1.5 overflow-hidden" data-testid={`app-platforms-${event.id}`}>
+            <div
+              className="mt-2 flex h-5 items-center gap-1.5 overflow-hidden"
+              data-testid={`app-platforms-${event.id}`}
+            >
               {platforms.map((p) => (
-                <Chip key={p} size="sm" tone="slate">{p}</Chip>
+                <Chip key={p} size="sm" tone="slate">
+                  {p}
+                </Chip>
               ))}
             </div>
           </div>
-          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-800 dark:ring-white/10">
             {icon ? (
-              <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" data-testid={`app-icon-${event.id}`} />
+              <img
+                src={icon}
+                alt=""
+                loading="lazy"
+                className="h-full w-full object-cover"
+                data-testid={`app-icon-${event.id}`}
+              />
             ) : (
               <Package className="h-5 w-5 text-slate-400 dark:text-slate-500" />
             )}
@@ -527,8 +602,8 @@ export function RepoCard({
   const typeTone: "info" | "warning" = event.kind === 1617 || event.kind === 1618 ? "info" : "warning";
   // A repo is named by its announcement; an issue, patch or PR by the one
   // title rule — a patch without a subject tag is titled from its own text.
-  const name = isRepo ? tagVal(event, "name") ?? tagVal(event, "d") ?? "Unnamed repo" : gitItemTitleOf(event);
-  const description = isRepo ? tagVal(event, "description") ?? "" : gitItemSummaryOf(event);
+  const name = isRepo ? (tagVal(event, "name") ?? tagVal(event, "d") ?? "Unnamed repo") : gitItemTitleOf(event);
+  const description = isRepo ? (tagVal(event, "description") ?? "") : gitItemSummaryOf(event);
   const repoRef = !isRepo ? tagVal(event, "a")?.split(":")[2] : undefined;
   // How the maintainer triaged it — up to three labels; the strip has the rest.
   const labels = isRepo ? [] : gitLabelsOf(event);
@@ -537,12 +612,23 @@ export function RepoCard({
   // The "is anyone working on this?" signal — issue/patch counts for the repo
   // (announcements only; a lone patch/issue has none of its own).
   const d = tagVal(event, "d");
-  const [counts, setCounts] = useState<{ issues: number; patches: number; contributors: string[]; lastAt: number | null }>({ issues: 0, patches: 0, contributors: [], lastAt: null });
+  const [counts, setCounts] = useState<{
+    issues: number;
+    patches: number;
+    contributors: string[];
+    lastAt: number | null;
+  }>({ issues: 0, patches: 0, contributors: [], lastAt: null });
   useEffect(() => {
     if (!isRepo || !d) return;
     let alive = true;
     void fetchRepoCounts(`30617:${event.pubkey}:${d}`).then((c) => {
-      if (alive) setCounts({ issues: c.issues, patches: c.patches, contributors: c.contributors ?? [], lastAt: c.lastAt ?? null });
+      if (alive)
+        setCounts({
+          issues: c.issues,
+          patches: c.patches,
+          contributors: c.contributors ?? [],
+          lastAt: c.lastAt ?? null,
+        });
     });
     return () => {
       alive = false;
@@ -581,14 +667,25 @@ export function RepoCard({
         <div className="min-w-0 flex-1">
           {/* The branded link sits absolutely in the corner — the title row
               leaves it room so a long title's type chip never slides under it. */}
-          <div className={`flex items-center gap-2 min-w-0 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}>
+          <div
+            className={`flex min-w-0 items-center gap-2 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}
+          >
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
             {/* A patch, pull request or issue announces itself, as it always has;
                 a repo on the Repos tab says Repo only with kind labels on. */}
-            {isRepo ? <KindPill event={event} mixed={false} /> : <Chip size="sm" tone={typeTone} data-testid="kind-pill">{kindTypeLabel(event.kind)}</Chip>}
+            {isRepo ? (
+              <KindPill event={event} mixed={false} />
+            ) : (
+              <Chip size="sm" tone={typeTone} data-testid="kind-pill">
+                {kindTypeLabel(event.kind)}
+              </Chip>
+            )}
           </div>
           {isRepo && forkOf && (
-            <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500" data-testid={`repo-fork-of-${event.id}`}>
+            <p
+              className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500"
+              data-testid={`repo-fork-of-${event.id}`}
+            >
               ↳ fork of {forkOf}
             </p>
           )}
@@ -604,7 +701,13 @@ export function RepoCard({
                 </Chip>
               )}
               {agent && (
-                <Chip size="sm" tone="slate" icon={Bot} title={`Filed by ${agent}, an agent`} data-testid={`git-agent-${event.id}`}>
+                <Chip
+                  size="sm"
+                  tone="slate"
+                  icon={Bot}
+                  title={`Filed by ${agent}, an agent`}
+                  data-testid={`git-agent-${event.id}`}
+                >
                   agent
                 </Chip>
               )}
@@ -613,25 +716,34 @@ export function RepoCard({
           {labels.length > 0 && (
             <div className="mt-1 flex flex-wrap items-center gap-1" data-testid={`git-labels-${event.id}`}>
               {labels.slice(0, 3).map((l) => (
-                <Chip key={l} size="sm" tone="slate">{l}</Chip>
+                <Chip key={l} size="sm" tone="slate">
+                  {l}
+                </Chip>
               ))}
             </div>
           )}
           {description && (
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>
+            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">{description}</p>
           )}
           {!isRepo && (comments ?? 0) > 0 && (
-            <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400" data-testid={`git-comments-${event.id}`}>
+            <p
+              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400"
+              data-testid={`git-comments-${event.id}`}
+            >
               <MessageSquare className="h-3 w-3" /> {comments} {comments === 1 ? "comment" : "comments"}
             </p>
           )}
           {isRepo && (counts.issues > 0 || counts.patches > 0) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5" data-testid={`repo-counts-${event.id}`}>
               {counts.issues > 0 && (
-                <Chip size="sm" tone="warning">{counts.issues} {counts.issues === 1 ? "issue" : "issues"}</Chip>
+                <Chip size="sm" tone="warning">
+                  {counts.issues} {counts.issues === 1 ? "issue" : "issues"}
+                </Chip>
               )}
               {counts.patches > 0 && (
-                <Chip size="sm" tone="info">{counts.patches} {counts.patches === 1 ? "patch" : "patches"}</Chip>
+                <Chip size="sm" tone="info">
+                  {counts.patches} {counts.patches === 1 ? "patch" : "patches"}
+                </Chip>
               )}
             </div>
           )}
@@ -649,7 +761,9 @@ export function RepoCard({
                           className={`h-5 w-5 border border-white dark:border-slate-900 ${faceRing(faceScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
                           data-testid={`repo-contributor-face-${pk}`}
                         >
-                          {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
+                          {profile?.picture ? (
+                            <AvatarImage src={profile.picture} alt="" className="object-cover" />
+                          ) : null}
                           <AvatarFallback className="overflow-hidden">
                             <DefaultAvatarImg />
                           </AvatarFallback>
@@ -660,13 +774,16 @@ export function RepoCard({
                   {counts.contributors.length} {counts.contributors.length === 1 ? "contributor" : "contributors"}
                 </span>
               )}
-              {counts.lastAt && (
-                <span data-testid={`repo-active-${event.id}`}>active {ago(counts.lastAt)}</span>
-              )}
+              {counts.lastAt && <span data-testid={`repo-active-${event.id}`}>active {ago(counts.lastAt)}</span>}
             </div>
           )}
           <div className="mt-2">
-            <CuratorFooter kicker={isRepo ? "Maintained by" : "By"} author={author} score={score} created_at={event.created_at} />
+            <CuratorFooter
+              kicker={isRepo ? "Maintained by" : "By"}
+              author={author}
+              score={score}
+              created_at={event.created_at}
+            />
           </div>
         </div>
         {/* CardShell parks the external "Open repo" link absolutely in this
@@ -674,7 +791,10 @@ export function RepoCard({
             are invalid). The glyph is decorative, the card's shape already
             says "repo" — so it only takes the corner when nothing else does. */}
         {!dest && (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800" data-testid={`repo-glyph-${event.id}`}>
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800"
+            data-testid={`repo-glyph-${event.id}`}
+          >
             <Code2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
           </div>
         )}
@@ -689,7 +809,15 @@ const LIVE_TONES: Record<string, "success" | "neutral" | "info"> = {
   planned: "info",
 };
 
-export function LiveCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+export function LiveCard({
+  event,
+  author,
+  score,
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+}) {
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? "Live event";
   const status = (tagVal(event, "status") ?? "").toLowerCase();
   const summary = tagVal(event, "summary") ?? "";
@@ -699,7 +827,7 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
   return (
     <CardShell event={event} openInUrl={openIn} openInLabel="Watch" testId={`live-card-${event.id}`}>
       <div className="flex items-start gap-3">
-        <div className="h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+        <div className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
           {image ? (
             <img src={image} alt="" loading="lazy" className="h-full w-full object-cover" />
           ) : (
@@ -709,17 +837,22 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
         <div className="min-w-0 flex-1">
           {/* The Watch link sits in the corner — the title row leaves it room
               so a long title and the live chip never run beneath it. */}
-          <div className={`flex items-center gap-2 min-w-0 ${openIn ? "pr-14" : ""}`}>
+          <div className={`flex min-w-0 items-center gap-2 ${openIn ? "pr-14" : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
             <KindPill event={event} mixed={false} />
             {status && (
-              <Chip size="sm" tone={LIVE_TONES[status] ?? "neutral"} dot={status === "live"} data-testid={`live-status-${event.id}`}>
+              <Chip
+                size="sm"
+                tone={LIVE_TONES[status] ?? "neutral"}
+                dot={status === "live"}
+                data-testid={`live-status-${event.id}`}
+              >
                 {status}
               </Chip>
             )}
           </div>
           {summary && (
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{summary}</p>
+            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">{summary}</p>
           )}
           <div className="mt-1.5">
             <AuthorRow author={author} score={score} created_at={event.created_at} />
@@ -740,7 +873,19 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
  * corner keeps the way out to zap.stream.
  */
 /** `state` null: a stream that is over with nothing to replay — it says Ended, never LIVE. */
-export function LiveTile({ event, author, score, state, hostScore }: { event: NostrEvent; author: SearchResult | null; score?: number | null; state: LiveState | null; hostScore?: number | null }) {
+export function LiveTile({
+  event,
+  author,
+  score,
+  state,
+  hostScore,
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+  state: LiveState | null;
+  hostScore?: number | null;
+}) {
   const stream = parseLiveStream(event);
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? stream?.title ?? "Live";
   const image = tagVal(event, "image") ?? undefined;
@@ -753,13 +898,21 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
   const hostIsAuthor = !hostPk || hostPk === event.pubkey;
   const faces = useFaceProfiles(hostIsAuthor ? [] : [hostPk as string]);
   const hostProfile = hostIsAuthor ? undefined : faces.get(hostPk as string);
-  const channelName = hostProfile ? hostProfile.display_name || hostProfile.name || "" : author ? getDisplayLabel(author) : "";
+  const channelName = hostProfile
+    ? hostProfile.display_name || hostProfile.name || ""
+    : author
+      ? getDisplayLabel(author)
+      : "";
   const speed = useConnectionSpeed();
   const channelPicture = hostProfile ? hostProfile.picture : author?.picture;
   // One thumbnail URL for both draws below, so the blurred backdrop and the
   // circle share a single request. AvatarImage further down keeps the original
   // and does its own.
-  const { src: channelThumb, onError: channelThumbFailed, spent: channelThumbSpent } = useAvatarSrc(channelPicture ?? undefined, "sm", speed);
+  const {
+    src: channelThumb,
+    onError: channelThumbFailed,
+    spent: channelThumbSpent,
+  } = useAvatarSrc(channelPicture ?? undefined, "sm", speed);
   const channelArt = speed === "very-slow" || channelThumbSpent ? null : channelThumb;
   const tierRing = useTierRing();
   const ring = tierRing(hostIsAuthor ? score : hostScore, false, "sm", true) ?? "";
@@ -776,18 +929,41 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
         : "bg-black/70 text-white";
   return (
     <div className="group relative min-w-0" data-testid={`live-tile-${event.id}`}>
-      <Link href={eventPath(event)} className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40">
+      <Link
+        href={eventPath(event)}
+        className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      >
         <div className="relative aspect-video overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
           {image && !posterBroken ? (
-            <img src={image} alt="" loading="lazy" onError={() => setPosterBroken(true)} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+            <img
+              src={image}
+              alt=""
+              loading="lazy"
+              onError={() => setPosterBroken(true)}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            />
           ) : channelArt ? (
             <div className="relative h-full w-full" data-testid={`live-art-${event.id}`}>
-              <img src={channelArt} alt="" aria-hidden="true" onError={channelThumbFailed} className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl opacity-60" />
+              <img
+                src={channelArt}
+                alt=""
+                aria-hidden="true"
+                onError={channelThumbFailed}
+                className="absolute inset-0 h-full w-full scale-125 object-cover opacity-60 blur-xl"
+              />
               <span className="absolute inset-0 bg-slate-900/30" aria-hidden="true" />
-              <img src={channelArt} alt="" onError={channelThumbFailed} className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full object-cover ring-2 ring-white/80" />
+              <img
+                src={channelArt}
+                alt=""
+                onError={channelThumbFailed}
+                className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full object-cover ring-2 ring-white/80"
+              />
             </div>
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900" data-testid={`live-art-${event.id}`}>
+            <div
+              className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900"
+              data-testid={`live-art-${event.id}`}
+            >
               <Radio className="h-6 w-6 text-slate-400 dark:text-slate-500" />
             </div>
           )}
@@ -796,13 +972,24 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
             data-testid={`live-status-${event.id}`}
           >
             {state === "live" && <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />}
-            {state === "live" ? <span className="tracking-wide">LIVE</span> : state === "upcoming" ? "Upcoming" : state === "replay" ? "Replay" : "Ended"}
+            {state === "live" ? (
+              <span className="tracking-wide">LIVE</span>
+            ) : state === "upcoming" ? (
+              "Upcoming"
+            ) : state === "replay" ? (
+              "Replay"
+            ) : (
+              "Ended"
+            )}
             {state === "live" && viewers != null && viewers > 0 && (
               <span className="font-medium tabular-nums opacity-90">· {compactCount(viewers)}</span>
             )}
           </span>
           {onAir && (
-            <span className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white" data-testid={`live-onair-${event.id}`}>
+            <span
+              className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white"
+              data-testid={`live-onair-${event.id}`}
+            >
               {onAir}
             </span>
           )}
@@ -817,13 +1004,19 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
       <div className={`mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 ${openIn ? "pr-7" : ""}`}>
         <Avatar className={`h-6 w-6 shrink-0 ${ring}`}>
           {channelPicture ? <AvatarImage src={channelPicture} alt="" className="object-cover" /> : null}
-          <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+          <AvatarFallback className="overflow-hidden">
+            <DefaultAvatarImg />
+          </AvatarFallback>
         </Avatar>
         <span className="min-w-0 truncate text-xs text-slate-600 dark:text-slate-300">{channelName}</span>
         <KindPill event={event} mixed={false} />
         {/* The category waits for a wider tile: on a phone's 166px it cut 46 of
             66 host names ("The Old Timey Computer Show" kept 27px). */}
-        {category && <span className="hidden sm:inline shrink-0 truncate text-[11px] text-slate-400 dark:text-slate-500">· {category}</span>}
+        {category && (
+          <span className="hidden shrink-0 truncate text-[11px] text-slate-400 dark:text-slate-500 sm:inline">
+            · {category}
+          </span>
+        )}
       </div>
       {openIn && (
         <a
@@ -862,7 +1055,9 @@ function useFaceProfiles(pubkeys: string[]): Map<string, MemberProfile> {
       if (stored) {
         try {
           known.set(pk, JSON.parse(stored.content) as MemberProfile);
-        } catch { /* unparseable — fallback face */ }
+        } catch {
+          /* unparseable — fallback face */
+        }
       } else missing.push(pk);
     }
     setProfiles(known);
@@ -908,10 +1103,18 @@ export function EventCard({
   const past = isOver(cal);
   // Past: the replay when there is one. Upcoming: "I'm going" — a NIP-52
   // RSVP under the reader's key, kept on Nostr (no calendar vendor).
-  const openIn = past && cal.recordingUrl ? { url: cal.recordingUrl, label: "Watch replay", host: hostOf(cal.recordingUrl) ?? undefined } : null;
+  const openIn =
+    past && cal.recordingUrl
+      ? { url: cal.recordingUrl, label: "Watch replay", host: hostOf(cal.recordingUrl) ?? undefined }
+      : null;
   // The RSVP pill hides on phones: it was squeezing titles in the card's
   // corner, and the event page carries the real button.
-  const corner = !past && cal.startSec > 0 ? <span className="hidden sm:inline-flex"><RsvpButton event={event} /></span> : null;
+  const corner =
+    !past && cal.startSec > 0 ? (
+      <span className="hidden sm:inline-flex">
+        <RsvpButton event={event} />
+      </span>
+    ) : null;
   const shownFaces = faces.slice(0, 4);
   const faceProfiles = useFaceProfiles(shownFaces);
   const faceScoreOf = useAuthorScores(shownFaces);
@@ -928,18 +1131,31 @@ export function EventCard({
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
             {cal.startSec > 0 && (
-              <p className={`min-w-0 truncate text-xs font-semibold ${past ? "text-slate-400 dark:text-slate-500" : "text-brand-deep dark:text-brand-link"}`} data-testid={`event-time-${event.id}`}>
+              <p
+                className={`min-w-0 truncate text-xs font-semibold ${past ? "text-slate-400 dark:text-slate-500" : "text-brand-deep dark:text-brand-link"}`}
+                data-testid={`event-time-${event.id}`}
+              >
                 {formatEventTime(cal.startSec, cal.isDateOnly)}
-                {past && <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">· {relativeEventTime(cal.startSec)}</span>}
+                {past && (
+                  <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">
+                    · {relativeEventTime(cal.startSec)}
+                  </span>
+                )}
               </p>
             )}
             <KindPill event={event} mixed={false} />
           </div>
-          <p className={`mt-0.5 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 line-clamp-2 ${openIn ? "pr-24" : corner ? "sm:pr-24" : ""}`}>{cal.title}</p>
+          <p
+            className={`mt-0.5 line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 ${openIn ? "pr-24" : corner ? "sm:pr-24" : ""}`}
+          >
+            {cal.title}
+          </p>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-            <Avatar className={`h-4 w-4 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
+            <Avatar
+              className={`h-4 w-4 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}
+            >
               {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
               <AvatarFallback className="overflow-hidden">
                 <DefaultAvatarImg />
@@ -959,7 +1175,11 @@ export function EventCard({
                 {shownFaces.map((pk) => {
                   const profile = faceProfiles.get(pk);
                   return (
-                    <Avatar key={pk} className={`h-5 w-5 border border-white dark:border-slate-900 ${tierRing(faceScoreOf(pk) ?? null, false, "sm", true) ?? ""}`} data-testid={`event-going-face-${pk}`}>
+                    <Avatar
+                      key={pk}
+                      className={`h-5 w-5 border border-white dark:border-slate-900 ${tierRing(faceScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
+                      data-testid={`event-going-face-${pk}`}
+                    >
                       {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
                       <AvatarFallback className="overflow-hidden">
                         <DefaultAvatarImg />
@@ -973,7 +1193,13 @@ export function EventCard({
           )}
         </div>
         {cal.image && (
-          <img src={cal.image} alt="" loading="lazy" className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 dark:bg-slate-800 object-cover sm:h-24 sm:w-24" data-testid={`event-cover-${event.id}`} />
+          <img
+            src={cal.image}
+            alt=""
+            loading="lazy"
+            className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover dark:bg-slate-800 sm:h-24 sm:w-24"
+            data-testid={`event-cover-${event.id}`}
+          />
         )}
       </div>
     </CardShell>
@@ -998,23 +1224,39 @@ export type ListGroupView = {
  */
 function ListGroupPanel({ group, primaryId }: { group: ListGroupView; primaryId: string }) {
   return (
-    <div className="space-y-3 border-t border-slate-100 dark:border-slate-800/60 px-3 pb-3 pt-3 sm:px-4 sm:pb-4" data-testid={`list-group-${primaryId}`}>
+    <div
+      className="space-y-3 border-t border-slate-100 px-3 pb-3 pt-3 dark:border-slate-800/60 sm:px-4 sm:pb-4"
+      data-testid={`list-group-${primaryId}`}
+    >
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{group.lists} lists</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+          {group.lists} lists
+        </p>
         <ul className="mt-1 divide-y divide-slate-100 dark:divide-slate-800/60">
           {group.items.map(({ event, author }) => {
             const n = event.tags.filter((t) => t[0] === "p" && t[1]).length;
             return (
-              <li key={event.id} className="flex items-center gap-2 py-1.5 text-xs" data-testid={`list-group-list-${event.id}`}>
+              <li
+                key={event.id}
+                className="flex items-center gap-2 py-1.5 text-xs"
+                data-testid={`list-group-list-${event.id}`}
+              >
                 <Avatar className="h-5 w-5 shrink-0 border border-slate-200/80 dark:border-slate-800/80">
                   {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
-                  <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                  <AvatarFallback className="overflow-hidden">
+                    <DefaultAvatarImg />
+                  </AvatarFallback>
                 </Avatar>
                 <span className="min-w-0 flex-1 truncate text-slate-700 dark:text-slate-200">
                   {author ? getDisplayLabel(author) : "Unknown"}
-                  <span className="text-slate-400 dark:text-slate-500"> · {n} {n === 1 ? "member" : "members"}</span>
+                  <span className="text-slate-400 dark:text-slate-500">
+                    {" "}
+                    · {n} {n === 1 ? "member" : "members"}
+                  </span>
                 </span>
-                <Link href={eventPath(event)} className="shrink-0 font-medium text-brand-link hover:underline">Open</Link>
+                <Link href={eventPath(event)} className="shrink-0 font-medium text-brand-link hover:underline">
+                  Open
+                </Link>
               </li>
             );
           })}
@@ -1062,7 +1304,9 @@ export function ListCard({
       if (stored) {
         try {
           known.set(pk, JSON.parse(stored.content) as MemberProfile);
-        } catch { /* unparseable — fallback face */ }
+        } catch {
+          /* unparseable — fallback face */
+        }
       } else missing.push(pk);
     }
     setProfiles(known);
@@ -1082,7 +1326,7 @@ export function ListCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event.id]);
   const header = (
-    <div className="flex items-center gap-2 min-w-0">
+    <div className="flex min-w-0 items-center gap-2">
       <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
       <KindPill event={event} mixed={false} />
       <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
@@ -1116,7 +1360,7 @@ export function ListCard({
       })}
       {members.length > 3 && (
         <span className="flex w-12 flex-col items-center gap-1 sm:hidden">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             +{members.length - 3}
           </span>
           <span className="text-[10px] text-slate-500 dark:text-slate-400">more</span>
@@ -1124,7 +1368,7 @@ export function ListCard({
       )}
       {members.length > 5 && (
         <span className="hidden w-12 flex-col items-center gap-1 sm:flex">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             +{members.length - 5}
           </span>
           <span className="text-[10px] text-slate-500 dark:text-slate-400">more</span>
@@ -1141,7 +1385,7 @@ export function ListCard({
   if (folded) {
     return (
       <div
-        className="relative w-full rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150"
+        className="relative w-full rounded-xl border border-slate-100 bg-white/70 transition-all duration-150 hover:border-slate-200 hover:bg-white hover:shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800 dark:hover:bg-slate-900"
         data-testid={`list-card-${event.id}`}
       >
         <button
@@ -1154,14 +1398,24 @@ export function ListCard({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               {header}
-              {description && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>}
+              {description && (
+                <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
+                  {description}
+                </p>
+              )}
               <div className="mt-2">{faces}</div>
             </div>
             {glyph}
           </div>
         </button>
         <div className="px-3 pb-3 sm:px-4 sm:pb-4">
-          <CuratorFooter kicker="Curated by" author={author} score={score} created_at={event.created_at} others={group.lists - 1} />
+          <CuratorFooter
+            kicker="Curated by"
+            author={author}
+            score={score}
+            created_at={event.created_at}
+            others={group.lists - 1}
+          />
         </div>
         {open && <ListGroupPanel group={group} primaryId={event.id} />}
       </div>
@@ -1176,7 +1430,7 @@ export function ListCard({
         <div className="min-w-0 flex-1">
           {header}
           {description && (
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>
+            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">{description}</p>
           )}
           {isPeopleList ? (
             <div className="mt-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
@@ -1185,11 +1439,27 @@ export function ListCard({
                   phones it takes its own full-width row, flush left with
                   everything else — whose web of trust this list speaks for
                   is part of the value, not a footnote crammed underneath. */}
-              <CuratorFooter kicker="Curated by" author={author} score={score} created_at={event.created_at} others={0} />
+              <CuratorFooter
+                kicker="Curated by"
+                author={author}
+                score={score}
+                created_at={event.created_at}
+                others={0}
+              />
             </div>
           ) : (
             <div className="mt-1.5">
-              <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<><KindPill event={event} mixed={false} /><ViaRelay event={event} /></>} />
+              <AuthorRow
+                author={author}
+                score={score}
+                created_at={event.created_at}
+                trailing={
+                  <>
+                    <KindPill event={event} mixed={false} />
+                    <ViaRelay event={event} />
+                  </>
+                }
+              />
             </div>
           )}
         </div>
@@ -1199,14 +1469,22 @@ export function ListCard({
   );
 }
 
-
 /**
  * A native track in the results — the same row the profile page plays, on
  * the card surface every other vertical uses. The cover is the play button;
  * the title opens the event; the artist is Flash's field or, failing that,
  * the author's name, since most publishers are the artist.
  */
-export function TrackCard({ event, author, flat }: { event: NostrEvent; author: SearchResult | null; score?: number | null; flat?: boolean }) {
+export function TrackCard({
+  event,
+  author,
+  flat,
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+  flat?: boolean;
+}) {
   const track = parseTrack(event);
   if (!track) return null;
   // The row draws its own frame; the card adds no second one.
@@ -1229,7 +1507,6 @@ export function TrackCard({ event, author, flat }: { event: NostrEvent; author: 
     </div>
   );
 }
-
 
 /**
  * A song Wavlake has for the words — the same row as a native track, with the
@@ -1266,7 +1543,15 @@ export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: bool
  * A song from the V4V Songs list (Podcast Index) — the same row as a native
  * track, the source named, the title opening the artist's music here.
  */
-export function PodcastIndexSongCard({ song, flat, artistHref }: { song: PodcastSong; flat?: boolean; /** The artist's Nostr profile, when the musician is also on Nostr. */ artistHref?: string }) {
+export function PodcastIndexSongCard({
+  song,
+  flat,
+  artistHref,
+}: {
+  song: PodcastSong;
+  flat?: boolean;
+  /** The artist's Nostr profile, when the musician is also on Nostr. */ artistHref?: string;
+}) {
   const [, navigate] = useLocation();
   const here = artistHref ?? podcastIndexHref(song.artist || song.title);
   return (
@@ -1313,7 +1598,6 @@ export function FountainSongCard({ item, flat }: { item: FountainItem; flat?: bo
   );
 }
 
-
 /**
  * A marketplace listing as a buyer sees it: the photo first, the price as
  * the seller wrote it, the title, where it is, and who is selling — with
@@ -1326,8 +1610,9 @@ export function ListingCard({
   score,
   showAuthor = true,
   group,
- sellerListings,
-  rates }: {
+  sellerListings,
+  rates,
+}: {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
@@ -1346,7 +1631,7 @@ export function ListingCard({
   // The verb says where a tap lands: "Buy on Conduit" when we know the
   // marketplace by name, "Visit <host>" on a seller's own link.
   const app = sourceAppFor(event, { sellerListings });
-  const host = l.shopUrl ? hostOf(l.shopUrl) ?? undefined : undefined;
+  const host = l.shopUrl ? (hostOf(l.shopUrl) ?? undefined) : undefined;
   const open = app
     ? { url: app.url, label: `Buy on ${app.name}`, host: app.host, icon: app.icon }
     : l.shopUrl
@@ -1364,36 +1649,70 @@ export function ListingCard({
       fill
       testId={`listing-card-${event.id}`}
     >
-      <div className="-mx-1 -mt-1 relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+      <div className="relative -mx-1 -mt-1 aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
         {l.images[0] ? (
-          <MediaImg src={l.images[0]} preset="media_640" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+          <MediaImg
+            src={l.images[0]}
+            preset="media_640"
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
         ) : (
           <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
             <ShoppingBag className="h-7 w-7" />
           </span>
         )}
         <span className="absolute left-2 top-2 flex flex-col rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold leading-tight text-white">
-          <span data-testid={`listing-price-${event.id}`}>{l.price ? formatListingPrice(l.price) : "Price on request"}</span>
+          <span data-testid={`listing-price-${event.id}`}>
+            {l.price ? formatListingPrice(l.price) : "Price on request"}
+          </span>
           {converted && (
-            <span className="text-[10px] font-medium text-white/75" data-testid={`listing-price-converted-${event.id}`}>{converted}</span>
+            <span className="text-[10px] font-medium text-white/75" data-testid={`listing-price-converted-${event.id}`}>
+              {converted}
+            </span>
           )}
         </span>
         {l.images.length > 1 && (
-          <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{l.images.length} photos</span>
+          <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            {l.images.length} photos
+          </span>
         )}
         {group && group.options > 1 && (
-          <span className="absolute bottom-2 left-2 rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-800" data-testid={`listing-options-${event.id}`}>
+          <span
+            className="absolute bottom-2 left-2 rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-800"
+            data-testid={`listing-options-${event.id}`}
+          >
             {group.options} options
           </span>
         )}
       </div>
-      <p className={`mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${open ? "pr-2" : ""}`}>{group?.title ?? l.title}</p>
+      <p
+        className={`mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${open ? "pr-2" : ""}`}
+      >
+        {group?.title ?? l.title}
+      </p>
       {listingCardLine(l) && (
-        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400" data-testid={`listing-meta-${event.id}`}>{listingCardLine(l)}</p>
+        <p
+          className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400"
+          data-testid={`listing-meta-${event.id}`}
+        >
+          {listingCardLine(l)}
+        </p>
       )}
       {showAuthor && (
         <div className="mt-2">
-          <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<><KindPill event={event} mixed={false} /><ViaRelay event={event} /></>} />
+          <AuthorRow
+            author={author}
+            score={score}
+            created_at={event.created_at}
+            trailing={
+              <>
+                <KindPill event={event} mixed={false} />
+                <ViaRelay event={event} />
+              </>
+            }
+          />
         </div>
       )}
     </CardShell>

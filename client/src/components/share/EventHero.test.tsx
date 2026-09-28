@@ -11,14 +11,25 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
-const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; description: string | null; image: string | null; siteName: string | null } | null>>(() => Promise.resolve(null));
+const unfurlMock = vi.fn<
+  (url: string) => Promise<{
+    title: string | null;
+    description: string | null;
+    image: string | null;
+    siteName: string | null;
+  } | null>
+>(() => Promise.resolve(null));
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
-const profileMapMock = vi.fn<(pks: string[]) => Promise<Map<string, { name?: string; display_name?: string; picture?: string }>>>(() => Promise.resolve(new Map()));
+const profileMapMock = vi.fn<
+  (pks: string[]) => Promise<Map<string, { name?: string; display_name?: string; picture?: string }>>
+>(() => Promise.resolve(new Map()));
 vi.mock("@/services/nostr", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/nostr")>()),
   fetchProfileMap: (pks: string[]) => profileMapMock(pks),
 }));
-const rsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() => Promise.resolve(new Map()));
+const rsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() =>
+  Promise.resolve(new Map()),
+);
 vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
   fetchEventRsvps: (addresses: string[]) => rsvpsMock(addresses),
@@ -35,7 +46,8 @@ const v4v = {
   kind: 31923,
   pubkey: "c".repeat(64),
   created_at: NOW - 86_400,
-  content: "V4V Chicago is a two-day gathering.\n\nBuy tickets: https://pay.zaprite.com/pl_UNaHgthGQD\n\nhttps://app.cluborange.org/hhxyE09d",
+  content:
+    "V4V Chicago is a two-day gathering.\n\nBuy tickets: https://pay.zaprite.com/pl_UNaHgthGQD\n\nhttps://app.cluborange.org/hhxyE09d",
   sig: "",
   tags: [
     ["d", "v4v"],
@@ -69,14 +81,25 @@ describe("EventHero", () => {
     const description = screen.getByTestId("event-hero-description");
     const links = within(description).getAllByRole("link");
     const hrefs = links.map((a) => a.getAttribute("href"));
-    expect(hrefs).toEqual(expect.arrayContaining(["https://pay.zaprite.com/pl_UNaHgthGQD", "https://app.cluborange.org/hhxyE09d"]));
+    expect(hrefs).toEqual(
+      expect.arrayContaining(["https://pay.zaprite.com/pl_UNaHgthGQD", "https://app.cluborange.org/hhxyE09d"]),
+    );
     for (const a of links) expect(a.getAttribute("target")).toBe("_blank");
     expect(description).toHaveTextContent("pay.zaprite.com");
   });
 
   it("the first link earns a metadata card when the proxy knows it", async () => {
     unfurlMock.mockImplementation((url) =>
-      Promise.resolve(url.includes("zaprite") ? { title: "V4V Chicago tickets", description: "Two-day pass", image: "https://cdn.example/tickets.jpg", siteName: "Zaprite" } : null),
+      Promise.resolve(
+        url.includes("zaprite")
+          ? {
+              title: "V4V Chicago tickets",
+              description: "Two-day pass",
+              image: "https://cdn.example/tickets.jpg",
+              siteName: "Zaprite",
+            }
+          : null,
+      ),
     );
     render(<EventHero event={v4v} />);
     const card = await screen.findByTestId("link-card");
@@ -85,7 +108,14 @@ describe("EventHero", () => {
   });
 
   it("a past event offers the recording, not an RSVP", () => {
-    const past = { ...v4v, tags: [...v4v.tags.filter((t) => t[0] !== "start"), ["start", String(NOW - 5 * 86_400)], ["recording", "https://youtu.be/abc12345678"]] };
+    const past = {
+      ...v4v,
+      tags: [
+        ...v4v.tags.filter((t) => t[0] !== "start"),
+        ["start", String(NOW - 5 * 86_400)],
+        ["recording", "https://youtu.be/abc12345678"],
+      ],
+    };
     render(<EventHero event={past} />);
     expect(screen.queryByTestId("event-rsvp")).toBeNull();
     expect(screen.getByTestId("event-watch-recording").getAttribute("href")).toBe("https://youtu.be/abc12345678");
@@ -95,16 +125,31 @@ describe("EventHero", () => {
   // with start, end and zone, who is going, and a calendar file of the
   // reader's own — no vendor between them and their calendar.
   it("lays out like Luma: host named, start to end with the zone, guests as faces, and Add to calendar hands over an .ics", async () => {
-    profileMapMock.mockImplementation(async (pks) => new Map(pks.map((pk) => [pk, pk === v4v.pubkey ? { name: "v4v", display_name: "V4V Chicago" } : { name: `guest-${pk.slice(0, 2)}` }])));
+    profileMapMock.mockImplementation(
+      async (pks) =>
+        new Map(
+          pks.map((pk) => [
+            pk,
+            pk === v4v.pubkey ? { name: "v4v", display_name: "V4V Chicago" } : { name: `guest-${pk.slice(0, 2)}` },
+          ]),
+        ),
+    );
     const addr = `31923:${v4v.pubkey}:v4v`;
-    rsvpsMock.mockResolvedValue(new Map([[addr, { going: 3, faces: ["1".repeat(64), "2".repeat(64), "3".repeat(64)] }]]));
-    const timed = { ...v4v, tags: [...v4v.tags, ["end", String(NOW + 10 * 86_400 + 2 * 3600)], ["start_tzid", "America/Chicago"]] };
+    rsvpsMock.mockResolvedValue(
+      new Map([[addr, { going: 3, faces: ["1".repeat(64), "2".repeat(64), "3".repeat(64)] }]]),
+    );
+    const timed = {
+      ...v4v,
+      tags: [...v4v.tags, ["end", String(NOW + 10 * 86_400 + 2 * 3600)], ["start_tzid", "America/Chicago"]],
+    };
     const createObjectURL = vi.fn(() => "blob:ics");
     const revokeObjectURL = vi.fn();
     Object.assign(URL, { createObjectURL, revokeObjectURL });
     const clicks: string[] = [];
     const origClick = HTMLAnchorElement.prototype.click;
-    HTMLAnchorElement.prototype.click = function () { clicks.push(this.getAttribute("download") ?? ""); };
+    HTMLAnchorElement.prototype.click = function () {
+      clicks.push(this.getAttribute("download") ?? "");
+    };
     try {
       render(<EventHero event={timed} />);
       expect(await screen.findByTestId("event-hero-host")).toHaveTextContent("V4V Chicago");
@@ -189,16 +234,24 @@ describe("EventHero — a tight layout", () => {
 // but the operating system is a strong proxy — so one tap does the likely
 // thing, and a caret offers Apple, Google, Outlook and the file to everyone.
 describe("EventHero — Add to calendar follows the device", () => {
-  const timed = () => ({ ...v4v, tags: [...v4v.tags, ["end", String(NOW + 10 * 86_400 + 2 * 3600)], ["location", "600 Brazos St, Austin, TX"]] });
+  const timed = () => ({
+    ...v4v,
+    tags: [...v4v.tags, ["end", String(NOW + 10 * 86_400 + 2 * 3600)], ["location", "600 Brazos St, Austin, TX"]],
+  });
   const ua = (value: string) => Object.defineProperty(window.navigator, "userAgent", { value, configurable: true });
   const uaBefore = window.navigator.userAgent;
-  afterEach(() => { ua(uaBefore); vi.restoreAllMocks(); });
+  afterEach(() => {
+    ua(uaBefore);
+    vi.restoreAllMocks();
+  });
 
   it("on an iPhone the button hands the event to Apple Calendar as a file", async () => {
     ua("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605 Safari/604");
     const clicks: string[] = [];
     const orig = HTMLAnchorElement.prototype.click;
-    HTMLAnchorElement.prototype.click = function () { clicks.push(this.getAttribute("download") ?? ""); };
+    HTMLAnchorElement.prototype.click = function () {
+      clicks.push(this.getAttribute("download") ?? "");
+    };
     Object.assign(URL, { createObjectURL: vi.fn(() => "blob:ics"), revokeObjectURL: vi.fn() });
     try {
       render(<EventHero event={timed()} />);

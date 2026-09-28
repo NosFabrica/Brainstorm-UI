@@ -17,7 +17,8 @@ vi.mock("@/services/nostr", () => ({
 const similarMock = vi.fn<(cats: string[], self: string, opts: { excludePubkey?: string }) => Promise<NostrEvent[]>>();
 vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
-  fetchSimilarListings: (cats: string[], self: string, opts: { excludePubkey?: string }) => similarMock(cats, self, opts),
+  fetchSimilarListings: (cats: string[], self: string, opts: { excludePubkey?: string }) =>
+    similarMock(cats, self, opts),
 }));
 
 import { ListingRelated } from "./ListingRelated";
@@ -32,7 +33,15 @@ const listing = (pk: string, d: string, title: string, created_at: number, extra
     created_at,
     content: "",
     sig: "",
-    tags: [["d", d], ["title", title], ["price", "12", "USD"], ["image", `https://img/${d}.jpg`], ["t", "Health & Beauty"], ["t", "shopstr"], ...extra],
+    tags: [
+      ["d", d],
+      ["title", title],
+      ["price", "12", "USD"],
+      ["image", `https://img/${d}.jpg`],
+      ["t", "Health & Beauty"],
+      ["t", "shopstr"],
+      ...extra,
+    ],
   }) as NostrEvent;
 const SELF = listing(SELLER, "kit", "Fresh Start Skincare Kit", 1000);
 
@@ -56,7 +65,9 @@ describe("ListingRelated", () => {
     render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
     const row = await screen.findByTestId("listing-more-from-seller");
     expect(row).toHaveTextContent("More for sale from Born To Be Free");
-    const titles = within(row).getAllByText(/Tallow cream|Lip balm|Skincare Kit|soap/).map((n) => n.textContent);
+    const titles = within(row)
+      .getAllByText(/Tallow cream|Lip balm|Skincare Kit|soap/)
+      .map((n) => n.textContent);
     expect(titles).toEqual(["Tallow cream", "Lip balm"]);
     expect(within(row).queryByText("Unknown")).toBeNull();
     expect(screen.queryByTestId("listing-similar")).toBeNull();
@@ -66,8 +77,12 @@ describe("ListingRelated", () => {
   // hidden, so a row that asked for 30 showed nothing under her soap while
   // her profile, asking deeper, showed 36 products.
   it("asks deep enough that a run of hidden copies cannot empty the row", async () => {
-    const hidden = Array.from({ length: 30 }, (_, i) => listing(SELLER, `copy-${i}`, `Hidden copy ${i}`, 5000 + i, [["visibility", "hidden"]]));
-    recentMock.mockImplementation(async (_pk, _kinds, limit) => (limit >= 100 ? [...hidden, listing(SELLER, "cream", "Tallow cream", 3000)] : hidden));
+    const hidden = Array.from({ length: 30 }, (_, i) =>
+      listing(SELLER, `copy-${i}`, `Hidden copy ${i}`, 5000 + i, [["visibility", "hidden"]]),
+    );
+    recentMock.mockImplementation(async (_pk, _kinds, limit) =>
+      limit >= 100 ? [...hidden, listing(SELLER, "cream", "Tallow cream", 3000)] : hidden,
+    );
     render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
     const row = await screen.findByTestId("listing-more-from-seller");
     expect(row).toHaveTextContent("Tallow cream");
@@ -77,7 +92,10 @@ describe("ListingRelated", () => {
   // Four is a teaser; the seller's page has everything. The heading says how
   // many and leads there — only when there is more than the row shows.
   it("the row's heading leads to everything the seller has, counted, when there is more than four", async () => {
-    recentMock.mockResolvedValue([SELF, ...["a", "b", "c", "d", "e", "f"].map((d, i) => listing(SELLER, d, `Product ${d}`, 2000 + i))]);
+    recentMock.mockResolvedValue([
+      SELF,
+      ...["a", "b", "c", "d", "e", "f"].map((d, i) => listing(SELLER, d, `Product ${d}`, 2000 + i)),
+    ]);
     render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
     const row = await screen.findByTestId("listing-more-from-seller");
     expect(within(row).getAllByTestId(/^listing-card-/)).toHaveLength(4);
@@ -87,7 +105,11 @@ describe("ListingRelated", () => {
   });
 
   it("four or fewer products need no door — the row is everything", async () => {
-    recentMock.mockResolvedValue([SELF, listing(SELLER, "a", "Product a", 2000), listing(SELLER, "b", "Product b", 2001)]);
+    recentMock.mockResolvedValue([
+      SELF,
+      listing(SELLER, "a", "Product a", 2000),
+      listing(SELLER, "b", "Product b", 2001),
+    ]);
     render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
     const row = await screen.findByTestId("listing-more-from-seller");
     expect(within(row).queryByTestId("listing-seller-all")).toBeNull();
@@ -105,7 +127,10 @@ describe("ListingRelated", () => {
   });
 
   it("offers similar listings from other sellers, named, asked for by this listing's categories", async () => {
-    similarMock.mockResolvedValue([listing(OTHER, "cup", "Clay cup", 900), listing(OTHER, "gone", "Gone", 950, [["status", "sold"]])]);
+    similarMock.mockResolvedValue([
+      listing(OTHER, "cup", "Clay cup", 900),
+      listing(OTHER, "gone", "Gone", 950, [["status", "sold"]]),
+    ]);
     profileMapMock.mockResolvedValue(new Map([[OTHER, { name: "cupco", display_name: "Cup Co" }]]));
     render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
     const row = await screen.findByTestId("listing-similar");
@@ -123,9 +148,27 @@ describe("ListingRelated", () => {
 
   it("offers the other sizes of this product as options, and keeps them out of the seller's other things", async () => {
     const variant = (d: string, title: string, at: number): NostrEvent =>
-      ({ id: `${d}-${at}`.padEnd(64, "0"), pubkey: SELLER, kind: 30402, created_at: at, content: "", sig: "", tags: [["d", d], ["title", title], ["price", "12", "USD"], ["image", "https://img/tee.jpg"]] }) as NostrEvent;
+      ({
+        id: `${d}-${at}`.padEnd(64, "0"),
+        pubkey: SELLER,
+        kind: 30402,
+        created_at: at,
+        content: "",
+        sig: "",
+        tags: [
+          ["d", d],
+          ["title", title],
+          ["price", "12", "USD"],
+          ["image", "https://img/tee.jpg"],
+        ],
+      }) as NostrEvent;
     const self = variant("tee-xl", "Tee — XL", 1000);
-    recentMock.mockResolvedValue([self, variant("tee-l", "Tee — L", 900), variant("tee-m", "Tee — M", 800), listing(SELLER, "mug", "Mug", 700)]);
+    recentMock.mockResolvedValue([
+      self,
+      variant("tee-l", "Tee — L", 900),
+      variant("tee-m", "Tee — M", 800),
+      listing(SELLER, "mug", "Mug", 700),
+    ]);
     render(<ListingRelated event={self} sellerName="Born To Be Free" />);
     const options = await screen.findByTestId("listing-options");
     const chips = within(options).getAllByRole("link");

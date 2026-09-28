@@ -79,11 +79,22 @@ export function topTrustedVouch(ranked: RankedVouch[]): (RankedVouch & { quote: 
  * verified accounts, and the confirmers' words ride along on hover so a
  * reader can judge the claim. Silent otherwise.
  */
-export function IdentityChip({ ranked, nameOf, testId }: { ranked: RankedVouch[]; nameOf: (pk: string) => string | undefined; testId?: string }) {
+export function IdentityChip({
+  ranked,
+  nameOf,
+  testId,
+}: {
+  ranked: RankedVouch[];
+  nameOf: (pk: string) => string | undefined;
+  testId?: string;
+}) {
   const confirmers = identityConfirmers(ranked);
   if (confirmers.length === 0) return null;
   const title = confirmers
-    .map((c) => `${nameOf(c.pubkey) ?? c.pubkey.slice(0, 8) + "…"}${c.text ? `: “${quoteFor(c.text, 140) || c.text}”` : ""}`)
+    .map(
+      (c) =>
+        `${nameOf(c.pubkey) ?? c.pubkey.slice(0, 8) + "…"}${c.text ? `: “${quoteFor(c.text, 140) || c.text}”` : ""}`,
+    )
     .join("\n");
   return (
     <Chip size="sm" tone="brand" icon={BadgeCheck} title={title} data-testid={testId}>
@@ -151,7 +162,9 @@ export function PersonCardSlot({
       </div>
     );
   }
-  return <FollowedByView e={e} npub={npub} personal={personal} testId={`person-followed-by-${idx}`} className={className} />;
+  return (
+    <FollowedByView e={e} npub={npub} personal={personal} testId={`person-followed-by-${idx}`} className={className} />
+  );
 }
 
 /**
@@ -198,9 +211,17 @@ function FollowedByView({
   if (!e || e.followedBy.length === 0) return null;
   const faces = top.map((f) => {
     const p = profiles.get(f.pubkey);
-    return { pubkey: f.pubkey, name: p ? getDisplayLabel(p) : undefined, picture: p?.picture ?? undefined, score01: f.score01 };
+    return {
+      pubkey: f.pubkey,
+      name: p ? getDisplayLabel(p) : undefined,
+      picture: p?.picture ?? undefined,
+      score01: f.score01,
+    };
   });
-  const lead = faces.map((f) => f.name).filter((n): n is string => !!n).slice(0, 2);
+  const lead = faces
+    .map((f) => f.name)
+    .filter((n): n is string => !!n)
+    .slice(0, 2);
   const total = e.total ?? e.followedBy.length;
   const others = Math.max(0, total - lead.length);
   const who = personal ? "accounts you trust" : "verified accounts";
@@ -240,10 +261,10 @@ export function PanelVouches({ pubkey, npub, personal }: { pubkey: string; npub:
   return (
     <Link
       href={`/p/${npub}#trust-reviews`}
-      className="group mt-2.5 inline-flex items-center gap-2 rounded-md text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      className="group mt-2.5 inline-flex items-center gap-2 rounded-md text-xs text-slate-500 transition-colors hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400 dark:hover:text-slate-200"
       data-testid="person-reviews-link"
     >
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
         <MessageSquareText className="h-3 w-3" aria-hidden />
       </span>
       <span>{label}</span>
@@ -254,7 +275,15 @@ export function PanelVouches({ pubkey, npub, personal }: { pubkey: string; npub:
 
 /** The identity chip for any surface that knows only the pubkey — the panel
  *  beside the name, the person page beside the name. Same hook, one fetch. */
-export function PanelIdentityChip({ pubkey, personal, testId = "person-identity" }: { pubkey: string; personal: boolean; testId?: string }) {
+export function PanelIdentityChip({
+  pubkey,
+  personal,
+  testId = "person-identity",
+}: {
+  pubkey: string;
+  personal: boolean;
+  testId?: string;
+}) {
   const e = usePersonEndorsements(pubkey, personal);
   const { ranked, nameOf } = useRankedVouches(e);
   return <IdentityChip ranked={ranked} nameOf={nameOf} testId={testId} />;
@@ -267,7 +296,13 @@ export function FlaggedChip({ pubkey, testId }: { pubkey: string; testId?: strin
   const flagged = useAuthorFlags([pubkey]);
   if (flagged(pubkey) !== true) return null;
   return (
-    <Chip size="sm" tone="danger" icon={AlertTriangle} title="Reported by people the network trusts" data-testid={testId}>
+    <Chip
+      size="sm"
+      tone="danger"
+      icon={AlertTriangle}
+      title="Reported by people the network trusts"
+      data-testid={testId}
+    >
       Flagged by the network
     </Chip>
   );
@@ -323,7 +358,11 @@ export function EndorsementLine({
                 return avatar;
               }
               return (
-                <Link key={f.pubkey} href={`/p/${npub}`} className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40">
+                <Link
+                  key={f.pubkey}
+                  href={`/p/${npub}`}
+                  className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                >
                   {avatar}
                 </Link>
               );

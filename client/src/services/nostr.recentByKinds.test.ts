@@ -45,7 +45,18 @@ import { fetchRecentByKinds } from "./nostr";
 
 const PK = "91ac02c1490ca2f1f78ed7c2b55d6513bf0b9bdaaf40037eb63820f616c7ba9f";
 const video = (id: string, created_at: number): NostrEvent =>
-  ({ id, kind: 34236, pubkey: PK, tags: [["d", id], ["imeta", "url https://cdn.divine.video/x.mp4", "m video/mp4"]], content: "", created_at, sig: "s" }) as NostrEvent;
+  ({
+    id,
+    kind: 34236,
+    pubkey: PK,
+    tags: [
+      ["d", id],
+      ["imeta", "url https://cdn.divine.video/x.mp4", "m video/mp4"],
+    ],
+    content: "",
+    created_at,
+    sig: "s",
+  }) as NostrEvent;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -58,7 +69,11 @@ describe("fetchRecentByKinds", () => {
     const p = fetchRecentByKinds(PK, [21, 22, 34235, 34236], 3);
     await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(1));
     // One ask, so one filter on the wire — a batch is what makes it an array.
-    expect(searchReqMock.mock.calls[0][0]).toMatchObject({ kinds: [21, 22, 34235, 34236], authors: [PK], search: "include:spam" });
+    expect(searchReqMock.mock.calls[0][0]).toMatchObject({
+      kinds: [21, 22, 34235, 34236],
+      authors: [PK],
+      search: "include:spam",
+    });
     searchSubject!.next({ type: "EVENT", event: video("b".repeat(64), 300) }); // duplicate
     searchSubject!.next({ type: "EVENT", event: video("c".repeat(64), 200) });
     searchSubject!.next({ type: "EVENT", event: video("d".repeat(64), 50) });
@@ -72,9 +87,32 @@ describe("fetchRecentByKinds", () => {
   // alike. The profile's blocks never see them.
   it("drops a husk deleted by overwriting, whichever relay it came from", async () => {
     const husk = (id: string, created_at: number): NostrEvent =>
-      ({ id, kind: 30023, pubkey: PK, tags: [["d", id], ["deleted", "true"], ["title", "[Deleted]"]], content: "", created_at, sig: "s" }) as NostrEvent;
+      ({
+        id,
+        kind: 30023,
+        pubkey: PK,
+        tags: [
+          ["d", id],
+          ["deleted", "true"],
+          ["title", "[Deleted]"],
+        ],
+        content: "",
+        created_at,
+        sig: "s",
+      }) as NostrEvent;
     const article = (id: string, created_at: number): NostrEvent =>
-      ({ id, kind: 30023, pubkey: PK, tags: [["d", id], ["title", "Cheese foam tea"]], content: "# Cheese foam tea", created_at, sig: "s" }) as NostrEvent;
+      ({
+        id,
+        kind: 30023,
+        pubkey: PK,
+        tags: [
+          ["d", id],
+          ["title", "Cheese foam tea"],
+        ],
+        content: "# Cheese foam tea",
+        created_at,
+        sig: "s",
+      }) as NostrEvent;
     requestAllMock.mockResolvedValue([husk("a".repeat(64), 400), article("b".repeat(64), 300)]);
     const p = fetchRecentByKinds(PK, [30023], 5);
     await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(1));
@@ -102,7 +140,19 @@ describe("fetchRecentByKinds", () => {
     // The content relays are asked once too, with the same pair.
     expect(requestAllMock).toHaveBeenCalledTimes(1);
 
-    const listing = { id: "l1", kind: 30402, pubkey: PK, tags: [["d", "l1"], ["title", "Mug"], ["price", "12", "USD"]], content: "", created_at: 500, sig: "s" } as NostrEvent;
+    const listing = {
+      id: "l1",
+      kind: 30402,
+      pubkey: PK,
+      tags: [
+        ["d", "l1"],
+        ["title", "Mug"],
+        ["price", "12", "USD"],
+      ],
+      content: "",
+      created_at: 500,
+      sig: "s",
+    } as NostrEvent;
     searchSubject!.next({ type: "EVENT", event: listing });
     searchSubject!.next({ type: "EVENT", event: video("v1".padEnd(64, "0"), 400) });
     searchSubject!.next({ type: "EOSE" });
@@ -119,7 +169,6 @@ describe("fetchRecentByKinds", () => {
     void fetchRecentByKinds(OTHER, [1], 5);
     await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(2));
   });
-
 
   it("answers everyone sharing a request when it fails, rather than leaving them waiting", async () => {
     requestAllMock.mockRejectedValue(new Error("relays gone"));

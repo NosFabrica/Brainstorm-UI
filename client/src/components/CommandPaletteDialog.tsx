@@ -79,7 +79,10 @@ export function CommandPaletteDialog({ open, onOpenChange }: { open: boolean; on
               </CommandItem>
             )}
             {user && (
-              <CommandItem keywords={["follows", "network", "web of trust", "connections"]} onSelect={() => run(() => navigate("/network"))}>
+              <CommandItem
+                keywords={["follows", "network", "web of trust", "connections"]}
+                onSelect={() => run(() => navigate("/network"))}
+              >
                 <Users /> Network
               </CommandItem>
             )}
@@ -89,7 +92,10 @@ export function CommandPaletteDialog({ open, onOpenChange }: { open: boolean; on
               </CommandItem>
             )}
             {user && (
-              <CommandItem keywords={["preferences", "account", "appearance"]} onSelect={() => run(() => navigate("/settings"))}>
+              <CommandItem
+                keywords={["preferences", "account", "appearance"]}
+                onSelect={() => run(() => navigate("/settings"))}
+              >
                 <SettingsIcon /> Settings
               </CommandItem>
             )}
@@ -146,7 +152,12 @@ export function CommandPaletteDialog({ open, onOpenChange }: { open: boolean; on
                 <CommandItem
                   keywords={["log out", "exit"]}
                   className="text-red-600 data-[selected=true]:text-red-600 dark:text-red-400 dark:data-[selected=true]:text-red-400"
-                  onSelect={() => run(() => { logout(); navigate("/"); })}
+                  onSelect={() =>
+                    run(() => {
+                      logout();
+                      navigate("/");
+                    })
+                  }
                 >
                   <LogOut /> Sign out
                 </CommandItem>

@@ -43,7 +43,17 @@ type EventLike = { id: string; pubkey: string; kind: number; created_at: number;
 export const LISTING_KIND = 30402;
 
 /** Marketplace apps tag every listing with their own name; that is provenance, not a category. */
-export const APP_TAGS = new Set(["shopstr", "bitpopart", "barattolo", "conduit", "plebeian", "plebeian market", "nostrmarket", "nostr market", "2140"]);
+export const APP_TAGS = new Set([
+  "shopstr",
+  "bitpopart",
+  "barattolo",
+  "conduit",
+  "plebeian",
+  "plebeian market",
+  "nostrmarket",
+  "nostr market",
+  "2140",
+]);
 
 const isHttp = (s: string | undefined): s is string => !!s && /^https?:\/\//i.test(s);
 
@@ -73,7 +83,9 @@ export function parseListing(ev: EventLike): Listing | null {
     location: tag("location") ?? null,
     status: (tag("status") || "active").toLowerCase(),
     hidden: (tag("visibility") || "").toLowerCase() === "hidden",
-    categories: [...new Set(ev.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].trim().toLowerCase()))].filter((c) => c && !APP_TAGS.has(c)),
+    categories: [...new Set(ev.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].trim().toLowerCase()))].filter(
+      (c) => c && !APP_TAGS.has(c),
+    ),
     shopUrl,
     shipping: ev.tags
       .filter((t) => t[0] === "shipping_option" || t[0] === "shipping")
@@ -96,7 +108,8 @@ export function formatListingPrice(p: ListingPrice): string {
   if (p.amount === 0) return "Free";
   const c = p.currency.toUpperCase();
   let text: string;
-  if (c === "SAT" || c === "SATS") text = `${new Intl.NumberFormat("en-US").format(p.amount)} ${p.amount === 1 ? "sat" : "sats"}`;
+  if (c === "SAT" || c === "SATS")
+    text = `${new Intl.NumberFormat("en-US").format(p.amount)} ${p.amount === 1 ? "sat" : "sats"}`;
   else if (c === "BTC") text = `${p.amount} BTC`;
   else if (SYMBOL[c]) {
     const whole = Number.isInteger(p.amount);
@@ -105,7 +118,6 @@ export function formatListingPrice(p: ListingPrice): string {
   return (p.frequency ? `${text} / ${p.frequency}` : text).trim();
 }
 
-
 /**
  * The one quiet line under a card's title: where it is, what shipping
  * costs — "Gubbio (PG) · 500 sats shipping", "United States · Free
@@ -113,7 +125,8 @@ export function formatListingPrice(p: ListingPrice): string {
  * own borrows the listing's. Neither known: the seller's summary, or nothing.
  */
 export function listingCardLine(l: Listing): string | null {
-  const money = (amount: number, currency: string) => formatListingPrice({ amount, currency: currency || l.price?.currency || "" });
+  const money = (amount: number, currency: string) =>
+    formatListingPrice({ amount, currency: currency || l.price?.currency || "" });
   let shipping: string | null = null;
   if (l.shipping.some((s) => s.amount === 0)) shipping = "Free shipping";
   else if (l.shipping.length === 1) shipping = `${money(l.shipping[0].amount, l.shipping[0].currency)} shipping`;

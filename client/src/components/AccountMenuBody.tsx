@@ -55,12 +55,15 @@ import { Nip05Handle } from "@/components/Nip05Check";
  */
 function addAccountPath(): string {
   const here = typeof window === "undefined" ? "" : window.location.pathname + window.location.search;
-  return here && !here.startsWith("/login")
-    ? `/login?add=1&next=${encodeURIComponent(here)}`
-    : "/login?add=1";
+  return here && !here.startsWith("/login") ? `/login?add=1&next=${encodeURIComponent(here)}` : "/login?add=1";
 }
 
-export const NAV_TILES: { key: AppKey; label: string; path: string; icon: React.ComponentType<{ className?: string }> }[] = [
+export const NAV_TILES: {
+  key: AppKey;
+  label: string;
+  path: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
   { key: "home", label: "Search", path: "/", icon: Search },
   { key: "dashboard", label: "Dashboard", path: "/dashboard", icon: Home },
   { key: "network", label: "Network", path: "/network", icon: Users },
@@ -91,12 +94,24 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
 
   const inviteUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteOpen });
 
-  const onNavigate = (path: string) => { close(); navigate(path); };
-  const onInvite = () => { close(); setInviteOpen(true); };
+  const onNavigate = (path: string) => {
+    close();
+    navigate(path);
+  };
+  const onInvite = () => {
+    close();
+    setInviteOpen(true);
+  };
   // Sign out no longer destroys anything, so it asks nothing — the wall it used to
   // put up has moved onto the act that still does (see the dialog below).
-  const onRequestLogout = () => { close(); onLogout(); };
-  const onRequestRemove = (account: BrainstormAccount, isActive: boolean) => { close(); setRemoving({ account, isActive }); };
+  const onRequestLogout = () => {
+    close();
+    onLogout();
+  };
+  const onRequestRemove = (account: BrainstormAccount, isActive: boolean) => {
+    close();
+    setRemoving({ account, isActive });
+  };
 
   // Removing the Account that was signing leaves the app on a page belonging to an
   // identity this browser no longer holds.
@@ -131,21 +146,27 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
               <AlertDialogHeader>
                 <AlertDialogTitle>Save a backup before you remove this account?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This account's key lives in this browser and nowhere else. Removing it deletes
-                  the key — without a backup file it can't be recovered, here or anywhere. It
-                  takes a few seconds.
+                  This account's key lives in this browser and nowhere else. Removing it deletes the key — without a
+                  backup file it can't be recovered, here or anywhere. It takes a few seconds.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel
                   className="text-red-600 hover:text-red-700"
-                  onClick={() => { const target = removing; setRemoving(null); if (target) remove(target.account); }}
+                  onClick={() => {
+                    const target = removing;
+                    setRemoving(null);
+                    if (target) remove(target.account);
+                  }}
                   data-testid="remove-anyway"
                 >
                   Remove anyway
                 </AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => { setRemoving(null); navigate("/settings?tab=profile&focus=backup"); }}
+                  onClick={() => {
+                    setRemoving(null);
+                    navigate("/settings?tab=profile&focus=backup");
+                  }}
                   data-testid="remove-save-backup"
                 >
                   Save backup
@@ -165,7 +186,11 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
               <AlertDialogFooter>
                 <AlertDialogCancel>Keep it</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => { const target = removing; setRemoving(null); if (target) remove(target.account); }}
+                  onClick={() => {
+                    const target = removing;
+                    setRemoving(null);
+                    if (target) remove(target.account);
+                  }}
                   data-testid="remove-account-confirm-button"
                 >
                   Remove
@@ -233,7 +258,11 @@ export function AccountMenuBody({
   // before "my perspective" means anything. Without it the control renders as
   // an honest single Brainstorm chip rather than a switch that does nothing.
   const calcDone = (() => {
-    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+    try {
+      return localStorage.getItem("brainstorm_calc_completed") === "true";
+    } catch {
+      return false;
+    }
   })();
   const canPersonalize = !!user.pubkey && calcDone;
 
@@ -241,9 +270,18 @@ export function AccountMenuBody({
     return (
       <AccountSwitcher
         onBack={() => setPane("menu")}
-        onSwitched={() => { setPane("menu"); close(); }}
-        onRequestRemove={(account, isActive) => { setPane("menu"); onRequestRemove(account, isActive); }}
-        onAddAccount={() => { setPane("menu"); onNavigate(addAccountPath()); }}
+        onSwitched={() => {
+          setPane("menu");
+          close();
+        }}
+        onRequestRemove={(account, isActive) => {
+          setPane("menu");
+          onRequestRemove(account, isActive);
+        }}
+        onAddAccount={() => {
+          setPane("menu");
+          onNavigate(addAccountPath());
+        }}
       />
     );
   }
@@ -251,23 +289,26 @@ export function AccountMenuBody({
   return (
     <div className="relative">
       {/* Identity card — and the switcher's trigger */}
-      <div className="px-3 pt-4 pb-3">
+      <div className="px-3 pb-3 pt-4">
         <button
           type="button"
           onClick={() => setPane("switcher")}
-          className="flex w-full items-center gap-3 rounded-xl px-1 py-1 -mx-1 text-left transition-colors hover:bg-white/60 dark:hover:bg-white/[0.08] outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          className="-mx-1 flex w-full items-center gap-3 rounded-xl px-1 py-1 text-left outline-none transition-colors hover:bg-white/60 focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:hover:bg-white/[0.08]"
           data-testid="button-switch-account"
         >
-          <span className="block rounded-full p-[2px] bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep shrink-0">
+          <span className="block shrink-0 rounded-full bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep p-[2px]">
             <Avatar className="h-11 w-11">
               <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" />
-              <AvatarFallback className="bg-white text-[#0A0E18] font-bold">
+              <AvatarFallback className="bg-white font-bold text-[#0A0E18]">
                 {user.displayName?.charAt(0)?.toUpperCase() || "U"}
               </AvatarFallback>
             </Avatar>
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100" data-testid="text-menu-name">
+            <span
+              className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100"
+              data-testid="text-menu-name"
+            >
               {user.displayName || "Anonymous"}
             </span>
             <Nip05Handle
@@ -285,20 +326,22 @@ export function AccountMenuBody({
             npub is the one part of this card that isn't about switching. */}
         <button
           type="button"
-          className="mt-1 ml-[3.75rem] flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-brand-link"
+          className="ml-[3.75rem] mt-1 flex items-center gap-1 text-xs text-slate-500 transition-colors hover:text-brand-deep dark:text-slate-400 dark:hover:text-brand-link"
           onClick={async () => {
             await copyToClipboard(user.npub);
             toast({ title: "Copied!", description: "npub copied to clipboard" });
           }}
           data-testid="button-copy-npub"
         >
-          <span className="font-mono" data-testid="text-menu-npub">{user.npub.slice(0, 14)}…</span>
+          <span className="font-mono" data-testid="text-menu-npub">
+            {user.npub.slice(0, 14)}…
+          </span>
           <Copy className="h-3 w-3 shrink-0" />
         </button>
         <button
           type="button"
           onClick={() => onNavigate(`/p/${user.npub}`)}
-          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 bg-white/50 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:border-brand-accent/40 hover:bg-white/80 dark:border-white/15 dark:bg-white/[0.06] dark:text-slate-100 dark:hover:bg-white/[0.12]"
           data-testid="dropdown-view-profile"
         >
           <UserCircle className="h-4 w-4" /> View profile
@@ -324,11 +367,7 @@ export function AccountMenuBody({
           frequent actions low, but this is set-and-forget — discoverability
           beats reach, and one order means nothing to keep in sync. */}
       {canPersonalize && (
-        <div
-          className="px-3 pb-3"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
+        <div className="px-3 pb-3" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <PovToggle canPersonalize avatarUrl={user.picture} className="w-full justify-center" />
           <button
             type="button"
@@ -353,7 +392,7 @@ export function AccountMenuBody({
         <button
           type="button"
           onClick={() => onNavigate("/tags/mine")}
-          className="flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
+          className="flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 bg-white/50 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:border-brand-accent/40 hover:bg-white/80 dark:border-white/15 dark:bg-white/[0.06] dark:text-slate-100 dark:hover:bg-white/[0.12]"
           data-testid="dropdown-my-tags"
         >
           <TagIcon className="h-4 w-4 shrink-0" /> Your tags
@@ -371,15 +410,25 @@ export function AccountMenuBody({
               type="button"
               onClick={() => onNavigate(t.path)}
               className={
-                "flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50 " +
+                "flex flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-accent/50 " +
                 (isActive
-                  ? "border-brand-accent/40 bg-brand-primary/[0.10] dark:bg-brand-primary/25 ring-1 ring-inset ring-brand-primary/25"
-                  : "border-white/60 dark:border-white/10 bg-white/[0.55] dark:bg-white/[0.06] hover:bg-white/80 dark:hover:bg-white/[0.12]")
+                  ? "border-brand-accent/40 bg-brand-primary/[0.10] ring-1 ring-inset ring-brand-primary/25 dark:bg-brand-primary/25"
+                  : "border-white/60 bg-white/[0.55] hover:bg-white/80 dark:border-white/10 dark:bg-white/[0.06] dark:hover:bg-white/[0.12]")
               }
               data-testid={`account-nav-${t.key}`}
             >
-              <Icon className={"h-5 w-5 " + (isActive ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-300")} />
-              <span className={"text-[11px] font-medium leading-none " + (isActive ? "text-brand-deep dark:text-brand-link" : "text-slate-600 dark:text-slate-200")}>
+              <Icon
+                className={
+                  "h-5 w-5 " +
+                  (isActive ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-300")
+                }
+              />
+              <span
+                className={
+                  "text-[11px] font-medium leading-none " +
+                  (isActive ? "text-brand-deep dark:text-brand-link" : "text-slate-600 dark:text-slate-200")
+                }
+              >
                 {t.label}
               </span>
             </button>
@@ -416,17 +465,35 @@ export function AccountMenuBody({
           //
           // The label names the policy only when exactly one thing is on sale;
           // with several, naming one would be picking a favourite in a menu row.
-          <MenuRow icon={CalendarClock} label={solePurchasableName ? `Get ${solePurchasableName}` : "See plans"} onClick={() => onNavigate("/pricing")} testId="dropdown-get-priority" />
+          <MenuRow
+            icon={CalendarClock}
+            label={solePurchasableName ? `Get ${solePurchasableName}` : "See plans"}
+            onClick={() => onNavigate("/pricing")}
+            testId="dropdown-get-priority"
+          />
         )}
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
-        <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
+        <MenuRow
+          icon={SettingsIcon}
+          label="Settings"
+          onClick={() => onNavigate("/settings")}
+          testId="dropdown-settings"
+        />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
-        <MenuRow icon={LifeBuoy} label="Support" onClick={() => onNavigate("/support")} testId="dropdown-support" dot={supportUnread > 0} />
+        <MenuRow
+          icon={LifeBuoy}
+          label="Support"
+          onClick={() => onNavigate("/support")}
+          testId="dropdown-support"
+          dot={supportUnread > 0}
+        />
       </div>
 
       {/* Appearance — compact full-width segmented row */}
       <div className="px-3 pb-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Appearance</p>
+        <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          Appearance
+        </p>
         <ThemeToggle size="sm" className="w-full" />
       </div>
 
@@ -485,12 +552,21 @@ function MenuRow({
     <button
       type="button"
       onClick={onClick}
-      className={"flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " + toneCls}
+      className={
+        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
+        toneCls
+      }
       data-testid={testId}
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span>{label}</span>
-      {dot && <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-brand-accent" aria-label="New activity" data-testid={testId ? `${testId}-dot` : undefined} />}
+      {dot && (
+        <span
+          className="ml-auto h-2 w-2 shrink-0 rounded-full bg-brand-accent"
+          aria-label="New activity"
+          data-testid={testId ? `${testId}-dot` : undefined}
+        />
+      )}
     </button>
   );
 }

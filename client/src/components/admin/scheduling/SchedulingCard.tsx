@@ -14,23 +14,12 @@ import {
   Search,
   X,
 } from "lucide-react";
-import {
-  apiClient,
-  type CreateSchedulingBody,
-  type SchedulingItem,
-  type UpdateSchedulingBody,
-} from "@/services/api";
+import { apiClient, type CreateSchedulingBody, type SchedulingItem, type UpdateSchedulingBody } from "@/services/api";
 import { formatDuration } from "@/lib/schedulingDurations";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -73,17 +62,10 @@ function nextRunLabel(lastPublished: string | null, intervalSeconds: number): st
  * row: the assigned-user list (enriched with avatars + names + per-user tier
  * controls) plus an "Add users" button that opens the rich AssignUsersDialog.
  */
-function PolicyUsersInline({
-  policy,
-  policies,
-}: {
-  policy: SchedulingItem;
-  policies: SchedulingItem[];
-}) {
+function PolicyUsersInline({ policy, policies }: { policy: SchedulingItem; policies: SchedulingItem[] }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { members, total, truncated, isLoading, isError, enriching } =
-    usePolicyMembers(policy.id);
+  const { members, total, truncated, isLoading, isError, enriching } = usePolicyMembers(policy.id);
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [removingPk, setRemovingPk] = useState<string | null>(null);
@@ -135,10 +117,7 @@ function PolicyUsersInline({
 
   const pages = Math.max(1, Math.ceil(filtered.length / CLIENT_PAGE));
   const clampedPage = Math.min(page, pages);
-  const pageItems = filtered.slice(
-    (clampedPage - 1) * CLIENT_PAGE,
-    clampedPage * CLIENT_PAGE,
-  );
+  const pageItems = filtered.slice((clampedPage - 1) * CLIENT_PAGE, clampedPage * CLIENT_PAGE);
 
   function refetchUsers() {
     queryClient.invalidateQueries({ queryKey: usersKey });
@@ -170,9 +149,7 @@ function PolicyUsersInline({
 
   const showToolbar = total > 0;
   const filteredLabel =
-    !query.trim() && !neverOnly
-      ? `${total} user${total === 1 ? "" : "s"}`
-      : `${filtered.length} of ${total}`;
+    !query.trim() && !neverOnly ? `${total} user${total === 1 ? "" : "s"}` : `${filtered.length} of ${total}`;
 
   return (
     <div className="space-y-3">
@@ -181,14 +158,14 @@ function PolicyUsersInline({
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Assigned users
           </p>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+          <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
             {total}
             {truncated ? "+" : ""} total
           </span>
         </div>
         <Button
           size="sm"
-          className="h-8 text-xs gap-1.5 bg-brand-deep hover:bg-brand-primary text-white no-default-hover-elevate no-default-active-elevate"
+          className="no-default-hover-elevate no-default-active-elevate h-8 gap-1.5 bg-brand-deep text-xs text-white hover:bg-brand-primary"
           onClick={() => setAssignOpen(true)}
           data-testid={`add-users-${policy.id}`}
         >
@@ -197,20 +174,20 @@ function PolicyUsersInline({
       </div>
 
       {showToolbar && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search name, npub, or hex…"
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
+              className="w-full rounded-xl border border-slate-200 bg-white/80 py-1.5 pl-8 pr-3 text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
               data-testid={`search-users-${policy.id}`}
             />
           </div>
           <Select value={sort} onValueChange={(v) => setSort(v as MemberSort)}>
-            <SelectTrigger className="w-full sm:w-44 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800">
+            <SelectTrigger className="h-8 w-full rounded-xl border-slate-200 text-xs dark:border-slate-800 sm:w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -223,10 +200,10 @@ function PolicyUsersInline({
             type="button"
             onClick={() => setNeverOnly((v) => !v)}
             aria-pressed={neverOnly}
-            className={`h-8 px-3 rounded-xl text-xs font-semibold border transition-colors whitespace-nowrap ${
+            className={`h-8 whitespace-nowrap rounded-xl border px-3 text-xs font-semibold transition-colors ${
               neverOnly
-                ? "bg-brand-deep text-white border-brand-deep"
-                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                ? "border-brand-deep bg-brand-deep text-white"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             }`}
           >
             Never published
@@ -248,7 +225,7 @@ function PolicyUsersInline({
       {isError ? (
         <p className="text-xs text-red-500">Failed to load users.</p>
       ) : isLoading ? (
-        <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5" role="status">
+        <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400" role="status">
           <Loader2 className="h-3 w-3 animate-spin" /> Loading users…
         </p>
       ) : total === 0 ? (
@@ -292,16 +269,12 @@ function PolicyUsersInline({
                     <button
                       type="button"
                       aria-label="Move to default tier"
-                      disabled={
-                        removingPk === m.pubkey || defaultId == null || policy.is_default
-                      }
+                      disabled={removingPk === m.pubkey || defaultId == null || policy.is_default}
                       title={
-                        policy.is_default
-                          ? "This is the default tier"
-                          : `Move to the default “${defaultName}” tier`
+                        policy.is_default ? "This is the default tier" : `Move to the default “${defaultName}” tier`
                       }
                       onClick={() => setConfirmRemove(m)}
-                      className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 dark:disabled:hover:text-slate-500 disabled:cursor-not-allowed transition-colors"
+                      className="rounded-md p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 dark:text-slate-500 dark:hover:bg-red-500/10 dark:disabled:hover:text-slate-500"
                     >
                       {removingPk === m.pubkey ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -323,7 +296,7 @@ function PolicyUsersInline({
             type="button"
             disabled={clampedPage <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
           >
             <ChevronLeft className="h-3 w-3" /> Prev
           </button>
@@ -334,7 +307,7 @@ function PolicyUsersInline({
             type="button"
             disabled={clampedPage >= pages}
             onClick={() => setPage((p) => p + 1)}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
           >
             Next <ChevronRight className="h-3 w-3" />
           </button>
@@ -364,7 +337,7 @@ function PolicyUsersInline({
               Cancel
             </Button>
             <Button
-              className="bg-brand-deep hover:bg-brand-primary text-white no-default-hover-elevate no-default-active-elevate"
+              className="no-default-hover-elevate no-default-active-elevate bg-brand-deep text-white hover:bg-brand-primary"
               onClick={async () => {
                 const pk = confirmRemove?.pubkey;
                 setConfirmRemove(null);
@@ -487,7 +460,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
         </p>
         <Button
           size="sm"
-          className="h-8 text-xs gap-1.5 bg-brand-deep hover:bg-brand-primary text-white no-default-hover-elevate no-default-active-elevate"
+          className="no-default-hover-elevate no-default-active-elevate h-8 gap-1.5 bg-brand-deep text-xs text-white hover:bg-brand-primary"
           onClick={() => setDialog({ mode: "create" })}
           data-testid="button-new-policy"
         >
@@ -497,33 +470,33 @@ export function SchedulingCard({ active }: { active: boolean }) {
       </div>
 
       {isError ? (
-        <div className="text-center py-10">
+        <div className="py-10 text-center">
           <p className="text-sm text-slate-500 dark:text-slate-400">Failed to load scheduling policies.</p>
           <button
             type="button"
             onClick={() => refetch()}
-            className="mt-2 inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            className="mt-2 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Retry
           </button>
         </div>
       ) : isLoading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1.5 py-6" role="status">
+        <p className="flex items-center gap-1.5 py-6 text-sm text-slate-500 dark:text-slate-400" role="status">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading scheduling policies…
         </p>
       ) : policies.length === 0 ? (
-        <div className="text-center py-10">
+        <div className="py-10 text-center">
           <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">No scheduling policies.</p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
             Create a tier to control how often GrapeRank recalculates.
           </p>
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[760px]" data-testid="table-scheduling-policies">
+          <table className="w-full min-w-[760px] text-left" data-testid="table-scheduling-policies">
             <thead>
               <tr className="border-b border-slate-200/60 dark:border-slate-800/60">
-                <th className="px-2 py-2 w-8" />
+                <th className="w-8 px-2 py-2" />
                 <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Policy
                 </th>
@@ -554,7 +527,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                 return (
                   <Fragment key={p.id}>
                     <tr
-                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 transition-colors"
+                      className="border-b border-slate-100 transition-colors hover:bg-brand-primary/10 dark:border-slate-800/60 dark:hover:bg-brand-primary/10"
                       data-testid={`row-policy-${p.id}`}
                     >
                       <td className="px-2 py-2.5">
@@ -563,7 +536,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                           aria-label={isExpanded ? "Collapse row" : "Expand row"}
                           aria-expanded={isExpanded}
                           onClick={() => toggleExpand(p.id)}
-                          className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-brand-deep hover:bg-brand-accent/10 transition-colors"
+                          className="rounded-md p-1 text-slate-400 transition-colors hover:bg-brand-accent/10 hover:text-brand-deep dark:text-slate-500"
                         >
                           <ChevronDown
                             className={`h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
@@ -572,9 +545,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                       </td>
                       <td className="px-2 py-2.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">
-                            {p.name}
-                          </span>
+                          <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">{p.name}</span>
                           {p.is_default && (
                             <Chip size="sm" tone="accent">
                               Default
@@ -634,7 +605,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                         {formatDuration(p.schedule_interval_seconds)}
                       </td>
                       <td
-                        className="px-2 py-2.5 text-[13px] text-slate-700 dark:text-slate-200 whitespace-nowrap"
+                        className="whitespace-nowrap px-2 py-2.5 text-[13px] text-slate-700 dark:text-slate-200"
                         title={`${p.manual_quota_window_seconds}s window`}
                       >
                         {p.manual_quota_limit} / {formatDuration(p.manual_quota_window_seconds)}
@@ -643,7 +614,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                         <button
                           type="button"
                           onClick={() => toggleExpand(p.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-brand-deep bg-brand-accent/10 hover:bg-brand-accent/20 border border-brand-accent/20 transition-colors"
+                          className="inline-flex items-center gap-1 rounded-lg border border-brand-accent/20 bg-brand-accent/10 px-2 py-1 text-[11px] font-semibold text-brand-deep transition-colors hover:bg-brand-accent/20"
                         >
                           <Users2 className="h-3 w-3" /> Manage
                         </button>
@@ -656,7 +627,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                             aria-label={`Toggle ${p.name}`}
                             className="data-[state=checked]:!bg-brand-deep"
                           />
-                          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 w-14">
+                          <span className="w-14 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                             {on ? "Enabled" : "Disabled"}
                           </span>
                         </div>
@@ -668,7 +639,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                             aria-label="Edit"
                             title="Edit policy"
                             onClick={() => setDialog({ mode: "edit", initial: p })}
-                            className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-brand-deep hover:bg-brand-accent/10 transition-colors"
+                            className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-brand-accent/10 hover:text-brand-deep dark:text-slate-400"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
@@ -676,16 +647,12 @@ export function SchedulingCard({ active }: { active: boolean }) {
                             type="button"
                             aria-label="Delete"
                             disabled={p.is_default}
-                            title={
-                              p.is_default
-                                ? "The default policy can't be deleted"
-                                : "Delete policy"
-                            }
+                            title={p.is_default ? "The default policy can't be deleted" : "Delete policy"}
                             onClick={() => {
                               setDeleteError(null);
                               setConfirmDelete(p);
                             }}
-                            className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 dark:disabled:hover:text-slate-400 disabled:cursor-not-allowed transition-colors"
+                            className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 dark:text-slate-400 dark:hover:bg-red-500/10 dark:disabled:hover:text-slate-400"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -694,7 +661,10 @@ export function SchedulingCard({ active }: { active: boolean }) {
                     </tr>
                     {isExpanded && (
                       <tr data-testid={`row-policy-users-${p.id}`}>
-                        <td colSpan={8} className="px-4 py-4 bg-slate-50/60 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800/60">
+                        <td
+                          colSpan={8}
+                          className="border-b border-slate-100 bg-slate-50/60 px-4 py-4 dark:border-slate-800/60 dark:bg-slate-900/60"
+                        >
                           <PolicyUsersInline policy={p} policies={policies} />
                         </td>
                       </tr>
@@ -723,9 +693,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
           <DialogHeader>
             <DialogTitle>Delete scheduling policy</DialogTitle>
             <DialogDescription>
-              {confirmDelete
-                ? `Delete "${confirmDelete.name}"? This cannot be undone.`
-                : ""}
+              {confirmDelete ? `Delete "${confirmDelete.name}"? This cannot be undone.` : ""}
             </DialogDescription>
           </DialogHeader>
           {deleteError && <p className="text-sm text-red-500">{deleteError}</p>}

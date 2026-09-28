@@ -40,7 +40,9 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     return list;
   }, []);
 
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(curated.filter((c) => c.preselect).map((c) => c.pubkey)));
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(curated.filter((c) => c.preselect).map((c) => c.pubkey)),
+  );
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -59,7 +61,12 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     const map = profilesQuery.data;
     return curated.map((c) => {
       const p = map?.get(c.pubkey);
-      return { pubkey: c.pubkey, name: p?.display_name || p?.name || c.fallbackName, nip05: p?.nip05, picture: p?.picture };
+      return {
+        pubkey: c.pubkey,
+        name: p?.display_name || p?.name || c.fallbackName,
+        nip05: p?.nip05,
+        picture: p?.picture,
+      };
     });
   }, [curated, profilesQuery.data]);
 
@@ -68,12 +75,16 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     setPeopleInfo((prev) => {
       const next = new Map(prev);
       for (const p of curatedPeople) next.set(p.pubkey, p);
-      for (const r of results) next.set(r.pubkey, { pubkey: r.pubkey, name: r.displayName || r.name, nip05: r.nip05, picture: r.picture });
+      for (const r of results)
+        next.set(r.pubkey, { pubkey: r.pubkey, name: r.displayName || r.name, nip05: r.nip05, picture: r.picture });
       return next;
     });
   }, [curatedPeople, results]);
 
-  const selectedPeople = useMemo(() => Array.from(selected).map((pk) => peopleInfo.get(pk) ?? { pubkey: pk }), [selected, peopleInfo]);
+  const selectedPeople = useMemo(
+    () => Array.from(selected).map((pk) => peopleInfo.get(pk) ?? { pubkey: pk }),
+    [selected, peopleInfo],
+  );
   const preselectCount = curated.filter((c) => c.preselect).length;
   const visiblePeople = showAll ? curatedPeople : curatedPeople.slice(0, preselectCount + 2);
   const hiddenCount = curatedPeople.length - visiblePeople.length;
@@ -105,7 +116,10 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
         if (!cancelled) setSearching(false);
       }
     }, 300);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [query]);
 
   const count = selected.size;
@@ -122,12 +136,19 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
   const afterPublish = () => {
     if (identity?.pubkey) {
       const pk = identity.pubkey;
-      try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pk), String(Date.now())); } catch { /* ignore */ }
+      try {
+        localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pk), String(Date.now()));
+      } catch {
+        /* ignore */
+      }
       // The kind-10040 no longer rides along: activation is its own step on
       // the /setup checklist, nudged by the header banner and setup card.
       void triggerScoringAndAnchor(pk);
     }
-    toast({ title: "Calculating your trust network", description: "We're scoring your follows — this can take a few minutes." });
+    toast({
+      title: "Calculating your trust network",
+      description: "We're scoring your follows — this can take a few minutes.",
+    });
     onDone?.();
     // leave `busy` true: the card is about to be replaced by the calculating state.
   };
@@ -146,7 +167,11 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     }
     if (!res.success) {
       setBusy(false);
-      toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Please try again." });
+      toast({
+        variant: "destructive",
+        title: "Couldn't save your follows",
+        description: res.error || "Please try again.",
+      });
       return;
     }
     afterPublish();
@@ -178,12 +203,17 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
   };
 
   return (
-    <div className={`rounded-2xl border border-brand-primary/20 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl p-4 sm:p-5 ${className}`} data-testid="dashboard-follow-card">
-      <div className="flex items-center gap-2 mb-1">
+    <div
+      className={`rounded-2xl border border-brand-primary/20 bg-white/70 p-4 backdrop-blur-xl dark:bg-slate-900/70 sm:p-5 ${className}`}
+      data-testid="dashboard-follow-card"
+    >
+      <div className="mb-1 flex items-center gap-2">
         <Users className="h-4 w-4 text-brand-link" />
         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Follow a few accounts to begin</h3>
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Your network is built from who you follow. Pick at least one so we can calculate your scores.</p>
+      <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+        Your network is built from who you follow. Pick at least one so we can calculate your scores.
+      </p>
 
       <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
         {visiblePeople.map((p) => (
@@ -191,22 +221,29 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
         ))}
       </div>
       {!showAll && hiddenCount > 0 && (
-        <button type="button" onClick={() => setShowAll(true)} className="mt-1 text-xs font-semibold text-brand-link hover:underline" data-testid="follow-card-show-more">
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-1 text-xs font-semibold text-brand-link hover:underline"
+          data-testid="follow-card-show-more"
+        >
           Show {hiddenCount} more
         </button>
       )}
 
       {/* Search */}
       <div className="relative mt-3">
-        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
+        <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name or nip-05…"
-          className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-9 pr-9 h-10 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-brand-primary"
+          className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-primary focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:placeholder:text-slate-500"
           data-testid="follow-card-search"
         />
-        {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400 dark:text-slate-500" />}
+        {searching && (
+          <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400 dark:text-slate-500" />
+        )}
       </div>
       {results.length > 0 && (
         <div className="mt-1 divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -222,10 +259,12 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
       )}
 
       {/* Selected tray + commit */}
-      <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
-        <p className="text-[10px] font-bold tracking-[0.12em] text-slate-400 dark:text-slate-500 uppercase mb-2">Following {count}</p>
+      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
+          Following {count}
+        </p>
         {count > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
+          <div className="mb-3 flex flex-wrap gap-1.5">
             {selectedPeople.slice(0, 8).map((p) => {
               const name = p.name || p.pubkey.slice(0, 8) + "…";
               return (
@@ -233,27 +272,41 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
                   key={p.pubkey}
                   type="button"
                   onClick={() => toggle(p.pubkey)}
-                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 pl-1 pr-2 py-0.5 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors"
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 py-0.5 pl-1 pr-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   <Avatar className="h-4 w-4 rounded-full">
                     {p.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
-                    <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+                    <AvatarFallback className="overflow-hidden rounded-full">
+                      <DefaultAvatarImg />
+                    </AvatarFallback>
                   </Avatar>
                   {name} <X className="h-3 w-3 text-slate-400 dark:text-slate-500" />
                 </button>
               );
             })}
-            {selectedPeople.length > 8 && <span className="text-xs text-slate-400 dark:text-slate-500 self-center">+{selectedPeople.length - 8}</span>}
+            {selectedPeople.length > 8 && (
+              <span className="self-center text-xs text-slate-400 dark:text-slate-500">
+                +{selectedPeople.length - 8}
+              </span>
+            )}
           </div>
         )}
         <button
           type="button"
           onClick={commit}
           disabled={count === 0 || busy}
-          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 disabled:cursor-not-allowed h-11 text-sm font-semibold text-white transition-colors"
+          className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           data-testid="follow-card-commit"
         >
-          {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</> : <>Follow {count > 0 ? count : ""} &amp; calculate my scores <ArrowRight className="h-4 w-4" /></>}
+          {busy ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Starting…
+            </>
+          ) : (
+            <>
+              Follow {count > 0 ? count : ""} &amp; calculate my scores <ArrowRight className="h-4 w-4" />
+            </>
+          )}
         </button>
       </div>
 

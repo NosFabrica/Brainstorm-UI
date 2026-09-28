@@ -1,8 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { viewerCurrency, toSats, secondPriceLine, priceInCurrency, priceBands, fetchBtcRates, __resetBtcRates, type BtcRates } from "./exchangeRate";
+import {
+  viewerCurrency,
+  toSats,
+  secondPriceLine,
+  priceInCurrency,
+  priceBands,
+  fetchBtcRates,
+  __resetBtcRates,
+  type BtcRates,
+} from "./exchangeRate";
 
 // mempool.space's public prices, probed 2026-09-24: one BTC in each fiat.
-const rates: BtcRates = { USD: 100_000, EUR: 90_000, GBP: 80_000, CAD: 140_000, CHF: 85_000, AUD: 150_000, JPY: 15_000_000 };
+const rates: BtcRates = {
+  USD: 100_000,
+  EUR: 90_000,
+  GBP: 80_000,
+  CAD: 140_000,
+  CHF: 85_000,
+  AUD: 150_000,
+  JPY: 15_000_000,
+};
 
 describe("viewerCurrency — the buyer's own money, from their browser", () => {
   it("reads the region: US, GB, the euro area, else dollars", () => {
@@ -66,7 +83,9 @@ describe("secondPriceLine — the native price with the other one underneath", (
   });
 
   it("a recurring price keeps its rhythm", () => {
-    expect(secondPriceLine({ amount: 12, currency: "USD", frequency: "month" }, rates, "USD")).toBe("≈ 12,000 sats / month");
+    expect(secondPriceLine({ amount: 12, currency: "USD", frequency: "month" }, rates, "USD")).toBe(
+      "≈ 12,000 sats / month",
+    );
   });
 });
 
@@ -94,7 +113,20 @@ describe("fetchBtcRates — one ask, remembered for ten minutes", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("reads mempool.space's prices, once for every caller", async () => {
-    fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ time: 1, USD: 84395, EUR: 74192, GBP: 63852, CAD: 119237, CHF: 69828, AUD: 120296, JPY: 13411137 }) });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          time: 1,
+          USD: 84395,
+          EUR: 74192,
+          GBP: 63852,
+          CAD: 119237,
+          CHF: 69828,
+          AUD: 120296,
+          JPY: 13411137,
+        }),
+    });
     const [a, b] = await Promise.all([fetchBtcRates(), fetchBtcRates()]);
     expect(a).toEqual({ USD: 84395, EUR: 74192, GBP: 63852, CAD: 119237, CHF: 69828, AUD: 120296, JPY: 13411137 });
     expect(b).toBe(a);

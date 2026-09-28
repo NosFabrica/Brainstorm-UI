@@ -12,25 +12,87 @@
 import { trimProse } from "@/lib/noteContent";
 import { parseNip05 } from "@/lib/nip05";
 
-export type ClientRef =
-  | { kind: "article"; nip05: string; identifier: string }
-  | { kind: "profile"; nip05: string };
+export type ClientRef = { kind: "article"; nip05: string; identifier: string } | { kind: "profile"; nip05: string };
 
 /** Primal's own routes — a first segment that is not a person's name. */
 const PRIMAL_RESERVED = new Set([
-  "e", "p", "a", "home", "explore", "reads", "search", "settings", "downloads", "premium", "legends",
-  "messages", "notifications", "bookmarks", "profile", "thread", "feeds", "landing", "terms", "privacy",
-  "support", "new", "rest", "mobile", "dms", "live", "streams", "wallet", "api", "static", "assets", "_",
+  "e",
+  "p",
+  "a",
+  "home",
+  "explore",
+  "reads",
+  "search",
+  "settings",
+  "downloads",
+  "premium",
+  "legends",
+  "messages",
+  "notifications",
+  "bookmarks",
+  "profile",
+  "thread",
+  "feeds",
+  "landing",
+  "terms",
+  "privacy",
+  "support",
+  "new",
+  "rest",
+  "mobile",
+  "dms",
+  "live",
+  "streams",
+  "wallet",
+  "api",
+  "static",
+  "assets",
+  "_",
 ]);
 /** Snort's own routes. */
 const SNORT_RESERVED = new Set([
-  "e", "p", "t", "notifications", "settings", "messages", "search", "login", "new", "wallet", "deck", "list",
-  "subscribe", "donate", "help", "about", "graph", "free-nostr-address", "nostr-address", "discover", "trending",
+  "e",
+  "p",
+  "t",
+  "notifications",
+  "settings",
+  "messages",
+  "search",
+  "login",
+  "new",
+  "wallet",
+  "deck",
+  "list",
+  "subscribe",
+  "donate",
+  "help",
+  "about",
+  "graph",
+  "free-nostr-address",
+  "nostr-address",
+  "discover",
+  "trending",
 ]);
 /** Iris's own routes. */
 const IRIS_RESERVED = new Set([
-  "settings", "search", "notifications", "messages", "about", "post", "chat", "network", "subscribe", "note",
-  "follows", "followers", "login", "signup", "explore", "home", "feed", "global",
+  "settings",
+  "search",
+  "notifications",
+  "messages",
+  "about",
+  "post",
+  "chat",
+  "network",
+  "subscribe",
+  "note",
+  "follows",
+  "followers",
+  "login",
+  "signup",
+  "explore",
+  "home",
+  "feed",
+  "global",
 ]);
 /** A NIP-05 local part: lowercase, `a-z0-9._-` (NIP-05), never a file. */
 const NAME = /^[a-z0-9._-]+$/;

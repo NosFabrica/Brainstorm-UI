@@ -11,10 +11,14 @@ import { condenseLightning, lightningTarget, websiteLinks } from "./profileFacts
 
 describe("websiteLinks — every link a profile lists, readable and openable", () => {
   it("one URL: the label drops the scheme and trailing slash, the href keeps it", () => {
-    expect(websiteLinks("https://megistus.xyz/")).toEqual([{ href: "https://megistus.xyz/", label: "megistus.xyz", full: "https://megistus.xyz/" }]);
+    expect(websiteLinks("https://megistus.xyz/")).toEqual([
+      { href: "https://megistus.xyz/", label: "megistus.xyz", full: "https://megistus.xyz/" },
+    ]);
   });
   it("a schemeless site gets https so it opens", () => {
-    expect(websiteLinks("megistus.xyz")).toEqual([{ href: "https://megistus.xyz", label: "megistus.xyz", full: "https://megistus.xyz" }]);
+    expect(websiteLinks("megistus.xyz")).toEqual([
+      { href: "https://megistus.xyz", label: "megistus.xyz", full: "https://megistus.xyz" },
+    ]);
   });
   it("several links split on commas and spaces, de-duplicated, at most three", () => {
     const links = websiteLinks("https://a.com, b.org  https://c.net/x https://a.com d.io");
@@ -30,11 +34,20 @@ describe("websiteLinks — every link a profile lists, readable and openable", (
 
 describe("lightningTarget — the address to copy, and whether the zap flow can pay it", () => {
   it("a LUD-16 address shows whole and can be zapped", () => {
-    expect(lightningTarget("me@wallet.com", undefined)).toEqual({ address: "me@wallet.com", display: "me@wallet.com", zappable: true });
+    expect(lightningTarget("me@wallet.com", undefined)).toEqual({
+      address: "me@wallet.com",
+      display: "me@wallet.com",
+      zappable: true,
+    });
   });
   it("an LNURL alone shows shortened, copies whole, and the zap flow cannot resolve it", () => {
-    const lnurl = "lnurl1dp68gurn8ghj7um9wfmxjcm99e3k7mf0v9cxj0m385ekvcenxc6r2c35xvukxefcv5mkvv34x5ekzd3ev56nyd3hxqurzepexejxxepnxscrvwfnv9nxzcn9xq6xyefhvgcxxcmyxymnserxfq5fns";
-    expect(lightningTarget(undefined, lnurl)).toEqual({ address: lnurl, display: `${lnurl.slice(0, 12)}…${lnurl.slice(-6)}`, zappable: false });
+    const lnurl =
+      "lnurl1dp68gurn8ghj7um9wfmxjcm99e3k7mf0v9cxj0m385ekvcenxc6r2c35xvukxefcv5mkvv34x5ekzd3ev56nyd3hxqurzepexejxxepnxscrvwfnv9nxzcn9xq6xyefhvgcxxcmyxymnserxfq5fns";
+    expect(lightningTarget(undefined, lnurl)).toEqual({
+      address: lnurl,
+      display: `${lnurl.slice(0, 12)}…${lnurl.slice(-6)}`,
+      zappable: false,
+    });
   });
   // Benjamin (2026-09-09), over a 63-character npub.cash address: "whenever
   // users' wallet addresses are too long we should condense it so it's more

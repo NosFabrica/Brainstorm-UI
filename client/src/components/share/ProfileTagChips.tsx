@@ -69,7 +69,11 @@ export function ProfileTagChips({
         // honest rather than vanishing. Uncounted tags render faded.
         const faded = !tag.counted;
         let authorNpub = "";
-        try { authorNpub = npubFromPubkey(tag.authorPubkey); } catch { /* unlinkable */ }
+        try {
+          authorNpub = npubFromPubkey(tag.authorPubkey);
+        } catch {
+          /* unlinkable */
+        }
 
         const chip = (
           <Chip
@@ -80,17 +84,19 @@ export function ProfileTagChips({
             data-self-declared={onlySelfDeclared(tag) ? "true" : undefined}
             data-counted={tag.counted ? "true" : "false"}
             data-pending={tag.pending ? "true" : undefined}
-            className={[
-              authorNpub ? "transition-opacity hover:opacity-80" : "",
-              faded ? "opacity-50" : "",
-              // Not yet on the relays: a little lighter, until they answer.
-              tag.pending ? "opacity-60" : "",
-            ].filter(Boolean).join(" ") || undefined}
+            className={
+              [
+                authorNpub ? "transition-opacity hover:opacity-80" : "",
+                faded ? "opacity-50" : "",
+                // Not yet on the relays: a little lighter, until they answer.
+                tag.pending ? "opacity-60" : "",
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
           >
             {tag.name}
-            {others > 1 && (
-              <span className="opacity-60 tabular-nums">{others}</span>
-            )}
+            {others > 1 && <span className="tabular-nums opacity-60">{others}</span>}
           </Chip>
         );
 

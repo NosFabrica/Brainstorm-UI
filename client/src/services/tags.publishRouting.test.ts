@@ -62,7 +62,12 @@ vi.mock("@/lib/relays", () => ({
 
 const relayList = (): NostrEvent =>
   ({
-    id: "1".repeat(64), kind: 10002, pubkey: VIEWER, created_at: 1, content: "", sig: "s",
+    id: "1".repeat(64),
+    kind: 10002,
+    pubkey: VIEWER,
+    created_at: 1,
+    content: "",
+    sig: "s",
     tags: [["r", "wss://mine.example", "write"]],
   }) as NostrEvent;
 

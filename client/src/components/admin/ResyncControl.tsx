@@ -75,14 +75,14 @@ export function ResyncControl({
         <Button
           variant="ghost"
           size="sm"
-          className="text-[10px] text-amber-600 hover:text-amber-800 no-default-hover-elevate no-default-active-elevate px-2 h-6"
+          className="no-default-hover-elevate no-default-active-elevate h-6 px-2 text-[10px] text-amber-600 hover:text-amber-800"
           onClick={(e) => {
             e.stopPropagation();
             setError(null);
             setOpen(true);
           }}
         >
-          <RefreshCw className="h-3 w-3 mr-1" /> Resync
+          <RefreshCw className="mr-1 h-3 w-3" /> Resync
         </Button>
       )}
 
@@ -91,8 +91,8 @@ export function ResyncControl({
           <DialogHeader>
             <DialogTitle>Resync published state</DialogTitle>
             <DialogDescription>
-              Forces a full re-assert of this observer's above-cutoff Trusted
-              Assertions. Heavier than a normal recompute — use for drift repair.
+              Forces a full re-assert of this observer's above-cutoff Trusted Assertions. Heavier than a normal
+              recompute — use for drift repair.
             </DialogDescription>
           </DialogHeader>
 
@@ -117,7 +117,7 @@ export function ResyncControl({
               Cancel
             </Button>
             <Button disabled={busy} onClick={handleResync}>
-              {busy && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+              {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
               Confirm resync
             </Button>
           </DialogFooter>

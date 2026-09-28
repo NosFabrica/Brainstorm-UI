@@ -142,9 +142,7 @@ export function buildTagPin({
  * guessing from `e`, because an event id alone doesn't name a tag without
  * another fetch. Returns null for anything that isn't a well-formed pin.
  */
-export function tagRefFromPin(ev: {
-  tags?: string[][];
-}): { authorPubkey: string; slug: string } | null {
+export function tagRefFromPin(ev: { tags?: string[][] }): { authorPubkey: string; slug: string } | null {
   const a = (ev.tags || []).find((t) => t[0] === "a")?.[1];
   const m = a && /^39999:([0-9a-f]{64}):(.+)$/.exec(a);
   return m ? { authorPubkey: m[1], slug: m[2] } : null;

@@ -28,7 +28,9 @@ export type LightboxContextInfo = {
 type MediaItem = { url: string; kind: "image" | "video" | "hls" | "embed"; poster: string | null };
 type LightboxState = { images: MediaItem[]; index: number; context: LightboxContextInfo | null } | null;
 
-const LightboxContext = createContext<(items: LightboxItem[], index: number, context?: LightboxContextInfo) => void>(() => {});
+const LightboxContext = createContext<(items: LightboxItem[], index: number, context?: LightboxContextInfo) => void>(
+  () => {},
+);
 
 export function useLightbox() {
   return useContext(LightboxContext);
@@ -36,7 +38,11 @@ export function useLightbox() {
 
 function normalize(items: LightboxItem[]): MediaItem[] {
   return items
-    .map((it) => (typeof it === "string" ? { url: it, kind: "image" as const, poster: null } : { url: it.url, kind: it.kind, poster: it.poster ?? null }))
+    .map((it) =>
+      typeof it === "string"
+        ? { url: it, kind: "image" as const, poster: null }
+        : { url: it.url, kind: it.kind, poster: it.poster ?? null },
+    )
     .filter((it) => !!it.url);
 }
 
@@ -111,7 +117,7 @@ function LightboxOverlay({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 select-none"
+      className="fixed inset-0 z-[100] flex select-none items-center justify-center bg-black/95"
       onClick={onClose}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
@@ -121,8 +127,11 @@ function LightboxOverlay({
     >
       <button
         type="button"
-        onClick={(e) => { e.stopPropagation(); onClose(); }}
-        className="absolute top-3 right-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
         aria-label="Close"
         data-testid="lightbox-close"
       >
@@ -130,7 +139,10 @@ function LightboxOverlay({
       </button>
 
       {multi && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white tabular-nums" data-testid="lightbox-counter">
+        <div
+          className="absolute left-1/2 top-4 z-10 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tabular-nums text-white"
+          data-testid="lightbox-counter"
+        >
           {index + 1} / {images.length}
         </div>
       )}
@@ -139,8 +151,11 @@ function LightboxOverlay({
         <>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); go(-1); }}
-            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-10 hidden sm:grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              go(-1);
+            }}
+            className="absolute left-2 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 sm:left-4 sm:grid"
             aria-label="Previous"
             data-testid="lightbox-prev"
           >
@@ -148,8 +163,11 @@ function LightboxOverlay({
           </button>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); go(1); }}
-            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-10 hidden sm:grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              go(1);
+            }}
+            className="absolute right-2 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 sm:right-4 sm:grid"
             aria-label="Next"
             data-testid="lightbox-next"
           >
@@ -161,11 +179,20 @@ function LightboxOverlay({
       {images[index].kind === "hls" ? (
         // A stream, live or recorded: our HLS player, starting at once — the
         // same full view a clip gets, so a replay in the rail expands like a video.
-        <div key={images[index].url} onClick={(e) => e.stopPropagation()} className="w-[96vw] max-w-5xl overflow-hidden rounded-lg bg-black shadow-2xl" data-testid="lightbox-hls">
+        <div
+          key={images[index].url}
+          onClick={(e) => e.stopPropagation()}
+          className="w-[96vw] max-w-5xl overflow-hidden rounded-lg bg-black shadow-2xl"
+          data-testid="lightbox-hls"
+        >
           <LiveVideoPlayer src={images[index].url} poster={images[index].poster ?? undefined} autoStart frameless />
         </div>
       ) : images[index].kind === "embed" ? (
-        <div key={images[index].url} onClick={(e) => e.stopPropagation()} className="aspect-video w-[96vw] max-w-5xl overflow-hidden rounded-lg bg-black shadow-2xl">
+        <div
+          key={images[index].url}
+          onClick={(e) => e.stopPropagation()}
+          className="aspect-video w-[96vw] max-w-5xl overflow-hidden rounded-lg bg-black shadow-2xl"
+        >
           <iframe
             ref={embedFrame}
             src={images[index].url}
@@ -194,7 +221,7 @@ function LightboxOverlay({
           src={images[index].url}
           alt=""
           onClick={(e) => e.stopPropagation()}
-          className="max-h-[92vh] max-w-[96vw] object-contain rounded-lg shadow-2xl"
+          className="max-h-[92vh] max-w-[96vw] rounded-lg object-contain shadow-2xl"
           data-testid="lightbox-image"
         />
       )}
@@ -214,13 +241,19 @@ function LightboxOverlay({
               onClick={onClose}
               className="group flex min-w-0 items-center gap-2 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
-              <Avatar className={`h-8 w-8 border border-white/20 ${tierRing(context.author.score01 ?? null, false, "sm", true) ?? ""}`}>
-                {context.author.picture ? <AvatarImage src={context.author.picture} alt="" className="object-cover" /> : null}
+              <Avatar
+                className={`h-8 w-8 border border-white/20 ${tierRing(context.author.score01 ?? null, false, "sm", true) ?? ""}`}
+              >
+                {context.author.picture ? (
+                  <AvatarImage src={context.author.picture} alt="" className="object-cover" />
+                ) : null}
                 <AvatarFallback className="overflow-hidden">
                   <DefaultAvatarImg />
                 </AvatarFallback>
               </Avatar>
-              <span className="truncate text-sm font-semibold text-white group-hover:underline">{context.author.name}</span>
+              <span className="truncate text-sm font-semibold text-white group-hover:underline">
+                {context.author.name}
+              </span>
             </Link>
           ) : (
             <span />
@@ -229,7 +262,7 @@ function LightboxOverlay({
             <Link
               href={context.postHref}
               onClick={onClose}
-              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               data-testid="lightbox-view-post"
             >
               View post <ArrowUpRight className="h-3.5 w-3.5" />

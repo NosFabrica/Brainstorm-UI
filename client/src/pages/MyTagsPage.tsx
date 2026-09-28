@@ -22,11 +22,7 @@ import { YourTagsPanel } from "@/components/tags/YourTagsPanel";
  */
 export default function MyTagsPage() {
   return (
-    <TagsPageShell
-      view="mine"
-      title="Your tags"
-      subtitle="What people say about you, and what you've said about them."
-    >
+    <TagsPageShell view="mine" title="Your tags" subtitle="What people say about you, and what you've said about them.">
       <YourTagsPanel />
     </TagsPageShell>
   );

@@ -44,7 +44,9 @@ vi.mock("@/hooks/useAppEndorsements", () => ({
   useAppEndorsements: (address: string | null, opts: unknown) => endorsementsMock(address, opts),
 }));
 type PersonEndorsements = import("@/services/endorsements").PersonEndorsements;
-const personEndorsementsMock = vi.fn<(pubkey: string | null, personal: boolean) => PersonEndorsements | null>(() => null);
+const personEndorsementsMock = vi.fn<(pubkey: string | null, personal: boolean) => PersonEndorsements | null>(
+  () => null,
+);
 vi.mock("@/hooks/usePersonEndorsements", () => ({
   usePersonEndorsements: (pubkey: string | null, personal: boolean) => personEndorsementsMock(pubkey, personal),
 }));
@@ -59,14 +61,20 @@ vi.mock("@/hooks/useMyFollows", () => ({
 // Follower faces hydrate through fetchProfileMap — stubbed so jsdom never
 // touches relays; tests seed names per case.
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
-const findWavlakeArtistMock = vi.fn<(args: { name?: string | null; pubkey?: string | null }) => Promise<import("@/lib/wavlake").WavlakeArtist | null>>(() => Promise.resolve(null));
-const wavlakeArtistTracksMock = vi.fn<(id: string, limit?: number) => Promise<import("@/lib/wavlake").WavlakeSong[]>>(() => Promise.resolve([]));
+const findWavlakeArtistMock = vi.fn<
+  (args: { name?: string | null; pubkey?: string | null }) => Promise<import("@/lib/wavlake").WavlakeArtist | null>
+>(() => Promise.resolve(null));
+const wavlakeArtistTracksMock = vi.fn<(id: string, limit?: number) => Promise<import("@/lib/wavlake").WavlakeSong[]>>(
+  () => Promise.resolve([]),
+);
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   findWavlakeArtist: (args: { name?: string | null; pubkey?: string | null }) => findWavlakeArtistMock(args),
   wavlakeArtistTracks: (id: string, limit?: number) => wavlakeArtistTracksMock(id, limit),
 }));
-const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
+const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() =>
+  Promise.resolve([]),
+);
 const liveStreamsMock = vi.fn<(pubkey: string) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
@@ -126,17 +134,25 @@ describe("the person panel's trust reviews", () => {
   const BEN = "c".repeat(64);
   const STRANGER = "d".repeat(64);
   const david = () =>
-    suggestMock.mockResolvedValueOnce([{ pubkey: DAVID, npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 }]);
-  const signals = (vouches: { id: string; pubkey: string; type: "vouch" | "identity"; text: string; at: number }[]) => ({
-    followedBy: [], total: null, vouches,
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: DAVID, npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 },
+    ]);
+  const signals = (
+    vouches: { id: string; pubkey: string; type: "vouch" | "identity"; text: string; at: number }[],
+  ) => ({
+    followedBy: [],
+    total: null,
+    vouches,
   });
 
   it("confirms identity only from trusted reviewers, with their words in reach", async () => {
     david();
-    personEndorsementsMock.mockReturnValue(signals([
-      { id: "v1", pubkey: BEN, type: "identity", text: "✅ This account is the real david.", at: 200 },
-      { id: "v2", pubkey: STRANGER, type: "identity", text: "this mf is a fake", at: 300 },
-    ]));
+    personEndorsementsMock.mockReturnValue(
+      signals([
+        { id: "v1", pubkey: BEN, type: "identity", text: "✅ This account is the real david.", at: 200 },
+        { id: "v2", pubkey: STRANGER, type: "identity", text: "this mf is a fake", at: 300 },
+      ]),
+    );
     profileMapMock.set(BEN, { name: "benjamin" });
     // useAuthorScores is faked at 0.7 for everyone — so STRANGER is "verified"
     // too; make them the outsider through the follows-free, score-null route.
@@ -152,9 +168,17 @@ describe("the person panel's trust reviews", () => {
   // face (the Followed-by line has them), no quote, no reviewer name.
   it("sums the reviews in plain words and links to the full list", async () => {
     david();
-    personEndorsementsMock.mockReturnValue(signals([
-      { id: "v1", pubkey: BEN, type: "vouch", text: "This user created www.relayop.xyz - a solution for the next phase of the internet.", at: 200 },
-    ]));
+    personEndorsementsMock.mockReturnValue(
+      signals([
+        {
+          id: "v1",
+          pubkey: BEN,
+          type: "vouch",
+          text: "This user created www.relayop.xyz - a solution for the next phase of the internet.",
+          at: 200,
+        },
+      ]),
+    );
     profileMapMock.set(BEN, { name: "benjamin" });
     render(<KnowledgePanel query="david" pov="nosfabrica" />);
     const link = await screen.findByTestId("person-reviews-link");
@@ -185,11 +209,19 @@ describe("the person panel's endorsements", () => {
   const ALICE = "c".repeat(64);
   const BOB = "d".repeat(64);
   const david = () =>
-    suggestMock.mockResolvedValueOnce([{ pubkey: DAVID, npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 }]);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: DAVID, npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 },
+    ]);
 
   it("shows who follows them, ringed, with the verified total", async () => {
     david();
-    personEndorsementsMock.mockReturnValue({ followedBy: [{ pubkey: ALICE, score01: 0.9 }, { pubkey: BOB, score01: 0.4 }], total: 1234 });
+    personEndorsementsMock.mockReturnValue({
+      followedBy: [
+        { pubkey: ALICE, score01: 0.9 },
+        { pubkey: BOB, score01: 0.4 },
+      ],
+      total: 1234,
+    });
     profileMapMock.set(ALICE, { name: "alice" });
     profileMapMock.set(BOB, { name: "bob" });
     render(<KnowledgePanel query="david" pov="nosfabrica" />);
@@ -224,7 +256,15 @@ describe("the person panel's endorsements", () => {
   // them" reads in one glance, like the person card.
   it("shows the lightning address under the name", async () => {
     suggestMock.mockResolvedValueOnce([
-      { pubkey: DAVID, npub: "npub1david", name: "david", nip05: "david@bitcoinpark.com", lud16: "david@getalby.com", wotRank: 0.9, wotFollowers: 42 },
+      {
+        pubkey: DAVID,
+        npub: "npub1david",
+        name: "david",
+        nip05: "david@bitcoinpark.com",
+        lud16: "david@getalby.com",
+        wotRank: 0.9,
+        wotFollowers: 42,
+      },
     ]);
     render(<KnowledgePanel query="david" pov="nosfabrica" />);
     const panel = await screen.findByTestId("search-knowledge-panel");
@@ -245,7 +285,9 @@ describe("the person panel's endorsements", () => {
     expect(screen.queryByTestId("zap-modal")).toBeNull();
     fireEvent.click(screen.getByTestId("person-lightning"));
     expect(screen.getByTestId("zap-modal")).toHaveTextContent("david@getalby.com");
-    expect(zapModalMock).toHaveBeenLastCalledWith(expect.objectContaining({ open: true, recipientPubkey: DAVID, displayName: "david" }));
+    expect(zapModalMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ open: true, recipientPubkey: DAVID, displayName: "david" }),
+    );
     // The panel's own click-through did not fire.
     expect(window.location.pathname).toBe("/");
   });
@@ -289,9 +331,31 @@ describe("the topic panel", () => {
   });
 
   it("does not ask again when the reader moves to another tab", async () => {
-    const person = { pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 };
-    const peopleSnap = snap([{ event: { id: "k0", kind: 0, pubkey: person.pubkey, tags: [], content: "{}", created_at: NOW, sig: "s" } as NostrEvent, author: person, rank: null }]);
-    const view = render(<KnowledgePanel query="Barattolo" pov="nosfabrica" sections={{ people: peopleSnap, events: snap([]) }} />);
+    const person = {
+      pubkey: "9".repeat(64),
+      npub: "npub1barattolo",
+      name: "Barattolo",
+      wotRank: 0.8,
+      wotFollowers: 300,
+    };
+    const peopleSnap = snap([
+      {
+        event: {
+          id: "k0",
+          kind: 0,
+          pubkey: person.pubkey,
+          tags: [],
+          content: "{}",
+          created_at: NOW,
+          sig: "s",
+        } as NostrEvent,
+        author: person,
+        rank: null,
+      },
+    ]);
+    const view = render(
+      <KnowledgePanel query="Barattolo" pov="nosfabrica" sections={{ people: peopleSnap, events: snap([]) }} />,
+    );
     await screen.findByTestId("search-knowledge-panel");
     // Leaving Everything takes the sections away — the panel keeps its answer
     // rather than asking the relay for it a second time.
@@ -301,13 +365,33 @@ describe("the topic panel", () => {
   });
 
   it("on the composed page it reads the sections instead of asking again", async () => {
-    const person = { pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 };
+    const person = {
+      pubkey: "9".repeat(64),
+      npub: "npub1barattolo",
+      name: "Barattolo",
+      wotRank: 0.8,
+      wotFollowers: 300,
+    };
     render(
       <KnowledgePanel
         query="Barattolo"
         pov="nosfabrica"
         sections={{
-          people: snap([{ event: { id: "k0", kind: 0, pubkey: person.pubkey, tags: [], content: JSON.stringify({ name: "Barattolo" }), created_at: NOW, sig: "s" } as NostrEvent, author: person, rank: null }]),
+          people: snap([
+            {
+              event: {
+                id: "k0",
+                kind: 0,
+                pubkey: person.pubkey,
+                tags: [],
+                content: JSON.stringify({ name: "Barattolo" }),
+                created_at: NOW,
+                sig: "s",
+              } as NostrEvent,
+              author: person,
+              rank: null,
+            },
+          ]),
           events: snap([]),
         }}
       />,
@@ -319,17 +403,42 @@ describe("the topic panel", () => {
 
   it("uses the sections' events when they fill the row, and digs deeper when they cannot", async () => {
     const DAY = 86_400;
-    const soon = (id: string, title: string, days: number) =>
-      ({ event: { id, kind: 31923, pubkey: "c".repeat(64), created_at: NOW - 10, content: "", sig: "", tags: [["d", id], ["title", title], ["start", String(NOW + days * DAY)]] } as NostrEvent, author: null, rank: null });
+    const soon = (id: string, title: string, days: number) => ({
+      event: {
+        id,
+        kind: 31923,
+        pubkey: "c".repeat(64),
+        created_at: NOW - 10,
+        content: "",
+        sig: "",
+        tags: [
+          ["d", id],
+          ["title", title],
+          ["start", String(NOW + days * DAY)],
+        ],
+      } as NostrEvent,
+      author: null,
+      rank: null,
+    });
     const three = [soon("a", "Chicago Meetup", 2), soon("b", "Chicago Social", 5), soon("c", "Chicago Hack Night", 9)];
 
-    const full = render(<KnowledgePanel query="chicago" pov="nosfabrica" sections={{ people: snap([]), events: snap(three) }} />);
-    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "topic" || c.params.tab === "apps")).toBe(true));
+    const full = render(
+      <KnowledgePanel query="chicago" pov="nosfabrica" sections={{ people: snap([]), events: snap(three) }} />,
+    );
+    await vi.waitFor(() =>
+      expect(streamCalls.some((c) => c.params.tab === "topic" || c.params.tab === "apps")).toBe(true),
+    );
     expect(streamCalls.some((c) => c.params.tab === "events")).toBe(false);
     full.unmount();
     streamCalls = [];
 
-    render(<KnowledgePanel query="chicago" pov="nosfabrica" sections={{ people: snap([]), events: snap([soon("a", "Chicago Meetup", 2)]) }} />);
+    render(
+      <KnowledgePanel
+        query="chicago"
+        pov="nosfabrica"
+        sections={{ people: snap([]), events: snap([soon("a", "Chicago Meetup", 2)]) }}
+      />,
+    );
     await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "events")).toBe(true));
   });
 
@@ -339,7 +448,9 @@ describe("the topic panel", () => {
     Object.defineProperty(window.navigator, "connection", { configurable: true, value: { effectiveType: "3g" } });
     __resetConnectionSpeed();
     try {
-      suggestMock.mockResolvedValueOnce([{ pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 }]);
+      suggestMock.mockResolvedValueOnce([
+        { pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 },
+      ]);
       render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
       // The strip still arrives — a panel nobody can open is a panel gone.
       const strip = await screen.findByTestId("panel-strip");
@@ -361,7 +472,9 @@ describe("the topic panel", () => {
     const width = window.innerWidth;
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
     try {
-      suggestMock.mockResolvedValueOnce([{ pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 }]);
+      suggestMock.mockResolvedValueOnce([
+        { pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 },
+      ]);
       render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
       const strip = await screen.findByTestId("panel-strip");
       expect(strip).toHaveTextContent("Barattolo");
@@ -387,14 +500,35 @@ describe("the topic panel", () => {
     expect(eventsProbe.query).toBe("chicago sort:recent");
     // Topic probe answers first so the topic panel takes the slot.
     streamCalls[0].emit({
-      hits: [noteHit("t1", "1".repeat(64), "bot", NOW - 100), noteHit("t2", "2".repeat(64), "w", NOW - 200), noteHit("t3", "3".repeat(64), "m", NOW - 300)],
+      hits: [
+        noteHit("t1", "1".repeat(64), "bot", NOW - 100),
+        noteHit("t2", "2".repeat(64), "w", NOW - 200),
+        noteHit("t3", "3".repeat(64), "m", NOW - 300),
+      ],
       eose: true,
       timeMs: 100,
     });
     await screen.findByTestId("search-topic-panel");
     const DAY = 86_400;
-    const cal = (id: string, title: string, start: number) =>
-      ({ event: { id, kind: 31923, pubkey: "c".repeat(64), created_at: NOW - 1000, content: "", sig: "", tags: [["d", id], ["title", title], ["start", String(start)], ["location", "200 N La Salle St, Chicago, IL, United States"], ...(id === "ev-soon" ? [["image", "https://img/soon.jpg"]] : [])] } as NostrEvent, author: null, rank: null });
+    const cal = (id: string, title: string, start: number) => ({
+      event: {
+        id,
+        kind: 31923,
+        pubkey: "c".repeat(64),
+        created_at: NOW - 1000,
+        content: "",
+        sig: "",
+        tags: [
+          ["d", id],
+          ["title", title],
+          ["start", String(start)],
+          ["location", "200 N La Salle St, Chicago, IL, United States"],
+          ...(id === "ev-soon" ? [["image", "https://img/soon.jpg"]] : []),
+        ],
+      } as NostrEvent,
+      author: null,
+      rank: null,
+    });
     eventsProbe.emit({
       hits: [
         cal("ev-far", "Chicago Bitcoin Conference", NOW + 40 * DAY),
@@ -425,16 +559,40 @@ describe("the topic panel", () => {
     render(<KnowledgePanel query="chicago" pov="nosfabrica" />);
     await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "events")).toBe(true));
     streamCalls[0].emit({
-      hits: [noteHit("t1", "1".repeat(64), "bot", NOW - 100), noteHit("t2", "2".repeat(64), "w", NOW - 200), noteHit("t3", "3".repeat(64), "m", NOW - 300)],
+      hits: [
+        noteHit("t1", "1".repeat(64), "bot", NOW - 100),
+        noteHit("t2", "2".repeat(64), "w", NOW - 200),
+        noteHit("t3", "3".repeat(64), "m", NOW - 300),
+      ],
       eose: true,
       timeMs: 100,
     });
     await screen.findByTestId("search-topic-panel");
-    streamCalls.find((c) => c.params.tab === "events")!.emit({
-      hits: [{ event: { id: "old", kind: 31923, pubkey: "c".repeat(64), created_at: NOW - 1000, content: "", sig: "", tags: [["d", "old"], ["title", "Chicago Meetup"], ["start", String(NOW - 86_400)]] } as NostrEvent, author: null, rank: null }],
-      eose: true,
-      timeMs: 120,
-    });
+    streamCalls
+      .find((c) => c.params.tab === "events")!
+      .emit({
+        hits: [
+          {
+            event: {
+              id: "old",
+              kind: 31923,
+              pubkey: "c".repeat(64),
+              created_at: NOW - 1000,
+              content: "",
+              sig: "",
+              tags: [
+                ["d", "old"],
+                ["title", "Chicago Meetup"],
+                ["start", String(NOW - 86_400)],
+              ],
+            } as NostrEvent,
+            author: null,
+            rank: null,
+          },
+        ],
+        eose: true,
+        timeMs: 120,
+      });
     await new Promise((r) => setTimeout(r, 10));
     expect(screen.queryByTestId("topic-events")).toBeNull();
   });
@@ -484,9 +642,19 @@ describe("the topic panel", () => {
     await vi.waitFor(() => expect(streamCalls.length).toBeGreaterThanOrEqual(1));
     streamCalls[0].emit({
       hits: [
-        noteHit("t1", "1".repeat(64), "kop", NOW - 100, [["t", "liverpool"], ["t", "PremierLeague"]]),
-        noteHit("t2", "2".repeat(64), "anfield", NOW - 2000, [["t", "liverpool"], ["t", "premierleague"], ["t", "ynwa"]]),
-        noteHit("t3", "3".repeat(64), "red", NOW - 5000, [["t", "liverpool"], ["t", "onceonly"]]),
+        noteHit("t1", "1".repeat(64), "kop", NOW - 100, [
+          ["t", "liverpool"],
+          ["t", "PremierLeague"],
+        ]),
+        noteHit("t2", "2".repeat(64), "anfield", NOW - 2000, [
+          ["t", "liverpool"],
+          ["t", "premierleague"],
+          ["t", "ynwa"],
+        ]),
+        noteHit("t3", "3".repeat(64), "red", NOW - 5000, [
+          ["t", "liverpool"],
+          ["t", "onceonly"],
+        ]),
       ],
       eose: true,
       timeMs: 100,
@@ -520,22 +688,30 @@ describe("the topic panel", () => {
 
   it("a query matching an app adds an Apps module to the rail", async () => {
     render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
-    await vi.waitFor(() =>
-      expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true),
-    );
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
     const appsCall = streamCalls.find((c) => c.params.tab === "apps")!;
     const listing = {
       id: "ap1",
       kind: 32267,
       pubkey: "9".repeat(64),
-      tags: [["d", "com.vitorpamplona.amethyst"], ["name", "Amethyst"], ["summary", "The all-in-one Nostr client"], ["icon", "https://cdn.zapstore.dev/a.png"]],
+      tags: [
+        ["d", "com.vitorpamplona.amethyst"],
+        ["name", "Amethyst"],
+        ["summary", "The all-in-one Nostr client"],
+        ["icon", "https://cdn.zapstore.dev/a.png"],
+      ],
       content: "",
       created_at: NOW - 500,
       sig: "s",
     } as NostrEvent;
     const offTopic = {
-      ...listing, id: "ap2",
-      tags: [["d", "net.primal"], ["name", "Primal"], ["summary", "Feeds"]],
+      ...listing,
+      id: "ap2",
+      tags: [
+        ["d", "net.primal"],
+        ["name", "Primal"],
+        ["summary", "Feeds"],
+      ],
     } as NostrEvent;
     appsCall.emit({
       hits: [
@@ -557,16 +733,40 @@ describe("the topic panel", () => {
   // Benjamin: no review copy on search surfaces — the rail row is icon,
   // name, summary. Reviews live on the app page.
   it("app rows carry no review count", async () => {
-    endorsementsMock.mockReturnValue({ address: "x", reviews: [], reviewCount: 14, zaps: [], zapCount: 101, collectionCount: 46 });
+    endorsementsMock.mockReturnValue({
+      address: "x",
+      reviews: [],
+      reviewCount: 14,
+      zaps: [],
+      zapCount: 101,
+      collectionCount: 46,
+    });
     render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
     await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
-    streamCalls.find((c) => c.params.tab === "apps")!.emit({
-      hits: [{
-        event: { id: "ap1", kind: 32267, pubkey: "9".repeat(64), tags: [["d", "com.vitorpamplona.amethyst"], ["name", "Amethyst"]], content: "", created_at: NOW, sig: "s" } as NostrEvent,
-        author: null, rank: null,
-      }],
-      eose: true, timeMs: 90,
-    });
+    streamCalls
+      .find((c) => c.params.tab === "apps")!
+      .emit({
+        hits: [
+          {
+            event: {
+              id: "ap1",
+              kind: 32267,
+              pubkey: "9".repeat(64),
+              tags: [
+                ["d", "com.vitorpamplona.amethyst"],
+                ["name", "Amethyst"],
+              ],
+              content: "",
+              created_at: NOW,
+              sig: "s",
+            } as NostrEvent,
+            author: null,
+            rank: null,
+          },
+        ],
+        eose: true,
+        timeMs: 90,
+      });
     await screen.findByTestId("apps-panel-app-ap1");
     expect(screen.queryByTestId("apps-panel-meta-ap1")).toBeNull();
     expect(endorsementsMock).not.toHaveBeenCalled();
@@ -574,15 +774,24 @@ describe("the topic panel", () => {
 
   it("no name-matching app, no Apps module", async () => {
     render(<KnowledgePanel query="liverpool" pov="nosfabrica" />);
-    await vi.waitFor(() =>
-      expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true),
-    );
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
     const appsCall = streamCalls.find((c) => c.params.tab === "apps")!;
     appsCall.emit({
-      hits: [{
-        event: { id: "ap3", kind: 32267, pubkey: "9".repeat(64), tags: [["name", "SoccerStats"]], content: "", created_at: NOW, sig: "s" } as NostrEvent,
-        author: null, rank: null,
-      }],
+      hits: [
+        {
+          event: {
+            id: "ap3",
+            kind: 32267,
+            pubkey: "9".repeat(64),
+            tags: [["name", "SoccerStats"]],
+            content: "",
+            created_at: NOW,
+            sig: "s",
+          } as NostrEvent,
+          author: null,
+          rank: null,
+        },
+      ],
       eose: true,
       timeMs: 80,
     });
@@ -628,7 +837,10 @@ describe("the topic panel", () => {
       id: "e".repeat(64),
       kind: 30818,
       pubkey: "f".repeat(64),
-      tags: [["d", "nip-46"], ["title", "Nostr Connect"]],
+      tags: [
+        ["d", "nip-46"],
+        ["title", "Nostr Connect"],
+      ],
       content: "# NIP-46\n\nNostr Connect lets a client talk to a remote signer over relays.",
       created_at: 1_710_000_000,
       sig: "s",
@@ -656,8 +868,17 @@ describe("the topic panel", () => {
   // "Listed in" pills — the Lists tab carries that — and shows the person's
   // two freshest blocks with the rest behind one quiet row (see below).
   it("the panel carries no Listed-in pills any more", async () => {
-    suggestMock.mockResolvedValueOnce([{ pubkey: "b".repeat(64), npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 }]);
-    personSetsMock.mockResolvedValue([{ title: "Verified Human", exporters: 3, exporterPubkeys: ["1".repeat(64)], sets: [{ id: "a".repeat(64), pubkey: "1".repeat(64) }] }]);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: "b".repeat(64), npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 },
+    ]);
+    personSetsMock.mockResolvedValue([
+      {
+        title: "Verified Human",
+        exporters: 3,
+        exporterPubkeys: ["1".repeat(64)],
+        sets: [{ id: "a".repeat(64), pubkey: "1".repeat(64) }],
+      },
+    ]);
     render(<KnowledgePanel query="david" pov="nosfabrica" />);
     await screen.findByTestId("search-knowledge-panel");
     await new Promise((r) => setTimeout(r, 30));
@@ -670,7 +891,14 @@ describe("the topic panel", () => {
   // public profile; badges, followed-by, reviews and the CTA go where they say.
   it("the panel itself opens the public profile, except on its inner links", async () => {
     suggestMock.mockResolvedValueOnce([
-      { pubkey: "b".repeat(64), npub: "npub1david", name: "david", about: "epileptologist", wotRank: 0.9, wotFollowers: 42 },
+      {
+        pubkey: "b".repeat(64),
+        npub: "npub1david",
+        name: "david",
+        about: "epileptologist",
+        wotRank: 0.9,
+        wotFollowers: 42,
+      },
     ]);
     const onOpen = vi.fn();
     render(<KnowledgePanel query="david" pov="nosfabrica" onOpen={onOpen} />);
@@ -707,16 +935,39 @@ describe("the topic panel", () => {
 describe("the person panel's music", () => {
   const NOVA = "e".repeat(64);
   const nova = () =>
-    suggestMock.mockResolvedValueOnce([{ pubkey: NOVA, npub: "npub1nova", name: "NOVA", wotRank: 0.8, wotFollowers: 12 }]);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: NOVA, npub: "npub1nova", name: "NOVA", wotRank: 0.8, wotFollowers: 12 },
+    ]);
   const track = (id: string, title: string): NostrEvent =>
-    ({ id, kind: 31337, pubkey: NOVA, created_at: NOW - 100, sig: "s", content: "", tags: [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://renaissancemachine.ai/music/${id}.mp3`]] }) as NostrEvent;
+    ({
+      id,
+      kind: 31337,
+      pubkey: NOVA,
+      created_at: NOW - 100,
+      sig: "s",
+      content: "",
+      tags: [
+        ["d", id],
+        ["title", title],
+        ["artist", "NOVA"],
+        ["media", `https://renaissancemachine.ai/music/${id}.mp3`],
+      ],
+    }) as NostrEvent;
 
   it("plays the person's latest tracks in the panel and points at the profile for the rest", async () => {
     nova();
     recentByKindsMock.mockResolvedValue([
       track("t1", "Old Carbon"),
       track("t2", "Duende"),
-      { id: "junk", kind: 31337, pubkey: NOVA, created_at: NOW - 50, sig: "s", content: "tester", tags: [["d", "x"]] } as NostrEvent,
+      {
+        id: "junk",
+        kind: 31337,
+        pubkey: NOVA,
+        created_at: NOW - 50,
+        sig: "s",
+        content: "tester",
+        tags: [["d", "x"]],
+      } as NostrEvent,
     ]);
     render(<KnowledgePanel query="nova" pov="nosfabrica" />);
 
@@ -748,13 +999,36 @@ describe("the person panel's music", () => {
 describe("the person panel's music, from Wavlake", () => {
   const AINSLEY = "8".repeat(64);
   const ainsley = () =>
-    suggestMock.mockResolvedValueOnce([{ pubkey: AINSLEY, npub: "npub1ainsley", name: "ainsleycostello", displayName: "Ainsley Costello", wotRank: 0.9, wotFollowers: 4700 }]);
+    suggestMock.mockResolvedValueOnce([
+      {
+        pubkey: AINSLEY,
+        npub: "npub1ainsley",
+        name: "ainsleycostello",
+        displayName: "Ainsley Costello",
+        wotRank: 0.9,
+        wotFollowers: 4700,
+      },
+    ]);
 
   it("plays the artist's Wavlake songs when they publish no native tracks, and points at Wavlake for the rest", async () => {
     ainsley();
-    findWavlakeArtistMock.mockResolvedValue({ id: "3dac722c", name: "Ainsley Costello", url: "https://wavlake.com/ainsley-costello", artistNpub: "" });
+    findWavlakeArtistMock.mockResolvedValue({
+      id: "3dac722c",
+      name: "Ainsley Costello",
+      url: "https://wavlake.com/ainsley-costello",
+      artistNpub: "",
+    });
     wavlakeArtistTracksMock.mockResolvedValue([
-      { id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" },
+      {
+        id: "wavlake:04cead49",
+        title: "Two Ships",
+        artist: "Ainsley Costello",
+        audio: "https://cdn/two-ships.mp3",
+        durationSec: 217,
+        url: "https://wavlake.com/track/04cead49",
+        source: "wavlake",
+        artistNpub: "",
+      },
     ]);
     render(<KnowledgePanel query="Ainsley Costello" pov="nosfabrica" />);
 
@@ -770,16 +1044,36 @@ describe("the person panel's music, from Wavlake", () => {
     expect(more.getAttribute("target")).toBeNull();
     // The source wears its own mark and is no link.
     const source = within(music).getAllByTestId("track-source")[0];
-    expect(source.querySelector('[data-testid="favicon"]')).toHaveAttribute("src", expect.stringContaining("wavlake.com"));
+    expect(source.querySelector('[data-testid="favicon"]')).toHaveAttribute(
+      "src",
+      expect.stringContaining("wavlake.com"),
+    );
     expect(source.closest("a")).toBeNull();
   });
 
   it("prefers the person's own native tracks over Wavlake's when they have both", async () => {
     ainsley();
     recentByKindsMock.mockResolvedValue([
-      { id: "n1", kind: 31337, pubkey: AINSLEY, created_at: NOW - 10, sig: "s", content: "", tags: [["d", "n1"], ["title", "Native Song"], ["media", "https://cdn/native.mp3"]] } as NostrEvent,
+      {
+        id: "n1",
+        kind: 31337,
+        pubkey: AINSLEY,
+        created_at: NOW - 10,
+        sig: "s",
+        content: "",
+        tags: [
+          ["d", "n1"],
+          ["title", "Native Song"],
+          ["media", "https://cdn/native.mp3"],
+        ],
+      } as NostrEvent,
     ]);
-    findWavlakeArtistMock.mockResolvedValue({ id: "3dac722c", name: "Ainsley Costello", url: "https://wavlake.com/ainsley-costello", artistNpub: "" });
+    findWavlakeArtistMock.mockResolvedValue({
+      id: "3dac722c",
+      name: "Ainsley Costello",
+      url: "https://wavlake.com/ainsley-costello",
+      artistNpub: "",
+    });
     render(<KnowledgePanel query="Ainsley Costello" pov="nosfabrica" />);
     const music = await screen.findByTestId("person-music");
     expect(music).toHaveTextContent("Native Song");
@@ -795,7 +1089,9 @@ vi.mock("@/components/share/Lightbox", async (importOriginal) => ({
   useLightbox: () => openLightboxMock,
 }));
 // Fountain's page for a podcast link in one of their notes.
-const fountainItemFetchMock = vi.fn<(url: string) => Promise<import("@/lib/fountain").FountainItem | null>>(() => Promise.resolve(null));
+const fountainItemFetchMock = vi.fn<(url: string) => Promise<import("@/lib/fountain").FountainItem | null>>(() =>
+  Promise.resolve(null),
+);
 vi.mock("@/lib/fountain", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/fountain")>()),
   fetchFountainItem: (url: string) => fountainItemFetchMock(url),
@@ -807,8 +1103,14 @@ describe("the person panel's live stream", () => {
   const GRINDER = "6".repeat(64);
   const SHOSHO = "f".repeat(64);
   const grinder = () =>
-    suggestMock.mockResolvedValueOnce([{ pubkey: GRINDER, npub: "npub1grinder", name: "TheGrinder", wotRank: 0.9, wotFollowers: 3900 }]);
-  const stream = (id: string, status: string, over: Partial<{ streaming: string; created: number; starts: number; viewers: string }> = {}): NostrEvent =>
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: GRINDER, npub: "npub1grinder", name: "TheGrinder", wotRank: 0.9, wotFollowers: 3900 },
+    ]);
+  const stream = (
+    id: string,
+    status: string,
+    over: Partial<{ streaming: string; created: number; starts: number; viewers: string }> = {},
+  ): NostrEvent =>
     ({
       id,
       kind: 30311,
@@ -851,14 +1153,19 @@ describe("the person panel's live stream", () => {
     expect(openLightboxMock).toHaveBeenLastCalledWith(
       [expect.objectContaining({ kind: "embed", url: expect.stringContaining("player.twitch.tv") })],
       0,
-      expect.objectContaining({ author: expect.objectContaining({ name: "TheGrinder" }), postHref: expect.stringMatching(/^\/e\//) }),
+      expect.objectContaining({
+        author: expect.objectContaining({ name: "TheGrinder" }),
+        postHref: expect.stringMatching(/^\/e\//),
+      }),
     );
     expect(within(live).getByTestId("person-live-open").getAttribute("href")).toMatch(/^\/e\//);
   });
 
   it("a raw HLS stream starts in our player on the one tap, with no second play button", async () => {
     grinder();
-    liveStreamsMock.mockResolvedValue([stream("now", "live", { streaming: "https://shosho.live/hls/thegrinder/index.m3u8", viewers: "19" })]);
+    liveStreamsMock.mockResolvedValue([
+      stream("now", "live", { streaming: "https://shosho.live/hls/thegrinder/index.m3u8", viewers: "19" }),
+    ]);
     render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
     const live = await screen.findByTestId("person-live");
 
@@ -877,7 +1184,10 @@ describe("the person panel's live stream", () => {
   it("an ended stream with a recording is a replay that plays in place", async () => {
     grinder();
     liveStreamsMock.mockResolvedValue([
-      { ...stream("old", "ended", { created: NOW - 86_400 }), tags: [...stream("old", "ended").tags, ["recording", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]] },
+      {
+        ...stream("old", "ended", { created: NOW - 86_400 }),
+        tags: [...stream("old", "ended").tags, ["recording", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]],
+      },
     ]);
     render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
 
@@ -889,7 +1199,12 @@ describe("the person panel's live stream", () => {
 
     fireEvent.click(within(replay).getByRole("button", { name: /play/i }));
     expect(openLightboxMock).toHaveBeenLastCalledWith(
-      [expect.objectContaining({ kind: "embed", url: expect.stringContaining("youtube-nocookie.com/embed/dQw4w9WgXcQ") })],
+      [
+        expect.objectContaining({
+          kind: "embed",
+          url: expect.stringContaining("youtube-nocookie.com/embed/dQw4w9WgXcQ"),
+        }),
+      ],
       0,
       expect.objectContaining({ postHref: expect.stringMatching(/^\/e\//) }),
     );
@@ -898,9 +1213,17 @@ describe("the person panel's live stream", () => {
 
   it("a replay whose recording no longer answers is not advertised either", async () => {
     grinder();
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
     liveStreamsMock.mockResolvedValue([
-      { ...stream("old", "ended", { created: NOW - 86_400 }), tags: [...stream("old", "ended").tags, ["recording", "https://data.zap.stream/recording/2dbb68f0.m3u8"]] },
+      {
+        ...stream("old", "ended", { created: NOW - 86_400 }),
+        tags: [...stream("old", "ended").tags, ["recording", "https://data.zap.stream/recording/2dbb68f0.m3u8"]],
+      },
     ]);
     render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
     await screen.findByTestId("knowledge-panel-profile");
@@ -911,15 +1234,29 @@ describe("the person panel's live stream", () => {
 
   it("a replay whose recording answers is advertised and plays through our player", async () => {
     grinder();
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 200 })),
+    );
     liveStreamsMock.mockResolvedValue([
-      { ...stream("old", "ended", { created: NOW - 86_400 }), tags: [...stream("old", "ended").tags, ["recording", "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8"]] },
+      {
+        ...stream("old", "ended", { created: NOW - 86_400 }),
+        tags: [
+          ...stream("old", "ended").tags,
+          ["recording", "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8"],
+        ],
+      },
     ]);
     render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
     const replay = await screen.findByTestId("person-live-replay");
     fireEvent.click(within(replay).getByRole("button", { name: /play/i }));
     expect(openLightboxMock).toHaveBeenLastCalledWith(
-      [expect.objectContaining({ kind: "hls", url: "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8" })],
+      [
+        expect.objectContaining({
+          kind: "hls",
+          url: "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8",
+        }),
+      ],
       0,
       expect.anything(),
     );
@@ -954,16 +1291,41 @@ describe("the person panel's live stream", () => {
 describe("the person panel's latest media", () => {
   const RHR = "b".repeat(64);
   const rhr = () =>
-    suggestMock.mockResolvedValueOnce([{ pubkey: RHR, npub: "npub1rhr", name: "RABBIT HOLE RECAP", wotRank: 0.9, wotFollowers: 7400 }]);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: RHR, npub: "npub1rhr", name: "RABBIT HOLE RECAP", wotRank: 0.9, wotFollowers: 7400 },
+    ]);
   const video = (id: string, n: number, age: number): NostrEvent =>
-    ({ id, kind: 1, pubkey: RHR, created_at: NOW - age, sig: "s", content: `RHR ${n}: EPISODE TITLE WITH nostr:nprofile1qqsabc AND nostr:nprofile1qqsdef https://blossom.primal.net/${id}.mp4`, tags: [["imeta", `url https://blossom.primal.net/${id}.mp4`, "m video/mp4", `image https://blossom.primal.net/${id}.jpg`]] }) as NostrEvent;
+    ({
+      id,
+      kind: 1,
+      pubkey: RHR,
+      created_at: NOW - age,
+      sig: "s",
+      content: `RHR ${n}: EPISODE TITLE WITH nostr:nprofile1qqsabc AND nostr:nprofile1qqsdef https://blossom.primal.net/${id}.mp4`,
+      tags: [
+        [
+          "imeta",
+          `url https://blossom.primal.net/${id}.mp4`,
+          "m video/mp4",
+          `image https://blossom.primal.net/${id}.jpg`,
+        ],
+      ],
+    }) as NostrEvent;
 
   // Benjamin, over Joe Martin's videos showing a dark square: "should these
   // videos have image thumbnails". A clip that published no poster still has a
   // first frame — the browser fetches just the metadata and paints it.
   it("a video without a poster shows its first frame as the thumbnail", async () => {
     rhr();
-    const bare = { id: "bare1", kind: 1, pubkey: RHR, created_at: NOW - 60, sig: "s", content: "New morning routine https://blossom.primal.net/bare1.mp4", tags: [["imeta", "url https://blossom.primal.net/bare1.mp4", "m video/mp4"]] } as NostrEvent;
+    const bare = {
+      id: "bare1",
+      kind: 1,
+      pubkey: RHR,
+      created_at: NOW - 60,
+      sig: "s",
+      content: "New morning routine https://blossom.primal.net/bare1.mp4",
+      tags: [["imeta", "url https://blossom.primal.net/bare1.mp4", "m video/mp4"]],
+    } as NostrEvent;
     recentByKindsMock.mockImplementation(async (_pk, kinds) => (kinds.includes(1) ? [bare] : []));
     render(<KnowledgePanel query="Rabbit Hole Recap" pov="nosfabrica" />);
     const row = await screen.findByTestId("person-media-item-bare1");
@@ -977,13 +1339,33 @@ describe("the person panel's latest media", () => {
   it("lists the newest three videos with poster, clean title and age, and plays one in the lightbox", async () => {
     rhr();
     recentByKindsMock.mockImplementation(async (_pk, kinds) =>
-      kinds.includes(1) ? [video("ep418", 418, 30 * 86_400), video("ep421", 421, 86_400), video("ep420", 420, 7 * 86_400), video("ep419", 419, 14 * 86_400), { id: "txt", kind: 1, pubkey: RHR, created_at: NOW - 10, sig: "s", content: "new episode Friday", tags: [] } as NostrEvent] : [],
+      kinds.includes(1)
+        ? [
+            video("ep418", 418, 30 * 86_400),
+            video("ep421", 421, 86_400),
+            video("ep420", 420, 7 * 86_400),
+            video("ep419", 419, 14 * 86_400),
+            {
+              id: "txt",
+              kind: 1,
+              pubkey: RHR,
+              created_at: NOW - 10,
+              sig: "s",
+              content: "new episode Friday",
+              tags: [],
+            } as NostrEvent,
+          ]
+        : [],
     );
     render(<KnowledgePanel query="Rabbit Hole Recap" pov="nosfabrica" />);
 
     const latest = await screen.findByTestId("person-media");
     const rows = within(latest).getAllByTestId(/^person-media-item-/);
-    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual(["person-media-item-ep421", "person-media-item-ep420", "person-media-item-ep419"]);
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
+      "person-media-item-ep421",
+      "person-media-item-ep420",
+      "person-media-item-ep419",
+    ]);
     // The title is the words, not the URLs or the raw nostr: references.
     expect(rows[0]).toHaveTextContent("RHR 421: EPISODE TITLE");
     expect(rows[0]).not.toHaveTextContent(/TITLE WITH/);
@@ -1003,10 +1385,31 @@ describe("the person panel's latest media", () => {
   it("a note linking a Fountain episode is a podcast row with its artwork, playable here", async () => {
     rhr();
     recentByKindsMock.mockImplementation(async (_pk, kinds) =>
-      kinds.includes(1) ? [{ id: "pod1", kind: 1, pubkey: RHR, created_at: NOW - 3600, sig: "s", content: "New pod is up https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3", tags: [] } as NostrEvent] : [],
+      kinds.includes(1)
+        ? [
+            {
+              id: "pod1",
+              kind: 1,
+              pubkey: RHR,
+              created_at: NOW - 3600,
+              sig: "s",
+              content: "New pod is up https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3",
+              tags: [],
+            } as NostrEvent,
+          ]
+        : [],
     );
     // Fountain's page title carries its own call to action; the row does not.
-    fountainItemFetchMock.mockResolvedValue({ kind: "episode", id: "T0iRUdk8nBSfUEPLLcJ3", show: "Rabbit Hole Recap", title: "RHR 422: The Pod • Watch on Fountain", description: null, image: "https://img/pod.jpg", audio: "https://cdn/pod.mp3", url: "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3" });
+    fountainItemFetchMock.mockResolvedValue({
+      kind: "episode",
+      id: "T0iRUdk8nBSfUEPLLcJ3",
+      show: "Rabbit Hole Recap",
+      title: "RHR 422: The Pod • Watch on Fountain",
+      description: null,
+      image: "https://img/pod.jpg",
+      audio: "https://cdn/pod.mp3",
+      url: "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3",
+    });
     render(<KnowledgePanel query="Rabbit Hole Recap" pov="nosfabrica" />);
 
     // Benjamin: podcasts should play like the audio files, so the UI is
@@ -1027,22 +1430,42 @@ describe("the person panel's latest media", () => {
 describe("the person panel's Selling row", () => {
   const SELLER = "9".repeat(64);
   const seller = () =>
-    suggestMock.mockResolvedValueOnce([{ pubkey: SELLER, npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 }]);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: SELLER, npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 },
+    ]);
   const listing = (id: string, title: string, age: number, extra: string[][] = []): NostrEvent =>
-    ({ id, kind: 30402, pubkey: SELLER, created_at: NOW - age, sig: "s", content: title, tags: [["d", id], ["title", title], ["price", "14100", "sats"], ["image", `https://img/${id}.jpg`], ...extra] }) as NostrEvent;
+    ({
+      id,
+      kind: 30402,
+      pubkey: SELLER,
+      created_at: NOW - age,
+      sig: "s",
+      content: title,
+      tags: [["d", id], ["title", title], ["price", "14100", "sats"], ["image", `https://img/${id}.jpg`], ...extra],
+    }) as NostrEvent;
 
   it("lists the three newest listings for sale with photo, title and price, and links to the seller's profile for the rest", async () => {
     seller();
     recentByKindsMock.mockImplementation(async (_pk, kinds) =>
       kinds.includes(30402)
-        ? [listing("l4", "Maglia quattro", 4 * 86_400), listing("l1", "Maglia uno", 86_400), listing("sold", "Venduta", 3600, [["status", "sold"]]), listing("l2", "Maglia due", 2 * 86_400), listing("l3", "Maglia tre", 3 * 86_400)]
+        ? [
+            listing("l4", "Maglia quattro", 4 * 86_400),
+            listing("l1", "Maglia uno", 86_400),
+            listing("sold", "Venduta", 3600, [["status", "sold"]]),
+            listing("l2", "Maglia due", 2 * 86_400),
+            listing("l3", "Maglia tre", 3 * 86_400),
+          ]
         : [],
     );
     render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
 
     const selling = await screen.findByTestId("person-selling");
     const rows = within(selling).getAllByTestId(/^person-selling-item-/);
-    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual(["person-selling-item-l1", "person-selling-item-l2", "person-selling-item-l3"]);
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
+      "person-selling-item-l1",
+      "person-selling-item-l2",
+      "person-selling-item-l3",
+    ]);
     expect(rows[0]).toHaveTextContent("Maglia uno");
     expect(rows[0]).toHaveTextContent("14,100 sats");
     expect(rows[0].querySelector("img")?.getAttribute("src")).toBe("https://img/l1.jpg");
@@ -1054,9 +1477,24 @@ describe("the person panel's Selling row", () => {
   it("shows one row for a product published in several sizes, saying how many options", async () => {
     seller();
     const shirt = (size: string, age: number): NostrEvent =>
-      ({ id: `shirt-${size}`, kind: 30402, pubkey: SELLER, created_at: NOW - age, sig: "s", content: "", tags: [["d", `shirt-${size}`], ["title", `SOUND COFFEE T-SHIRT — ${size} / PEPPER`], ["price", "35", "USD"], ["image", "https://img/shirt.jpg"]] }) as NostrEvent;
+      ({
+        id: `shirt-${size}`,
+        kind: 30402,
+        pubkey: SELLER,
+        created_at: NOW - age,
+        sig: "s",
+        content: "",
+        tags: [
+          ["d", `shirt-${size}`],
+          ["title", `SOUND COFFEE T-SHIRT — ${size} / PEPPER`],
+          ["price", "35", "USD"],
+          ["image", "https://img/shirt.jpg"],
+        ],
+      }) as NostrEvent;
     recentByKindsMock.mockImplementation(async (_pk, kinds) =>
-      kinds.includes(30402) ? [shirt("XXL", 3600), shirt("XL", 7200), shirt("SMALL", 9000), listing("bag", "SOUND COFFEE", 86_400)] : [],
+      kinds.includes(30402)
+        ? [shirt("XXL", 3600), shirt("XL", 7200), shirt("SMALL", 9000), listing("bag", "SOUND COFFEE", 86_400)]
+        : [],
     );
     render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
     const selling = await screen.findByTestId("person-selling");
@@ -1083,19 +1521,87 @@ describe("the person panel's Selling row", () => {
 // newest item — and the rest waits behind one quiet "More from <name>" row.
 describe("the person panel carries two blocks by default", () => {
   const HANDLED = "7".repeat(64);
-  const handled = () => suggestMock.mockResolvedValueOnce([{ pubkey: HANDLED, npub: "npub1handled", name: "Handled", wotRank: 0.9, wotFollowers: 300 }]);
+  const handled = () =>
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: HANDLED, npub: "npub1handled", name: "Handled", wotRank: 0.9, wotFollowers: 300 },
+    ]);
   const at = (age: number) => NOW - age;
-  const track = (id: string, age: number): NostrEvent => ({ id, kind: 31337, pubkey: HANDLED, created_at: at(age), sig: "s", content: "", tags: [["d", id], ["title", `Song ${id}`], ["media", `https://x/${id}.mp3`]] }) as NostrEvent;
-  const video = (id: string, age: number): NostrEvent => ({ id, kind: 1, pubkey: HANDLED, created_at: at(age), sig: "s", content: `clip https://blossom.primal.net/${id}.mp4`, tags: [["imeta", `url https://blossom.primal.net/${id}.mp4`, "m video/mp4", `image https://blossom.primal.net/${id}.jpg`]] }) as NostrEvent;
-  const listing = (id: string, age: number): NostrEvent => ({ id, kind: 30402, pubkey: HANDLED, created_at: at(age), sig: "s", content: "cd", tags: [["d", id], ["title", `CD ${id}`], ["price", "1000", "sats"]] }) as NostrEvent;
-  const replay = (): NostrEvent => ({ id: "rep", kind: 30311, pubkey: HANDLED, created_at: at(86_400), sig: "s", content: "", tags: [["d", "rep"], ["title", "Last show"], ["status", "ended"], ["recording", "https://rec.ok/show.m3u8"]] }) as NostrEvent;
+  const track = (id: string, age: number): NostrEvent =>
+    ({
+      id,
+      kind: 31337,
+      pubkey: HANDLED,
+      created_at: at(age),
+      sig: "s",
+      content: "",
+      tags: [
+        ["d", id],
+        ["title", `Song ${id}`],
+        ["media", `https://x/${id}.mp3`],
+      ],
+    }) as NostrEvent;
+  const video = (id: string, age: number): NostrEvent =>
+    ({
+      id,
+      kind: 1,
+      pubkey: HANDLED,
+      created_at: at(age),
+      sig: "s",
+      content: `clip https://blossom.primal.net/${id}.mp4`,
+      tags: [
+        [
+          "imeta",
+          `url https://blossom.primal.net/${id}.mp4`,
+          "m video/mp4",
+          `image https://blossom.primal.net/${id}.jpg`,
+        ],
+      ],
+    }) as NostrEvent;
+  const listing = (id: string, age: number): NostrEvent =>
+    ({
+      id,
+      kind: 30402,
+      pubkey: HANDLED,
+      created_at: at(age),
+      sig: "s",
+      content: "cd",
+      tags: [
+        ["d", id],
+        ["title", `CD ${id}`],
+        ["price", "1000", "sats"],
+      ],
+    }) as NostrEvent;
+  const replay = (): NostrEvent =>
+    ({
+      id: "rep",
+      kind: 30311,
+      pubkey: HANDLED,
+      created_at: at(86_400),
+      sig: "s",
+      content: "",
+      tags: [
+        ["d", "rep"],
+        ["title", "Last show"],
+        ["status", "ended"],
+        ["recording", "https://rec.ok/show.m3u8"],
+      ],
+    }) as NostrEvent;
 
   it("shows the replay and the freshest of the rest, folds the others behind one row, and opens them on tap", async () => {
     handled();
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 200 })),
+    );
     liveStreamsMock.mockResolvedValue([replay()]);
     recentByKindsMock.mockImplementation(async (_pk, kinds) =>
-      kinds.includes(31337) ? [track("t1", 60)] : kinds.includes(30402) ? [listing("l1", 3600)] : kinds.includes(1) ? [video("v1", 7 * 86_400)] : [],
+      kinds.includes(31337)
+        ? [track("t1", 60)]
+        : kinds.includes(30402)
+          ? [listing("l1", 3600)]
+          : kinds.includes(1)
+            ? [video("v1", 7 * 86_400)]
+            : [],
     );
     render(<KnowledgePanel query="Handled" pov="nosfabrica" />);
     // The live block first, then the newest of the rest — music, a minute old.
@@ -1110,7 +1616,11 @@ describe("the person panel carries two blocks by default", () => {
     expect(await screen.findByTestId("person-media")).toBeInTheDocument();
     // The order inside the panel: live, music, then the fold.
     const panel = screen.getByTestId("search-knowledge-panel");
-    const ids = [...panel.querySelectorAll('[data-testid="person-live-replay"], [data-testid="person-music"], [data-testid="person-selling"], [data-testid="person-media"]')].map((e) => e.getAttribute("data-testid"));
+    const ids = [
+      ...panel.querySelectorAll(
+        '[data-testid="person-live-replay"], [data-testid="person-music"], [data-testid="person-selling"], [data-testid="person-media"]',
+      ),
+    ].map((e) => e.getAttribute("data-testid"));
     expect(ids).toEqual(["person-live-replay", "person-music", "person-selling", "person-media"]);
   });
 
@@ -1130,7 +1640,9 @@ describe("the person panel carries two blocks by default", () => {
 describe("a person-scoped search keeps the person in the panel", () => {
   const JOE = "e".repeat(64);
   it("from:npub… shows that person without a name match", async () => {
-    suggestMock.mockResolvedValueOnce([{ pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe Martin", wotRank: 0.8, wotFollowers: 5400 }]);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe Martin", wotRank: 0.8, wotFollowers: 5400 },
+    ]);
     render(<KnowledgePanel query={`from:${nip19.npubEncode(JOE)}`} pov="nosfabrica" />);
     const panel = await screen.findByTestId("search-knowledge-panel");
     expect(panel).toHaveTextContent("Joe Martin");
@@ -1138,13 +1650,17 @@ describe("a person-scoped search keeps the person in the panel", () => {
     expect(suggestMock).toHaveBeenCalled();
   });
   it("words beside the scope keep the person too", async () => {
-    suggestMock.mockResolvedValueOnce([{ pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe Martin", wotRank: 0.8, wotFollowers: 5400 }]);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe Martin", wotRank: 0.8, wotFollowers: 5400 },
+    ]);
     render(<KnowledgePanel query={`from:${nip19.npubEncode(JOE)} valentine`} pov="nosfabrica" />);
     expect(await screen.findByTestId("search-knowledge-panel")).toHaveTextContent("Joe Martin");
   });
 
   it("a scope with a stranger's answer shows nobody", async () => {
-    suggestMock.mockResolvedValueOnce([{ pubkey: "f".repeat(64), npub: "npub1other", name: "Someone Else", wotRank: 0.8, wotFollowers: 5 }]);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: "f".repeat(64), npub: "npub1other", name: "Someone Else", wotRank: 0.8, wotFollowers: 5 },
+    ]);
     render(<KnowledgePanel query={`from:${nip19.npubEncode(JOE)}`} pov="nosfabrica" />);
     await new Promise((r) => setTimeout(r, 50));
     expect(screen.queryByTestId("search-knowledge-panel")).toBeNull();
@@ -1158,7 +1674,13 @@ describe("a person-scoped search keeps the person in the panel", () => {
 // their choice and still shows.
 describe("the panel holds the verified line", () => {
   const SPAM = "3".repeat(64);
-  const spammer = { pubkey: SPAM, npub: nip19.npubEncode(SPAM), name: "Web 4.0 Semantic Layer", wotRank: null, wotFollowers: 4 };
+  const spammer = {
+    pubkey: SPAM,
+    npub: nip19.npubEncode(SPAM),
+    name: "Web 4.0 Semantic Layer",
+    wotRank: null,
+    wotFollowers: 4,
+  };
   it("a name match below the line does not take the panel", async () => {
     scoreOfMock.mockImplementation((pk) => (pk === SPAM ? 0.0198 : 0.7));
     suggestMock.mockResolvedValueOnce([spammer]);
@@ -1186,7 +1708,9 @@ describe("the panel holds the verified line", () => {
 describe("the panel offers a search of everything this person published", () => {
   const NOVA = "e".repeat(64);
   const nova = () =>
-    suggestMock.mockResolvedValueOnce([{ pubkey: NOVA, npub: "npub1nova", name: "NOVA", wotRank: 0.8, wotFollowers: 12 }]);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: NOVA, npub: "npub1nova", name: "NOVA", wotRank: 0.8, wotFollowers: 12 },
+    ]);
   it("a person panel carries the row, scoped to them on Everything", async () => {
     nova();
     render(<KnowledgePanel query="nova" pov="nosfabrica" />);
@@ -1197,7 +1721,9 @@ describe("the panel offers a search of everything this person published", () => 
   });
 
   it("once the search IS scoped to them, the box is the search — no row", async () => {
-    suggestMock.mockResolvedValueOnce([{ pubkey: NOVA, npub: nip19.npubEncode(NOVA), name: "nova", wotRank: 0.8, wotFollowers: 5400 }]);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: NOVA, npub: nip19.npubEncode(NOVA), name: "nova", wotRank: 0.8, wotFollowers: 5400 },
+    ]);
     render(<KnowledgePanel query={`from:${nip19.npubEncode(NOVA)}`} pov="nosfabrica" />);
     await screen.findByTestId("search-knowledge-panel");
     expect(screen.queryByTestId("knowledge-panel-search")).toBeNull();
@@ -1211,8 +1737,12 @@ describe("what the panel's person publishes", () => {
   const shop = { key: "shop", label: "Shop", tab: "shop", liveNow: false };
   beforeEach(() => {
     contentMock.mockReset();
-    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === DAVID ? { chips: [shop] } : undefined])));
-    suggestMock.mockResolvedValue([{ pubkey: DAVID, npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 }]);
+    contentMock.mockImplementation(
+      (pks: string[]) => new Map(pks.map((pk) => [pk, pk === DAVID ? { chips: [shop] } : undefined])),
+    );
+    suggestMock.mockResolvedValue([
+      { pubkey: DAVID, npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 },
+    ]);
   });
 
   it("wears the chips under Followed by, each a link to the scoped search", async () => {

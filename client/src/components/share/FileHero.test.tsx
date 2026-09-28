@@ -23,7 +23,10 @@ const apk = {
     ["m", "application/vnd.android.package-archive"],
     ["x", "cbb49d834143aa9047325603dacd4f8142093567973566de3b1e20a89557b728"],
     ["size", "45839275"],
-    ["url", "https://github.com/vitorpamplona/amethyst/releases/download/v1.05.1/amethyst-googleplay-arm64-v8a-v1.05.1.apk"],
+    [
+      "url",
+      "https://github.com/vitorpamplona/amethyst/releases/download/v1.05.1/amethyst-googleplay-arm64-v8a-v1.05.1.apk",
+    ],
   ],
 } as NostrEvent;
 
@@ -44,7 +47,15 @@ describe("FileHero", () => {
   });
 
   it("any other file names its type from the mime and its file name from the link", () => {
-    const pdf = { ...apk, content: "", tags: [["m", "application/pdf"], ["size", "2048"], ["url", "https://files.example/papers/bitcoin.pdf"]] } as NostrEvent;
+    const pdf = {
+      ...apk,
+      content: "",
+      tags: [
+        ["m", "application/pdf"],
+        ["size", "2048"],
+        ["url", "https://files.example/papers/bitcoin.pdf"],
+      ],
+    } as NostrEvent;
     render(<FileHero event={pdf} />);
     const hero = screen.getByTestId("file-hero");
     expect(hero).toHaveTextContent("bitcoin.pdf");

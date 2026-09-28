@@ -190,7 +190,12 @@ export function parseNoteContent(content: string): NoteToken[] {
       const bech = mention.replace(/^nostr:/, "");
       // Decode-guard: a bare token like "note1…" in prose isn't a real entity.
       let valid = false;
-      try { nip19.decode(bech); valid = true; } catch { /* not an entity */ }
+      try {
+        nip19.decode(bech);
+        valid = true;
+      } catch {
+        /* not an entity */
+      }
       tokens.push(valid ? { type: "mention", bech32: bech } : { type: "text", value: whole });
     } else if (hashtag) {
       tokens.push({ type: "hashtag", value: hashtag });
@@ -215,11 +220,7 @@ export function parseNoteContent(content: string): NoteToken[] {
  * URL is definitionally a photo). Plain URLs inside note *content* still rely on
  * the file-extension check (no host guessing).
  */
-export function extractImageUrls(
-  content: string,
-  tags: string[][] = [],
-  opts: { allImeta?: boolean } = {},
-): string[] {
+export function extractImageUrls(content: string, tags: string[][] = [], opts: { allImeta?: boolean } = {}): string[] {
   const urls = new Set<string>();
   for (const tag of tags) {
     if (tag[0] === "imeta") {

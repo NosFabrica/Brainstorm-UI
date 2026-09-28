@@ -6,7 +6,11 @@ import { renderWithProviders } from "@/test/utils";
 const PUBKEY = "a".repeat(64);
 
 const toast = vi.fn();
-const followPubkeys = vi.fn(async (_pks: string[], _opts?: { allowFromScratch?: boolean }): Promise<Record<string, unknown>> => ({ success: true }));
+const followPubkeys = vi.fn(
+  async (_pks: string[], _opts?: { allowFromScratch?: boolean }): Promise<Record<string, unknown>> => ({
+    success: true,
+  }),
+);
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({

@@ -7,7 +7,14 @@
 import { describe, expect, it } from "vitest";
 import { kindLabel, kindTypeLabel, specKindTags } from "./kindLabel";
 
-const ev = (kind: number, tags: string[][] = []) => ({ id: "1".repeat(64), kind, pubkey: "a".repeat(64), tags, content: "", created_at: 1 });
+const ev = (kind: number, tags: string[][] = []) => ({
+  id: "1".repeat(64),
+  kind,
+  pubkey: "a".repeat(64),
+  tags,
+  content: "",
+  created_at: 1,
+});
 
 describe("kindTypeLabel", () => {
   it("names the git kinds as NIP-34 does: patch, pull request, issue", () => {
@@ -28,16 +35,29 @@ describe("kindTypeLabel", () => {
 
 describe("kindLabel", () => {
   it("reads the event, so an article wearing zap.cooking's tag is a Recipe and a plain one an Article", () => {
-    expect(kindLabel(ev(30023, [["d", "girik"], ["t", "zapcooking"]]))).toBe("Recipe");
+    expect(
+      kindLabel(
+        ev(30023, [
+          ["d", "girik"],
+          ["t", "zapcooking"],
+        ]),
+      ),
+    ).toBe("Recipe");
     expect(kindLabel(ev(30023, [["d", "why"]]))).toBe("Article");
   });
 });
 
 describe("specKindTags", () => {
   it("lists the numeric k tags a spec carries, in order, each with the name its author gave", () => {
-    expect(specKindTags(ev(30817, [["k", "7000"], ["k", "5905", "DVM Job Request"], ["k", "nip"], ["k", "5905"]]))).toEqual([
-      { kind: "5905", label: "DVM Job Request" },
-      { kind: "7000" },
-    ]);
+    expect(
+      specKindTags(
+        ev(30817, [
+          ["k", "7000"],
+          ["k", "5905", "DVM Job Request"],
+          ["k", "nip"],
+          ["k", "5905"],
+        ]),
+      ),
+    ).toEqual([{ kind: "5905", label: "DVM Job Request" }, { kind: "7000" }]);
   });
 });

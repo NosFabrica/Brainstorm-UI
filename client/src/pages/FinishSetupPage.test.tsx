@@ -99,7 +99,16 @@ describe("FinishSetupPage", () => {
   // Activated, lists waiting: the step stays done, the update sits under it.
   it("keeps Activate done and offers the lists update beneath it", () => {
     setupState.mockReturnValue(
-      state({ followDone: true, followPending: false, activateDone: true, activatePending: false, listsPending: true, remaining: 0, doneCount: 3, allDone: true }),
+      state({
+        followDone: true,
+        followPending: false,
+        activateDone: true,
+        activatePending: false,
+        listsPending: true,
+        remaining: 0,
+        doneCount: 3,
+        allDone: true,
+      }),
     );
     renderWithProviders(<FinishSetupPage />);
 

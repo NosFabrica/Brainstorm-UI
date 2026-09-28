@@ -143,11 +143,7 @@ describe("pills over the value", () => {
   it("a kind pill says what the kind IS, and spec: keeps the word it was typed as", () => {
     mount({ value: "kind:30023 spec: kind:31999" });
     const pills = [...box().querySelectorAll('[data-type="kind"]')] as HTMLElement[];
-    expect(pills.map((p) => p.textContent?.replace("×", "").trim())).toEqual([
-      "kind:articles",
-      "specs",
-      "kind:31999",
-    ]);
+    expect(pills.map((p) => p.textContent?.replace("×", "").trim())).toEqual(["kind:articles", "specs", "kind:31999"]);
     expect(pills[0].title).toBe("kind:30023 — only articles (kind 30023)");
     expect(pills[1].title).toBe("spec: — only specs (kind 30817)");
     // No word for it here, so the number stands and the hover says no more than it can.
@@ -156,8 +152,11 @@ describe("pills over the value", () => {
 
   it("the ranking tokens pill too, where the relay's own field leaves them as bare text", () => {
     mount({ value: "sort:recent include:spam filter:rank:gte:50" });
-    expect([...box().querySelectorAll("[data-token]")].map((p) => (p as HTMLElement).dataset.type))
-      .toEqual(["sort", "lens", "floor"]);
+    expect([...box().querySelectorAll("[data-token]")].map((p) => (p as HTMLElement).dataset.type)).toEqual([
+      "sort",
+      "lens",
+      "floor",
+    ]);
   });
 
   it("a pill's × splices its token out, taking one adjoining space with it", () => {
@@ -187,7 +186,10 @@ describe("pills over the value", () => {
   // whatever was in the box before the last keystroke — on a fresh box, nothing at all.
   it("Enter carries the value the same event just typed", () => {
     const { onEnter } = mount({ value: "" });
-    fireEvent(box(), new InputEvent("beforeinput", { inputType: "insertText", data: "gm\n", bubbles: true, cancelable: true }));
+    fireEvent(
+      box(),
+      new InputEvent("beforeinput", { inputType: "insertText", data: "gm\n", bubbles: true, cancelable: true }),
+    );
     expect(box().value).toBe("gm");
     expect(onEnter).toHaveBeenCalledWith("gm");
   });
@@ -451,8 +453,11 @@ describe("the scope pill stays first", () => {
     const r = document.getSelection()!.getRangeAt(0);
     let i = 0;
     for (const n of Array.from(el.childNodes)) {
-      if (n === r.startContainer) return i + (n.nodeType === 3 ? visible((n.textContent ?? "").slice(0, r.startOffset)).length : 0);
-      if (r.startContainer === el) { if (Array.from(el.childNodes).indexOf(n) >= r.startOffset) return i; }
+      if (n === r.startContainer)
+        return i + (n.nodeType === 3 ? visible((n.textContent ?? "").slice(0, r.startOffset)).length : 0);
+      if (r.startContainer === el) {
+        if (Array.from(el.childNodes).indexOf(n) >= r.startOffset) return i;
+      }
       i += n.nodeType === 3 ? visible(n.textContent ?? "").length : ((n as HTMLElement).dataset.token ?? "").length;
     }
     return i;

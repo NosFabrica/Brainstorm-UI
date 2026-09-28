@@ -255,11 +255,7 @@ const SECTIONS: Section[] = [
       },
       {
         type: "address",
-        lines: [
-          "NosFabrica, Inc.",
-          "1910 21st Ave S, Nashville, TN 37212",
-          "United States",
-        ],
+        lines: ["NosFabrica, Inc.", "1910 21st Ave S, Nashville, TN 37212", "United States"],
       },
     ],
   },

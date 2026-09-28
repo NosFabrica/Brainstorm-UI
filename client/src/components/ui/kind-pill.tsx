@@ -17,7 +17,19 @@ import { nipForKind } from "@/lib/kindNip";
 //   <KindPill event={hit.event} />
 //   <KindPill label="News" />            // where the content's shape is the label
 
-export function KindPill({ event, label, mixed = true, tone = "slate", size = "sm", className, ...rest }: { event?: KindEvent; label?: string; /** Whether this surface mixes kinds. Where it holds one, the pill stays away — unless the reader asked for labels everywhere. */ mixed?: boolean } & Omit<ChipProps, "children">) {
+export function KindPill({
+  event,
+  label,
+  mixed = true,
+  tone = "slate",
+  size = "sm",
+  className,
+  ...rest
+}: {
+  event?: KindEvent;
+  label?: string;
+  /** Whether this surface mixes kinds. Where it holds one, the pill stays away — unless the reader asked for labels everywhere. */ mixed?: boolean;
+} & Omit<ChipProps, "children">) {
   const everywhere = technicalView();
   // By default only a spec is named, and only where it sits among other
   // kinds — the case with no NIP number to lean on. Everything else waits
@@ -32,7 +44,14 @@ export function KindPill({ event, label, mixed = true, tone = "slate", size = "s
   const nerd = everywhere && event;
   const nip = nerd ? nipForKind(event.kind) : undefined;
   return (
-    <Chip tone={tone} size={size} className={`shrink-0 ${className ?? ""}`} data-testid="kind-pill" title={nerd ? `kind ${event.kind}${nip ? ` · ${nip}` : ""}` : undefined} {...rest}>
+    <Chip
+      tone={tone}
+      size={size}
+      className={`shrink-0 ${className ?? ""}`}
+      data-testid="kind-pill"
+      title={nerd ? `kind ${event.kind}${nip ? ` · ${nip}` : ""}` : undefined}
+      {...rest}
+    >
       {text}
       {nerd && <span className="font-mono font-normal opacity-70"> · {event.kind}</span>}
     </Chip>

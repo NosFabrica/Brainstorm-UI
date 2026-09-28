@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  countNameCollisions,
-  mergeSameNamedTags,
-  stanceForVariants,
-  type CountedTag,
-} from "./tagMerge";
+import { countNameCollisions, mergeSameNamedTags, stanceForVariants, type CountedTag } from "./tagMerge";
 
 /**
  * These cover the one property that can't be checked against the live hub: as of

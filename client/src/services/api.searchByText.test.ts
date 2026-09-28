@@ -6,10 +6,11 @@ vi.mock("@/accounts/signing", () => ({ activeAccount: () => undefined }));
 import { apiClient } from "@/services/api";
 
 function hangingFetch() {
-  const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
-    new Promise((_resolve, reject) => {
-      init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
-    }),
+  const fetchMock = vi.fn(
+    (_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      }),
   );
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -31,12 +32,15 @@ describe("apiClient.searchByText", () => {
   });
 
   it("still gives up on its own after the timeout, as a timeout the API-down check counts", async () => {
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
-      new Promise((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
-      }),
+    const fetchMock = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+        }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    await expect(apiClient.searchByText("vitor", true, false, 20, 10, new AbortController().signal)).rejects.toMatchObject({ name: "TimeoutError" });
+    await expect(
+      apiClient.searchByText("vitor", true, false, 20, 10, new AbortController().signal),
+    ).rejects.toMatchObject({ name: "TimeoutError" });
   });
 });

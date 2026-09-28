@@ -33,11 +33,16 @@ export function RelayAuthCard() {
           <KeyRound className="h-4 w-4 text-brand-deep" />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-relay-auth-title">
+          <h2
+            className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+            data-testid="text-relay-auth-title"
+          >
             Relays that ask you to sign in
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Some relays in your list only answer after a login. Brainstorm never waits on one — nothing on a page is held up by it.
+            Some relays in your list only answer after a login. Brainstorm never waits on one — nothing on a page is
+            held up by it.
           </p>
         </div>
       </div>
@@ -47,10 +52,18 @@ export function RelayAuthCard() {
             Sign in to relays that ask
           </label>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Answers their login with your signer so their events show up too. Expect a signing prompt per relay in nos2x or Amber until you tick &ldquo;always allow&rdquo;.
+            Answers their login with your signer so their events show up too. Expect a signing prompt per relay in nos2x
+            or Amber until you tick &ldquo;always allow&rdquo;.
           </p>
         </div>
-        <Switch id="relay-auth-switch" checked={on} onCheckedChange={change} disabled={!pubkey} aria-label="Sign in to relays that ask" data-testid="switch-relay-auth" />
+        <Switch
+          id="relay-auth-switch"
+          checked={on}
+          onCheckedChange={change}
+          disabled={!pubkey}
+          aria-label="Sign in to relays that ask"
+          data-testid="switch-relay-auth"
+        />
       </div>
     </Card>
   );

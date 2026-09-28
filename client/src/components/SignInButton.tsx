@@ -2,31 +2,15 @@ import { useLocation } from "wouter";
 
 function SignInIcon({ className = "" }: { className?: string }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      className={className}
-      aria-hidden="true"
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
       <path
         d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="square"
       />
-      <path
-        d="M2 11.1914H14.88"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="square"
-      />
-      <path
-        d="M12.65 7.83105L16 11.191L12.65 14.5411"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="square"
-      />
+      <path d="M2 11.1914H14.88" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
+      <path d="M12.65 7.83105L16 11.191L12.65 14.5411" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
     </svg>
   );
 }
@@ -65,19 +49,12 @@ export function SignInButton({
   const onClick = () => {
     onSuccess?.();
     const next =
-      location && location.startsWith("/") && location !== "/login"
-        ? `?next=${encodeURIComponent(location)}`
-        : "";
+      location && location.startsWith("/") && location !== "/login" ? `?next=${encodeURIComponent(location)}` : "";
     navigate(`/login${next}`);
   };
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`${VARIANT_CLASSES[variant]} ${className}`}
-      data-testid={testId}
-    >
+    <button type="button" onClick={onClick} className={`${VARIANT_CLASSES[variant]} ${className}`} data-testid={testId}>
       <SignInIcon className="h-4 w-4" />
       <span>{label}</span>
     </button>

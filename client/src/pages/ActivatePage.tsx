@@ -29,13 +29,23 @@ export default function ActivatePage() {
   const { hasMywot } = useHasMywot();
 
   const seenKey = pubkey ? accountKey("brainstorm_activate_seen", pubkey) : "";
-  const markSeen = () => { try { if (seenKey) localStorage.setItem(seenKey, "true"); } catch {} };
+  const markSeen = () => {
+    try {
+      if (seenKey) localStorage.setItem(seenKey, "true");
+    } catch {}
+  };
 
   useEffect(() => {
-    if (!user) { navigate("/login", { replace: true }); return; }
+    if (!user) {
+      navigate("/login", { replace: true });
+      return;
+    }
     // Already scored (e.g. returning user whose localStorage was cleared) — no
     // activation needed; send them straight in.
-    if (hasMywot) { markSeen(); navigate("/", { replace: true }); }
+    if (hasMywot) {
+      markSeen();
+      navigate("/", { replace: true });
+    }
   }, [user, hasMywot]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const profileQuery = useQuery({
@@ -53,11 +63,13 @@ export default function ActivatePage() {
     retry: false,
   });
 
-  const prof = profileQuery.data as { display_name?: string; name?: string; picture?: string; nip05?: string } | undefined;
+  const prof = profileQuery.data as
+    { display_name?: string; name?: string; picture?: string; nip05?: string } | undefined;
   const counts = (overviewQuery.data as { counts?: Record<string, number> } | null)?.counts ?? {};
   const followingCount = counts.following ?? knownFollowCount(pubkey);
   const followersCount = counts.followed_by ?? 0;
-  const name = prof?.display_name || prof?.name || user?.displayName || (user?.npub ? user.npub.slice(0, 12) + "…" : "there");
+  const name =
+    prof?.display_name || prof?.name || user?.displayName || (user?.npub ? user.npub.slice(0, 12) + "…" : "there");
   const picture = prof?.picture || user?.picture;
 
   // Navigate to search immediately; trigger scoring in the background so the user
@@ -65,7 +77,9 @@ export default function ActivatePage() {
   const calc = () => {
     markSeen();
     if (pubkey) {
-      try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pubkey), String(Date.now())); } catch {}
+      try {
+        localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pubkey), String(Date.now()));
+      } catch {}
     }
     toast({ title: "Calculating your network", description: "We're scoring it now — explore while it runs." });
     navigate("/", { replace: true });
@@ -79,52 +93,79 @@ export default function ActivatePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       <OnboardingHeader
-        onSkip={() => { markSeen(); navigate("/", { replace: true }); }}
+        onSkip={() => {
+          markSeen();
+          navigate("/", { replace: true });
+        }}
         skipLabel="Skip — just let me search"
         skipTestId="activate-skip"
       />
 
-      <main className="mx-auto max-w-xl px-4 sm:px-6 py-8 sm:py-12">
+      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-12">
         {/* Editorial header */}
-        <div className="flex items-center gap-2.5 mb-5">
-          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">Welcome to Brainstorm</span>
+        <div className="mb-5 flex items-center gap-2.5">
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-accent">
+            Welcome to Brainstorm
+          </span>
           <div className="h-px w-12 bg-brand-accent/40" />
         </div>
-        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
+        <h1
+          className="text-3xl font-bold leading-[1.08] tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
           Your network's already here. <span className="text-brand-link">Let's score it.</span>
         </h1>
-        <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-          Brainstorm reads the people you already follow and scores how trusted they are — so you can
-          search by trust, explore your network, and see who's actually real.
+        <p className="mt-4 text-lg leading-relaxed text-slate-600 dark:text-slate-300">
+          Brainstorm reads the people you already follow and scores how trusted they are — so you can search by trust,
+          explore your network, and see who's actually real.
         </p>
 
         {/* Identity recap */}
-        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm" data-testid="activate-identity">
-          <Avatar className="h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+        <div
+          className="mt-6 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          data-testid="activate-identity"
+        >
+          <Avatar className="h-12 w-12 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
             {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
-            <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary font-bold">{initialsFor(name)}</AvatarFallback>
+            <AvatarFallback className="rounded-full bg-brand-primary/15 font-bold text-brand-primary">
+              {initialsFor(name)}
+            </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-base font-bold text-slate-900 dark:text-slate-100 truncate">{name}</span>
-              <Nip05Check nip05={prof?.nip05} pubkey={pubkey} className="h-4 w-4 text-sky-500 shrink-0" />
+              <span className="truncate text-base font-bold text-slate-900 dark:text-slate-100">{name}</span>
+              <Nip05Check nip05={prof?.nip05} pubkey={pubkey} className="h-4 w-4 shrink-0 text-sky-500" />
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               <span className="font-semibold text-slate-700 dark:text-slate-200">{followingCount}</span> following
-              {followersCount ? <> · <span className="font-semibold text-slate-700 dark:text-slate-200">{followersCount}</span> followers</> : null}
+              {followersCount ? (
+                <>
+                  {" "}
+                  · <span className="font-semibold text-slate-700 dark:text-slate-200">{followersCount}</span> followers
+                </>
+              ) : null}
             </p>
           </div>
-          <span className="ml-auto text-[11px] font-bold uppercase tracking-wide text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-1 shrink-0">Found you</span>
+          <span className="ml-auto shrink-0 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-600">
+            Found you
+          </span>
         </div>
 
         {/* What you unlock */}
         <div className="mt-4 grid grid-cols-3 gap-2">
           {VALUE.map((v) => (
-            <div key={v.label} className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-3 text-center">
-              <span className="h-8 w-8 rounded-lg bg-brand-accent/10 border border-brand-accent/20 text-brand-deep flex items-center justify-center">{v.icon}</span>
-              <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 leading-tight">{v.label}</span>
+            <div
+              key={v.label}
+              className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-3 text-center dark:border-slate-800 dark:bg-slate-900"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-brand-accent/20 bg-brand-accent/10 text-brand-deep">
+                {v.icon}
+              </span>
+              <span className="text-[11px] font-semibold leading-tight text-slate-600 dark:text-slate-300">
+                {v.label}
+              </span>
             </div>
           ))}
         </div>
@@ -134,7 +175,7 @@ export default function ActivatePage() {
           type="button"
           onClick={calc}
           disabled={!pubkey}
-          className="mt-6 w-full h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+          className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
           data-testid="activate-calculate"
         >
           Calculate my scores <ArrowRight className="h-4 w-4" />

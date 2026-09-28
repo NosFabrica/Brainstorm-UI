@@ -61,10 +61,7 @@ export const adminApi = {
    * "30392" row names where that observer's Trusted Lists are published.
    */
   async getSetupRows(pubkey: string): Promise<string[][]> {
-    const rows = await adminJson<unknown>(
-      `/setup/${pubkey}`,
-      "Failed to read setup",
-    );
+    const rows = await adminJson<unknown>(`/setup/${pubkey}`, "Failed to read setup");
     return Array.isArray(rows) ? rows : [];
   },
 
@@ -75,10 +72,10 @@ export const adminApi = {
    * server does it all before answering — up to about a minute.
    */
   async publishTrustedLists(observer: string): Promise<TrustedListRunData> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/trustedLists/${observer}`,
-      { method: "POST", signal: AbortSignal.timeout(120_000) },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/admin/trustedLists/${observer}`, {
+      method: "POST",
+      signal: AbortSignal.timeout(120_000),
+    });
     if (response.status === 404 || response.status === 405) throw new TrustedListsUnavailableError();
     if (!response.ok) {
       throw new Error((await extractApiError(response)) || `Failed to publish trusted lists (${response.status})`);
@@ -97,15 +94,12 @@ export const adminApi = {
   }> {
     let response: Response;
     try {
-      response = await authenticatedFetch(
-        `${getBrainstormApi()}/user/assistantProfile`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-          signal: AbortSignal.timeout(30000),
-        },
-      );
+      response = await authenticatedFetch(`${getBrainstormApi()}/user/assistantProfile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(30000),
+      });
     } catch (err) {
       // Network/transport-level failures (TypeError: Failed to fetch, AbortError, DNS, CORS, etc.)
       throw new Error("The assistant service is unavailable right now.");
@@ -124,19 +118,24 @@ export const adminApi = {
     return await response.json();
   },
 
-  async publishBrainstormAssistantProfile(profile: { name?: string; about?: string; picture?: string; banner?: string; lud16?: string; nip05?: string; website?: string }) {
+  async publishBrainstormAssistantProfile(profile: {
+    name?: string;
+    about?: string;
+    picture?: string;
+    banner?: string;
+    lud16?: string;
+    nip05?: string;
+    website?: string;
+  }) {
     // Publishes the user's assistant kind-0 metadata event. The backend route is
     // `/user/assistantProfile` (there is no `/user/publishAssistantProfile`); the
     // profile fields are sent as the body and ignored by the server if unused.
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/assistantProfile`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
-        signal: AbortSignal.timeout(30000),
-      },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/assistantProfile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+      signal: AbortSignal.timeout(30000),
+    });
     if (response.status === 404) {
       throw new Error("404 - Endpoint not found");
     }
@@ -157,10 +156,9 @@ export const adminApi = {
     queueDepth: number;
   } | null> {
     try {
-      const response = await authenticatedFetch(
-        `${getBrainstormApi()}/admin/stats`,
-        { signal: AbortSignal.timeout(10000) },
-      );
+      const response = await authenticatedFetch(`${getBrainstormApi()}/admin/stats`, {
+        signal: AbortSignal.timeout(10000),
+      });
       if (!response.ok) return null;
       const json = await response.json();
       const stats = json?.data ?? json;
@@ -176,14 +174,16 @@ export const adminApi = {
     }
   },
 
-  async getAdminUsers(params: {
-    search?: string;
-    sort?: string;
-    order?: string;
-    days?: number;
-    page?: number;
-    size?: number;
-  } = {}) {
+  async getAdminUsers(
+    params: {
+      search?: string;
+      sort?: string;
+      order?: string;
+      days?: number;
+      page?: number;
+      size?: number;
+    } = {},
+  ) {
     const qs = new URLSearchParams();
     if (params.search) qs.set("search", params.search);
     if (params.sort) qs.set("sort", params.sort);
@@ -240,10 +240,9 @@ export const adminApi = {
     lastPublishAt: string | null;
   } | null> {
     try {
-      const response = await authenticatedFetch(
-        `${getBrainstormApi()}/admin/assistants/stats`,
-        { signal: AbortSignal.timeout(15000) },
-      );
+      const response = await authenticatedFetch(`${getBrainstormApi()}/admin/assistants/stats`, {
+        signal: AbortSignal.timeout(15000),
+      });
       if (!response.ok) return null;
       const json = await response.json();
       const stats = json?.data ?? json;
@@ -259,11 +258,13 @@ export const adminApi = {
     }
   },
 
-  async getAdminAssistants(params: {
-    search?: string;
-    page?: number;
-    size?: number;
-  } = {}): Promise<{
+  async getAdminAssistants(
+    params: {
+      search?: string;
+      page?: number;
+      size?: number;
+    } = {},
+  ): Promise<{
     items: {
       owner_pubkey: string;
       assistant_pubkey?: string | null;
@@ -294,14 +295,17 @@ export const adminApi = {
         total: data?.total ?? 0,
         page: data?.page ?? 1,
         pages: data?.pages ?? 1,
-        size: data?.size ?? (params.size ?? 25),
+        size: data?.size ?? params.size ?? 25,
       };
     } catch {
       return null;
     }
   },
 
-  async getAdminAssistantHistory(ownerPubkey: string, params: { page?: number; size?: number } = {}): Promise<{
+  async getAdminAssistantHistory(
+    ownerPubkey: string,
+    params: { page?: number; size?: number } = {},
+  ): Promise<{
     items: { event_id: string; published_at: string; status?: string | null }[];
     total: number;
     page: number;

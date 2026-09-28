@@ -1,4 +1,17 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent as ReactMouseEvent, type MutableRefObject, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type MouseEvent as ReactMouseEvent,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -22,10 +35,30 @@ import { CATEGORY_ICON } from "@/lib/dlists";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { getRecentItems, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
-import { getDisplayLabel, isLikelyNpub, isHexPubkey, isNip05Handle, typeaheadPause, type SearchResult } from "@/lib/profileSearch";
+import {
+  getRecentItems,
+  removeRecentItem,
+  clearRecentSearches,
+  recentKey,
+  type RecentItem,
+} from "@/lib/recentSearches";
+import {
+  getDisplayLabel,
+  isLikelyNpub,
+  isHexPubkey,
+  isNip05Handle,
+  typeaheadPause,
+  type SearchResult,
+} from "@/lib/profileSearch";
 import { suggestListings, suggestProfileHits, suggestProfiles, tabLabel, type SearchHit } from "@/services/search";
-import { personAssist, scopeOf, type PersonAssist, seeAllLabel, typeaheadWords, scopedSearchHref } from "@/lib/searchSyntax";
+import {
+  personAssist,
+  scopeOf,
+  type PersonAssist,
+  seeAllLabel,
+  typeaheadWords,
+  scopedSearchHref,
+} from "@/lib/searchSyntax";
 import type { SearchFieldHandle } from "@/lib/searchFieldDom";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { intentTarget, searchIntent } from "@/lib/personContent";
@@ -66,7 +99,9 @@ function directPath(q: string): string | null {
   if (isLikelyNpub(q)) {
     try {
       if (nip19.decode(q).type === "npub") return `/p/${q}`;
-    } catch { /* not an npub after all */ }
+    } catch {
+      /* not an npub after all */
+    }
   }
   const ent = resolveEntityToPath(q);
   return ent && (ent.kind === "note" || ent.kind === "article") ? ent.path : null;
@@ -232,32 +267,101 @@ export function SearchBox({
   // Skips direct identifiers (npub / hex / NIP-05) since those resolve straight
   // to a profile on submit. A request token is bumped on every keystroke so a
   // slow earlier request can never overwrite newer suggestions.
-  const scheduleSuggest = useCallback((next: string) => {
-    window.clearTimeout(suggestTimerRef.current);
-    suggestRequestRef.current?.abort();
-    const reqId = ++suggestAbortRef.current;
-    const q = next.trim();
-    // Any edit to the query invalidates a prior keyboard selection so Enter
-    // falls back to a full search until the user arrow-navigates again.
-    kbdNavRef.current = false;
-    // Mid-typing `from:ja` / `to:ma` → offer people for the FRAGMENT; picking
-    // one writes the key into the query (nobody types an npub by hand).
-    const assist = personAssist(next);
-    personAssistRef.current = assist && assist.fragment.length >= 2 ? assist : null;
-    if (personAssistRef.current) {
+  const scheduleSuggest = useCallback(
+    (next: string) => {
+      window.clearTimeout(suggestTimerRef.current);
+      suggestRequestRef.current?.abort();
+      const reqId = ++suggestAbortRef.current;
+      const q = next.trim();
+      // Any edit to the query invalidates a prior keyboard selection so Enter
+      // falls back to a full search until the user arrow-navigates again.
+      kbdNavRef.current = false;
+      // Mid-typing `from:ja` / `to:ma` → offer people for the FRAGMENT; picking
+      // one writes the key into the query (nobody types an npub by hand).
+      const assist = personAssist(next);
+      personAssistRef.current = assist && assist.fragment.length >= 2 ? assist : null;
+      if (personAssistRef.current) {
+        typedSinceSearchRef.current = true;
+        setIsSuggesting(true);
+        setShowSuggestions(true);
+        suggestTimerRef.current = window.setTimeout(async () => {
+          try {
+            suggestRequestRef.current = new AbortController();
+            const people = await suggestProfiles(
+              personAssistRef.current!.fragment,
+              { pov: effectivePov, userPubkey: user?.pubkey },
+              { signal: suggestRequestRef.current.signal },
+            );
+            if (suggestAbortRef.current !== reqId) return;
+            setSuggestions(people.slice(0, 7));
+            setActiveSuggestion(-1);
+            kbdNavRef.current = false;
+            setShowSuggestions(true);
+          } catch {
+            if (suggestAbortRef.current !== reqId) return;
+            setSuggestions([]);
+            setProductSuggestions([]);
+          } finally {
+            if (suggestAbortRef.current === reqId) setIsSuggesting(false);
+          }
+        }, typeaheadPause(speed));
+        return;
+      }
+      // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
+      if (parseTopicQuery(next).isTopic) {
+        typedSinceSearchRef.current = true;
+        setSuggestions([]);
+        setProductSuggestions([]);
+        setIsSuggesting(false);
+        setShowSuggestions(true);
+        return;
+      }
+      // Filters and half-typed prefixes are not names: `doi:` must not list people called "doi".
+      // A person scope is the box's own frame, not a filter being typed; the words beside it are.
+      if (
+        q.length < 2 ||
+        typeaheadWords(scopeOf(next)?.rest ?? next) === null ||
+        isLikelyNpub(q) ||
+        isHexPubkey(q) ||
+        isNip05Handle(q)
+      ) {
+        typedSinceSearchRef.current = false;
+        setSuggestions([]);
+        setProductSuggestions([]);
+        setShowSuggestions(false);
+        setIsSuggesting(false);
+        return;
+      }
       typedSinceSearchRef.current = true;
       setIsSuggesting(true);
       setShowSuggestions(true);
       suggestTimerRef.current = window.setTimeout(async () => {
         try {
           suggestRequestRef.current = new AbortController();
-          const people = await suggestProfiles(
-            personAssistRef.current!.fragment,
+          const signal = suggestRequestRef.current.signal;
+          // Products ask beside the people, on the same cancel; they land when they land.
+          void suggestListings(q, { pov: effectivePov, userPubkey: user?.pubkey }, { limit: 3, signal }).then(
+            (hits) => {
+              if (suggestAbortRef.current !== reqId) return;
+              setProductSuggestions(hits);
+              if (hits.length) setShowSuggestions(true);
+            },
+          );
+          // "staci shop" looks up "staci"; the category word becomes the intent row.
+          const lookup = searchIntent(q)?.name ?? q;
+          const suggestHits = await suggestProfileHits(
+            lookup,
             { pov: effectivePov, userPubkey: user?.pubkey },
-            { signal: suggestRequestRef.current.signal },
+            { signal },
           );
           if (suggestAbortRef.current !== reqId) return;
-          setSuggestions(people.slice(0, 7));
+          peopleSuggestedRef.current?.(q, suggestHits);
+          setSuggestions(
+            suggestHits
+              .map((h) => h.author)
+              .filter((a): a is SearchResult => !!a)
+              .slice(0, 7),
+          );
           setActiveSuggestion(-1);
           kbdNavRef.current = false;
           setShowSuggestions(true);
@@ -269,58 +373,9 @@ export function SearchBox({
           if (suggestAbortRef.current === reqId) setIsSuggesting(false);
         }
       }, typeaheadPause(speed));
-      return;
-    }
-    // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
-    if (parseTopicQuery(next).isTopic) {
-      typedSinceSearchRef.current = true;
-      setSuggestions([]);
-      setProductSuggestions([]);
-      setIsSuggesting(false);
-      setShowSuggestions(true);
-      return;
-    }
-    // Filters and half-typed prefixes are not names: `doi:` must not list people called "doi".
-    // A person scope is the box's own frame, not a filter being typed; the words beside it are.
-    if (q.length < 2 || typeaheadWords(scopeOf(next)?.rest ?? next) === null || isLikelyNpub(q) || isHexPubkey(q) || isNip05Handle(q)) {
-      typedSinceSearchRef.current = false;
-      setSuggestions([]);
-      setProductSuggestions([]);
-      setShowSuggestions(false);
-      setIsSuggesting(false);
-      return;
-    }
-    typedSinceSearchRef.current = true;
-    setIsSuggesting(true);
-    setShowSuggestions(true);
-    suggestTimerRef.current = window.setTimeout(async () => {
-      try {
-        suggestRequestRef.current = new AbortController();
-        const signal = suggestRequestRef.current.signal;
-        // Products ask beside the people, on the same cancel; they land when they land.
-        void suggestListings(q, { pov: effectivePov, userPubkey: user?.pubkey }, { limit: 3, signal }).then((hits) => {
-          if (suggestAbortRef.current !== reqId) return;
-          setProductSuggestions(hits);
-          if (hits.length) setShowSuggestions(true);
-        });
-        // "staci shop" looks up "staci"; the category word becomes the intent row.
-        const lookup = searchIntent(q)?.name ?? q;
-        const suggestHits = await suggestProfileHits(lookup, { pov: effectivePov, userPubkey: user?.pubkey }, { signal });
-        if (suggestAbortRef.current !== reqId) return;
-        peopleSuggestedRef.current?.(q, suggestHits);
-        setSuggestions(suggestHits.map((h) => h.author).filter((a): a is SearchResult => !!a).slice(0, 7));
-        setActiveSuggestion(-1);
-        kbdNavRef.current = false;
-        setShowSuggestions(true);
-      } catch {
-        if (suggestAbortRef.current !== reqId) return;
-        setSuggestions([]);
-        setProductSuggestions([]);
-      } finally {
-        if (suggestAbortRef.current === reqId) setIsSuggesting(false);
-      }
-    }, typeaheadPause(speed));
-  }, [effectivePov, user?.pubkey, speed]);
+    },
+    [effectivePov, user?.pubkey, speed],
+  );
 
   useEffect(() => {
     return () => {
@@ -367,18 +422,21 @@ export function SearchBox({
     setIsSuggesting(false);
   }, []);
 
-  const reset = useCallback((opts?: { refocus?: boolean }) => {
-    cancelSuggest();
-    setSuggestions([]);
-    setProductSuggestions([]);
-    setActiveSuggestion(-1);
-    // Clearing is a gesture: the box refocuses and recents may show (Google's X). The
-    // home's wordmark is a "refresh", not an invitation, and passes refocus: false.
-    if (opts?.refocus !== false) {
-      setEngaged(true);
-      fieldRef.current?.focus();
-    }
-  }, [cancelSuggest]);
+  const reset = useCallback(
+    (opts?: { refocus?: boolean }) => {
+      cancelSuggest();
+      setSuggestions([]);
+      setProductSuggestions([]);
+      setActiveSuggestion(-1);
+      // Clearing is a gesture: the box refocuses and recents may show (Google's X). The
+      // home's wordmark is a "refresh", not an invitation, and passes refocus: false.
+      if (opts?.refocus !== false) {
+        setEngaged(true);
+        fieldRef.current?.focus();
+      }
+    },
+    [cancelSuggest],
+  );
 
   useEffect(() => {
     if (!boxRef) return;
@@ -389,7 +447,12 @@ export function SearchBox({
       reset,
     };
   });
-  useEffect(() => () => { if (boxRef) boxRef.current = null; }, [boxRef]);
+  useEffect(
+    () => () => {
+      if (boxRef) boxRef.current = null;
+    },
+    [boxRef],
+  );
 
   /** Leave for a page the box picked: the panels close, and the host hears of it. */
   const leave = (path: string) => {
@@ -425,7 +488,10 @@ export function SearchBox({
 
   const runSearch = (q: string) => {
     cancelSuggest();
-    if (onSearch) { onSearch(q); return; }
+    if (onSearch) {
+      onSearch(q);
+      return;
+    }
     const words = q.trim();
     if (words) leave(directPath(words) ?? `/?q=${encodeURIComponent(words)}`);
   };
@@ -440,7 +506,8 @@ export function SearchBox({
   const words = scope ? scope.rest : value;
   const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
   const scopeProfile = scope ? scopeProfiles.get(scope.pubkey) : undefined;
-  const scopeName = scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
+  const scopeName =
+    scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
 
   // When the typed query is itself a nostr entity/link (npub/nevent/note/naddr/…),
   // the dropdown's action row resolves it straight to the right landing page.
@@ -456,9 +523,14 @@ export function SearchBox({
   const dropdownOpen =
     !fieldPicking &&
     (sheet
-      // The sheet keeps its list up while there are words: "See all" is never a dead end.
-      ? value.trim().length > 0
-      : showSuggestions && (suggestions.length > 0 || productSuggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0));
+      ? // The sheet keeps its list up while there are words: "See all" is never a dead end.
+        value.trim().length > 0
+      : showSuggestions &&
+        (suggestions.length > 0 ||
+          productSuggestions.length > 0 ||
+          isSuggesting ||
+          topicMatch.isTopic ||
+          tagMatches.length > 0));
   // "Recent" shows under an empty, focused box — never alongside the suggestions. The sheet
   // was opened to search, so it shows them at once.
   const showRecent = recentsAllowed && value.trim() === "" && !dropdownOpen && (sheet || (engaged && focused));
@@ -468,12 +540,18 @@ export function SearchBox({
   // it must not cost a lookup per person they once opened.
   const personContent = usePersonContent(
     useMemo(
-      () => [...suggestions.map((s) => s.pubkey), ...(showRecent ? recent.flatMap((r) => (r.type === "profile" ? [r.pubkey] : [])) : [])],
+      () => [
+        ...suggestions.map((s) => s.pubkey),
+        ...(showRecent ? recent.flatMap((r) => (r.type === "profile" ? [r.pubkey] : [])) : []),
+      ],
       [suggestions, recent, showRecent],
     ),
   );
   // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
-  const intent = useMemo(() => intentTarget(searchIntent(value), suggestions, personContent), [value, suggestions, personContent]);
+  const intent = useMemo(
+    () => intentTarget(searchIntent(value), suggestions, personContent),
+    [value, suggestions, personContent],
+  );
 
   // Recents change as the reader searches elsewhere — read them fresh each time they show.
   useEffect(() => {
@@ -481,7 +559,9 @@ export function SearchBox({
   }, [showRecent]);
 
   const panelOpen = dropdownOpen || showRecent;
-  useEffect(() => { onSuggestionsChange?.(dropdownOpen); }, [dropdownOpen, onSuggestionsChange]);
+  useEffect(() => {
+    onSuggestionsChange?.(dropdownOpen);
+  }, [dropdownOpen, onSuggestionsChange]);
 
   // Measure the room left below the search box and cap whichever panel is open.
   // Both panels are `absolute top-full`, so without a cap they run straight off
@@ -525,13 +605,18 @@ export function SearchBox({
   const panelClass = sheet
     ? "flex flex-col text-left"
     : "absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left";
-  const panelStyle = sheet ? undefined : { maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" };
+  const panelStyle = sheet
+    ? undefined
+    : { maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" };
 
   const form = (
     <form
-      onSubmit={(e: FormEvent) => { e.preventDefault(); runSearch(value); }}
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        runSearch(value);
+      }}
       role="search"
-      className={cn("relative group", aside && "min-w-0 flex-1")}
+      className={cn("group relative", aside && "min-w-0 flex-1")}
       data-testid="form-home-search"
     >
       <div className={SEARCH_BOX_CLASS}>
@@ -545,7 +630,9 @@ export function SearchBox({
         <SearchField
           className="flex-1"
           inputClassName="py-1"
-          fieldRef={(h) => { fieldRef.current = h; }}
+          fieldRef={(h) => {
+            fieldRef.current = h;
+          }}
           value={value}
           onChange={(next) => {
             setEngaged(true);
@@ -556,7 +643,8 @@ export function SearchBox({
           onRemoveToken={onRemoveToken}
           onFocus={() => {
             setFocused(true);
-            if (typedSinceSearchRef.current && suggestions.length > 0 && value.trim().length >= 2) setShowSuggestions(true);
+            if (typedSinceSearchRef.current && suggestions.length > 0 && value.trim().length >= 2)
+              setShowSuggestions(true);
           }}
           onBlur={() => setFocused(false)}
           onPointerDown={() => setEngaged(true)}
@@ -612,7 +700,10 @@ export function SearchBox({
         {value.length > 0 && (
           <button
             type="button"
-            onClick={() => { reset(); onClear(); }}
+            onClick={() => {
+              reset();
+              onClear();
+            }}
             aria-label="Clear search"
             className={SEARCH_CLEAR_CLASS}
             data-testid="button-home-clear"
@@ -639,11 +730,16 @@ export function SearchBox({
             <TopicSuggestionRow
               tag={topicMatch.tag}
               active
-              onSelect={() => { if (topicMatch.tag) leave(topicPath(topicMatch.tag)); }}
+              onSelect={() => {
+                if (topicMatch.tag) leave(topicPath(topicMatch.tag));
+              }}
               testId="home-topic"
             />
           ) : isSuggesting && suggestions.length === 0 && tagMatches.length === 0 ? (
-            <div className="px-4 py-3 flex items-center gap-2 text-slate-400 dark:text-slate-500 text-xs" data-testid="home-suggestions-loading">
+            <div
+              className="flex items-center gap-2 px-4 py-3 text-xs text-slate-400 dark:text-slate-500"
+              data-testid="home-suggestions-loading"
+            >
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
             </div>
           ) : (
@@ -662,7 +758,10 @@ export function SearchBox({
                   different kind of answer — "who is known for this"
                   rather than "who is called this". */}
               {tagMatches.length > 0 && (
-                <div className="shrink-0 border-b border-slate-100 dark:border-slate-800/60" data-testid="home-tag-matches">
+                <div
+                  className="shrink-0 border-b border-slate-100 dark:border-slate-800/60"
+                  data-testid="home-tag-matches"
+                >
                   {tagMatches.map((t) => (
                     <TagSuggestionRow
                       key={t.key}
@@ -676,7 +775,10 @@ export function SearchBox({
                   ))}
                 </div>
               )}
-              <div className={cn(!sheet && "flex-1 overflow-y-auto overscroll-contain min-h-0")} data-testid="list-home-suggestions">
+              <div
+                className={cn(!sheet && "min-h-0 flex-1 overflow-y-auto overscroll-contain")}
+                data-testid="list-home-suggestions"
+              >
                 {suggestions.map((s, i) => {
                   const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
                   const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
@@ -688,24 +790,35 @@ export function SearchBox({
                       id={optId(i)}
                       role="option"
                       aria-selected={i === activeSuggestion}
-                      className={`group w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors cursor-pointer ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
-                      onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); prefetchEnter(s); }}
+                      className={`group flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors sm:px-4 ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                      onMouseEnter={() => {
+                        kbdNavRef.current = false;
+                        setActiveSuggestion(i);
+                        prefetchEnter(s);
+                      }}
                       onMouseLeave={() => prefetchLeave(s)}
                       onClick={() => pickSuggestion(s)}
                       data-testid={`home-suggestion-${i}`}
                     >
-                      <Avatar className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0 ${tierRing(rank) ?? ""}`}>
-                        {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
+                      <Avatar
+                        className={`h-8 w-8 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(rank) ?? ""}`}
+                      >
+                        {s.picture ? (
+                          <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" />
+                        ) : null}
                         <AvatarFallback className="overflow-hidden">
                           <DefaultAvatarImg />
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate" data-testid={`home-suggestion-name-${i}`}>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100"
+                          data-testid={`home-suggestion-name-${i}`}
+                        >
                           {getDisplayLabel(s)}
                         </p>
                         {handle && (
-                          <p className="text-xs text-brand-primary dark:text-brand-link truncate flex items-center gap-0.5">
+                          <p className="flex items-center gap-0.5 truncate text-xs text-brand-primary dark:text-brand-link">
                             <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
                             {handle}
                           </p>
@@ -717,9 +830,12 @@ export function SearchBox({
                         pubkey={s.pubkey}
                         name={getDisplayLabel(s)}
                         content={personContent.get(s.pubkey)}
-                        onNavigate={() => { setShowSuggestions(false); onLeave?.(); }}
+                        onNavigate={() => {
+                          setShowSuggestions(false);
+                          onLeave?.();
+                        }}
                         linkTabIndex={-1}
-                        className="sm:opacity-0 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100 sm:group-focus-within:opacity-100"
+                        className="sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100"
                       />
                       {/* Same coin as the results list and every people list. */}
                       {rank != null && (
@@ -736,7 +852,10 @@ export function SearchBox({
               </div>
               {/* Products under the people: the thing itself, one tap away. */}
               {productSuggestions.length > 0 && (
-                <div className="shrink-0 border-t border-slate-100 dark:border-slate-800/60" data-testid="home-product-suggestions">
+                <div
+                  className="shrink-0 border-t border-slate-100 dark:border-slate-800/60"
+                  data-testid="home-product-suggestions"
+                >
                   {productSuggestions.map((h, i) => (
                     <ListingSuggestionRow
                       key={h.event.id}
@@ -749,16 +868,33 @@ export function SearchBox({
               )}
               <button
                 type="button"
-                className={`w-full shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 dark:border-slate-800/60 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 dark:bg-slate-800 text-brand-primary" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-brand-primary"}`}
-                onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(-1); }}
-                onMouseDown={(e) => { e.preventDefault(); runSearch(value); }}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); runSearch(value); } }}
+                className={`flex w-full shrink-0 items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-left text-[12px] font-medium transition-colors dark:border-slate-800/60 sm:px-4 ${activeSuggestion === -1 ? "bg-slate-50 text-brand-primary dark:bg-slate-800" : "text-slate-500 hover:bg-slate-50 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"}`}
+                onMouseEnter={() => {
+                  kbdNavRef.current = false;
+                  setActiveSuggestion(-1);
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  runSearch(value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    runSearch(value);
+                  }
+                }}
                 data-testid="home-suggestion-see-all"
               >
                 {entityMatch ? (
-                  <><ArrowRight className="h-3.5 w-3.5 shrink-0" />Open this {entityMatch.kind} →</>
+                  <>
+                    <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                    Open this {entityMatch.kind} →
+                  </>
                 ) : (
-                  <><Search className="h-3.5 w-3.5 shrink-0" />{scope ? seeAllLabel(words, scopeName) : `See all results for "${value.trim()}"`}</>
+                  <>
+                    <Search className="h-3.5 w-3.5 shrink-0" />
+                    {scope ? seeAllLabel(words, scopeName) : `See all results for "${value.trim()}"`}
+                  </>
                 )}
               </button>
             </>
@@ -778,17 +914,23 @@ export function SearchBox({
               box offers the verticals, Google-style. The chips wrap: the home box
               holds them on one line, the narrower header box on two, and a phone
               puts the label on a line of its own. */}
-          <div className="flex flex-wrap items-center gap-1 px-4 pt-3 pb-2" data-testid="browse-chips">
-            <span className="w-full sm:w-auto sm:mr-0.5 mb-0.5 sm:mb-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Browse</span>
+          <div className="flex flex-wrap items-center gap-1 px-4 pb-2 pt-3" data-testid="browse-chips">
+            <span className="mb-0.5 w-full text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 sm:mb-0 sm:mr-0.5 sm:w-auto">
+              Browse
+            </span>
             {BROWSE.map((c) => (
               <button
                 key={c.tab}
                 type="button"
                 onMouseDown={keepFocus}
-                onClick={() => { setFocused(false); cancelSuggest(); browse(c.tab); }}
+                onClick={() => {
+                  setFocused(false);
+                  cancelSuggest();
+                  browse(c.tab);
+                }}
                 // Quiet text links, not nine bordered pills (Benjamin:
                 // "a lot of chips — shrink them or make it more subtle").
-                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-deep dark:hover:text-white transition-colors"
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-deep dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                 data-testid={`browse-${c.tab}`}
               >
                 <c.icon className="h-3 w-3 opacity-70" /> {c.label}
@@ -796,13 +938,15 @@ export function SearchBox({
             ))}
           </div>
           {recent.length > 0 && (
-            <div className="flex items-center justify-between px-4 pt-1 pb-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Recent</span>
+            <div className="flex items-center justify-between px-4 pb-1 pt-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                Recent
+              </span>
               <button
                 type="button"
                 onMouseDown={keepFocus}
                 onClick={() => setRecent(clearRecentSearches())}
-                className="text-[11px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors focus:outline-none focus-visible:text-brand-primary"
+                className="text-[11px] font-medium text-slate-400 transition-colors hover:text-brand-primary focus:outline-none focus-visible:text-brand-primary dark:text-slate-500"
                 data-testid="button-home-recent-clear"
               >
                 Clear
@@ -811,42 +955,58 @@ export function SearchBox({
           )}
           {/* Rows scroll inside the capped panel — the "Recent" header and
               Clear stay pinned, matching the suggestions dropdown. */}
-          <div className={cn("pb-1.5", !sheet && "flex-1 overflow-y-auto overscroll-contain min-h-0")}>
+          <div className={cn("pb-1.5", !sheet && "min-h-0 flex-1 overflow-y-auto overscroll-contain")}>
             {recent.map((item, i) => {
               // Row shapes share the hover container + remove button: a person you
               // opened (avatar → re-open), a person's tab you searched (avatar → re-run
               // scoped) or a text query (clock → re-run).
               const handle = item.type === "profile" && item.nip05 ? item.nip05.replace(/^_@/, "") : null;
-              const removeLabel = item.type === "profile"
-                ? `Remove ${item.label} from recent`
-                : item.type === "scoped"
-                  ? `Remove ${item.label}'s ${tabLabel(item.tab).toLowerCase()} from recent`
-                  : `Remove "${item.q}" from recent searches`;
+              const removeLabel =
+                item.type === "profile"
+                  ? `Remove ${item.label} from recent`
+                  : item.type === "scoped"
+                    ? `Remove ${item.label}'s ${tabLabel(item.tab).toLowerCase()} from recent`
+                    : `Remove "${item.q}" from recent searches`;
               return (
                 <div
                   key={recentKey(item)}
                   role="option"
                   aria-selected={false}
-                  className="group/recent w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  className="group/recent flex w-full items-center gap-3 px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 sm:px-4"
                   data-testid={`home-recent-${i}`}
                 >
                   {item.type === "profile" ? (
                     <button
                       type="button"
-                      className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left focus:outline-none"
                       onMouseDown={keepFocus}
-                      onClick={() => goToProfile({ pubkey: item.pubkey, npub: item.npub, name: item.label, picture: item.picture, nip05: item.nip05 } as SearchResult)}
+                      onClick={() =>
+                        goToProfile({
+                          pubkey: item.pubkey,
+                          npub: item.npub,
+                          name: item.label,
+                          picture: item.picture,
+                          nip05: item.nip05,
+                        } as SearchResult)
+                      }
                       data-testid={`home-recent-open-${i}`}
                     >
-                      <Avatar className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
-                        {item.picture ? <AvatarImage src={item.picture} alt={item.label} className="object-cover" /> : null}
-                        <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                      <Avatar className="h-7 w-7 shrink-0 border border-slate-200/80 dark:border-slate-800/80">
+                        {item.picture ? (
+                          <AvatarImage src={item.picture} alt={item.label} className="object-cover" />
+                        ) : null}
+                        <AvatarFallback className="overflow-hidden">
+                          <DefaultAvatarImg />
+                        </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{item.label}</p>
+                        <p className="truncate text-sm font-medium leading-tight text-slate-800 dark:text-slate-100">
+                          {item.label}
+                        </p>
                         {handle && (
-                          <p className="text-xs text-brand-primary dark:text-brand-link truncate flex items-center gap-0.5 leading-tight">
-                            <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />{handle}
+                          <p className="flex items-center gap-0.5 truncate text-xs leading-tight text-brand-primary dark:text-brand-link">
+                            <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
+                            {handle}
                           </p>
                         )}
                       </div>
@@ -855,18 +1015,27 @@ export function SearchBox({
                     // "vinney's media": the person's face, the tab, the words — re-run as the scoped search.
                     <button
                       type="button"
-                      className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left focus:outline-none"
                       onMouseDown={keepFocus}
                       onClick={() => leave(scopedSearchHref(item.pubkey, item.tab, item.words))}
                       data-testid={`home-recent-scoped-${i}`}
                     >
-                      <Avatar className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
-                        {item.picture ? <AvatarImage src={item.picture} alt={item.label} className="object-cover" /> : null}
-                        <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                      <Avatar className="h-7 w-7 shrink-0 border border-slate-200/80 dark:border-slate-800/80">
+                        {item.picture ? (
+                          <AvatarImage src={item.picture} alt={item.label} className="object-cover" />
+                        ) : null}
+                        <AvatarFallback className="overflow-hidden">
+                          <DefaultAvatarImg />
+                        </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{item.label}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate leading-tight" data-testid={`home-recent-scoped-what-${i}`}>
+                        <p className="truncate text-sm font-medium leading-tight text-slate-800 dark:text-slate-100">
+                          {item.label}
+                        </p>
+                        <p
+                          className="truncate text-xs leading-tight text-slate-500 dark:text-slate-400"
+                          data-testid={`home-recent-scoped-what-${i}`}
+                        >
                           {item.words ? `${tabLabel(item.tab)} · ${item.words}` : tabLabel(item.tab)}
                         </p>
                       </div>
@@ -874,13 +1043,16 @@ export function SearchBox({
                   ) : (
                     <button
                       type="button"
-                      className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left focus:outline-none"
                       onMouseDown={keepFocus}
-                      onClick={() => { onChange(item.q); runSearch(item.q); }}
+                      onClick={() => {
+                        onChange(item.q);
+                        runSearch(item.q);
+                      }}
                       data-testid={`home-recent-run-${i}`}
                     >
-                      <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
-                      <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{item.q}</span>
+                      <Clock className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
+                      <span className="truncate text-sm text-slate-700 dark:text-slate-200">{item.q}</span>
                     </button>
                   )}
                   {item.type === "profile" && (
@@ -888,9 +1060,12 @@ export function SearchBox({
                       pubkey={item.pubkey}
                       name={item.label}
                       content={personContent.get(item.pubkey)}
-                      onNavigate={() => { setFocused(false); onLeave?.(); }}
+                      onNavigate={() => {
+                        setFocused(false);
+                        onLeave?.();
+                      }}
                       linkTabIndex={-1}
-                      className="sm:opacity-0 sm:group-hover/recent:opacity-100 sm:group-focus-within/recent:opacity-100"
+                      className="sm:opacity-0 sm:group-focus-within/recent:opacity-100 sm:group-hover/recent:opacity-100"
                     />
                   )}
                   <button
@@ -899,9 +1074,9 @@ export function SearchBox({
                     onMouseDown={keepFocus}
                     onClick={() => setRecent(removeRecentItem(item))}
                     className={cn(
-                      "inline-flex items-center justify-center h-6 w-6 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
+                      "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:hover:bg-slate-800 dark:hover:text-slate-300",
                       // A phone has no hover to reveal it: the sheet always shows the ×.
-                      !sheet && "opacity-0 group-hover/recent:opacity-100 focus:opacity-100",
+                      !sheet && "opacity-0 focus:opacity-100 group-hover/recent:opacity-100",
                     )}
                     data-testid={`home-recent-remove-${i}`}
                   >
@@ -918,7 +1093,14 @@ export function SearchBox({
 
   return (
     <div ref={containerRef} className={cn("relative", sheet && "flex min-h-0 flex-col", className)}>
-      {aside ? <div className={cn("flex items-center gap-2", rowClassName)} style={rowStyle}>{form}{aside}</div> : form}
+      {aside ? (
+        <div className={cn("flex items-center gap-2", rowClassName)} style={rowStyle}>
+          {form}
+          {aside}
+        </div>
+      ) : (
+        form
+      )}
       {/* The sheet's row stays put; its list scrolls under it. */}
       {sheet ? <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">{panels}</div> : panels}
     </div>

@@ -29,20 +29,29 @@ function wikilinksToMarkdown(content: string): string {
 }
 
 function asciiDocToMarkdown(content: string): string {
-  return content
-    // footnote:[…] (one level of nested brackets) — a reader's aside, dropped.
-    .replace(/footnote:\[(?:[^[\]]|\[[^[\]]*\])*\]/g, "")
-    // [NOTE] ==== … ==== — the mirror's source and licence — reads as a quote.
-    .replace(/^\[(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\n====\n([\s\S]*?)\n====/gm, (_m, body: string) =>
-      body.split("\n").map((line) => `> ${line}`).join("\n"))
-    // "== Heading" → "## Heading" (one "=" is the document title → "#").
-    .replace(/^(={1,5}) (\S)/gm, (_m, eq: string, first: string) => `${"#".repeat(eq.length)} ${first}`)
-    // *bold* → **bold**; a "* " at the start of a line is a list bullet, not bold.
-    .replace(/(^|[^*\w])\*([^*\n]+?)\*(?![*\w])/g, (_m, before: string, text: string) => `${before}**${text}**`)
-    // image::url[alt] → ![alt](url)
-    .replace(/^image::(\S+?)\[([^\]]*)\]/gm, (_m, url: string, alt: string) => `![${alt}](${url})`)
-    // link:url[label] and url[label] → [label](url); a bare URL is left alone.
-    .replace(/(?:link:)?(https?:\/\/[^\s[\]]+)\[([^\]]+)\]/g, (_m, url: string, label: string) => `[${label}](${url})`);
+  return (
+    content
+      // footnote:[…] (one level of nested brackets) — a reader's aside, dropped.
+      .replace(/footnote:\[(?:[^[\]]|\[[^[\]]*\])*\]/g, "")
+      // [NOTE] ==== … ==== — the mirror's source and licence — reads as a quote.
+      .replace(/^\[(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\n====\n([\s\S]*?)\n====/gm, (_m, body: string) =>
+        body
+          .split("\n")
+          .map((line) => `> ${line}`)
+          .join("\n"),
+      )
+      // "== Heading" → "## Heading" (one "=" is the document title → "#").
+      .replace(/^(={1,5}) (\S)/gm, (_m, eq: string, first: string) => `${"#".repeat(eq.length)} ${first}`)
+      // *bold* → **bold**; a "* " at the start of a line is a list bullet, not bold.
+      .replace(/(^|[^*\w])\*([^*\n]+?)\*(?![*\w])/g, (_m, before: string, text: string) => `${before}**${text}**`)
+      // image::url[alt] → ![alt](url)
+      .replace(/^image::(\S+?)\[([^\]]*)\]/gm, (_m, url: string, alt: string) => `![${alt}](${url})`)
+      // link:url[label] and url[label] → [label](url); a bare URL is left alone.
+      .replace(
+        /(?:link:)?(https?:\/\/[^\s[\]]+)\[([^\]]+)\]/g,
+        (_m, url: string, label: string) => `[${label}](${url})`,
+      )
+  );
 }
 
 export function wikiToMarkdown(content: string): string {
@@ -108,6 +117,7 @@ export function articleBrief(event: { kind: number; content: string; tags: strin
   // A body that opens with its own title goes on from there; one that is
   // only the title has nothing to add under it.
   const title = event.tags.find((t) => t[0] === "title")?.[1]?.trim();
-  if (title && words.toLowerCase().startsWith(title.toLowerCase())) words = words.slice(title.length).replace(/^[\s:—–-]+/, "");
+  if (title && words.toLowerCase().startsWith(title.toLowerCase()))
+    words = words.slice(title.length).replace(/^[\s:—–-]+/, "");
   return words.length > max ? `${words.slice(0, max).replace(/\s+\S*$/, "")}…` : words;
 }

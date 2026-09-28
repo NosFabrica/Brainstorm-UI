@@ -141,7 +141,7 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   // NIP-85 Trusted Assertions (kind 30382) are published for every account —
   // the Developers page has described them as "any client can fetch and
   // verify them" since before pricing existed. Live, not a promise.
-  "portability": { key: "portability", label: "Compute your web of trust for supporting clients", status: "live" },
+  portability: { key: "portability", label: "Compute your web of trust for supporting clients", status: "live" },
 
   // --- Live, and what Priority gets you ------------------------------------
   // Each of these is a field on the Priority scheduling policy, so they are
@@ -154,10 +154,19 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   // Weekly recalculation, said once as the hero and once as what it touches.
   // Four consequences spelled out line by line read as repetition (team
   // review, Aug 21), so they are one line here.
-  "recalc-interval-paid": { key: "recalc-interval-paid", label: recalcFeatureLabel(7, 60), status: "live", interval: true },
+  "recalc-interval-paid": {
+    key: "recalc-interval-paid",
+    label: recalcFeatureLabel(7, 60),
+    status: "live",
+    interval: true,
+  },
   // Cadence-neutral on purpose — "Weekly" would drift the day an admin retunes
   // the policy, and the interval is the hero number elsewhere.
-  "auto-fresh": { key: "auto-fresh", label: "Automatic updates to your followers, alerts and web of trust", status: "live" },
+  "auto-fresh": {
+    key: "auto-fresh",
+    label: "Automatic updates to your followers, alerts and web of trust",
+    status: "live",
+  },
   "priority-support": { key: "priority-support", label: "Priority support", status: "live" },
 
   // --- Planned. Roadmap only. Never listed as included. ---------------------
@@ -178,19 +187,74 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   //     exist anywhere in the stack.
   //   • "Take your reputation to other apps" — already shipped; Settings
   //     publishes the NIP-85 declaration today.
-  "content-search": { key: "content-search", label: "Search what people wrote, not just who they are", status: "planned", theme: "search" },
-  "search-ranking": { key: "search-ranking", label: "Results ordered by the people you trust, not by volume", status: "planned", theme: "search" },
-  "saved-searches": { key: "saved-searches", label: "Save a search and hear when something new matches it", status: "planned", theme: "search" },
+  "content-search": {
+    key: "content-search",
+    label: "Search what people wrote, not just who they are",
+    status: "planned",
+    theme: "search",
+  },
+  "search-ranking": {
+    key: "search-ranking",
+    label: "Results ordered by the people you trust, not by volume",
+    status: "planned",
+    theme: "search",
+  },
+  "saved-searches": {
+    key: "saved-searches",
+    label: "Save a search and hear when something new matches it",
+    status: "planned",
+    theme: "search",
+  },
 
-  "assistant-watch": { key: "assistant-watch", label: "An assistant that watches your network while you're away", status: "planned", theme: "assistant" },
-  "assistant-trends": { key: "assistant-trends", label: "What's moving in your corner of Nostr, before it's obvious", status: "planned", theme: "assistant" },
-  "assistant-rules": { key: "assistant-rules", label: "Tell it what to watch for — and how loudly to tell you", status: "planned", theme: "assistant" },
-  "impersonation-watch": { key: "impersonation-watch", label: "Hear the moment someone starts copying your profile", status: "planned", theme: "assistant" },
+  "assistant-watch": {
+    key: "assistant-watch",
+    label: "An assistant that watches your network while you're away",
+    status: "planned",
+    theme: "assistant",
+  },
+  "assistant-trends": {
+    key: "assistant-trends",
+    label: "What's moving in your corner of Nostr, before it's obvious",
+    status: "planned",
+    theme: "assistant",
+  },
+  "assistant-rules": {
+    key: "assistant-rules",
+    label: "Tell it what to watch for — and how loudly to tell you",
+    status: "planned",
+    theme: "assistant",
+  },
+  "impersonation-watch": {
+    key: "impersonation-watch",
+    label: "Hear the moment someone starts copying your profile",
+    status: "planned",
+    theme: "assistant",
+  },
 
-  "custom-roots": { key: "custom-roots", label: "Choose whose follows your scores start from", status: "planned", theme: "scoring" },
-  "signal-weights": { key: "signal-weights", label: "Decide how much a mute or a report counts", status: "planned", theme: "scoring" },
-  "trust-distance": { key: "trust-distance", label: "Decide how far trust travels from you", status: "planned", theme: "scoring" },
-  "score-preview": { key: "score-preview", label: "Try a change and see who it moves, before you keep it", status: "planned", theme: "scoring" },
+  "custom-roots": {
+    key: "custom-roots",
+    label: "Choose whose follows your scores start from",
+    status: "planned",
+    theme: "scoring",
+  },
+  "signal-weights": {
+    key: "signal-weights",
+    label: "Decide how much a mute or a report counts",
+    status: "planned",
+    theme: "scoring",
+  },
+  "trust-distance": {
+    key: "trust-distance",
+    label: "Decide how far trust travels from you",
+    status: "planned",
+    theme: "scoring",
+  },
+  "score-preview": {
+    key: "score-preview",
+    label: "Try a change and see who it moves, before you keep it",
+    status: "planned",
+    theme: "scoring",
+  },
 };
 
 /**
@@ -231,17 +295,10 @@ export function recalcFeatureLabel(days: number, comparedToDays?: number): strin
  * to list them. Routed through `TIER_FEATURES` so the promise boundary still
  * applies: a key marked `planned` is dropped rather than rendered as a claim.
  */
-export const PRODUCT_CLAIM_KEYS = [
-  "ranked-search",
-  "verified-followers",
-  "portability",
-  "network-alerts",
-] as const;
+export const PRODUCT_CLAIM_KEYS = ["ranked-search", "verified-followers", "portability", "network-alerts"] as const;
 
 export function productClaims(): FeatureDef[] {
-  return PRODUCT_CLAIM_KEYS.map((key) => TIER_FEATURES[key]).filter(
-    (f): f is FeatureDef => !!f && f.status === "live",
-  );
+  return PRODUCT_CLAIM_KEYS.map((key) => TIER_FEATURES[key]).filter((f): f is FeatureDef => !!f && f.status === "live");
 }
 
 /** Everything planned, for the "what your support funds" section. */
@@ -361,7 +418,13 @@ const BILLING_INTERVALS: Record<string, string> = {
  * and an absent one returns null so the caller shows a price alone.
  */
 /** The interval as a column reads it — "Monthly", not "per month". Unknown words pass through, capitalised. */
-const BILLING_CADENCE: Record<string, string> = { daily: "Daily", weekly: "Weekly", monthly: "Monthly", yearly: "Yearly", one_off: "One-time" };
+const BILLING_CADENCE: Record<string, string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+  yearly: "Yearly",
+  one_off: "One-time",
+};
 export function formatBillingCadence(interval: string | null | undefined): string | null {
   const word = typeof interval === "string" ? interval.trim() : "";
   if (!word) return null;
@@ -394,9 +457,7 @@ const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
  */
 function asLocalDate(iso: string, at: [number, number, number, number]): Date {
   const parts = DATE_ONLY.exec(iso);
-  return parts
-    ? new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), ...at)
-    : new Date(iso);
+  return parts ? new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), ...at) : new Date(iso);
 }
 
 /**

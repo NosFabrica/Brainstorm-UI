@@ -21,13 +21,7 @@ import {
   UserCheck,
   XCircle,
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -59,14 +53,30 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import { type Tone } from "@/lib/tones";
 import { npubFromPubkey } from "@/lib/shareId";
-import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection, groupSignups, splitExhausted, type SignupHandle, firstSentence } from "./divergenceSections";
+import {
+  DIVERGENCE_META,
+  orderedSections,
+  subscriptionIdsByEventId,
+  type DivergenceMeta,
+  type DivergenceTier,
+  type OrderedSection,
+  groupSignups,
+  splitExhausted,
+  type SignupHandle,
+  firstSentence,
+} from "./divergenceSections";
 import { StatTile } from "@/components/ui/stat-tile";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { failureLabel, sourceLabel, statusLabel } from "./billingEventCopy";
 import { flashRecordKey, recordFromBody, useFlashSubscriptionRecord } from "./FlashFactsStrip";
 import { describeCycles } from "./flashRecord";
 
-import type { CreateAdminBillingPlanBody, SchedulingItem, UnmappedPlanRow, UpdateAdminBillingPlanBody } from "@/services/api";
+import type {
+  CreateAdminBillingPlanBody,
+  SchedulingItem,
+  UnmappedPlanRow,
+  UpdateAdminBillingPlanBody,
+} from "@/services/api";
 import { DIVERGENCE_KEY, FLASH_SERVICES_KEY, POLICIES_KEY, SUBS_KEY, USERS_KEY } from "./queryKeys";
 
 const PAGE_SIZE = 100;
@@ -148,8 +158,10 @@ function shortNpub(pubkey: string): { short: string; full: string } {
 
 // The User Database's grid, so the two admin rosters read as one system:
 // shaded header row, column rules, hairline rows.
-const th = "px-2 py-2.5 align-middle whitespace-nowrap text-left border-r border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400";
-const thLast = "px-2 py-2.5 align-middle whitespace-nowrap text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400";
+const th =
+  "px-2 py-2.5 align-middle whitespace-nowrap text-left border-r border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400";
+const thLast =
+  "px-2 py-2.5 align-middle whitespace-nowrap text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400";
 const td = "px-2 py-2.5 text-sm text-slate-700 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800/60";
 
 type ProfileBits = { name?: string; picture?: string };
@@ -158,7 +170,12 @@ type SortKey = "subscriber" | "status" | "service" | "scheduling" | "source" | "
 type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
 
 /** Same affordance as the Users tab's SortHeader: label + direction chevrons. */
-function BillingSortHeader({ label, sortKey, sort, onSort }: {
+function BillingSortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+}: {
   label: string;
   sortKey: SortKey;
   sort: SortState;
@@ -168,13 +185,17 @@ function BillingSortHeader({ label, sortKey, sort, onSort }: {
   return (
     <button
       type="button"
-      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider hover:text-slate-800 dark:hover:text-slate-200 transition-colors whitespace-nowrap"
+      className="flex items-center gap-1 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider transition-colors hover:text-slate-800 dark:hover:text-slate-200"
       onClick={() => onSort(sortKey)}
       data-testid={`sort-billing-${sortKey}`}
     >
       {label}
       {active ? (
-        sort!.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+        sort!.dir === "asc" ? (
+          <ChevronUp className="h-3 w-3" />
+        ) : (
+          <ChevronDown className="h-3 w-3" />
+        )
       ) : (
         <ChevronsUpDown className="h-3 w-3 opacity-40" />
       )}
@@ -331,24 +352,23 @@ function ConfirmSubscriptionAction({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription asChild>
             <div>
-              <span
-                className="flex items-center gap-2 mb-2"
-                data-testid={`billing-${kind}-confirm-who`}
-              >
+              <span className="mb-2 flex items-center gap-2" data-testid={`billing-${kind}-confirm-who`}>
                 {who ? (
                   <>
                     <Avatar className="h-7 w-7 shrink-0">
                       {profile?.picture ? (
                         <AvatarImage src={profile.picture} alt={name || "Subscriber"} className="object-cover" />
                       ) : null}
-                      <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">
-                        {profile?.name?.charAt(0)?.toUpperCase() || <User className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />}
+                      <AvatarFallback className="border border-slate-200 bg-slate-100 text-[10px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
+                        {profile?.name?.charAt(0)?.toUpperCase() || (
+                          <User className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />
+                        )}
                       </AvatarFallback>
                     </Avatar>
                     <span className="font-semibold text-slate-900 dark:text-slate-100">{name}</span>
                   </>
                 ) : (
-                  <span className="font-mono text-xs break-all text-slate-900 dark:text-slate-100">
+                  <span className="break-all font-mono text-xs text-slate-900 dark:text-slate-100">
                     {subject?.handle}
                   </span>
                 )}
@@ -376,7 +396,12 @@ function ConfirmSubscriptionAction({
 }
 
 /** The "…" that opens a row's verbs, spinning while one of them is in flight. */
-function RowActionsTrigger({ label, busy, testId, small = false }: {
+function RowActionsTrigger({
+  label,
+  busy,
+  testId,
+  small = false,
+}: {
   label: string;
   busy: boolean;
   testId: string;
@@ -387,7 +412,7 @@ function RowActionsTrigger({ label, busy, testId, small = false }: {
     <DropdownMenuTrigger asChild>
       <button
         type="button"
-        className={`shrink-0 ${small ? "p-1" : "p-1.5"} rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors`}
+        className={`shrink-0 ${small ? "p-1" : "p-1.5"} rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300`}
         aria-label={label}
         data-testid={testId}
       >
@@ -425,34 +450,45 @@ function SubscriberRow({
 }) {
   const who = shortNpub(s.pubkey);
   const paused = s.flash_status === "paused";
-  const flash = useFlashSubscriptionRecord(s.pubkey, (pk) => apiClient.getAdminBillingFlashRecordForSubscriber(pk), s.flash_subscription_id);
+  const flash = useFlashSubscriptionRecord(
+    s.pubkey,
+    (pk) => apiClient.getAdminBillingFlashRecordForSubscriber(pk),
+    s.flash_subscription_id,
+  );
   // What the subscription grants vs what the user is actually in — the
   // payments→scheduler connection this tab exists to make visible.
   const scheduling = s.granted_scheduling_name ?? s.scheduling_name ?? "—";
   return (
-    <tr className="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-900/60 transition-colors" data-testid={`billing-sub-${s.pubkey.slice(0, 8)}`}>
+    <tr
+      className="border-b border-slate-200 transition-colors hover:bg-slate-50/60 dark:border-slate-800 dark:hover:bg-slate-900/60"
+      data-testid={`billing-sub-${s.pubkey.slice(0, 8)}`}
+    >
       <td className={td} title={profile?.name ? `${profile.name} — ${who.full}` : who.full}>
-        <span className="flex items-center gap-2 min-w-0">
+        <span className="flex min-w-0 items-center gap-2">
           <Avatar className="h-6 w-6 shrink-0">
             {profile?.picture ? (
               <AvatarImage src={profile.picture} alt={profile?.name || "Subscriber"} className="object-cover" />
             ) : null}
-            <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">
-              {profile?.name?.charAt(0)?.toUpperCase() || <User className="h-3 w-3 text-slate-300 dark:text-slate-600" />}
+            <AvatarFallback className="border border-slate-200 bg-slate-100 text-[10px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
+              {profile?.name?.charAt(0)?.toUpperCase() || (
+                <User className="h-3 w-3 text-slate-300 dark:text-slate-600" />
+              )}
             </AvatarFallback>
           </Avatar>
-          <span className="flex flex-col min-w-0 leading-tight">
+          <span className="flex min-w-0 flex-col leading-tight">
             <a
               href={`/p/${who.full}`}
               target="_blank"
               rel="noopener"
-              className="truncate max-w-[160px] font-medium hover:text-brand-link hover:underline"
+              className="max-w-[160px] truncate font-medium hover:text-brand-link hover:underline"
               title="Open their public profile"
             >
               {profile?.name || who.short}
             </a>
             {profile?.name && (
-              <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[160px]">{who.short}</span>
+              <span className="max-w-[160px] truncate font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                {who.short}
+              </span>
             )}
           </span>
         </span>
@@ -460,16 +496,23 @@ function SubscriberRow({
       <td className={td} data-testid={`billing-status-${s.pubkey.slice(0, 8)}`}>
         <span className="flex flex-col items-start gap-0.5">
           <span className="inline-flex items-center gap-1.5">
-            <Chip tone={statusTone(s.flash_status)} size="sm">{statusLabel(s.flash_status)}</Chip>
+            <Chip tone={statusTone(s.flash_status)} size="sm">
+              {statusLabel(s.flash_status)}
+            </Chip>
             {s.billing_blocked && (
-              <Chip tone="danger" size="sm" data-testid={`billing-blocked-${s.pubkey.slice(0, 8)}`}>blocked</Chip>
+              <Chip tone="danger" size="sm" data-testid={`billing-blocked-${s.pubkey.slice(0, 8)}`}>
+                blocked
+              </Chip>
             )}
           </span>
           {/* The status column cannot say this by itself: a cancelled subscriber
               stays `active` until the date lands. Said only while it still
               matters — an expired row's end has already passed. */}
           {s.cancel_effective_date && (s.flash_status === "active" || s.flash_status === "trial") && (
-            <span className="text-[11px] text-amber-600 dark:text-amber-400" data-testid={`billing-ends-${s.pubkey.slice(0, 8)}`}>
+            <span
+              className="text-[11px] text-amber-600 dark:text-amber-400"
+              data-testid={`billing-ends-${s.pubkey.slice(0, 8)}`}
+            >
               Ends {formatBillingDate(s.cancel_effective_date)}
             </span>
           )}
@@ -481,18 +524,22 @@ function SubscriberRow({
         {flash.pending ? (
           <span className="text-slate-300 dark:text-slate-600">…</span>
         ) : flash.record?.serviceId ? (
-          serviceNames.get(flash.record.serviceId) ?? (
-            <span className="font-mono text-[11px]" title={flash.record.serviceId}>{flash.record.serviceId.slice(0, 8)}…</span>
-          )
+          (serviceNames.get(flash.record.serviceId) ?? (
+            <span className="font-mono text-[11px]" title={flash.record.serviceId}>
+              {flash.record.serviceId.slice(0, 8)}…
+            </span>
+          ))
         ) : (
           <span className="text-slate-400 dark:text-slate-500">—</span>
         )}
       </td>
       <td className={td}>{scheduling}</td>
-      <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>{sourceLabel(s.scheduling_source)}</td>
+      <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>
+        {sourceLabel(s.scheduling_source)}
+      </td>
       {/* Dates keep to one line: on a phone the grid widens and scrolls rather
           than every row growing to twice its height. */}
-      <td className={`${td} tabular-nums whitespace-nowrap`} data-testid={`billing-period-${s.pubkey.slice(0, 8)}`}>
+      <td className={`${td} whitespace-nowrap tabular-nums`} data-testid={`billing-period-${s.pubkey.slice(0, 8)}`}>
         {/* The paid period as a span; the end alone read as a deadline. */}
         {s.current_period_start ? (
           <span>
@@ -507,17 +554,35 @@ function SubscriberRow({
           says, read once per row and cached; "—" where Flash has no such
           subscription (Benjamin: "add in the cycle and interval after period"). */}
       <td className={td} data-testid={`billing-interval-${s.pubkey.slice(0, 8)}`}>
-        {flash.pending ? <span className="text-slate-300 dark:text-slate-600">…</span> : (formatBillingCadence(flash.record?.billingInterval) ?? <span className="text-slate-400 dark:text-slate-500">—</span>)}
+        {flash.pending ? (
+          <span className="text-slate-300 dark:text-slate-600">…</span>
+        ) : (
+          (formatBillingCadence(flash.record?.billingInterval) ?? (
+            <span className="text-slate-400 dark:text-slate-500">—</span>
+          ))
+        )}
       </td>
-      <td className={`${td} tabular-nums`} title={flash.record ? describeCycles(flash.record) ?? undefined : undefined} data-testid={`billing-cycle-${s.pubkey.slice(0, 8)}`}>
-        {flash.pending ? <span className="text-slate-300 dark:text-slate-600">…</span> : flash.record?.currentPeriodNumber ?? <span className="text-slate-400 dark:text-slate-500">—</span>}
+      <td
+        className={`${td} tabular-nums`}
+        title={flash.record ? (describeCycles(flash.record) ?? undefined) : undefined}
+        data-testid={`billing-cycle-${s.pubkey.slice(0, 8)}`}
+      >
+        {flash.pending ? (
+          <span className="text-slate-300 dark:text-slate-600">…</span>
+        ) : (
+          (flash.record?.currentPeriodNumber ?? <span className="text-slate-400 dark:text-slate-500">—</span>)
+        )}
       </td>
       {/* What answers "when is this person charged again" — a renewal that is
           due looks nothing like one that has silently stopped. */}
-      <td className={`${td} tabular-nums whitespace-nowrap`} data-testid={`billing-nextbill-${s.pubkey.slice(0, 8)}`}>
-        {s.next_billing_date ? formatBillingDate(s.next_billing_date) : <span className="text-slate-400 dark:text-slate-500">—</span>}
+      <td className={`${td} whitespace-nowrap tabular-nums`} data-testid={`billing-nextbill-${s.pubkey.slice(0, 8)}`}>
+        {s.next_billing_date ? (
+          formatBillingDate(s.next_billing_date)
+        ) : (
+          <span className="text-slate-400 dark:text-slate-500">—</span>
+        )}
       </td>
-      <td className={`${td} tabular-nums whitespace-nowrap`} data-testid={`billing-synced-${s.pubkey.slice(0, 8)}`}>
+      <td className={`${td} whitespace-nowrap tabular-nums`} data-testid={`billing-synced-${s.pubkey.slice(0, 8)}`}>
         <span className="inline-flex items-center gap-1.5">
           {formatBillingDate(s.last_synced_at)}
           {s.last_sync_error && (
@@ -528,7 +593,11 @@ function SubscriberRow({
         </span>
         {/* The error in words, not just a triangle. */}
         {s.last_sync_error && (
-          <span className="mt-0.5 block max-w-[220px] truncate text-[10px] text-amber-600 dark:text-amber-400" title={s.last_sync_error} data-testid={`billing-sync-error-${s.pubkey.slice(0, 8)}`}>
+          <span
+            className="mt-0.5 block max-w-[220px] truncate text-[10px] text-amber-600 dark:text-amber-400"
+            title={s.last_sync_error}
+            data-testid={`billing-sync-error-${s.pubkey.slice(0, 8)}`}
+          >
             {failureLabel(s.last_sync_error)}
           </span>
         )}
@@ -544,7 +613,9 @@ function SubscriberRow({
             testId={`billing-actions-${s.pubkey.slice(0, 8)}`}
           />
           <DropdownMenuContent align="end" className="w-72">
-            <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Actions</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              Actions
+            </DropdownMenuLabel>
             <DropdownMenuItem
               disabled={!s.flash_subscription_id}
               onSelect={() => {
@@ -566,8 +637,7 @@ function SubscriberRow({
                 <FileJson className="mr-2 h-3.5 w-3.5" /> Flash's record
               </span>
               <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                Exactly what Flash says right now, beside what we stored. Read-only —
-                it changes nothing.
+                Exactly what Flash says right now, beside what we stored. Read-only — it changes nothing.
               </span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -584,9 +654,8 @@ function SubscriberRow({
                 <RefreshCw className="mr-2 h-3.5 w-3.5" /> Resync from Flash
               </span>
               <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                Re-reads this subscription from Flash and re-applies the tier. Use it when
-                a webhook was missed or the row looks stale. Safe to repeat; it may
-                deliberately change nothing.
+                Re-reads this subscription from Flash and re-applies the tier. Use it when a webhook was missed or the
+                row looks stale. Safe to repeat; it may deliberately change nothing.
               </span>
             </DropdownMenuItem>
             {/* Pause and cancel reach Flash itself, so both are gated on us
@@ -598,11 +667,7 @@ function SubscriberRow({
               data-testid="billing-action-pause"
             >
               <span className="flex items-center">
-                {paused ? (
-                  <PlayCircle className="mr-2 h-3.5 w-3.5" />
-                ) : (
-                  <PauseCircle className="mr-2 h-3.5 w-3.5" />
-                )}
+                {paused ? <PlayCircle className="mr-2 h-3.5 w-3.5" /> : <PauseCircle className="mr-2 h-3.5 w-3.5" />}
                 {paused ? "Resume subscription" : "Pause subscription"}
               </span>
               <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
@@ -621,9 +686,8 @@ function SubscriberRow({
                 <CalendarX className="mr-2 h-3.5 w-3.5" /> Cancel subscription
               </span>
               <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                Ends the subscription in Flash. Depending on the account's cancellation
-                policy they may keep their tier until the paid period ends — the
-                confirmation says when.
+                Ends the subscription in Flash. Depending on the account's cancellation policy they may keep their tier
+                until the paid period ends — the confirmation says when.
               </span>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -693,7 +757,10 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const serviceNames = useMemo(() => new Map((servicesQuery.data ?? []).map((svc) => [svc.id, svc.name])), [servicesQuery.data]);
+  const serviceNames = useMemo(
+    () => new Map((servicesQuery.data ?? []).map((svc) => [svc.id, svc.name])),
+    [servicesQuery.data],
+  );
   const pageItems = subsQuery.data?.items ?? [];
   // The same query the rows run (same key, one fetch), so the filter can read
   // every row's service without a second round of requests.
@@ -710,20 +777,26 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       new Map<string, string | null | undefined>(
         pageItems.map((s, i) => {
           const q = recordQueries[i];
-          return [s.pubkey, q?.isPending ? undefined : (recordFromBody(q?.data, s.flash_subscription_id)?.serviceId ?? null)];
+          return [
+            s.pubkey,
+            q?.isPending ? undefined : (recordFromBody(q?.data, s.flash_subscription_id)?.serviceId ?? null),
+          ];
         }),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pageItems, recordQueries.map((q) => `${q.isPending}:${q.dataUpdatedAt}`).join("|")],
   );
-  const serviceLabelOf = (id: string | null | undefined): string => (id ? serviceNames.get(id) ?? `${id.slice(0, 8)}…` : "");
+  const serviceLabelOf = (id: string | null | undefined): string =>
+    id ? (serviceNames.get(id) ?? `${id.slice(0, 8)}…`) : "";
   // The switch lists the account's services (one per environment) plus any
   // service a row names that the list does not — and only when there is a
   // choice to make.
   const serviceOptions = useMemo(() => {
     const ids = new Set<string>((servicesQuery.data ?? []).map((svc) => svc.id));
     for (const id of serviceOf.values()) if (id) ids.add(id);
-    return Array.from(ids).map((id) => ({ id, label: serviceLabelOf(id) })).sort((a, b) => a.label.localeCompare(b.label));
+    return Array.from(ids)
+      .map((id) => ({ id, label: serviceLabelOf(id) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [servicesQuery.data, serviceOf, serviceNames]);
   const policyName = (id: number | null | undefined): string => {
@@ -745,7 +818,9 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   // named the same way everyone else is.
   // The report's people ride along too, so a fault row shows who, not a hex.
   const reportPubkeys = Object.values(divergenceQuery.data ?? {}).flatMap((section) =>
-    (section?.rows ?? []).map((r) => (r as { pubkey?: unknown }).pubkey).filter((pk): pk is string => typeof pk === "string" && pk.length === 64),
+    (section?.rows ?? [])
+      .map((r) => (r as { pubkey?: unknown }).pubkey)
+      .filter((pk): pk is string => typeof pk === "string" && pk.length === 64),
   );
   const profiles = useRosterProfiles([
     ...(subsQuery.data?.items ?? []).map((s) => s.pubkey),
@@ -799,7 +874,8 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       setMappingFor(null);
       toast({
         title: "Mapping created",
-        description: "The plan now grants that policy. The stuck signup replays on the next sweep — or Resync the subscriber to apply it now.",
+        description:
+          "The plan now grants that policy. The stuck signup replays on the next sweep — or Resync the subscriber to apply it now.",
       });
     } catch (e) {
       setMappingError(e instanceof Error ? e.message : "The server refused the change.");
@@ -824,16 +900,20 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   // so the toast names where they landed — a paying subscriber stays on what
   // they pay for — rather than assuming the default.
   const handleResetPubkey = (pubkey: string) =>
-    runAction(pubkey, async () => {
-      const out = await apiClient.clearUserSchedulingOverride(pubkey);
-      toast({
-        title: "Reset to default",
-        description: `Now on ${out.scheduling_name}. Billing decides their tier from here.`,
-      });
-      // The Users tab and the policies' member lists show the tier too.
-      await queryClient.invalidateQueries({ queryKey: USERS_KEY });
-      await queryClient.invalidateQueries({ queryKey: POLICIES_KEY });
-    }, "Couldn't reset to default");
+    runAction(
+      pubkey,
+      async () => {
+        const out = await apiClient.clearUserSchedulingOverride(pubkey);
+        toast({
+          title: "Reset to default",
+          description: `Now on ${out.scheduling_name}. Billing decides their tier from here.`,
+        });
+        // The Users tab and the policies' member lists show the tier too.
+        await queryClient.invalidateQueries({ queryKey: USERS_KEY });
+        await queryClient.invalidateQueries({ queryKey: POLICIES_KEY });
+      },
+      "Couldn't reset to default",
+    );
 
   const handleSetBlock = (s: AdminBillingSubscription, blocked: boolean) =>
     runAction(s.pubkey, async () => {
@@ -905,34 +985,43 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   // and when it is more than one the admin should hear it (a signup started and
   // then cancelled is two deliveries; one still inside its retry budget was
   // never even listed).
-  const settledNote = (n: number | undefined) => (typeof n === "number" && n > 1 ? ` ${n} deliveries were settled.` : "");
+  const settledNote = (n: number | undefined) =>
+    typeof n === "number" && n > 1 ? ` ${n} deliveries were settled.` : "";
   const handleAttribute = (subscriptionId: string, pubkey: string) =>
-    runAction(subscriptionId, async () => {
-      const out = await apiClient.attributeAdminBillingUnresolved(subscriptionId, pubkey);
-      toast({
-        title: out.applied ? "Signup attributed" : "Attributed, but nothing was granted",
-        description:
-          (out.applied
-            ? "It now belongs to them and the plan's tier is applied — they're in the roster above."
-            : `${out.entitlement_reason ? entitlementReasonText(out.entitlement_reason) : "No tier was applied."} The signup is settled either way, so it leaves this report.`) +
-          settledNote(out.events_settled),
-      });
-    }, "Nothing was changed");
+    runAction(
+      subscriptionId,
+      async () => {
+        const out = await apiClient.attributeAdminBillingUnresolved(subscriptionId, pubkey);
+        toast({
+          title: out.applied ? "Signup attributed" : "Attributed, but nothing was granted",
+          description:
+            (out.applied
+              ? "It now belongs to them and the plan's tier is applied — they're in the roster above."
+              : `${out.entitlement_reason ? entitlementReasonText(out.entitlement_reason) : "No tier was applied."} The signup is settled either way, so it leaves this report.`) +
+            settledNote(out.events_settled),
+        });
+      },
+      "Nothing was changed",
+    );
 
   /** A roster row as the confirm dialog wants it: who, plus their kind-0. */
   const subjectOf = (s: AdminBillingSubscription | null): ConfirmSubject | null =>
     s ? { pubkey: s.pubkey, profile: profiles.get(s.pubkey) } : null;
 
   const handleDismiss = (subscriptionId: string) =>
-    runAction(subscriptionId, async () => {
-      const out = await apiClient.dismissAdminBillingUnresolved(subscriptionId);
-      toast({
-        title: "Signup dismissed",
-        description:
-          "Written off as nobody's — nothing was granted and this leaves the report. Flash still holds the payment; cancel or refund there if it needs it." +
-          settledNote(out.events_settled),
-      });
-    }, "Nothing was changed");
+    runAction(
+      subscriptionId,
+      async () => {
+        const out = await apiClient.dismissAdminBillingUnresolved(subscriptionId);
+        toast({
+          title: "Signup dismissed",
+          description:
+            "Written off as nobody's — nothing was granted and this leaves the report. Flash still holds the payment; cancel or refund there if it needs it." +
+            settledNote(out.events_settled),
+        });
+      },
+      "Nothing was changed",
+    );
 
   if (subsQuery.isPending) {
     return (
@@ -946,9 +1035,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     return (
       <div className="py-6 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-error">
         Couldn't load subscriptions — the server's billing endpoint may not be live yet.
-        <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-          {(subsQuery.error as Error)?.message}
-        </div>
+        <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">{(subsQuery.error as Error)?.message}</div>
       </div>
     );
   }
@@ -957,7 +1044,17 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const pages = subsQuery.data.pages ?? 1;
   const divergence = divergenceQuery.data ?? {};
 
-  const filtered = filterAndSort(items, profiles, search, statusFilter, sourceFilter, serviceFilter, serviceOf, serviceLabelOf, sort);
+  const filtered = filterAndSort(
+    items,
+    profiles,
+    search,
+    statusFilter,
+    sourceFilter,
+    serviceFilter,
+    serviceOf,
+    serviceLabelOf,
+    sort,
+  );
   const statuses = Array.from(new Set(items.map((s) => s.flash_status))).sort();
   const sources = Array.from(new Set(items.map((s) => s.scheduling_source))).sort();
   const filtering = search.trim() !== "" || statusFilter !== "all" || sourceFilter !== "all" || serviceFilter !== "all";
@@ -974,20 +1071,29 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     active: items.filter((x) => x.flash_status === "active" || x.flash_status === "trial").length,
     past_due: items.filter((x) => x.flash_status === "past_due").length,
     pending: items.filter((x) => x.flash_status === "pending").length,
-    ending: items.filter((x) => !!x.cancel_effective_date && (x.flash_status === "active" || x.flash_status === "trial")).length,
+    ending: items.filter(
+      (x) => !!x.cancel_effective_date && (x.flash_status === "active" || x.flash_status === "trial"),
+    ).length,
     // Fault-tier counts, minus the exhausted events that are the same signups
     // already counted above — the sections overlap on purpose; the tile mustn't.
     faults:
       Object.entries(divergence).reduce(
-        (n, [kind, section]) => n + (section && kind in DIVERGENCE_META && DIVERGENCE_META[kind as keyof typeof DIVERGENCE_META].tier === "fault" ? section.count : 0),
+        (n, [kind, section]) =>
+          n +
+          (section && kind in DIVERGENCE_META && DIVERGENCE_META[kind as keyof typeof DIVERGENCE_META].tier === "fault"
+            ? section.count
+            : 0),
         0,
       ) -
-      (divergence.exhausted_events?.rows ?? []).filter((r) => typeof (r as { id?: unknown }).id === "number" && handlesByEventId.has((r as { id: number }).id)).length,
+      (divergence.exhausted_events?.rows ?? []).filter(
+        (r) => typeof (r as { id?: unknown }).id === "number" && handlesByEventId.has((r as { id: number }).id),
+      ).length,
   };
   // The deliveries the report lists for the signup being dismissed — a floor
   // for the dialog's count.
   const dismissDeliveries = dismissFor
-    ? groupSignups(divergence.unresolved_signups?.rows ?? []).find((g) => g.subscriptionId === dismissFor)?.deliveries.length ?? 1
+    ? (groupSignups(divergence.unresolved_signups?.rows ?? []).find((g) => g.subscriptionId === dismissFor)?.deliveries
+        .length ?? 1)
     : 1;
   const signupActions = {
     onViewFlashRecord: (id: string) =>
@@ -1031,17 +1137,31 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       {/* The User Database's header, so the two rosters read as one system:
           the name, then count · page · source, with the search and filters
           beside them. */}
-      <div className="px-3 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid="billing-roster-header">
+      <div
+        className="flex flex-col gap-3 border-b border-brand-accent/10 px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+        data-testid="billing-roster-header"
+      >
         <div>
-          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Billing</h3>
-          <div className="flex flex-wrap items-center gap-3 mt-1">
+          <h3
+            className="text-sm font-bold text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Billing
+          </h3>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              {(filtering ? filtered.length : total).toLocaleString()} {(filtering ? filtered.length : total) === 1 ? "subscriber" : "subscribers"}{filtering ? " (filtered)" : ""}
+              {(filtering ? filtered.length : total).toLocaleString()}{" "}
+              {(filtering ? filtered.length : total) === 1 ? "subscriber" : "subscribers"}
+              {filtering ? " (filtered)" : ""}
             </span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500">Page {page} of {pages}</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+              Page {page} of {pages}
+            </span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Source: /admin/billing/subscriptions</span>
+            <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+              Source: /admin/billing/subscriptions
+            </span>
           </div>
         </div>
         {items.length > 0 && (
@@ -1052,14 +1172,14 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                 placeholder="Search name, npub, tier…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
+                className="w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-1.5 pr-7 text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
                 data-testid="input-billing-search"
               />
               {search && (
                 <button
                   type="button"
                   onClick={() => setSearch("")}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
                   data-testid="button-billing-clear-search"
                 >
                   <XCircle className="h-3.5 w-3.5" />
@@ -1070,7 +1190,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
               <div
                 role="group"
                 aria-label="Flash service"
-                className="inline-flex h-8 items-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-0.5"
+                className="inline-flex h-8 items-center rounded-xl border border-slate-200 bg-white/80 p-0.5 dark:border-slate-800 dark:bg-slate-900/80"
                 data-testid="billing-service-filter"
               >
                 {[{ id: "all", label: "All services" }, ...serviceOptions].map((opt) => {
@@ -1081,7 +1201,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                       type="button"
                       aria-pressed={pressed}
                       onClick={() => setServiceFilter(opt.id)}
-                      className={`h-7 rounded-lg px-2.5 text-xs font-medium transition-colors ${pressed ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                      className={`h-7 rounded-lg px-2.5 text-xs font-medium transition-colors ${pressed ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"}`}
                       data-testid={`billing-service-filter-${opt.id}`}
                     >
                       {opt.label}
@@ -1091,24 +1211,34 @@ export function AdminBillingCards({ active }: { active: boolean }) {
               </div>
             )}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-32 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-billing-status">
+              <SelectTrigger
+                className="h-8 w-32 rounded-xl border-slate-200 text-xs dark:border-slate-800"
+                data-testid="select-billing-status"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 {statuses.map((s) => (
-                  <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+                  <SelectItem key={s} value={s}>
+                    {statusLabel(s)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="w-32 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-billing-source">
+              <SelectTrigger
+                className="h-8 w-32 rounded-xl border-slate-200 text-xs dark:border-slate-800"
+                data-testid="select-billing-source"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All sources</SelectItem>
                 {sources.map((s) => (
-                  <SelectItem key={s} value={s}>{sourceLabel(s)}</SelectItem>
+                  <SelectItem key={s} value={s}>
+                    {sourceLabel(s)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1120,361 +1250,394 @@ export function AdminBillingCards({ active }: { active: boolean }) {
           </div>
         )}
       </div>
-    <div className="px-3 sm:px-5 py-4 space-y-6">
-      {/* The tab's numbers in one line above its lists — counts, not the
+      <div className="space-y-6 px-3 py-4 sm:px-5">
+        {/* The tab's numbers in one line above its lists — counts, not the
           subject, so they take a row and not a band. Faults is the way down to the report. */}
-      <div className="flex flex-wrap items-center gap-2" data-testid="billing-stats">
-        <StatTile compact value={stats.active} label="Active" tone="success" data-testid="billing-stat-active" />
-        <StatTile compact value={stats.past_due} label="Past due" tone={stats.past_due > 0 ? "warning" : "neutral"} data-testid="billing-stat-past_due" />
-        <StatTile compact value={stats.pending} label="Pending" tone="neutral" data-testid="billing-stat-pending" />
-        <StatTile compact value={stats.ending} label="Ending soon" tone="neutral" data-testid="billing-stat-ending" />
-        <StatTile
-          compact
-          value={stats.faults}
-          label="Faults"
-          tone={stats.faults > 0 ? "warning" : "success"}
-          role="button"
-          tabIndex={0}
-          onClick={() => document.querySelector('[data-testid="card-billing-divergence"]')?.scrollIntoView({ behavior: "smooth", block: "start" })}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") document.querySelector('[data-testid="card-billing-divergence"]')?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
-          className="cursor-pointer hover:border-brand-accent/40 transition-colors"
-          data-testid="billing-stat-faults"
-        />
-      </div>
-      {/* Subscriber roster — attributed by construction (pubkey-keyed). */}
-      <div>
-        {items.length === 0 ? (
-          <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-empty">
-            No subscribers yet.
-          </p>
-        ) : filtered.length === 0 ? (
-          <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-no-match">
-            No subscribers match your filters.
-          </p>
-        ) : (
-          <div>
-            <ScrollableTable>
-            <table className="w-full text-left min-w-[860px] border-collapse border border-slate-200 dark:border-slate-800" data-testid="table-billing-subscribers">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">
-                  <th className={th}><BillingSortHeader label="Subscriber" sortKey="subscriber" sort={sort} onSort={toggleSort} /></th>
-                  <th className={th}><BillingSortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /></th>
-                  <th className={th}><BillingSortHeader label="Service" sortKey="service" sort={sort} onSort={toggleSort} /></th>
-                  <th className={th}><BillingSortHeader label="Tier" sortKey="scheduling" sort={sort} onSort={toggleSort} /></th>
-                  <th className={th}><BillingSortHeader label="Source" sortKey="source" sort={sort} onSort={toggleSort} /></th>
-                  <th className={th}><BillingSortHeader label="Period" sortKey="period" sort={sort} onSort={toggleSort} /></th>
-                  <th className={th}>Interval</th>
-                  <th className={th}>Cycle</th>
-                  <th className={th}><BillingSortHeader label="Next bill" sortKey="nextbill" sort={sort} onSort={toggleSort} /></th>
-                  <th className={th}><BillingSortHeader label="Last synced" sortKey="synced" sort={sort} onSort={toggleSort} /></th>
-                  <th className={thLast}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => (
-                  <SubscriberRow
-                    key={s.pubkey}
-                    s={s}
-                    profile={profiles.get(s.pubkey)}
-                    serviceNames={serviceNames}
-                    busy={busyKey === s.pubkey}
-                    onBlock={setConfirmBlock}
-                    onUnblock={(sub) => handleSetBlock(sub, false)}
-                    onResync={handleResync}
-                    onViewFlashRecord={(sub) =>
-                      setFlashRecordFor({
-                        key: sub.pubkey,
-                        label: shortNpub(sub.pubkey).short,
-                        read: () => apiClient.getAdminBillingFlashRecordForSubscriber(sub.pubkey),
-                      })
-                    }
-                    onCancel={(sub) => {
-                      setCancelReason("");
-                      setConfirmCancel(sub);
-                    }}
-                    onPause={setConfirmPause}
-                    onResume={setConfirmResume}
-                  />
-                ))}
-              </tbody>
-            </table>
-            </ScrollableTable>
-            {pages > 1 && (
-              <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400" data-testid="billing-pager">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
-                  data-testid="billing-pager-prev"
+        <div className="flex flex-wrap items-center gap-2" data-testid="billing-stats">
+          <StatTile compact value={stats.active} label="Active" tone="success" data-testid="billing-stat-active" />
+          <StatTile
+            compact
+            value={stats.past_due}
+            label="Past due"
+            tone={stats.past_due > 0 ? "warning" : "neutral"}
+            data-testid="billing-stat-past_due"
+          />
+          <StatTile compact value={stats.pending} label="Pending" tone="neutral" data-testid="billing-stat-pending" />
+          <StatTile compact value={stats.ending} label="Ending soon" tone="neutral" data-testid="billing-stat-ending" />
+          <StatTile
+            compact
+            value={stats.faults}
+            label="Faults"
+            tone={stats.faults > 0 ? "warning" : "success"}
+            role="button"
+            tabIndex={0}
+            onClick={() =>
+              document
+                .querySelector('[data-testid="card-billing-divergence"]')
+                ?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ")
+                document
+                  .querySelector('[data-testid="card-billing-divergence"]')
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="cursor-pointer transition-colors hover:border-brand-accent/40"
+            data-testid="billing-stat-faults"
+          />
+        </div>
+        {/* Subscriber roster — attributed by construction (pubkey-keyed). */}
+        <div>
+          {items.length === 0 ? (
+            <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-empty">
+              No subscribers yet.
+            </p>
+          ) : filtered.length === 0 ? (
+            <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-no-match">
+              No subscribers match your filters.
+            </p>
+          ) : (
+            <div>
+              <ScrollableTable>
+                <table
+                  className="w-full min-w-[860px] border-collapse border border-slate-200 text-left dark:border-slate-800"
+                  data-testid="table-billing-subscribers"
                 >
-                  <ChevronLeft className="h-3 w-3" /> Prev
-                </button>
-                <span className="tabular-nums">
-                  Page {page} of {pages} · {total} subscribers
-                </span>
-                <button
-                  type="button"
-                  disabled={page >= pages}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
-                  data-testid="billing-pager-next"
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/80">
+                      <th className={th}>
+                        <BillingSortHeader label="Subscriber" sortKey="subscriber" sort={sort} onSort={toggleSort} />
+                      </th>
+                      <th className={th}>
+                        <BillingSortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />
+                      </th>
+                      <th className={th}>
+                        <BillingSortHeader label="Service" sortKey="service" sort={sort} onSort={toggleSort} />
+                      </th>
+                      <th className={th}>
+                        <BillingSortHeader label="Tier" sortKey="scheduling" sort={sort} onSort={toggleSort} />
+                      </th>
+                      <th className={th}>
+                        <BillingSortHeader label="Source" sortKey="source" sort={sort} onSort={toggleSort} />
+                      </th>
+                      <th className={th}>
+                        <BillingSortHeader label="Period" sortKey="period" sort={sort} onSort={toggleSort} />
+                      </th>
+                      <th className={th}>Interval</th>
+                      <th className={th}>Cycle</th>
+                      <th className={th}>
+                        <BillingSortHeader label="Next bill" sortKey="nextbill" sort={sort} onSort={toggleSort} />
+                      </th>
+                      <th className={th}>
+                        <BillingSortHeader label="Last synced" sortKey="synced" sort={sort} onSort={toggleSort} />
+                      </th>
+                      <th className={thLast}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((s) => (
+                      <SubscriberRow
+                        key={s.pubkey}
+                        s={s}
+                        profile={profiles.get(s.pubkey)}
+                        serviceNames={serviceNames}
+                        busy={busyKey === s.pubkey}
+                        onBlock={setConfirmBlock}
+                        onUnblock={(sub) => handleSetBlock(sub, false)}
+                        onResync={handleResync}
+                        onViewFlashRecord={(sub) =>
+                          setFlashRecordFor({
+                            key: sub.pubkey,
+                            label: shortNpub(sub.pubkey).short,
+                            read: () => apiClient.getAdminBillingFlashRecordForSubscriber(sub.pubkey),
+                          })
+                        }
+                        onCancel={(sub) => {
+                          setCancelReason("");
+                          setConfirmCancel(sub);
+                        }}
+                        onPause={setConfirmPause}
+                        onResume={setConfirmResume}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </ScrollableTable>
+              {pages > 1 && (
+                <div
+                  className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400"
+                  data-testid="billing-pager"
                 >
-                  Next <ChevronRight className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-        <a
-          href={FLASH_DASHBOARD_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-brand-link hover:underline"
-          data-testid="link-flash-dashboard"
-        >
-          Invoices, refunds and management live in the Flash dashboard
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
-      </div>
+                  <button
+                    type="button"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
+                    data-testid="billing-pager-prev"
+                  >
+                    <ChevronLeft className="h-3 w-3" /> Prev
+                  </button>
+                  <span className="tabular-nums">
+                    Page {page} of {pages} · {total} subscribers
+                  </span>
+                  <button
+                    type="button"
+                    disabled={page >= pages}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
+                    data-testid="billing-pager-next"
+                  >
+                    Next <ChevronRight className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          <a
+            href={FLASH_DASHBOARD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-brand-link hover:underline"
+            data-testid="link-flash-dashboard"
+          >
+            Invoices, refunds and management live in the Flash dashboard
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
 
-      {/* Divergence — the server's "everything nobody has settled" report. */}
-      {/* A neutral card: most of its rows are for the record, so the warning
+        {/* Divergence — the server's "everything nobody has settled" report. */}
+        {/* A neutral card: most of its rows are for the record, so the warning
           colour belongs to the Faults kicker and the counts, not the whole band
           (colour to communicate, not decorate). One sentence of intro — an
           admin reads this daily; each section's first sentence follows, the
           rest on hover. */}
-      <div
-        className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 px-4 py-3"
-        data-testid="card-billing-divergence"
-      >
-        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Needs attention</h4>
-        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          What Flash and Brainstorm disagree on. Faults first, then what is worth knowing.
-        </p>
-        {divergenceQuery.isError ? (
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-error">
-            Couldn't load the divergence report.
+        <div
+          className="rounded-xl border border-slate-200 bg-white/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40"
+          data-testid="card-billing-divergence"
+        >
+          <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Needs attention</h4>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            What Flash and Brainstorm disagree on. Faults first, then what is worth knowing.
           </p>
-        ) : sections.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-empty">
-            Nothing unsettled — Flash and the scheduler agree.
-          </p>
-        ) : (
-          <div className="mt-3 space-y-4">
-            <DivergenceTierGroup tier="fault" sections={faults} render={renderSection} />
-            <DivergenceTierGroup tier="record" sections={record} render={renderSection} />
-          </div>
-        )}
-      </div>
+          {divergenceQuery.isError ? (
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-error">
+              Couldn't load the divergence report.
+            </p>
+          ) : sections.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-empty">
+              Nothing unsettled — Flash and the scheduler agree.
+            </p>
+          ) : (
+            <div className="mt-3 space-y-4">
+              <DivergenceTierGroup tier="fault" sections={faults} render={renderSection} />
+              <DivergenceTierGroup tier="record" sections={record} render={renderSection} />
+            </div>
+          )}
+        </div>
 
-      <FlashRecordDialog target={flashRecordFor} onClose={() => setFlashRecordFor(null)} />
+        <FlashRecordDialog target={flashRecordFor} onClose={() => setFlashRecordFor(null)} />
 
-      {/* The fix for an unmapped plan, prefilled from the row that needs it.
+        {/* The fix for an unmapped plan, prefilled from the row that needs it.
           Mounted per row: the form seeds its fields once, on mount. */}
-      {mappingFor && (
-        <PlanMappingFormDialog
-          key={`${mappingFor.flash_service_id}:${mappingFor.flash_plan_id}`}
-          open
-          mode="create"
-          initial={{
-            flash_service_id: mappingFor.flash_service_id ?? "",
-            flash_plan_id: mappingFor.flash_plan_id ?? "",
-            // Default to the first paid policy: a mapping that grants Free sells nothing.
-            scheduling_id: policiesQuery.data?.find((p) => !p.is_default)?.id ?? policiesQuery.data?.[0]?.id ?? 0,
-            is_active: true,
-          }}
-          policies={policiesQuery.data ?? []}
-          submitting={mappingSubmitting}
-          serverError={mappingError}
-          onOpenChange={(open) => {
-            if (!open) {
-              setMappingFor(null);
-              setMappingError(null);
-            }
-          }}
-          onSubmit={handleCreateMapping}
-        />
-      )}
-
-      {/* Attributing grants a tier, so it is confirmed like any other grant —
-          and the person is shown, not just the key that was pasted. */}
-      <ConfirmSubscriptionAction
-        subject={
-          attributeFor
-            ? {
-                pubkey: attributePubkey,
-                handle: attributeFor,
-                profile: attributePubkey
-                  ? profiles.get(attributePubkey) ??
-                    (attributePicked ? { name: attributePicked.name, picture: attributePicked.picture } : undefined)
-                  : undefined,
+        {mappingFor && (
+          <PlanMappingFormDialog
+            key={`${mappingFor.flash_service_id}:${mappingFor.flash_plan_id}`}
+            open
+            mode="create"
+            initial={{
+              flash_service_id: mappingFor.flash_service_id ?? "",
+              flash_plan_id: mappingFor.flash_plan_id ?? "",
+              // Default to the first paid policy: a mapping that grants Free sells nothing.
+              scheduling_id: policiesQuery.data?.find((p) => !p.is_default)?.id ?? policiesQuery.data?.[0]?.id ?? 0,
+              is_active: true,
+            }}
+            policies={policiesQuery.data ?? []}
+            submitting={mappingSubmitting}
+            serverError={mappingError}
+            onOpenChange={(open) => {
+              if (!open) {
+                setMappingFor(null);
+                setMappingError(null);
               }
-            : null
-        }
-        kind="attribute"
-        title="Attribute this signup to someone?"
-        confirmLabel="Attribute signup"
-        confirmDisabled={!attributePubkey}
-        destructive={false}
-        dismissLabel="Cancel"
-        onDismiss={() => {
-          setAttributeFor(null);
-          setAttributePicked(null);
-        }}
-        onConfirm={async () => {
-          const id = attributeFor;
-          const pubkey = attributePubkey;
-          setAttributeFor(null);
-          setAttributePicked(null);
-          if (id && pubkey) await handleAttribute(id, pubkey);
-        }}
-      >
-        <>
-          Grants whatever <span className="font-mono text-[11px] break-all">{attributeFor}</span>{" "}
-          pays for, exactly as a webhook naming them would have. Who actually paid is
-          visible only in Flash's dashboard, so check there before granting. Only
-          someone with a Brainstorm account can be granted a plan.
-          <BrainstormUserPicker value={attributePicked} onChange={setAttributePicked} />
-        </>
-      </ConfirmSubscriptionAction>
+            }}
+            onSubmit={handleCreateMapping}
+          />
+        )}
 
-      {/* No person to name — the provider's own card tests are the common case
+        {/* Attributing grants a tier, so it is confirmed like any other grant —
+          and the person is shown, not just the key that was pasted. */}
+        <ConfirmSubscriptionAction
+          subject={
+            attributeFor
+              ? {
+                  pubkey: attributePubkey,
+                  handle: attributeFor,
+                  profile: attributePubkey
+                    ? (profiles.get(attributePubkey) ??
+                      (attributePicked ? { name: attributePicked.name, picture: attributePicked.picture } : undefined))
+                    : undefined,
+                }
+              : null
+          }
+          kind="attribute"
+          title="Attribute this signup to someone?"
+          confirmLabel="Attribute signup"
+          confirmDisabled={!attributePubkey}
+          destructive={false}
+          dismissLabel="Cancel"
+          onDismiss={() => {
+            setAttributeFor(null);
+            setAttributePicked(null);
+          }}
+          onConfirm={async () => {
+            const id = attributeFor;
+            const pubkey = attributePubkey;
+            setAttributeFor(null);
+            setAttributePicked(null);
+            if (id && pubkey) await handleAttribute(id, pubkey);
+          }}
+        >
+          <>
+            Grants whatever <span className="break-all font-mono text-[11px]">{attributeFor}</span> pays for, exactly as
+            a webhook naming them would have. Who actually paid is visible only in Flash's dashboard, so check there
+            before granting. Only someone with a Brainstorm account can be granted a plan.
+            <BrainstormUserPicker value={attributePicked} onChange={setAttributePicked} />
+          </>
+        </ConfirmSubscriptionAction>
+
+        {/* No person to name — the provider's own card tests are the common case
           here, and the subscription id is all such a row has. The count is a
           floor, never exact: the report lists only deliveries that failed, and
           a dismiss also settles one still inside its retry budget. */}
-      <ConfirmSubscriptionAction
-        subject={dismissFor ? { handle: dismissFor } : null}
-        kind="dismiss"
-        title="Write this signup off as nobody's?"
-        confirmLabel="Dismiss signup"
-        onDismiss={() => setDismissFor(null)}
-        onConfirm={async () => {
-          const id = dismissFor;
-          setDismissFor(null);
-          if (id) await handleDismiss(id);
-        }}
-      >
-        {dismissDeliveries > 1
-          ? `Grants nothing and clears at least ${dismissDeliveries} deliveries of this signup from the report — the ones listed, and any still being retried — so the sweep stops re-checking it.`
-          : "Grants nothing and clears it from this report, so the sweep stops re-checking it."}{" "}
-        It does not cancel or refund anything — Flash took the money and that stays there.
-      </ConfirmSubscriptionAction>
+        <ConfirmSubscriptionAction
+          subject={dismissFor ? { handle: dismissFor } : null}
+          kind="dismiss"
+          title="Write this signup off as nobody's?"
+          confirmLabel="Dismiss signup"
+          onDismiss={() => setDismissFor(null)}
+          onConfirm={async () => {
+            const id = dismissFor;
+            setDismissFor(null);
+            if (id) await handleDismiss(id);
+          }}
+        >
+          {dismissDeliveries > 1
+            ? `Grants nothing and clears at least ${dismissDeliveries} deliveries of this signup from the report — the ones listed, and any still being retried — so the sweep stops re-checking it.`
+            : "Grants nothing and clears it from this report, so the sweep stops re-checking it."}{" "}
+          It does not cancel or refund anything — Flash took the money and that stays there.
+        </ConfirmSubscriptionAction>
 
-      {/* Every write that reaches Flash names the person before it happens, the
+        {/* Every write that reaches Flash names the person before it happens, the
           same way a manual tier change does. */}
-      <ConfirmSubscriptionAction
-        subject={confirmReset ? { pubkey: confirmReset, profile: profiles.get(confirmReset) } : null}
-        kind="reset"
-        title="Reset this tier to default?"
-        confirmLabel="Reset to default"
-        destructive={false}
-        onDismiss={() => setConfirmReset(null)}
-        onConfirm={async () => {
-          const pubkey = confirmReset;
-          setConfirmReset(null);
-          if (pubkey) await handleResetPubkey(pubkey);
-        }}
-      >
-        Drops the admin override, so billing decides from now on — a paying subscriber keeps the policy they pay for;
-        anyone else returns to the default.
-      </ConfirmSubscriptionAction>
+        <ConfirmSubscriptionAction
+          subject={confirmReset ? { pubkey: confirmReset, profile: profiles.get(confirmReset) } : null}
+          kind="reset"
+          title="Reset this tier to default?"
+          confirmLabel="Reset to default"
+          destructive={false}
+          onDismiss={() => setConfirmReset(null)}
+          onConfirm={async () => {
+            const pubkey = confirmReset;
+            setConfirmReset(null);
+            if (pubkey) await handleResetPubkey(pubkey);
+          }}
+        >
+          Drops the admin override, so billing decides from now on — a paying subscriber keeps the policy they pay for;
+          anyone else returns to the default.
+        </ConfirmSubscriptionAction>
 
-      <ConfirmSubscriptionAction
-        subject={subjectOf(confirmCancel)}
-        kind="cancel"
-        title="Cancel this subscription in Flash?"
-        confirmLabel="Cancel subscription"
-        onDismiss={() => setConfirmCancel(null)}
-        onConfirm={async () => {
-          const sub = confirmCancel;
-          const reason = cancelReason;
-          setConfirmCancel(null);
-          if (sub) await handleCancel(sub, reason);
-        }}
-      >
-        <>
-          Ends their subscription in Flash. Depending on the account's cancellation policy
-          they may keep their tier until the paid period ends — the confirmation says when,
-          and Flash may still report them active until then. Nothing here refunds anything.
-          <Input
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            placeholder="Reason (optional) — recorded in Flash"
-            className="mt-3"
-            data-testid="input-billing-cancel-reason"
-          />
-        </>
-      </ConfirmSubscriptionAction>
+        <ConfirmSubscriptionAction
+          subject={subjectOf(confirmCancel)}
+          kind="cancel"
+          title="Cancel this subscription in Flash?"
+          confirmLabel="Cancel subscription"
+          onDismiss={() => setConfirmCancel(null)}
+          onConfirm={async () => {
+            const sub = confirmCancel;
+            const reason = cancelReason;
+            setConfirmCancel(null);
+            if (sub) await handleCancel(sub, reason);
+          }}
+        >
+          <>
+            Ends their subscription in Flash. Depending on the account's cancellation policy they may keep their tier
+            until the paid period ends — the confirmation says when, and Flash may still report them active until then.
+            Nothing here refunds anything.
+            <Input
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Reason (optional) — recorded in Flash"
+              className="mt-3"
+              data-testid="input-billing-cancel-reason"
+            />
+          </>
+        </ConfirmSubscriptionAction>
 
-      <ConfirmSubscriptionAction
-        subject={subjectOf(confirmPause)}
-        kind="pause"
-        title="Pause this subscription in Flash?"
-        confirmLabel="Pause subscription"
-        onDismiss={() => setConfirmPause(null)}
-        onConfirm={async () => {
-          const sub = confirmPause;
-          setConfirmPause(null);
-          if (sub) await handleSetStatus(sub, "paused");
-        }}
-      >
-        Suspends billing in Flash and takes their paid tier off while it is paused.
-        Resuming puts both back.
-      </ConfirmSubscriptionAction>
+        <ConfirmSubscriptionAction
+          subject={subjectOf(confirmPause)}
+          kind="pause"
+          title="Pause this subscription in Flash?"
+          confirmLabel="Pause subscription"
+          onDismiss={() => setConfirmPause(null)}
+          onConfirm={async () => {
+            const sub = confirmPause;
+            setConfirmPause(null);
+            if (sub) await handleSetStatus(sub, "paused");
+          }}
+        >
+          Suspends billing in Flash and takes their paid tier off while it is paused. Resuming puts both back.
+        </ConfirmSubscriptionAction>
 
-      {/* Resuming is confirmed too, unlike unblocking: it restarts a charge,
+        {/* Resuming is confirmed too, unlike unblocking: it restarts a charge,
           and that is money moving on somebody's card. */}
-      <ConfirmSubscriptionAction
-        subject={subjectOf(confirmResume)}
-        kind="resume"
-        title="Resume this subscription in Flash?"
-        confirmLabel="Resume subscription"
-        destructive={false}
-        onDismiss={() => setConfirmResume(null)}
-        onConfirm={async () => {
-          const sub = confirmResume;
-          setConfirmResume(null);
-          if (sub) await handleSetStatus(sub, "active");
-        }}
-      >
-        Puts the subscription back to active in Flash. Billing starts again on its
-        normal schedule, and their paid tier comes back.
-      </ConfirmSubscriptionAction>
+        <ConfirmSubscriptionAction
+          subject={subjectOf(confirmResume)}
+          kind="resume"
+          title="Resume this subscription in Flash?"
+          confirmLabel="Resume subscription"
+          destructive={false}
+          onDismiss={() => setConfirmResume(null)}
+          onConfirm={async () => {
+            const sub = confirmResume;
+            setConfirmResume(null);
+            if (sub) await handleSetStatus(sub, "active");
+          }}
+        >
+          Puts the subscription back to active in Flash. Billing starts again on its normal schedule, and their paid
+          tier comes back.
+        </ConfirmSubscriptionAction>
 
-      {/* Blocking is confirmed because of the part that surprises people: the
+        {/* Blocking is confirmed because of the part that surprises people: the
           money keeps moving. Unblocking isn't — it only re-opens a door. */}
-      <Dialog open={!!confirmBlock} onOpenChange={(o) => !o && setConfirmBlock(null)}>
-        <DialogContent data-testid="dialog-billing-block-confirm">
-          <DialogHeader>
-            <DialogTitle>Block billing for this subscriber?</DialogTitle>
-            <DialogDescription>
-              {confirmBlock
-                ? `“${shortNpub(confirmBlock.pubkey).short}” will be withheld from paid entitlement no matter what they pay, and any tier billing granted them is taken back now. This does not cancel or refund anything — Flash keeps charging them until the subscription is cancelled.`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmBlock(null)} data-testid="button-billing-block-cancel">
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                const sub = confirmBlock;
-                setConfirmBlock(null);
-                if (sub) await handleSetBlock(sub, true);
-              }}
-              data-testid="button-billing-block-confirm"
-            >
-              Block billing
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        <Dialog open={!!confirmBlock} onOpenChange={(o) => !o && setConfirmBlock(null)}>
+          <DialogContent data-testid="dialog-billing-block-confirm">
+            <DialogHeader>
+              <DialogTitle>Block billing for this subscriber?</DialogTitle>
+              <DialogDescription>
+                {confirmBlock
+                  ? `“${shortNpub(confirmBlock.pubkey).short}” will be withheld from paid entitlement no matter what they pay, and any tier billing granted them is taken back now. This does not cancel or refund anything — Flash keeps charging them until the subscription is cancelled.`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmBlock(null)} data-testid="button-billing-block-cancel">
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  const sub = confirmBlock;
+                  setConfirmBlock(null);
+                  if (sub) await handleSetBlock(sub, true);
+                }}
+                data-testid="button-billing-block-confirm"
+              >
+                Block billing
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }
@@ -1493,10 +1656,14 @@ function DivergenceTierGroup({
   return (
     <div data-testid={`billing-divergence-${fault ? "faults" : "record"}`}>
       <div className="flex items-center gap-2">
-        <span className={`text-[11px] font-semibold uppercase tracking-wide ${fault ? "text-amber-700 dark:text-amber-400" : "text-slate-400 dark:text-slate-500"}`}>
+        <span
+          className={`text-[11px] font-semibold uppercase tracking-wide ${fault ? "text-amber-700 dark:text-amber-400" : "text-slate-400 dark:text-slate-500"}`}
+        >
           {fault ? "Faults" : "For the record"}
         </span>
-        <span className={`h-px flex-1 ${fault ? "bg-amber-200/60 dark:bg-amber-400/20" : "bg-slate-200/70 dark:bg-slate-700/60"}`} />
+        <span
+          className={`h-px flex-1 ${fault ? "bg-amber-200/60 dark:bg-amber-400/20" : "bg-slate-200/70 dark:bg-slate-700/60"}`}
+        />
       </div>
       {sections.length === 0 ? (
         <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
@@ -1531,13 +1698,19 @@ function DivergenceHeading({
         <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
           {meta?.title ?? kind.replaceAll("_", " ")}
         </span>
-        <Chip tone={tier === "fault" ? "warning" : "neutral"} size="sm">{countLabel ?? section.count}</Chip>
+        <Chip tone={tier === "fault" ? "warning" : "neutral"} size="sm">
+          {countLabel ?? section.count}
+        </Chip>
         {section.truncated && (
           <span className="text-[11px] text-slate-400 dark:text-slate-500">list capped — more exist</span>
         )}
       </div>
       {meta?.meaning && (
-        <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400" title={meta.meaning} data-testid={`billing-divergence-meaning-${kind}`}>
+        <p
+          className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400"
+          title={meta.meaning}
+          data-testid={`billing-divergence-meaning-${kind}`}
+        >
           {firstSentence(meta.meaning)}
         </p>
       )}
@@ -1548,7 +1721,7 @@ function DivergenceHeading({
 /** One free-form row, verbatim. The Flash id is the one value that links out. */
 function DivergenceRow({ row }: { row: Record<string, unknown> }) {
   return (
-    <span className="font-mono text-xs text-slate-600 dark:text-slate-300 break-all">
+    <span className="break-all font-mono text-xs text-slate-600 dark:text-slate-300">
       {Object.entries(row).map(([k, v], j) => (
         <span key={k}>
           {j > 0 && "  "}
@@ -1602,7 +1775,8 @@ function DivergenceBlock({
   signupActions: SignupActions;
   onCreateMapping: (row: UnmappedPlanRow) => void;
 }) {
-  const person = (row: Record<string, unknown>) => (typeof row.pubkey === "string" ? profiles.get(row.pubkey) : undefined);
+  const person = (row: Record<string, unknown>) =>
+    typeof row.pubkey === "string" ? profiles.get(row.pubkey) : undefined;
   const busy = (row: Record<string, unknown>) => typeof row.pubkey === "string" && busyKey === row.pubkey;
   const typed = (row: Record<string, unknown>, i: number) => {
     switch (kind) {
@@ -1621,19 +1795,41 @@ function DivergenceBlock({
           />
         );
       case "stale_syncs":
-        return <StaleSyncRowView key={i} row={row as never} profile={person(row)} busy={busy(row)} onResync={onResync} />;
+        return (
+          <StaleSyncRowView key={i} row={row as never} profile={person(row)} busy={busy(row)} onResync={onResync} />
+        );
       case "failing_syncs":
-        return <FailingSyncRowView key={i} row={row as never} profile={person(row)} busy={busy(row)} onResync={onResync} />;
+        return (
+          <FailingSyncRowView key={i} row={row as never} profile={person(row)} busy={busy(row)} onResync={onResync} />
+        );
       case "unrecognised_statuses":
         return <UnrecognisedStatusRowView key={i} row={row as never} />;
       case "abandoned_checkouts":
-        return <AbandonedCheckoutRowView key={i} row={row as never} profile={person(row)} flashUrl={flashSubscriptionUrl} />;
+        return (
+          <AbandonedCheckoutRowView key={i} row={row as never} profile={person(row)} flashUrl={flashSubscriptionUrl} />
+        );
       case "retired_plan_subscribers":
-        return <RetiredPlanRowView key={i} row={row as never} profile={person(row)} flashUrl={flashSubscriptionUrl} policyName={policyName} />;
+        return (
+          <RetiredPlanRowView
+            key={i}
+            row={row as never}
+            profile={person(row)}
+            flashUrl={flashSubscriptionUrl}
+            policyName={policyName}
+          />
+        );
       case "unmapped_plans": {
         const r = row as unknown as UnmappedPlanRow;
         const who = typeof r.external_ref === "string" ? profiles.get(r.external_ref) : undefined;
-        return <UnmappedPlanRowView key={i} row={r} profile={who} flashUrl={flashSubscriptionUrl} onCreateMapping={onCreateMapping} />;
+        return (
+          <UnmappedPlanRowView
+            key={i}
+            row={r}
+            profile={who}
+            flashUrl={flashSubscriptionUrl}
+            onCreateMapping={onCreateMapping}
+          />
+        );
       }
       case "exhausted_events": {
         const eventId = typeof row.id === "number" ? row.id : null;
@@ -1653,7 +1849,9 @@ function DivergenceBlock({
                 {...signupActions}
               />
             ) : (
-              <span className="text-[11px] text-slate-400 dark:text-slate-500">no signup to settle — see the Flash dashboard</span>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                no signup to settle — see the Flash dashboard
+              </span>
             )}
           </ExhaustedEventRowView>
         );
@@ -1719,7 +1917,10 @@ function UnresolvedSignupsBlock({
   // one Flash id, so they are one entry with one menu — the menu sits on the
   // thing it acts on, and what a dismiss will clear is listed beneath it.
   const groups = groupSignups(section.rows, exhaustedRows);
-  const countLabel = groups.length < section.count ? `${section.count} deliveries · ${groups.length} ${groups.length === 1 ? "signup" : "signups"}` : undefined;
+  const countLabel =
+    groups.length < section.count
+      ? `${section.count} deliveries · ${groups.length} ${groups.length === 1 ? "signup" : "signups"}`
+      : undefined;
   return (
     <div data-testid="billing-divergence-unresolved_signups">
       <DivergenceHeading kind="unresolved_signups" meta={meta} tier="fault" section={section} countLabel={countLabel} />
@@ -1800,23 +2001,25 @@ function SignupActionsMenu({
             <UserCheck className="mr-2 h-3.5 w-3.5" /> Attribute to a person
           </span>
           <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-            Attaches this payment to an account and grants whatever its plan grants — the same way a webhook naming them would have.
+            Attaches this payment to an account and grants whatever its plan grants — the same way a webhook naming them
+            would have.
           </span>
         </DropdownMenuItem>
         {canDismiss && (
-        <DropdownMenuItem
-          disabled={busy}
-          onSelect={() => onDismiss(id)}
-          className="flex-col items-start gap-0.5 text-red-600 dark:text-red-400"
-          data-testid={`${itemPrefix}-dismiss`}
-        >
-          <span className="flex items-center">
-            <Ban className="mr-2 h-3.5 w-3.5" /> Dismiss as nobody's
-          </span>
-          <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-            Clears it from this report without granting anything. Doesn't cancel or refund — that stays in Flash, which took the money.
-          </span>
-        </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={busy}
+            onSelect={() => onDismiss(id)}
+            className="flex-col items-start gap-0.5 text-red-600 dark:text-red-400"
+            data-testid={`${itemPrefix}-dismiss`}
+          >
+            <span className="flex items-center">
+              <Ban className="mr-2 h-3.5 w-3.5" /> Dismiss as nobody's
+            </span>
+            <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+              Clears it from this report without granting anything. Doesn't cancel or refund — that stays in Flash,
+              which took the money.
+            </span>
+          </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

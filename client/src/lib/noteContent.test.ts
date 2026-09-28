@@ -48,7 +48,9 @@ describe("primaryLink", () => {
   });
 
   it("keeps a closing paren the URL opened", () => {
-    expect(link("https://en.wikipedia.org/wiki/Mercury_(planet)")).toBe("https://en.wikipedia.org/wiki/Mercury_(planet)");
+    expect(link("https://en.wikipedia.org/wiki/Mercury_(planet)")).toBe(
+      "https://en.wikipedia.org/wiki/Mercury_(planet)",
+    );
   });
 });
 
@@ -77,7 +79,9 @@ describe("inline markdown in notes", () => {
   });
 
   it("does not repeat a label that is just the address", () => {
-    expect(parseNoteContent("[https://a.test/x](https://a.test/x)")).toEqual([{ type: "url", value: "https://a.test/x" }]);
+    expect(parseNoteContent("[https://a.test/x](https://a.test/x)")).toEqual([
+      { type: "url", value: "https://a.test/x" },
+    ]);
   });
 
   it("keeps parens that belong to the URL", () => {
@@ -95,7 +99,9 @@ describe("inline markdown in notes", () => {
   });
 
   it("unwraps for plain-text surfaces too", () => {
-    expect(unwrapMarkdownLinks("a ![](https://m.test/1) b [c](https://d.test/e)")).toBe("a https://m.test/1 b c https://d.test/e");
+    expect(unwrapMarkdownLinks("a ![](https://m.test/1) b [c](https://d.test/e)")).toBe(
+      "a https://m.test/1 b c https://d.test/e",
+    );
   });
 
   it("a text preview carries no markdown debris", () => {
@@ -117,9 +123,15 @@ describe("Primal URLs that carry a bech32", () => {
   it("stay mentions — the pretty-URL grammar never sees them", () => {
     const naddr = nip19.naddrEncode({ kind: 30023, pubkey: "a".repeat(64), identifier: "were-back" });
     const npub = nip19.npubEncode("b".repeat(64));
-    expect(parseNoteContent(`https://primal.net/e/${naddr}`)).toEqual([{ type: "mention", bech32: naddr, url: `https://primal.net/e/${naddr}` }]);
-    expect(parseNoteContent(`https://primal.net/p/${npub}`)).toEqual([{ type: "mention", bech32: npub, url: `https://primal.net/p/${npub}` }]);
-    expect(parseNoteContent("https://primal.net/whitenoise/were-back")).toEqual([{ type: "url", value: "https://primal.net/whitenoise/were-back" }]);
+    expect(parseNoteContent(`https://primal.net/e/${naddr}`)).toEqual([
+      { type: "mention", bech32: naddr, url: `https://primal.net/e/${naddr}` },
+    ]);
+    expect(parseNoteContent(`https://primal.net/p/${npub}`)).toEqual([
+      { type: "mention", bech32: npub, url: `https://primal.net/p/${npub}` },
+    ]);
+    expect(parseNoteContent("https://primal.net/whitenoise/were-back")).toEqual([
+      { type: "url", value: "https://primal.net/whitenoise/were-back" },
+    ]);
   });
 });
 

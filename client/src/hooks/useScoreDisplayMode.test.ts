@@ -1,9 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  getScoreDisplayMode,
-  setScoreDisplayMode,
-} from "./useScoreDisplayMode";
+import { getScoreDisplayMode, setScoreDisplayMode } from "./useScoreDisplayMode";
 
 /**
  * The store, not the hook — the hook is the useActivePov pattern verbatim and

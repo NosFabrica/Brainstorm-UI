@@ -4,14 +4,7 @@ import { Link } from "wouter";
 import { Loader2, Plus } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { npubFromPubkey } from "@/lib/shareId";
 import { useApplyEventTag, useEventTags, usePickerTags } from "@/hooks/useTags";
@@ -85,8 +78,7 @@ export function NoteTagRow({
       </span>
 
       {tags.map((tag) => {
-        const who =
-          tag.applications === 1 ? "1 person tagged this" : `${tag.applications} people tagged this`;
+        const who = tag.applications === 1 ? "1 person tagged this" : `${tag.applications} people tagged this`;
         let authorNpub = "";
         try {
           authorNpub = npubFromPubkey(tag.authorPubkey);
@@ -101,19 +93,19 @@ export function NoteTagRow({
             title={tag.description ? `${who} — ${tag.description}` : who}
             data-testid="note-tag-chip"
             data-counted={tag.counted ? "true" : "false"}
-            className={[
-              authorNpub ? "transition-opacity hover:opacity-80" : "",
-              // Same rule as the profile chips: a tag you took back stays
-              // visible and honest rather than vanishing.
-              tag.counted ? "" : "opacity-50",
-            ]
-              .filter(Boolean)
-              .join(" ") || undefined}
+            className={
+              [
+                authorNpub ? "transition-opacity hover:opacity-80" : "",
+                // Same rule as the profile chips: a tag you took back stays
+                // visible and honest rather than vanishing.
+                tag.counted ? "" : "opacity-50",
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
           >
             {tag.name}
-            {tag.applications > 1 && (
-              <span className="opacity-60 tabular-nums">{tag.applications}</span>
-            )}
+            {tag.applications > 1 && <span className="tabular-nums opacity-60">{tag.applications}</span>}
           </Chip>
         );
 
@@ -132,15 +124,7 @@ export function NoteTagRow({
 }
 
 /** The picker. Same vocabulary and ordering as the profile one. */
-function TagNoteButton({
-  eventId,
-  relayHint,
-  onNote,
-}: {
-  eventId: string;
-  relayHint?: string;
-  onNote: NoteTag[];
-}) {
+function TagNoteButton({ eventId, relayHint, onNote }: { eventId: string; relayHint?: string; onNote: NoteTag[] }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const { toast } = useToast();
@@ -158,20 +142,14 @@ function TagNoteButton({
     .filter((t) => !taken.has(t.name.toLowerCase()))
     .sort(
       (a, b) =>
-        (a.band === b.band ? 0 : a.band === "content" ? -1 : 1) ||
-        b.people - a.people ||
-        a.name.localeCompare(b.name),
+        (a.band === b.band ? 0 : a.band === "content" ? -1 : 1) || b.people - a.people || a.name.localeCompare(b.name),
     );
 
   const typed = search.trim();
   const known = new Set([...taken, ...offered.map((t) => t.name.toLowerCase())]);
   const isNew = typed.length > 0 && !known.has(typed.toLowerCase());
 
-  async function run(
-    tag: { authorPubkey: string; slug: string } | { name: string },
-    label: string,
-    polarity: 1 | -1,
-  ) {
+  async function run(tag: { authorPubkey: string; slug: string } | { name: string }, label: string, polarity: 1 | -1) {
     setOpen(false);
     setSearch("");
     try {
@@ -188,10 +166,7 @@ function TagNoteButton({
       }
       toast({
         title: polarity === 1 ? `Tagged as "${label}"` : `Disagreed with "${label}"`,
-        description:
-          polarity === 1
-            ? "Anyone can see this on the post."
-            : "Your agreement has been taken back.",
+        description: polarity === 1 ? "Anyone can see this on the post." : "Your agreement has been taken back.",
       });
     } catch {
       toast({
@@ -211,11 +186,7 @@ function TagNoteButton({
           data-testid="note-add-tag"
           disabled={applyTag.isPending}
         >
-          {applyTag.isPending ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <Plus className="h-3 w-3" />
-          )}
+          {applyTag.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
           {applyTag.isPending ? "Saving" : "Tag this post"}
         </button>
       </PopoverTrigger>
@@ -254,7 +225,9 @@ function TagNoteButton({
                     name={tag.name}
                     stance={tag.myStance}
                     pending={applyTag.isPending}
-                    onVote={(polarity) => void run({ authorPubkey: tag.authorPubkey, slug: tag.slug }, tag.name, polarity)}
+                    onVote={(polarity) =>
+                      void run({ authorPubkey: tag.authorPubkey, slug: tag.slug }, tag.name, polarity)
+                    }
                     testId="note-tag-stance"
                   />
                 ))}
@@ -267,18 +240,14 @@ function TagNoteButton({
                   <CommandItem
                     key={t.key}
                     value={t.name}
-                    onSelect={() =>
-                      run({ authorPubkey: t.authorPubkey, slug: t.slug }, t.name, 1)
-                    }
+                    onSelect={() => run({ authorPubkey: t.authorPubkey, slug: t.slug }, t.name, 1)}
                     data-testid="note-tag-existing"
                   >
                     <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">{t.name}</span>
                       {t.description && (
-                        <span className="block truncate text-[10px] text-slate-400">
-                          {t.description}
-                        </span>
+                        <span className="block truncate text-[10px] text-slate-400">{t.description}</span>
                       )}
                     </span>
                   </CommandItem>

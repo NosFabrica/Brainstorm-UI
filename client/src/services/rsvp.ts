@@ -71,10 +71,7 @@ export async function publishRsvp(event: CalendarLike, status: RsvpStatus = "acc
 }
 
 /** Withdraw an RSVP: a NIP-09 delete naming the event AND its coordinate. */
-export async function withdrawRsvp(
-  rsvp: { id: string; d: string },
-  hostPubkey?: string,
-): Promise<PublishOutcome> {
+export async function withdrawRsvp(rsvp: { id: string; d: string }, hostPubkey?: string): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   try {

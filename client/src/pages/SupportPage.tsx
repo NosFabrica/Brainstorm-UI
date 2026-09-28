@@ -48,10 +48,7 @@ const BODY_MAX = 4000;
  * This same hook is where a knowledge-base/AI answerer plugs in later.
  */
 const FAQ_DEFLECTION: Record<string, string[]> = {
-  scores: [
-    "Why is my score different from what someone else sees?",
-    "How does GrapeRank calculate trust?",
-  ],
+  scores: ["Why is my score different from what someone else sees?", "How does GrapeRank calculate trust?"],
   account: ["What does my Verification Score mean?"],
 };
 
@@ -83,12 +80,12 @@ export default function SupportPage() {
   const tickets = supportQuery.data?.tickets ?? [];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {user && <AppHeader user={user} onLogout={() => logout()} />}
-      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-10" data-testid="page-support">
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10" data-testid="page-support">
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
         >
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
@@ -96,7 +93,7 @@ export default function SupportPage() {
         <div className="mt-3 flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                 <LifeBuoy className="h-5 w-5 text-brand-deep dark:text-brand-link" />
               </span>
               <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
@@ -108,7 +105,7 @@ export default function SupportPage() {
             </p>
           </div>
           {allowed && !selectedId && (
-            <Button onClick={() => setComposerOpen(true)} className="gap-1.5 shrink-0" data-testid="button-new-ticket">
+            <Button onClick={() => setComposerOpen(true)} className="shrink-0 gap-1.5" data-testid="button-new-ticket">
               <Plus className="h-4 w-4" /> New ticket
             </Button>
           )}
@@ -151,14 +148,14 @@ export default function SupportPage() {
 /** What an account without support sees, above any history it already has. */
 function Teaser() {
   return (
-    <Card className="p-6 sm:p-8 text-center" data-testid="support-teaser">
+    <Card className="p-6 text-center sm:p-8" data-testid="support-teaser">
       <LifeBuoy className="mx-auto h-8 w-8 text-brand-deep dark:text-brand-link" />
       <h2 className="mt-3 text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>
         Priority support comes with Priority
       </h2>
       <p className="mx-auto mt-1.5 max-w-md text-sm text-slate-500 dark:text-slate-400">
-        Direct tickets with the Brainstorm team are part of the paid plan. Everyone can always reach
-        us the community way — answers to common questions live in the FAQ.
+        Direct tickets with the Brainstorm team are part of the paid plan. Everyone can always reach us the community
+        way — answers to common questions live in the FAQ.
       </p>
       <div className="mt-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
         <Button asChild data-testid="teaser-upgrade">
@@ -192,10 +189,9 @@ function TicketList({
 
   if (tickets.length === 0) {
     return (
-      <Card className="p-6 sm:p-8 text-center" data-testid="support-empty">
+      <Card className="p-6 text-center sm:p-8" data-testid="support-empty">
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          No tickets yet. When something's off — billing, scores, anything — file one and the team
-          answers here.
+          No tickets yet. When something's off — billing, scores, anything — file one and the team answers here.
         </p>
         <Button onClick={onNew} className="mt-4 gap-1.5" data-testid="button-first-ticket">
           <Plus className="h-4 w-4" /> Open your first ticket
@@ -214,7 +210,7 @@ function TicketList({
             className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors ${
               statusFilter === s
                 ? "border-brand-accent/50 bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                : "border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
+                : "border-slate-200 text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
             }`}
             aria-pressed={statusFilter === s}
             data-testid={`filter-${s}`}
@@ -225,7 +221,7 @@ function TicketList({
         <button
           type="button"
           onClick={() => setOldestFirst((v) => !v)}
-          className="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
+          className="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
           data-testid="sort-toggle"
         >
           <ArrowUpDown className="h-3 w-3" /> {oldestFirst ? "Oldest first" : "Newest first"}
@@ -241,13 +237,13 @@ function TicketList({
             <Card
               key={t.id}
               interactive
-              className="flex items-stretch gap-0 p-0 cursor-pointer overflow-hidden"
+              className="flex cursor-pointer items-stretch gap-0 overflow-hidden p-0"
               onClick={() => onOpen(t.id)}
               data-testid={`ticket-${t.id}`}
             >
               {/* Date rail first — a ticket reads by WHEN before what. */}
               <div
-                className="flex w-[4.5rem] shrink-0 flex-col items-center justify-center border-r border-slate-100 dark:border-slate-800/60 bg-slate-50/60 dark:bg-slate-900/60 px-2 py-3.5 text-center"
+                className="flex w-[4.5rem] shrink-0 flex-col items-center justify-center border-r border-slate-100 bg-slate-50/60 px-2 py-3.5 text-center dark:border-slate-800/60 dark:bg-slate-900/60"
                 data-testid={`ticket-date-${t.id}`}
               >
                 <span className="text-[13px] font-bold tabular-nums text-slate-700 dark:text-slate-200">
@@ -267,7 +263,9 @@ function TicketList({
                         data-testid={`ticket-unread-${t.id}`}
                       />
                     )}
-                    <span className="truncate" data-testid={`ticket-subject-${t.id}`}>{t.subject}</span>
+                    <span className="truncate" data-testid={`ticket-subject-${t.id}`}>
+                      {t.subject}
+                    </span>
                   </p>
                   <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
                     {[
@@ -280,7 +278,9 @@ function TicketList({
                       .join(" · ")}
                   </p>
                 </div>
-                <Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip>
+                <Chip tone={statusTone(t.status)} size="sm">
+                  {t.status}
+                </Chip>
               </div>
             </Card>
           ))}
@@ -325,7 +325,11 @@ function ThreadView({ id, canReply, onBack }: { id: string; canReply: boolean; o
       ]);
       toast({ title: "Marked as resolved", description: "If it comes back, just reply — that reopens it." });
     } catch (e) {
-      toast({ title: "Couldn't resolve", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      toast({
+        title: "Couldn't resolve",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setSending(false);
     }
@@ -358,7 +362,7 @@ function ThreadView({ id, canReply, onBack }: { id: string; canReply: boolean; o
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
         data-testid="thread-back"
       >
         <ArrowLeft className="h-4 w-4" /> All tickets
@@ -387,7 +391,9 @@ function ThreadView({ id, canReply, onBack }: { id: string; canReply: boolean; o
                   <CheckCircle2 className="h-4 w-4" /> Mark as resolved
                 </Button>
               )}
-              <Chip tone={statusTone(ticket.status)} size="sm" data-testid="thread-status">{ticket.status}</Chip>
+              <Chip tone={statusTone(ticket.status)} size="sm" data-testid="thread-status">
+                {ticket.status}
+              </Chip>
             </span>
           </div>
 
@@ -419,7 +425,7 @@ function ThreadView({ id, canReply, onBack }: { id: string; canReply: boolean; o
                 <Button
                   onClick={() => void send()}
                   disabled={sending || !draft.trim()}
-                  className="gap-1.5 shrink-0"
+                  className="shrink-0 gap-1.5"
                   data-testid="thread-reply-send"
                 >
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -511,7 +517,7 @@ function NewTicketDialog({
                   className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                     category === c.key
                       ? "border-brand-accent/50 bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                      : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand-accent/30"
+                      : "border-slate-200 text-slate-600 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-300"
                   }`}
                   aria-pressed={category === c.key}
                   data-testid={`category-${c.key}`}
@@ -522,7 +528,7 @@ function NewTicketDialog({
             </div>
             {deflection.length > 0 && (
               <div
-                className="mt-2 rounded-xl border border-sky-200/60 dark:border-sky-400/20 bg-sky-50/60 dark:bg-sky-400/[0.06] px-3 py-2"
+                className="mt-2 rounded-xl border border-sky-200/60 bg-sky-50/60 px-3 py-2 dark:border-sky-400/20 dark:bg-sky-400/[0.06]"
                 data-testid="ticket-deflection"
               >
                 <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
@@ -555,7 +561,7 @@ function NewTicketDialog({
             className={`${inputCls} resize-y`}
             data-testid="ticket-body"
           />
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2">
+          <div className="rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-800">
             <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
               <input
                 type="checkbox"
@@ -568,10 +574,13 @@ function NewTicketDialog({
             </label>
             {includeDiagnostics && (
               <details className="mt-1.5">
-                <summary className="cursor-pointer text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+                <summary className="cursor-pointer text-[11px] text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
                   Exactly what's sent
                 </summary>
-                <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 dark:bg-slate-900 p-2 font-mono text-[10px] leading-relaxed text-slate-500 dark:text-slate-400" data-testid="diagnostics-preview">
+                <pre
+                  className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-2 font-mono text-[10px] leading-relaxed text-slate-500 dark:bg-slate-900 dark:text-slate-400"
+                  data-testid="diagnostics-preview"
+                >
                   {Object.entries(collectDiagnostics())
                     .map(([k, v]) => `${k}: ${v}`)
                     .join("\n")}
@@ -583,7 +592,10 @@ function NewTicketDialog({
             <div className="flex items-center gap-2">
               <input
                 value={email}
-                onChange={(e) => { setEmail(e.target.value); setEmailError(null); }}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailError(null);
+                }}
                 placeholder="Email for reply notifications (optional)"
                 inputMode="email"
                 disabled={!EMAIL_NOTIFICATIONS_LIVE}
@@ -591,7 +603,9 @@ function NewTicketDialog({
                 data-testid="ticket-email"
               />
               {!EMAIL_NOTIFICATIONS_LIVE && (
-                <Chip tone="slate" size="sm" className="shrink-0" data-testid="ticket-email-soon">Coming soon</Chip>
+                <Chip tone="slate" size="sm" className="shrink-0" data-testid="ticket-email-soon">
+                  Coming soon
+                </Chip>
               )}
             </div>
             {!EMAIL_NOTIFICATIONS_LIVE ? (

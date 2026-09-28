@@ -7,8 +7,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** Byte-for-byte the body nginx's @preview_down returns. Keep the two in step. */
-export const PREVIEW_DOWN =
-  '{"code":503,"message":"link preview unavailable","data":null}';
+export const PREVIEW_DOWN = '{"code":503,"message":"link preview unavailable","data":null}';
 
 function spaFallbackPlugin() {
   return {

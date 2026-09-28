@@ -94,7 +94,8 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
     setPeopleInfo((prev) => {
       const next = new Map(prev);
       for (const p of curatedPeople) next.set(p.pubkey, p);
-      for (const r of results) next.set(r.pubkey, { pubkey: r.pubkey, name: r.displayName || r.name, nip05: r.nip05, picture: r.picture });
+      for (const r of results)
+        next.set(r.pubkey, { pubkey: r.pubkey, name: r.displayName || r.name, nip05: r.nip05, picture: r.picture });
       return next;
     });
   }, [curatedPeople, results]);
@@ -129,14 +130,23 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
     const timer = setTimeout(async () => {
       try {
         const { results: r } = await searchByText(q, "nosfabrica", undefined, 12);
-        if (!cancelled) { setResults(r); setSearched(true); }
+        if (!cancelled) {
+          setResults(r);
+          setSearched(true);
+        }
       } catch {
-        if (!cancelled) { setResults([]); setSearched(true); }
+        if (!cancelled) {
+          setResults([]);
+          setSearched(true);
+        }
       } finally {
         if (!cancelled) setSearching(false);
       }
     }, 300);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [query]);
 
   const count = selected.size;
@@ -147,9 +157,14 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
       {curatedPeople.length > 0 && (
         <section>
           <h2 className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Suggested</h2>
-          <div className="mt-1 divide-y divide-slate-100 dark:divide-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3">
+          <div className="mt-1 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-3 dark:divide-slate-800/60 dark:border-slate-800 dark:bg-slate-900">
             {visiblePeople.map((p) => (
-              <PersonRow key={p.pubkey} person={p} selected={selected.has(p.pubkey)} onToggle={() => toggle(p.pubkey)} />
+              <PersonRow
+                key={p.pubkey}
+                person={p}
+                selected={selected.has(p.pubkey)}
+                onToggle={() => toggle(p.pubkey)}
+              />
             ))}
           </div>
           {(hiddenCount > 0 || showAllSuggestions) && (
@@ -167,24 +182,26 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
 
       {/* Find people */}
       <section className="mt-6">
-        <h2 className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Find people you know</h2>
-        <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 h-11 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20">
-          <SearchIcon className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+        <h2 className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          Find people you know
+        </h2>
+        <div className="mt-1 flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20 dark:border-slate-800 dark:bg-slate-900">
+          <SearchIcon className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by name or nip-05…"
-            className="flex-1 bg-transparent text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none"
+            className="flex-1 bg-transparent text-[15px] text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
             data-testid="welcome-search-input"
           />
           {searching ? (
-            <Loader2 className="h-4 w-4 animate-spin text-slate-400 dark:text-slate-500 shrink-0" />
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-slate-400 dark:text-slate-500" />
           ) : query ? (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label="Clear search"
-              className="shrink-0 rounded-full p-0.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="shrink-0 rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               data-testid="welcome-search-clear"
             >
               <X className="h-4 w-4" />
@@ -193,7 +210,10 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
         </div>
 
         {results.length > 0 && (
-          <div className="mt-2 divide-y divide-slate-100 dark:divide-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 shadow-sm" data-testid="welcome-search-results">
+          <div
+            className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-3 shadow-sm dark:divide-slate-800/60 dark:border-slate-800 dark:bg-slate-900"
+            data-testid="welcome-search-results"
+          >
             {results.map((r) => (
               <PersonRow
                 key={r.pubkey}
@@ -210,14 +230,14 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
       </section>
 
       {/* Sticky footer: your selected set (basket) + the CTA. */}
-      <div className="mt-8 sticky bottom-4">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-lg p-3">
+      <div className="sticky bottom-4 mt-8">
+        <div className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
           {selectedPeople.length > 0 && (
             <div className="mb-2.5" data-testid="welcome-selected">
-              <p className="px-1 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              <p className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                 Following {selectedPeople.length}
               </p>
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+              <div className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
                 {selectedPeople.map((p) => {
                   const name = p.name || (p.pubkey ? nip19.npubEncode(p.pubkey).slice(0, 10) + "…" : "Unknown");
                   return (
@@ -226,15 +246,19 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
                       type="button"
                       onClick={() => toggle(p.pubkey)}
                       aria-label={`Remove ${name}`}
-                      className="group inline-flex items-center gap-1.5 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 pl-1 pr-2 py-0.5 text-xs hover:border-rose-300 transition-colors"
+                      className="group inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-1 pr-2 text-xs transition-colors hover:border-rose-300 dark:border-slate-800 dark:bg-slate-800"
                       data-testid={`welcome-chip-${p.pubkey.slice(0, 8)}`}
                     >
-                      <Avatar className="h-5 w-5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <Avatar className="h-5 w-5 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                         {p.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
-                        <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+                        <AvatarFallback className="overflow-hidden rounded-full">
+                          <DefaultAvatarImg />
+                        </AvatarFallback>
                       </Avatar>
-                      <span className="font-medium text-slate-700 dark:text-slate-200 truncate max-w-[90px]">{name}</span>
-                      <X className="h-3 w-3 text-slate-400 dark:text-slate-500 group-hover:text-rose-500" />
+                      <span className="max-w-[90px] truncate font-medium text-slate-700 dark:text-slate-200">
+                        {name}
+                      </span>
+                      <X className="h-3 w-3 text-slate-400 group-hover:text-rose-500 dark:text-slate-500" />
                     </button>
                   );
                 })}
@@ -245,13 +269,17 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
             type="button"
             onClick={() => onContinue(Array.from(selected))}
             disabled={count === 0 || busy}
-            className="w-full h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="welcome-finish"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {continueLabel} {count > 0 ? `(${count})` : ""} <ArrowRight className="h-4 w-4" />
           </button>
-          {count === 0 && <p className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">Select at least one account to continue.</p>}
+          {count === 0 && (
+            <p className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">
+              Select at least one account to continue.
+            </p>
+          )}
         </div>
       </div>
     </div>

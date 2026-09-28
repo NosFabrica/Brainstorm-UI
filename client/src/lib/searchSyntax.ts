@@ -24,10 +24,7 @@
  * typed: the panel picks it up on the next submit and the box comes back clean.
  */
 import { nip19 } from "nostr-tools";
-import {
-  dayBound, parseQuery, tokenize, ymd,
-  type ParsedQuery,
-} from "@/lib/searchQuery";
+import { dayBound, parseQuery, tokenize, ymd, type ParsedQuery } from "@/lib/searchQuery";
 
 export interface SearchFilterState {
   sort: string | null; // "recent" | "rank" | "rank:asc" | "followers" | "text" | null (best match)
@@ -173,9 +170,7 @@ export function applyFilters(query: string, patch: SearchFilterPatch): string {
   const keys = Object.keys(patch) as (keyof SearchFilterState)[];
   const tokens = query.trim().split(/\s+/).filter(Boolean);
   const kept = tokens.filter((t) => !keys.some((k) => MATCHERS[k](t)));
-  const appended = keys
-    .map((k) => tokenFor(k, patch[k]))
-    .filter((t): t is string => t !== null);
+  const appended = keys.map((k) => tokenFor(k, patch[k])).filter((t): t is string => t !== null);
   return [...kept, ...appended].join(" ");
 }
 
@@ -281,8 +276,9 @@ export function readFilters(query: string): SearchFilterState {
   let until: string | null = null;
   for (const seg of tokenize(query)) {
     if (seg.type !== "date") continue;
-    if (seg.field === "since") { if (since == null || seg.day > since) since = seg.day; }
-    else if (until == null || seg.day < until) until = seg.day;
+    if (seg.field === "since") {
+      if (since == null || seg.day > since) since = seg.day;
+    } else if (until == null || seg.day < until) until = seg.day;
   }
   return {
     sort: q.sort,

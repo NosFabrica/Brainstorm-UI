@@ -65,10 +65,12 @@ export function pickStreams(events: EventLike[], nowSec = Math.floor(Date.now() 
   const parsed = events
     .map((ev) => ({ stream: parseLiveStream(ev), state: liveStateOf(ev, nowSec) }))
     .filter((x): x is { stream: LiveStream; state: LiveState | null } => x.stream !== null);
-  const newestFirst = [...parsed].sort((a, b) => Math.max(b.stream.startsSec, b.stream.createdAt) - Math.max(a.stream.startsSec, a.stream.createdAt));
-  const upcoming = parsed
-    .filter((x) => x.state === "upcoming")
-    .sort((a, b) => a.stream.startsSec - b.stream.startsSec)[0]?.stream ?? null;
+  const newestFirst = [...parsed].sort(
+    (a, b) => Math.max(b.stream.startsSec, b.stream.createdAt) - Math.max(a.stream.startsSec, a.stream.createdAt),
+  );
+  const upcoming =
+    parsed.filter((x) => x.state === "upcoming").sort((a, b) => a.stream.startsSec - b.stream.startsSec)[0]?.stream ??
+    null;
   return {
     live: newestFirst.find((x) => x.state === "live")?.stream ?? null,
     upcoming,
@@ -194,7 +196,18 @@ export function liveHostOf(ev: EventLike): string | null {
   return ev.tags.find((t) => t[0] === "p" && t[3] === "host")?.[1] ?? null;
 }
 
-const GENERIC_LIVE_TAGS = new Set(["streaming", "stream", "livestream", "live", "owncast", "247", "24/7", "nostr", "zap.stream", "video"]);
+const GENERIC_LIVE_TAGS = new Set([
+  "streaming",
+  "stream",
+  "livestream",
+  "live",
+  "owncast",
+  "247",
+  "24/7",
+  "nostr",
+  "zap.stream",
+  "video",
+]);
 
 /** One category worth a word — the first `t` that is not a platform word. */
 export function liveCategoryOf(ev: EventLike): string | null {

@@ -72,7 +72,10 @@ export function __resetAskedProfiles(): void {
  * them (notAskedRecently).
  */
 export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> {
-  const unique = useMemo(() => Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk)))).sort(), [pubkeys]);
+  const unique = useMemo(
+    () => Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk)))).sort(),
+    [pubkeys],
+  );
   const key = unique.join(",");
   const coords = useMemo(() => unique.map((pubkey) => ({ kind: 0, pubkey })), [key]); // eslint-disable-line react-hooks/exhaustive-deps
   const held = useHeldReplaceables(coords);

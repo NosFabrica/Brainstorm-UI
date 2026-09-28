@@ -3,11 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { Search, Loader2, Plus, Check, X, ClipboardList, Users2 } from "lucide-react";
 import { apiClient } from "@/services/api";
-import {
-  searchNostrProfiles,
-  fetchProfileMap,
-  type NostrSearchResult,
-} from "@/services/nostr";
+import { searchNostrProfiles, fetchProfileMap, type NostrSearchResult } from "@/services/nostr";
 import { parsePubkeys } from "@/lib/schedulingPubkeys";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -145,19 +141,13 @@ export function AssignUsersDialog({
         setResults(base);
         upsertProfiles(base);
         // Enrich names/pictures from kind-0 (best-effort).
-        const map = await fetchProfileMap(base.map((b) => b.pubkey)).catch(
-          () => new Map(),
-        );
+        const map = await fetchProfileMap(base.map((b) => b.pubkey)).catch(() => new Map());
         const enriched = base.map((b) => {
           const c = map.get(b.pubkey);
-          return c
-            ? { ...b, name: c.display_name || c.name, picture: c.picture }
-            : b;
+          return c ? { ...b, name: c.display_name || c.name, picture: c.picture } : b;
         });
         upsertProfiles(enriched);
-        setResults((prev) =>
-          prev.map((b) => enriched.find((e) => e.pubkey === b.pubkey) || b),
-        );
+        setResults((prev) => prev.map((b) => enriched.find((e) => e.pubkey === b.pubkey) || b));
       }
     } catch (e) {
       setSearchError(e instanceof Error ? e.message : "Search failed");
@@ -178,9 +168,7 @@ export function AssignUsersDialog({
       .then((map) => {
         const enriched = lite.map((l) => {
           const c = map.get(l.pubkey);
-          return c
-            ? { ...l, name: c.display_name || c.name, picture: c.picture }
-            : l;
+          return c ? { ...l, name: c.display_name || c.name, picture: c.picture } : l;
         });
         upsertProfiles(enriched);
       })
@@ -244,13 +232,13 @@ export function AssignUsersDialog({
             Assign users to “{policyName}”
           </DialogTitle>
           <DialogDescription>
-            Search by name or npub, or paste a list of pubkeys. Review your
-            selection, then assign them all to this tier.
+            Search by name or npub, or paste a list of pubkeys. Review your selection, then assign them all to this
+            tier.
           </DialogDescription>
         </DialogHeader>
 
         {/* Mode toggle */}
-        <div className="flex gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800">
+        <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-800 dark:bg-slate-800">
           <button
             type="button"
             onClick={() => {
@@ -258,10 +246,10 @@ export function AssignUsersDialog({
               setResults([]);
               setSearchError(null);
             }}
-            className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
               mode === "brainstorm"
-                ? "bg-white dark:bg-slate-900 text-brand-deep shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-800"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                ? "border border-slate-200 bg-white text-brand-deep shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
             data-testid="assign-mode-brainstorm"
           >
@@ -274,10 +262,10 @@ export function AssignUsersDialog({
               setResults([]);
               setSearchError(null);
             }}
-            className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
               mode === "nostr"
-                ? "bg-white dark:bg-slate-900 text-brand-deep shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-800"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                ? "border border-slate-200 bg-white text-brand-deep shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
             data-testid="assign-mode-nostr"
           >
@@ -288,7 +276,7 @@ export function AssignUsersDialog({
         {/* Search */}
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               value={query}
@@ -296,12 +284,8 @@ export function AssignUsersDialog({
               onKeyDown={(e) => {
                 if (e.key === "Enter") runSearch();
               }}
-              placeholder={
-                mode === "nostr"
-                  ? "Search Nostr by name…"
-                  : "Search Brainstorm users by name or npub…"
-              }
-              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
+              placeholder={mode === "nostr" ? "Search Nostr by name…" : "Search Brainstorm users by name or npub…"}
+              className="w-full rounded-xl border border-slate-200 bg-white/80 py-2 pl-8 pr-3 text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900/80"
               data-testid="assign-search-input"
             />
           </div>
@@ -309,13 +293,9 @@ export function AssignUsersDialog({
             size="sm"
             onClick={runSearch}
             disabled={searching || !query.trim()}
-            className="text-xs gap-1.5 shrink-0 bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
+            className="no-default-hover-elevate no-default-active-elevate shrink-0 gap-1.5 bg-brand-deep text-xs text-white hover:bg-brand-accent"
           >
-            {searching ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Search className="h-3.5 w-3.5" />
-            )}
+            {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
             Search
           </Button>
         </div>
@@ -324,7 +304,7 @@ export function AssignUsersDialog({
 
         {/* Results */}
         {results.length > 0 && (
-          <div className="space-y-1 max-h-52 overflow-y-auto -mx-1 px-1">
+          <div className="-mx-1 max-h-52 space-y-1 overflow-y-auto px-1">
             {results.map((r) => {
               const inTray = tray.includes(r.pubkey);
               const p = profiles[r.pubkey] ?? r;
@@ -351,18 +331,18 @@ export function AssignUsersDialog({
         )}
 
         {/* Paste a list */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/60">
           <button
             type="button"
             onClick={() => setPasteOpen((v) => !v)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300"
+            className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300"
             data-testid="assign-paste-toggle"
           >
             <ClipboardList className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
             Paste a list of pubkeys
           </button>
           {pasteOpen && (
-            <div className="px-3 pb-3 space-y-2">
+            <div className="space-y-2 px-3 pb-3">
               <Label htmlFor="assign-paste-pubkeys" className="sr-only">
                 Pubkeys (hex or npub, one per line)
               </Label>
@@ -371,13 +351,12 @@ export function AssignUsersDialog({
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 placeholder="hex or npub, one per line"
-                className="h-20 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
+                className="h-20 w-full rounded-lg border border-slate-200 bg-white p-2 font-mono text-xs focus:border-brand-accent/40 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900"
               />
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
                   {parsedPaste.valid.length} valid
-                  {parsedPaste.invalidCount > 0 &&
-                    ` · ${parsedPaste.invalidCount} invalid`}
+                  {parsedPaste.invalidCount > 0 && ` · ${parsedPaste.invalidCount} invalid`}
                 </span>
                 <Button
                   size="sm"
@@ -403,7 +382,7 @@ export function AssignUsersDialog({
               Nothing selected yet — search or paste to build your list.
             </p>
           ) : (
-            <div className="space-y-1 max-h-40 overflow-y-auto -mx-1 px-1">
+            <div className="-mx-1 max-h-40 space-y-1 overflow-y-auto px-1">
               {tray.map((pk) => {
                 const p = profiles[pk] ?? { pubkey: pk, npub: encodeNpub(pk) };
                 return (
@@ -413,15 +392,13 @@ export function AssignUsersDialog({
                     npub={p.npub}
                     name={p.name}
                     picture={p.picture}
-                    subtitle={
-                      traySource[pk] === "nostr" ? "New — will be onboarded" : undefined
-                    }
+                    subtitle={traySource[pk] === "nostr" ? "New — will be onboarded" : undefined}
                     trailing={
                       <button
                         type="button"
                         aria-label="Remove from selection"
                         onClick={() => removeFromTray(pk)}
-                        className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                        className="rounded-md p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-slate-500 dark:hover:bg-red-500/10 dark:hover:text-red-400"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -434,17 +411,13 @@ export function AssignUsersDialog({
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={assigning}
-            onClick={() => onOpenChange(false)}
-          >
+          <Button variant="outline" disabled={assigning} onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
             disabled={assigning || tray.length === 0}
             onClick={handleAssign}
-            className="gap-1.5 bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
+            className="no-default-hover-elevate no-default-active-elevate gap-1.5 bg-brand-deep text-white hover:bg-brand-accent"
             data-testid="assign-confirm"
           >
             {assigning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

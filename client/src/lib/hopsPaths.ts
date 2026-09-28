@@ -49,7 +49,10 @@ export function dedupePaths(paths: string[][]): string[][] {
 }
 
 /** One account's standing as a connector — the same rule the path verdict is built from. */
-export function nodeRisk(pk: string, { flaggedOf, scoreOf, verifiedLine = DEFAULT_VERIFIED_LINE }: RiskSignals): PathRisk {
+export function nodeRisk(
+  pk: string,
+  { flaggedOf, scoreOf, verifiedLine = DEFAULT_VERIFIED_LINE }: RiskSignals,
+): PathRisk {
   const flagged = flaggedOf(pk);
   const score = scoreOf(pk);
   // A flag decides, whatever else is still loading.
@@ -93,7 +96,12 @@ export function groupPaths(paths: string[][], classify: (path: string[]) => Path
       .filter((r) => r.verdict.risk === risk)
       .sort((a, b) => a.verdict.riskyCount - b.verdict.riskyCount || a.order - b.order)
       .map((r) => r.path);
-  return { verified: bucket("verified"), unverified: bucket("unverified"), flagged: bucket("flagged"), checking: bucket("checking") };
+  return {
+    verified: bucket("verified"),
+    unverified: bucket("unverified"),
+    flagged: bucket("flagged"),
+    checking: bucket("checking"),
+  };
 }
 
 /** The safest first: verified, then unverified, then flagged. Paths still checking wait. */

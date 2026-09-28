@@ -60,7 +60,9 @@ export function useScoringStatus(): {
     try {
       localStorage.setItem("brainstorm_calc_completed", "true");
       if (user?.pubkey) localStorage.setItem(accountKey("brainstorm_calc_completed", user.pubkey), "true");
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [publishDone, user?.pubkey]);
 
   let triggeredAt = 0;

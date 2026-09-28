@@ -7,7 +7,15 @@ import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { LocalAccount } from "./local-account";
 import { LocalSigner } from "./local-signer";
 import { updateMetadata, type BrainstormAccount } from "./metadata";
-import { healthOf, isSelectable, isUnbackedUp, pickerIdentities, removalLosesKey, signerKindOf, withActiveAccount } from "./picker";
+import {
+  healthOf,
+  isSelectable,
+  isUnbackedUp,
+  pickerIdentities,
+  removalLosesKey,
+  signerKindOf,
+  withActiveAccount,
+} from "./picker";
 import { createFakeUnlockCache, keyFixture, type FakeUnlockCache } from "./test-fakes";
 
 function localRow(
@@ -61,9 +69,7 @@ describe("the health of a local key", () => {
   it("is well when the Unlock cache opens it and a Backup stands behind it", async () => {
     const { pubkey, unlockCache, ncryptsec, envelope } = await keyFixture();
 
-    expect(await healthOf(localRow({ ncryptsec, envelope }, unlockCache, pubkey), "present")).toBe(
-      "ok",
-    );
+    expect(await healthOf(localRow({ ncryptsec, envelope }, unlockCache, pubkey), "present")).toBe("ok");
   });
 
   it("is marked when nothing but this device holds the key", async () => {
@@ -154,9 +160,7 @@ describe("an account this device didn't keep", () => {
     expect(identity.name).toBe("Alice");
     expect(identity.npub).toBe("npub1alice");
     // signing right now, so it is well — and not a way to switch to itself
-    expect(identity.rows).toEqual([
-      { account, signer: "key", health: "ok", selectable: false, sessionOnly: true },
-    ]);
+    expect(identity.rows).toEqual([{ account, signer: "key", health: "ok", selectable: false, sessionOnly: true }]);
   });
 
   /**
@@ -172,9 +176,7 @@ describe("an account this device didn't keep", () => {
 
     const [identity] = pickerIdentities([account], () => "ok", { includeSessionOnly: true });
 
-    expect(identity.rows).toEqual([
-      { account, signer: "key", health: "ok", selectable: true, sessionOnly: true },
-    ]);
+    expect(identity.rows).toEqual([{ account, signer: "key", health: "ok", selectable: true, sessionOnly: true }]);
   });
 
   it("is not confused with a kept one: only the unkept row is marked", async () => {
@@ -264,14 +266,8 @@ describe("the rows of the picker", () => {
 
   it("keeps separate identities apart, in the order they were added", async () => {
     const unlockCache = createFakeUnlockCache();
-    const first = remembered(
-      localRow({ ncryptsec: "x" }, unlockCache, getPublicKey(generateSecretKey())),
-      "Bob",
-    );
-    const second = remembered(
-      localRow({ ncryptsec: "y" }, unlockCache, getPublicKey(generateSecretKey())),
-      "Carol",
-    );
+    const first = remembered(localRow({ ncryptsec: "x" }, unlockCache, getPublicKey(generateSecretKey())), "Bob");
+    const second = remembered(localRow({ ncryptsec: "y" }, unlockCache, getPublicKey(generateSecretKey())), "Carol");
 
     const identities = pickerIdentities([first, second], () => "ok");
 
@@ -294,10 +290,7 @@ describe("the rows of the picker", () => {
     const { pubkey, unlockCache, envelope } = await keyFixture();
     const dead = remembered(localRow({ envelope }, unlockCache, pubkey), "Dave");
     const gone = remembered(extensionRow(getPublicKey(generateSecretKey())), "Erin");
-    const well = remembered(
-      localRow({ ncryptsec: "x" }, unlockCache, getPublicKey(generateSecretKey())),
-      "Frank",
-    );
+    const well = remembered(localRow({ ncryptsec: "x" }, unlockCache, getPublicKey(generateSecretKey())), "Frank");
 
     const [deadRow] = pickerIdentities([dead], () => "key-unavailable");
     const [goneRow] = pickerIdentities([gone], () => "extension-missing");

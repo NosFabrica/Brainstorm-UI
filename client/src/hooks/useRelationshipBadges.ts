@@ -1,12 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useSocialActions } from "@/hooks/useSocialActions";
-import {
-  fetchContactList,
-  getFollowedPubkeys,
-  fetchMyReport,
-  type MyReport,
-} from "@/services/socialActions";
+import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 
 export interface RelationshipBadges {
   /** Logged in, target resolved, and not the viewer's own profile. */

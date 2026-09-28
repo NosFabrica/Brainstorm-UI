@@ -48,15 +48,21 @@ function resizeImage(file: File, maxW: number, maxH: number, quality: number): P
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext("2d");
-      if (!ctx) { reject(new Error("Canvas not supported")); return; }
+      if (!ctx) {
+        reject(new Error("Canvas not supported"));
+        return;
+      }
       ctx.drawImage(img, 0, 0, w, h);
       canvas.toBlob(
         (blob) => {
-          if (!blob) { reject(new Error("Compression failed")); return; }
+          if (!blob) {
+            reject(new Error("Compression failed"));
+            return;
+          }
           resolve(blob);
         },
         "image/jpeg",
-        quality
+        quality,
       );
     };
     img.onerror = () => reject(new Error("Failed to load image"));
@@ -76,13 +82,22 @@ async function nostrAuthHeader(template: { kind: number; tags: string[][]; conte
 
 async function sha256Hex(blob: Blob): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 // nostr.build v2 now requires a NIP-98 (kind 27235) auth token.
 async function uploadToNostrBuild(blob: Blob): Promise<string> {
   const url = "https://nostr.build/api/v2/upload/files";
-  const auth = await nostrAuthHeader({ kind: 27235, tags: [["u", url], ["method", "POST"]], content: "" });
+  const auth = await nostrAuthHeader({
+    kind: 27235,
+    tags: [
+      ["u", url],
+      ["method", "POST"],
+    ],
+    content: "",
+  });
 
   const formData = new FormData();
   formData.append("file", blob, "image.jpg");
@@ -102,7 +117,11 @@ async function uploadToBlossom(blob: Blob): Promise<string> {
   const hash = await sha256Hex(blob);
   const auth = await nostrAuthHeader({
     kind: 24242,
-    tags: [["t", "upload"], ["x", hash], ["expiration", String(Math.floor(Date.now() / 1000) + 600)]],
+    tags: [
+      ["t", "upload"],
+      ["x", hash],
+      ["expiration", String(Math.floor(Date.now() / 1000) + 600)],
+    ],
     content: "Upload image",
   });
 
@@ -131,7 +150,9 @@ async function uploadImage(blob: Blob): Promise<string> {
 
   try {
     return await uploadToNostrBuild(blob);
-  } catch { /* both hosts failed */ }
+  } catch {
+    /* both hosts failed */
+  }
 
   // No data:-URL fallback: an inline base64 avatar is valid in kind-0 but other
   // Nostr clients can't render it, so it shows as "no picture" to everyone else.
@@ -139,7 +160,17 @@ async function uploadImage(blob: Blob): Promise<string> {
   throw new Error("Couldn't upload your image right now. Please try again in a moment.");
 }
 
-export function ImageUpload({ value, onChange, onRemove, aspect = "square", label, className = "", placeholder, containerClassName, readOnly }: ImageUploadProps) {
+export function ImageUpload({
+  value,
+  onChange,
+  onRemove,
+  aspect = "square",
+  label,
+  className = "",
+  placeholder,
+  containerClassName,
+  readOnly,
+}: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,35 +180,41 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
   const maxW = isSquare ? MAX_AVATAR_SIZE : MAX_BANNER_WIDTH;
   const maxH = isSquare ? MAX_AVATAR_SIZE : MAX_BANNER_HEIGHT;
 
-  const handleFile = useCallback(async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setError("Please select an image file");
-      return;
-    }
-    if (file.size > 50 * 1024 * 1024) {
-      setError("Image must be under 50MB");
-      return;
-    }
-    setError(null);
-    setUploading(true);
-    try {
-      const compressed = await resizeImage(file, maxW, maxH, JPEG_QUALITY);
-      const url = await uploadImage(compressed);
-      onChange(url);
-    } catch (err: unknown) {
-      // A declined unlock is a deliberate no — leave the field as it was.
-      if (!isUnlockCancelled(err)) setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploading(false);
-    }
-  }, [onChange, maxW, maxH]);
+  const handleFile = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/")) {
+        setError("Please select an image file");
+        return;
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        setError("Image must be under 50MB");
+        return;
+      }
+      setError(null);
+      setUploading(true);
+      try {
+        const compressed = await resizeImage(file, maxW, maxH, JPEG_QUALITY);
+        const url = await uploadImage(compressed);
+        onChange(url);
+      } catch (err: unknown) {
+        // A declined unlock is a deliberate no — leave the field as it was.
+        if (!isUnlockCancelled(err)) setError(err instanceof Error ? err.message : "Upload failed");
+      } finally {
+        setUploading(false);
+      }
+    },
+    [onChange, maxW, maxH],
+  );
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  }, [handleFile]);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    },
+    [handleFile],
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -186,32 +223,29 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
 
   const handleDragLeave = useCallback(() => setDragOver(false), []);
 
-  const containerClass = containerClassName ?? (isSquare
-    ? "w-[72px] h-[72px] rounded-xl"
-    : "w-full h-[72px] rounded-xl");
+  const containerClass =
+    containerClassName ?? (isSquare ? "w-[72px] h-[72px] rounded-xl" : "w-full h-[72px] rounded-xl");
 
   // Display-only: show the image (or default placeholder) with no controls.
   if (readOnly) {
     return (
       <div className={`${containerClass} overflow-hidden ${className}`} data-testid={`display-${aspect}`}>
-        {value ? (
-          <img src={value} alt={label || ""} className="w-full h-full object-cover" />
-        ) : (
-          placeholder ?? null
-        )}
+        {value ? <img src={value} alt={label || ""} className="h-full w-full object-cover" /> : (placeholder ?? null)}
       </div>
     );
   }
 
   if (value) {
     return (
-      <div className={`relative group ${containerClass} overflow-hidden ${containerClassName ? "" : "border border-white/10"} ${className}`}>
-        <img src={value} alt={label || "Uploaded"} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+      <div
+        className={`group relative ${containerClass} overflow-hidden ${containerClassName ? "" : "border border-white/10"} ${className}`}
+      >
+        <img src={value} alt={label || "Uploaded"} className="h-full w-full object-cover" />
+        <div className="max-sm:opacity-100 absolute inset-0 flex items-center justify-center gap-1.5 bg-black/50 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 sm:opacity-0">
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="p-1 rounded-md bg-white/20 hover:bg-white/30 transition-colors"
+            className="rounded-md bg-white/20 p-1 transition-colors hover:bg-white/30"
             data-testid={`button-change-${aspect}`}
           >
             <Upload className="h-3.5 w-3.5 text-white" />
@@ -220,7 +254,7 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
             <button
               type="button"
               onClick={onRemove}
-              className="p-1 rounded-md bg-white/20 hover:bg-red-500/50 transition-colors"
+              className="rounded-md bg-white/20 p-1 transition-colors hover:bg-red-500/50"
               data-testid={`button-remove-${aspect}`}
             >
               <X className="h-3.5 w-3.5 text-white" />
@@ -232,7 +266,10 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+          }}
         />
       </div>
     );
@@ -247,12 +284,15 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
           role="button"
           tabIndex={0}
           aria-label={isSquare ? "Upload profile photo" : "Upload banner"}
-          className={`relative group ${containerClass} overflow-hidden cursor-pointer transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50 ${
+          className={`group relative ${containerClass} cursor-pointer overflow-hidden transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50 ${
             dragOver ? "ring-2 ring-brand-accent/60" : ""
           }`}
           onClick={() => !uploading && inputRef.current?.click()}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!uploading) inputRef.current?.click(); }
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              if (!uploading) inputRef.current?.click();
+            }
           }}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -260,24 +300,27 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
           data-testid={`upload-${aspect}`}
         >
           <div className="absolute inset-0">{placeholder}</div>
-          <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+          <div className="max-sm:opacity-100 absolute inset-0 flex items-center justify-center gap-1.5 bg-black/35 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 sm:opacity-0">
             {uploading ? (
-              <Loader2 className="h-4 w-4 text-white animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin text-white" />
             ) : (
-              <span className="inline-flex items-center gap-1 text-white text-[11px] font-semibold drop-shadow">
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-white drop-shadow">
                 <Camera className="h-3.5 w-3.5" />
                 {isSquare ? "Add photo" : "Add banner"}
               </span>
             )}
           </div>
         </div>
-        {error && <p className="text-[10px] text-red-500 mt-1">{error}</p>}
+        {error && <p className="mt-1 text-[10px] text-red-500">{error}</p>}
         <input
           ref={inputRef}
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+          }}
         />
       </div>
     );
@@ -286,7 +329,7 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
   return (
     <div className={className}>
       <div
-        className={`${containerClass} border border-dashed cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-1 ${
+        className={`${containerClass} flex cursor-pointer flex-col items-center justify-center gap-1 border border-dashed transition-all duration-200 ${
           dragOver
             ? "border-brand-accent bg-brand-accent/10"
             : "border-white/15 hover:border-brand-accent/40 hover:bg-white/[0.03]"
@@ -298,23 +341,26 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
         data-testid={`upload-${aspect}`}
       >
         {uploading ? (
-          <Loader2 className="h-4 w-4 text-brand-accent animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin text-brand-accent" />
         ) : (
           <>
             <ImageIcon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-            <span className="text-[9px] text-slate-500 dark:text-slate-400 text-center leading-tight">
+            <span className="text-center text-[9px] leading-tight text-slate-500 dark:text-slate-400">
               {isSquare ? "Upload" : "Upload banner"}
             </span>
           </>
         )}
       </div>
-      {error && <p className="text-[10px] text-red-400 mt-1">{error}</p>}
+      {error && <p className="mt-1 text-[10px] text-red-400">{error}</p>}
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+        }}
       />
     </div>
   );

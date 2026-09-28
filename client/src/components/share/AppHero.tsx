@@ -88,7 +88,6 @@ function releaseDate(at: number): string {
   });
 }
 
-
 // ---------------------------------------------------------------------------
 // Release-notes rendering: GitHub-flavored changelogs arrive as raw markdown.
 // Headings and bullets get real structure; inline tokens (URLs, PR refs,
@@ -96,9 +95,7 @@ function releaseDate(at: number): string {
 // ---------------------------------------------------------------------------
 
 type NotesBlock =
-  | { type: "heading"; text: string }
-  | { type: "bullets"; items: string[] }
-  | { type: "para"; text: string };
+  { type: "heading"; text: string } | { type: "bullets"; items: string[] } | { type: "para"; text: string };
 
 function parseNotes(notes: string): NotesBlock[] {
   const blocks: NotesBlock[] = [];
@@ -156,7 +153,6 @@ function ReleaseNotes({ notes }: { notes: string }) {
     </div>
   );
 }
-
 
 /** "Updates ~weekly/~monthly/~every N mo" from the median gap between releases. */
 function cadenceLabel(releases: AppRelease[]): string | null {
@@ -245,9 +241,7 @@ export function AppHero({ event }: { event: AppEvent }) {
 
   // Category t-tags, minus the ones that just restate a platform word.
   const platformSet = new Set(platforms.map((p) => p.toLowerCase()));
-  const categories = [...new Set(tagVals(event, "t"))]
-    .filter((t) => !platformSet.has(t.toLowerCase()))
-    .slice(0, 4);
+  const categories = [...new Set(tagVals(event, "t"))].filter((t) => !platformSet.has(t.toLowerCase())).slice(0, 4);
   const address = appD ? appAddress({ pubkey: event.pubkey, tags: event.tags }) : null;
 
   useEffect(() => {
@@ -290,7 +284,8 @@ export function AppHero({ event }: { event: AppEvent }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetKey]);
   const store = zapStoreUrl({ pubkey: event.pubkey, tags: event.tags });
-  const isApk = !!asset && (asset.mime === "application/vnd.android.package-archive" || /\.apk(\?|#|$)/i.test(asset.url));
+  const isApk =
+    !!asset && (asset.mime === "application/vnd.android.package-archive" || /\.apk(\?|#|$)/i.test(asset.url));
   const cadence = cadenceLabel(releases);
   const publisher = usePublisher(event.pubkey);
 
@@ -300,13 +295,22 @@ export function AppHero({ event }: { event: AppEvent }) {
   const [othersOpen, setOthersOpen] = useState(false);
   const voices: Voice[] = endorsements
     ? [
-        ...endorsements.reviews.map((r) => ({ id: r.id, pubkey: r.pubkey, text: r.text, at: r.at, version: r.version, via: "review" as const })),
+        ...endorsements.reviews.map((r) => ({
+          id: r.id,
+          pubkey: r.pubkey,
+          text: r.text,
+          at: r.at,
+          version: r.version,
+          via: "review" as const,
+        })),
         ...endorsements.zaps
           .filter((z) => z.pubkey && z.memo)
           .map((z) => ({ id: z.id, pubkey: z.pubkey!, text: z.memo, at: z.at, version: null, via: "zap" as const })),
       ]
     : [];
-  const zappers = endorsements ? [...new Set(endorsements.zaps.map((z) => z.pubkey).filter((p): p is string => !!p))] : [];
+  const zappers = endorsements
+    ? [...new Set(endorsements.zaps.map((z) => z.pubkey).filter((p): p is string => !!p))]
+    : [];
   const voicePubkeys = [...new Set([...voices.map((v) => v.pubkey), ...zappers])];
   const scoreOf = useAuthorScores([event.pubkey, ...voicePubkeys]);
   const profiles = useProfileMap(voicePubkeys.slice(0, 60));
@@ -326,7 +330,12 @@ export function AppHero({ event }: { event: AppEvent }) {
     .slice(0, 3)
     .map((r) => {
       const p = profiles.get(r.pubkey);
-      return { pubkey: r.pubkey, name: p ? getDisplayLabel(p) : undefined, picture: p?.picture ?? undefined, score01: r.score };
+      return {
+        pubkey: r.pubkey,
+        name: p ? getDisplayLabel(p) : undefined,
+        picture: p?.picture ?? undefined,
+        score01: r.score,
+      };
     });
   // Zap COUNTS stay off the strip (Benjamin: they measure Zap Store distribution,
   // not quality); zap memos still speak as voices below.
@@ -347,14 +356,17 @@ export function AppHero({ event }: { event: AppEvent }) {
           beneath — equal-width buttons on phones, left-aligned from sm up. */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+          <h1
+            className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
             {name}
           </h1>
           {/* Who signed this build — the trust story, right under the name. */}
           {publisherNpub && (
             <Link
               href={`/p/${publisherNpub}`}
-              className="mt-0.5 inline-flex items-center gap-1.5 rounded-full py-0.5 pr-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+              className="mt-0.5 inline-flex items-center gap-1.5 rounded-full py-0.5 pr-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
               data-testid="app-hero-publisher"
             >
               <Avatar
@@ -370,13 +382,19 @@ export function AppHero({ event }: { event: AppEvent }) {
               </span>
             </Link>
           )}
-          {summary && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{summary}</p>}
+          {summary && <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-300">{summary}</p>}
           {/* Facts: platforms, license, and how alive the app is. */}
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
             {platforms.map((p) => (
-              <Chip key={p} size="sm" tone="slate">{p}</Chip>
+              <Chip key={p} size="sm" tone="slate">
+                {p}
+              </Chip>
             ))}
-            {license && <Chip size="sm" tone="slate">{license}</Chip>}
+            {license && (
+              <Chip size="sm" tone="slate">
+                {license}
+              </Chip>
+            )}
             {release && (
               <Chip size="sm" tone="success" data-testid="app-hero-release">
                 v{release.version} · {releaseAge(release.at)}
@@ -387,14 +405,21 @@ export function AppHero({ event }: { event: AppEvent }) {
           {categories.length > 0 && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               {categories.map((t) => (
-                <Link key={t} href={`/?q=${encodeURIComponent(`#${t}`)}&t=apps`} data-testid={`app-cat-${t}`} className="no-underline">
-                  <Chip size="sm" tone="info">#{t}</Chip>
+                <Link
+                  key={t}
+                  href={`/?q=${encodeURIComponent(`#${t}`)}&t=apps`}
+                  data-testid={`app-cat-${t}`}
+                  className="no-underline"
+                >
+                  <Chip size="sm" tone="info">
+                    #{t}
+                  </Chip>
                 </Link>
               ))}
             </div>
           )}
         </div>
-        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-3xl bg-slate-100 shadow-sm dark:bg-slate-800">
           {icon ? (
             <img src={icon} alt="" className="h-full w-full object-cover" data-testid="app-hero-icon" />
           ) : (
@@ -452,7 +477,7 @@ export function AppHero({ event }: { event: AppEvent }) {
             href={store}
             target="_blank"
             rel="noopener"
-            className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:py-1.5"
+            className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 sm:py-1.5"
             data-testid="app-hero-get"
           >
             <Favicon host="zapstore.dev" className="h-3.5 w-3.5 rounded-sm" /> Get on Zap Store
@@ -463,7 +488,7 @@ export function AppHero({ event }: { event: AppEvent }) {
               href={url}
               target="_blank"
               rel="noopener"
-              className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:py-1.5"
+              className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 sm:py-1.5"
               data-testid="app-hero-get"
             >
               Get it <ExternalLink className="h-3 w-3" />
@@ -475,16 +500,21 @@ export function AppHero({ event }: { event: AppEvent }) {
       {/* At-a-glance store stats — computed from the releases we already hold. */}
       {releases.length > 0 && (
         <div
-          className="mt-4 flex divide-x divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800"
+          className="mt-4 flex divide-x divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800"
           data-testid="app-hero-stats"
         >
           <div className="flex-1 px-3 py-2.5 text-center">
             <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{releases.length}</div>{" "}
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">{releases.length === 1 ? "release" : "releases"}</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              {releases.length === 1 ? "release" : "releases"}
+            </div>
           </div>
           <div className="flex-1 px-3 py-2.5 text-center">
             <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              {new Date(releases[releases.length - 1].at * 1000).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+              {new Date(releases[releases.length - 1].at * 1000).toLocaleDateString(undefined, {
+                month: "short",
+                year: "numeric",
+              })}
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400">Since</div>
           </div>
@@ -500,19 +530,27 @@ export function AppHero({ event }: { event: AppEvent }) {
       {/* What the network said, in numbers — a second strip so phones stay legible. */}
       {anySignal && endorsements && (
         <div
-          className="mt-3 flex divide-x divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800"
+          className="mt-3 flex divide-x divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800"
           data-testid="app-hero-endorsement-stats"
         >
           {endorsements.reviewCount > 0 && (
             <div className="flex-1 px-3 py-2.5 text-center">
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{compactCount(endorsements.reviewCount)}</div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">{endorsements.reviewCount === 1 ? "review" : "reviews"}</div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {compactCount(endorsements.reviewCount)}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                {endorsements.reviewCount === 1 ? "review" : "reviews"}
+              </div>
             </div>
           )}
           {endorsements.collectionCount > 0 && (
             <div className="flex-1 px-3 py-2.5 text-center">
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{compactCount(endorsements.collectionCount)}</div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">{endorsements.collectionCount === 1 ? "collection" : "collections"}</div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {compactCount(endorsements.collectionCount)}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                {endorsements.collectionCount === 1 ? "collection" : "collections"}
+              </div>
             </div>
           )}
         </div>
@@ -523,7 +561,7 @@ export function AppHero({ event }: { event: AppEvent }) {
           collapse to a few lines behind Show more. */}
       {release && release.notes.trim() && (
         <div
-          className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 px-4 py-3"
+          className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40"
           data-testid="app-hero-whats-new"
         >
           <div className="flex items-baseline justify-between gap-2">
@@ -537,7 +575,7 @@ export function AppHero({ event }: { event: AppEvent }) {
           <div className={`relative mt-2 ${notesOpen ? "" : "max-h-44 overflow-hidden"}`}>
             <ReleaseNotes notes={release.notes.trim()} />
             {!notesOpen && release.notes.trim().split("\n").length > 6 && (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-50 dark:from-slate-900/90 to-transparent" />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-50 to-transparent dark:from-slate-900/90" />
             )}
           </div>
           {release.notes.trim().split("\n").length > 6 && (
@@ -555,7 +593,7 @@ export function AppHero({ event }: { event: AppEvent }) {
 
       {/* Screenshot gallery — what actually sells an app. Tap to zoom. */}
       {shots.length > 0 && (
-        <div className="mt-4 flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1">
+        <div className="-mx-1 mt-4 flex gap-2.5 overflow-x-auto px-1 pb-1">
           {shots.map((src, i) => (
             <button
               key={src}
@@ -568,7 +606,7 @@ export function AppHero({ event }: { event: AppEvent }) {
                 src={src}
                 alt=""
                 loading="lazy"
-                className="h-64 w-auto rounded-xl border border-slate-200 dark:border-slate-800 object-cover bg-slate-100 dark:bg-slate-800"
+                className="h-64 w-auto rounded-xl border border-slate-200 bg-slate-100 object-cover dark:border-slate-800 dark:bg-slate-800"
               />
             </button>
           ))}
@@ -576,9 +614,7 @@ export function AppHero({ event }: { event: AppEvent }) {
       )}
 
       {/* The listing's own description. */}
-      {event.content?.trim() && (
-        <ReadingText text={event.content} className="mt-4" testId="app-hero-description" />
-      )}
+      {event.content?.trim() && <ReadingText text={event.content} className="mt-4" testId="app-hero-description" />}
 
       {/* What people say — Google's shared endorsements, on Nostr. No stars
           exist, so the ORDER is the rating: people you follow, then verified
@@ -590,11 +626,14 @@ export function AppHero({ event }: { event: AppEvent }) {
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               What people say
             </div>
-            <div className="text-[11px] text-slate-400 dark:text-slate-500">{compactCount(voices.length)} {voices.length === 1 ? "voice" : "voices"}</div>
+            <div className="text-[11px] text-slate-400 dark:text-slate-500">
+              {compactCount(voices.length)} {voices.length === 1 ? "voice" : "voices"}
+            </div>
           </div>
           {signedIn && grouped.followed.length === 0 && (
             <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400" data-testid="app-hero-reviews-showing-all">
-              No reviews from your network yet — showing all {compactCount(Math.max(endorsements.reviewCount, voices.length))}
+              No reviews from your network yet — showing all{" "}
+              {compactCount(Math.max(endorsements.reviewCount, voices.length))}
             </p>
           )}
           {zapFaces.length > 0 && (
@@ -602,7 +641,11 @@ export function AppHero({ event }: { event: AppEvent }) {
               <EndorsementLine
                 testId="app-hero-zapped-by"
                 faces={zapFaces}
-                label={endorsementLabel("Zapped", zapFaces.map((f) => f.name).filter((n): n is string => !!n), Math.max(endorsements.zapCount, zappers.length))}
+                label={endorsementLabel(
+                  "Zapped",
+                  zapFaces.map((f) => f.name).filter((n): n is string => !!n),
+                  Math.max(endorsements.zapCount, zappers.length),
+                )}
                 linkFaces
               />
             </div>
@@ -619,7 +662,7 @@ export function AppHero({ event }: { event: AppEvent }) {
             let lastGroup: EndorserGroup | null = null;
             return (
               <>
-                <ul className="mt-2.5 divide-y divide-slate-100 dark:divide-slate-800/60 border-y border-slate-100 dark:border-slate-800/60">
+                <ul className="mt-2.5 divide-y divide-slate-100 border-y border-slate-100 dark:divide-slate-800/60 dark:border-slate-800/60">
                   {shown.map(({ group, v }) => {
                     const author = profiles.get(v.pubkey) ?? null;
                     const score = groupOf.get(v.pubkey)?.score ?? null;
@@ -634,14 +677,22 @@ export function AppHero({ event }: { event: AppEvent }) {
                     return (
                       <li key={v.id} className="py-3 first:pt-2.5 last:pb-2.5" data-testid={`app-review-${v.id}`}>
                         {header && (
-                          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500" data-testid={`app-hero-reviews-${header}`}>
-                            {GROUP_HEADERS[header]} <span className="font-medium normal-case tracking-normal">· {grouped[header].length}</span>
+                          <div
+                            className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500"
+                            data-testid={`app-hero-reviews-${header}`}
+                          >
+                            {GROUP_HEADERS[header]}{" "}
+                            <span className="font-medium normal-case tracking-normal">· {grouped[header].length}</span>
                           </div>
                         )}
                         <div className="flex items-start gap-3">
                           <Link href={npub ? `/p/${npub}` : "#"} className="shrink-0 pt-0.5">
-                            <Avatar className={`h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score, false, "sm", true) ?? ""}`}>
-                              {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
+                            <Avatar
+                              className={`h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score, false, "sm", true) ?? ""}`}
+                            >
+                              {author?.picture ? (
+                                <AvatarImage src={author.picture} alt="" className="object-cover" />
+                              ) : null}
                               <AvatarFallback className="overflow-hidden">
                                 <DefaultAvatarImg />
                               </AvatarFallback>
@@ -654,15 +705,22 @@ export function AppHero({ event }: { event: AppEvent }) {
                               </span>
                               <TierWordChip score01={score} />
                               {v.via === "zap" && (
-                                <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-600 dark:text-amber-400" title="Said with a zap">
+                                <span
+                                  className="inline-flex items-center gap-0.5 text-[10px] text-amber-600 dark:text-amber-400"
+                                  title="Said with a zap"
+                                >
                                   <Zap className="h-2.5 w-2.5" /> zap
                                 </span>
                               )}
-                              {v.version && <Chip size="sm" tone="slate">on v{v.version}</Chip>}
+                              {v.version && (
+                                <Chip size="sm" tone="slate">
+                                  on v{v.version}
+                                </Chip>
+                              )}
                               <span className="text-[11px] text-slate-400 dark:text-slate-500">{releaseAge(v.at)}</span>
                             </div>
                             <div
-                              className="mt-1.5 inline-block max-w-full rounded-2xl rounded-tl-md bg-slate-50 dark:bg-slate-800/60 px-3.5 py-2 text-[13px] leading-relaxed text-slate-800 dark:text-slate-100 break-words"
+                              className="mt-1.5 inline-block max-w-full break-words rounded-2xl rounded-tl-md bg-slate-50 px-3.5 py-2 text-[13px] leading-relaxed text-slate-800 dark:bg-slate-800/60 dark:text-slate-100"
                               data-testid="app-review-bubble"
                             >
                               <div className="line-clamp-4">
@@ -690,11 +748,15 @@ export function AppHero({ event }: { event: AppEvent }) {
           })()}
         </div>
       )}
-      {endorsements && voices.length === 0 && endorsements.reviewCount === 0 && endorsements.zapCount === 0 && releases.length > 0 && (
-        <p className="mt-4 text-xs text-slate-400 dark:text-slate-500" data-testid="app-hero-reviews-empty">
-          No reviews from the network yet.
-        </p>
-      )}
+      {endorsements &&
+        voices.length === 0 &&
+        endorsements.reviewCount === 0 &&
+        endorsements.zapCount === 0 &&
+        releases.length > 0 && (
+          <p className="mt-4 text-xs text-slate-400 dark:text-slate-500" data-testid="app-hero-reviews-empty">
+            No reviews from the network yet.
+          </p>
+        )}
 
       {/* Version history — the release cadence at a glance. */}
       {history.length > 0 && (
@@ -729,7 +791,7 @@ export function AppHero({ event }: { event: AppEvent }) {
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Similar apps
           </div>
-          <div className="mt-2 flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1">
+          <div className="-mx-1 mt-2 flex gap-2.5 overflow-x-auto px-1 pb-1">
             {similar.map((e) => {
               const d = e.tags.find((t) => t[0] === "d")?.[1] ?? e.id;
               const simIcon = e.tags.find((t) => t[0] === "icon")?.[1];
@@ -738,10 +800,10 @@ export function AppHero({ event }: { event: AppEvent }) {
                 <Link
                   key={d}
                   href={eventPath(e)}
-                  className="flex w-20 shrink-0 flex-col items-center gap-1.5 rounded-xl p-2 text-center hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                  className="flex w-20 shrink-0 flex-col items-center gap-1.5 rounded-xl p-2 text-center transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
                   data-testid={`app-similar-${d}`}
                 >
-                  <span className="h-12 w-12 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                  <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
                     {simIcon ? (
                       <img src={simIcon} alt="" loading="lazy" className="h-full w-full object-cover" />
                     ) : (

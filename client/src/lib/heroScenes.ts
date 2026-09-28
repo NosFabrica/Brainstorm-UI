@@ -27,14 +27,39 @@ export interface HeroScene {
  * surfaces pick it up.
  */
 export const HERO_SCENES: HeroScene[] = [
-  { light: "/brand/scenes/scene-01-light.webp", dark: "/brand/scenes/scene-01-dark.webp", objectPosition: "center 40%" },
-  { light: "/brand/scenes/scene-02-light.webp", dark: "/brand/scenes/scene-02-dark.webp", objectPosition: "center 42%" },
-  { light: "/brand/scenes/scene-03-light.webp", dark: "/brand/scenes/scene-03-dark.webp", objectPosition: "center 38%" },
-  { light: "/brand/scenes/scene-04-light.webp", dark: "/brand/scenes/scene-04-dark.webp", objectPosition: "center 40%" },
-  { light: "/brand/scenes/scene-05-light.webp", dark: "/brand/scenes/scene-05-dark.webp", objectPosition: "center 35%" },
+  {
+    light: "/brand/scenes/scene-01-light.webp",
+    dark: "/brand/scenes/scene-01-dark.webp",
+    objectPosition: "center 40%",
+  },
+  {
+    light: "/brand/scenes/scene-02-light.webp",
+    dark: "/brand/scenes/scene-02-dark.webp",
+    objectPosition: "center 42%",
+  },
+  {
+    light: "/brand/scenes/scene-03-light.webp",
+    dark: "/brand/scenes/scene-03-dark.webp",
+    objectPosition: "center 38%",
+  },
+  {
+    light: "/brand/scenes/scene-04-light.webp",
+    dark: "/brand/scenes/scene-04-dark.webp",
+    objectPosition: "center 40%",
+  },
+  {
+    light: "/brand/scenes/scene-05-light.webp",
+    dark: "/brand/scenes/scene-05-dark.webp",
+    objectPosition: "center 35%",
+  },
   // Festival is a genuine exposure outlier (dim, dusk) — a small nudge on top of
   // the shared SCENE_GRADE brings it to the set's target luminance.
-  { light: "/brand/scenes/scene-06-light.webp", dark: "/brand/scenes/scene-06-dark.webp", objectPosition: "center 45%", filter: "brightness(1.14)" },
+  {
+    light: "/brand/scenes/scene-06-light.webp",
+    dark: "/brand/scenes/scene-06-dark.webp",
+    objectPosition: "center 45%",
+    filter: "brightness(1.14)",
+  },
 ];
 
 /**
@@ -60,9 +85,7 @@ export const HOME_HERO_SCENES: HeroScene[] = [
  * (`scenes.length <= 1` disables the interval). `HERO_SCENES`/`HOME_HERO_SCENES`
  * stay available for a future curated rotation once clean plates land.
  */
-export const HERO_SOLO: HeroScene[] = [
-  { light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" },
-];
+export const HERO_SOLO: HeroScene[] = [{ light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" }];
 
 // The login panel now uses HERO_SOLO (single static hero.jpg) too: its Nodes are
 // baked in and edge-anchored, and the narrow login crop discards those side

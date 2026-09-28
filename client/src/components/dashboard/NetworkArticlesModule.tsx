@@ -39,23 +39,32 @@ export function NetworkArticlesModule({ observer, enabled }: { observer: string;
   if (!enabled || (!isLoading && top.length === 0)) return null;
 
   return (
-    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-6" data-testid="card-network-articles">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
+    <Card
+      className="mb-6 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      data-testid="card-network-articles"
+    >
+      <div className="mb-3 flex items-center gap-2">
+        <div className="rounded-lg border border-slate-100 bg-white p-1.5 text-brand-deep shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-800 dark:ring-slate-800">
           <BookOpen className="h-3.5 w-3.5" />
         </div>
-        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+        <span
+          className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
           Reading from your network
         </span>
         <span className="ml-auto text-[11px] text-slate-400 dark:text-slate-500">Beyond who you follow</span>
       </div>
 
       {isLoading && top.length === 0 ? (
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="network-articles-loading">
+        <div
+          className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
+          data-testid="network-articles-loading"
+        >
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Finding what your network is reading…
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
+        <div className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">
           {top.map((article) => (
             <NetworkArticleCard key={article.event.id} article={article} profile={profiles.get(article.event.pubkey)} />
           ))}

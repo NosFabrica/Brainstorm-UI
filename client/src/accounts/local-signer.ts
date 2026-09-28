@@ -2,18 +2,10 @@ import { PrivateKeySigner, type ISigner } from "applesauce-signers";
 import type { EventTemplate } from "applesauce-core/helpers/event";
 import { getPublicKey } from "nostr-tools/pure";
 import { nsecEncode } from "nostr-tools/nip19";
-import {
-  encrypt as encryptSecretKeyNip49,
-  decrypt as decryptSecretKeyNip49,
-} from "nostr-tools/nip49";
+import { encrypt as encryptSecretKeyNip49, decrypt as decryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { Subject } from "rxjs";
 
-import {
-  backupTooExpensive,
-  unlockFailureOf,
-  UNUSABLE_BACKUP_MESSAGE,
-  type UnlockFailure,
-} from "./restore";
+import { backupTooExpensive, unlockFailureOf, UNUSABLE_BACKUP_MESSAGE, type UnlockFailure } from "./restore";
 import { deviceUnlockCache, type UnlockCache } from "./unlock-cache";
 import { isUnlockCacheUnavailable } from "@/lib/skVault";
 
@@ -54,14 +46,11 @@ export type UnlockAttemptResult = { ok: true } | { ok: false; reason: UnlockFail
 export class RecoveryPasswordError extends Error {
   constructor(readonly reason: UnlockFailure) {
     super(
-      reason === "unusable-backup"
-        ? UNUSABLE_BACKUP_MESSAGE
-        : "That is not the recovery password for this account",
+      reason === "unusable-backup" ? UNUSABLE_BACKUP_MESSAGE : "That is not the recovery password for this account",
     );
     this.name = "RecoveryPasswordError";
   }
 }
-
 
 /**
  * The two at-rest forms of a key. Both optional, and all four combinations are
@@ -185,7 +174,11 @@ export class LocalSigner implements ISigner {
   unlockSilently(): Promise<boolean> {
     if (this.inner) return Promise.resolve(true);
     // an unlock already in flight may be a prompt; wait on its outcome rather than open a second
-    if (this.pending) return this.pending.then(() => !!this.inner, () => !!this.inner);
+    if (this.pending)
+      return this.pending.then(
+        () => !!this.inner,
+        () => !!this.inner,
+      );
     return this.fromCache();
   }
 
@@ -355,10 +348,7 @@ export class LocalSigner implements ISigner {
    * Backup its owner already holds a file of, at the work factor they chose, and
    * re-minting it here would silently replace both.
    */
-  static fromKey(
-    key: Uint8Array,
-    options: LocalSignerOptions & { ncryptsec?: string } = {},
-  ): LocalSigner {
+  static fromKey(key: Uint8Array, options: LocalSignerOptions & { ncryptsec?: string } = {}): LocalSigner {
     const signer = new LocalSigner(
       getPublicKey(key),
       options.ncryptsec ? { ncryptsec: options.ncryptsec } : {},

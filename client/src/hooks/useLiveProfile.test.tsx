@@ -25,7 +25,15 @@ import { useLiveProfile, useLiveProfiles } from "./useLiveProfile";
 
 let n = 0;
 const kind0 = (pubkey: string, created_at: number, name: string) =>
-  ({ id: (++n).toString(16).padStart(64, "0"), kind: 0, pubkey, created_at, content: JSON.stringify({ name }), sig: "s", tags: [] }) as NostrEvent;
+  ({
+    id: (++n).toString(16).padStart(64, "0"),
+    kind: 0,
+    pubkey,
+    created_at,
+    content: JSON.stringify({ name }),
+    sig: "s",
+    tags: [],
+  }) as NostrEvent;
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -94,4 +102,3 @@ describe("useLiveProfiles", () => {
     expect(profileMapMock).toHaveBeenCalledTimes(1);
   });
 });
-

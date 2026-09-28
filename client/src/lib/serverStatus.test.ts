@@ -8,7 +8,16 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BehaviorSubject } from "rxjs";
-import { __resetServerStatus, getServerStatus, isTransportFailure, onRecover, reportApiFailure, retryNow, subscribeServerStatus, watchRelay } from "./serverStatus";
+import {
+  __resetServerStatus,
+  getServerStatus,
+  isTransportFailure,
+  onRecover,
+  reportApiFailure,
+  retryNow,
+  subscribeServerStatus,
+  watchRelay,
+} from "./serverStatus";
 
 const PROBE = "http://test.local/.well-known/nostr.json?name=_";
 
@@ -23,7 +32,9 @@ afterEach(() => {
 
 describe("the API's health", () => {
   it("two failures on different routes within the window earn one probe, and a probe that fails marks the API down", async () => {
-    const fetchMock = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
     vi.stubGlobal("fetch", fetchMock);
     const listener = vi.fn();
     subscribeServerStatus(listener);
@@ -54,7 +65,9 @@ describe("the API's health", () => {
   });
 
   it("one route failing twice — a slow endpoint timing out — earns no probe; only a second route does", async () => {
-    const fetchMock = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
     vi.stubGlobal("fetch", fetchMock);
     reportApiFailure("/user/aaa/stats");
     reportApiFailure("/user/aaa/stats");
@@ -76,7 +89,9 @@ describe("the API's health", () => {
   // Down is not forever: the store keeps asking, and the pages refill the
   // moment the server answers — without a reload.
   it("while down it probes at 10, 20, then every 30 seconds, and the first answer brings it back and tells the app once", async () => {
-    const fetchMock = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
     vi.stubGlobal("fetch", fetchMock);
     const recovered = vi.fn();
     onRecover(recovered);
@@ -104,7 +119,9 @@ describe("the API's health", () => {
   // Offline is the reader's network, not our server: no probe, no verdict —
   // and the moment they are back online, one probe settles it.
   it("offline earns no verdict; coming back online probes once", async () => {
-    const fetchMock = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
     vi.stubGlobal("fetch", fetchMock);
     Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
     reportApiFailure("/user/aaa/overview");
@@ -139,8 +156,13 @@ describe("the API's health", () => {
 // the page can say when the next automatic one is due, and that one runs.
 describe("trying again", () => {
   it("says when the next probe is due, probes at once on Try again, and marks a probe in flight", async () => {
-    let answer = async (): Promise<Response> => { throw new TypeError("Failed to fetch"); };
-    vi.stubGlobal("fetch", vi.fn(() => answer()));
+    let answer = async (): Promise<Response> => {
+      throw new TypeError("Failed to fetch");
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => answer()),
+    );
     reportApiFailure("/user/aaa/overview");
     reportApiFailure("/user/aaa/stats");
     await vi.advanceTimersByTimeAsync(0);
@@ -148,7 +170,10 @@ describe("trying again", () => {
     expect(getServerStatus().nextProbeAt).toBe(Date.now() + 10_000);
     expect(getServerStatus().checking).toBe(false);
     let release: () => void = () => {};
-    answer = () => new Promise((resolve) => { release = () => resolve(new Response("{}", { status: 200 })); });
+    answer = () =>
+      new Promise((resolve) => {
+        release = () => resolve(new Response("{}", { status: 200 }));
+      });
     retryNow("api");
     await vi.advanceTimersByTimeAsync(0);
     expect(getServerStatus().checking).toBe(true);
@@ -160,7 +185,11 @@ describe("trying again", () => {
   });
 
   it("Try again on search restarts the search optimistically: ok now, counted as a recovery, and the watcher may say down again", () => {
-    const relay = { connected$: new BehaviorSubject(false), ready$: new BehaviorSubject(false), error$: new BehaviorSubject<Error | null>(new Error("Connection error")) };
+    const relay = {
+      connected$: new BehaviorSubject(false),
+      ready$: new BehaviorSubject(false),
+      error$: new BehaviorSubject<Error | null>(new Error("Connection error")),
+    };
     const stop = watchRelay(relay);
     expect(getServerStatus().search).toBe("down");
     retryNow("search");
@@ -176,7 +205,11 @@ describe("trying again", () => {
 // socket the library closed cleanly is not an outage.
 describe("the search relay's health", () => {
   function fakeRelay() {
-    return { connected$: new BehaviorSubject(false), ready$: new BehaviorSubject(true), error$: new BehaviorSubject<Error | null>(null) };
+    return {
+      connected$: new BehaviorSubject(false),
+      ready$: new BehaviorSubject(true),
+      error$: new BehaviorSubject<Error | null>(null),
+    };
   }
 
   it("a failed connect in backoff is down; the socket opening again is ok and counts as a recovery; an idle clean close is nothing", () => {

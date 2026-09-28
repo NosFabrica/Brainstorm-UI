@@ -83,8 +83,14 @@ function withReferral(url: string): string {
   return u.toString();
 }
 
-const conduitApp = (url: string): SourceApp => ({ name: "Conduit", host: CONDUIT_HOST, url: withReferral(url), icon: `https://${CONDUIT_HOST}/favicon.svg` });
-const titleOf = (event: MinimalEvent) => (event.tags.find((t) => t[0] === "title")?.[1] ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+const conduitApp = (url: string): SourceApp => ({
+  name: "Conduit",
+  host: CONDUIT_HOST,
+  url: withReferral(url),
+  icon: `https://${CONDUIT_HOST}/favicon.svg`,
+});
+const titleOf = (event: MinimalEvent) =>
+  (event.tags.find((t) => t[0] === "title")?.[1] ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
 /**
  * What the same seller sells on Conduit, for a listing they published

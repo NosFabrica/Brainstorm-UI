@@ -45,9 +45,7 @@ describe("the QR payload", () => {
     // QR's alphanumeric mode costs 5.5 bits/char instead of 8, but the library
     // picks ONE mode for the whole string — a single lowercase character
     // anywhere drops the entire payload to byte mode.
-    expect(qrPayload("https://brainstorm.world/s/ab3xk9qz")).toBe(
-      "HTTPS://BRAINSTORM.WORLD/S/AB3XK9QZ",
-    );
+    expect(qrPayload("https://brainstorm.world/s/ab3xk9qz")).toBe("HTTPS://BRAINSTORM.WORLD/S/AB3XK9QZ");
   });
 
   it("leaves a canonical profile link alone", () => {

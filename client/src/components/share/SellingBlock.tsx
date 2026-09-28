@@ -59,7 +59,13 @@ export function SellingBlock({
     >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {products.slice(0, SHELF_SIZE).map(({ event, group }) => (
-          <ListingCard key={group.id} event={event as NostrEvent} author={null} showAuthor={false} group={{ title: group.title, options: group.options.length }} />
+          <ListingCard
+            key={group.id}
+            event={event as NostrEvent}
+            author={null}
+            showAuthor={false}
+            group={{ title: group.title, options: group.options.length }}
+          />
         ))}
       </div>
     </ContentTeaserBlock>

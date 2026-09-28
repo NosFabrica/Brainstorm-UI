@@ -53,7 +53,11 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
   const posterImage = !image || imgBroken ? liveDefault : image;
 
   let watchUrl: string | undefined;
-  try { watchUrl = `https://zap.stream/${nip19.naddrEncode({ kind: 30311, pubkey: event.pubkey, identifier: tag("d") || "", relays: [] })}`; } catch { /* skip */ }
+  try {
+    watchUrl = `https://zap.stream/${nip19.naddrEncode({ kind: 30311, pubkey: event.pubkey, identifier: tag("d") || "", relays: [] })}`;
+  } catch {
+    /* skip */
+  }
 
   // Three ways a live stream plays here: an HLS manifest through our player;
   // a Twitch / Kick / YouTube page through that platform's embedded player;
@@ -113,11 +117,27 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
         <LiveVideoPlayer src={recording as string} poster={posterImage} onError={() => setFailed(true)} autoStart />
       ) : replayFile ? (
         <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-black dark:border-slate-800">
-          <video src={recording} poster={posterImage} controls autoPlay playsInline className="absolute inset-0 h-full w-full object-contain" data-testid="replay-video" />
+          <video
+            src={recording}
+            poster={posterImage}
+            controls
+            autoPlay
+            playsInline
+            className="absolute inset-0 h-full w-full object-contain"
+            data-testid="replay-video"
+          />
         </div>
       ) : (
-        <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 dark:border-slate-800" data-testid="live-state">
-          <img src={posterImage} alt="" onError={() => setImgBroken(true)} className="absolute inset-0 h-full w-full object-cover opacity-50" />
+        <div
+          className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 dark:border-slate-800"
+          data-testid="live-state"
+        >
+          <img
+            src={posterImage}
+            alt=""
+            onError={() => setImgBroken(true)}
+            className="absolute inset-0 h-full w-full object-cover opacity-50"
+          />
           <div className="absolute inset-0 bg-slate-900/40" />
           <div className="relative flex flex-col items-center gap-2 px-6 text-center text-white">
             {isUpcoming ? (
@@ -132,7 +152,13 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
                 <Radio className="h-7 w-7 opacity-90" />
                 <p className="text-sm font-semibold">This stream can&apos;t play here</p>
                 {watchUrl && (
-                  <a href={watchUrl} target="_blank" rel="noopener" className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-link transition-colors hover:bg-slate-100" data-testid="live-watch-external">
+                  <a
+                    href={watchUrl}
+                    target="_blank"
+                    rel="noopener"
+                    className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-link transition-colors hover:bg-slate-100"
+                    data-testid="live-watch-external"
+                  >
                     <ExternalLink className="h-4 w-4" /> Watch on zap.stream
                   </a>
                 )}
@@ -140,18 +166,35 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
             ) : replayGone ? (
               <>
                 <Radio className="h-7 w-7 opacity-70" />
-                <p className="text-sm font-semibold" data-testid="replay-gone">This stream has ended, and its recording is no longer available</p>
+                <p className="text-sm font-semibold" data-testid="replay-gone">
+                  This stream has ended, and its recording is no longer available
+                </p>
               </>
             ) : recording && recordingOk === null ? (
               <>
-                <Radio className="h-7 w-7 opacity-70 animate-pulse" />
+                <Radio className="h-7 w-7 animate-pulse opacity-70" />
                 <p className="text-sm font-semibold">Checking for a recording…</p>
               </>
             ) : recording ? (
               <>
                 <Radio className="h-7 w-7 opacity-90" />
-                <p className="text-sm font-semibold">This stream has ended — the recording is on {(() => { try { return new URL(recording).hostname.replace(/^www\./, ""); } catch { return "another site"; } })()}</p>
-                <a href={recording} target="_blank" rel="noopener" className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-link transition-colors hover:bg-slate-100" data-testid="replay-external">
+                <p className="text-sm font-semibold">
+                  This stream has ended — the recording is on{" "}
+                  {(() => {
+                    try {
+                      return new URL(recording).hostname.replace(/^www\./, "");
+                    } catch {
+                      return "another site";
+                    }
+                  })()}
+                </p>
+                <a
+                  href={recording}
+                  target="_blank"
+                  rel="noopener"
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-link transition-colors hover:bg-slate-100"
+                  data-testid="replay-external"
+                >
                   <ExternalLink className="h-4 w-4" /> Watch the replay
                 </a>
               </>
@@ -167,7 +210,10 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
 
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
         {isLive && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400" data-testid="live-pill">
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400"
+            data-testid="live-pill"
+          >
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> Live
           </span>
         )}
@@ -176,11 +222,23 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
             Replay
           </span>
         )}
-        {isLive && viewers > 0 && <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {viewers.toLocaleString()} watching</span>}
-        {starts > 0 && <span>{isLive ? "Started" : isUpcoming ? "Starts" : "Streamed"} {relativeEventTime(starts).toLowerCase()}</span>}
+        {isLive && viewers > 0 && (
+          <span className="inline-flex items-center gap-1">
+            <Users className="h-3.5 w-3.5" /> {viewers.toLocaleString()} watching
+          </span>
+        )}
+        {starts > 0 && (
+          <span>
+            {isLive ? "Started" : isUpcoming ? "Starts" : "Streamed"} {relativeEventTime(starts).toLowerCase()}
+          </span>
+        )}
       </div>
 
-      <h1 className="mt-1.5 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="live-hero-title">
+      <h1
+        className="mt-1.5 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
+        style={{ fontFamily: "var(--font-display)" }}
+        data-testid="live-hero-title"
+      >
         {title}
       </h1>
 
@@ -191,7 +249,12 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
       )}
 
       {watchUrl && canEmbed && (
-        <a href={watchUrl} target="_blank" rel="noopener" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-link hover:underline">
+        <a
+          href={watchUrl}
+          target="_blank"
+          rel="noopener"
+          className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-link hover:underline"
+        >
           <ExternalLink className="h-3.5 w-3.5" /> Open in zap.stream
         </a>
       )}

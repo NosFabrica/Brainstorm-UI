@@ -47,7 +47,20 @@ import { fetchLiveStreams } from "./nostr";
 const CHANNEL = "d2b53661a56dfe3e2d1cb2a882d3897411c772a6e6f41981c62cd5e52ad6543a";
 const BRIDGE = "b".repeat(64);
 const stream = (id: string, d: string, status: string, created_at: number): NostrEvent =>
-  ({ id, kind: 30311, pubkey: BRIDGE, created_at, content: "", sig: "s", tags: [["d", d], ["title", "Community Made Videos"], ["status", status], ["p", CHANNEL, "", "host"]] }) as NostrEvent;
+  ({
+    id,
+    kind: 30311,
+    pubkey: BRIDGE,
+    created_at,
+    content: "",
+    sig: "s",
+    tags: [
+      ["d", d],
+      ["title", "Community Made Videos"],
+      ["status", status],
+      ["p", CHANNEL, "", "host"],
+    ],
+  }) as NostrEvent;
 
 beforeEach(() => {
   vi.clearAllMocks();

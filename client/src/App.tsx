@@ -100,7 +100,9 @@ const WhatIsWotPage = lazyWithReload(() => import("@/pages/WhatIsWotPage"));
 /** Stamps every history entry with its in-app depth, for `useGoBack`. */
 function TrackHistoryDepth() {
   const [location] = useLocation();
-  useEffect(() => { trackHistoryEntry(); }, [location]);
+  useEffect(() => {
+    trackHistoryEntry();
+  }, [location]);
   return null;
 }
 
@@ -110,7 +112,9 @@ function ScrollToTop() {
   useEffect(() => {
     try {
       if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   useLayoutEffect(() => {
@@ -140,7 +144,10 @@ function StopMediaOnNavigate() {
   const [location] = useLocation();
   const first = useRef(true);
   useEffect(() => {
-    if (first.current) { first.current = false; return; }
+    if (first.current) {
+      first.current = false;
+      return;
+    }
     stopAllMedia();
   }, [location]);
   return null;
@@ -159,10 +166,11 @@ function SoloPlayback() {
 // keep working.
 function SearchRedirect() {
   let search = "";
-  try { search = window.location.search || ""; } catch {}
+  try {
+    search = window.location.search || "";
+  } catch {}
   return <Redirect to={`/${search}`} replace />;
 }
-
 
 /**
  * `/profile/:npub` — the old analytics view, now admin-only.
@@ -206,69 +214,69 @@ function Router() {
       <StopMediaOnNavigate />
       <SoloPlayback />
       <ErrorBoundary resetKey={location}>
-      <Suspense fallback={<RouteFallback />}>
-      <Switch>
-        <Route path="/" component={Landing} />
-        <Route path="/login" component={LoginPage} />
-        <Route path="/onboarding">{() => <RequireAuth component={OnboardingPage} />}</Route>
-        <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
-        <Route path="/alerts">{() => <RequireAuth component={AlertsPage} />}</Route>
-        <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
-        <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
-        <Route path="/support">{() => <RequireAuth component={SupportPage} />}</Route>
-        <Route path="/search" component={SearchRedirect} />
-        {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
-        <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
-        {/* Short share links resolve here, then continue to /p/. */}
-        <Route path={SHORT_LINK_ROUTE} component={ShortLinkPage} />
-        <Route path="/p/:id/hops" component={HopsPathPage} />
-        <Route path="/p/:id/selling" component={SellingPage} />
-        <Route path="/p/:id/:type" component={ConnectionListPage} />
-        <Route path="/p/:id" component={SharePage} />
-        {/* One page for every event: the id (note, nevent, naddr) says which
+        <Suspense fallback={<RouteFallback />}>
+          <Switch>
+            <Route path="/" component={Landing} />
+            <Route path="/login" component={LoginPage} />
+            <Route path="/onboarding">{() => <RequireAuth component={OnboardingPage} />}</Route>
+            <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
+            <Route path="/alerts">{() => <RequireAuth component={AlertsPage} />}</Route>
+            <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
+            <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
+            <Route path="/support">{() => <RequireAuth component={SupportPage} />}</Route>
+            <Route path="/search" component={SearchRedirect} />
+            {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
+            <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
+            {/* Short share links resolve here, then continue to /p/. */}
+            <Route path={SHORT_LINK_ROUTE} component={ShortLinkPage} />
+            <Route path="/p/:id/hops" component={HopsPathPage} />
+            <Route path="/p/:id/selling" component={SellingPage} />
+            <Route path="/p/:id/:type" component={ConnectionListPage} />
+            <Route path="/p/:id" component={SharePage} />
+            {/* One page for every event: the id (note, nevent, naddr) says which
             version, the kind how it reads. /a/ links already out there keep working. */}
-        <Route path="/a/:id" component={AddressRedirect} />
-        <Route path="/e/:id" component={EventPage} />
-        <Route path="/t/:tag" component={HashtagPage} />
-        {/* Public tag pages. The index must precede the per-tag route. */}
-        <Route path="/tags" component={TagIndexPage} />
-        {/* Before the :author/:slug pattern — "mine" is a page, not an author.
+            <Route path="/a/:id" component={AddressRedirect} />
+            <Route path="/e/:id" component={EventPage} />
+            <Route path="/t/:tag" component={HashtagPage} />
+            {/* Public tag pages. The index must precede the per-tag route. */}
+            <Route path="/tags" component={TagIndexPage} />
+            {/* Before the :author/:slug pattern — "mine" is a page, not an author.
             Gated: it's your own record, and `next` now points at a real page
             rather than the redirect this used to be. */}
-        <Route path="/tags/mine">{() => <RequireAuth component={MyTagsPage} />}</Route>
-        <Route path="/tags/:author/:slug" component={TagPage} />
-        <Route path="/hero-lab" component={HeroLab} />
-        <Route path="/welcome" component={WelcomePage} />
-        <Route path="/setup/activate">{() => <RequireAuth component={ActivateBrainstormPage} />}</Route>
-        <Route path="/setup">{() => <RequireAuth component={FinishSetupPage} />}</Route>
-        <Route path="/activate" component={ActivatePage} />
-        <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
-        <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
-        <Route path="/what-is-wot" component={WhatIsWotPage} />
-        <Route path="/how-search-works" component={HowSearchWorksPage} />
-        <Route path="/how-tags-work" component={HowTagsWorkPage} />
-        <Route path="/personalization" component={PersonalizationPage} />
-        <Route path="/about" component={AboutPage} />
-        <Route path="/pricing" component={PricingPage} />
-        {/* Flash's registered redirect target — a bare path on purpose
+            <Route path="/tags/mine">{() => <RequireAuth component={MyTagsPage} />}</Route>
+            <Route path="/tags/:author/:slug" component={TagPage} />
+            <Route path="/hero-lab" component={HeroLab} />
+            <Route path="/welcome" component={WelcomePage} />
+            <Route path="/setup/activate">{() => <RequireAuth component={ActivateBrainstormPage} />}</Route>
+            <Route path="/setup">{() => <RequireAuth component={FinishSetupPage} />}</Route>
+            <Route path="/activate" component={ActivatePage} />
+            <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
+            <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
+            <Route path="/what-is-wot" component={WhatIsWotPage} />
+            <Route path="/how-search-works" component={HowSearchWorksPage} />
+            <Route path="/how-tags-work" component={HowTagsWorkPage} />
+            <Route path="/personalization" component={PersonalizationPage} />
+            <Route path="/about" component={AboutPage} />
+            <Route path="/pricing" component={PricingPage} />
+            {/* Flash's registered redirect target — a bare path on purpose
             (redirect_uri matching is exact, query string included). */}
-        <Route path="/billing/return" component={BillingReturnPage} />
-        {/* The alias receipts and support links point at. */}
-        <Route path="/billing">{() => <Redirect to="/settings?tab=billing" replace />}</Route>
-        <Route path="/roadmap" component={RoadmapPage} />
-        <Route path="/developers" component={DevelopersPage} />
-        <Route path="/developers/nip-50" component={DeveloperNip50Page} />
-        <Route path="/developers/open-ranking" component={DeveloperOpenRankingPage} />
-        <Route path="/developers/trusted-assertions" component={DeveloperTrustedAssertionsPage} />
-        <Route path="/nostr" component={NostrPage} />
-        <Route path="/privacy" component={PrivacyPage} />
-        <Route path="/terms" component={TermsPage} />
-        <Route path="/faq" component={FaqPage} />
-        {FEATURES.agentSuite && <Route path="/agentsuite">{() => <RequireAuth component={UserPanelPage} />}</Route>}
-        <Route path="/admin">{() => <RequireAuth component={AdminRoute} />}</Route>
-        <Route component={NotFound} />
-      </Switch>
-      </Suspense>
+            <Route path="/billing/return" component={BillingReturnPage} />
+            {/* The alias receipts and support links point at. */}
+            <Route path="/billing">{() => <Redirect to="/settings?tab=billing" replace />}</Route>
+            <Route path="/roadmap" component={RoadmapPage} />
+            <Route path="/developers" component={DevelopersPage} />
+            <Route path="/developers/nip-50" component={DeveloperNip50Page} />
+            <Route path="/developers/open-ranking" component={DeveloperOpenRankingPage} />
+            <Route path="/developers/trusted-assertions" component={DeveloperTrustedAssertionsPage} />
+            <Route path="/nostr" component={NostrPage} />
+            <Route path="/privacy" component={PrivacyPage} />
+            <Route path="/terms" component={TermsPage} />
+            <Route path="/faq" component={FaqPage} />
+            {FEATURES.agentSuite && <Route path="/agentsuite">{() => <RequireAuth component={UserPanelPage} />}</Route>}
+            <Route path="/admin">{() => <RequireAuth component={AdminRoute} />}</Route>
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
       </ErrorBoundary>
     </>
   );

@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - '**'
+      - "**"
     tags:
-      - 'v*'
+      - "v*"
 
 concurrency:
   group: build-${{ github.ref }}

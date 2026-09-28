@@ -134,10 +134,7 @@ export type Persistence = {
   adopt(id: string): BrainstormAccount | null;
 };
 
-export function createPersistence(
-  manager: AccountManager<AccountMetadata>,
-  storage: StorageSeam,
-): Persistence {
+export function createPersistence(manager: AccountManager<AccountMetadata>, storage: StorageSeam): Persistence {
   /** The last form each Account serialised into, so a later failure can't lose it. */
   const lastGood = new Map<string, unknown>();
   const backupTaken = new Set<StorageLike>();
@@ -178,7 +175,10 @@ export function createPersistence(
   /** Deserialise one entry into the manager, or park it. */
   function restore(store: StorageLike, entry: unknown, remembered: boolean): BrainstormAccount | null {
     try {
-      const account = AccountManager.deserialize([...manager.types.values()], entry as SerializedAccount<unknown, AccountMetadata>);
+      const account = AccountManager.deserialize(
+        [...manager.types.values()],
+        entry as SerializedAccount<unknown, AccountMetadata>,
+      );
       // an entry that doesn't say takes `remembered` from where it was found
       account.metadata = { remembered, ...(account.metadata ?? {}) };
       manager.addAccount(account);
@@ -233,7 +233,10 @@ export function createPersistence(
    */
   function adoptQuarantined(store: StorageLike, entry: unknown, remembered: boolean): boolean {
     try {
-      const account = AccountManager.deserialize([...manager.types.values()], entry as SerializedAccount<unknown, AccountMetadata>);
+      const account = AccountManager.deserialize(
+        [...manager.types.values()],
+        entry as SerializedAccount<unknown, AccountMetadata>,
+      );
       // Already restored from the main blob: the parked copy is an older
       // serialisation, so drop it rather than let `lastGood` take the stale JSON.
       if (manager.getAccount(account.id)) return true;
@@ -323,9 +326,7 @@ export function createPersistence(
    * metadata. Saving off `accounts$` alone would silently miss both.
    */
   function changes(account: BrainstormAccount): Observable<unknown>[] {
-    const streams: Observable<unknown>[] = [
-      (account as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$,
-    ];
+    const streams: Observable<unknown>[] = [(account as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$];
     const signer = account.signer as { changed$?: Observable<unknown> } | undefined;
     if (signer?.changed$) streams.push(signer.changed$);
     return streams;

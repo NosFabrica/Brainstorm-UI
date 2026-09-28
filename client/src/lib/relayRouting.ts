@@ -26,12 +26,7 @@ import { eventStore } from "./eventStore";
 import { whenHydrated } from "./eventCache";
 import { loadReplaceable } from "./loaders";
 import { PROFILE_RELAYS } from "./relays";
-import {
-  RELAY_LIST_KIND,
-  dedupeRelays,
-  parseRelayList,
-  type RelayList,
-} from "./relayList";
+import { RELAY_LIST_KIND, dedupeRelays, parseRelayList, type RelayList } from "./relayList";
 
 /**
  * Reading a relay list lives in `lib/relayList`, a LEAF module. This one
@@ -162,18 +157,15 @@ export async function loadRelayList(
 }
 
 /** The same for several authors at once — they share the loader's buffer window. */
-export function loadRelayLists(
-  pubkeys: string[],
-  opts: { timeoutMs?: number } = {},
-): Promise<Map<string, RelayList>> {
+export function loadRelayLists(pubkeys: string[], opts: { timeoutMs?: number } = {}): Promise<Map<string, RelayList>> {
   const unique = Array.from(new Set(pubkeys.filter(Boolean)));
-  return Promise.all(
-    unique.map(async (pubkey) => [pubkey, await loadRelayList(pubkey, opts)] as const),
-  ).then((entries) => {
-    const map = new Map<string, RelayList>();
-    for (const [pubkey, list] of entries) if (list) map.set(pubkey, list);
-    return map;
-  });
+  return Promise.all(unique.map(async (pubkey) => [pubkey, await loadRelayList(pubkey, opts)] as const)).then(
+    (entries) => {
+      const map = new Map<string, RelayList>();
+      for (const [pubkey, list] of entries) if (list) map.set(pubkey, list);
+      return map;
+    },
+  );
 }
 
 /** Take the head of an author's list — see `MAX_RELAYS_PER_AUTHOR`. */
@@ -187,10 +179,7 @@ function capped(relays: string[]): string[] {
  * Synchronous, so it answers only from what the store already holds. Call sites
  * that can afford one round-trip should use `outboxRelays`, which loads first.
  */
-export function outboxRelaysFromDb(
-  pubkeys: string | string[],
-  fallback: string[] = PROFILE_RELAYS,
-): string[] {
+export function outboxRelaysFromDb(pubkeys: string | string[], fallback: string[] = PROFILE_RELAYS): string[] {
   const authors = Array.isArray(pubkeys) ? pubkeys : [pubkeys];
   const out: string[] = [];
   for (const pubkey of authors) out.push(...capped(relayListFromDb(pubkey)?.write ?? []));

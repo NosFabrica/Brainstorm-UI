@@ -56,9 +56,7 @@ export function FacePile({
         const name = displayName(pk, profiles);
         const href = profilePath(pk);
         const avatar = (
-          <Avatar
-            className={`${box} border-2 border-white bg-white dark:border-slate-900 dark:bg-slate-900`}
-          >
+          <Avatar className={`${box} border-2 border-white bg-white dark:border-slate-900 dark:bg-slate-900`}>
             {profiles?.get(pk)?.picture ? (
               <AvatarImage src={profiles.get(pk)!.picture} alt={name} className="object-cover" />
             ) : null}

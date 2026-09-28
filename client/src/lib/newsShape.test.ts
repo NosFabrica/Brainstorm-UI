@@ -16,9 +16,7 @@ const ECHO =
 describe("parseNewsShape", () => {
   it("splits headline / article URL / description out of a news-bot note", () => {
     const news = parseNewsShape(ECHO)!;
-    expect(news.headline).toBe(
-      "Everton fan group 'standing down' after being left 'disgusted' over transfer window",
-    );
+    expect(news.headline).toBe("Everton fan group 'standing down' after being left 'disgusted' over transfer window");
     expect(news.url).toContain("liverpoolecho.co.uk");
     expect(news.domain).toBe("liverpoolecho.co.uk");
     expect(news.description).toContain("the 1878s have issued a statement");
@@ -52,12 +50,18 @@ describe("parseNewsShape", () => {
 
   // Stacker News crossposts: markdown around an extensionless image CDN link.
   it("a post whose only link is a markdown image is not news", () => {
-    expect(parseNewsShape("Bitcoin is doing things today and here is my picture [122.jpg](https://m.stacker.news/12345)")).toBeNull();
-    expect(parseNewsShape("Bitcoin is doing things today and here is my picture ![](https://m.stacker.news/12345)")).toBeNull();
+    expect(
+      parseNewsShape("Bitcoin is doing things today and here is my picture [122.jpg](https://m.stacker.news/12345)"),
+    ).toBeNull();
+    expect(
+      parseNewsShape("Bitcoin is doing things today and here is my picture ![](https://m.stacker.news/12345)"),
+    ).toBeNull();
   });
 
   it("markdown around the image never reaches the headline, and the image is the thumbnail", () => {
-    const shape = parseNewsShape("Some thoughts about the market this week, a proper lead\n\n![122.jpg](https://m.stacker.news/12345)\n\nhttps://stacker.news/items/99");
+    const shape = parseNewsShape(
+      "Some thoughts about the market this week, a proper lead\n\n![122.jpg](https://m.stacker.news/12345)\n\nhttps://stacker.news/items/99",
+    );
     expect(shape).toMatchObject({
       headline: "Some thoughts about the market this week, a proper lead",
       url: "https://stacker.news/items/99",
@@ -67,7 +71,9 @@ describe("parseNewsShape", () => {
   });
 
   it("a markdown article link keeps its words out of the brackets", () => {
-    const shape = parseNewsShape("Markets rally as the halving approaches, analysts say [read](https://news.test/a) more here");
+    const shape = parseNewsShape(
+      "Markets rally as the halving approaches, analysts say [read](https://news.test/a) more here",
+    );
     expect(shape?.headline).toBe("Markets rally as the halving approaches, analysts say read");
     expect(shape?.url).toBe("https://news.test/a");
   });
@@ -75,7 +81,8 @@ describe("parseNewsShape", () => {
 
 describe("parseNewsShape — feed bots' headline <image> lede <article>", () => {
   const img = `https://s2-g1.glbimg.com/${"x".repeat(180)}/internal_photos/bs/2026/a.jpg`;
-  const lede = "Bryan Fernando Gimenez Souza, de 26 anos, recebeu uma medida cautelar e não pode deixar o estado. A decisão foi tomada nesta quarta-feira pela Justiça.";
+  const lede =
+    "Bryan Fernando Gimenez Souza, de 26 anos, recebeu uma medida cautelar e não pode deixar o estado. A decisão foi tomada nesta quarta-feira pela Justiça.";
   const post = `Justiça solta homem que matou amiga para 'expulsar demônios' na Serra ${img} ${lede} https://g1.globo.com/es/noticia.ghtml`;
 
   it("the picture ends the headline for a feed account", () => {

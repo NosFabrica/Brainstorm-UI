@@ -31,16 +31,13 @@ export async function sessionDeferred(account: BrainstormAccount): Promise<boole
  * Session lives, and the Signer opening — anything the user published unlocks
  * the key, and from then on the next request re-auths on its own.
  */
-export function deferredSession$(
-  manager: AccountManager<AccountMetadata>,
-): Observable<BrainstormAccount | null> {
+export function deferredSession$(manager: AccountManager<AccountMetadata>): Observable<BrainstormAccount | null> {
   return manager.active$.pipe(
     switchMap((active) => {
       if (!active) return of(null);
       const account = active as unknown as BrainstormAccount;
       const metadata$ = (active as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$;
-      const changed$ =
-        active instanceof LocalAccount ? merge(metadata$, active.signer.unlocked$) : metadata$;
+      const changed$ = active instanceof LocalAccount ? merge(metadata$, active.signer.unlocked$) : metadata$;
       return changed$.pipe(
         startWith(null),
         switchMap(() => from(sessionDeferred(account))),

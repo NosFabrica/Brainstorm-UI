@@ -20,12 +20,17 @@ export interface ChipProps extends React.HTMLAttributes<HTMLSpanElement> {
   dot?: boolean;
 }
 
-export function Chip({ tone = "slate", size = "md", icon: Icon, dot = false, className, children, ...props }: ChipProps) {
+export function Chip({
+  tone = "slate",
+  size = "md",
+  icon: Icon,
+  dot = false,
+  className,
+  children,
+  ...props
+}: ChipProps) {
   const c = resolveTone(tone);
-  const sizeCls =
-    size === "sm"
-      ? "text-[10px] px-1.5 py-0.5 gap-0.5"
-      : "text-xs px-2 py-0.5 gap-1";
+  const sizeCls = size === "sm" ? "text-[10px] px-1.5 py-0.5 gap-0.5" : "text-xs px-2 py-0.5 gap-1";
   const iconSize = size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3";
   return (
     <span

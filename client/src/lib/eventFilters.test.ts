@@ -14,7 +14,19 @@ import { eventWhenCounts, filterEventsByWhen } from "./eventFilters";
 const DAY = 86_400;
 const now = 1_760_000_000; // a fixed "now"
 const hit = (id: string, kind: number, start: string): SearchHit => ({
-  event: { id, kind, pubkey: "a".repeat(64), created_at: now, content: "", sig: "", tags: [["d", id], ["title", id], ["start", start]] } as NostrEvent,
+  event: {
+    id,
+    kind,
+    pubkey: "a".repeat(64),
+    created_at: now,
+    content: "",
+    sig: "",
+    tags: [
+      ["d", id],
+      ["title", id],
+      ["start", start],
+    ],
+  } as NostrEvent,
   author: null,
   rank: null,
 });
@@ -37,12 +49,21 @@ const hits = [
 
 describe("filterEventsByWhen", () => {
   it("upcoming: everything from now on, soonest first", () => {
-    expect(filterEventsByWhen(hits, "upcoming", now).map((h) => h.event.id)).toEqual(["tonight", "dateOnlyIn3Days", "nextWeek", "in6Weeks"]);
+    expect(filterEventsByWhen(hits, "upcoming", now).map((h) => h.event.id)).toEqual([
+      "tonight",
+      "dateOnlyIn3Days",
+      "nextWeek",
+      "in6Weeks",
+    ]);
   });
 
   it("this week / this month: the upcoming window, soonest first", () => {
     expect(filterEventsByWhen(hits, "week", now).map((h) => h.event.id)).toEqual(["tonight", "dateOnlyIn3Days"]);
-    expect(filterEventsByWhen(hits, "month", now).map((h) => h.event.id)).toEqual(["tonight", "dateOnlyIn3Days", "nextWeek"]);
+    expect(filterEventsByWhen(hits, "month", now).map((h) => h.event.id)).toEqual([
+      "tonight",
+      "dateOnlyIn3Days",
+      "nextWeek",
+    ]);
   });
 
   it("past: what already started, most recent first", () => {
@@ -53,7 +74,13 @@ describe("filterEventsByWhen", () => {
   // never counts as upcoming or past, and only "all" still shows it (last).
   it("all: upcoming first, then past, undated last", () => {
     expect(filterEventsByWhen(hits, "all", now).map((h) => h.event.id)).toEqual([
-      "tonight", "dateOnlyIn3Days", "nextWeek", "in6Weeks", "yesterday", "lastMonth", "noStart",
+      "tonight",
+      "dateOnlyIn3Days",
+      "nextWeek",
+      "in6Weeks",
+      "yesterday",
+      "lastMonth",
+      "noStart",
     ]);
   });
 
@@ -64,7 +91,15 @@ describe("filterEventsByWhen", () => {
     const todayAllDay = hit("todayAllDay", 31922, ymd(0));
     const running: SearchHit = {
       ...hit("running", 31923, inHours(-20)),
-      event: { ...hit("running", 31923, inHours(-20)).event, tags: [["d", "running"], ["title", "running"], ["start", inHours(-20)], ["end", inHours(30)]] } as NostrEvent,
+      event: {
+        ...hit("running", 31923, inHours(-20)).event,
+        tags: [
+          ["d", "running"],
+          ["title", "running"],
+          ["start", inHours(-20)],
+          ["end", inHours(30)],
+        ],
+      } as NostrEvent,
     };
     const ids = filterEventsByWhen([...hits, todayAllDay, running], "upcoming", now).map((h) => h.event.id);
     expect(ids.slice(0, 2)).toEqual(["running", "todayAllDay"]);
@@ -75,7 +110,13 @@ describe("filterEventsByWhen", () => {
   it("counts each facet for the chips", () => {
     expect(eventWhenCounts(hits, now)).toEqual({
       today: expect.any(Number),
-      weekend: expect.any(Number), upcoming: 4, week: 2, month: 3, past: 2, all: 7 });
+      weekend: expect.any(Number),
+      upcoming: 4,
+      week: 2,
+      month: 3,
+      past: 2,
+      all: 7,
+    });
   });
 
   // Luma's quick picks: what is on today, and what is on this weekend.
@@ -83,9 +124,13 @@ describe("filterEventsByWhen", () => {
     const local = new Date(now * 1000);
     const dow = local.getDay(); // 0 Sun … 6 Sat
     const daysToSat = dow === 6 ? 0 : dow === 0 ? -1 : 6 - dow; // the weekend we are in, or the next
-    const satNoon = new Date(local); satNoon.setDate(local.getDate() + daysToSat); satNoon.setHours(12, 0, 0, 0);
-    const sunNoon = new Date(satNoon); sunNoon.setDate(satNoon.getDate() + 1);
-    const laterTonight = new Date(local); laterTonight.setHours(23, 30, 0, 0);
+    const satNoon = new Date(local);
+    satNoon.setDate(local.getDate() + daysToSat);
+    satNoon.setHours(12, 0, 0, 0);
+    const sunNoon = new Date(satNoon);
+    sunNoon.setDate(satNoon.getDate() + 1);
+    const laterTonight = new Date(local);
+    laterTonight.setHours(23, 30, 0, 0);
     const extra = [
       hit("laterTonight", 31923, String(Math.floor(laterTonight.getTime() / 1000))),
       hit("satNoon", 31923, String(Math.floor(satNoon.getTime() / 1000))),

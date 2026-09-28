@@ -41,9 +41,7 @@ export function isRelayUrl(url: string): boolean {
  * which is why it's overridable.
  */
 export const DEFAULT_TAG_RELAYS: string[] = dedupe(
-  env.VITE_TAG_RELAY_URLS
-    ? env.VITE_TAG_RELAY_URLS.split(",")
-    : raw.tagRelays,
+  env.VITE_TAG_RELAY_URLS ? env.VITE_TAG_RELAY_URLS.split(",") : raw.tagRelays,
 );
 
 const TAG_RELAYS_KEY = "brainstorm.tagRelays";

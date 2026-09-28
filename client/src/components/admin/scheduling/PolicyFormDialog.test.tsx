@@ -4,16 +4,20 @@ import type { SchedulingItem } from "@/services/api";
 import { PolicyFormDialog } from "./PolicyFormDialog";
 
 const DAILY: SchedulingItem = {
-  id: 2, name: "Daily", schedule_interval_seconds: 86400, priority: 10,
-  enabled: true, is_default: false, manual_quota_limit: 20, manual_quota_window_seconds: 86400,
+  id: 2,
+  name: "Daily",
+  schedule_interval_seconds: 86400,
+  priority: 10,
+  enabled: true,
+  is_default: false,
+  manual_quota_limit: 20,
+  manual_quota_window_seconds: 86400,
 };
 
 describe("PolicyFormDialog", () => {
   it("submits a full body in create mode with computed seconds", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(
-      <PolicyFormDialog open mode="create" onOpenChange={() => {}} onSubmit={onSubmit} />,
-    );
+    render(<PolicyFormDialog open mode="create" onOpenChange={() => {}} onSubmit={onSubmit} />);
 
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Hourly" } });
     fireEvent.change(screen.getByLabelText("Recalculation interval"), { target: { value: "1" } });
@@ -36,9 +40,7 @@ describe("PolicyFormDialog", () => {
 
   it("submits only the changed fields in edit mode", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(
-      <PolicyFormDialog open mode="edit" initial={DAILY} onOpenChange={() => {}} onSubmit={onSubmit} />,
-    );
+    render(<PolicyFormDialog open mode="edit" initial={DAILY} onOpenChange={() => {}} onSubmit={onSubmit} />);
 
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Renamed" } });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
@@ -87,16 +89,20 @@ describe("PolicyFormDialog", () => {
 
   it("shows a policy that is already public as public", () => {
     render(
-      <PolicyFormDialog open mode="edit" initial={{ ...DAILY, is_public: true }} onOpenChange={() => {}} onSubmit={vi.fn()} />,
+      <PolicyFormDialog
+        open
+        mode="edit"
+        initial={{ ...DAILY, is_public: true }}
+        onOpenChange={() => {}}
+        onSubmit={vi.fn()}
+      />,
     );
     expect(screen.getByLabelText("Public")).toBeChecked();
   });
 
   it("toggles priority support, sending only that change", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(
-      <PolicyFormDialog open mode="edit" initial={DAILY} onOpenChange={() => {}} onSubmit={onSubmit} />,
-    );
+    render(<PolicyFormDialog open mode="edit" initial={DAILY} onOpenChange={() => {}} onSubmit={onSubmit} />);
 
     const toggle = screen.getByLabelText("Includes priority support");
     expect(toggle).not.toBeChecked();
@@ -109,16 +115,20 @@ describe("PolicyFormDialog", () => {
 
   it("shows a policy that already includes support as ticked", () => {
     render(
-      <PolicyFormDialog open mode="edit" initial={{ ...DAILY, support_included: true }} onOpenChange={() => {}} onSubmit={vi.fn()} />,
+      <PolicyFormDialog
+        open
+        mode="edit"
+        initial={{ ...DAILY, support_included: true }}
+        onOpenChange={() => {}}
+        onSubmit={vi.fn()}
+      />,
     );
     expect(screen.getByLabelText("Includes priority support")).toBeChecked();
   });
 
   it("rejects a priority outside 0–10", async () => {
     const onSubmit = vi.fn();
-    render(
-      <PolicyFormDialog open mode="create" onOpenChange={() => {}} onSubmit={onSubmit} />,
-    );
+    render(<PolicyFormDialog open mode="create" onOpenChange={() => {}} onSubmit={onSubmit} />);
 
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "X" } });
     fireEvent.change(screen.getByLabelText("Recalculation interval"), { target: { value: "1" } });
@@ -131,9 +141,7 @@ describe("PolicyFormDialog", () => {
 
   it("blocks submit and shows an error when the name is empty", async () => {
     const onSubmit = vi.fn();
-    render(
-      <PolicyFormDialog open mode="create" onOpenChange={() => {}} onSubmit={onSubmit} />,
-    );
+    render(<PolicyFormDialog open mode="create" onOpenChange={() => {}} onSubmit={onSubmit} />);
 
     fireEvent.change(screen.getByLabelText("Recalculation interval"), { target: { value: "1" } });
     fireEvent.click(screen.getByRole("button", { name: /create/i }));

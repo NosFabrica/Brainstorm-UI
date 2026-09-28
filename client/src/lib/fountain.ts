@@ -105,7 +105,10 @@ export function fetchFountainItem(url: string): Promise<FountainItem | null> {
 }
 
 export function useFountainItem(url: string): { loading: boolean; item: FountainItem | null } {
-  const [state, setState] = useState<{ loading: boolean; item: FountainItem | null }>({ loading: !!fountainRef(url), item: null });
+  const [state, setState] = useState<{ loading: boolean; item: FountainItem | null }>({
+    loading: !!fountainRef(url),
+    item: null,
+  });
   useEffect(() => {
     let cancelled = false;
     if (!fountainRef(url)) {

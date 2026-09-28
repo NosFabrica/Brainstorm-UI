@@ -12,8 +12,7 @@ import type { MinimalEvent } from "@/lib/noteRefs";
  * `openArticleInApp` here opened Nostria's homepage on a desktop.
  */
 
-export const AMETHYST_PLAY_URL =
-  "https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst";
+export const AMETHYST_PLAY_URL = "https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst";
 
 /** Encode an addressable event's `naddr` (kind:pubkey:dTag), with up to four
  *  relay hints. Returns null on failure. */

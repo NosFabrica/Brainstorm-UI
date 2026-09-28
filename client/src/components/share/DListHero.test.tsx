@@ -17,9 +17,48 @@ import { DListHero } from "./DListHero";
 const AUTHOR = "77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3";
 const SONGS = `39998:${AUTHOR}:b504f5a8-949f-4d31-ad14-8afcebde2b34`;
 const MUSICIANS = `39998:${AUTHOR}:c7e2e5f1-2258-4d9d-92ed-d29b9837a82a`;
-const header = { id: "eadfab91".padEnd(64, "0"), pubkey: AUTHOR, kind: 39998, created_at: 1773688562, content: "", tags: [["d", "b504f5a8-949f-4d31-ad14-8afcebde2b34"], ["name", "V4V Songs"], ["description", "Value-for-value enabled music tracks from Podcast Index"]] };
-const songItem = { id: "a313660f".padEnd(64, "0"), pubkey: AUTHOR, kind: 9999, created_at: 1773697595, content: "", tags: [["z", SONGS], ["t", "https://podcastindex.org/podcast/4148683#4"], ["title", "Step Into the Light"], ["artist", "Torcon 7"], ["url", "https://mp3s.podcastindex.org/Step_Into_The_Light.mp3"], ["duration", "316"], ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"]] };
-const musicianItem = { id: "4921a433".padEnd(64, "0"), pubkey: AUTHOR, kind: 9999, created_at: 1773697595, content: "", tags: [["z", MUSICIANS], ["t", "a94f5cc9"], ["name", "Torcon 7"], ["feedId", "4148683"], ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"]] };
+const header = {
+  id: "eadfab91".padEnd(64, "0"),
+  pubkey: AUTHOR,
+  kind: 39998,
+  created_at: 1773688562,
+  content: "",
+  tags: [
+    ["d", "b504f5a8-949f-4d31-ad14-8afcebde2b34"],
+    ["name", "V4V Songs"],
+    ["description", "Value-for-value enabled music tracks from Podcast Index"],
+  ],
+};
+const songItem = {
+  id: "a313660f".padEnd(64, "0"),
+  pubkey: AUTHOR,
+  kind: 9999,
+  created_at: 1773697595,
+  content: "",
+  tags: [
+    ["z", SONGS],
+    ["t", "https://podcastindex.org/podcast/4148683#4"],
+    ["title", "Step Into the Light"],
+    ["artist", "Torcon 7"],
+    ["url", "https://mp3s.podcastindex.org/Step_Into_The_Light.mp3"],
+    ["duration", "316"],
+    ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"],
+  ],
+};
+const musicianItem = {
+  id: "4921a433".padEnd(64, "0"),
+  pubkey: AUTHOR,
+  kind: 9999,
+  created_at: 1773697595,
+  content: "",
+  tags: [
+    ["z", MUSICIANS],
+    ["t", "a94f5cc9"],
+    ["name", "Torcon 7"],
+    ["feedId", "4148683"],
+    ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"],
+  ],
+};
 
 describe("DListHero", () => {
   it("a list header reads as the list: its name, that it is a music list from Podcast Index, its description, under the Music icon", () => {
@@ -48,7 +87,10 @@ describe("DListHero", () => {
     const hero = screen.getByTestId("dlist-hero");
     expect(hero).toHaveTextContent("Torcon 7");
     expect(hero).toHaveTextContent("V4V Musicians");
-    expect(screen.getByRole("link", { name: "Support the artist" })).toHaveAttribute("href", "https://podcastindex.org/podcast/4148683");
+    expect(screen.getByRole("link", { name: "Support the artist" })).toHaveAttribute(
+      "href",
+      "https://podcastindex.org/podcast/4148683",
+    );
     expect(screen.getByRole("link", { name: /Their music here/ })).toHaveAttribute("href", "/?q=Torcon%207&t=music");
   });
 });

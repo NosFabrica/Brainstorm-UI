@@ -29,12 +29,24 @@ describe("buildIcs", () => {
     expect(ics.endsWith("END:VCALENDAR\r\n")).toBe(true);
   });
   it("writes an all-day event as dates, ending the next day", () => {
-    const ics = buildIcs({ uid: "x", title: "Fair", startSec: Date.UTC(2026, 8, 5) / 1000, endSec: 0, isDateOnly: true });
+    const ics = buildIcs({
+      uid: "x",
+      title: "Fair",
+      startSec: Date.UTC(2026, 8, 5) / 1000,
+      endSec: 0,
+      isDateOnly: true,
+    });
     expect(ics).toContain("DTSTART;VALUE=DATE:20260905\r\n");
     expect(ics).toContain("DTEND;VALUE=DATE:20260906\r\n");
   });
   it("a timed event with no end gets a two-hour one", () => {
-    const ics = buildIcs({ uid: "x", title: "Talk", startSec: Date.UTC(2026, 8, 5, 19, 0) / 1000, endSec: 0, isDateOnly: false });
+    const ics = buildIcs({
+      uid: "x",
+      title: "Talk",
+      startSec: Date.UTC(2026, 8, 5, 19, 0) / 1000,
+      endSec: 0,
+      isDateOnly: false,
+    });
     expect(ics).toContain("DTEND:20260905T210000Z\r\n");
   });
 });

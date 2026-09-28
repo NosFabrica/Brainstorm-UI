@@ -16,11 +16,46 @@ import { useTierGranularity } from "@/hooks/useTierGranularity";
 // Colors come from the shared TRUST_TIER_COLORS palette (services/trustThreshold)
 // so this bar and the dashboard's Network Composition never drift.
 const SHARE_TIERS = [
-  { key: "high", name: TIER_LABELS.high, min: TIER_THRESHOLDS.high, color: TRUST_TIER_COLORS.highlyTrusted, text: "text-emerald-700", ring: TRUST_TIER_COLORS.highlyTrusted },
-  { key: "trusted", name: TIER_LABELS.trusted, min: TIER_THRESHOLDS.medium_high, color: TRUST_TIER_COLORS.trusted, text: "text-sky-700", ring: TRUST_TIER_COLORS.trusted },
-  { key: "neutral", name: TIER_LABELS.neutral, min: TIER_THRESHOLDS.medium, color: TRUST_TIER_COLORS.neutral, text: "text-brand-primary", ring: TRUST_TIER_COLORS.neutral },
-  { key: "low", name: TIER_LABELS.low, min: DEFAULT_VERIFIED_LINE, color: TRUST_TIER_COLORS.lowTrust, text: "text-amber-700", ring: TRUST_TIER_COLORS.lowTrust },
-  { key: "unverified", name: TIER_LABELS.unverified, min: 0, color: TRUST_TIER_COLORS.unverified, text: "text-zinc-600", ring: TRUST_TIER_COLORS.unverified },
+  {
+    key: "high",
+    name: TIER_LABELS.high,
+    min: TIER_THRESHOLDS.high,
+    color: TRUST_TIER_COLORS.highlyTrusted,
+    text: "text-emerald-700",
+    ring: TRUST_TIER_COLORS.highlyTrusted,
+  },
+  {
+    key: "trusted",
+    name: TIER_LABELS.trusted,
+    min: TIER_THRESHOLDS.medium_high,
+    color: TRUST_TIER_COLORS.trusted,
+    text: "text-sky-700",
+    ring: TRUST_TIER_COLORS.trusted,
+  },
+  {
+    key: "neutral",
+    name: TIER_LABELS.neutral,
+    min: TIER_THRESHOLDS.medium,
+    color: TRUST_TIER_COLORS.neutral,
+    text: "text-brand-primary",
+    ring: TRUST_TIER_COLORS.neutral,
+  },
+  {
+    key: "low",
+    name: TIER_LABELS.low,
+    min: DEFAULT_VERIFIED_LINE,
+    color: TRUST_TIER_COLORS.lowTrust,
+    text: "text-amber-700",
+    ring: TRUST_TIER_COLORS.lowTrust,
+  },
+  {
+    key: "unverified",
+    name: TIER_LABELS.unverified,
+    min: 0,
+    color: TRUST_TIER_COLORS.unverified,
+    text: "text-zinc-600",
+    ring: TRUST_TIER_COLORS.unverified,
+  },
 ];
 
 export function tierForScore(score01: number) {
@@ -53,8 +88,7 @@ export function TrustScoreBadge({ score01, size = 96 }: { score01: number | null
   // is still the number), and FULL in tier mode — there the ring is hue only,
   // and the word below carries the meaning.
   const arcFrac =
-    displayMode === "number" ? score :
-    displayMode === "level" ? rungFraction(score, false, granularity) : 1;
+    displayMode === "number" ? score : displayMode === "level" ? rungFraction(score, false, granularity) : 1;
 
   const stroke = 7;
   const r = (size - stroke) / 2;
@@ -81,14 +115,16 @@ export function TrustScoreBadge({ score01, size = 96 }: { score01: number | null
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <span
-            className="font-bold text-slate-900 dark:text-slate-100 leading-none tabular-nums"
+            className="font-bold tabular-nums leading-none text-slate-900 dark:text-slate-100"
             style={{ fontFamily: "var(--font-display)", fontSize: Math.round(size * 0.34) }}
           >
             {hasScore ? (displayMode === "number" ? pct : "") : "—"}
           </span>
         </div>
       </div>
-      <span className={`text-[10px] font-bold uppercase tracking-[0.12em] ${tier.text}`}>{hasScore ? tier.name : "Unrated"}</span>
+      <span className={`text-[10px] font-bold uppercase tracking-[0.12em] ${tier.text}`}>
+        {hasScore ? tier.name : "Unrated"}
+      </span>
     </div>
   );
 }

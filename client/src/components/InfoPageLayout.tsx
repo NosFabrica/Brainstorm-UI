@@ -27,12 +27,11 @@ export function InfoPageLayout({ children, testId, active, headerSearch = true }
     navigate("/");
   };
 
-
   if (isAuthRedirecting()) return null;
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-clip"
+      className="relative flex min-h-screen flex-col overflow-clip bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-900 dark:text-slate-100"
       data-testid={testId}
     >
       <PageBackground />
@@ -45,11 +44,18 @@ export function InfoPageLayout({ children, testId, active, headerSearch = true }
         <PublicPageHeader
           maxWidthClass="max-w-7xl"
           search={headerSearch}
-          actions={<SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-sign-in" />}
+          actions={
+            <SignInButton
+              variant="primary"
+              label="Sign in"
+              className="!rounded-full sm:px-5"
+              data-testid="button-sign-in"
+            />
+          }
         />
       )}
 
-      <main className="flex-1 relative z-10">{children}</main>
+      <main className="relative z-10 flex-1">{children}</main>
 
       <Footer />
     </div>

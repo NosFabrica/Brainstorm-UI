@@ -1,7 +1,25 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRoute, useLocation, Link, Redirect } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, Image as ImageIcon, FileText, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
+import {
+  MessageSquare,
+  Image as ImageIcon,
+  FileText,
+  ArrowRight,
+  Wifi,
+  Video as VideoIcon,
+  Headphones,
+  Radio,
+  AlertTriangle,
+  CalendarDays,
+  Copy,
+  Check,
+  SlidersHorizontal,
+  UserPlus,
+  FileQuestion,
+  PenLine,
+  Search,
+} from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
@@ -13,7 +31,15 @@ import { wavlakeSongHref } from "@/lib/upNext";
 import { WavlakeSongCard } from "@/components/search/cards";
 import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
-import { fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchProfileMap, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
+import {
+  fetchRecentByKinds,
+  fetchLiveStreams,
+  fetchEventsByIds,
+  fetchProfileMap,
+  fetchOutboxRelayList,
+  fetchProfilePrefs,
+  publishProfilePrefs,
+} from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { externalIdentitiesOf } from "@/lib/profileContent";
 import { dedupeRelays, parseRelayList } from "@/lib/relayRouting";
@@ -43,8 +69,19 @@ import { useLightbox } from "@/components/share/Lightbox";
 import { VideoTile } from "@/components/share/VideoTile";
 import { EventRow } from "@/components/share/EventRow";
 import { apiClient } from "@/services/api";
-import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearProfilePrefsDraft } from "@/lib/personalization";
-import { SECTION_KEYS, ROLE_LABELS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
+import {
+  parseProfilePrefs,
+  loadProfilePrefsDraft,
+  saveProfilePrefsDraft,
+  clearProfilePrefsDraft,
+} from "@/lib/personalization";
+import {
+  SECTION_KEYS,
+  ROLE_LABELS,
+  EMPTY_PROFILE_PREFS,
+  type SectionKey,
+  type ProfilePrefs,
+} from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DegreeChip } from "@/components/DegreeChip";
@@ -57,7 +94,12 @@ import { isAdminPubkey } from "@/config/adminAccess";
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
 import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
 import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
-import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import {
+  VerificationCoin,
+  useTierRing,
+  TierWordChip,
+  useCoinReplacedByRing,
+} from "@/components/score/VerificationCoin";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ZapModal } from "@/components/ZapModal";
@@ -145,7 +187,11 @@ export default function SharePage() {
   // breadcrumb, not server truth; without it the personalized stats would be
   // an empty perspective pretending to be one.
   const calcDone = (() => {
-    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+    try {
+      return localStorage.getItem("brainstorm_calc_completed") === "true";
+    } catch {
+      return false;
+    }
   })();
   const myPov = loggedIn && calcDone && scorePov === "personalized";
   const queryClient = useQueryClient();
@@ -168,7 +214,12 @@ export default function SharePage() {
     window.clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = window.setTimeout(() => saveProfilePrefsDraft(pubkey, next), 300);
   };
-  const cancelCustomize = () => { window.clearTimeout(draftSaveTimer.current); clearProfilePrefsDraft(pubkey); setEditing(false); setPrefsError(null); };
+  const cancelCustomize = () => {
+    window.clearTimeout(draftSaveTimer.current);
+    clearProfilePrefsDraft(pubkey);
+    setEditing(false);
+    setPrefsError(null);
+  };
   const saveCustomize = async () => {
     setSavingPrefs(true);
     setPrefsError(null);
@@ -210,7 +261,11 @@ export default function SharePage() {
       const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string; influence?: number | null }>;
       // Keep the per-item influence — the cluster's tier rings ride on it free.
       return items
-        .map((e) => (typeof e === "string" ? { pubkey: e, influence: null } : { pubkey: e?.pubkey ?? "", influence: typeof e?.influence === "number" ? e.influence : null }))
+        .map((e) =>
+          typeof e === "string"
+            ? { pubkey: e, influence: null }
+            : { pubkey: e?.pubkey ?? "", influence: typeof e?.influence === "number" ? e.influence : null },
+        )
         .filter((e) => !!e.pubkey);
     },
     enabled: !!pubkey,
@@ -219,7 +274,8 @@ export default function SharePage() {
   });
   // Owner can hand-pick the "Followed by" faces; otherwise auto top-trusted.
   const effectiveFollowerPubkeys = useMemo(
-    () => (prefs.pinnedFollowers.length > 0 ? prefs.pinnedFollowers : (followedByQuery.data ?? []).map((e) => e.pubkey)),
+    () =>
+      prefs.pinnedFollowers.length > 0 ? prefs.pinnedFollowers : (followedByQuery.data ?? []).map((e) => e.pubkey),
     [prefs.pinnedFollowers, followedByQuery.data],
   );
   const followedByProfilesQuery = useQuery({
@@ -249,7 +305,9 @@ export default function SharePage() {
     queryKey: ["share-follower-candidates", pubkey],
     queryFn: async () => {
       const res = await apiClient.getUserConnections(pubkey, "followed_by", {
-        limit: 40, order: "desc", house: true,
+        limit: 40,
+        order: "desc",
+        house: true,
       });
       const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string }>;
       return items.map((e) => (typeof e === "string" ? e : e?.pubkey)).filter((p): p is string => !!p);
@@ -397,7 +455,7 @@ export default function SharePage() {
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const pinnedId = (pinsQuery.data?.[0]?.tags.find((t) => t[0] === "e")?.[1]) as string | undefined;
+  const pinnedId = pinsQuery.data?.[0]?.tags.find((t) => t[0] === "e")?.[1] as string | undefined;
   const pinnedQuery = useQuery({
     queryKey: ["share-pinned", pinnedId],
     queryFn: () => fetchEventsByIds([pinnedId as string], relayHints),
@@ -471,17 +529,34 @@ export default function SharePage() {
    * is the same class of error this whole change exists to remove.
    */
   const lastPostedAt = useMemo(() => {
-    const arrays = [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, eventsQuery.data];
+    const arrays = [
+      notesQuery.data,
+      photosQuery.data,
+      articlesQuery.data,
+      photoNotesQuery.data,
+      videosQuery.data,
+      musicQuery.data,
+      eventsQuery.data,
+    ];
     let newest = 0;
     const nowSec = Math.floor(Date.now() / 1000);
-    for (const arr of arrays) for (const ev of (arr ?? []) as { created_at?: number }[]) {
-      const c = ev?.created_at;
-      // Clamp to now: a relay clock running ahead would otherwise print a
-      // future post date, which reads as a bug rather than a stale clock.
-      if (typeof c === "number" && c > 0 && c <= nowSec && c > newest) newest = c;
-    }
+    for (const arr of arrays)
+      for (const ev of (arr ?? []) as { created_at?: number }[]) {
+        const c = ev?.created_at;
+        // Clamp to now: a relay clock running ahead would otherwise print a
+        // future post date, which reads as a bug rather than a stale clock.
+        if (typeof c === "number" && c > 0 && c <= nowSec && c > newest) newest = c;
+      }
     return newest;
-  }, [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, eventsQuery.data]);
+  }, [
+    notesQuery.data,
+    photosQuery.data,
+    articlesQuery.data,
+    photoNotesQuery.data,
+    videosQuery.data,
+    musicQuery.data,
+    eventsQuery.data,
+  ]);
   const overview = overviewQuery.data as { influence?: number | null; counts?: Record<string, number> } | undefined;
   // The overview score is viewer-relative: house/network POV when logged out,
   // the viewer's own web-of-trust POV when logged in. That's the primary ring.
@@ -499,7 +574,7 @@ export default function SharePage() {
   const myStats = myStatsQuery.data?.data as ShareStats | undefined;
   // The DISPLAYED counts follow the perspective toggle; house fills in while
   // the personalized query is in flight so the row never blanks.
-  const stats = myPov ? myStats ?? houseStats : houseStats;
+  const stats = myPov ? (myStats ?? houseStats) : houseStats;
   const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
   // Each stat carries BOTH the web-of-trust-filtered (`verified`) and raw
   // (`total`, includes bots) count in one response — the StatToggle flips between
@@ -514,10 +589,7 @@ export default function SharePage() {
   // toggle — same verdict for every viewer — and so does the banner's evidence
   // count below, because a verdict and its evidence must come from one ledger.
   const houseVerifiedReporters = num(houseStats?.reported_by?.verified);
-  const isFlagged = isFlaggedByReporters(
-    houseVerifiedReporters ?? 0,
-    num(houseStats?.followed_by?.verified) ?? 0,
-  );
+  const isFlagged = isFlaggedByReporters(houseVerifiedReporters ?? 0, num(houseStats?.followed_by?.verified) ?? 0);
   // House influence (0–1) from the backend, house POV.
   const houseScore01 = useMemo(() => {
     const r = houseRankQuery.data;
@@ -560,23 +632,31 @@ export default function SharePage() {
     () =>
       (articlesQuery.data ?? []).map((ev) => {
         const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
-        return { id: ev.id, title: tag("title") || "Untitled", summary: tag("summary") || "", image: tag("image"), ts: ev.created_at };
+        return {
+          id: ev.id,
+          title: tag("title") || "Untitled",
+          summary: tag("summary") || "",
+          image: tag("image"),
+          ts: ev.created_at,
+        };
       }),
     [articlesQuery.data],
   );
 
   const videos = useMemo(
     () =>
-      (videosQuery.data ?? []).map((ev) => {
-        const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
-        return {
-          id: ev.id,
-          title: tag("title") || "",
-          url: extractVideoUrls(ev.content, ev.tags)[0],
-          poster: extractVideoPoster(ev.content, ev.tags),
-          ts: ev.created_at,
-        };
-      }).filter((v) => v.url || v.poster),
+      (videosQuery.data ?? [])
+        .map((ev) => {
+          const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
+          return {
+            id: ev.id,
+            title: tag("title") || "",
+            url: extractVideoUrls(ev.content, ev.tags)[0],
+            poster: extractVideoPoster(ev.content, ev.tags),
+            ts: ev.created_at,
+          };
+        })
+        .filter((v) => v.url || v.poster),
     [videosQuery.data],
   );
 
@@ -584,9 +664,20 @@ export default function SharePage() {
     () =>
       (musicQuery.data ?? []).map((ev) => {
         const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
-        const genres = ev.tags.filter((t) => t[0] === "t").map((t) => t[1]).filter((g) => g && g.toLowerCase() !== "music");
+        const genres = ev.tags
+          .filter((t) => t[0] === "t")
+          .map((t) => t[1])
+          .filter((g) => g && g.toLowerCase() !== "music");
         const genre = genres[0] ? genres[0].charAt(0).toUpperCase() + genres[0].slice(1) : undefined;
-        return { id: ev.id, title: tag("title") || tag("subject") || "Track", artist: tag("artist") || tag("creator") || tag("c"), cover: tag("image") || tag("cover"), audio: audioUrlFromEvent(ev), genre, ts: ev.created_at };
+        return {
+          id: ev.id,
+          title: tag("title") || tag("subject") || "Track",
+          artist: tag("artist") || tag("creator") || tag("c"),
+          cover: tag("image") || tag("cover"),
+          audio: audioUrlFromEvent(ev),
+          genre,
+          ts: ev.created_at,
+        };
       }),
     [musicQuery.data],
   );
@@ -594,14 +685,26 @@ export default function SharePage() {
   // The person's Wavlake catalogue beside their relay tracks: Joe Martin
   // publishes one track to relays and six to Wavlake (2026-09-05). The artist
   // is matched by their linked Nostr key, else their exact name — never loosely.
-  const catalogue = useArtistCatalogue(pubkey || null, { name: profile.display_name || profile.name || null, limit: 6 });
+  const catalogue = useArtistCatalogue(pubkey || null, {
+    name: profile.display_name || profile.name || null,
+    limit: 6,
+  });
   const audio = useMemo(() => mergeArtistAudio(tracks, catalogue.songs, 3), [tracks, catalogue.songs]);
 
   // Register the ordered, playable tracks so the shared player auto-advances.
   useEffect(() => {
     setPlaylist([
-      ...audio.native.filter((t) => t.audio).map((t) => ({ id: t.id, src: t.audio as string, title: t.title, artist: t.artist, cover: t.cover })),
-      ...audio.songs.map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: wavlakeSongHref(s) })),
+      ...audio.native
+        .filter((t) => t.audio)
+        .map((t) => ({ id: t.id, src: t.audio as string, title: t.title, artist: t.artist, cover: t.cover })),
+      ...audio.songs.map((s) => ({
+        id: s.id,
+        src: s.audio,
+        title: s.title,
+        artist: s.artist,
+        cover: s.cover,
+        href: wavlakeSongHref(s),
+      })),
     ]);
   }, [audio]);
 
@@ -613,7 +716,11 @@ export default function SharePage() {
       const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
       const starts = Number(tag("starts")) || 0;
       let watchUrl: string | undefined;
-      try { watchUrl = `https://zap.stream/${nip19.naddrEncode({ kind: 30311, pubkey: ev.pubkey, identifier: tag("d") || "", relays: [] })}`; } catch { /* skip */ }
+      try {
+        watchUrl = `https://zap.stream/${nip19.naddrEncode({ kind: 30311, pubkey: ev.pubkey, identifier: tag("d") || "", relays: [] })}`;
+      } catch {
+        /* skip */
+      }
       return {
         id: ev.id,
         authorPubkey: ev.pubkey,
@@ -632,7 +739,10 @@ export default function SharePage() {
     // Replays are not this page's business; the Live tab has them.
     const stateById = new Map(evs.map((ev) => [ev.id, liveStateOf(ev, nowSec)]));
     const liveNow = parsed.filter((s) => stateById.get(s.id) === "live");
-    const upcoming = parsed.filter((s) => stateById.get(s.id) === "upcoming").sort((a, b) => a.starts - b.starts).slice(0, 2);
+    const upcoming = parsed
+      .filter((s) => stateById.get(s.id) === "upcoming")
+      .sort((a, b) => a.starts - b.starts)
+      .slice(0, 2);
     return { liveNow, upcoming, has: liveNow.length + upcoming.length > 0 };
   }, [liveQuery.data]);
 
@@ -643,7 +753,10 @@ export default function SharePage() {
     const pick = (d: string) => {
       const matches = evs
         .filter((e) => (e.tags.find((t) => t[0] === "d")?.[1] || "general") === d)
-        .filter((e) => { const exp = Number(e.tags.find((t) => t[0] === "expiration")?.[1]) || 0; return !exp || exp > nowSec; })
+        .filter((e) => {
+          const exp = Number(e.tags.find((t) => t[0] === "expiration")?.[1]) || 0;
+          return !exp || exp > nowSec;
+        })
         .sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
       const text = matches[0]?.content?.trim();
       return text || null;
@@ -659,20 +772,24 @@ export default function SharePage() {
     const JUNK = new Set(["www", "com", "net", "org", "http", "https", "html", "co", "io"]);
     const counts = new Map<string, number>();
     const add = (evs: MinimalEvent[]) => {
-      for (const ev of evs) for (const t of ev.tags) {
-        if (t[0] === "t" && t[1]) {
-          const tag = t[1].toLowerCase().replace(/^#/, "").trim();
-          if (tag && tag.length >= 2 && tag.length <= 22 && VALID.test(tag) && !JUNK.has(tag)) {
-            counts.set(tag, (counts.get(tag) || 0) + 1);
+      for (const ev of evs)
+        for (const t of ev.tags) {
+          if (t[0] === "t" && t[1]) {
+            const tag = t[1].toLowerCase().replace(/^#/, "").trim();
+            if (tag && tag.length >= 2 && tag.length <= 22 && VALID.test(tag) && !JUNK.has(tag)) {
+              counts.set(tag, (counts.get(tag) || 0) + 1);
+            }
           }
         }
-      }
     };
     add((notesQuery.data ?? []) as MinimalEvent[]);
     add((articlesQuery.data ?? []) as MinimalEvent[]);
     // Top 6 by frequency — capped so the row stays a single line (TopicChips also
     // clips any overflow, so it never wraps to a second line on mobile).
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([t]) => t);
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([t]) => t);
   }, [notesQuery.data, articlesQuery.data]);
 
   const featured = ((pinnedQuery.data ?? [])[0] ?? null) as MinimalEvent | null;
@@ -681,12 +798,20 @@ export default function SharePage() {
   const calendarEvents = useMemo(() => {
     const evs = (eventsQuery.data ?? []) as MinimalEvent[];
     const nowSec = Math.floor(Date.now() / 1000);
-    const parsed = evs.map((ev) => {
-      const e = parseCalendarEvent(ev);
-      return { id: ev.id, title: e.title, start: e.startSec, location: e.location, image: e.image };
-    }).filter((e) => e.start > 0);
-    const upcoming = parsed.filter((e) => e.start >= nowSec).sort((a, b) => a.start - b.start).slice(0, 3);
-    const past = parsed.filter((e) => e.start < nowSec).sort((a, b) => b.start - a.start).slice(0, 2);
+    const parsed = evs
+      .map((ev) => {
+        const e = parseCalendarEvent(ev);
+        return { id: ev.id, title: e.title, start: e.startSec, location: e.location, image: e.image };
+      })
+      .filter((e) => e.start > 0);
+    const upcoming = parsed
+      .filter((e) => e.start >= nowSec)
+      .sort((a, b) => a.start - b.start)
+      .slice(0, 3);
+    const past = parsed
+      .filter((e) => e.start < nowSec)
+      .sort((a, b) => b.start - a.start)
+      .slice(0, 2);
     return { upcoming, past };
   }, [eventsQuery.data]);
 
@@ -702,7 +827,11 @@ export default function SharePage() {
   // through the hook the search page shares (one recipe, both pages).
   const refNotes = useMemo(() => (featured ? [featured, ...noteEvents] : noteEvents), [featured, noteEvents]);
   const bioMentions = useMemo(() => mentionPubkeysFromContent(profile.about || ""), [profile.about]);
-  const { profiles: noteProfiles, eventsById, addrByCoord } = useNoteRefs(refNotes, { relays: relayHints, extraPubkeys: bioMentions });
+  const {
+    profiles: noteProfiles,
+    eventsById,
+    addrByCoord,
+  } = useNoteRefs(refNotes, { relays: relayHints, extraPubkeys: bioMentions });
 
   /**
    * What the network says these notes are about (ACCEPTANCE Floor A's C2 clause:
@@ -718,16 +847,12 @@ export default function SharePage() {
   );
   const { data: noteTags } = useEventTagsBatch(taggableNoteIds);
 
-
   // Roles this person set under the retired "What you do" editor. No longer
   // rendered — offered back to them in the tag picker so the signal isn't just
   // dropped. Read from the PUBLISHED prefs, not the live draft: what they
   // actually saved is what they meant.
   const legacyRoleLabels = useMemo(
-    () =>
-      publishedPrefs.roles
-        .map((key) => ROLE_LABELS.get(key))
-        .filter((label): label is string => !!label),
+    () => publishedPrefs.roles.map((key) => ROLE_LABELS.get(key)).filter((label): label is string => !!label),
     [publishedPrefs.roles],
   );
 
@@ -749,7 +874,9 @@ export default function SharePage() {
     pubkey
       ? {
           title: `${displayName} on Brainstorm`,
-          description: profile.about ? profile.about.slice(0, 160) : `${displayName}'s profile and Verification Score on Brainstorm.`,
+          description: profile.about
+            ? profile.about.slice(0, 160)
+            : `${displayName}'s profile and Verification Score on Brainstorm.`,
           image: profile.picture,
           url: canonicalUrl,
         }
@@ -776,14 +903,27 @@ export default function SharePage() {
 
   if (!decoded) {
     // An event's id pasted after /p/ (a note, nevent or naddr) opens the event.
-    if (/^(?:nostr:)?(?:note|nevent|naddr)1/i.test(rawId)) return <Redirect to={`/e/${rawId.replace(/^nostr:/i, "")}`} replace />;
-    return <ShareShell><NotFoundCard rawId={rawId} /></ShareShell>;
+    if (/^(?:nostr:)?(?:note|nevent|naddr)1/i.test(rawId))
+      return <Redirect to={`/e/${rawId.replace(/^nostr:/i, "")}`} replace />;
+    return (
+      <ShareShell>
+        <NotFoundCard rawId={rawId} />
+      </ShareShell>
+    );
   }
 
   const profileLoading = liveProfile.loading;
   const hasContent =
-    (notesQuery.data?.length ?? 0) > 0 || photos.length > 0 || articles.length > 0 || sellingCount > 0 ||
-    videos.length > 0 || audio.native.length + audio.songs.length > 0 || liveStreams.has || !!featured || calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0;
+    (notesQuery.data?.length ?? 0) > 0 ||
+    photos.length > 0 ||
+    articles.length > 0 ||
+    sellingCount > 0 ||
+    videos.length > 0 ||
+    audio.native.length + audio.songs.length > 0 ||
+    liveStreams.has ||
+    !!featured ||
+    calendarEvents.upcoming.length > 0 ||
+    calendarEvents.past.length > 0;
 
   // Keys (sections + hero details) the owner currently has NO content for — the
   // customizer greys these out so a toggle never misleadingly reads as "on".
@@ -816,7 +956,7 @@ export default function SharePage() {
   // The Verification Score coin reflects the ACTIVE point of view (the sitewide
   // toggle): personalized → the viewer's own score; global → the network (house)
   // score. Logged-out visitors are always global. Null → unrated coin ("—").
-  const coinScore01 = scorePov === "personalized" ? score01 : houseScore01 ?? score01;
+  const coinScore01 = scorePov === "personalized" ? score01 : (houseScore01 ?? score01);
   // Loading ≠ unrated. Until the score that feeds the coin has settled, the coin
   // shows its mode-aware placeholder (or nothing, in modes that never draw a
   // coin) instead of the dashed "—", which is a verdict.
@@ -833,7 +973,7 @@ export default function SharePage() {
     <button
       type="button"
       onClick={() => setComposeRequest((n) => n + 1)}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary ${
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 hover:text-brand-primary dark:hover:bg-slate-800 ${
         hasMyReview ? "text-brand-primary" : "text-slate-500 dark:text-slate-400"
       }`}
       title={hasMyReview ? "Edit your review" : "Write a review"}
@@ -850,7 +990,7 @@ export default function SharePage() {
     <button
       type="button"
       onClick={() => setLocation(scopedSearchHref(pubkey, "everything"))}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"
       title={searchLabel}
       aria-label={searchLabel}
       data-testid="share-search-posts"
@@ -863,15 +1003,25 @@ export default function SharePage() {
   // owner) and the ⋯ menu — everyone's, since it holds the copies and the
   // open-in links (team, 2026-09-08). "Follows you" is not an action; it
   // sits on the identity line.
-  const followsYouChip = loggedIn && rel.enabled && !isOwner && !rel.loading && rel.followsYou ? (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400" data-testid="share-follows-you">
-      <UserPlus className="h-3 w-3" /> Follows you
-    </span>
-  ) : null;
+  const followsYouChip =
+    loggedIn && rel.enabled && !isOwner && !rel.loading && rel.followsYou ? (
+      <span
+        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+        data-testid="share-follows-you"
+      >
+        <UserPlus className="h-3 w-3" /> Follows you
+      </span>
+    ) : null;
   // Keyed so a late-arriving relationship resyncs the optimistic state.
-  const followButton = loggedIn && !isOwner ? (
-    <FollowButton key={String(rel.isFollowing)} targetPubkey={pubkey} initialFollowing={rel.isFollowing} displayName={displayName} />
-  ) : null;
+  const followButton =
+    loggedIn && !isOwner ? (
+      <FollowButton
+        key={String(rel.isFollowing)}
+        targetPubkey={pubkey}
+        initialFollowing={rel.isFollowing}
+        displayName={displayName}
+      />
+    ) : null;
   const profileMenu = (
     <ProfileMenu
       key={`${rel.isMuted}-${!!rel.report}`}
@@ -885,7 +1035,7 @@ export default function SharePage() {
   );
   // Desktop: magnifier + pen + Follow + ⋯ together, top-right with the avatar.
   const topRightActions = (
-    <div className="hidden sm:flex items-center gap-2 shrink-0" data-testid="share-actions-topright">
+    <div className="hidden shrink-0 items-center gap-2 sm:flex" data-testid="share-actions-topright">
       {searchIcon}
       {reviewIcon}
       {followButton}
@@ -917,128 +1067,179 @@ export default function SharePage() {
           url={canonicalUrl}
           title={`${displayName} on Brainstorm`}
           modal={(ctl) => (
-            <ProfileShareSheet {...ctl} relays={relayHints} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} score01={houseScore01} onOwnPage />
+            <ProfileShareSheet
+              {...ctl}
+              relays={relayHints}
+              npub={npub}
+              displayName={displayName}
+              picture={profile.picture}
+              nip05={profile.nip05}
+              score01={houseScore01}
+              onOwnPage
+            />
           )}
         />
       }
     >
       <ShareNavProvider>
-      {/* Identity hero */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden" data-testid="share-hero">
-        <div className="relative w-full h-24 sm:h-28">
-          {profile.banner ? (
-            <img src={profile.banner} alt="" className="absolute inset-0 w-full h-full object-cover" />
-          ) : (
-            <div className={`absolute inset-0 ${DEFAULT_BANNER_CLASS}`}>
-              <img src={DEFAULT_BANNER_SRC} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-br from-brand-accent/30 via-brand-accent-hover/20 to-brand-deep/40 mix-blend-multiply" />
-            </div>
-          )}
-        </div>
-        <div className="px-5 sm:px-6 pb-5 -mt-10 sm:-mt-11 relative">
-          {/* key by pubkey so the Avatar remounts per profile — otherwise Radix
+        {/* Identity hero */}
+        <div
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          data-testid="share-hero"
+        >
+          <div className="relative h-24 w-full sm:h-28">
+            {profile.banner ? (
+              <img src={profile.banner} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            ) : (
+              <div className={`absolute inset-0 ${DEFAULT_BANNER_CLASS}`}>
+                <img
+                  src={DEFAULT_BANNER_SRC}
+                  alt=""
+                  aria-hidden
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-br from-brand-accent/30 via-brand-accent-hover/20 to-brand-deep/40 mix-blend-multiply" />
+              </div>
+            )}
+          </div>
+          <div className="relative -mt-10 px-5 pb-5 sm:-mt-11 sm:px-6">
+            {/* key by pubkey so the Avatar remounts per profile — otherwise Radix
               keeps a stale "image loaded" status when navigating from a pictured
               profile to a pictureless one, hiding the fallback. */}
-          <div className="flex items-end justify-between gap-3">
-            <div className="relative inline-block">
-              {/* Live now: a quiet red ring and a LIVE pill on the avatar —
+            <div className="flex items-end justify-between gap-3">
+              <div className="relative inline-block">
+                {/* Live now: a quiet red ring and a LIVE pill on the avatar —
                   Instagram / Twitch's convention — that opens the stream.
                   Benjamin: "make this noticeable subtly and allow users to
                   click to view the streams." */}
-              {liveStreams.liveNow[0] && (
-                <span className="pointer-events-none absolute -inset-1 rounded-full ring-2 ring-red-500/80 animate-pulse" aria-hidden="true" data-testid="share-live-ring" />
-              )}
-              <Avatar key={pubkey} className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white bg-white dark:bg-slate-900 ${tierRing(coinScore01) ?? "shadow-lg"}`}>
-                {profile.picture ? <AvatarImage size="lg" src={profile.picture} alt={displayName} className="object-cover" /> : null}
-                <AvatarFallback className="overflow-hidden rounded-full">
-                  <DefaultAvatarImg flagged={isFlagged} />
-                </AvatarFallback>
-              </Avatar>
-              {liveStreams.liveNow[0] && (
-                <Link
-                  href={eventPath({ id: liveStreams.liveNow[0].id, pubkey: liveStreams.liveNow[0].authorPubkey }, relayHints)}
-                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full border-2 border-white dark:border-slate-900 bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm hover:bg-red-500 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-                  title={`Watch live: ${liveStreams.liveNow[0].title}`}
-                  data-testid="share-live-badge"
+                {liveStreams.liveNow[0] && (
+                  <span
+                    className="pointer-events-none absolute -inset-1 animate-pulse rounded-full ring-2 ring-red-500/80"
+                    aria-hidden="true"
+                    data-testid="share-live-ring"
+                  />
+                )}
+                <Avatar
+                  key={pubkey}
+                  className={`h-20 w-20 rounded-full border-4 border-white bg-white dark:bg-slate-900 sm:h-24 sm:w-24 ${tierRing(coinScore01) ?? "shadow-lg"}`}
                 >
-                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" aria-hidden="true" /> Live
-                </Link>
-              )}
-              {/* Verification Score — the label-less coin, active-POV, bottom-right of
+                  {profile.picture ? (
+                    <AvatarImage size="lg" src={profile.picture} alt={displayName} className="object-cover" />
+                  ) : null}
+                  <AvatarFallback className="overflow-hidden rounded-full">
+                    <DefaultAvatarImg flagged={isFlagged} />
+                  </AvatarFallback>
+                </Avatar>
+                {liveStreams.liveNow[0] && (
+                  <Link
+                    href={eventPath(
+                      { id: liveStreams.liveNow[0].id, pubkey: liveStreams.liveNow[0].authorPubkey },
+                      relayHints,
+                    )}
+                    className="absolute -bottom-1 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border-2 border-white bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-red-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 dark:border-slate-900"
+                    title={`Watch live: ${liveStreams.liveNow[0].title}`}
+                    data-testid="share-live-badge"
+                  >
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" aria-hidden="true" /> Live
+                  </Link>
+                )}
+                {/* Verification Score — the label-less coin, active-POV, bottom-right of
                   the avatar. Tap opens the shared explainer/compare modal. */}
-              <VerificationCoin
-                score01={coinScore01}
-                loading={coinLoading}
-                flagged={isFlagged}
-                pov={scorePov}
-                size={32}
-                onClick={() => setScoreModalOpen(true)}
-                className={tierRing(coinScore01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
-              />
-            </div>
-            {/* Desktop: magnifier + chip + pen + Follow/⋯ top-right. Phones:
+                <VerificationCoin
+                  score01={coinScore01}
+                  loading={coinLoading}
+                  flagged={isFlagged}
+                  pov={scorePov}
+                  size={32}
+                  onClick={() => setScoreModalOpen(true)}
+                  className={tierRing(coinScore01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
+                />
+              </div>
+              {/* Desktop: magnifier + chip + pen + Follow/⋯ top-right. Phones:
                 the icons here, Follow/⋯ in a row below the identity. */}
-            {topRightActions}
-            {mobileTopIcons}
-          </div>
+              {topRightActions}
+              {mobileTopIcons}
+            </div>
 
-          <div className="mt-2.5 md:flex md:gap-6 md:items-start">
-            <div className="md:flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="share-name">
-              {displayName}
-            </h1>
-            <TierWordChip score01={coinScore01} flagged={isFlagged} />
-            {/* "Identity confirmed" — trusted reviewers said this is really them.
+            <div className="mt-2.5 md:flex md:items-start md:gap-6">
+              <div className="min-w-0 md:flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1
+                    className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
+                    style={{ fontFamily: "var(--font-display)" }}
+                    data-testid="share-name"
+                  >
+                    {displayName}
+                  </h1>
+                  <TierWordChip score01={coinScore01} flagged={isFlagged} />
+                  {/* "Identity confirmed" — trusted reviewers said this is really them.
                 Google's verified-badge spot: beside the name, not in a section. */}
-            {pubkey && <PanelIdentityChip pubkey={pubkey} personal={myPov} testId="share-identity" />}
-            <Nip05Handle nip05={profile.nip05} pubkey={pubkey} className="inline-flex items-center gap-1 text-sm text-brand-link font-medium" iconClassName="h-4 w-4" />
-            {/* "Follows you" is a fact about the two of you, not an action — it
+                  {pubkey && <PanelIdentityChip pubkey={pubkey} personal={myPov} testId="share-identity" />}
+                  <Nip05Handle
+                    nip05={profile.nip05}
+                    pubkey={pubkey}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-brand-link"
+                    iconClassName="h-4 w-4"
+                  />
+                  {/* "Follows you" is a fact about the two of you, not an action — it
                 sits with the identity, beside the handle, where X, Bluesky and
                 Mastodon put it (Benjamin, 2026-09-08: in the button row it read
                 as a button that did nothing). */}
-            {followsYouChip}
-          </div>
-          {/* npub — subtle + copyable so logged-out visitors can verify identity. */}
-          {npub && (
-            <div className="flex items-center gap-1.5 mt-1" data-testid="share-npub">
-              <code className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[170px] sm:max-w-[300px]">{npub}</code>
-              <button
-                type="button"
-                onClick={() => void npubCopy.copy(npub)}
-                className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
-                title="Copy npub"
-                data-testid="share-copy-npub"
-              >
-                {npubCopy.copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-              </button>
-            </div>
-          )}
+                  {followsYouChip}
+                </div>
+                {/* npub — subtle + copyable so logged-out visitors can verify identity. */}
+                {npub && (
+                  <div className="mt-1 flex items-center gap-1.5" data-testid="share-npub">
+                    <code className="max-w-[170px] truncate font-mono text-xs text-slate-400 dark:text-slate-500 sm:max-w-[300px]">
+                      {npub}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => void npubCopy.copy(npub)}
+                      className="shrink-0 p-0.5 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
+                      title="Copy npub"
+                      data-testid="share-copy-npub"
+                    >
+                      {npubCopy.copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                    </button>
+                  </div>
+                )}
 
-          {/* Mobile: the Follow/⋯ actions in their own row under the identity so
+                {/* Mobile: the Follow/⋯ actions in their own row under the identity so
               the primary button can fill the width. Contact icons live top-right
               (above), not here. */}
-          {mobileFollowRow}
+                {mobileFollowRow}
 
-          {/* The bio: three lines at rest, all of it on a tap. Right under the
+                {/* The bio: three lines at rest, all of it on a tap. Right under the
               identity — where every network puts it (Benjamin, 2026-09-08: it
               sat below a status, the key and an empty tag row). */}
-          {!isHidden("bio") && profile.about && <ProfileBio text={profile.about} profiles={noteProfiles} />}
-          {/* NIP-38 status — a live "now" line, quiet, under the bio (general + now-playing). */}
-          {!isHidden("status") && status.general && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-snug" data-testid="share-status">{status.general}</p>}
-          {!isHidden("status") && status.music && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="share-status-music">♪ {status.music}</p>}
+                {!isHidden("bio") && profile.about && <ProfileBio text={profile.about} profiles={noteProfiles} />}
+                {/* NIP-38 status — a live "now" line, quiet, under the bio (general + now-playing). */}
+                {!isHidden("status") && status.general && (
+                  <p
+                    className="mt-1 text-sm leading-snug text-slate-600 dark:text-slate-300"
+                    data-testid="share-status"
+                  >
+                    {status.general}
+                  </p>
+                )}
+                {!isHidden("status") && status.music && (
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="share-status-music">
+                    ♪ {status.music}
+                  </p>
+                )}
 
-          {/* The facts under it — website, lightning (tap copies; Zap pays),
+                {/* The facts under it — website, lightning (tap copies; Zap pays),
               linked accounts — as readable rows, not glyphs. */}
-          <ProfileDetails
-            website={profile.website}
-            lud16={profile.lud16}
-            lud06={profile.lud06}
-            identities={isHidden("identities") ? [] : identities}
-            onZap={() => setZapOpen(true)}
-          />
+                <ProfileDetails
+                  website={profile.website}
+                  lud16={profile.lud16}
+                  lud06={profile.lud06}
+                  identities={isHidden("identities") ? [] : identities}
+                  onZap={() => setZapOpen(true)}
+                />
 
-          {/* "Known for" — what the network says about this person, counted from
+                {/* "Known for" — what the network says about this person, counted from
               the configured trust perspective. Reads from relays only, so it
               renders for logged-out visitors too; only when there is something
               to say (the "+ Tag" way in sits on the Posts about row below).
@@ -1046,416 +1247,630 @@ export default function SharePage() {
               to sit below (the placeholder this slot's old TODO referred to).
               The `roles` field stays in ProfilePrefs so nobody's stored data is
               erased — it just no longer renders. */}
-          <ProfileTagChips pubkey={pubkey} canTag={canTag} isOwner={isOwner} />
+                <ProfileTagChips pubkey={pubkey} canTag={canTag} isOwner={isOwner} />
 
-          {/* The prompt half of Q2's "one-time, owner-prompted conversion".
+                {/* The prompt half of Q2's "one-time, owner-prompted conversion".
               Only the owner sees it, only when they have roles that aren't
               tags yet, and only until they answer it once. */}
-          {isOwner && canTag && pubkey && legacyRoleLabels.length > 0 && (
-            <LegacyRolePrompt pubkey={pubkey} legacyRoles={legacyRoleLabels} />
-          )}
+                {isOwner && canTag && pubkey && legacyRoleLabels.length > 0 && (
+                  <LegacyRolePrompt pubkey={pubkey} legacyRoles={legacyRoleLabels} />
+                )}
 
-          {/* "Posts about" — top hashtags as a skills-style chip row, with the
+                {/* "Posts about" — top hashtags as a skills-style chip row, with the
               quiet "+ Tag" for a signed-in tagger at its end. Hiding topics
               keeps the way in. */}
-          <TopicChips
-            topics={isHidden("topics") ? [] : topics}
-            trailing={canTag && pubkey ? <TagPersonButton pubkey={pubkey} isOwner={isOwner} legacyRoles={legacyRoleLabels} variant="link" /> : undefined}
-          />
+                <TopicChips
+                  topics={isHidden("topics") ? [] : topics}
+                  trailing={
+                    canTag && pubkey ? (
+                      <TagPersonButton
+                        pubkey={pubkey}
+                        isOwner={isOwner}
+                        legacyRoles={legacyRoleLabels}
+                        variant="link"
+                      />
+                    ) : undefined
+                  }
+                />
 
-          {/* Prominent, factual flag — when reported beyond the follower-scaled
+                {/* Prominent, factual flag — when reported beyond the follower-scaled
               threshold (house POV → same verdict for every viewer). */}
-          {isFlagged && (
-            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5" data-testid="share-flag-banner">
-              <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-              <div className="min-w-0 text-xs leading-relaxed">
-                <span className="font-bold text-red-700">Flagged by the network</span>
-                <span className="text-red-700/90"> — reported by {houseVerifiedReporters} verified {houseVerifiedReporters === 1 ? "account" : "accounts"} in the network.</span>{" "}
-                <Link href={`/p/${rawId}/reporters`} className="font-semibold text-red-700 underline underline-offset-2 hover:text-red-800" data-testid="share-flag-reporters">See who</Link>
-                <span className="text-red-700/60"> · </span>
-                {/* TODO(phase2): point at /what-are-degrees once the explainer exists */}
-                <Link href="/what-is-wot" className="font-medium text-red-700/80 underline underline-offset-2 hover:text-red-800">Why am I seeing this?</Link>
-              </div>
-            </div>
-          )}
+                {isFlagged && (
+                  <div
+                    className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5"
+                    data-testid="share-flag-banner"
+                  >
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                    <div className="min-w-0 text-xs leading-relaxed">
+                      <span className="font-bold text-red-700">Flagged by the network</span>
+                      <span className="text-red-700/90">
+                        {" "}
+                        — reported by {houseVerifiedReporters} verified{" "}
+                        {houseVerifiedReporters === 1 ? "account" : "accounts"} in the network.
+                      </span>{" "}
+                      <Link
+                        href={`/p/${rawId}/reporters`}
+                        className="font-semibold text-red-700 underline underline-offset-2 hover:text-red-800"
+                        data-testid="share-flag-reporters"
+                      >
+                        See who
+                      </Link>
+                      <span className="text-red-700/60"> · </span>
+                      {/* TODO(phase2): point at /what-are-degrees once the explainer exists */}
+                      <Link
+                        href="/what-is-wot"
+                        className="font-medium text-red-700/80 underline underline-offset-2 hover:text-red-800"
+                      >
+                        Why am I seeing this?
+                      </Link>
+                    </div>
+                  </div>
+                )}
 
-          {/* Stats — one shared Verified/All lens for the whole block (tap the
+                {/* Stats — one shared Verified/All lens for the whole block (tap the
               toggle to reveal how many bots the network filters out). Each
               count links to its full list. */}
-          <div className="mt-2.5 space-y-1.5" data-testid="share-stats">
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-                {(followingTotal != null || verifiedFollowing != null) && (
-                  <Stat
-                    verified={verifiedFollowing}
-                    all={followingTotal}
-                    verifiedLabel="Verified Following"
-                    allLabel="Following"
-                    href={`/p/${rawId}/following`}
-                    lens={statLens}
-                    testId="share-stat-following"
-                  />
-                )}
-                {(verifiedFollowers != null || allFollowers != null) && (
-                  <Stat
-                    verified={verifiedFollowers}
-                    all={allFollowers}
-                    verifiedLabel="Verified Followers"
-                    allLabel="All Followers"
-                    href={`/p/${rawId}/followers`}
-                    lens={statLens}
-                    testId="share-stat-followers"
-                  />
-                )}
-                {/* Degree (LinkedIn-style 1st/2nd/3rd) — a "good" metric, so it sits
+                <div className="mt-2.5 space-y-1.5" data-testid="share-stats">
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                      {(followingTotal != null || verifiedFollowing != null) && (
+                        <Stat
+                          verified={verifiedFollowing}
+                          all={followingTotal}
+                          verifiedLabel="Verified Following"
+                          allLabel="Following"
+                          href={`/p/${rawId}/following`}
+                          lens={statLens}
+                          testId="share-stat-following"
+                        />
+                      )}
+                      {(verifiedFollowers != null || allFollowers != null) && (
+                        <Stat
+                          verified={verifiedFollowers}
+                          all={allFollowers}
+                          verifiedLabel="Verified Followers"
+                          allLabel="All Followers"
+                          href={`/p/${rawId}/followers`}
+                          lens={statLens}
+                          testId="share-stat-followers"
+                        />
+                      )}
+                      {/* Degree (LinkedIn-style 1st/2nd/3rd) — a "good" metric, so it sits
                     on line 1. Measured from the ACTIVE perspective: the viewer under
                     personalized (when usable), House otherwise — including logged
                     out. Own profile shows only under House ("how far is Brainstorm
                     from me?"), and hides under personalized where from === to. */}
-                {hopsOrigin.origin && pubkey &&
-                  (hopsOrigin.origin !== pubkey || hopsOrigin.originPov === "global") && (
-                    <DegreeChip fromPubkey={hopsOrigin.origin} toPubkey={pubkey} rawId={rawId} pov={hopsOrigin.originPov} />
+                      {hopsOrigin.origin &&
+                        pubkey &&
+                        (hopsOrigin.origin !== pubkey || hopsOrigin.originPov === "global") && (
+                          <DegreeChip
+                            fromPubkey={hopsOrigin.origin}
+                            toPubkey={pubkey}
+                            rawId={rawId}
+                            pov={hopsOrigin.originPov}
+                          />
+                        )}
+                    </div>
+                    <NegativeSignalStats stats={stats} rawId={rawId} lens={statLens} isFlagged={isFlagged} />
+                  </div>
+                  {(verifiedFollowers != null || allFollowers != null) && (
+                    <StatLensToggle value={statLens} onChange={setStatLens} />
                   )}
-              </div>
-              <NegativeSignalStats
-                stats={stats}
-                rawId={rawId}
-                lens={statLens}
-                isFlagged={isFlagged}
-              />
-            </div>
-            {(verifiedFollowers != null || allFollowers != null) && (
-              <StatLensToggle value={statLens} onChange={setStatLens} />
-            )}
-          </div>
-          {/* end stats */}
+                </div>
+                {/* end stats */}
 
-          {/* Social proof — most-trusted accounts who follow them (LinkedIn/FB style),
+                {/* Social proof — most-trusted accounts who follow them (LinkedIn/FB style),
               inline under the stats so it reads as a "who vouches for them" line
               rather than floating in a side rail. */}
-          {!isHidden("followedBy") && (
-            <div className="mt-3">
-              <FollowedByRow people={topFollowers} total={verifiedFollowers} href={`/p/${rawId}/followers`} />
-            </div>
-          )}
+                {!isHidden("followedBy") && (
+                  <div className="mt-3">
+                    <FollowedByRow people={topFollowers} total={verifiedFollowers} href={`/p/${rawId}/followers`} />
+                  </div>
+                )}
 
-          {/* Trust reviews — what people who know them said, as a one-line
+                {/* Trust reviews — what people who know them said, as a one-line
               summary under Followed-by that unfolds on tap. Silent for a
               signed-out reader when nobody has vouched. */}
-          {pubkey && <TrustReviews pubkey={pubkey} personal={myPov} composeRequest={composeRequest} />}
+                {pubkey && <TrustReviews pubkey={pubkey} personal={myPov} composeRequest={composeRequest} />}
 
-          {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
-          {!isHidden("tenure") && (lastPostedAt > 0 || relayCount > 0) && (
-            <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500" data-testid="share-tenure">
-              {lastPostedAt > 0 && <>Last posted {relativeTime(lastPostedAt)}</>}
-              {lastPostedAt > 0 && relayCount > 0 && " · "}
-              {relayCount > 0 && <>Active on {relayCount} relay{relayCount === 1 ? "" : "s"}</>}
-            </p>
-          )}
+                {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
+                {!isHidden("tenure") && (lastPostedAt > 0 || relayCount > 0) && (
+                  <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500" data-testid="share-tenure">
+                    {lastPostedAt > 0 && <>Last posted {relativeTime(lastPostedAt)}</>}
+                    {lastPostedAt > 0 && relayCount > 0 && " · "}
+                    {relayCount > 0 && (
+                      <>
+                        Active on {relayCount} relay{relayCount === 1 ? "" : "s"}
+                      </>
+                    )}
+                  </p>
+                )}
 
-
-          {/* Logged-out → the Join conversion panel (leads with the personal
+                {/* Logged-out → the Join conversion panel (leads with the personal
               connection). Logged-in relationship actions live under the WoT card
               (loggedInActions), not here. */}
-          {!loggedIn && (
-            <div className="mt-4 w-full rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.05] to-brand-accent/[0.08] p-4 sm:p-5 shadow-sm" data-testid="share-invite-panel">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                {/* Personal connection + value */}
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  {profile.picture && (
-                    <img src={profile.picture} alt="" className={`hidden sm:block h-12 w-12 rounded-full object-cover shrink-0 ${tierRing(houseScore01) ?? "ring-2 ring-white shadow"}`} />
-                  )}
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-mono font-bold tracking-[0.2em] text-brand-link dark:text-brand-link uppercase">Join Brainstorm</div>
-                    <h3 className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
-                      Connect with {displayName}
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                      Real humans, not bots — join a network you own and you're instantly connected to {displayName}.
-                    </p>
-                  </div>
-                </div>
-                {/* CTA — right on desktop, full-width below on mobile */}
-                <div className="shrink-0 sm:text-right">
-                  <Link
-                    href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold shadow-sm transition-colors whitespace-nowrap"
-                    data-testid="share-wot-cta"
+                {!loggedIn && (
+                  <div
+                    className="mt-4 w-full rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.05] to-brand-accent/[0.08] p-4 shadow-sm sm:p-5"
+                    data-testid="share-invite-panel"
                   >
-                    Join free <ArrowRight className="h-4 w-4" />
-                  </Link>
-                  <div className="mt-2 text-xs text-slate-400 dark:text-slate-500 text-center sm:text-right">Free · no email · a minute</div>
-                </div>
-              </div>
-            </div>
-          )}
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                      {/* Personal connection + value */}
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        {profile.picture && (
+                          <img
+                            src={profile.picture}
+                            alt=""
+                            className={`hidden h-12 w-12 shrink-0 rounded-full object-cover sm:block ${tierRing(houseScore01) ?? "shadow ring-2 ring-white"}`}
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <div className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-brand-link dark:text-brand-link">
+                            Join Brainstorm
+                          </div>
+                          <h3
+                            className="mt-0.5 text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
+                            style={{ fontFamily: "var(--font-display)" }}
+                          >
+                            Connect with {displayName}
+                          </h3>
+                          <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                            Real humans, not bots — join a network you own and you're instantly connected to{" "}
+                            {displayName}.
+                          </p>
+                        </div>
+                      </div>
+                      {/* CTA — right on desktop, full-width below on mobile */}
+                      <div className="shrink-0 sm:text-right">
+                        <Link
+                          href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
+                          className="inline-flex h-11 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-brand-primary px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover sm:w-auto"
+                          data-testid="share-wot-cta"
+                        >
+                          Join free <ArrowRight className="h-4 w-4" />
+                        </Link>
+                        <div className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500 sm:text-right">
+                          Free · no email · a minute
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-          {foundViaRelays && (
-            <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
-              <Wifi className="h-3.5 w-3.5" /> Fetched live from relays — not yet indexed by Brainstorm.
-            </p>
-          )}
+                {foundViaRelays && (
+                  <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                    <Wifi className="h-3.5 w-3.5" /> Fetched live from relays — not yet indexed by Brainstorm.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Content teasers */}
-      <div className="mt-5 flex flex-col gap-5">
-        {hasContent && (
-          <p className="text-xs text-slate-400 dark:text-slate-500 px-1" data-testid="share-teaser-caption">
-            A few highlights — open the full profile in an app to see everything.
-          </p>
-        )}
-        {/* Featured — the person's pinned post/article, up top. */}
-        {featured && !isHidden("featured") && (
-          <ContentTeaserBlock icon={<PinIcon className="h-4 w-4" />} title="Featured" testId="share-block-featured" className={orderClass("featured")}>
-            {featured.kind === 30023 ? (
-              <EmbeddedArticleCard event={featured} author={{ name: profile.name, display_name: profile.display_name, picture: profile.picture, nip05: profile.nip05 }} />
-            ) : (
-              <ShareNoteCard event={featured} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(featured, relayHints)} forceExpanded tags={noteTags?.get(featured.id)?.tags} />
-            )}
-          </ContentTeaserBlock>
-        )}
-        {/* Events — upcoming leads; a small, muted "Past events" group below. */}
-        {(calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0) && !isHidden("events") && (
-          <ContentTeaserBlock icon={<CalendarDays className="h-4 w-4" />} title={calendarEvents.upcoming.length > 0 ? "Upcoming events" : "Past events"} onViewAll={() => viewAllIn("events")} testId="share-block-events" className={orderClass("events")}>
-            <div className="space-y-2">
-              {calendarEvents.upcoming.map((ev) => (
-                <EventRow key={ev.id} event={ev} href={eventPath({ id: ev.id, pubkey }, relayHints)} />
-              ))}
-              {calendarEvents.upcoming.length > 0 && calendarEvents.past.length > 0 && (
-                <p className="px-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500" data-testid="share-events-past-label">Past events</p>
-              )}
-              {calendarEvents.past.map((ev) => (
-                <EventRow key={ev.id} event={ev} past href={eventPath({ id: ev.id, pubkey }, relayHints)} />
-              ))}
-            </div>
-          </ContentTeaserBlock>
-        )}
-        <SellingBlock pubkey={pubkey} relayHints={relayHints} hidden={isHidden("selling")} className={orderClass("selling")} onCount={setSellingCount} />
-
-        {articles.length > 0 && !isHidden("articles") && (
-          <ContentTeaserBlock icon={<FileText className="h-4 w-4" />} title="Articles" onViewAll={() => viewAllIn("articles")} testId="share-block-articles" className={orderClass("articles")}>
-            <div className="space-y-3">
-              {(articlesQuery.data ?? []).map((ev) => (
+        {/* Content teasers */}
+        <div className="mt-5 flex flex-col gap-5">
+          {hasContent && (
+            <p className="px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="share-teaser-caption">
+              A few highlights — open the full profile in an app to see everything.
+            </p>
+          )}
+          {/* Featured — the person's pinned post/article, up top. */}
+          {featured && !isHidden("featured") && (
+            <ContentTeaserBlock
+              icon={<PinIcon className="h-4 w-4" />}
+              title="Featured"
+              testId="share-block-featured"
+              className={orderClass("featured")}
+            >
+              {featured.kind === 30023 ? (
                 <EmbeddedArticleCard
-                  key={ev.id}
-                  event={ev as MinimalEvent}
-                  author={{ name: profile.name, display_name: profile.display_name, picture: profile.picture, nip05: profile.nip05 }}
+                  event={featured}
+                  author={{
+                    name: profile.name,
+                    display_name: profile.display_name,
+                    picture: profile.picture,
+                    nip05: profile.nip05,
+                  }}
                 />
-              ))}
-            </div>
-          </ContentTeaserBlock>
-        )}
-
-        {noteEvents.length > 0 && !isHidden("notes") && (
-          <ContentTeaserBlock icon={<MessageSquare className="h-4 w-4" />} title="Latest notes" onViewAll={() => viewAllIn("notes")} testId="share-block-notes" className={orderClass("notes")}>
-            <div className="space-y-4">
-              {noteEvents.map((ev) => (
-                <div key={ev.id} className="pb-4 border-b border-slate-100 dark:border-slate-800/60 last:border-0 last:pb-0">
-                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(ev, relayHints)} tags={noteTags?.get(ev.id)?.tags} />
-                </div>
-              ))}
-            </div>
-          </ContentTeaserBlock>
-        )}
-
-        {gridPhotos.length > 0 && !isHidden("photos") && (
-          <ContentTeaserBlock icon={<ImageIcon className="h-4 w-4" />} title="Photos" onViewAll={() => viewAllIn("media")} testId="share-block-photos" className={orderClass("photos")}>
-            <div className="grid grid-cols-3 gap-2">
-              {gridPhotos.map((photo) => (
-                <Link
-                  key={photo.url}
-                  href={eventPath({ id: photo.id, pubkey: photo.pubkey }, relayHints)}
-                  className="group relative block aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800"
-                  data-testid="share-photo-tile"
-                >
-                  <img
-                    src={photo.url}
-                    alt=""
-                    loading="lazy"
-                    onError={() => setBrokenPhotos((prev) => (prev.has(photo.url) ? prev : new Set(prev).add(photo.url)))}
-                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                  />
-                </Link>
-              ))}
-            </div>
-          </ContentTeaserBlock>
-        )}
-
-        {videos.length > 0 && !isHidden("videos") && (
-          <ContentTeaserBlock icon={<VideoIcon className="h-4 w-4" />} title="Videos" onViewAll={() => viewAllIn("media")} testId="share-block-videos" className={orderClass("videos")}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {videos.map((v) => (
-                <div key={v.id} className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black">
-                  {/* Tap plays the video here, full view, with who it's from
-                      and a way to the post — not a jump to the post page. */}
-                  <VideoTile
-                    poster={v.poster}
-                    url={v.url}
-                    title={v.title}
-                    onOpen={() =>
-                      openLightbox(
-                        videos.filter((x) => x.url).map((x) => ({ url: x.url!, kind: "video" as const, poster: x.poster ?? null })),
-                        Math.max(0, videos.filter((x) => x.url).findIndex((x) => x.id === v.id)),
-                        { author: { name: displayName, npub, picture: profile.picture ?? null }, postHref: eventPath({ id: v.id, pubkey }, relayHints) },
-                      )
-                    }
-                  />
-                  {v.title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate bg-white dark:bg-slate-900">{v.title}</p>}
-                </div>
-              ))}
-            </div>
-          </ContentTeaserBlock>
-        )}
-
-        {audio.native.length + audio.songs.length > 0 && !isHidden("audio") && (
-          <ContentTeaserBlock icon={<Headphones className="h-4 w-4" />} title="Audio" onViewAll={() => viewAllIn("music")} testId="share-block-music" className={orderClass("audio")}>
-            <div className="space-y-2">
-              {audio.native.map((t) => (
-                <EmbeddedTrackCard
-                  key={t.id}
-                  id={t.id}
-                  title={t.title}
-                  artist={t.artist}
-                  cover={t.cover}
-                  audio={t.audio}
-                  genre={t.genre}
-                  href={eventPath({ id: t.id, pubkey }, relayHints)}
-                  onZap={profile.lud16 ? () => setZapOpen(true) : undefined}
+              ) : (
+                <ShareNoteCard
+                  event={featured}
+                  profiles={noteProfiles}
+                  eventsById={eventsById}
+                  addrByCoord={addrByCoord}
+                  href={eventPath(featured, relayHints)}
+                  forceExpanded
+                  tags={noteTags?.get(featured.id)?.tags}
                 />
-              ))}
-              {audio.songs.map((song) => (
-                <WavlakeSongCard key={song.id} song={song} />
-              ))}
-            </div>
-          </ContentTeaserBlock>
-        )}
+              )}
+            </ContentTeaserBlock>
+          )}
+          {/* Events — upcoming leads; a small, muted "Past events" group below. */}
+          {(calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0) && !isHidden("events") && (
+            <ContentTeaserBlock
+              icon={<CalendarDays className="h-4 w-4" />}
+              title={calendarEvents.upcoming.length > 0 ? "Upcoming events" : "Past events"}
+              onViewAll={() => viewAllIn("events")}
+              testId="share-block-events"
+              className={orderClass("events")}
+            >
+              <div className="space-y-2">
+                {calendarEvents.upcoming.map((ev) => (
+                  <EventRow key={ev.id} event={ev} href={eventPath({ id: ev.id, pubkey }, relayHints)} />
+                ))}
+                {calendarEvents.upcoming.length > 0 && calendarEvents.past.length > 0 && (
+                  <p
+                    className="px-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500"
+                    data-testid="share-events-past-label"
+                  >
+                    Past events
+                  </p>
+                )}
+                {calendarEvents.past.map((ev) => (
+                  <EventRow key={ev.id} event={ev} past href={eventPath({ id: ev.id, pubkey }, relayHints)} />
+                ))}
+              </div>
+            </ContentTeaserBlock>
+          )}
+          <SellingBlock
+            pubkey={pubkey}
+            relayHints={relayHints}
+            hidden={isHidden("selling")}
+            className={orderClass("selling")}
+            onCount={setSellingCount}
+          />
 
-        {/* Live — live now + upcoming streams (NIP-53). Click opens the viewer. */}
-        {liveStreams.has && !isHidden("live") && (
-          <ContentTeaserBlock icon={<Radio className="h-4 w-4" />} title={liveStreams.liveNow.length > 0 ? "Live now" : "Upcoming live"} onViewAll={() => viewAllIn("live")} testId="share-block-live" className={orderClass("live")}>
-            <div className="space-y-2">
-              {[...liveStreams.liveNow, ...liveStreams.upcoming].map((s) => {
-                const isLive = s.status === "live";
-                const body = (
-                  <>
+          {articles.length > 0 && !isHidden("articles") && (
+            <ContentTeaserBlock
+              icon={<FileText className="h-4 w-4" />}
+              title="Articles"
+              onViewAll={() => viewAllIn("articles")}
+              testId="share-block-articles"
+              className={orderClass("articles")}
+            >
+              <div className="space-y-3">
+                {(articlesQuery.data ?? []).map((ev) => (
+                  <EmbeddedArticleCard
+                    key={ev.id}
+                    event={ev as MinimalEvent}
+                    author={{
+                      name: profile.name,
+                      display_name: profile.display_name,
+                      picture: profile.picture,
+                      nip05: profile.nip05,
+                    }}
+                  />
+                ))}
+              </div>
+            </ContentTeaserBlock>
+          )}
+
+          {noteEvents.length > 0 && !isHidden("notes") && (
+            <ContentTeaserBlock
+              icon={<MessageSquare className="h-4 w-4" />}
+              title="Latest notes"
+              onViewAll={() => viewAllIn("notes")}
+              testId="share-block-notes"
+              className={orderClass("notes")}
+            >
+              <div className="space-y-4">
+                {noteEvents.map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="border-b border-slate-100 pb-4 last:border-0 last:pb-0 dark:border-slate-800/60"
+                  >
+                    <ShareNoteCard
+                      event={ev}
+                      profiles={noteProfiles}
+                      eventsById={eventsById}
+                      addrByCoord={addrByCoord}
+                      href={eventPath(ev, relayHints)}
+                      tags={noteTags?.get(ev.id)?.tags}
+                    />
+                  </div>
+                ))}
+              </div>
+            </ContentTeaserBlock>
+          )}
+
+          {gridPhotos.length > 0 && !isHidden("photos") && (
+            <ContentTeaserBlock
+              icon={<ImageIcon className="h-4 w-4" />}
+              title="Photos"
+              onViewAll={() => viewAllIn("media")}
+              testId="share-block-photos"
+              className={orderClass("photos")}
+            >
+              <div className="grid grid-cols-3 gap-2">
+                {gridPhotos.map((photo) => (
+                  <Link
+                    key={photo.url}
+                    href={eventPath({ id: photo.id, pubkey: photo.pubkey }, relayHints)}
+                    className="group relative block aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800"
+                    data-testid="share-photo-tile"
+                  >
                     <img
-                      src={s.image || liveDefault}
+                      src={photo.url}
                       alt=""
                       loading="lazy"
-                      onError={(e) => { if (!e.currentTarget.src.includes("live-default")) e.currentTarget.src = liveDefault; }}
-                      className="h-14 w-14 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 object-cover"
+                      onError={() =>
+                        setBrokenPhotos((prev) => (prev.has(photo.url) ? prev : new Set(prev).add(photo.url)))
+                      }
+                      className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
                     />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        {isLive && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600">
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> Live
-                          </span>
-                        )}
-                        <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{s.title}</p>
+                  </Link>
+                ))}
+              </div>
+            </ContentTeaserBlock>
+          )}
+
+          {videos.length > 0 && !isHidden("videos") && (
+            <ContentTeaserBlock
+              icon={<VideoIcon className="h-4 w-4" />}
+              title="Videos"
+              onViewAll={() => viewAllIn("media")}
+              testId="share-block-videos"
+              className={orderClass("videos")}
+            >
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {videos.map((v) => (
+                  <div
+                    key={v.id}
+                    className="overflow-hidden rounded-xl border border-slate-200 bg-black dark:border-slate-800"
+                  >
+                    {/* Tap plays the video here, full view, with who it's from
+                      and a way to the post — not a jump to the post page. */}
+                    <VideoTile
+                      poster={v.poster}
+                      url={v.url}
+                      title={v.title}
+                      onOpen={() =>
+                        openLightbox(
+                          videos
+                            .filter((x) => x.url)
+                            .map((x) => ({ url: x.url!, kind: "video" as const, poster: x.poster ?? null })),
+                          Math.max(
+                            0,
+                            videos.filter((x) => x.url).findIndex((x) => x.id === v.id),
+                          ),
+                          {
+                            author: { name: displayName, npub, picture: profile.picture ?? null },
+                            postHref: eventPath({ id: v.id, pubkey }, relayHints),
+                          },
+                        )
+                      }
+                    />
+                    {v.title && (
+                      <p className="truncate bg-white px-3 py-2 text-xs font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                        {v.title}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ContentTeaserBlock>
+          )}
+
+          {audio.native.length + audio.songs.length > 0 && !isHidden("audio") && (
+            <ContentTeaserBlock
+              icon={<Headphones className="h-4 w-4" />}
+              title="Audio"
+              onViewAll={() => viewAllIn("music")}
+              testId="share-block-music"
+              className={orderClass("audio")}
+            >
+              <div className="space-y-2">
+                {audio.native.map((t) => (
+                  <EmbeddedTrackCard
+                    key={t.id}
+                    id={t.id}
+                    title={t.title}
+                    artist={t.artist}
+                    cover={t.cover}
+                    audio={t.audio}
+                    genre={t.genre}
+                    href={eventPath({ id: t.id, pubkey }, relayHints)}
+                    onZap={profile.lud16 ? () => setZapOpen(true) : undefined}
+                  />
+                ))}
+                {audio.songs.map((song) => (
+                  <WavlakeSongCard key={song.id} song={song} />
+                ))}
+              </div>
+            </ContentTeaserBlock>
+          )}
+
+          {/* Live — live now + upcoming streams (NIP-53). Click opens the viewer. */}
+          {liveStreams.has && !isHidden("live") && (
+            <ContentTeaserBlock
+              icon={<Radio className="h-4 w-4" />}
+              title={liveStreams.liveNow.length > 0 ? "Live now" : "Upcoming live"}
+              onViewAll={() => viewAllIn("live")}
+              testId="share-block-live"
+              className={orderClass("live")}
+            >
+              <div className="space-y-2">
+                {[...liveStreams.liveNow, ...liveStreams.upcoming].map((s) => {
+                  const isLive = s.status === "live";
+                  const body = (
+                    <>
+                      <img
+                        src={s.image || liveDefault}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => {
+                          if (!e.currentTarget.src.includes("live-default")) e.currentTarget.src = liveDefault;
+                        }}
+                        className="h-14 w-14 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          {isLive && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600">
+                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> Live
+                            </span>
+                          )}
+                          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{s.title}</p>
+                        </div>
+                        <p
+                          className={`mt-0.5 truncate text-xs ${isLive ? "font-semibold text-red-600" : "text-slate-500 dark:text-slate-400"}`}
+                        >
+                          {isLive ? "Watch live →" : s.timing}
+                        </p>
                       </div>
-                      <p className={`mt-0.5 truncate text-xs ${isLive ? "font-semibold text-red-600" : "text-slate-500 dark:text-slate-400"}`}>{isLive ? "Watch live →" : s.timing}</p>
-                    </div>
-                  </>
-                );
-                return (
-                  <Link key={s.id} href={eventPath({ id: s.id, pubkey: s.authorPubkey }, ["wss://relay.zap.stream", "wss://relay.nostr.band"])} className={`flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-3 transition-colors hover:border-slate-300 dark:hover:border-slate-700 ${isLive ? "border-red-200" : "border-slate-200 dark:border-slate-800"}`} data-testid="share-live-row">{body}</Link>
-                );
-              })}
+                    </>
+                  );
+                  return (
+                    <Link
+                      key={s.id}
+                      href={eventPath({ id: s.id, pubkey: s.authorPubkey }, [
+                        "wss://relay.zap.stream",
+                        "wss://relay.nostr.band",
+                      ])}
+                      className={`flex items-center gap-3 rounded-xl border bg-white p-3 transition-colors hover:border-slate-300 dark:bg-slate-900 dark:hover:border-slate-700 ${isLive ? "border-red-200" : "border-slate-200 dark:border-slate-800"}`}
+                      data-testid="share-live-row"
+                    >
+                      {body}
+                    </Link>
+                  );
+                })}
+              </div>
+            </ContentTeaserBlock>
+          )}
+
+          {!profileLoading && !hasContent && (
+            <EmptyState
+              icon={FileQuestion}
+              title="Nothing public yet"
+              description="This profile hasn't shared any public posts, media, or details we can show here."
+            />
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="mb-2 mt-6 text-center">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Shared via{" "}
+            <Link href="/" className="font-semibold text-brand-deep hover:underline">
+              Brainstorm
+            </Link>{" "}
+            — trust, made visible.
+          </p>
+        </div>
+
+        {/* Sticky mobile Join bar — a persistent CTA as a logged-out visitor scrolls. */}
+        {!loggedIn && (
+          <>
+            <div className="h-20 sm:hidden" aria-hidden />
+            <div
+              className="fixed inset-x-0 bottom-[var(--bs-bottom-chrome,0px)] z-40 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:hidden"
+              data-testid="share-invite-sticky"
+            >
+              <Link
+                href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
+                className="inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
+                data-testid="share-wot-cta-sticky"
+              >
+                Join free — connect with {displayName.split(" ")[0] || displayName} <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
-          </ContentTeaserBlock>
+          </>
         )}
 
-        {!profileLoading && !hasContent && (
-          <EmptyState
-            icon={FileQuestion}
-            title="Nothing public yet"
-            description="This profile hasn't shared any public posts, media, or details we can show here."
+        <TrustScoreModal
+          open={scoreModalOpen}
+          onOpenChange={setScoreModalOpen}
+          scores={{ personalized: score01, global: houseScore01 }}
+        />
+        {profile.lud16 && (
+          <ZapModal
+            open={zapOpen}
+            onOpenChange={setZapOpen}
+            recipientPubkey={pubkey}
+            lud16={profile.lud16}
+            displayName={displayName}
+            picture={profile.picture}
           />
         )}
-      </div>
 
-      {/* Footer */}
-      <div className="mt-6 mb-2 text-center">
-        <p className="text-xs text-slate-400 dark:text-slate-500">
-          Shared via <Link href="/" className="font-semibold text-brand-deep hover:underline">Brainstorm</Link> — trust, made visible.
-        </p>
-      </div>
-
-      {/* Sticky mobile Join bar — a persistent CTA as a logged-out visitor scrolls. */}
-      {!loggedIn && (
-        <>
-          <div className="h-20 sm:hidden" aria-hidden />
-          <div className="fixed bottom-[var(--bs-bottom-chrome,0px)] inset-x-0 z-40 sm:hidden border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_12px_rgba(0,0,0,0.06)]" data-testid="share-invite-sticky">
-            <Link
-              href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
-              className="w-full inline-flex items-center justify-center gap-1.5 h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold shadow-sm transition-colors"
-              data-testid="share-wot-cta-sticky"
-            >
-              Join free — connect with {displayName.split(" ")[0] || displayName} <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </>
-      )}
-
-      <TrustScoreModal
-        open={scoreModalOpen}
-        onOpenChange={setScoreModalOpen}
-        scores={{ personalized: score01, global: houseScore01 }}
-      />
-      {profile.lud16 && (
-        <ZapModal open={zapOpen} onOpenChange={setZapOpen} recipientPubkey={pubkey} lud16={profile.lud16} displayName={displayName} picture={profile.picture} />
-      )}
-
-      {/* Owner-only inline personalization (NIP-78). */}
-      {isOwner && !editing && (
-        <button
-          type="button"
-          onClick={startCustomize}
-          className="fixed bottom-[calc(1rem+var(--bs-bottom-chrome,0px))] right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-brand-primary-hover"
-          data-testid="customize-open"
-        >
-          <SlidersHorizontal className="h-4 w-4" /> Customize
-        </button>
-      )}
-      {isOwner && (
-        <ProfileCustomizer open={editing} draft={draft} onChange={updateDraft} onSave={saveCustomize} onCancel={cancelCustomize} saving={savingPrefs} error={prefsError} followerCandidates={followerCandidates} emptyKeys={emptyKeys} />
-      )}
+        {/* Owner-only inline personalization (NIP-78). */}
+        {isOwner && !editing && (
+          <button
+            type="button"
+            onClick={startCustomize}
+            className="fixed bottom-[calc(1rem+var(--bs-bottom-chrome,0px))] right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-brand-primary-hover"
+            data-testid="customize-open"
+          >
+            <SlidersHorizontal className="h-4 w-4" /> Customize
+          </button>
+        )}
+        {isOwner && (
+          <ProfileCustomizer
+            open={editing}
+            draft={draft}
+            onChange={updateDraft}
+            onSave={saveCustomize}
+            onCancel={cancelCustomize}
+            saving={savingPrefs}
+            error={prefsError}
+            followerCandidates={followerCandidates}
+            emptyKeys={emptyKeys}
+          />
+        )}
       </ShareNavProvider>
     </ShareShell>
   );
 }
 
 /** The profile's share sheet, minting a short link only once it is open. */
-function ProfileShareSheet({ relays, ...props }: Omit<React.ComponentProps<typeof ShareProfileModal>, "shareUrl"> & { relays: string[] }) {
+function ProfileShareSheet({
+  relays,
+  ...props
+}: Omit<React.ComponentProps<typeof ShareProfileModal>, "shareUrl"> & { relays: string[] }) {
   const shareUrl = useShareUrl({ npub: props.npub, relays, enabled: props.open });
   return <ShareProfileModal {...props} shareUrl={shareUrl} />;
 }
 
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
+    <div className="flex min-h-screen flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <PublicPageHeader maxWidthClass="max-w-4xl" actions={actions} />
-      <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6">{children}</main>
     </div>
   );
 }
 
 function NotFoundCard({ rawId }: { rawId: string }) {
   return (
-    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center" data-testid="share-not-found">
-      <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Profile not found</h1>
+    <div
+      className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      data-testid="share-not-found"
+    >
+      <h1
+        className="text-xl font-bold text-slate-900 dark:text-slate-100"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        Profile not found
+      </h1>
       <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-        "{rawId.slice(0, 24)}{rawId.length > 24 ? "…" : ""}" isn't a valid profile link. Share links look like <span className="font-mono">/p/npub1…</span>.
+        "{rawId.slice(0, 24)}
+        {rawId.length > 24 ? "…" : ""}" isn't a valid profile link. Share links look like{" "}
+        <span className="font-mono">/p/npub1…</span>.
       </p>
-      <Link href="/" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm <ArrowRight className="h-4 w-4" /></Link>
+      <Link
+        href="/"
+        className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand-link hover:underline"
+      >
+        Go to Brainstorm <ArrowRight className="h-4 w-4" />
+      </Link>
     </div>
   );
 }
 
 function safeNpub(pubkey: string): string {
-  try { return npubFromPubkey(pubkey); } catch { return ""; }
+  try {
+    return npubFromPubkey(pubkey);
+  } catch {
+    return "";
+  }
 }

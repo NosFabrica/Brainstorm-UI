@@ -41,10 +41,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
   it("renders every row it is given, knowing none of them in advance", () => {
     renderWithProviders(
       <PlanPicker
-        plans={[
-          FREE,
-          plan({ policyId: 5, planName: "Wildcard", amountMinor: 4200, currency: "CAD" }),
-        ]}
+        plans={[FREE, plan({ policyId: 5, planName: "Wildcard", amountMinor: 4200, currency: "CAD" })]}
         currentPolicyId={null}
         onChoose={() => {}}
       />,
@@ -81,12 +78,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
     const daily = plan({ planId: "day", amountMinor: 10, billingInterval: "daily" });
     const monthly = plan({ planId: "mon", amountMinor: 200 });
     renderWithProviders(
-      <PlanPicker
-        plans={[FREE, daily, monthly]}
-        currentPolicyId={2}
-        currentPlanId="day"
-        onChoose={() => {}}
-      />,
+      <PlanPicker plans={[FREE, daily, monthly]} currentPolicyId={2} currentPlanId="day" onChoose={() => {}} />,
     );
     expect(screen.getByTestId("plan-current-1")).toBeInTheDocument();
     expect(screen.queryByTestId("plan-current-2")).toBeNull();
@@ -101,12 +93,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
   // theirs — a dead-end dialog on the exact switch this ticket exists for.
   it("keeps the other plan buyable even when it is the only row rendered", () => {
     renderWithProviders(
-      <PlanPicker
-        plans={[plan({ planId: "mon" })]}
-        currentPolicyId={2}
-        currentPlanId="day"
-        onChoose={() => {}}
-      />,
+      <PlanPicker plans={[plan({ planId: "mon" })]} currentPolicyId={2} currentPlanId="day" onChoose={() => {}} />,
     );
     expect(screen.queryByTestId("plan-current-0")).toBeNull();
     expect(screen.getByTestId("plan-cta-0")).toBeInTheDocument();
@@ -115,9 +102,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
   // Nobody has bought anything, so there is no plan to match — the free row and
   // a comped account are both marked by the policy they hold.
   it("marks by policy for a holder with no plan behind them", () => {
-    renderWithProviders(
-      <PlanPicker plans={[FREE, plan()]} currentPolicyId={1} onChoose={() => {}} />,
-    );
+    renderWithProviders(<PlanPicker plans={[FREE, plan()]} currentPolicyId={1} onChoose={() => {}} />);
     expect(screen.getByTestId("plan-current-0")).toBeInTheDocument();
     expect(screen.queryByTestId("plan-current-1")).toBeNull();
   });
@@ -126,12 +111,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
     // Their plan is not on the page at all. Marking the tier would take the
     // call to action off the only row they could move to.
     renderWithProviders(
-      <PlanPicker
-        plans={[FREE, plan()]}
-        currentPolicyId={2}
-        currentPlanId="retired"
-        onChoose={() => {}}
-      />,
+      <PlanPicker plans={[FREE, plan()]} currentPolicyId={2} currentPlanId="retired" onChoose={() => {}} />,
     );
     expect(screen.queryByTestId("plan-current-1")).toBeNull();
     expect(screen.getByTestId("plan-cta-1")).toBeInTheDocument();
@@ -143,10 +123,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
     // theirs to grow, so an unknown word is a case that will happen.
     renderWithProviders(
       <PlanPicker
-        plans={[
-          plan({ billingInterval: "fortnightly" }),
-          plan({ billingInterval: null }),
-        ]}
+        plans={[plan({ billingInterval: "fortnightly" }), plan({ billingInterval: null })]}
         currentPolicyId={null}
         onChoose={() => {}}
       />,
@@ -161,11 +138,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
   // plan would leave nothing marked.
   it("marks the current row by policy, even when their own plan is no longer sold", () => {
     renderWithProviders(
-      <PlanPicker
-        plans={[FREE, plan({ policyId: 2, amountMinor: 300 })]}
-        currentPolicyId={2}
-        onChoose={() => {}}
-      />,
+      <PlanPicker plans={[FREE, plan({ policyId: 2, amountMinor: 300 })]} currentPolicyId={2} onChoose={() => {}} />,
     );
     expect(screen.getByTestId("plan-current-1")).toBeInTheDocument();
     expect(screen.queryByTestId("plan-current-0")).toBeNull();
@@ -174,9 +147,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
   });
 
   it("gives the free row nothing to buy, and leaves it where the server put it", () => {
-    renderWithProviders(
-      <PlanPicker plans={[FREE, plan()]} currentPolicyId={null} onChoose={() => {}} />,
-    );
+    renderWithProviders(<PlanPicker plans={[FREE, plan()]} currentPolicyId={null} onChoose={() => {}} />);
     expect(screen.getByTestId("plan-name-0")).toHaveTextContent("Free");
     expect(screen.getByTestId("plan-price-0")).toHaveTextContent("Free");
     expect(screen.queryByTestId("plan-cta-0")).toBeNull();
@@ -186,9 +157,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
   it("hands the clicked plan back synchronously, so window.open survives popup blockers", () => {
     const onChoose = vi.fn();
     const yearly = plan({ amountMinor: 2000, billingInterval: "yearly" });
-    renderWithProviders(
-      <PlanPicker plans={[FREE, plan(), yearly]} currentPolicyId={1} onChoose={onChoose} />,
-    );
+    renderWithProviders(<PlanPicker plans={[FREE, plan(), yearly]} currentPolicyId={1} onChoose={onChoose} />);
     fireEvent.click(screen.getByTestId("plan-cta-2"));
     expect(onChoose).toHaveBeenCalledTimes(1);
     expect(onChoose).toHaveBeenCalledWith(yearly);
@@ -229,7 +198,9 @@ describe("PlanPicker — the page is whatever the server says", () => {
   it("renders Flash's copy as text — markup must never become markup", () => {
     renderWithProviders(
       <PlanPicker
-        plans={[plan({ description: "<img src=x onerror=alert(1)>", features: ["Everything"], notIncluded: ["Nothing"] })]}
+        plans={[
+          plan({ description: "<img src=x onerror=alert(1)>", features: ["Everything"], notIncluded: ["Nothing"] }),
+        ]}
         currentPolicyId={null}
         onChoose={() => {}}
       />,
@@ -241,9 +212,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
   });
 
   it("shows nothing rather than a wrong list while the call is in flight", () => {
-    renderWithProviders(
-      <PlanPicker plans={undefined} currentPolicyId={null} onChoose={() => {}} />,
-    );
+    renderWithProviders(<PlanPicker plans={undefined} currentPolicyId={null} onChoose={() => {}} />);
     expect(screen.getByTestId("plan-picker-loading")).toBeInTheDocument();
     expect(screen.queryByTestId("plan-picker")).toBeNull();
   });

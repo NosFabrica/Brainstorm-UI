@@ -32,10 +32,8 @@ export const acceptsZaps = (params: LnurlPayParams | null | undefined): boolean 
  * **not** a Session question: a lapsed Session would otherwise anonymise every
  * zap silently, with nothing on screen to say so.
  */
-export const canAttributeZap = (
-  params: LnurlPayParams | null | undefined,
-  signer: unknown,
-): boolean => acceptsZaps(params) && !!signer;
+export const canAttributeZap = (params: LnurlPayParams | null | undefined, signer: unknown): boolean =>
+  acceptsZaps(params) && !!signer;
 
 /** Thrown when the lightning provider can't be reached or returns bad data —
  *  the modal treats this as "fall back to the address QR", not a hard error. */
@@ -93,9 +91,7 @@ export function buildZapRequest(opts: {
     ["relays", ...opts.relays], // one tag, URLs spread inline (NIP-57)
     ["amount", String(opts.amountMsat)], // millisats, string
     ["lnurl", opts.lnurl],
-    opts.relayHint
-      ? ["p", opts.recipientPubkey, opts.relayHint]
-      : ["p", opts.recipientPubkey], // hex
+    opts.relayHint ? ["p", opts.recipientPubkey, opts.relayHint] : ["p", opts.recipientPubkey], // hex
   ];
   if (opts.anon) tags.push(["anon", ""]); // anonymous-zap convention (Damus/Amethyst)
   // No `pubkey` — whoever signs stamps their own.

@@ -28,7 +28,15 @@ import { eventStore } from "./eventStore";
 vi.mock("./loaders", () => ({ loadReplaceable: async () => undefined }));
 
 const profile = (pubkey: string, created_at = 1): NostrEvent =>
-  ({ id: `id-${pubkey}`, kind: 0, pubkey, tags: [], content: JSON.stringify({ name: pubkey }), created_at, sig: "s" }) as NostrEvent;
+  ({
+    id: `id-${pubkey}`,
+    kind: 0,
+    pubkey,
+    tags: [],
+    content: JSON.stringify({ name: pubkey }),
+    created_at,
+    sig: "s",
+  }) as NostrEvent;
 
 /** Kind-0 rows young enough to answer alone — what `cacheRequest` hands back. */
 const readProfiles = async (pubkeys: string[]) => {

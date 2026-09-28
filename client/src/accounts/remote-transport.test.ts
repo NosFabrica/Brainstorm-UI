@@ -38,9 +38,7 @@ function publishPool() {
     status$: new BehaviorSubject({}),
     publish: (relays: string[]) =>
       new Promise((resolve) => {
-        pending.set(relays[0], (ok: boolean) =>
-          resolve([{ ok, from: relays[0], message: ok ? "" : "refused" }]),
-        );
+        pending.set(relays[0], (ok: boolean) => resolve([{ ok, from: relays[0], message: ok ? "" : "refused" }]));
       }),
   };
 }
@@ -55,10 +53,7 @@ describe("a request whose publish is waiting on a dead relay", () => {
     const pool = publishPool();
     installRemoteTransport(pool as never);
 
-    const sent = NostrConnectSigner.publishMethod!(
-      ["wss://ours", "wss://unreachable"],
-      {} as never,
-    );
+    const sent = NostrConnectSigner.publishMethod!(["wss://ours", "wss://unreachable"], {} as never);
     let settled = false;
     void Promise.resolve(sent).then(() => (settled = true));
 

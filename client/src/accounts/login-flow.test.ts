@@ -174,6 +174,8 @@ describe("an extension that never answers the sign-in", () => {
 
     expect(failure).toBeInstanceOf(LoginError);
     expect((failure as InstanceType<typeof LoginError>).code).toBe("EXTENSION_FAILED");
-    expect((failure as Error).message).toBe("Your extension didn't answer. Open it, approve the request, and try again — or use your key.");
+    expect((failure as Error).message).toBe(
+      "Your extension didn't answer. Open it, approve the request, and try again — or use your key.",
+    );
   });
 });

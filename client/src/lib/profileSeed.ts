@@ -81,7 +81,9 @@ export function consumeStoredSearchSeed(hexPubkey: string): ProfileSeed | null {
     if (normalize(parsed.pubkey) !== normalize(hexPubkey)) return null;
     return parsed;
   } catch {
-    try { window.sessionStorage.removeItem(key); } catch {}
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch {}
     return null;
   }
 }

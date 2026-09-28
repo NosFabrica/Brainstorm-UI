@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { __resetTrustSignals, hasSettledTrustSignals, lookupTrustSignals, settledTrustSignals } from "@/services/trustSignals";
+import {
+  __resetTrustSignals,
+  hasSettledTrustSignals,
+  lookupTrustSignals,
+  settledTrustSignals,
+} from "@/services/trustSignals";
 
 /**
  * House-influence scores for a list of authors, for surfaces that show faces
@@ -20,7 +25,9 @@ export function useAuthorScores(pubkeys: string[]): (pk: string) => number | nul
         if (alive.current) setVersion((v) => v + 1);
       });
     }
-    return () => { alive.current = false; };
+    return () => {
+      alive.current = false;
+    };
   }, [pubkeys.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   return (pk) => settledTrustSignals(pk)?.influence;
 }

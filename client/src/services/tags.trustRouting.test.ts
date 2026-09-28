@@ -96,14 +96,12 @@ describe("trust reads are addressed by the observer's kind-10040", () => {
       kind: 10040,
       tags: [["30382:rank", OBSERVER_TA, OBSERVER_RELAY]],
     });
-    h.fetchEventsByFilter.mockImplementation(
-      async (filter: Record<string, unknown>) => {
-        const kinds = (filter.kinds as number[]) || [];
-        if (kinds.includes(30382)) return [trustAssertion(ASSERTER, 96, OBSERVER_TA)];
-        if (kinds.includes(39999)) return [tagging()];
-        return [];
-      },
-    );
+    h.fetchEventsByFilter.mockImplementation(async (filter: Record<string, unknown>) => {
+      const kinds = (filter.kinds as number[]) || [];
+      if (kinds.includes(30382)) return [trustAssertion(ASSERTER, 96, OBSERVER_TA)];
+      if (kinds.includes(39999)) return [tagging()];
+      return [];
+    });
   });
 
   it("queries the relay the declaration names", async () => {
@@ -173,9 +171,7 @@ describe("an observer with no declaration", () => {
     // the house view, not an empty page and not an unfiltered one.
     const NEWCOMER = "5a85b27920d0" + "3".repeat(52);
     h.fetchTrustProviderList.mockImplementation(async (pk: string) =>
-      pk === NEWCOMER
-        ? undefined
-        : { kind: 10040, tags: [["30382:rank", OBSERVER_TA, OBSERVER_RELAY]] },
+      pk === NEWCOMER ? undefined : { kind: 10040, tags: [["30382:rank", OBSERVER_TA, OBSERVER_RELAY]] },
     );
     h.fetchEventsByFilter.mockImplementation(async (filter: Record<string, unknown>) => {
       const kinds = (filter.kinds as number[]) || [];
@@ -183,10 +179,7 @@ describe("an observer with no declaration", () => {
       if (kinds.includes(39999)) return [tagging()];
       return [];
     });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ names: { _: OBSERVER } }) }),
-    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ names: { _: OBSERVER } }) }));
 
     const { fetchProfileTags } = await import("./tags");
     const res = await fetchProfileTags(TARGET, NEWCOMER, NEWCOMER);

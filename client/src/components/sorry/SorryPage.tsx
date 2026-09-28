@@ -70,7 +70,13 @@ function SorryArt({ className = "" }: { className?: string }) {
         className="pointer-events-none absolute inset-x-[12%] bottom-[6%] -z-10 h-[18%] rounded-[50%] bg-brand-primary/10 blur-2xl dark:bg-brand-primary/20"
         aria-hidden="true"
       />
-      <img src="/brand/sorry-ostrich.png" alt="" className="mx-auto w-full" onError={() => setGone(true)} data-testid="sorry-art" />
+      <img
+        src="/brand/sorry-ostrich.png"
+        alt=""
+        className="mx-auto w-full"
+        onError={() => setGone(true)}
+        data-testid="sorry-art"
+      />
     </div>
   );
 }
@@ -137,19 +143,26 @@ export function SorryPage({
   const copy = COPY[scope];
   const secondary =
     scope === "api" ? (
-      <Link href="/" className={SECONDARY_LINK} data-testid="sorry-secondary">Search still works →</Link>
+      <Link href="/" className={SECONDARY_LINK} data-testid="sorry-secondary">
+        Search still works →
+      </Link>
     ) : scope === "search" && signedIn ? (
-      <Link href="/dashboard" className={SECONDARY_LINK} data-testid="sorry-secondary">Go to your dashboard →</Link>
+      <Link href="/dashboard" className={SECONDARY_LINK} data-testid="sorry-secondary">
+        Go to your dashboard →
+      </Link>
     ) : null;
 
   if (variant === "inline") {
     return (
       <div
-        className="rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 px-5 py-8 text-center"
+        className="rounded-2xl border border-slate-100 bg-white/80 px-5 py-8 text-center dark:border-slate-800/60 dark:bg-slate-900/80"
         data-testid={`sorry-${scope}`}
       >
         <SorryArt className="mb-5 max-w-[190px]" />
-        <h3 className="text-xl font-medium tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+        <h3
+          className="text-xl font-medium tracking-tight text-slate-900 dark:text-slate-100"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
           {copy.line}
         </h3>
         <p className="mx-auto mt-1.5 max-w-md text-sm text-slate-600 dark:text-slate-300">{copy.body}</p>
@@ -186,7 +199,7 @@ export function SorryFrame({
 }) {
   return (
     <div
-      className="relative flex min-h-[100dvh] flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 [overflow-x:clip]"
+      className="relative flex min-h-[100dvh] flex-col bg-white text-slate-900 [overflow-x:clip] dark:bg-slate-950 dark:text-slate-100"
       data-testid={testId}
     >
       <GlossBackground />
@@ -198,7 +211,10 @@ export function SorryFrame({
       </header>
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10 text-center sm:px-6">
         <SorryArt className="mb-7 max-w-[260px]" />
-        <h1 className="text-5xl font-medium tracking-tight text-brand-deep dark:text-brand-link sm:text-6xl" style={{ fontFamily: "var(--font-display)" }}>
+        <h1
+          className="text-5xl font-medium tracking-tight text-brand-deep dark:text-brand-link sm:text-6xl"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
           {headline}
         </h1>
         <h2 className="mt-3 text-xl font-medium text-slate-800 dark:text-slate-100 sm:text-2xl">{line}</h2>
@@ -208,7 +224,11 @@ export function SorryFrame({
       {/* The site's doors, on phones too — this page has nothing else to offer. */}
       <footer className="relative z-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom)+var(--bs-bottom-chrome,0px))] pt-4 text-xs">
         {SITE_LINKS.map((l) => (
-          <Link key={l.href} href={l.href} className="font-medium text-slate-500 transition-colors hover:text-brand-deep dark:text-slate-400 dark:hover:text-white">
+          <Link
+            key={l.href}
+            href={l.href}
+            className="font-medium text-slate-500 transition-colors hover:text-brand-deep dark:text-slate-400 dark:hover:text-white"
+          >
             {l.label}
           </Link>
         ))}

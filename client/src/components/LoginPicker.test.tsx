@@ -104,9 +104,7 @@ describe("the accounts this device kept", () => {
 
 describe("an identity holding more than one signer", () => {
   it("appears once, with a row per signer", () => {
-    renderPicker([
-      identity({ rows: [row("alice-key", "key"), row("alice-ext", "extension")] }),
-    ]);
+    renderPicker([identity({ rows: [row("alice-key", "key"), row("alice-ext", "extension")] })]);
 
     expect(screen.getAllByText("Alice")).toHaveLength(1);
     expect(screen.getByTestId("button-pick-account-alice-key")).toBeInTheDocument();
@@ -114,9 +112,7 @@ describe("an identity holding more than one signer", () => {
   });
 
   it("names the signer on every row, which is what tells them apart", () => {
-    renderPicker([
-      identity({ rows: [row("alice-key", "key"), row("alice-ext", "extension")] }),
-    ]);
+    renderPicker([identity({ rows: [row("alice-key", "key"), row("alice-ext", "extension")] })]);
 
     expect(screen.getByText("Key")).toBeInTheDocument();
     expect(screen.getByText("Extension")).toBeInTheDocument();
@@ -133,8 +129,7 @@ describe("a row whose health is still unknown", () => {
 });
 
 describe("a key that can't be recovered here", () => {
-  const dead = () =>
-    identity({ name: "Dave", rows: [row("dave-key", "key", "key-unavailable")] });
+  const dead = () => identity({ name: "Dave", rows: [row("dave-key", "key", "key-unavailable")] });
 
   it("keeps its place and its npub, but is not a way in", () => {
     renderPicker([dead()]);
@@ -183,10 +178,7 @@ describe("a key that can't be recovered here", () => {
 describe("an extension that isn't here", () => {
   it("is marked, and can be looked for again", () => {
     const onRecheckExtension = vi.fn();
-    renderPicker(
-      [identity({ rows: [row("alice-ext", "extension", "extension-missing")] })],
-      { onRecheckExtension },
-    );
+    renderPicker([identity({ rows: [row("alice-ext", "extension", "extension-missing")] })], { onRecheckExtension });
 
     expect(screen.queryByTestId("button-pick-account-alice-ext")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-recheck-extension-alice-ext"));

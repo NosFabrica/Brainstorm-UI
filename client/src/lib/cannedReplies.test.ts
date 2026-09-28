@@ -9,7 +9,11 @@ describe("canned replies — the admin's saved answers, per device", () => {
     const a = saveCanned("NWC budget", "Check your wallet connection's spending budget…");
     const b = saveCanned("Score cadence", "Scores recalculate on your plan's schedule…");
 
-    expect(listCanned().slice(0, 2).map((c) => c.title)).toEqual(["Score cadence", "NWC budget"]);
+    expect(
+      listCanned()
+        .slice(0, 2)
+        .map((c) => c.title),
+    ).toEqual(["Score cadence", "NWC budget"]);
     expect(listCanned()[1].body).toContain("spending budget");
 
     removeCanned(a.id);

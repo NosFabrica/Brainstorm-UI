@@ -50,7 +50,11 @@ export function TierTile({
         <VerificationCoin score01={score01} flagged={flagged} pov={pov} size={34} ring={false} />
       </span>
       <div className="min-w-0">
-        <p className="truncate text-sm font-bold leading-tight" style={{ color: rung.color }} data-testid="tier-tile-word">
+        <p
+          className="truncate text-sm font-bold leading-tight"
+          style={{ color: rung.color }}
+          data-testid="tier-tile-word"
+        >
           {rung.label}
         </p>
         <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">{sub}</p>

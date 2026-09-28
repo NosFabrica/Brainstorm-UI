@@ -30,7 +30,11 @@ function underLine(score: number | null | undefined, line: number): boolean {
 }
 
 /** How many of these hits the floor would hide — for the page to say so. */
-export function countBelowLine(hits: SearchHit[], scoreOf: (pk: string) => number | null | undefined, line = DEFAULT_VERIFIED_LINE): number {
+export function countBelowLine(
+  hits: SearchHit[],
+  scoreOf: (pk: string) => number | null | undefined,
+  line = DEFAULT_VERIFIED_LINE,
+): number {
   return hits.filter((h) => underLine(scoreOf(h.event.pubkey), line)).length;
 }
 

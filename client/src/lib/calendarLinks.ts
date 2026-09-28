@@ -12,7 +12,9 @@ export type CalendarTarget = "apple" | "google" | "outlook";
 
 export function detectCalendarPlatform(
   ua: string = typeof navigator !== "undefined" ? navigator.userAgent : "",
-  hint: string | undefined = typeof navigator !== "undefined" ? (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform : undefined,
+  hint: string | undefined = typeof navigator !== "undefined"
+    ? (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform
+    : undefined,
 ): CalendarPlatform {
   const h = (hint ?? "").toLowerCase();
   if (h) {
@@ -68,7 +70,10 @@ export function googleCalendarUrl(input: IcsInput): string {
   u.searchParams.set("action", "TEMPLATE");
   u.searchParams.set("text", input.title);
   const end = endOf(input);
-  u.searchParams.set("dates", input.isDateOnly ? `${dateUtc(input.startSec)}/${dateUtc(end)}` : `${stampUtc(input.startSec)}/${stampUtc(end)}`);
+  u.searchParams.set(
+    "dates",
+    input.isDateOnly ? `${dateUtc(input.startSec)}/${dateUtc(end)}` : `${stampUtc(input.startSec)}/${stampUtc(end)}`,
+  );
   if (input.location) u.searchParams.set("location", input.location);
   const details = notes(input);
   if (details) u.searchParams.set("details", details);

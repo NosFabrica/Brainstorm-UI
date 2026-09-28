@@ -21,12 +21,22 @@ export interface SectionHeaderProps extends React.HTMLAttributes<HTMLDivElement>
   variant?: "kicker" | "title";
 }
 
-export function SectionHeader({ kicker, icon: Icon, noRule = false, variant = "kicker", className, ...props }: SectionHeaderProps) {
+export function SectionHeader({
+  kicker,
+  icon: Icon,
+  noRule = false,
+  variant = "kicker",
+  className,
+  ...props
+}: SectionHeaderProps) {
   if (variant === "title") {
     return (
       <div className={cn("flex items-center gap-2", className)} {...props}>
         {Icon && <Icon className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}
-        <h2 className="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+        <h2
+          className="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
           {kicker}
         </h2>
       </div>
@@ -35,7 +45,7 @@ export function SectionHeader({ kicker, icon: Icon, noRule = false, variant = "k
   return (
     <div className={cn("flex items-center gap-2", className)} {...props}>
       {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-brand-accent" />}
-      <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-brand-accent">{kicker}</span>
+      <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-accent">{kicker}</span>
       {!noRule && <span className="h-px flex-1 bg-gradient-to-r from-brand-accent/25 to-transparent" />}
     </div>
   );

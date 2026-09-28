@@ -18,7 +18,9 @@ export function useAuthorFlags(pubkeys: string[]): (pk: string) => boolean | und
         if (alive.current) setVersion((v) => v + 1);
       });
     }
-    return () => { alive.current = false; };
+    return () => {
+      alive.current = false;
+    };
   }, [pubkeys.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   return (pk) => settledTrustSignals(pk)?.flagged;
 }

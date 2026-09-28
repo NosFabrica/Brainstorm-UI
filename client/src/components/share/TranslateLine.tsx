@@ -55,7 +55,10 @@ export function TranslateLine({ text, className = "" }: { text: string; classNam
   if (phase === "shown" && translated) {
     return (
       <div className={`mt-1.5 ${className}`} onClick={stop}>
-        <p className="text-[13px] leading-snug text-slate-800 dark:text-slate-100 break-words" data-testid="translated-text">
+        <p
+          className="break-words text-[13px] leading-snug text-slate-800 dark:text-slate-100"
+          data-testid="translated-text"
+        >
           {translated}
         </p>
         <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500" data-testid="translate-note">
@@ -66,7 +69,7 @@ export function TranslateLine({ text, className = "" }: { text: string; classNam
               stop(e);
               setPhase("idle");
             }}
-            className="font-medium text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+            className="rounded font-medium text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
             data-testid="translate-original"
           >
             Show original
@@ -81,7 +84,7 @@ export function TranslateLine({ text, className = "" }: { text: string; classNam
       type="button"
       onClick={run}
       disabled={phase === "working"}
-      className={`mt-1 text-[11px] font-medium text-brand-link hover:underline disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded ${className}`}
+      className={`mt-1 rounded text-[11px] font-medium text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:opacity-60 ${className}`}
       data-testid="translate-link"
     >
       {phase === "working" ? "Translating…" : "Translate"}

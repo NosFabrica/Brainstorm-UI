@@ -19,9 +19,12 @@ export function MoreResults({ show, loading, onMore }: { show: boolean; loading:
   useEffect(() => {
     const el = sentinel.current;
     if (!el || !show || loading || byRequest || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) onMoreRef.current();
-    }, { rootMargin: "0px 0px 600px 0px" });
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) onMoreRef.current();
+      },
+      { rootMargin: "0px 0px 600px 0px" },
+    );
     io.observe(el);
     return () => io.disconnect();
   }, [show, loading, byRequest]);
@@ -32,7 +35,7 @@ export function MoreResults({ show, loading, onMore }: { show: boolean; loading:
         type="button"
         onClick={onMore}
         disabled={loading}
-        className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 transition-colors hover:border-brand-accent/40 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300"
         data-testid="search-more"
       >
         {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}

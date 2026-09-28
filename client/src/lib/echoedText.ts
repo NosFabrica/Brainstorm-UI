@@ -64,7 +64,10 @@ function echoes(snippet: string, ctx: EchoContext, allowShort: boolean): boolean
  * context (the text already shown) doesn't. Empty snippets count as echoed.
  * Pass an `echoContext` when checking several snippets against one text.
  */
-export function isEchoed(snippet: string | null | undefined, context: string | EchoContext | null | undefined): boolean {
+export function isEchoed(
+  snippet: string | null | undefined,
+  context: string | EchoContext | null | undefined,
+): boolean {
   if (!snippet?.trim()) return true;
   const ctx = typeof context === "string" || context == null ? echoContext(context) : context;
   if (!ctx) return false;

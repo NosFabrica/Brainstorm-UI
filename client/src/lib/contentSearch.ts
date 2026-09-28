@@ -61,10 +61,7 @@ const MAX_SCORED_AUTHORS = 50;
  * controls re-filter instantly with no refetch. Authors beyond the scoring cap
  * (or not in the WoT graph) simply have no score and are treated as untrusted.
  */
-export async function searchContentByHashtag(
-  tag: string,
-  opts: { limit?: number } = {},
-): Promise<HashtagContent> {
+export async function searchContentByHashtag(tag: string, opts: { limit?: number } = {}): Promise<HashtagContent> {
   const events = await fetchNotesByHashtag(tag, { limit: opts.limit ?? 100 });
   const candidateCount = events.length;
 

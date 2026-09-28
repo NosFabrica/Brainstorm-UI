@@ -32,7 +32,18 @@ export interface PreparedBody {
 }
 
 /** NIP-01's vocabulary for a spec's standing, plus the words specs actually use. */
-const STATUS_WORDS = new Set(["draft", "optional", "mandatory", "final", "deprecated", "unrecommended", "proposed", "stable", "experimental", "recommended"]);
+const STATUS_WORDS = new Set([
+  "draft",
+  "optional",
+  "mandatory",
+  "final",
+  "deprecated",
+  "unrecommended",
+  "proposed",
+  "stable",
+  "experimental",
+  "recommended",
+]);
 
 /** Whitespace and case aside — "(TSM )" in a tag is "(TSM)" in the body. */
 const loose = (s: string) => s.replace(/\s+/g, "").toLowerCase();
@@ -47,7 +58,9 @@ const TOKEN_LINE = /^\s*(?:`[^`]+`\s*)+(?:"[^"]*")?\s*$/;
 export function prepareArticleBody(markdown: string, title: string, opts: { identifier?: string } = {}): PreparedBody {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   let i = 0;
-  const skipBlank = () => { while (i < lines.length && lines[i].trim() === "") i++; };
+  const skipBlank = () => {
+    while (i < lines.length && lines[i].trim() === "") i++;
+  };
 
   // The title, once: `# Title`, or the underlined form.
   skipBlank();
@@ -69,19 +82,41 @@ export function prepareArticleBody(markdown: string, title: string, opts: { iden
   let j = i;
   for (; j < lines.length; j++) {
     const line = lines[j];
-    if (line.trim() === "") { kept.push(line); continue; }
-    if (/^#{1,6}\s/.test(line)) { kept.push(line); continue; }
+    if (line.trim() === "") {
+      kept.push(line);
+      continue;
+    }
+    if (/^#{1,6}\s/.test(line)) {
+      kept.push(line);
+      continue;
+    }
     // An underlined heading: the text, then its `===` or `---`. The dashes are
     // its underline, not the rule — both lines stay.
-    if (!TOKEN_LINE.test(line) && /^\s*(=+|-+)\s*$/.test(lines[j + 1] ?? "")) { kept.push(line, lines[j + 1]); j++; continue; }
-    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { j++; break; } // the rule closes the front matter, and goes with it
+    if (!TOKEN_LINE.test(line) && /^\s*(=+|-+)\s*$/.test(lines[j + 1] ?? "")) {
+      kept.push(line, lines[j + 1]);
+      j++;
+      continue;
+    }
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      j++;
+      break;
+    } // the rule closes the front matter, and goes with it
     if (!TOKEN_LINE.test(line)) break;
     const t = tokens(line);
     const label = quoted(line);
-    if (t[0] === "kind" && t[1] && /^\d+$/.test(t[1])) { kinds.push(label ? { kind: t[1], label } : { kind: t[1] }); continue; }
-    if (t[0] === "tag" && t[1]) { tags.push(label ? { name: t[1], label } : { name: t[1] }); continue; }
+    if (t[0] === "kind" && t[1] && /^\d+$/.test(t[1])) {
+      kinds.push(label ? { kind: t[1], label } : { kind: t[1] });
+      continue;
+    }
+    if (t[0] === "tag" && t[1]) {
+      tags.push(label ? { name: t[1], label } : { name: t[1] });
+      continue;
+    }
     if (t.length === 1 && opts.identifier && t[0] === opts.identifier) continue; // the spec's own id — the address already says it
-    if (t.every((w) => STATUS_WORDS.has(w.toLowerCase())) && !label) { status.push(...t.map((w) => w.toLowerCase())); continue; }
+    if (t.every((w) => STATUS_WORDS.has(w.toLowerCase())) && !label) {
+      status.push(...t.map((w) => w.toLowerCase()));
+      continue;
+    }
     break; // an unknown token line is the author's prose
   }
   // Only the lines the loop consumed leave the body; what it broke on stays.

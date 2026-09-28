@@ -48,7 +48,6 @@ function Face({ size, src = "https://img.example/alice.jpg" }: { size?: "sm" | "
   );
 }
 
-
 beforeEach(() => {
   requested.length = 0;
   assigned.length = 0;

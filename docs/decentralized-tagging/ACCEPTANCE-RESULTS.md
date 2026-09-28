@@ -50,7 +50,7 @@ built · **N/E** not exercisable in this environment, with the reason given.
 
 ### C1 — Read tags on pubkeys
 
-- **PASS** *Same tags, net counts matching the reference instance.* Recounted
+- **PASS** _Same tags, net counts matching the reference instance._ Recounted
   `verified-human` straight off `wss://dcosl.brainstorm.world` with the kit's
   rule applied verbatim (distinct asserters per target, net apply−dispute > 0,
   no self exclusion): **14 carriers net-positive, 1 self-only** — exactly what
@@ -58,42 +58,42 @@ built · **N/E** not exercisable in this environment, with the reason given.
   self-taggers on that tag: 3/2/2/1 applications under the spec rule, each
   exactly one higher than our previous (self-excluding) arithmetic. That old
   arithmetic was the divergence; it is fixed.
-- **PASS** *Tag names resolve, and repeat reads hit the cache.* Instrumented
+- **PASS** _Tag names resolve, and repeat reads hit the cache._ Instrumented
   `WebSocket.send` in the running app, loaded two profiles that share tags:
   profile A resolved `verified-human, artist, grantless-applicants,
-  grantless-arbiter, lfo, nostr-dev`; profile B then issued **one** element REQ,
+grantless-arbiter, lfo, nostr-dev`; profile B then issued **one** element REQ,
   for `["dcosl","web-of-trust-builder","aos-2026-participant","neurologist"]`
   only. The two shared tags never reached the relay.
-- **PASS** *Replaceable dedupe.* `normalizeAssertions` keys latest-wins on
+- **PASS** _Replaceable dedupe._ `normalizeAssertions` keys latest-wins on
   `(tag, target, asserter)` and the recount above tolerates the relay returning
   31 raw assertions for 16 distinct targets without inflating any count.
 
 ### C2 — Read tags on events
 
-- **PASS** *An event known to be tagged yields its tags with correct net
-  counts.* `/e/:id` renders a "Tagged as" row. Verified anonymously on a note
+- **PASS** _An event known to be tagged yields its tags with correct net
+  counts._ `/e/:id` renders a "Tagged as" row. Verified anonymously on a note
   carrying `LFO Community`; the chip links back to that tag's page.
-- **PASS** *Reads issue batched queries, no per-event REQ storm.* Instrumented
+- **PASS** _Reads issue batched queries, no per-event REQ storm._ Instrumented
   `WebSocket.send` and loaded a profile rendering 4 notes: **one** REQ,
   `{kinds:[39999], '#e':[4 ids]}`. Header, trust and name resolution each run
   once for the whole page, not once per note. `fetchEventTags` (single note) is
   a thin wrapper over `fetchEventTagsBatch`, so the note page and the profile
   teasers cannot disagree about what a note is tagged.
-- **PASS** *Headers resolve; no `unverifiable` for known-good taggings.* The
+- **PASS** _Headers resolve; no `unverifiable` for known-good taggings._ The
   count is carried through to `NoteTagsResult.unverifiable` rather than being
   swallowed — an assertion whose header we can't reach is reported, not dropped,
   which is the kit's stated diagnostic for a header fetch that missed a relay.
 
 ### C3 — Apply an existing tag
 
-- **PASS** *Apply an existing tag to an **event**.* Wire-checked across all
+- **PASS** _Apply an existing tag to an **event**._ Wire-checked across all
   three publish sequences without publishing anything: `applyEventTagging` takes
   sign/publish as injected deps, so the real sequence-selection logic ran
   (including live header discovery against the hub) while every event it would
   sign was captured instead. See "Event-tagging wire check" below.
 - **PASS** Apply to a **pubkey** → the C1 read includes it, and the asserter's
   own stance is present immediately via the `mine` channel
-  (`fetchProfileTags` records `mine` *before* the trust filter, so a tag you
+  (`fetchProfileTags` records `mine` _before_ the trust filter, so a tag you
   just applied can't vanish under a POV that doesn't count you).
 - **PASS** Wire check on the profile-tag shape: `d` =
   `profile-tag-<slug>-<target8>-<asserter8>`, `p` = target, `a` =
@@ -101,7 +101,7 @@ built · **N/E** not exercisable in this environment, with the reason given.
   Verified on relay during earlier sessions with throwaway keypairs.
 - **PASS** Applying the same tag twice does not duplicate — the `d` tag is
   deterministic for the triple, so the relay holds one assertion.
-- **PASS** *Applicability separation available to any picker.* Wired this run:
+- **PASS** _Applicability separation available to any picker._ Wired this run:
   `fetchApplicability()` reads the house's kind-30394 lists and, when they're
   empty or unreachable, derives the same HINT ∪ USAGE union client-side via
   `deriveApplicabilityMembers` + `applicabilityHintFilter` — the fallback the
@@ -111,7 +111,7 @@ built · **N/E** not exercisable in this environment, with the reason given.
   nobody has applied, because the house's published pubkey list contains
   `jumble-qa-profile-1784946392` and `test account` (KIT-FEEDBACK §5). The
   classification is wired and correct; we just don't surface harness output.
-- **N/E** *As B, reading the same targets.* Needs a second signer identity;
+- **N/E** _As B, reading the same targets._ Needs a second signer identity;
   logged-out verification can't cover it. The read path is identity-independent
   (relays only, no per-viewer filtering beyond `mine`), so the risk is low, but
   it is genuinely unverified.
@@ -127,10 +127,10 @@ built · **N/E** not exercisable in this environment, with the reason given.
 
 ### C5 — Create a new tag on the fly
 
-- **PASS** *Mint-and-apply a new tag to an **event** in one flow.* Sequence (c)
+- **PASS** _Mint-and-apply a new tag to an **event** in one flow._ Sequence (c)
   in the wire check: tag-element carrying the `tag-for-nostr-event` hint z, then
   the tagging header, then the assertion — all three shapes correct.
-- **PASS** *As B, apply A's new tag to a different event → exactly ONE publish.*
+- **PASS** _As B, apply A's new tag to a different event → exactly ONE publish._
   Sequence (a): with a header already on the hub, only the assertion is built,
   and its descriptor names the EXISTING header's author rather than minting a
   second one.
@@ -158,17 +158,17 @@ built · **N/E** not exercisable in this environment, with the reason given.
 
 ### C7 — Trust hardening + degraded mode
 
-- **PASS** *30382 REQs are batched `authors + '#d'` only.* Captured live: one
+- **PASS** _30382 REQs are batched `authors + '#d'` only._ Captured live: one
   REQ, `{kinds:[30382], authors:[2], "#d":[4]}`, no other keys, zero
   open-ended `kinds:[30382]` subscriptions.
-- **PASS** *…and they go to `trustRelays`.* `fetchTrustEvents` targets
+- **PASS** _…and they go to `trustRelays`._ `fetchTrustEvents` targets
   `TRUST_RELAYS` (`wss://tags.brainstorm.world/relay`), deliberately not the hub.
-- **PASS** *`minRank: 99999` drops every scored asserter.* Set it, reloaded:
+- **PASS** _`minRank: 99999` drops every scored asserter._ Set it, reloaded:
   `verified-human` fell from **14 people to 6**. The 6 survivors are carried by
   asserters with no published score, passing via `unknownPolicy: "trusted"` —
   precisely the behaviour the checkbox describes. Config restored after.
-- **PASS, after fixing a real bug** *…and the viewer's OWN stance still
-  surfaces via `mine`.* Exercised with a throwaway signer. **It failed first
+- **PASS, after fixing a real bug** _…and the viewer's OWN stance still
+  surfaces via `mine`._ Exercised with a throwaway signer. **It failed first
   time: the chip vanished.**
 
   Root cause, in all three read paths: `mine` could only ANNOTATE an entry, never
@@ -190,23 +190,24 @@ built · **N/E** not exercisable in this environment, with the reason given.
   unreachable for a fresh identity. We hardened `unknownPolicy` alongside it so
   the predicate genuinely rejected the viewer. Config restored after; `git diff`
   on `config/tagging.ts` is clean.
-- **PASS** *Tag relays unreachable.* Pointed the tag-relay list at
+
+- **PASS** _Tag relays unreachable._ Pointed the tag-relay list at
   `wss://nope.invalid.example` (through the new Settings override, no code
   change). Profile rendered normally, tags simply absent, no crash, no wedged
   loading state, no error boundary.
-- **PASS** *Trust relays unreachable → degrade to `unknownPolicy`, no errors
-  surfaced.* Pointed `TRUST_RELAYS` at a dead host: `verified-human` returned to
+- **PASS** _Trust relays unreachable → degrade to `unknownPolicy`, no errors
+  surfaced._ Pointed `TRUST_RELAYS` at a dead host: `verified-human` returned to
   14 people (unfiltered), no error toast, no error boundary, no spinner. Failed
   chunks are left uncached by the SDK so a later `ensure` retries rather than
   negative-caching. Config restored after.
-  **Plus:** the page now says so — *"We couldn't check who's reputable right
-  now, so everyone who added a name is counted here."* C7 asks that this degrade
+  **Plus:** the page now says so — _"We couldn't check who's reputable right
+  now, so everyone who added a name is counted here."_ C7 asks that this degrade
   quietly; quietly is not the same as invisibly, and a list that looks vetted
   when it wasn't is the one failure worth a line of text.
 
 ### Hygiene
 
-- **PASS** *The tag-relay list is editable and persists.* Built this run:
+- **PASS** _The tag-relay list is editable and persists._ Built this run:
   Settings → Trust → Advanced → "Where tags come from"
   (`components/settings/TagRelaysCard.tsx`). Layered
   `localStorage → VITE_TAG_RELAY_URLS → CONFIG.json`, so the shipped default and
@@ -232,7 +233,7 @@ built · **N/E** not exercisable in this environment, with the reason given.
 - **PASS** `data-testid="share-tags"` present.
 - **PASS** Counts match the reference instance — see C1 above.
 - **PASS** An untagged profile renders nothing for an anonymous viewer.
-- **PASS** *A tagged note shows its chips where SharePage renders that note.*
+- **PASS** _A tagged note shows its chips where SharePage renders that note._
   Verified on a profile whose recent notes are tagged: 4 note cards, 2 carrying
   a "Tagged as" row, each chip linking to its tag page. Read-only there by
   design — the picker lives on the note's own page, where there's room for it
@@ -241,14 +242,14 @@ built · **N/E** not exercisable in this environment, with the reason given.
   **This box failed until 2026-08-06** — the chips existed only on `/e/:id`.
   Closing it required batching the read first: a component per card would have
   satisfied Floor A while breaking core C2's no-REQ-storm rule.
-- **PASS** *An unreachable tag relay leaves notes rendering normally, chips
-  absent.* Pointed the tag-relay list at `wss://nope.invalid.example` through
+- **PASS** _An unreachable tag relay leaves notes rendering normally, chips
+  absent._ Pointed the tag-relay list at `wss://nope.invalid.example` through
   the Settings override: 4 note cards still rendered, zero tag rows, no error
   boundary, no spinner, page otherwise intact. Config restored after.
-- **DIVERGENCE, declared** *"Role chips still render exactly as before."* They
+- **DIVERGENCE, declared** _"Role chips still render exactly as before."_ They
   don't — we took `Start.md` Q2's **migrate** option, which sanctions converting
   the host's role chips to protocol tags. Floor A's coexistence line is the
-  check for Q2's *default*, not a rule against the option we chose. Recorded in
+  check for Q2's _default_, not a rule against the option we chose. Recorded in
   `DECISIONS.md`; the Floor A wording should say "if you chose coexist", and
   that's raised in `KIT-FEEDBACK.md`.
   Q2's migrate is specified as "a one-time, owner-prompted conversion" — the
@@ -280,8 +281,8 @@ built · **N/E** not exercisable in this environment, with the reason given.
 - **PASS** Tag pages list tagged **notes**, rendered with the app's own
   `EmbeddedNoteCard` — the same component the share page uses for quoted notes,
   which is what "the app's native note components" asks for.
-- **PASS** *Note-tagging affordance wherever the app renders notes with
-  actions.* That is `/e/:id`, the only surface where a note has its own page and
+- **PASS** _Note-tagging affordance wherever the app renders notes with
+  actions._ That is `/e/:id`, the only surface where a note has its own page and
   action row; feed rows and thread replies render notes without actions, so
   there is nothing to hang it off there. Read-only chips render everywhere else
   a note appears — see Floor A.
@@ -301,11 +302,11 @@ Run as a dry run — `applyEventTagging`'s sign/publish deps were replaced with
 collectors, so the real logic ran and **nothing was published**. Header
 discovery hit the live hub, so the sequence choice is real.
 
-| Sequence | Situation | Publishes | Verified |
-|---|---|---|---|
-| a | tag + header both exist | 1 | `d` = `event-tag-<slug>-<target8>-<asserter8>`; `e` carries our relay hint; two `nostr-event-tag` z-handles; descriptor z resolves to the **live** header `39999:6db8a13f…:tagging:lfo-community-tagging`; `polarity 1` |
-| b | tag exists, no header | 2 | header `d` = `tagging:<slug>-tagging`, its `a` pointing at the tag author's element; assertion's descriptor names the asserter as header author |
-| c | brand-new tag | 3 | element carries the `tag-for-nostr-event` hint (not the pubkey one); header; assertion with `polarity -1` |
+| Sequence | Situation               | Publishes | Verified                                                                                                                                                                                                                |
+| -------- | ----------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a        | tag + header both exist | 1         | `d` = `event-tag-<slug>-<target8>-<asserter8>`; `e` carries our relay hint; two `nostr-event-tag` z-handles; descriptor z resolves to the **live** header `39999:6db8a13f…:tagging:lfo-community-tagging`; `polarity 1` |
+| b        | tag exists, no header   | 2         | header `d` = `tagging:<slug>-tagging`, its `a` pointing at the tag author's element; assertion's descriptor names the asserter as header author                                                                         |
+| c        | brand-new tag           | 3         | element carries the `tag-for-nostr-event` hint (not the pubkey one); header; assertion with `polarity -1`                                                                                                               |
 
 A `publish` that throws aborts the sequence and returns `failedAt` rather than
 reporting success — the partial-failure contract, confirmed in all three runs.
@@ -365,7 +366,7 @@ than claims about anyone.
 1. **`hops` is never published** (KIT-FEEDBACK §1). 500 of 500 sampled
    kind-30382 events carry `d`, `rank` and `followers`; not one carries `hops`.
    The SDK reads a missing `hops` as 999 and tests `hops <= maxHops`, so
-   `CONFIG.json`'s `maxHops: 20` rejects every asserter who *has* a score while
+   `CONFIG.json`'s `maxHops: 20` rejects every asserter who _has_ a score while
    counting everyone who has none. The reference client (Jumble) ships
    `maxHops=999` for the same reason — it prints its defaults in its own user
    guide — so this is the shipped config being wrong, not a local workaround.
@@ -380,7 +381,7 @@ than claims about anyone.
 
 ## Extensions beyond the kit, and where they stand
 
-`INTEGRATION.md` §5 puts rendering with the integrator ("what the host *renders*
+`INTEGRATION.md` §5 puts rendering with the integrator ("what the host _renders_
 with each capability is the per-target kit's or the integrator's decision") and
 `core/ACCEPTANCE.md` defines "surface" as "whatever the host renders the data
 with, even if that's a `console.table`". These are that layer, and none

@@ -18,10 +18,7 @@ type ProfileLite = { name?: string; display_name?: string; picture?: string; nip
  */
 export function ThreadAncestors({ note, relayHints }: { note: MinimalEvent; relayHints: string[] }) {
   const { rootId, parentId } = replyRefs(note);
-  const ids = useMemo(
-    () => Array.from(new Set([rootId, parentId].filter(Boolean))) as string[],
-    [rootId, parentId],
-  );
+  const ids = useMemo(() => Array.from(new Set([rootId, parentId].filter(Boolean))) as string[], [rootId, parentId]);
   const relays = useMemo(() => Array.from(new Set([...relayHints, ...PROFILE_RELAYS])), [relayHints]);
 
   const eventsQuery = useQuery({
@@ -77,13 +74,23 @@ export function ThreadAncestors({ note, relayHints }: { note: MinimalEvent; rela
     <div data-testid="thread-ancestors">
       {root && (
         <>
-          <EmbeddedNoteCard event={root} author={profiles.get(root.pubkey)} profiles={profiles} href={eventPath(root, relayHints)} />
+          <EmbeddedNoteCard
+            event={root}
+            author={profiles.get(root.pubkey)}
+            profiles={profiles}
+            href={eventPath(root, relayHints)}
+          />
           {connector(gap)}
         </>
       )}
       {parent && (
         <>
-          <EmbeddedNoteCard event={parent} author={profiles.get(parent.pubkey)} profiles={profiles} href={eventPath(parent, relayHints)} />
+          <EmbeddedNoteCard
+            event={parent}
+            author={profiles.get(parent.pubkey)}
+            profiles={profiles}
+            href={eventPath(parent, relayHints)}
+          />
           {connector(false)}
         </>
       )}

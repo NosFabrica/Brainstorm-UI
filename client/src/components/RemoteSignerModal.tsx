@@ -14,16 +14,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { use$ } from "applesauce-react/hooks";
-import {
-  AlertTriangle,
-  Check,
-  ClipboardPaste,
-  Copy,
-  Loader2,
-  QrCode,
-  Radio,
-  Smartphone,
-} from "lucide-react";
+import { AlertTriangle, Check, ClipboardPaste, Copy, Loader2, QrCode, Radio, Smartphone } from "lucide-react";
 
 import {
   beginRemotePairing,
@@ -41,13 +32,7 @@ import { signInWithExternalSigner } from "@/accounts/login-flow";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { LazyQRCode } from "@/components/LazyQRCode";
 
@@ -114,8 +99,7 @@ export function RemoteSignerModal({ open, onOpenChange, onSignedIn }: RemoteSign
     live.current = next;
     setPairing(next);
     next.completed.then(
-      (account) =>
-        void finishRef.current(account, next).catch((err) => setError(remoteSignerMessage(err))),
+      (account) => void finishRef.current(account, next).catch((err) => setError(remoteSignerMessage(err))),
       (err) => {
         if (!isPairingCancelled(err)) setError(remoteSignerMessage(err));
       },
@@ -269,14 +253,8 @@ function ConnectPane({
         rather than M: this is a clean screen, not a printed label, so spending
         modules on damage recovery only makes them smaller.
       */}
-      <div className="rounded-xl bg-white p-3 w-full max-w-[320px]">
-        <LazyQRCode
-            value={pairing.uri}
-            bgColor="#ffffff"
-            fgColor="#0A0E18"
-            level="L"
-            className="h-auto w-full"
-          />
+      <div className="w-full max-w-[320px] rounded-xl bg-white p-3">
+        <LazyQRCode value={pairing.uri} bgColor="#ffffff" fgColor="#0A0E18" level="L" className="h-auto w-full" />
       </div>
       <p className="text-xs text-muted-foreground">Scan this with your signer app</p>
     </div>
@@ -311,12 +289,7 @@ function ConnectPane({
         </Button>
       </div>
 
-      <WaitingState
-        relays={pairing.relays}
-        ackRefused$={pairing.ackRefused$}
-        waited={waited}
-        onRetry={onRetry}
-      />
+      <WaitingState relays={pairing.relays} ackRefused$={pairing.ackRefused$} waited={waited} onRetry={onRetry} />
     </div>
   );
 }
@@ -362,10 +335,7 @@ function AppIdentity() {
       />
       <div className="min-w-0">
         <p className="text-sm font-semibold leading-tight">{metadata.name}</p>
-        <p
-          className="truncate text-xs text-muted-foreground"
-          data-testid="text-remote-signer-origin"
-        >
+        <p className="truncate text-xs text-muted-foreground" data-testid="text-remote-signer-origin">
           {host}
         </p>
       </div>
@@ -424,9 +394,9 @@ function WaitingState({
       <Alert variant="warning" data-testid="notice-ack-refused">
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          Something answered without the code we sent, so we couldn't confirm it was your
-          signer — still waiting for one that can. If this is your signer, pair by pasting a{" "}
-          <span className="font-mono">bunker://</span> link from it instead.
+          Something answered without the code we sent, so we couldn't confirm it was your signer — still waiting for one
+          that can. If this is your signer, pair by pasting a <span className="font-mono">bunker://</span> link from it
+          instead.
         </AlertDescription>
       </Alert>
     );
@@ -443,9 +413,7 @@ function WaitingState({
             {/* The commonest cause of a stuck pairing by a wide margin: Amber
                 answers an un-remembered request with a notification and nothing
                 on the wire, so there is no other sign anything is waiting. */}
-            <span className="font-medium">
-              Nothing yet — open the app and check for a notification waiting there.
-            </span>
+            <span className="font-medium">Nothing yet — open the app and check for a notification waiting there.</span>
           </>
         )}
       </AlertDescription>
@@ -480,8 +448,7 @@ function PastePane({
           and is single-use, and Amber mints a new one every time the URI is
           viewed. A link copied yesterday will not work. */}
       <p className="text-xs text-muted-foreground">
-        These links are single-use and short-lived — copy it from your signer and paste it straight
-        away.
+        These links are single-use and short-lived — copy it from your signer and paste it straight away.
       </p>
       <div className="flex justify-between gap-2">
         <Button variant="ghost" onClick={onBack} data-testid="button-back-to-connect">

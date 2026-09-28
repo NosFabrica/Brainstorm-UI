@@ -76,9 +76,7 @@ export function UnlockModal() {
     // A throw here shouldn't be possible — an attempt reports its failure rather
     // than raising — but swallowing one silently would leave a dead dialog with a
     // disabled button and no way out.
-    const result = await prompt.submit(password).catch(
-      () => ({ ok: false, reason: "wrong-password" }) as const,
-    );
+    const result = await prompt.submit(password).catch(() => ({ ok: false, reason: "wrong-password" }) as const);
     if (result.ok) return; // the action resumes and this dialog is already closing
 
     setUnlocking(false);
@@ -115,8 +113,8 @@ export function UnlockModal() {
             <DialogHeader>
               <DialogTitle>Unlock your account</DialogTitle>
               <DialogDescription>
-                Enter your recovery password to continue. We'll only ask once — it stays unlocked
-                in this tab for the rest of your visit.
+                Enter your recovery password to continue. We'll only ask once — it stays unlocked in this tab for the
+                rest of your visit.
               </DialogDescription>
             </DialogHeader>
 
@@ -134,7 +132,7 @@ export function UnlockModal() {
                   disabled={unlocking}
                   data-testid="input-unlock-password"
                 />
-                <p className="text-xs text-muted-foreground font-mono" data-testid="text-unlock-npub">
+                <p className="font-mono text-xs text-muted-foreground" data-testid="text-unlock-npub">
                   {shortNpub(prompt.npub)}
                 </p>
               </div>
@@ -156,12 +154,7 @@ export function UnlockModal() {
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={unlocking || !password}
-                  data-testid="button-unlock-submit"
-                >
+                <Button type="submit" size="sm" disabled={unlocking || !password} data-testid="button-unlock-submit">
                   {/* No spinner: the thread is blocked, so an animation would visibly stall. */}
                   {unlocking ? "Unlocking…" : "Unlock"}
                 </Button>
@@ -170,7 +163,7 @@ export function UnlockModal() {
 
             <button
               type="button"
-              className="text-xs text-brand-link hover:underline self-start disabled:opacity-50"
+              className="self-start text-xs text-brand-link hover:underline disabled:opacity-50"
               onClick={() => setPane("forgotten")}
               disabled={unlocking}
               data-testid="button-unlock-forgotten"
@@ -185,8 +178,8 @@ export function UnlockModal() {
             <DialogHeader>
               <DialogTitle>There's no way to reset it</DialogTitle>
               <DialogDescription>
-                Your recovery password is the only thing that opens the copy of your key on this
-                device. Nobody can reset it — not even us. Two things still work.
+                Your recovery password is the only thing that opens the copy of your key on this device. Nobody can
+                reset it — not even us. Two things still work.
               </DialogDescription>
             </DialogHeader>
 
@@ -199,9 +192,8 @@ export function UnlockModal() {
               >
                 <KeyRound /> Sign in with your key
               </Button>
-              <p className="text-xs text-muted-foreground px-1">
-                If you still have your key, or a backup file and its password, use it to sign in
-                again.
+              <p className="px-1 text-xs text-muted-foreground">
+                If you still have your key, or a backup file and its password, use it to sign in again.
               </p>
 
               <Button
@@ -212,9 +204,7 @@ export function UnlockModal() {
               >
                 <Trash2 /> Remove from this device
               </Button>
-              <p className="text-xs text-muted-foreground px-1">
-                Forget {shortNpub(prompt.npub)} here.
-              </p>
+              <p className="px-1 text-xs text-muted-foreground">Forget {shortNpub(prompt.npub)} here.</p>
             </div>
 
             <DialogFooter>
@@ -230,8 +220,8 @@ export function UnlockModal() {
             <DialogHeader>
               <DialogTitle>Remove this account?</DialogTitle>
               <DialogDescription>
-                This deletes this browser's copy of the key. If it's your only copy, the account is
-                gone for good — nobody can bring it back.
+                This deletes this browser's copy of the key. If it's your only copy, the account is gone for good —
+                nobody can bring it back.
               </DialogDescription>
             </DialogHeader>
 

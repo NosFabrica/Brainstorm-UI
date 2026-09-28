@@ -19,7 +19,14 @@ vi.mock("@/lib/nip05", () => ({ verifyNip05, peekNip05: () => undefined }));
 
 const PK = "a".repeat(64);
 function page(kind: number, content: string, tags: string[][]): MinimalEvent {
-  return { id: "e".repeat(64), kind, pubkey: PK, tags, content, created_at: Math.floor(Date.now() / 1000) - 3600 } as MinimalEvent;
+  return {
+    id: "e".repeat(64),
+    kind,
+    pubkey: PK,
+    tags,
+    content,
+    created_at: Math.floor(Date.now() / 1000) - 3600,
+  } as MinimalEvent;
 }
 
 describe("EmbeddedArticleCard", () => {
@@ -32,24 +39,66 @@ describe("EmbeddedArticleCard", () => {
   // its card was on screen ran fewer hooks on the next render and React threw.
   it("an article deleted while its card is on screen turns into the stub instead of crashing", () => {
     const who = { name: "zapcooking", display_name: "Zap Cooking" };
-    const { rerender } = render(<EmbeddedArticleCard event={page(30023, "# Tea\n\nSteep.", [["d", "cheese-foam-tea"], ["title", "Cheese Foam Tea"]])} author={who} />);
+    const { rerender } = render(
+      <EmbeddedArticleCard
+        event={page(30023, "# Tea\n\nSteep.", [
+          ["d", "cheese-foam-tea"],
+          ["title", "Cheese Foam Tea"],
+        ])}
+        author={who}
+      />,
+    );
     expect(screen.getByTestId("embedded-article")).toBeInTheDocument();
-    rerender(<EmbeddedArticleCard event={page(30023, "", [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]])} author={who} />);
+    rerender(
+      <EmbeddedArticleCard
+        event={page(30023, "", [
+          ["d", "cheese-foam-tea"],
+          ["deleted", "true"],
+          ["title", "[Deleted]"],
+        ])}
+        author={who}
+      />,
+    );
     expect(screen.getByTestId("embedded-deleted")).toHaveTextContent("Zap Cooking deleted this post.");
   });
 
   // A stub shows no verified badge, so it has no reason to fetch the author's domain.
   it("a deleted article asks nothing about its author's NIP-05", () => {
     verifyNip05.mockClear();
-    render(<EmbeddedArticleCard event={page(30023, "", [["d", "gone"], ["deleted", "true"]])} author={{ name: "zapcooking", nip05: "_@zap.cooking" }} />);
+    render(
+      <EmbeddedArticleCard
+        event={page(30023, "", [
+          ["d", "gone"],
+          ["deleted", "true"],
+        ])}
+        author={{ name: "zapcooking", nip05: "_@zap.cooking" }}
+      />,
+    );
     expect(screen.getByTestId("embedded-deleted")).toBeInTheDocument();
     expect(verifyNip05).not.toHaveBeenCalled();
-    render(<EmbeddedArticleCard event={page(30023, "# Tea", [["d", "tea"], ["title", "Tea"]])} author={{ name: "zapcooking", nip05: "_@zap.cooking" }} />);
+    render(
+      <EmbeddedArticleCard
+        event={page(30023, "# Tea", [
+          ["d", "tea"],
+          ["title", "Tea"],
+        ])}
+        author={{ name: "zapcooking", nip05: "_@zap.cooking" }}
+      />,
+    );
     expect(verifyNip05).toHaveBeenCalledTimes(1);
   });
 
   it("an article deleted by overwriting is a quiet stub naming who deleted it — no title, no cover, nothing to click", () => {
-    render(<EmbeddedArticleCard event={page(30023, "", [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]])} author={{ name: "zapcooking", display_name: "Zap Cooking" }} />);
+    render(
+      <EmbeddedArticleCard
+        event={page(30023, "", [
+          ["d", "cheese-foam-tea"],
+          ["deleted", "true"],
+          ["title", "[Deleted]"],
+        ])}
+        author={{ name: "zapcooking", display_name: "Zap Cooking" }}
+      />,
+    );
     const stub = screen.getByTestId("embedded-deleted");
     expect(stub).toHaveTextContent("Zap Cooking deleted this post.");
     expect(screen.queryByTestId("embedded-article")).toBeNull();
@@ -60,7 +109,14 @@ describe("EmbeddedArticleCard", () => {
 
   it("a wiki page without a summary shows its words as the brief and calls itself a Wiki", () => {
     setTechnicalView(true); // the card names its kind in the switched-on view
-    const wiki = page(30818, "A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)", [["d", "list-of-comedians"], ["title", "List of comedians"]]);
+    const wiki = page(
+      30818,
+      "A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)",
+      [
+        ["d", "list-of-comedians"],
+        ["title", "List of comedians"],
+      ],
+    );
     render(<EmbeddedArticleCard event={wiki} author={{ name: "GitCitadel" }} />);
     const card = screen.getByTestId("embedded-article");
     expect(card).toHaveTextContent("List of comedians");
@@ -72,7 +128,13 @@ describe("EmbeddedArticleCard", () => {
 
   // A spec (kind 30817) reads like an article and says what it is — and which kinds it covers.
   it("a spec calls itself a Spec and names the kinds it covers", () => {
-    const spec = page(30817, "# Scheduler DVM", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["summary", "Schedule signed events for later."], ["k", "5905", "DVM Job Request"], ["k", "7000"]]);
+    const spec = page(30817, "# Scheduler DVM", [
+      ["d", "scheduler-dvm"],
+      ["title", "Scheduler DVM"],
+      ["summary", "Schedule signed events for later."],
+      ["k", "5905", "DVM Job Request"],
+      ["k", "7000"],
+    ]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "nogringo" }} />);
     const card = screen.getByTestId("embedded-article");
     expect(card).toHaveTextContent("Spec");
@@ -85,12 +147,29 @@ describe("EmbeddedArticleCard", () => {
   // The team (2026-09-24): a spec from Nostr Hub has no NIP number; the
   // kind's word, as the one pill every card wears, is what says what it is.
   it("the type is the design-system pill, the same on every card", () => {
-    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} />);
+    render(
+      <EmbeddedArticleCard
+        event={page(30817, "# TA", [
+          ["d", "ta"],
+          ["title", "TA"],
+        ])}
+        author={{ name: "Russell" }}
+      />,
+    );
     expect(within(screen.getByTestId("embedded-article")).getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
   });
 
   it("stays unlabelled on a surface that holds one kind — the Recipes or NIPs tab", () => {
-    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} mixed={false} />);
+    render(
+      <EmbeddedArticleCard
+        event={page(30817, "# TA", [
+          ["d", "ta"],
+          ["title", "TA"],
+        ])}
+        author={{ name: "Russell" }}
+        mixed={false}
+      />,
+    );
     expect(screen.queryByTestId("kind-pill")).toBeNull();
   });
 
@@ -99,7 +178,11 @@ describe("EmbeddedArticleCard", () => {
   // A spec with no image of its own gets the NIP cover, named and described
   // for what it is.
   it("a spec without an image wears the NIP cover, named for search engines", () => {
-    const spec = page(30817, "# Trusted Assertions", [["d", "trusted-assertions"], ["title", "Trusted Assertions"], ["k", "10040"]]);
+    const spec = page(30817, "# Trusted Assertions", [
+      ["d", "trusted-assertions"],
+      ["title", "Trusted Assertions"],
+      ["k", "10040"],
+    ]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "Russell" }} />);
     const img = screen.getByTestId("embedded-article").querySelector("img")!;
     expect(img.getAttribute("src")).toMatch(/nostr-implementation-decentralized-network-specs-cover/);
@@ -122,11 +205,27 @@ describe("EmbeddedArticleCard", () => {
 
   // "Read article" under a SPEC label contradicts itself (Benjamin, 2026-09-23).
   it("the button says what it opens: spec, wiki, article", () => {
-    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} />);
+    render(
+      <EmbeddedArticleCard
+        event={page(30817, "# TA", [
+          ["d", "ta"],
+          ["title", "TA"],
+        ])}
+        author={{ name: "Russell" }}
+      />,
+    );
     expect(screen.getByTestId("article-read")).toHaveTextContent(/^Read spec$/);
   });
   it("a wiki page reads as a wiki", () => {
-    render(<EmbeddedArticleCard event={page(30818, "A page.", [["d", "x"], ["title", "X"]])} author={{ name: "GitCitadel" }} />);
+    render(
+      <EmbeddedArticleCard
+        event={page(30818, "A page.", [
+          ["d", "x"],
+          ["title", "X"],
+        ])}
+        author={{ name: "GitCitadel" }}
+      />,
+    );
     expect(screen.getByTestId("article-read")).toHaveTextContent(/^Read wiki$/);
   });
 
@@ -136,7 +235,10 @@ describe("EmbeddedArticleCard", () => {
   // cut off). One shape for every card — 16:9, the shape covers are — with
   // its dimensions declared so the page does not jump as they load.
   it("every card's thumbnail is the same 16:9 shape, declared up front", () => {
-    const spec = page(30817, "# TA", [["d", "ta"], ["title", "TA"]]);
+    const spec = page(30817, "# TA", [
+      ["d", "ta"],
+      ["title", "TA"],
+    ]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "ManiMe" }} />);
     const img = screen.getByTestId("embedded-article").querySelector("img")!;
     expect(img.className).toMatch(/\baspect-video\b/);
@@ -149,7 +251,12 @@ describe("EmbeddedArticleCard", () => {
   // A `k` tag that is not a number ("nip", seen on Trusted Assertions
   // (Sovereign Version)) is not a kind — no chip, no broken search.
   it("only numeric k tags are kinds", () => {
-    const spec = page(30817, "# TA", [["d", "ta"], ["title", "TA"], ["k", "10040"], ["k", "nip"]]);
+    const spec = page(30817, "# TA", [
+      ["d", "ta"],
+      ["title", "TA"],
+      ["k", "10040"],
+      ["k", "nip"],
+    ]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "ManiMe" }} />);
     expect([...screen.getByTestId("article-kinds").querySelectorAll("a")].map((a) => a.textContent)).toEqual(["10040"]);
   });
@@ -160,7 +267,12 @@ describe("EmbeddedArticleCard", () => {
   it("a spec's kind chips open the specs that cover that kind", () => {
     // The team (2026-09-24): with no NIP number to lean on, the kind's own
     // name — the one its author put on the k tag — is what a chip shows.
-    const spec = page(30817, "# Scheduler DVM", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "7000"], ["k", "5905", "DVM Job Request"]]);
+    const spec = page(30817, "# Scheduler DVM", [
+      ["d", "scheduler-dvm"],
+      ["title", "Scheduler DVM"],
+      ["k", "7000"],
+      ["k", "5905", "DVM Job Request"],
+    ]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "nogringo" }} />);
     const links = [...screen.getByTestId("article-kinds").querySelectorAll("a")];
     expect(links.map((a) => a.textContent)).toEqual(["5905 · DVM Job Request", "7000"]);
@@ -169,7 +281,11 @@ describe("EmbeddedArticleCard", () => {
 
   it("a long-form article keeps its own summary and its name", () => {
     setTechnicalView(true); // the card names its kind in the switched-on view
-    const article = page(30023, "# Why\n\nBody **bold**.", [["d", "why"], ["title", "Why Bitcoin"], ["summary", "A short case for sound money."]]);
+    const article = page(30023, "# Why\n\nBody **bold**.", [
+      ["d", "why"],
+      ["title", "Why Bitcoin"],
+      ["summary", "A short case for sound money."],
+    ]);
     render(<EmbeddedArticleCard event={article} author={{ name: "Max" }} />);
     const card = screen.getByTestId("embedded-article");
     expect(card).toHaveTextContent("A short case for sound money.");
@@ -182,7 +298,11 @@ describe("EmbeddedArticleCard", () => {
   // Without a picture of its own it wears the recipe cover — the file named
   // for what it shows, the alt text saying it — like specs wear theirs.
   it("a recipe without a picture wears the recipe cover, named for search engines", () => {
-    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]);
+    const recipe = page(30023, "# Gırık", [
+      ["d", "girik"],
+      ["title", "Gırık"],
+      ["t", "zapcooking"],
+    ]);
     render(<EmbeddedArticleCard event={recipe} author={{ name: "Joe" }} />);
     const img = screen.getByTestId("embedded-article").querySelector("img")!;
     expect(img.getAttribute("src")).toMatch(/cooking-recipe-easy-recipe-steps-cover/);
@@ -191,13 +311,22 @@ describe("EmbeddedArticleCard", () => {
 
   // "Read article" under a RECIPE label contradicts itself.
   it("a recipe's button says Read recipe", () => {
-    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]);
+    const recipe = page(30023, "# Gırık", [
+      ["d", "girik"],
+      ["title", "Gırık"],
+      ["t", "zapcooking"],
+    ]);
     render(<EmbeddedArticleCard event={recipe} author={{ name: "Joe" }} />);
     expect(screen.getByTestId("article-read")).toHaveTextContent(/^Read recipe$/);
   });
 
   it("a recipe with its own picture keeps it", () => {
-    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"], ["image", "https://img.example/girik.jpg"]]);
+    const recipe = page(30023, "# Gırık", [
+      ["d", "girik"],
+      ["title", "Gırık"],
+      ["t", "zapcooking"],
+      ["image", "https://img.example/girik.jpg"],
+    ]);
     render(<EmbeddedArticleCard event={recipe} author={{ name: "Joe" }} />);
     const img = screen.getByTestId("embedded-article").querySelector("img")!;
     expect(img.getAttribute("src")).toBe("https://img.example/girik.jpg");
@@ -206,7 +335,13 @@ describe("EmbeddedArticleCard", () => {
 
   it("a zap.cooking recipe calls itself a Recipe", () => {
     setTechnicalView(true); // the card names its kind in the switched-on view
-    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["summary", "Handmade dough, chicken and rice."], ["t", "zapcooking"], ["t", "zapcooking-girik"]]);
+    const recipe = page(30023, "# Gırık", [
+      ["d", "girik"],
+      ["title", "Gırık"],
+      ["summary", "Handmade dough, chicken and rice."],
+      ["t", "zapcooking"],
+      ["t", "zapcooking-girik"],
+    ]);
     render(<EmbeddedArticleCard event={recipe} author={{ name: "SkyLords" }} />);
     const card = screen.getByTestId("embedded-article");
     expect(card).toHaveTextContent("Recipe");

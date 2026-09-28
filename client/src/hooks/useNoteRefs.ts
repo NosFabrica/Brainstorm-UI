@@ -34,7 +34,11 @@ export const MAX_REF_HINTS = 6;
 export function useNoteRefs(
   events: MinimalEvent[],
   opts: { relays?: string[]; extraPubkeys?: string[] } = {},
-): { profiles: Map<string, ProfileLite>; eventsById: Map<string, MinimalEvent>; addrByCoord: Map<string, MinimalEvent> } {
+): {
+  profiles: Map<string, ProfileLite>;
+  eventsById: Map<string, MinimalEvent>;
+  addrByCoord: Map<string, MinimalEvent>;
+} {
   const refs = useMemo(() => collectRefs(events), [events]);
   const relaysKey = (opts.relays ?? []).join(",");
   const relays = useMemo(

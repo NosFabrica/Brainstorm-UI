@@ -196,10 +196,11 @@ function indexedDbStore(): CacheStore | null {
       await run("readwrite", (s) => rows.forEach((row) => s.put(row)));
     },
 
-    count: async () => (await run<number>("readonly", (s, keep) => {
-      const req = s.count();
-      req.onsuccess = () => keep(req.result);
-    })) ?? 0,
+    count: async () =>
+      (await run<number>("readonly", (s, keep) => {
+        const req = s.count();
+        req.onsuccess = () => keep(req.result);
+      })) ?? 0,
 
     oldest: async (n) =>
       (await run<string[]>("readonly", (s, keep) => {
@@ -371,7 +372,8 @@ async function refreshStale(rows: CachedRow[]): Promise<void> {
       // relays — and only a few of them, since the loader unions every
       // pointer's relays in a batch and a page of stale authors would
       // otherwise open all of theirs at once.
-      const list = row.kind === TRUST_PROVIDER_KIND ? eventStore.getReplaceable(RELAY_LIST_KIND, row.pubkey) : undefined;
+      const list =
+        row.kind === TRUST_PROVIDER_KIND ? eventStore.getReplaceable(RELAY_LIST_KIND, row.pubkey) : undefined;
       const write = list ? parseRelayList(list as NostrEvent).write.slice(0, REFRESH_RELAYS_PER_AUTHOR) : [];
       return loadReplaceable(row.kind, row.pubkey, {
         identifier: row.event.tags.find((tag) => tag[0] === "d")?.[1],

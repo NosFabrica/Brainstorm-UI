@@ -67,7 +67,11 @@ describe("ConfirmNewFollowListDialog", () => {
 
   it("blocks the destructive publish while a search is in flight — but never Cancel", async () => {
     let resolve!: (r: RelaySearchResult) => void;
-    onSearchRelay.mockReturnValue(new Promise((r) => { resolve = r; }));
+    onSearchRelay.mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
     render(dialog());
 
     typeRelay();
@@ -78,9 +82,7 @@ describe("ConfirmNewFollowListDialog", () => {
     expect(screen.getByTestId("button-new-follow-list-cancel")).toBeEnabled();
 
     resolve({ found: false });
-    await waitFor(() =>
-      expect(screen.getByTestId("button-new-follow-list-confirm")).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByTestId("button-new-follow-list-confirm")).toBeEnabled());
   });
 
   it("tells not-found apart from a relay we couldn't reach", async () => {
@@ -89,18 +91,14 @@ describe("ConfirmNewFollowListDialog", () => {
     typeRelay();
 
     fireEvent.click(screen.getByTestId("button-search-relay"));
-    expect(await screen.findByTestId("text-relay-search-status")).toHaveTextContent(
-      "No follow list for this key",
-    );
+    expect(await screen.findByTestId("text-relay-search-status")).toHaveTextContent("No follow list for this key");
 
     onSearchRelay.mockResolvedValueOnce({
       found: false,
       error: "Couldn't reach that relay — check the address and try again.",
     });
     fireEvent.click(screen.getByTestId("button-search-relay"));
-    await waitFor(() =>
-      expect(screen.getByTestId("text-relay-search-status")).toHaveTextContent("Couldn't reach"),
-    );
+    await waitFor(() => expect(screen.getByTestId("text-relay-search-status")).toHaveTextContent("Couldn't reach"));
   });
 
   it("renders no status on success — closing is the parent's move", async () => {
@@ -109,9 +107,7 @@ describe("ConfirmNewFollowListDialog", () => {
     typeRelay();
 
     fireEvent.click(screen.getByTestId("button-search-relay"));
-    await waitFor(() =>
-      expect(screen.getByTestId("button-new-follow-list-confirm")).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByTestId("button-new-follow-list-confirm")).toBeEnabled());
 
     expect(screen.queryByTestId("text-relay-search-status")).not.toBeInTheDocument();
   });
@@ -123,9 +119,7 @@ describe("ConfirmNewFollowListDialog", () => {
 
     fireEvent.click(screen.getByTestId("button-search-relay"));
 
-    expect(await screen.findByTestId("text-relay-search-status")).toHaveTextContent(
-      "Something went wrong",
-    );
+    expect(await screen.findByTestId("text-relay-search-status")).toHaveTextContent("Something went wrong");
   });
 
   it("starts clean when reopened", async () => {

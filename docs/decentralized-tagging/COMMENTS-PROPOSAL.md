@@ -21,8 +21,8 @@ very different consequences and clients that pick differently won't interoperate
 ## The ask
 
 Our team wants people to be able to discuss tags and leave feedback. Concretely:
-*"what does Bitcoin Vendor actually mean — does it require accepting BTC in
-person, or is online enough?"*
+_"what does Bitcoin Vendor actually mean — does it require accepting BTC in
+person, or is online enough?"_
 
 ## The two anchors
 
@@ -32,7 +32,7 @@ A comment would be a standard NIP-22 kind-1111, referencing either:
 A discussion of what the tag means. One thread per tag, shared by everyone.
 
 **B. A specific tagging** — `e` = the kind-39999 assertion's id.
-A discussion of whether *this person* belongs in *this tag*.
+A discussion of whether _this person_ belongs in _this tag_.
 
 ## Recommendation: A, the tag-element
 
@@ -42,7 +42,7 @@ individual taggings resolve themselves. Polarity already expresses per-person
 disagreement without prose.
 
 **B is a moderation programme wearing a feature's clothes.** Threaded commentary
-attached to a named individual — *"here's why I think Bob is a scammer"* — is
+attached to a named individual — _"here's why I think Bob is a scammer"_ — is
 unmoderated speech about a real person, on a page they don't control, and today
 it would land while the trust filter is effectively inert (see
 `KIT-FEEDBACK.md` §1 — every scored asserter is currently rejected and every

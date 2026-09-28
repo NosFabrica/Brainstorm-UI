@@ -1,9 +1,7 @@
 {
   "_comment": "Deployment configuration for the NosFabrica (Brainstorm-UI) tagging integration. Values point at the Tapestry reference deployment (decision 2026-08-03: NosFabrica joins the same tag hub + house-trust POV as the jumble kit). Everything the client must not hardcode in code lives here — import this JSON through one config module. The Start.md interview may swap the trust source to NosFabrica's own NIP-85 corpus; that changes trustRelays + nip85AuthorPubkeys only.",
 
-  "tagRelays": [
-    "wss://dcosl.brainstorm.world"
-  ],
+  "tagRelays": ["wss://dcosl.brainstorm.world"],
   "_tagRelays": "The tag-hub relay set. Reads query (tagRelays UNION the user's read relays); tag/tagging publishes go to (tagRelays UNION the user's write relays). dcosl.brainstorm.world is the hub the reference instances negentropy-sync through — the cold-start default, NOT a protocol requirement. Make this list user-editable in Settings.",
 
   "houseInstance": {
@@ -13,9 +11,7 @@
     "_api": "This kit is PURE-RELAY BY DESIGN: do not build features on the REST API even though it currently answers cross-origin (reflective CORS observed 2026-07-23 — treat that as incidental, not contractual). apiBase is documented for operators: re-fetching localTaPubkey below (GET /api/assistant/pubkey) when re-pointing the kit at a different instance."
   },
 
-  "trustRelays": [
-    "wss://tags.brainstorm.world/relay"
-  ],
+  "trustRelays": ["wss://tags.brainstorm.world/relay"],
   "_trustRelays": "Where the house's TA-signed artifacts live: kind-30382 trust assertions and the kind-30392/30393/30394 Trusted Lists. VERIFIED 2026-07-23: these are NOT on the dcosl hub — a trust reader wired only to tagRelays finds nothing and silently degrades to count-everyone. The trust module's fetchEvents must query trustRelays (∪ tagRelays is harmless).",
 
   "localTaPubkey": "a68dbf561cfe3da1b76f1e65c7d4d9cc116f79921b38a815fd75cb5460b4b599",

@@ -7,7 +7,17 @@
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
 import {
-  buildFilters, dateAt, dayBound, drawable, groupAt, mentionAt, parseQuery, scopeIds, tagValues, tokenize, ymd,
+  buildFilters,
+  dateAt,
+  dayBound,
+  drawable,
+  groupAt,
+  mentionAt,
+  parseQuery,
+  scopeIds,
+  tagValues,
+  tokenize,
+  ymd,
 } from "./searchQuery";
 
 const hex = "9".repeat(64);
@@ -83,7 +93,14 @@ describe("tokenize — what the box draws", () => {
         "isan:0000-0000-401A-0000-7 podcast:guid:abc podcast:item:guid:def podcast:publisher:ghi",
     );
     expect(q.scopes.map((s) => s.field)).toEqual([
-      "site", "isbn", "doi", "geo", "isan", "podcast:guid", "podcast:item:guid", "podcast:publisher",
+      "site",
+      "isbn",
+      "doi",
+      "geo",
+      "isan",
+      "podcast:guid",
+      "podcast:item:guid",
+      "podcast:publisher",
     ]);
     expect(q.terms).toBe("");
   });
@@ -149,7 +166,9 @@ describe("drawable — a token pills once the caret leaves it", () => {
   // period, and everything after it, landing outside the sealed pill. The window is the word.
   // Adjacent text segments are drawn as one run, so what matters is that NO pill is drawn.
   const drawn = (text: string, at: number) =>
-    drawable(text, at).filter((s) => s.type !== "text").map((s) => s.type);
+    drawable(text, at)
+      .filter((s) => s.type !== "text")
+      .map((s) => s.type);
 
   it("a scope keeps its period: the caret has not left the word, only the token", () => {
     expect(drawn("site:example.", 13)).toEqual([]);
@@ -167,10 +186,14 @@ describe("drawable — a token pills once the caret leaves it", () => {
 describe("the canonical spellings a tag filter has to ask for", () => {
   it("site: asks both schemes and both slashes, canonical first", () => {
     expect(scopeIds("site", "Example.com/Page")).toEqual([
-      "https://example.com/Page", "https://example.com/Page/",
-      "https://Example.com/Page", "https://Example.com/Page/",
-      "http://example.com/Page", "http://example.com/Page/",
-      "http://Example.com/Page", "http://Example.com/Page/",
+      "https://example.com/Page",
+      "https://example.com/Page/",
+      "https://Example.com/Page",
+      "https://Example.com/Page/",
+      "http://example.com/Page",
+      "http://example.com/Page/",
+      "http://Example.com/Page",
+      "http://Example.com/Page/",
     ]);
   });
 
@@ -181,7 +204,9 @@ describe("the canonical spellings a tag filter has to ask for", () => {
   });
 
   it("tagValues asks every casing the store may have indexed", () => {
-    expect(tagValues("Bitcoin")).toEqual(["Bitcoin", "bitcoin", "Bitcoin", "BITCOIN"].filter((v, i, a) => a.indexOf(v) === i));
+    expect(tagValues("Bitcoin")).toEqual(
+      ["Bitcoin", "bitcoin", "Bitcoin", "BITCOIN"].filter((v, i, a) => a.indexOf(v) === i),
+    );
   });
 });
 
@@ -195,7 +220,10 @@ describe("buildFilters — one REQ, filters ORed", () => {
   it("a hashtag asks #t, #l and the NIP-22 comments written on it", () => {
     const filters = buildFilters("#nostr", { limit });
     expect(filters.map((f) => Object.keys(f).filter((k) => k.startsWith("#")))).toEqual([
-      ["#t"], ["#l"], ["#I"], ["#i"],
+      ["#t"],
+      ["#l"],
+      ["#I"],
+      ["#i"],
     ]);
     expect(filters[0]["#t"]).toEqual(["nostr", "Nostr", "NOSTR"]);
     expect(filters[2].kinds).toEqual([1111]);

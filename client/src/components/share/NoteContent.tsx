@@ -1,6 +1,13 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl, type NoteToken } from "@/lib/noteContent";
+import {
+  parseNoteContent,
+  primaryLink,
+  extractImageUrls,
+  extractNoteTitle,
+  toPlayableStreamUrl,
+  type NoteToken,
+} from "@/lib/noteContent";
 import { ReadingText, ReadingLink, addressLink, addressLabel } from "@/components/share/ReadingText";
 import { normalizeMarkup } from "@/lib/htmlText";
 import { addrCoord, decodeNostrEntity } from "@/lib/noteRefs";
@@ -62,7 +69,6 @@ function NoteLiveVideo({ url }: { url: string }) {
 }
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
-
 
 /**
  * Renders parsed kind-1 note content: text, links, inline images/video,
@@ -126,115 +132,164 @@ export function NoteContent({
   // All image URLs in this note — the set the lightbox carousels through.
   const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
   const renderToken = (token: NoteToken, i: number | string): ReactNode => {
-        switch (token.type) {
-          case "text":
-            return <span key={i}>{token.value}</span>;
-          case "url":
-            if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
-            if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
-            if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
-            if (clientRef(token.value)) return <ClientLink key={i} url={token.value} />;
-            return reading ? <ReadingLink key={i} url={token.value} /> : <LinkChip key={i} url={token.value} />;
-          case "audio":
-            return (
-              <div key={i} className="mt-2">
-                <EmbeddedTrackCard
-                  id={`audio:${token.value}`}
-                  title={audioTitle || audioName(token.value)}
-                  artist={authorName}
-                  cover={audioCover}
-                  audio={token.value}
-                  sourceLabel={hostLabel(token.value)}
-                />
-              </div>
-            );
-          case "image":
-            return imageOpensThread ? (
-              // Clickable feed card: a tidy cropped thumbnail; the click bubbles
-              // up to the card and opens the thread (full image + zoom live there).
-              // A fixed box, so the card is its final height before the
-              // image lands and the rows below it never move.
-              <div
-                key={i}
-                className="mt-2 aspect-[16/10] w-full max-h-72 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"
-              >
-                <MediaImg src={token.value} preset="media_640" alt="" loading="lazy" className="h-full w-full object-cover" />
-              </div>
-            ) : (
-              <MediaImg
-                key={i}
-                src={token.value}
-                preset="media_1280"
-                alt=""
-                loading="lazy"
-                data-noopen
-                onClick={(e) => { e.stopPropagation(); openLightbox(imageUrls, Math.max(0, imageUrls.indexOf(token.value))); }}
-                className={`mt-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-contain w-full cursor-zoom-in ${compact ? "max-h-[28rem]" : "max-h-[34rem]"}`}
-              />
-            );
-          case "video":
-            return <FeedVideo key={i} src={token.value} />;
-          case "live":
-            return <NoteLiveVideo key={i} url={token.value} />;
-          case "mention": {
-            const { pubkey, id, address } = decodeNostrEntity(token.bech32);
-            if (address) {
-              // Shown as a card by the caller? Then the card IS the link.
-              if (embeddedCoords?.has(addrCoord(address))) return null;
-              const other = reading ? addressLink(token.bech32, i, token.url) : null;
-              if (other) return other;
-              // Links to its on-site page (/e/ renders every kind); an article
-              // is also embedded as a card below.
-              return (
-                <button key={i} type="button" onClick={() => navigate(`/e/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
-                  {addressLabel(token.bech32)}
-                </button>
-              );
-            }
-            if (pubkey) {
-              const prof = profiles?.get(pubkey);
-              return <ProfileMention key={i} npub={token.bech32} name={prof?.display_name || prof?.name} picture={prof?.picture} />;
-            }
-            if (id) {
-              // Embedded as a card below? Then the card IS the quote.
-              if (embeddedIds?.has(id)) return null;
-              // Links to the on-site event page.
-              return (
-                <button key={i} type="button" onClick={() => navigate(`/e/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
-                  ↳ quoted note
-                </button>
-              );
-            }
-            return <span key={i} className="text-brand-link font-medium">@{token.bech32.slice(0, 10)}…</span>;
-          }
-          case "hashtag":
-            return (
-              <button
-                key={i}
-                type="button"
-                // Isolated, so "#Bitcoin" keeps its # in front inside an
-                // Arabic sentence (and "#البيتكوين" inside an English one).
-                dir="auto"
-                onClick={() => requestNav({ kind: "hashtag", target: token.value, label: token.value })}
-                className="text-brand-link font-medium hover:underline"
-              >
-                {token.value}
-              </button>
-            );
-          default:
-            return null;
+    switch (token.type) {
+      case "text":
+        return <span key={i}>{token.value}</span>;
+      case "url":
+        if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
+        if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
+        if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
+        if (clientRef(token.value)) return <ClientLink key={i} url={token.value} />;
+        return reading ? <ReadingLink key={i} url={token.value} /> : <LinkChip key={i} url={token.value} />;
+      case "audio":
+        return (
+          <div key={i} className="mt-2">
+            <EmbeddedTrackCard
+              id={`audio:${token.value}`}
+              title={audioTitle || audioName(token.value)}
+              artist={authorName}
+              cover={audioCover}
+              audio={token.value}
+              sourceLabel={hostLabel(token.value)}
+            />
+          </div>
+        );
+      case "image":
+        return imageOpensThread ? (
+          // Clickable feed card: a tidy cropped thumbnail; the click bubbles
+          // up to the card and opens the thread (full image + zoom live there).
+          // A fixed box, so the card is its final height before the
+          // image lands and the rows below it never move.
+          <div
+            key={i}
+            className="mt-2 aspect-[16/10] max-h-72 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
+          >
+            <MediaImg
+              src={token.value}
+              preset="media_640"
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+          </div>
+        ) : (
+          <MediaImg
+            key={i}
+            src={token.value}
+            preset="media_1280"
+            alt=""
+            loading="lazy"
+            data-noopen
+            onClick={(e) => {
+              e.stopPropagation();
+              openLightbox(imageUrls, Math.max(0, imageUrls.indexOf(token.value)));
+            }}
+            className={`mt-2 w-full cursor-zoom-in rounded-xl border border-slate-200 bg-slate-50 object-contain dark:border-slate-800 dark:bg-slate-900 ${compact ? "max-h-[28rem]" : "max-h-[34rem]"}`}
+          />
+        );
+      case "video":
+        return <FeedVideo key={i} src={token.value} />;
+      case "live":
+        return <NoteLiveVideo key={i} url={token.value} />;
+      case "mention": {
+        const { pubkey, id, address } = decodeNostrEntity(token.bech32);
+        if (address) {
+          // Shown as a card by the caller? Then the card IS the link.
+          if (embeddedCoords?.has(addrCoord(address))) return null;
+          const other = reading ? addressLink(token.bech32, i, token.url) : null;
+          if (other) return other;
+          // Links to its on-site page (/e/ renders every kind); an article
+          // is also embedded as a card below.
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => navigate(`/e/${token.bech32}`)}
+              className="font-medium text-brand-link hover:underline"
+            >
+              {addressLabel(token.bech32)}
+            </button>
+          );
         }
+        if (pubkey) {
+          const prof = profiles?.get(pubkey);
+          return (
+            <ProfileMention
+              key={i}
+              npub={token.bech32}
+              name={prof?.display_name || prof?.name}
+              picture={prof?.picture}
+            />
+          );
+        }
+        if (id) {
+          // Embedded as a card below? Then the card IS the quote.
+          if (embeddedIds?.has(id)) return null;
+          // Links to the on-site event page.
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => navigate(`/e/${token.bech32}`)}
+              className="font-medium text-brand-link hover:underline"
+            >
+              ↳ quoted note
+            </button>
+          );
+        }
+        return (
+          <span key={i} className="font-medium text-brand-link">
+            @{token.bech32.slice(0, 10)}…
+          </span>
+        );
+      }
+      case "hashtag":
+        return (
+          <button
+            key={i}
+            type="button"
+            // Isolated, so "#Bitcoin" keeps its # in front inside an
+            // Arabic sentence (and "#البيتكوين" inside an English one).
+            dir="auto"
+            onClick={() => requestNav({ kind: "hashtag", target: token.value, label: token.value })}
+            className="font-medium text-brand-link hover:underline"
+          >
+            {token.value}
+          </button>
+        );
+      default:
+        return null;
+    }
   };
-  const linkCardNode = primaryUrl && linkCard && primaryIsPlainLink && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl)
-    ? <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={text} />
-    : null;
+  const linkCardNode =
+    primaryUrl &&
+    linkCard &&
+    primaryIsPlainLink &&
+    !wavlakeTrackId(primaryUrl) &&
+    !videoEmbedFor(primaryUrl) &&
+    !fountainRef(primaryUrl) ? (
+      <LinkPreviewCard
+        url={primaryUrl}
+        showImage={!tokens.some((t) => t.type === "image" || t.type === "video")}
+        context={text}
+      />
+    ) : null;
 
   if (reading) {
-    return <ReadingText tokens={tokens} source={text} size="post" renderToken={renderToken} after={linkCardNode} testId="note-reading" />;
+    return (
+      <ReadingText
+        tokens={tokens}
+        source={text}
+        size="post"
+        renderToken={renderToken}
+        after={linkCardNode}
+        testId="note-reading"
+      />
+    );
   }
 
   return (
-    <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">
+    <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
       {tokens.map((token, i) => renderToken(token, i))}
       {linkCardNode}
     </div>

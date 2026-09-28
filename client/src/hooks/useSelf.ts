@@ -2,20 +2,12 @@ import { useQuery, useInfiniteQuery, keepPreviousData } from "@tanstack/react-qu
 import { apiClient } from "@/services/api";
 import { useHasSession } from "@/hooks/useHasSession";
 
-type ConnectionKind =
-  | "followed_by"
-  | "following"
-  | "muted_by"
-  | "muting"
-  | "reported_by"
-  | "reporting"
-  | "flagged";
+type ConnectionKind = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting" | "flagged";
 
 const FIRST_PAGE_LIMIT = 200;
 const NEXT_PAGE_LIMIT = 100;
 
 export function useSelfOverview(pubkey: string | undefined) {
-
   return useQuery({
     queryKey: ["/user/overview", pubkey],
     queryFn: () => apiClient.getUserOverview(pubkey!),
@@ -39,7 +31,6 @@ export function useSelfHistory(pubkey: string | undefined) {
 }
 
 export function useSelfStats(pubkey: string | undefined) {
-
   return useQuery({
     queryKey: ["/user/stats", pubkey],
     queryFn: () => apiClient.getUserStats(pubkey!),
@@ -49,13 +40,7 @@ export function useSelfStats(pubkey: string | undefined) {
 }
 
 // Backend tier names match the GR result writer's count_values keys.
-type Tier =
-  | "high"
-  | "medium_high"
-  | "medium"
-  | "medium_low"
-  | "low"
-  | "low_and_reported_by_2_or_more_trusted_pubkeys";
+type Tier = "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys";
 
 export function useSelfConnections(
   pubkey: string | undefined,
@@ -68,21 +53,12 @@ export function useSelfConnections(
     withTotal?: boolean;
   },
 ) {
-
   const order: "asc" | "desc" = opts?.order ?? "desc";
   const tier = opts?.tier;
   const verifiedOnly = opts?.verifiedOnly ?? false;
   const withTotal = opts?.withTotal ?? false;
   const query = useInfiniteQuery({
-    queryKey: [
-      "/user/connections",
-      pubkey,
-      kind,
-      order,
-      tier ?? null,
-      verifiedOnly,
-      withTotal,
-    ],
+    queryKey: ["/user/connections", pubkey, kind, order, tier ?? null, verifiedOnly, withTotal],
     queryFn: ({ pageParam }) =>
       apiClient.getUserConnections(pubkey!, kind, {
         limit: pageParam ? NEXT_PAGE_LIMIT : FIRST_PAGE_LIMIT,

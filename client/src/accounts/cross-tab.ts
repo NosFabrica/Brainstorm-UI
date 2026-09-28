@@ -121,11 +121,7 @@ function metadataOf(account: BrainstormAccount): Observable<unknown> {
   return (account as unknown as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$;
 }
 
-export function createMirror({
-  manager,
-  channel = browserChannel(),
-  persistence,
-}: MirrorOptions): Mirror {
+export function createMirror({ manager, channel = browserChannel(), persistence }: MirrorOptions): Mirror {
   const changes = new Subject<MirroredChange>();
 
   /** True while an inbound message is being applied, so applying it says nothing back. */
@@ -174,11 +170,7 @@ export function createMirror({
       .pipe(
         switchMap((accounts) =>
           accounts.length
-            ? merge(
-                ...accounts.map((account) =>
-                  metadataOf(account as BrainstormAccount).pipe(map(() => account)),
-                ),
-              )
+            ? merge(...accounts.map((account) => metadataOf(account as BrainstormAccount).pipe(map(() => account))))
             : EMPTY,
         ),
       )

@@ -58,7 +58,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type ReportMetadata } from "@/services/nostr";
+import {
+  fetchProfile,
+  fetchProfiles,
+  eventStore,
+  fetchReportsForPubkey,
+  fetchReportsByPubkey,
+  fetchMuteListTimestamp,
+  type ReportMetadata,
+} from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
@@ -73,7 +81,13 @@ import {
 } from "@/components/ui/dialog";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
-import { getProfileSeed, setProfileSeed, clearProfileSeed, consumeStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
+import {
+  getProfileSeed,
+  setProfileSeed,
+  clearProfileSeed,
+  consumeStoredSearchSeed,
+  type ProfileSeed,
+} from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
 import {
   expandProfileCache,
@@ -117,7 +131,13 @@ const FollowersIcon = ({ className }: { className?: string }) => (
     <circle cx="9" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5" />
     <path d="M2.5 19.5c0-3.5 2.8-6 6.5-6s6.5 2.5 6.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     <circle cx="17.5" cy="8.5" r="2.5" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.6" />
-    <path d="M17.5 13c2.2 0 4 1.5 4.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6" />
+    <path
+      d="M17.5 13c2.2 0 4 1.5 4.5 3.5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeOpacity="0.6"
+    />
   </svg>
 );
 
@@ -125,14 +145,26 @@ const FollowingIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className}>
     <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5" />
     <path d="M5 20c0-3.5 3-6.5 7-6.5s7 3 7 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M16 4l2 2-2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.7" />
+    <path
+      d="M16 4l2 2-2 2"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeOpacity="0.7"
+    />
     <path d="M12 6h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.5" />
   </svg>
 );
 
 const MutedByIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M3 10v4a2 2 0 002 2h2l5 4V6L7 10H5a2 2 0 00-2 0z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path
+      d="M3 10v4a2 2 0 002 2h2l5 4V6L7 10H5a2 2 0 00-2 0z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
     <path d="M17 9l-5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     <path d="M12 9l5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </svg>
@@ -140,7 +172,14 @@ const MutedByIcon = ({ className }: { className?: string }) => (
 
 const ReportedByIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M12 3L4 9v11a1 1 0 001 1h14a1 1 0 001-1V9l-8-6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.06" />
+    <path
+      d="M12 3L4 9v11a1 1 0 001 1h14a1 1 0 001-1V9l-8-6z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+      fill="currentColor"
+      fillOpacity="0.06"
+    />
     <path d="M12 8v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     <circle cx="12" cy="16" r="1" fill="currentColor" />
   </svg>
@@ -148,14 +187,24 @@ const ReportedByIcon = ({ className }: { className?: string }) => (
 
 const MutingIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M3 10v4a2 2 0 002 2h2l5 4V6L7 10H5a2 2 0 00-2 0z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path
+      d="M3 10v4a2 2 0 002 2h2l5 4V6L7 10H5a2 2 0 00-2 0z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
     <path d="M16 12h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 );
 
 const ReportingIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M5 4h10l4 4v12a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path
+      d="M5 4h10l4 4v12a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
     <path d="M14 4v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M12 11v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     <circle cx="12" cy="17.5" r="0.75" fill="currentColor" />
@@ -165,7 +214,14 @@ const ReportingIcon = ({ className }: { className?: string }) => (
 const FlaggedIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className}>
     <path d="M5 4v16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M5 4h10l-3 4 3 4H5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.1" />
+    <path
+      d="M5 4h10l-3 4 3 4H5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+      fill="currentColor"
+      fillOpacity="0.1"
+    />
   </svg>
 );
 
@@ -174,8 +230,21 @@ const MutualIcon = ({ className }: { className?: string }) => (
     <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
     <circle cx="16" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
     <path d="M2 19c0-3 2.5-5.5 6-5.5s6 2.5 6 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M10 19c0-3 2.5-5.5 6-5.5s6 2.5 6 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6" />
-    <path d="M10 14l2-1.5 2 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.5" />
+    <path
+      d="M10 19c0-3 2.5-5.5 6-5.5s6 2.5 6 5.5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeOpacity="0.6"
+    />
+    <path
+      d="M10 14l2-1.5 2 1.5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeOpacity="0.5"
+    />
   </svg>
 );
 
@@ -185,24 +254,35 @@ const SharedConnectionIcon = ({ className }: { className?: string }) => (
     <circle cx="18" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
     <path d="M8.5 12h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     <circle cx="12" cy="12" r="1" fill="currentColor" fillOpacity="0.4" />
-    <path d="M6 9.5V6a2 2 0 012-2h8a2 2 0 012 2v3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.4" />
-    <path d="M6 14.5V18a2 2 0 002 2h8a2 2 0 002-2v-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.4" />
+    <path
+      d="M6 9.5V6a2 2 0 012-2h8a2 2 0 012 2v3.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeOpacity="0.4"
+    />
+    <path
+      d="M6 14.5V18a2 2 0 002 2h8a2 2 0 002-2v-3.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeOpacity="0.4"
+    />
   </svg>
 );
-
-
 
 function AdminHistoryStatusBadge({ value, type: _type }: { value: string | null; type: "status" | "ta" | "pub" }) {
   if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
-  const colors = lower === "success" || lower === "done" || lower === "published"
-    ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25"
-    : lower === "failure" || lower === "failed" || lower === "error"
-    ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25"
-    : lower === "pending" || lower === "queued" || lower === "in_progress"
-    ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
-    : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
-  return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`}>{value}</span>;
+  const colors =
+    lower === "success" || lower === "done" || lower === "published"
+      ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25"
+      : lower === "failure" || lower === "failed" || lower === "error"
+        ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25"
+        : lower === "pending" || lower === "queued" || lower === "in_progress"
+          ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
+          : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
+  return <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium ${colors}`}>{value}</span>;
 }
 
 // Why this run was queued: manual (user asked), scheduled (tier auto-scheduler),
@@ -210,14 +290,19 @@ function AdminHistoryStatusBadge({ value, type: _type }: { value: string | null;
 function AdminHistoryTriggerBadge({ value }: { value: string | null }) {
   if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
-  const colors = lower === "scheduled"
-    ? "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/20 dark:border-brand-primary/25"
-    : lower === "periodic"
-    ? "bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/25"
-    : lower === "admin"
-    ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
-    : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
-  return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border capitalize ${colors}`}>{value}</span>;
+  const colors =
+    lower === "scheduled"
+      ? "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/20 dark:border-brand-primary/25"
+      : lower === "periodic"
+        ? "bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/25"
+        : lower === "admin"
+          ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
+          : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
+  return (
+    <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize ${colors}`}>
+      {value}
+    </span>
+  );
 }
 
 type AdminHistoryFailureStage = "calculation" | "ta" | "publication";
@@ -258,7 +343,9 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
         minute: "2-digit",
         timeZone: userTimeZone,
       });
-    } catch { return d; }
+    } catch {
+      return d;
+    }
   };
   const fmtDateFull = (d: string | null) => {
     if (!d) return "—";
@@ -275,7 +362,9 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
         timeZoneName: "short",
         timeZone: userTimeZone,
       });
-    } catch { return d; }
+    } catch {
+      return d;
+    }
   };
   const statusFailed = (item.status || "").toLowerCase() === "failure";
   const taFailed = (item.ta_status || "").toLowerCase() === "failure";
@@ -284,75 +373,99 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
   const failureStage: AdminHistoryFailureStage | null = statusFailed
     ? "calculation"
     : taFailed
-    ? "ta"
-    : pubFailed
-    ? "publication"
-    : null;
+      ? "ta"
+      : pubFailed
+        ? "publication"
+        : null;
   const failureInfo = failureStage ? ADMIN_HISTORY_FAILURE_HINTS[failureStage] : null;
   const errorText = item.error?.message?.trim() || "";
   return (
     <>
       <tr
-        className={`border-b border-amber-100/40 dark:border-amber-500/20 cursor-pointer hover:bg-amber-50/40 dark:hover:bg-amber-500/10 transition-colors ${idx % 2 === 0 ? "bg-white/40 dark:bg-slate-900/40" : "bg-amber-50/20 dark:bg-amber-500/[0.06]"}`}
-        onClick={() => setExpanded(prev => !prev)}
+        className={`cursor-pointer border-b border-amber-100/40 transition-colors hover:bg-amber-50/40 dark:border-amber-500/20 dark:hover:bg-amber-500/10 ${idx % 2 === 0 ? "bg-white/40 dark:bg-slate-900/40" : "bg-amber-50/20 dark:bg-amber-500/[0.06]"}`}
+        onClick={() => setExpanded((prev) => !prev)}
         data-testid={`row-admin-history-${item.private_id || idx}`}
       >
         <td className="px-2 py-2 font-mono text-slate-600 dark:text-slate-300">{item.private_id}</td>
-        <td className="px-2 py-2"><AdminHistoryTriggerBadge value={item.trigger_source} /></td>
-        <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.status} type="status" /></td>
-        <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.ta_status} type="ta" /></td>
-        <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.internal_publication_status} type="pub" /></td>
+        <td className="px-2 py-2">
+          <AdminHistoryTriggerBadge value={item.trigger_source} />
+        </td>
+        <td className="px-2 py-2">
+          <AdminHistoryStatusBadge value={item.status} type="status" />
+        </td>
+        <td className="px-2 py-2">
+          <AdminHistoryStatusBadge value={item.ta_status} type="ta" />
+        </td>
+        <td className="px-2 py-2">
+          <AdminHistoryStatusBadge value={item.internal_publication_status} type="pub" />
+        </td>
         <td className="px-2 py-2 font-mono text-slate-600 dark:text-slate-300">{item.algorithm || "—"}</td>
-        <td className="px-2 py-2 text-center text-slate-600 dark:text-slate-300">{item.how_many_others_with_priority}</td>
-        <td className="px-2 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap" title={fmtDateFull(item.created_at)}>{fmtDate(item.created_at)}</td>
-        <td className="px-2 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap" title={fmtDateFull(item.updated_at)}>{fmtDate(item.updated_at)}</td>
+        <td className="px-2 py-2 text-center text-slate-600 dark:text-slate-300">
+          {item.how_many_others_with_priority}
+        </td>
+        <td
+          className="whitespace-nowrap px-2 py-2 text-slate-500 dark:text-slate-400"
+          title={fmtDateFull(item.created_at)}
+        >
+          {fmtDate(item.created_at)}
+        </td>
+        <td
+          className="whitespace-nowrap px-2 py-2 text-slate-500 dark:text-slate-400"
+          title={fmtDateFull(item.updated_at)}
+        >
+          {fmtDate(item.updated_at)}
+        </td>
       </tr>
       {expanded && (
         <tr className="bg-amber-50/30 dark:bg-amber-500/[0.06]">
           <td colSpan={9} className="px-4 py-3">
             {failureInfo && (
               <div
-                className="mb-3 rounded border border-red-200 dark:border-red-500/25 bg-red-50/60 dark:bg-red-500/10 px-3 py-2"
+                className="mb-3 rounded border border-red-200 bg-red-50/60 px-3 py-2 dark:border-red-500/25 dark:bg-red-500/10"
                 data-testid={`panel-failure-hint-${item.private_id || idx}`}
               >
                 {errorText ? (
-                  <p className="text-[11px] text-red-700 dark:text-red-300 font-mono break-all">{errorText}</p>
+                  <p className="break-all font-mono text-[11px] text-red-700 dark:text-red-300">{errorText}</p>
                 ) : (
-                  <p className="text-[11px] text-red-600/80 dark:text-red-400/80 italic">No error details captured — check server logs.</p>
+                  <p className="text-[11px] italic text-red-600/80 dark:text-red-400/80">
+                    No error details captured — check server logs.
+                  </p>
                 )}
-                <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-snug mt-1">
+                <p className="mt-1 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
                   <span className="font-semibold">Where to look · {failureInfo.label}:</span> {failureInfo.hint}
                 </p>
               </div>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
+            <div className="grid grid-cols-2 gap-3 text-[11px] sm:grid-cols-3">
               {item.error?.message && (
                 <div>
-                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Error</span>
-                  <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.error.message}</p>
+                  <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Error</span>
+                  <p className="mt-0.5 break-all font-mono text-slate-700 dark:text-slate-200">{item.error.message}</p>
                 </div>
               )}
               {item.count_values && (
                 <div>
-                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Count Values</span>
-                  <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.count_values}</p>
+                  <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                    Count Values
+                  </span>
+                  <p className="mt-0.5 break-all font-mono text-slate-700 dark:text-slate-200">{item.count_values}</p>
                 </div>
               )}
               {item.parameters && (
                 <div>
-                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Parameters</span>
-                  <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.parameters}</p>
+                  <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Parameters</span>
+                  <p className="mt-0.5 break-all font-mono text-slate-700 dark:text-slate-200">{item.parameters}</p>
                 </div>
               )}
               {item.password && (
                 <div>
-                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Password</span>
-                  <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.password}</p>
+                  <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Password</span>
+                  <p className="mt-0.5 break-all font-mono text-slate-700 dark:text-slate-200">{item.password}</p>
                 </div>
               )}
               <div>
-                <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Pubkey</span>
-                <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.pubkey}</p>
+                <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Pubkey</span>
+                <p className="mt-0.5 break-all font-mono text-slate-700 dark:text-slate-200">{item.pubkey}</p>
               </div>
             </div>
           </td>
@@ -395,15 +508,13 @@ type SortMode = "trust-desc" | "trust-asc" | "name-asc" | "name-desc";
 type FilterMode = "all" | "verified" | "high" | "trusted" | "neutral" | "low" | "unverified";
 type ReportTypeFilter = "all" | "spam" | "impersonation" | "nudity" | "illegal" | "profanity" | "other" | "unavailable";
 
-interface GroupDef { key: string; label: string; colors: string }
+interface GroupDef {
+  key: string;
+  label: string;
+  colors: string;
+}
 
-const CONNECTION_GROUP_KEYS = new Set([
-  "followed_by",
-  "following",
-  "mutual",
-  "shared_followers",
-  "shared_following",
-]);
+const CONNECTION_GROUP_KEYS = new Set(["followed_by", "following", "mutual", "shared_followers", "shared_following"]);
 
 type OwnerLink = "mutual" | "follower" | "following";
 type YouLink = "mutual_with_you" | "follows_you" | "you_follow";
@@ -412,23 +523,18 @@ function deriveConnectionClusters(groupKeys: Set<string>): { owner: OwnerLink | 
   const hasMutual = groupKeys.has("mutual");
   const hasFollowedBy = groupKeys.has("followed_by");
   const hasFollowing = groupKeys.has("following");
-  const owner: OwnerLink | null = hasMutual
-    ? "mutual"
-    : hasFollowedBy
-      ? "follower"
-      : hasFollowing
-        ? "following"
-        : null;
+  const owner: OwnerLink | null = hasMutual ? "mutual" : hasFollowedBy ? "follower" : hasFollowing ? "following" : null;
 
   const hasSharedFollower = groupKeys.has("shared_followers");
   const hasSharedFollowing = groupKeys.has("shared_following");
-  const you: YouLink | null = hasSharedFollower && hasSharedFollowing
-    ? "mutual_with_you"
-    : hasSharedFollower
-      ? "follows_you"
-      : hasSharedFollowing
-        ? "you_follow"
-        : null;
+  const you: YouLink | null =
+    hasSharedFollower && hasSharedFollowing
+      ? "mutual_with_you"
+      : hasSharedFollower
+        ? "follows_you"
+        : hasSharedFollowing
+          ? "you_follow"
+          : null;
 
   return { owner, you };
 }
@@ -446,15 +552,55 @@ const YOU_PILL_META: Record<YouLink, { label: string; Icon: typeof ArrowLeft }> 
 };
 
 const GROUP_DEFS: GroupDef[] = [
-  { key: "followed_by", label: "Follower", colors: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-500/25" },
-  { key: "following", label: "Following", colors: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-500/25" },
-  { key: "mutual", label: "Mutual", colors: "bg-teal-50 dark:bg-teal-500/10 text-teal-500 dark:text-teal-400 border-teal-100 dark:border-teal-500/25" },
-  { key: "shared_followers", label: "Shared Follower", colors: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/15 dark:border-brand-primary/25" },
-  { key: "shared_following", label: "Shared Following", colors: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/15 dark:border-brand-primary/25" },
-  { key: "muted_by", label: "Muted By", colors: "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-200 dark:border-amber-500/25" },
-  { key: "muting", label: "Muting", colors: "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-200 dark:border-amber-500/25" },
-  { key: "reported_by", label: "Reported", colors: "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 border-red-200 dark:border-red-500/25" },
-  { key: "reporting", label: "Reporting", colors: "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800" },
+  {
+    key: "followed_by",
+    label: "Follower",
+    colors: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-500/25",
+  },
+  {
+    key: "following",
+    label: "Following",
+    colors: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-500/25",
+  },
+  {
+    key: "mutual",
+    label: "Mutual",
+    colors: "bg-teal-50 dark:bg-teal-500/10 text-teal-500 dark:text-teal-400 border-teal-100 dark:border-teal-500/25",
+  },
+  {
+    key: "shared_followers",
+    label: "Shared Follower",
+    colors:
+      "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/15 dark:border-brand-primary/25",
+  },
+  {
+    key: "shared_following",
+    label: "Shared Following",
+    colors:
+      "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/15 dark:border-brand-primary/25",
+  },
+  {
+    key: "muted_by",
+    label: "Muted By",
+    colors:
+      "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-200 dark:border-amber-500/25",
+  },
+  {
+    key: "muting",
+    label: "Muting",
+    colors:
+      "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-200 dark:border-amber-500/25",
+  },
+  {
+    key: "reported_by",
+    label: "Reported",
+    colors: "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 border-red-200 dark:border-red-500/25",
+  },
+  {
+    key: "reporting",
+    label: "Reporting",
+    colors: "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800",
+  },
 ];
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
@@ -466,12 +612,36 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 
 const FILTER_OPTIONS: { value: FilterMode; label: string; color: string }[] = [
   { value: "all", label: "All", color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" },
-  { value: "verified", label: "Verified", color: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" },
-  { value: "high", label: TIER_LABELS.high, color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
-  { value: "trusted", label: TIER_LABELS.trusted, color: "bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400" },
-  { value: "neutral", label: "Neutral", color: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" },
-  { value: "low", label: TIER_LABELS.low, color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-  { value: "unverified", label: "Unverified", color: "bg-zinc-50 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400" },
+  {
+    value: "verified",
+    label: "Verified",
+    color: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link",
+  },
+  {
+    value: "high",
+    label: TIER_LABELS.high,
+    color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    value: "trusted",
+    label: TIER_LABELS.trusted,
+    color: "bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  },
+  {
+    value: "neutral",
+    label: "Neutral",
+    color: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link",
+  },
+  {
+    value: "low",
+    label: TIER_LABELS.low,
+    color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  },
+  {
+    value: "unverified",
+    label: "Unverified",
+    color: "bg-zinc-50 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400",
+  },
 ];
 
 const REPORT_TYPE_OPTIONS: { value: ReportTypeFilter; label: string; dotColor: string }[] = [
@@ -542,7 +712,7 @@ function computeProcessedPubkeys(
   // params, so the items reaching us already match `filter`.
   let filtered = pubkeys;
   if (reportTypeFilter !== "all" && (key === "reported_by" || key === "reporting")) {
-    filtered = filtered.filter(pk => {
+    filtered = filtered.filter((pk) => {
       const report = getReportForPubkey(key, pk);
       if (reportTypeFilter === "unavailable") return !report;
       return report?.reportType === reportTypeFilter;
@@ -550,7 +720,7 @@ function computeProcessedPubkeys(
   }
   const trimmed = search.toLowerCase().trim();
   if (trimmed) {
-    filtered = filtered.filter(pk => {
+    filtered = filtered.filter((pk) => {
       const profile = expandProfileCache.get(pk);
       const name = (profile?.display_name || profile?.name || "").toLowerCase();
       const nip05 = (profile?.nip05 || "").toLowerCase();
@@ -559,7 +729,9 @@ function computeProcessedPubkeys(
         try {
           const npub = nip19.npubEncode(pk).toLowerCase();
           return npub.includes(trimmed);
-        } catch { return false; }
+        } catch {
+          return false;
+        }
       }
       return false;
     });
@@ -622,26 +794,65 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
   // — All / Verified / Unknown — not five shades it never draws.
   const visibleFilterOptions =
     granularity === "simple"
-      ? FILTER_OPTIONS.filter((o) => o.value === "all" || o.value === "verified" || o.value === "unverified").map((o) =>
-          o.value === "unverified" ? { ...o, label: "Unknown" } : o,
+      ? FILTER_OPTIONS.filter((o) => o.value === "all" || o.value === "verified" || o.value === "unverified").map(
+          (o) => (o.value === "unverified" ? { ...o, label: "Unknown" } : o),
         )
       : FILTER_OPTIONS;
   const {
-    sectionKey: key, pubkeys, filter, sort, search, reportTypeFilter, visibleCount,
+    sectionKey: key,
+    pubkeys,
+    filter,
+    sort,
+    search,
+    reportTypeFilter,
+    visibleCount,
     sectionTotal,
-    filterDropdownOpen, reportTypeDropdownOpen, reportMetaLoading,
-    sectionInfluenceMaps, groupsByPubkey, getReportForPubkey, formatRelativeTime,
-    navigateToProfile, onSetSort, onSetFilter, onSetSearch, onSetReportTypeFilter,
-    onSetVisibleCount, onToggleFilterDropdown, onToggleReportTypeDropdown, onShowMore,
-    onEnsureVisibleFetched, renderToken,
+    filterDropdownOpen,
+    reportTypeDropdownOpen,
+    reportMetaLoading,
+    sectionInfluenceMaps,
+    groupsByPubkey,
+    getReportForPubkey,
+    formatRelativeTime,
+    navigateToProfile,
+    onSetSort,
+    onSetFilter,
+    onSetSearch,
+    onSetReportTypeFilter,
+    onSetVisibleCount,
+    onToggleFilterDropdown,
+    onToggleReportTypeDropdown,
+    onShowMore,
+    onEnsureVisibleFetched,
+    renderToken,
   } = props;
 
   const debouncedSearch = useDebouncedValue(search, 250);
   const processed = useMemo(
-    () => computeProcessedPubkeys(key, pubkeys, filter, sort, debouncedSearch, reportTypeFilter, sectionInfluenceMaps, getReportForPubkey),
+    () =>
+      computeProcessedPubkeys(
+        key,
+        pubkeys,
+        filter,
+        sort,
+        debouncedSearch,
+        reportTypeFilter,
+        sectionInfluenceMaps,
+        getReportForPubkey,
+      ),
     // renderToken in deps so name-sort updates as profiles stream in
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [key, pubkeys, filter, sort, debouncedSearch, reportTypeFilter, sectionInfluenceMaps, getReportForPubkey, renderToken],
+    [
+      key,
+      pubkeys,
+      filter,
+      sort,
+      debouncedSearch,
+      reportTypeFilter,
+      sectionInfluenceMaps,
+      getReportForPubkey,
+      renderToken,
+    ],
   );
 
   const isReportFilterSection = key === "reported_by" || key === "reporting";
@@ -651,22 +862,25 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
 
   useEffect(() => {
     if (visiblePubkeys.length === 0) return;
-    const needsFetch = visiblePubkeys.some(pk => !expandProfileCache.has(pk) || !expandTrustCache.has(pk));
+    const needsFetch = visiblePubkeys.some((pk) => !expandProfileCache.has(pk) || !expandTrustCache.has(pk));
     if (needsFetch) onEnsureVisibleFetched(key, visiblePubkeys);
   }, [key, visiblePubkeys, onEnsureVisibleFetched]);
 
   return (
-    <div className="border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/50">
-      <div className="px-3 py-2 space-y-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+    <div className="border-t border-slate-100 bg-slate-50/50 dark:border-slate-800/60 dark:bg-slate-900/50">
+      <div className="space-y-2 border-b border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 mr-1">
+          <div className="mr-1 flex items-center gap-1">
             <ArrowUpDown className="h-3 w-3 text-slate-400 dark:text-slate-500" />
-            <div className="flex rounded-md overflow-hidden border border-slate-200 dark:border-slate-800">
-              {SORT_OPTIONS.map(opt => (
+            <div className="flex overflow-hidden rounded-md border border-slate-200 dark:border-slate-800">
+              {SORT_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
-                  onClick={(e) => { e.stopPropagation(); onSetSort(key, opt.value); }}
-                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-brand-primary text-white" : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSetSort(key, opt.value);
+                  }}
+                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-brand-primary text-white" : "bg-white text-slate-500 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-900"}`}
                   data-testid={`sort-${opt.value}-${key}`}
                 >
                   {opt.label}
@@ -677,19 +891,28 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
 
           <div className="relative">
             <button
-              onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, !filterDropdownOpen); }}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${filter !== "all" ? "border-brand-primary/25 dark:border-brand-primary/[0.3] bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFilterDropdown(key, !filterDropdownOpen);
+              }}
+              className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors ${filter !== "all" ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary dark:border-brand-primary/[0.3] dark:bg-brand-primary/10 dark:text-brand-link" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-900"}`}
               data-testid={`filter-toggle-${key}`}
             >
               <Filter className="h-3 w-3" />
-              {filter !== "all" ? visibleFilterOptions.find(f => f.value === filter)?.label : "Filter"}
+              {filter !== "all" ? visibleFilterOptions.find((f) => f.value === filter)?.label : "Filter"}
               <ChevronDown className="h-2.5 w-2.5" />
             </button>
             {filterDropdownOpen && (
               <>
-                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, false); }} />
-                <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 py-1 min-w-[140px]">
-                  {visibleFilterOptions.map(opt => (
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFilterDropdown(key, false);
+                  }}
+                />
+                <div className="absolute left-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+                  {visibleFilterOptions.map((opt) => (
                     <button
                       key={opt.value}
                       onClick={(e) => {
@@ -698,10 +921,12 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                         onSetVisibleCount(key, 10);
                         onToggleFilterDropdown(key, false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${filter === opt.value ? "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-medium transition-colors ${filter === opt.value ? "bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link" : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-900"}`}
                       data-testid={`filter-${opt.value}-${key}`}
                     >
-                      <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300 dark:bg-slate-700" : opt.value === "verified" ? "bg-brand-primary" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-brand-primary" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400 dark:bg-slate-600"}`} />
+                      <span
+                        className={`h-2 w-2 rounded-full ${opt.value === "all" ? "bg-slate-300 dark:bg-slate-700" : opt.value === "verified" ? "bg-brand-primary" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-brand-primary" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400 dark:bg-slate-600"}`}
+                      />
                       {opt.label}
                     </button>
                   ))}
@@ -713,19 +938,28 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           {isReportFilterSection && (
             <div className="relative">
               <button
-                onClick={(e) => { e.stopPropagation(); onToggleReportTypeDropdown(key, !reportTypeDropdownOpen); }}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${reportTypeFilter !== "all" ? "border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleReportTypeDropdown(key, !reportTypeDropdownOpen);
+                }}
+                className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors ${reportTypeFilter !== "all" ? "border-red-300 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-900"}`}
                 data-testid={`report-type-filter-toggle-${key}`}
               >
-                <span className="w-2 h-2 rounded-full bg-current opacity-50" />
+                <span className="h-2 w-2 rounded-full bg-current opacity-50" />
                 {reportTypeFilter !== "all" ? reportTypeFilter : "Type"}
                 <ChevronDown className="h-2.5 w-2.5" />
               </button>
               {reportTypeDropdownOpen && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); onToggleReportTypeDropdown(key, false); }} />
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 py-1 min-w-[140px]">
-                    {REPORT_TYPE_OPTIONS.map(opt => (
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleReportTypeDropdown(key, false);
+                    }}
+                  />
+                  <div className="absolute left-0 top-full z-50 mt-1 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+                    {REPORT_TYPE_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
                         onClick={(e) => {
@@ -734,10 +968,10 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                           onSetVisibleCount(key, 10);
                           onToggleReportTypeDropdown(key, false);
                         }}
-                        className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${reportTypeFilter === opt.value ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+                        className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-medium transition-colors ${reportTypeFilter === opt.value ? "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300" : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-900"}`}
                         data-testid={`report-type-filter-${opt.value}-${key}`}
                       >
-                        <span className={`w-2 h-2 rounded-full ${opt.dotColor}`} />
+                        <span className={`h-2 w-2 rounded-full ${opt.dotColor}`} />
                         {opt.label}
                       </button>
                     ))}
@@ -748,32 +982,42 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           )}
 
           {reportMetaLoading && (
-            <span className="flex items-center gap-1 text-[10px] text-brand-link ml-auto">
+            <span className="ml-auto flex items-center gap-1 text-[10px] text-brand-link">
               <Loader2 className="h-2.5 w-2.5 animate-spin" />
               <span>fetching relay data</span>
             </span>
           )}
           {isFiltered && (
-            <span className={`text-[10px] text-slate-400 dark:text-slate-500 ${reportMetaLoading ? "" : "ml-auto"}`} data-testid={`filter-count-${key}`}>
+            <span
+              className={`text-[10px] text-slate-400 dark:text-slate-500 ${reportMetaLoading ? "" : "ml-auto"}`}
+              data-testid={`filter-count-${key}`}
+            >
               {processed.length} of {pubkeys.length}
             </span>
           )}
         </div>
         <div className="relative">
-          <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 dark:text-slate-500 pointer-events-none" />
+          <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
             value={search}
-            onChange={(e) => { onSetSearch(key, e.target.value); onSetVisibleCount(key, 10); }}
+            onChange={(e) => {
+              onSetSearch(key, e.target.value);
+              onSetVisibleCount(key, 10);
+            }}
             onClick={(e) => e.stopPropagation()}
             placeholder="Search by name or npub..."
-            className="w-full pl-7 pr-7 py-1 text-[11px] rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:border-brand-primary/25 focus:ring-1 focus:ring-brand-primary/20"
+            className="w-full rounded-md border border-slate-200 bg-white py-1 pl-7 pr-7 text-[11px] text-slate-700 placeholder:text-slate-300 focus:border-brand-primary/25 focus:outline-none focus:ring-1 focus:ring-brand-primary/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:placeholder:text-slate-600"
             data-testid={`search-input-${key}`}
           />
           {search && (
             <button
-              onClick={(e) => { e.stopPropagation(); onSetSearch(key, ""); onSetVisibleCount(key, 10); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetSearch(key, "");
+                onSetVisibleCount(key, 10);
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
               data-testid={`search-clear-${key}`}
             >
               <X className="h-3 w-3" />
@@ -783,24 +1027,40 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
       </div>
 
       <div className={`border-l-2 ${borderColor} ml-4`}>
-        {visiblePubkeys.map(pk => {
+        {visiblePubkeys.map((pk) => {
           const profile = expandProfileCache.get(pk);
           const trustScore = expandTrustCache.get(pk);
           const displayName = profile?.display_name || profile?.name || nip19.npubEncode(pk).slice(0, 12) + "...";
-          const overlappingGroups = (groupsByPubkey.get(pk) ?? []).filter(g => g.key !== key);
+          const overlappingGroups = (groupsByPubkey.get(pk) ?? []).filter((g) => g.key !== key);
 
-          const trustPct = trustScore !== undefined && trustScore !== null ? Math.round(Math.min(1, Math.max(0, trustScore)) * 100) : null;
+          const trustPct =
+            trustScore !== undefined && trustScore !== null
+              ? Math.round(Math.min(1, Math.max(0, trustScore)) * 100)
+              : null;
           const circ = 2 * Math.PI * 18;
           const trustOffset = trustPct !== null ? circ - (trustPct / 100) * circ : circ;
-          const ringColor = trustPct !== null ? (trustPct >= 50 ? "text-brand-primary" : trustPct >= 20 ? "text-brand-link" : trustPct >= 7 ? "text-brand-link" : "text-brand-link") : "text-brand-link";
+          const ringColor =
+            trustPct !== null
+              ? trustPct >= 50
+                ? "text-brand-primary"
+                : trustPct >= 20
+                  ? "text-brand-link"
+                  : trustPct >= 7
+                    ? "text-brand-link"
+                    : "text-brand-link"
+              : "text-brand-link";
 
           if (profile === undefined && !expandProfileAttempted.has(pk)) {
             return (
-              <div key={pk} className="flex items-center gap-3 px-4 py-2" data-testid={`expand-profile-${pk.slice(0,8)}`}>
-                <div className="h-7 w-7 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse shrink-0" />
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="h-3 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                  <div className="h-2 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+              <div
+                key={pk}
+                className="flex items-center gap-3 px-4 py-2"
+                data-testid={`expand-profile-${pk.slice(0, 8)}`}
+              >
+                <div className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700" />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="h-3 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                  <div className="h-2 w-16 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
                 </div>
               </div>
             );
@@ -814,106 +1074,167 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           return (
             <div
               key={pk}
-              className="flex items-center gap-3 px-4 py-2 hover:bg-white/80 dark:hover:bg-slate-900/80 cursor-pointer transition-colors"
+              className="flex cursor-pointer items-center gap-3 px-4 py-2 transition-colors hover:bg-white/80 dark:hover:bg-slate-900/80"
               onClick={() => navigateToProfile(pk)}
-              data-testid={`expand-profile-${pk.slice(0,8)}`}
+              data-testid={`expand-profile-${pk.slice(0, 8)}`}
             >
-              <Avatar className={`h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0 ${tierRing(trustScore) ?? ""}`}>
+              <Avatar
+                className={`h-7 w-7 shrink-0 border border-slate-200/60 dark:border-slate-800/60 ${tierRing(trustScore) ?? ""}`}
+              >
                 <AvatarImage src={profile?.picture} />
-                <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-xs font-bold">
+                <AvatarFallback className="bg-brand-primary/10 text-xs font-bold text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link">
                   {displayName.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{displayName}</p>
-                {profile?.nip05 && <p className="text-xs text-brand-primary truncate">{profile.nip05}</p>}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">{displayName}</p>
+                {profile?.nip05 && <p className="truncate text-xs text-brand-primary">{profile.nip05}</p>}
                 {isReportSection && reportMeta && (
-                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 font-medium no-default-hover-elevate no-default-active-elevate ${REPORT_TYPE_BADGE_COLORS[reportMeta.reportType] || REPORT_TYPE_BADGE_COLORS.other}`} data-testid={`report-type-${pk.slice(0,8)}`}>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                    <Badge
+                      variant="outline"
+                      className={`no-default-hover-elevate no-default-active-elevate px-1.5 py-0 text-[9px] font-medium ${REPORT_TYPE_BADGE_COLORS[reportMeta.reportType] || REPORT_TYPE_BADGE_COLORS.other}`}
+                      data-testid={`report-type-${pk.slice(0, 8)}`}
+                    >
                       {reportMeta.reportType}
                     </Badge>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500" data-testid={`report-time-${pk.slice(0,8)}`}>{formatRelativeTime(reportMeta.timestamp)}</span>
+                    <span
+                      className="text-[10px] text-slate-400 dark:text-slate-500"
+                      data-testid={`report-time-${pk.slice(0, 8)}`}
+                    >
+                      {formatRelativeTime(reportMeta.timestamp)}
+                    </span>
                     {reportMeta.reason && (
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 italic truncate max-w-[140px]" title={reportMeta.reason} data-testid={`report-reason-${pk.slice(0,8)}`}>"{reportMeta.reason}"</span>
+                      <span
+                        className="max-w-[140px] truncate text-[10px] italic text-slate-400 dark:text-slate-500"
+                        title={reportMeta.reason}
+                        data-testid={`report-reason-${pk.slice(0, 8)}`}
+                      >
+                        "{reportMeta.reason}"
+                      </span>
                     )}
                   </div>
                 )}
                 {isReportSection && !reportMeta && reportMetaLoading && (
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <div className="h-2 w-10 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-                    <div className="h-2 w-8 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                  <div className="mt-0.5 flex items-center gap-1">
+                    <div className="h-2 w-10 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                    <div className="h-2 w-8 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
                   </div>
                 )}
                 {isReportSection && !reportMeta && !reportMetaLoading && (
-                  <span className="text-[10px] text-slate-300 dark:text-slate-600 italic mt-0.5 block" data-testid={`report-unavailable-${pk.slice(0,8)}`}>report details unavailable</span>
+                  <span
+                    className="mt-0.5 block text-[10px] italic text-slate-300 dark:text-slate-600"
+                    data-testid={`report-unavailable-${pk.slice(0, 8)}`}
+                  >
+                    report details unavailable
+                  </span>
                 )}
                 {isMuteSection && muteMeta && (
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500" data-testid={`mute-time-${pk.slice(0,8)}`}>{formatRelativeTime(muteMeta.timestamp)}</span>
+                  <span
+                    className="text-[10px] text-slate-400 dark:text-slate-500"
+                    data-testid={`mute-time-${pk.slice(0, 8)}`}
+                  >
+                    {formatRelativeTime(muteMeta.timestamp)}
+                  </span>
                 )}
               </div>
               {(() => {
-                const overlapKeySet = new Set(overlappingGroups.map(g => g.key));
+                const overlapKeySet = new Set(overlappingGroups.map((g) => g.key));
                 const { owner, you } = deriveConnectionClusters(overlapKeySet);
-                const nonConnectionGroups = overlappingGroups.filter(g => !CONNECTION_GROUP_KEYS.has(g.key));
+                const nonConnectionGroups = overlappingGroups.filter((g) => !CONNECTION_GROUP_KEYS.has(g.key));
                 if (!owner && !you && nonConnectionGroups.length === 0) return null;
                 return (
-                  <div className="flex gap-1 flex-wrap justify-end">
-                    {owner && (() => {
-                      const meta = OWNER_PILL_META[owner];
-                      return (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 no-default-hover-elevate no-default-active-elevate bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-500/25"
-                          data-testid={`pill-owner-${owner}-${pk.slice(0,8)}`}
-                        >
-                          <meta.Icon className="h-2.5 w-2.5" />
-                          {meta.label}
-                        </Badge>
-                      );
-                    })()}
-                    {you && (() => {
-                      const meta = YOU_PILL_META[you];
-                      return (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 no-default-hover-elevate no-default-active-elevate bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/20 dark:border-brand-primary/25"
-                          data-testid={`pill-you-${you}-${pk.slice(0,8)}`}
-                        >
-                          <meta.Icon className="h-2.5 w-2.5" />
-                          {meta.label}
-                        </Badge>
-                      );
-                    })()}
-                    {nonConnectionGroups.map(g => (
-                      <Badge key={g.key} variant="outline" className={`text-[10px] px-1 py-0 no-default-hover-elevate no-default-active-elevate ${g.colors}`}>{g.label}</Badge>
+                  <div className="flex flex-wrap justify-end gap-1">
+                    {owner &&
+                      (() => {
+                        const meta = OWNER_PILL_META[owner];
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="no-default-hover-elevate no-default-active-elevate gap-1 border-teal-200 bg-teal-50 px-1.5 py-0 text-[10px] text-teal-600 dark:border-teal-500/25 dark:bg-teal-500/10 dark:text-teal-400"
+                            data-testid={`pill-owner-${owner}-${pk.slice(0, 8)}`}
+                          >
+                            <meta.Icon className="h-2.5 w-2.5" />
+                            {meta.label}
+                          </Badge>
+                        );
+                      })()}
+                    {you &&
+                      (() => {
+                        const meta = YOU_PILL_META[you];
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="no-default-hover-elevate no-default-active-elevate gap-1 border-brand-primary/20 bg-brand-primary/10 px-1.5 py-0 text-[10px] text-brand-primary dark:border-brand-primary/25 dark:bg-brand-primary/10 dark:text-brand-link"
+                            data-testid={`pill-you-${you}-${pk.slice(0, 8)}`}
+                          >
+                            <meta.Icon className="h-2.5 w-2.5" />
+                            {meta.label}
+                          </Badge>
+                        );
+                      })()}
+                    {nonConnectionGroups.map((g) => (
+                      <Badge
+                        key={g.key}
+                        variant="outline"
+                        className={`no-default-hover-elevate no-default-active-elevate px-1 py-0 text-[10px] ${g.colors}`}
+                      >
+                        {g.label}
+                      </Badge>
                     ))}
                   </div>
                 );
               })()}
               {trustScore !== undefined && trustScore !== null && (
-                <div className="w-6 h-6 relative shrink-0">
-                  <svg viewBox="0 0 44 44" className="w-full h-full -rotate-90">
-                    <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" className="text-brand-link dark:text-brand-primary/20" />
-                    <circle cx="22" cy="22" r="18" fill="none" strokeWidth="4" strokeLinecap="round"
-                      className={ringColor} style={{ strokeDasharray: circ, strokeDashoffset: trustOffset }} />
+                <div className="relative h-6 w-6 shrink-0">
+                  <svg viewBox="0 0 44 44" className="h-full w-full -rotate-90">
+                    <circle
+                      cx="22"
+                      cy="22"
+                      r="18"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      className="text-brand-link dark:text-brand-primary/20"
+                    />
+                    <circle
+                      cx="22"
+                      cy="22"
+                      r="18"
+                      fill="none"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      className={ringColor}
+                      style={{ strokeDasharray: circ, strokeDashoffset: trustOffset }}
+                    />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-brand-primary dark:text-brand-link">{trustPct}</span>
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-brand-primary dark:text-brand-link">
+                    {trustPct}
+                  </span>
                 </div>
               )}
-              {trustScore === undefined && (
-                <Loader2 className="h-3 w-3 text-brand-link animate-spin shrink-0" />
-              )}
+              {trustScore === undefined && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-brand-link" />}
             </div>
           );
         })}
         {processed.length > visibleCount && (
           <div className="px-3 py-2">
             <button
-              onClick={(e) => { e.stopPropagation(); onShowMore(key, processed, visibleCount); }}
-              className="w-full py-2 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowMore(key, processed, visibleCount);
+              }}
+              className="w-full rounded-lg bg-brand-primary py-2 text-xs font-medium text-white shadow-sm transition-all hover:bg-brand-primary-hover hover:shadow-md"
               data-testid={`button-show-more-${key}`}
             >
-              Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining{typeof sectionTotal === "number" && sectionTotal > processed.length ? ` of ${sectionTotal.toLocaleString()} total` : ""})</span>
+              Show {Math.min(10, processed.length - visibleCount)} more{" "}
+              <span className="ml-1 font-mono text-white/60">
+                ({processed.length - visibleCount} remaining
+                {typeof sectionTotal === "number" && sectionTotal > processed.length
+                  ? ` of ${sectionTotal.toLocaleString()} total`
+                  : ""}
+                )
+              </span>
             </button>
           </div>
         )}
@@ -921,8 +1242,12 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           <div className="px-4 py-6 text-center">
             <p className="text-xs text-slate-400 dark:text-slate-500">No users match this filter</p>
             <button
-              onClick={(e) => { e.stopPropagation(); onSetFilter(key, "all"); onSetReportTypeFilter(key, "all"); }}
-              className="text-xs text-brand-link font-medium mt-1.5 hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetFilter(key, "all");
+                onSetReportTypeFilter(key, "all");
+              }}
+              className="mt-1.5 text-xs font-medium text-brand-link hover:underline"
               data-testid={`filter-clear-${key}`}
             >
               Clear filter
@@ -1014,7 +1339,8 @@ export default function ProfilePage() {
   // Write the "you reported this" state straight into the cache instead of
   // re-fetching kind-1984 from relays (which lags 8s / until propagation) — so
   // the chip appears/clears instantly. Shared key, so the /p line updates too.
-  const setMyReport = (value: MyReport | null) => relQueryClient.setQueryData(["my-report", user?.pubkey, hexPubkey], value);
+  const setMyReport = (value: MyReport | null) =>
+    relQueryClient.setQueryData(["my-report", user?.pubkey, hexPubkey], value);
 
   const { data: grapeRankData } = useQuery({
     queryKey: ["/user/graperankResult"],
@@ -1034,7 +1360,10 @@ export default function ProfilePage() {
   });
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
   useEffect(() => {
-    if (calcDoneNow) try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
+    if (calcDoneNow)
+      try {
+        localStorage.setItem("brainstorm_calc_completed", "true");
+      } catch {}
   }, [calcDoneNow]);
 
   // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
@@ -1058,7 +1387,7 @@ export default function ProfilePage() {
     setFromGroup(group || null);
     const adminFrom = urlParams.get("from");
     const adminPubkey = urlParams.get("pubkey");
-    setFromAdmin(adminFrom === "admin" ? (adminPubkey || "1") : null);
+    setFromAdmin(adminFrom === "admin" ? adminPubkey || "1" : null);
   }, [location, npubParam]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
@@ -1072,8 +1401,14 @@ export default function ProfilePage() {
   const selfMutualsPubkey = hasSession ? user?.pubkey : undefined;
   const selfFollowedByConn = useSelfConnections(selfMutualsPubkey, "followed_by", { enabled: !!selfMutualsPubkey });
   const selfFollowingConn = useSelfConnections(selfMutualsPubkey, "following", { enabled: !!selfMutualsPubkey });
-  const selfFollowedByList = useMemo(() => flattenConnections(selfFollowedByConn.data?.pages), [selfFollowedByConn.data?.pages]);
-  const selfFollowingList = useMemo(() => flattenConnections(selfFollowingConn.data?.pages), [selfFollowingConn.data?.pages]);
+  const selfFollowedByList = useMemo(
+    () => flattenConnections(selfFollowedByConn.data?.pages),
+    [selfFollowedByConn.data?.pages],
+  );
+  const selfFollowingList = useMemo(
+    () => flattenConnections(selfFollowingConn.data?.pages),
+    [selfFollowingConn.data?.pages],
+  );
 
   const seed = useMemo<ProfileSeed | null>(() => {
     if (!hexPubkey) return null;
@@ -1169,14 +1504,16 @@ export default function ProfilePage() {
   const SECTION_LIMIT = 200;
   // Map per-section SortMode → backend `order`. Name sorts stay client-side
   // (no backend name index), and fall back to DESC for fetch purposes.
-  const orderFor = (kind: string): "asc" | "desc" =>
-    sectionSort[kind] === "trust-asc" ? "asc" : "desc";
+  const orderFor = (kind: string): "asc" | "desc" => (sectionSort[kind] === "trust-asc" ? "asc" : "desc");
 
   // Map per-section FilterMode → backend `tier` + `verified_only`. "verified"
   // is the union of every banded tier, so it goes through `verified_only`;
   // specific tiers go through `tier`.
   // Map UI FilterMode keys → backend GR-style tier names.
-  const UI_TO_GR_TIER: Record<string, "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys"> = {
+  const UI_TO_GR_TIER: Record<
+    string,
+    "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys"
+  > = {
     high: "high",
     trusted: "medium_high",
     neutral: "medium",
@@ -1206,13 +1543,7 @@ export default function ProfilePage() {
   };
 
   const useConnectionsQuery = (
-    kind:
-      | "followed_by"
-      | "following"
-      | "muted_by"
-      | "muting"
-      | "reported_by"
-      | "reporting",
+    kind: "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting",
     eager: boolean = false,
   ) => {
     const order = orderFor(kind);
@@ -1239,10 +1570,8 @@ export default function ProfilePage() {
         };
       },
       initialPageParam: undefined,
-      getNextPageParam: (lastPage: { next_cursor: string | null }) =>
-        lastPage?.next_cursor ?? undefined,
-      enabled:
-        !!hexPubkey && (eager || !!expandedSections[kind]),
+      getNextPageParam: (lastPage: { next_cursor: string | null }) => lastPage?.next_cursor ?? undefined,
+      enabled: !!hexPubkey && (eager || !!expandedSections[kind]),
       staleTime: 5 * 60_000,
       retry: false,
     });
@@ -1296,14 +1625,7 @@ export default function ProfilePage() {
     seedFrom(mutingItems);
     seedFrom(reportedByItems);
     seedFrom(reportingItems);
-  }, [
-    followedByItems,
-    followingItems,
-    mutedByItems,
-    mutingItems,
-    reportedByItems,
-    reportingItems,
-  ]);
+  }, [followedByItems, followingItems, mutedByItems, mutingItems, reportedByItems, reportingItems]);
 
   // Composed ProfileResultData: counts as numbers (from overview) until each
   // section's lazy query lands its array. UI already handles the number-or-array
@@ -1390,9 +1712,7 @@ export default function ProfilePage() {
     if (!ownProfileFallback) return base;
     if (!base) return ownProfileFallback;
     // Network values win when present; the local copy backfills empty fields.
-    const nonEmpty = Object.fromEntries(
-      Object.entries(base).filter(([, v]) => v != null && v !== ""),
-    );
+    const nonEmpty = Object.fromEntries(Object.entries(base).filter(([, v]) => v != null && v !== ""));
     return { ...ownProfileFallback, ...nonEmpty } as ProfileContent;
   }, [nostrProfile, seedAsNostrProfile, ownProfileFallback]);
 
@@ -1400,7 +1720,8 @@ export default function ProfilePage() {
     if (!npubParam) return null;
     if (user && !hexPubkey) return "Invalid profile identifier";
     if (profileQuery.isError) return "No profile data found for this identity on the Brainstorm backend.";
-    if (profileQuery.isFetched && !profileQuery.data) return "No profile data found for this identity on the Brainstorm backend.";
+    if (profileQuery.isFetched && !profileQuery.data)
+      return "No profile data found for this identity on the Brainstorm backend.";
     return null;
   }, [npubParam, user, hexPubkey, profileQuery.isError, profileQuery.isFetched, profileQuery.data]);
 
@@ -1426,9 +1747,16 @@ export default function ProfilePage() {
     return parts.map((part, i) => {
       if (urlRegex.test(part)) {
         urlRegex.lastIndex = 0;
-        const display = part.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        const display = part.replace(/^https?:\/\//, "").replace(/\/$/, "");
         return (
-          <a key={i} href={part} target="_blank" rel="noopener" className="text-brand-primary underline underline-offset-2 decoration-brand-primary/25 break-all" data-testid={`link-about-url-${i}`}>
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener"
+            className="break-all text-brand-primary underline decoration-brand-primary/25 underline-offset-2"
+            data-testid={`link-about-url-${i}`}
+          >
             {display}
           </a>
         );
@@ -1440,115 +1768,124 @@ export default function ProfilePage() {
   const fetchAbortRef = useRef<number>(0);
   const prefetchedRef = useRef<Set<string>>(new Set());
 
-  const fetchSectionProfiles = useCallback(async (key: string, pubkeys: string[], startIdx = 0, count = 10) => {
-    const fetchId = ++fetchAbortRef.current;
-    const toFetch = pubkeys.slice(startIdx, startIdx + count).filter(
-      pk => !expandProfileCache.has(pk)
-    );
-    if (toFetch.length === 0) return;
-    const missingProfiles: string[] = [];
-    for (const pk of toFetch) {
-      const event = eventStore.getReplaceable(0, pk);
-      if (event) {
-        if (isValidProfile(event)) expandProfileCache.set(pk, getProfileContent(event));
-      } else {
-        missingProfiles.push(pk);
+  const fetchSectionProfiles = useCallback(
+    async (key: string, pubkeys: string[], startIdx = 0, count = 10) => {
+      const fetchId = ++fetchAbortRef.current;
+      const toFetch = pubkeys.slice(startIdx, startIdx + count).filter((pk) => !expandProfileCache.has(pk));
+      if (toFetch.length === 0) return;
+      const missingProfiles: string[] = [];
+      for (const pk of toFetch) {
+        const event = eventStore.getReplaceable(0, pk);
+        if (event) {
+          if (isValidProfile(event)) expandProfileCache.set(pk, getProfileContent(event));
+        } else {
+          missingProfiles.push(pk);
+        }
       }
-    }
-    if (fetchAbortRef.current !== fetchId) return;
-    if (missingProfiles.length > 0) {
-      bumpRerender();
-    }
-    await Promise.allSettled([
-      ...(missingProfiles.length > 0 ? [fetchProfiles(missingProfiles, (pubkey, profile) => {
-        expandProfileCache.set(pubkey, profile);
+      if (fetchAbortRef.current !== fetchId) return;
+      if (missingProfiles.length > 0) {
         bumpRerender();
-      })] : []),
-    ]);
-    if (fetchAbortRef.current !== fetchId) return;
-    // Every pubkey in this batch has now had a fetch attempt (eventStore hit or
-    // a settled relay request). Mark them so rows with no resolvable kind-0
-    // profile fall back to the npub instead of a skeleton forever.
-    toFetch.forEach(pk => expandProfileAttempted.set(pk, true));
-    bumpRerender();
-    const nextStart = startIdx + count;
-    if (nextStart < pubkeys.length) {
-      const nextBatch = pubkeys.slice(nextStart, nextStart + count).filter(
-        pk => !expandProfileCache.has(pk) && !eventStore.getReplaceable(0, pk)
-      );
-      if (nextBatch.length > 0) {
-        nextBatch.forEach(pk => prefetchedRef.current.add(pk));
-        fetchProfiles(nextBatch, (pubkey, profile) => {
-          expandProfileCache.set(pubkey, profile);
-        });
       }
-    }
-  }, [bumpRerender]);
+      await Promise.allSettled([
+        ...(missingProfiles.length > 0
+          ? [
+              fetchProfiles(missingProfiles, (pubkey, profile) => {
+                expandProfileCache.set(pubkey, profile);
+                bumpRerender();
+              }),
+            ]
+          : []),
+      ]);
+      if (fetchAbortRef.current !== fetchId) return;
+      // Every pubkey in this batch has now had a fetch attempt (eventStore hit or
+      // a settled relay request). Mark them so rows with no resolvable kind-0
+      // profile fall back to the npub instead of a skeleton forever.
+      toFetch.forEach((pk) => expandProfileAttempted.set(pk, true));
+      bumpRerender();
+      const nextStart = startIdx + count;
+      if (nextStart < pubkeys.length) {
+        const nextBatch = pubkeys
+          .slice(nextStart, nextStart + count)
+          .filter((pk) => !expandProfileCache.has(pk) && !eventStore.getReplaceable(0, pk));
+        if (nextBatch.length > 0) {
+          nextBatch.forEach((pk) => prefetchedRef.current.add(pk));
+          fetchProfiles(nextBatch, (pubkey, profile) => {
+            expandProfileCache.set(pubkey, profile);
+          });
+        }
+      }
+    },
+    [bumpRerender],
+  );
 
   const metadataFetchedRef = useRef<Set<string>>(new Set());
 
-  const fetchSectionMetadata = useCallback(async (sectionKey: string, extraPubkeys?: string[]) => {
-    if (!hexPubkey) return;
-    const cacheKey = `${sectionKey}:${hexPubkey}`;
+  const fetchSectionMetadata = useCallback(
+    async (sectionKey: string, extraPubkeys?: string[]) => {
+      if (!hexPubkey) return;
+      const cacheKey = `${sectionKey}:${hexPubkey}`;
 
-    if (sectionKey === "reported_by" || sectionKey === "reporting") {
-      if (metadataFetchedRef.current.has(cacheKey)) return;
-      metadataFetchedRef.current.add(cacheKey);
-    }
+      if (sectionKey === "reported_by" || sectionKey === "reporting") {
+        if (metadataFetchedRef.current.has(cacheKey)) return;
+        metadataFetchedRef.current.add(cacheKey);
+      }
 
-    if (sectionKey === "muting") {
-      if (muteMetadataCache.has(hexPubkey)) return;
-    }
+      if (sectionKey === "muting") {
+        if (muteMetadataCache.has(hexPubkey)) return;
+      }
 
-    setReportMetadataLoading(prev => ({ ...prev, [sectionKey]: true }));
+      setReportMetadataLoading((prev) => ({ ...prev, [sectionKey]: true }));
 
-    try {
-      if (sectionKey === "reported_by") {
-        const reports = await fetchReportsForPubkey(hexPubkey);
-        reportMetadataCache.set(cacheKey, reports);
-      } else if (sectionKey === "reporting") {
-        const reports = await fetchReportsByPubkey(hexPubkey);
-        reportMetadataCache.set(cacheKey, reports);
-      } else if (sectionKey === "muted_by") {
-        const pubkeysToFetch = extraPubkeys || toPubkeys(getSection(profileResult, sectionKey)).slice(0, 50);
-        const unfetched = pubkeysToFetch.filter(pk => !muteMetadataCache.has(pk));
-        if (unfetched.length > 0) {
-          const results = await Promise.allSettled(
-            unfetched.map(pk => fetchMuteListTimestamp(pk))
-          );
-          for (const r of results) {
-            if (r.status === "fulfilled" && r.value) {
-              muteMetadataCache.set(r.value.muterPubkey, r.value);
+      try {
+        if (sectionKey === "reported_by") {
+          const reports = await fetchReportsForPubkey(hexPubkey);
+          reportMetadataCache.set(cacheKey, reports);
+        } else if (sectionKey === "reporting") {
+          const reports = await fetchReportsByPubkey(hexPubkey);
+          reportMetadataCache.set(cacheKey, reports);
+        } else if (sectionKey === "muted_by") {
+          const pubkeysToFetch = extraPubkeys || toPubkeys(getSection(profileResult, sectionKey)).slice(0, 50);
+          const unfetched = pubkeysToFetch.filter((pk) => !muteMetadataCache.has(pk));
+          if (unfetched.length > 0) {
+            const results = await Promise.allSettled(unfetched.map((pk) => fetchMuteListTimestamp(pk)));
+            for (const r of results) {
+              if (r.status === "fulfilled" && r.value) {
+                muteMetadataCache.set(r.value.muterPubkey, r.value);
+              }
             }
           }
+        } else if (sectionKey === "muting") {
+          const result = await fetchMuteListTimestamp(hexPubkey);
+          if (result) {
+            muteMetadataCache.set(hexPubkey, result);
+          }
         }
-      } else if (sectionKey === "muting") {
-        const result = await fetchMuteListTimestamp(hexPubkey);
-        if (result) {
-          muteMetadataCache.set(hexPubkey, result);
-        }
-      }
-    } catch {}
+      } catch {}
 
-    setReportMetadataLoading(prev => ({ ...prev, [sectionKey]: false }));
-    bumpRerender();
-  }, [hexPubkey, profileResult, bumpRerender]);
+      setReportMetadataLoading((prev) => ({ ...prev, [sectionKey]: false }));
+      bumpRerender();
+    },
+    [hexPubkey, profileResult, bumpRerender],
+  );
 
-  const getReportForPubkey = useCallback((sectionKey: string, pubkey: string): ReportMetadata | undefined => {
-    const cacheKey = `${sectionKey}:${hexPubkey}`;
-    const reports = reportMetadataCache.get(cacheKey);
-    if (!reports) return undefined;
-    const matching = sectionKey === "reported_by"
-      ? reports.filter(r => r.reporterPubkey === pubkey)
-      : sectionKey === "reporting"
-      ? reports.filter(r => r.targetPubkey === pubkey)
-      : [];
-    if (matching.length === 0) return undefined;
-    return matching.reduce((latest, r) => r.timestamp > latest.timestamp ? r : latest, matching[0]);
-  }, [hexPubkey]);
+  const getReportForPubkey = useCallback(
+    (sectionKey: string, pubkey: string): ReportMetadata | undefined => {
+      const cacheKey = `${sectionKey}:${hexPubkey}`;
+      const reports = reportMetadataCache.get(cacheKey);
+      if (!reports) return undefined;
+      const matching =
+        sectionKey === "reported_by"
+          ? reports.filter((r) => r.reporterPubkey === pubkey)
+          : sectionKey === "reporting"
+            ? reports.filter((r) => r.targetPubkey === pubkey)
+            : [];
+      if (matching.length === 0) return undefined;
+      return matching.reduce((latest, r) => (r.timestamp > latest.timestamp ? r : latest), matching[0]);
+    },
+    [hexPubkey],
+  );
 
   const formatRelativeTime = useCallback((timestamp: number) => formatReportTime(timestamp), []);
-
 
   const mutualPubkeys = useMemo(() => {
     if (!profileResult) return [];
@@ -1589,19 +1926,20 @@ export default function ProfilePage() {
       for (const pk of mutualPubkeys.slice(0, 10)) allPubkeys.push(pk);
       for (const pk of sharedFollowerPubkeys.slice(0, 10)) allPubkeys.push(pk);
       for (const pk of sharedFollowingPubkeys.slice(0, 10)) allPubkeys.push(pk);
-      const unique = [...new Set(allPubkeys)].filter(pk => {
+      const unique = [...new Set(allPubkeys)].filter((pk) => {
         if (prefetchedRef.current.has(pk)) return false;
         const cached = eventStore.getReplaceable(0, pk);
         return !cached;
       });
       if (unique.length > 0) {
-        unique.forEach(pk => prefetchedRef.current.add(pk));
+        unique.forEach((pk) => prefetchedRef.current.add(pk));
         fetchProfiles(unique, (pubkey, profile) => {
           expandProfileCache.set(pubkey, profile);
         });
       }
     };
-    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number })
+      .requestIdleCallback;
     const cic = (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
     let handle: number;
     let isIdle = false;
@@ -1641,11 +1979,17 @@ export default function ProfilePage() {
       if (existing) existing.push(def);
       else map.set(pk, [def]);
     };
-    const defsByKey = Object.fromEntries(GROUP_DEFS.map(d => [d.key, d]));
+    const defsByKey = Object.fromEntries(GROUP_DEFS.map((d) => [d.key, d]));
     const followedSet = new Set<string>();
     const followingSet = new Set<string>();
-    sectionInfluenceMaps.followed_by.forEach((_v, pk) => { followedSet.add(pk); push(pk, defsByKey.followed_by); });
-    sectionInfluenceMaps.following.forEach((_v, pk) => { followingSet.add(pk); push(pk, defsByKey.following); });
+    sectionInfluenceMaps.followed_by.forEach((_v, pk) => {
+      followedSet.add(pk);
+      push(pk, defsByKey.followed_by);
+    });
+    sectionInfluenceMaps.following.forEach((_v, pk) => {
+      followingSet.add(pk);
+      push(pk, defsByKey.following);
+    });
     sectionInfluenceMaps.muted_by.forEach((_v, pk) => push(pk, defsByKey.muted_by));
     sectionInfluenceMaps.muting.forEach((_v, pk) => push(pk, defsByKey.muting));
     sectionInfluenceMaps.reported_by.forEach((_v, pk) => push(pk, defsByKey.reported_by));
@@ -1663,11 +2007,51 @@ export default function ProfilePage() {
   // No `min` here: the line moves with the preset, so a subject's bucket is
   // read off the backend `tier` rather than rederived from a number.
   const TIER_DISPLAY_CONFIG = [
-    { key: "high", name: TIER_LABELS.high, color: "#7237ff", bg: "bg-brand-primary/10 dark:bg-brand-primary/10", text: "text-brand-primary dark:text-brand-link", border: "border-brand-primary/20 dark:border-brand-primary/25", ring: "stroke-brand-primary" },
-    { key: "trusted", name: TIER_LABELS.trusted, color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" },
-    { key: "neutral", name: "Neutral", color: "#665487", bg: "bg-[#665487]/10 dark:bg-[#665487]/20", text: "text-[#665487] dark:text-brand-link", border: "border-[#665487]/30 dark:border-[#665487]/50", ring: "stroke-[#665487]" },
-    { key: "low", name: TIER_LABELS.low, color: "#f59e0b", bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-700 dark:text-amber-300", border: "border-amber-200 dark:border-amber-500/25", ring: "stroke-amber-400" },
-    { key: "unverified", name: "Unverified", color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" },
+    {
+      key: "high",
+      name: TIER_LABELS.high,
+      color: "#7237ff",
+      bg: "bg-brand-primary/10 dark:bg-brand-primary/10",
+      text: "text-brand-primary dark:text-brand-link",
+      border: "border-brand-primary/20 dark:border-brand-primary/25",
+      ring: "stroke-brand-primary",
+    },
+    {
+      key: "trusted",
+      name: TIER_LABELS.trusted,
+      color: "#13d2e5",
+      bg: "bg-cyan-50 dark:bg-cyan-500/10",
+      text: "text-cyan-700 dark:text-cyan-300",
+      border: "border-cyan-200 dark:border-cyan-500/25",
+      ring: "stroke-cyan-500",
+    },
+    {
+      key: "neutral",
+      name: "Neutral",
+      color: "#665487",
+      bg: "bg-[#665487]/10 dark:bg-[#665487]/20",
+      text: "text-[#665487] dark:text-brand-link",
+      border: "border-[#665487]/30 dark:border-[#665487]/50",
+      ring: "stroke-[#665487]",
+    },
+    {
+      key: "low",
+      name: TIER_LABELS.low,
+      color: "#f59e0b",
+      bg: "bg-amber-50 dark:bg-amber-500/10",
+      text: "text-amber-700 dark:text-amber-300",
+      border: "border-amber-200 dark:border-amber-500/25",
+      ring: "stroke-amber-400",
+    },
+    {
+      key: "unverified",
+      name: "Unverified",
+      color: "#8c929e",
+      bg: "bg-slate-100 dark:bg-slate-800",
+      text: "text-slate-500 dark:text-slate-400",
+      border: "border-slate-200 dark:border-slate-800",
+      ring: "stroke-slate-400",
+    },
   ];
 
   const [granularity] = useTierGranularity();
@@ -1678,10 +2062,53 @@ export default function ProfilePage() {
     const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
     const pct = Math.round(score * 100);
     const name = nostrProfile?.display_name || nostrProfile?.name || "this identity";
-    if (pct >= 50) return { label: "High confidence", color: "text-emerald-700 dark:text-emerald-300", iconColor: "text-emerald-500 dark:text-emerald-400", iconBg: "bg-emerald-100 dark:bg-emerald-500/15", bg: "bg-gradient-to-r from-emerald-50/90 via-emerald-50/60 to-white/40 dark:bg-none dark:bg-emerald-500/10", border: "border-emerald-200/60 dark:border-emerald-500/25", message: `Strong trust signals from your community for ${name}.`, pct, icon: "check" as const };
-    if (pct >= 20) return { label: "Moderate confidence", color: "text-brand-primary dark:text-brand-link", iconColor: "text-brand-primary dark:text-brand-link", iconBg: "bg-brand-primary/15 dark:bg-brand-primary/15", bg: "bg-gradient-to-r from-brand-primary/10 via-brand-primary/10 to-white/40 dark:bg-none dark:bg-brand-primary/10", border: "border-brand-primary/20 dark:border-brand-primary/25", message: `Some trust signals present. Your network has limited data on ${name}.`, pct, icon: "shield" as const };
-    if (pct >= 7) return { label: "Low confidence", color: "text-slate-600 dark:text-slate-300", iconColor: "text-slate-400 dark:text-slate-500", iconBg: "bg-slate-100 dark:bg-slate-800", bg: "bg-gradient-to-r from-slate-50/90 via-slate-50/60 to-white/40 dark:bg-none dark:bg-slate-800/50", border: "border-slate-200/60 dark:border-slate-800/60", message: `Weak or mixed signals from your trusted community for ${name}.`, pct, icon: "alert" as const };
-    return { label: "Very low confidence", color: "text-amber-700 dark:text-amber-300", iconColor: "text-amber-500 dark:text-amber-400", iconBg: "bg-amber-100 dark:bg-amber-500/15", bg: "bg-gradient-to-r from-amber-50/90 via-amber-50/60 to-white/40 dark:bg-none dark:bg-amber-500/10", border: "border-amber-200/60 dark:border-amber-500/25", message: `Your community's signals suggest careful scrutiny before trusting ${name}.`, pct, icon: "x" as const };
+    if (pct >= 50)
+      return {
+        label: "High confidence",
+        color: "text-emerald-700 dark:text-emerald-300",
+        iconColor: "text-emerald-500 dark:text-emerald-400",
+        iconBg: "bg-emerald-100 dark:bg-emerald-500/15",
+        bg: "bg-gradient-to-r from-emerald-50/90 via-emerald-50/60 to-white/40 dark:bg-none dark:bg-emerald-500/10",
+        border: "border-emerald-200/60 dark:border-emerald-500/25",
+        message: `Strong trust signals from your community for ${name}.`,
+        pct,
+        icon: "check" as const,
+      };
+    if (pct >= 20)
+      return {
+        label: "Moderate confidence",
+        color: "text-brand-primary dark:text-brand-link",
+        iconColor: "text-brand-primary dark:text-brand-link",
+        iconBg: "bg-brand-primary/15 dark:bg-brand-primary/15",
+        bg: "bg-gradient-to-r from-brand-primary/10 via-brand-primary/10 to-white/40 dark:bg-none dark:bg-brand-primary/10",
+        border: "border-brand-primary/20 dark:border-brand-primary/25",
+        message: `Some trust signals present. Your network has limited data on ${name}.`,
+        pct,
+        icon: "shield" as const,
+      };
+    if (pct >= 7)
+      return {
+        label: "Low confidence",
+        color: "text-slate-600 dark:text-slate-300",
+        iconColor: "text-slate-400 dark:text-slate-500",
+        iconBg: "bg-slate-100 dark:bg-slate-800",
+        bg: "bg-gradient-to-r from-slate-50/90 via-slate-50/60 to-white/40 dark:bg-none dark:bg-slate-800/50",
+        border: "border-slate-200/60 dark:border-slate-800/60",
+        message: `Weak or mixed signals from your trusted community for ${name}.`,
+        pct,
+        icon: "alert" as const,
+      };
+    return {
+      label: "Very low confidence",
+      color: "text-amber-700 dark:text-amber-300",
+      iconColor: "text-amber-500 dark:text-amber-400",
+      iconBg: "bg-amber-100 dark:bg-amber-500/15",
+      bg: "bg-gradient-to-r from-amber-50/90 via-amber-50/60 to-white/40 dark:bg-none dark:bg-amber-500/10",
+      border: "border-amber-200/60 dark:border-amber-500/25",
+      message: `Your community's signals suggest careful scrutiny before trusting ${name}.`,
+      pct,
+      icon: "x" as const,
+    };
   }, [profileResult, nostrProfile]);
 
   const verifiedCounts = useMemo(() => {
@@ -1722,60 +2149,78 @@ export default function ProfilePage() {
     return { counts: grTierCountsToUI(serverStats.tier_counts), total: serverStats.total };
   }, [sectionStats]);
 
-  const getTierBreakdown = useCallback((sectionKey: string): { tier: string; count: number; color: string }[] | null => {
-    // Server-side tier counts only — see followerTierBreakdown.
-    const serverStats = (sectionStats as Record<string, SectionStats | null | undefined>)[sectionKey];
-    if (!serverStats) return null;
-    const counts = grTierCountsToUI(serverStats.tier_counts);
-    const tierDefs: { tier: string; label: string; color: string }[] = [
-      { tier: "high", label: TIER_LABELS.high, color: "text-emerald-600" },
-      { tier: "trusted", label: TIER_LABELS.trusted, color: "text-sky-500" },
-      { tier: "neutral", label: "Neutral", color: "text-brand-link" },
-      { tier: "low", label: "Low", color: "text-amber-500" },
-      { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
-    ];
-    const rows = tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
-    if (granularity !== "simple") return rows;
-    const verified = tierDefs.filter(t => t.tier !== "unverified").reduce((a, t) => a + (counts[t.tier] ?? 0), 0);
-    const unknown = counts.unverified ?? 0;
-    return [
-      { tier: "Verified", count: verified, color: "text-cyan-600" },
-      { tier: "Unknown", count: unknown, color: "text-zinc-400" },
-    ].filter(r => r.count > 0);
-  }, [sectionStats, granularity]);
+  const getTierBreakdown = useCallback(
+    (sectionKey: string): { tier: string; count: number; color: string }[] | null => {
+      // Server-side tier counts only — see followerTierBreakdown.
+      const serverStats = (sectionStats as Record<string, SectionStats | null | undefined>)[sectionKey];
+      if (!serverStats) return null;
+      const counts = grTierCountsToUI(serverStats.tier_counts);
+      const tierDefs: { tier: string; label: string; color: string }[] = [
+        { tier: "high", label: TIER_LABELS.high, color: "text-emerald-600" },
+        { tier: "trusted", label: TIER_LABELS.trusted, color: "text-sky-500" },
+        { tier: "neutral", label: "Neutral", color: "text-brand-link" },
+        { tier: "low", label: "Low", color: "text-amber-500" },
+        { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
+      ];
+      const rows = tierDefs
+        .filter((t) => counts[t.tier] > 0)
+        .map((t) => ({ tier: t.label, count: counts[t.tier], color: t.color }));
+      if (granularity !== "simple") return rows;
+      const verified = tierDefs.filter((t) => t.tier !== "unverified").reduce((a, t) => a + (counts[t.tier] ?? 0), 0);
+      const unknown = counts.unverified ?? 0;
+      return [
+        { tier: "Verified", count: verified, color: "text-cyan-600" },
+        { tier: "Unknown", count: unknown, color: "text-zinc-400" },
+      ].filter((r) => r.count > 0);
+    },
+    [sectionStats, granularity],
+  );
 
-  const seedTrustForSection = useCallback((key: string, pubkeys: string[]) => {
-    // Seed expandTrustCache from already-known influence values so we never
-    // need a per-pubkey apiClient.getUserByPubkey() call for these.
-    const seed = (pk: string, val: number | null | undefined) => {
-      if (val === undefined) return;
-      if (!expandTrustCache.has(pk)) expandTrustCache.set(pk, val);
-    };
-    if (key === "mutual" || key === "shared_followers" || key === "shared_following") {
-      for (const pk of pubkeys) {
-        const fromFollowedBy = sectionInfluenceMaps.followed_by.get(pk);
-        if (fromFollowedBy !== undefined) { seed(pk, fromFollowedBy); continue; }
-        const fromFollowing = sectionInfluenceMaps.following.get(pk);
-        if (fromFollowing !== undefined) { seed(pk, fromFollowing); continue; }
-        seed(pk, null);
+  const seedTrustForSection = useCallback(
+    (key: string, pubkeys: string[]) => {
+      // Seed expandTrustCache from already-known influence values so we never
+      // need a per-pubkey apiClient.getUserByPubkey() call for these.
+      const seed = (pk: string, val: number | null | undefined) => {
+        if (val === undefined) return;
+        if (!expandTrustCache.has(pk)) expandTrustCache.set(pk, val);
+      };
+      if (key === "mutual" || key === "shared_followers" || key === "shared_following") {
+        for (const pk of pubkeys) {
+          const fromFollowedBy = sectionInfluenceMaps.followed_by.get(pk);
+          if (fromFollowedBy !== undefined) {
+            seed(pk, fromFollowedBy);
+            continue;
+          }
+          const fromFollowing = sectionInfluenceMaps.following.get(pk);
+          if (fromFollowing !== undefined) {
+            seed(pk, fromFollowing);
+            continue;
+          }
+          seed(pk, null);
+        }
+        return;
       }
-      return;
-    }
-    const map = (sectionInfluenceMaps as Record<string, Map<string, number | null> | undefined>)[key];
-    if (!map) return;
-    map.forEach((inf, pk) => seed(pk, inf));
-  }, [sectionInfluenceMaps]);
+      const map = (sectionInfluenceMaps as Record<string, Map<string, number | null> | undefined>)[key];
+      if (!map) return;
+      map.forEach((inf, pk) => seed(pk, inf));
+    },
+    [sectionInfluenceMaps],
+  );
 
   const toggleSection = (key: string) => {
-    setExpandedSections(prev => {
+    setExpandedSections((prev) => {
       const next = { ...prev, [key]: !prev[key] };
       if (!prev[key]) {
         hasExpandedRef.current = true;
-        setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
-        const pubkeys = key === "mutual" ? mutualPubkeys
-          : key === "shared_followers" ? sharedFollowerPubkeys
-          : key === "shared_following" ? sharedFollowingPubkeys
-          : toPubkeys(getSection(profileResult, key));
+        setSectionVisibleCount((vc) => ({ ...vc, [key]: 10 }));
+        const pubkeys =
+          key === "mutual"
+            ? mutualPubkeys
+            : key === "shared_followers"
+              ? sharedFollowerPubkeys
+              : key === "shared_following"
+                ? sharedFollowingPubkeys
+                : toPubkeys(getSection(profileResult, key));
         if (pubkeys.length > 0) {
           seedTrustForSection(key, pubkeys);
           fetchSectionProfiles(key, pubkeys);
@@ -1784,15 +2229,31 @@ export default function ProfilePage() {
           fetchSectionMetadata(key);
         }
       } else {
-        setSectionVisibleCount(vc => {
+        setSectionVisibleCount((vc) => {
           const copy = { ...vc };
           delete copy[key];
           return copy;
         });
-        setSectionSort(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
-        setSectionFilter(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
-        setSectionSearch(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
-        setFilterDropdownOpen(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
+        setSectionSort((prev) => {
+          const copy = { ...prev };
+          delete copy[key];
+          return copy;
+        });
+        setSectionFilter((prev) => {
+          const copy = { ...prev };
+          delete copy[key];
+          return copy;
+        });
+        setSectionSearch((prev) => {
+          const copy = { ...prev };
+          delete copy[key];
+          return copy;
+        });
+        setFilterDropdownOpen((prev) => {
+          const copy = { ...prev };
+          delete copy[key];
+          return copy;
+        });
       }
       return next;
     });
@@ -1802,10 +2263,10 @@ export default function ProfilePage() {
     const breakdown = getTierBreakdown(sectionKey);
     if (!breakdown || breakdown.length === 0) return null;
     return (
-      <div className="flex items-center gap-1.5 flex-wrap mt-0.5" data-testid={`tier-breakdown-${sectionKey}`}>
-        {breakdown.map(t => (
+      <div className="mt-0.5 flex flex-wrap items-center gap-1.5" data-testid={`tier-breakdown-${sectionKey}`}>
+        {breakdown.map((t) => (
           <span key={t.tier} className={`text-[9px] font-medium ${t.color} flex items-center gap-0.5`}>
-            <span className={`w-1.5 h-1.5 rounded-full inline-block ${t.color.replace("text-", "bg-")}`} />
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${t.color.replace("text-", "bg-")}`} />
             {t.count}
           </span>
         ))}
@@ -1813,50 +2274,59 @@ export default function ProfilePage() {
     );
   };
 
-  const navigateToProfile = useCallback((pk: string) => {
-    const targetNpub = nip19.npubEncode(pk);
-    const params = new URLSearchParams();
-    if (fromGroup) params.set("fromGroup", fromGroup);
-    if (fromAdmin) {
-      params.set("from", "admin");
-      if (fromAdmin !== "1") params.set("pubkey", fromAdmin);
-    }
-    const qs = params.toString();
-    navigate(`/profile/${targetNpub}${qs ? `?${qs}` : ""}`);
-  }, [navigate, fromGroup, fromAdmin]);
+  const navigateToProfile = useCallback(
+    (pk: string) => {
+      const targetNpub = nip19.npubEncode(pk);
+      const params = new URLSearchParams();
+      if (fromGroup) params.set("fromGroup", fromGroup);
+      if (fromAdmin) {
+        params.set("from", "admin");
+        if (fromAdmin !== "1") params.set("pubkey", fromAdmin);
+      }
+      const qs = params.toString();
+      navigate(`/profile/${targetNpub}${qs ? `?${qs}` : ""}`);
+    },
+    [navigate, fromGroup, fromAdmin],
+  );
 
   const handleSetSort = useCallback((k: string, v: SortMode) => {
-    setSectionSort(prev => ({ ...prev, [k]: v }));
+    setSectionSort((prev) => ({ ...prev, [k]: v }));
   }, []);
   const handleSetFilter = useCallback((k: string, v: FilterMode) => {
-    setSectionFilter(prev => ({ ...prev, [k]: v }));
+    setSectionFilter((prev) => ({ ...prev, [k]: v }));
   }, []);
   const handleSetSearch = useCallback((k: string, v: string) => {
-    setSectionSearch(prev => ({ ...prev, [k]: v }));
+    setSectionSearch((prev) => ({ ...prev, [k]: v }));
   }, []);
   const handleSetReportTypeFilter = useCallback((k: string, v: ReportTypeFilter) => {
-    setReportTypeFilterState(prev => ({ ...prev, [k]: v }));
+    setReportTypeFilterState((prev) => ({ ...prev, [k]: v }));
   }, []);
   const handleSetVisibleCount = useCallback((k: string, n: number) => {
-    setSectionVisibleCount(prev => ({ ...prev, [k]: n }));
+    setSectionVisibleCount((prev) => ({ ...prev, [k]: n }));
   }, []);
   const handleToggleFilterDropdown = useCallback((k: string, open: boolean) => {
-    setFilterDropdownOpen(prev => ({ ...prev, [k]: open }));
+    setFilterDropdownOpen((prev) => ({ ...prev, [k]: open }));
   }, []);
   const handleToggleReportTypeDropdown = useCallback((k: string, open: boolean) => {
-    setReportTypeDropdownOpen(prev => ({ ...prev, [k]: open }));
+    setReportTypeDropdownOpen((prev) => ({ ...prev, [k]: open }));
   }, []);
-  const handleEnsureVisibleFetched = useCallback((k: string, visiblePubkeys: string[]) => {
-    fetchSectionProfiles(k, visiblePubkeys, 0, visiblePubkeys.length);
-  }, [fetchSectionProfiles]);
+  const handleEnsureVisibleFetched = useCallback(
+    (k: string, visiblePubkeys: string[]) => {
+      fetchSectionProfiles(k, visiblePubkeys, 0, visiblePubkeys.length);
+    },
+    [fetchSectionProfiles],
+  );
 
   // Map section key → infinite query (for cursor-paginated fetchNextPage).
   // eslint-disable-next-line react-hooks/exhaustive-deps -- query results change identity per render anyway
-  const sectionQueries: Record<string, {
-    hasNextPage?: boolean;
-    isFetchingNextPage?: boolean;
-    fetchNextPage: () => void;
-  }> = {
+  const sectionQueries: Record<
+    string,
+    {
+      hasNextPage?: boolean;
+      isFetchingNextPage?: boolean;
+      fetchNextPage: () => void;
+    }
+  > = {
     followed_by: followedByQuery,
     following: followingQuery,
     muted_by: mutedByQuery,
@@ -1865,23 +2335,26 @@ export default function ProfilePage() {
     reporting: reportingQuery,
   };
 
-  const handleShowMore = useCallback((k: string, processed: string[], currentVisible: number) => {
-    setSectionVisibleCount(prev => ({ ...prev, [k]: currentVisible + 10 }));
-    fetchSectionProfiles(k, processed, currentVisible, 10);
-    if (k === "muted_by") {
-      const nextBatch = processed.slice(currentVisible, currentVisible + 10);
-      if (nextBatch.length > 0) fetchSectionMetadata("muted_by", nextBatch);
-    }
-    // If we're approaching the end of what's loaded server-side, fetch the
-    // next page. The connection query will append items; profileResult
-    // re-composes; the panel will see the larger list on the next render.
-    const q = sectionQueries[k];
-    if (q && q.hasNextPage && !q.isFetchingNextPage) {
-      if (currentVisible + 10 >= processed.length - 30) {
-        q.fetchNextPage();
+  const handleShowMore = useCallback(
+    (k: string, processed: string[], currentVisible: number) => {
+      setSectionVisibleCount((prev) => ({ ...prev, [k]: currentVisible + 10 }));
+      fetchSectionProfiles(k, processed, currentVisible, 10);
+      if (k === "muted_by") {
+        const nextBatch = processed.slice(currentVisible, currentVisible + 10);
+        if (nextBatch.length > 0) fetchSectionMetadata("muted_by", nextBatch);
       }
-    }
-  }, [fetchSectionProfiles, fetchSectionMetadata, sectionQueries]);
+      // If we're approaching the end of what's loaded server-side, fetch the
+      // next page. The connection query will append items; profileResult
+      // re-composes; the panel will see the larger list on the next render.
+      const q = sectionQueries[k];
+      if (q && q.hasNextPage && !q.isFetchingNextPage) {
+        if (currentVisible + 10 >= processed.length - 30) {
+          q.fetchNextPage();
+        }
+      }
+    },
+    [fetchSectionProfiles, fetchSectionMetadata, sectionQueries],
+  );
 
   const renderExpandedPanel = (key: string, pubkeys: string[]) => {
     const isExpanded = expandedSections[key];
@@ -1927,7 +2400,11 @@ export default function ProfilePage() {
 
   const displayNpub = useMemo(() => {
     if (/^npub1/.test(npubParam)) return npubParam;
-    try { return nip19.npubEncode(npubParam); } catch { return npubParam; }
+    try {
+      return nip19.npubEncode(npubParam);
+    } catch {
+      return npubParam;
+    }
   }, [npubParam]);
 
   const profileShareUrl = useShareUrl({ npub: displayNpub, enabled: shareOpen });
@@ -1942,7 +2419,7 @@ export default function ProfilePage() {
       if (!hexPubkey) return null;
       return await apiClient.getHouseInfluence(hexPubkey);
     },
-    enabled: !!hexPubkey && (seed?.wotRankNosfabrica == null),
+    enabled: !!hexPubkey && seed?.wotRankNosfabrica == null,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -1955,7 +2432,11 @@ export default function ProfilePage() {
   // different number, so there is no single score to promise.
   const isOwnProfile = !!user?.pubkey && !!hexPubkey && user.pubkey === hexPubkey;
   const searchPostsName = displayNostrProfile?.display_name || displayNostrProfile?.name;
-  const searchPostsLabel = isOwnProfile ? "Search your posts" : searchPostsName ? `Search ${searchPostsName}'s posts` : "Search their posts";
+  const searchPostsLabel = isOwnProfile
+    ? "Search your posts"
+    : searchPostsName
+      ? `Search ${searchPostsName}'s posts`
+      : "Search their posts";
   const houseInfluence01 = useMemo(() => {
     const r = seed?.wotRankNosfabrica ?? nosfabricaRankQuery.data;
     if (typeof r !== "number" || !Number.isFinite(r)) return null;
@@ -1968,7 +2449,9 @@ export default function ProfilePage() {
   const isAnon = !user;
   // X-style stat numbers: full under 10k ("1,234"), compact above ("114K").
   const fmtStat = (n: number) =>
-    n >= 10000 ? new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n) : n.toLocaleString();
+    n >= 10000
+      ? new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n)
+      : n.toLocaleString();
 
   const renderTrustBadge = () => {
     if (!profileResult || profileResult.influence === undefined || !hasTier) return null;
@@ -1994,17 +2477,20 @@ export default function ProfilePage() {
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden"
+      className="relative flex min-h-screen flex-col overflow-hidden bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
       data-testid="page-profile"
     >
       <GlossBackground />
 
       {isAnon ? (
-        <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4" data-testid="header-profile-anon">
+        <header
+          className="relative z-20 flex items-center justify-between px-4 py-4 sm:px-8"
+          data-testid="header-profile-anon"
+        >
           <button
             type="button"
             onClick={() => navigate("/about")}
-            className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-brand-primary transition-colors"
+            className="text-sm font-medium text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
             data-testid="link-profile-about"
           >
             About
@@ -2017,7 +2503,7 @@ export default function ProfilePage() {
           />
         </header>
       ) : (
-      <AppHeader user={user} onLogout={handleLogout} />
+        <AppHeader user={user} onLogout={handleLogout} />
       )}
 
       <ShareProfileModal
@@ -2042,8 +2528,8 @@ export default function ProfilePage() {
         />
       )}
 
-      <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
-        <div className="flex items-center gap-2 mb-6">
+      <main className="relative z-10 mx-auto w-full max-w-5xl px-4 py-12 sm:px-6">
+        <div className="mb-6 flex items-center gap-2">
           {(() => {
             if (fromAdmin) {
               const fallback = `/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`;
@@ -2051,7 +2537,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-500 dark:text-slate-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50/60 dark:hover:bg-amber-500/10 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  className="no-default-hover-elevate no-default-active-elevate -ml-1 gap-2 text-slate-500 hover:bg-amber-50/60 hover:text-amber-700 dark:text-slate-400 dark:hover:bg-amber-500/10 dark:hover:text-amber-300"
                   onClick={() => goBack(fallback)}
                   data-testid="button-back-to-admin"
                 >
@@ -2065,7 +2551,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-500 dark:text-slate-400 hover:text-brand-primary dark:hover:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  className="no-default-hover-elevate no-default-active-elevate -ml-1 gap-2 text-slate-500 hover:bg-brand-primary/10 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-brand-primary/10 dark:hover:text-brand-link"
                   onClick={() => goBack(`/network?group=${fromGroup}`)}
                   data-testid="button-back-to-network"
                 >
@@ -2078,7 +2564,7 @@ export default function ProfilePage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-2 text-slate-500 dark:text-slate-400 hover:text-brand-primary dark:hover:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                className="no-default-hover-elevate no-default-active-elevate -ml-1 gap-2 text-slate-500 hover:bg-brand-primary/10 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-brand-primary/10 dark:hover:text-brand-link"
                 onClick={() => goBack("/")}
                 data-testid="button-back-to-search"
               >
@@ -2091,27 +2577,27 @@ export default function ProfilePage() {
 
         {isLoading && (
           <div data-testid="panel-profile-skeleton">
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-xl overflow-hidden">
-              <div className="p-6 sm:p-8 animate-pulse">
+            <Card className="overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+              <div className="animate-pulse p-6 sm:p-8">
                 <div className="flex items-start gap-4">
-                  <div className="h-14 w-14 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
+                  <div className="h-14 w-14 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700" />
                   <div className="flex-1 space-y-2.5 pt-1">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-36" />
-                    <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-48" />
+                    <div className="h-4 w-36 rounded bg-slate-200 dark:bg-slate-700" />
+                    <div className="h-3 w-48 rounded bg-slate-100 dark:bg-slate-800" />
                   </div>
                 </div>
                 <div className="mt-5 space-y-2">
-                  <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-full" />
-                  <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-3/4" />
+                  <div className="h-3 w-full rounded bg-slate-100 dark:bg-slate-800" />
+                  <div className="h-3 w-3/4 rounded bg-slate-100 dark:bg-slate-800" />
                 </div>
                 <div className="mt-5 grid grid-cols-3 gap-3">
-                  <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-xl" />
-                  <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-xl" />
-                  <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+                  <div className="h-16 rounded-xl bg-slate-100 dark:bg-slate-800" />
+                  <div className="h-16 rounded-xl bg-slate-100 dark:bg-slate-800" />
+                  <div className="h-16 rounded-xl bg-slate-100 dark:bg-slate-800" />
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="h-12 bg-slate-50 dark:bg-slate-900 rounded-xl" />
-                  <div className="h-12 bg-slate-50 dark:bg-slate-900 rounded-xl" />
+                  <div className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900" />
+                  <div className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900" />
                 </div>
               </div>
             </Card>
@@ -2120,25 +2606,36 @@ export default function ProfilePage() {
 
         {!isLoading && loadError && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-xl overflow-hidden relative" data-testid="card-profile-error">
-              <div className="p-7 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
+            <Card
+              className="relative overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
+              data-testid="card-profile-error"
+            >
+              <div className="flex flex-col items-start gap-6 p-7 sm:flex-row sm:p-8">
                 <div className="relative">
-                  <div className="absolute -inset-1 rounded-2xl blur-md opacity-70 bg-gradient-to-br from-brand-primary/[0.4] to-brand-primary/25" />
-                  <div className="relative h-14 w-14 sm:h-16 sm:w-16 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-brand-primary dark:text-brand-link shadow-sm dark:shadow-none flex items-center justify-center" data-testid="icon-profile-error">
+                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-brand-primary/[0.4] to-brand-primary/25 opacity-70 blur-md" />
+                  <div
+                    className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-brand-primary shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-brand-link dark:shadow-none sm:h-16 sm:w-16"
+                    data-testid="icon-profile-error"
+                  >
                     <User className="h-6 w-6" />
                   </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold tracking-wider uppercase text-slate-400 dark:text-slate-500">Profile</p>
-                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Profile
+                  </p>
+                  <h3
+                    className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
                     Profile not found
                   </h3>
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{loadError}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{loadError}</p>
                   <div className="mt-5 flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
                       onClick={() => navigate("/")}
-                      className="h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm bg-brand-primary hover:bg-brand-primary-hover text-white"
+                      className="h-10 rounded-xl bg-brand-primary px-4 text-xs font-bold tracking-wide text-white shadow-sm hover:bg-brand-primary-hover"
                       data-testid="button-profile-new-search"
                     >
                       New Search
@@ -2152,67 +2649,102 @@ export default function ProfilePage() {
 
         {!loadError && !profileResult && seed && (
           <div data-testid="card-profile-seed-preview">
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl overflow-hidden relative">
+            <Card className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
               <div className="p-5 sm:p-6">
-                <div className="flex items-start gap-3 sm:gap-4 mb-4">
-                  <Avatar className={`h-12 w-12 sm:h-16 sm:w-16 border-2 border-brand-primary/15 dark:border-brand-primary/25 shadow-md shrink-0 ${tierRing(houseInfluence01) ?? ""}`}>
+                <div className="mb-4 flex items-start gap-3 sm:gap-4">
+                  <Avatar
+                    className={`h-12 w-12 shrink-0 border-2 border-brand-primary/15 shadow-md dark:border-brand-primary/25 sm:h-16 sm:w-16 ${tierRing(houseInfluence01) ?? ""}`}
+                  >
                     {displayNostrProfile?.picture && (
-                      <AvatarImage size="lg" src={displayNostrProfile.picture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
+                      <AvatarImage
+                        size="lg"
+                        src={displayNostrProfile.picture}
+                        alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"}
+                        className="object-cover"
+                      />
                     )}
-                    <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-base sm:text-lg font-bold">
-                      {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
+                    <AvatarFallback className="bg-brand-primary/10 text-base font-bold text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link sm:text-lg">
+                      {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2))
+                        .charAt(0)
+                        .toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-base sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title-seed">
-                            {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3
+                            className="truncate text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                            style={{ fontFamily: "var(--font-display)" }}
+                            data-testid="text-profile-title-seed"
+                          >
+                            {displayNostrProfile?.display_name ||
+                              displayNostrProfile?.name ||
+                              displayNpub.slice(0, 18) + "..."}
                           </h3>
-                          <Badge variant="secondary" className="text-[10px] font-bold tracking-wider uppercase bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800">
-                            <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" />
+                          <Badge
+                            variant="secondary"
+                            className="border border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                          >
+                            <Loader2 className="mr-1 h-2.5 w-2.5 animate-spin" />
                             Loading
                           </Badge>
                         </div>
                         {displayNostrProfile?.nip05 && (
-                          <p className="text-xs text-brand-primary font-medium mt-0.5 truncate">{displayNostrProfile.nip05}</p>
+                          <p className="mt-0.5 truncate text-xs font-medium text-brand-primary">
+                            {displayNostrProfile.nip05}
+                          </p>
                         )}
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <code className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[120px] sm:max-w-[300px]">{displayNpub}</code>
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <code className="max-w-[120px] truncate font-mono text-xs text-slate-400 dark:text-slate-500 sm:max-w-[300px]">
+                            {displayNpub}
+                          </code>
                         </div>
                       </div>
                       <div
-                        className="flex flex-col items-center gap-0.5 bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-primary/20 dark:border-brand-primary/25 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0"
+                        className="flex shrink-0 flex-col items-center gap-0.5 rounded-xl border border-brand-primary/20 bg-brand-primary/10 px-2 py-1.5 backdrop-blur-sm dark:border-brand-primary/25 dark:bg-brand-primary/10 sm:px-3 sm:py-2"
                         data-testid="badge-trust-score-seed"
                         aria-label="Brainstorm Verification Score loading"
                       >
                         <div className="flex items-center gap-1">
                           <BrainLogo size={8} className="text-brand-link sm:hidden" />
-                          <BrainLogo size={10} className="text-brand-link hidden sm:block" />
-                          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-brand-link">Brainstorm</span>
+                          <BrainLogo size={10} className="hidden text-brand-link sm:block" />
+                          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-brand-link">
+                            Brainstorm
+                          </span>
                         </div>
-                        <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
-                          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-                            <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-brand-link dark:text-brand-primary/20" />
+                        <div className="relative flex h-10 w-10 items-center justify-center sm:h-12 sm:w-12">
+                          <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 44 44">
+                            <circle
+                              cx="22"
+                              cy="22"
+                              r="18"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              className="text-brand-link dark:text-brand-primary/20"
+                            />
                           </svg>
-                          <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin text-brand-link" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-link sm:h-4 sm:w-4" />
                         </div>
-                        <div className="h-3 w-12 rounded bg-brand-primary/15 dark:bg-brand-primary/20 animate-pulse" />
+                        <div className="h-3 w-12 animate-pulse rounded bg-brand-primary/15 dark:bg-brand-primary/20" />
                       </div>
                     </div>
                   </div>
                 </div>
                 {displayNostrProfile?.about && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-3 mb-4" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                  <p
+                    className="mb-4 line-clamp-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
+                    style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                  >
                     {displayNostrProfile.about}
                   </p>
                 )}
                 <div className="animate-pulse space-y-3">
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="h-14 bg-slate-100 dark:bg-slate-800 rounded-xl" />
-                    <div className="h-14 bg-slate-100 dark:bg-slate-800 rounded-xl" />
-                    <div className="h-14 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+                    <div className="h-14 rounded-xl bg-slate-100 dark:bg-slate-800" />
+                    <div className="h-14 rounded-xl bg-slate-100 dark:bg-slate-800" />
+                    <div className="h-14 rounded-xl bg-slate-100 dark:bg-slate-800" />
                   </div>
                 </div>
               </div>
@@ -2222,984 +2754,1490 @@ export default function ProfilePage() {
 
         {!isLoading && !loadError && profileResult && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
-
+            <Card
+              className="relative overflow-hidden rounded-2xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
+              data-testid="card-profile-result"
+            >
               <div className="relative overflow-hidden">
                 {/* Cover banner — matches the public /p page; fills the top space. */}
-                <div className="relative w-full h-24 sm:h-32">
+                <div className="relative h-24 w-full sm:h-32">
                   {displayNostrProfile?.banner ? (
-                    <img src={displayNostrProfile.banner} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                    <img
+                      src={displayNostrProfile.banner}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
                   ) : (
                     <div className={`absolute inset-0 ${DEFAULT_BANNER_CLASS}`}>
-                      <img src={DEFAULT_BANNER_SRC} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" />
+                      <img
+                        src={DEFAULT_BANNER_SRC}
+                        alt=""
+                        aria-hidden
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
                       <div className="absolute inset-0 bg-gradient-to-br from-brand-accent/30 via-brand-accent-hover/20 to-brand-deep/40 mix-blend-multiply" />
                     </div>
                   )}
                 </div>
-                
 
-                <div className="px-5 sm:px-6 pb-5 sm:pb-6 relative z-10">
-                {/* Avatar overlaps the banner on its own line, so the name, npub,
+                <div className="relative z-10 px-5 pb-5 sm:px-6 sm:pb-6">
+                  {/* Avatar overlaps the banner on its own line, so the name, npub,
                     stats and actions below all share one left edge (like /p). */}
-                {(() => {
+                  {(() => {
                     const isOwnAssistant = !!hexPubkey && getCurrentAssistantPubkey() === hexPubkey;
-                    const assistantDefaultPicture = typeof window !== "undefined" ? `${window.location.origin}/assistant-default.webp` : "/assistant-default.webp";
-                    const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
+                    const assistantDefaultPicture =
+                      typeof window !== "undefined"
+                        ? `${window.location.origin}/assistant-default.webp`
+                        : "/assistant-default.webp";
+                    const effectivePicture =
+                      displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
-                      <Avatar className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16 ${tierRing(profileResult?.influence ?? houseInfluence01) ?? ""}`}>
-                        <AvatarImage size="lg" src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
-                        <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-base sm:text-lg font-bold">
-                          {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
+                      <Avatar
+                        className={`-mt-12 h-20 w-20 shrink-0 rounded-full border-4 border-white bg-white shadow-lg dark:border-slate-900 dark:bg-slate-900 sm:-mt-16 sm:h-24 sm:w-24 ${tierRing(profileResult?.influence ?? houseInfluence01) ?? ""}`}
+                      >
+                        <AvatarImage
+                          size="lg"
+                          src={effectivePicture}
+                          alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"}
+                          className="object-cover"
+                        />
+                        <AvatarFallback className="bg-brand-primary/10 text-base font-bold text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link sm:text-lg">
+                          {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2))
+                            .charAt(0)
+                            .toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                     );
                   })()}
-                {/* Two-column hero — identity + stats + actions on the left, the
+                  {/* Two-column hero — identity + stats + actions on the left, the
                     Web of Trust card as a top-aligned right sidebar (desktop),
                     matching the public /p page. */}
-                <div className="mt-2.5 md:flex md:gap-6 md:items-start">
-                <div className="md:flex-1 min-w-0">
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap">
-                          <h3 className="w-full sm:w-auto text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
-                            {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
+                  <div className="mt-2.5 md:flex md:items-start md:gap-6">
+                    <div className="min-w-0 md:flex-1">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <h3
+                            className="w-full truncate text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:w-auto sm:text-xl"
+                            style={{ fontFamily: "var(--font-display)" }}
+                            data-testid="text-profile-title"
+                          >
+                            {displayNostrProfile?.display_name ||
+                              displayNostrProfile?.name ||
+                              displayNpub.slice(0, 18) + "..."}
                           </h3>
                           <Nip05Handle
                             nip05={displayNostrProfile?.nip05}
                             pubkey={hexPubkey}
-                            className="inline-flex items-center gap-1 min-w-0 max-w-full text-[11px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium"
+                            className="inline-flex min-w-0 max-w-full items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:text-sm"
                             iconClassName="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-brand-primary"
                             testId="text-profile-nip05"
                           />
                           {hexPubkey && getCurrentAssistantPubkey() === hexPubkey && (
                             <Badge
                               variant="secondary"
-                              className="text-[10px] font-bold tracking-wider uppercase bg-brand-accent/10 text-brand-deep border border-brand-accent/30 self-center"
+                              className="self-center border border-brand-accent/30 bg-brand-accent/10 text-[10px] font-bold uppercase tracking-wider text-brand-deep"
                               data-testid="badge-brainstorm-assistant"
                               title="This is your Brainstorm Assistant — a bot that publishes your scores to Nostr."
                             >
-                              <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-accent mr-1" />
+                              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-brand-accent" />
                               Brainstorm Assistant
                             </Badge>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <code className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-profile-npub">{displayNpub}</code>
-                          <button onClick={() => handleCopyNpub(displayNpub)} className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0" data-testid="button-copy-profile-npub">
-                            {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <code
+                            className="max-w-[120px] truncate font-mono text-xs text-slate-400 dark:text-slate-500 sm:max-w-[300px]"
+                            data-testid="text-profile-npub"
+                          >
+                            {displayNpub}
+                          </code>
+                          <button
+                            onClick={() => handleCopyNpub(displayNpub)}
+                            className="shrink-0 p-0.5 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
+                            data-testid="button-copy-profile-npub"
+                          >
+                            {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
                           </button>
                         </div>
                         {/* Web of Trust — mobile inline; on desktop it renders in the right sidebar. */}
-                        <div className="md:hidden mt-3">{renderTrustBadge()}</div>
-                    </div>
-                {/* X-style inline counts — full-width so they sit on one line. */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[13px] sm:text-sm" data-testid="row-profile-stats">
-                  <span data-testid="stat-profile-following">
-                    <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">{fmtStat(verifiedCounts.followingTotal)}</span>
-                    <span className="text-slate-500 dark:text-slate-400 ml-1">Following</span>
-                  </span>
-                  <span data-testid="stat-profile-followers">
-                    <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">{fmtStat(verifiedCounts.followersTotal)}</span>
-                    <span className="text-slate-500 dark:text-slate-400 ml-1">Followers</span>
-                  </span>
-                  <span data-testid="stat-profile-mutual">
-                    <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">{fmtStat(mutualPubkeys.length)}</span>
-                    <span className="text-slate-500 dark:text-slate-400 ml-1">Mutual</span>
-                  </span>
-                  {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
-                  {hasSession && !isOwnProfile && user?.pubkey && hexPubkey &&
-                    localStorage.getItem("brainstorm_calc_completed") === "true" && (
-                      <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} pov="personalized" variant="bold" />
-                    )}
-                  {theyFollowMe && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 dark:bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link" data-testid="badge-follows-you">
-                      <ArrowLeft className="h-3 w-3" /> Follows you
-                    </span>
-                  )}
-                </div>
-                {/* One tidy action bar — full-width, aligned with the stats above.
-                    Follow is primary; the rest tuck into a "more" menu. */}
-                <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="row-profile-actions">
-                  {hexPubkey && !isAnon && !social.isSelf(hexPubkey) ? (
-                    <>
-                      {social.listsLoading ? (
-                        <div className="h-8 w-24 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" data-testid="skeleton-follow-button" />
-                      ) : (() => {
-                        const following = social.isFollowing(hexPubkey);
-                        const pending = social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
-                        return (
-                          <button
-                            type="button"
-                            disabled={pending || social.isAnyPending}
-                            onMouseEnter={() => following && setFollowHovered(true)}
-                            onMouseLeave={() => setFollowHovered(false)}
-                            onClick={async () => {
-                              const result = following ? await social.unfollow(hexPubkey) : await social.follow(hexPubkey);
-                              // A declined unlock is a deliberate no — say nothing.
-                              if (result.cancelled) { setFollowHovered(false); return; }
-                              if (result.success) {
-                                toast({ title: following ? "Unfollowed" : "Followed", description: following ? "Removed from your contact list" : "Added to your contact list" });
-                              } else {
-                                toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
-                              }
-                              setFollowHovered(false);
-                            }}
-                            className={`inline-flex items-center justify-center gap-1.5 h-8 px-4 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
-                              following
-                                ? followHovered
-                                  ? "bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20"
-                                  : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700"
-                                : "bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm"
-                            }`}
-                            data-testid="button-follow-toggle"
-                          >
-                            {following ? (followHovered ? <UserMinus className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />) : <UserPlus className="h-3.5 w-3.5" />}
-                            <span>{following ? (followHovered ? "Unfollow" : "Following") : "Follow"}</span>
-                          </button>
-                        );
-                      })()}
-                      <button
-                        type="button"
-                        onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                        aria-label={searchPostsLabel}
-                        title={searchPostsLabel}
-                        data-testid="button-search-posts"
+                        <div className="mt-3 md:hidden">{renderTrustBadge()}</div>
+                      </div>
+                      {/* X-style inline counts — full-width so they sit on one line. */}
+                      <div
+                        className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] sm:text-sm"
+                        data-testid="row-profile-stats"
                       >
-                        <SearchIcon className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/p/${displayNpub}`)}
-                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                        data-testid="link-public-page"
-                        title="See the public, shareable version of this profile"
-                      >
-                        <Globe className="w-3.5 h-3.5 shrink-0" /> Public page
-                      </button>
-                      {displayNostrProfile?.lud16 && (
-                        <button
-                          type="button"
-                          onClick={() => setZapOpen(true)}
-                          className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                          data-testid="button-zap"
-                          title="Send a zap"
-                        >
-                          <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
-                        </button>
-                      )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors" aria-label="More actions" data-testid="button-profile-more">
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-44 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl">
-                          <DropdownMenuItem className="cursor-pointer" onClick={() => setShareOpen(true)} data-testid="button-share-profile">
-                            <Share2 className="h-4 w-4 mr-2 text-slate-500 dark:text-slate-400" /> Share
-                          </DropdownMenuItem>
-                          {(() => {
-                            const muted = social.isMuted(hexPubkey);
-                            return (
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onClick={async () => {
-                                  const result = muted ? await social.unmute(hexPubkey) : await social.mute(hexPubkey);
-                                  if (result.cancelled) return;
-                                  if (result.success) {
-                                    toast({ title: muted ? "Unmuted" : "Muted", description: muted ? "Removed from your mute list" : "Added to your mute list" });
-                                  } else {
-                                    toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
-                                  }
-                                }}
-                                data-testid="button-mute-toggle"
-                              >
-                                {muted ? <Volume2 className="h-4 w-4 mr-2 text-slate-500 dark:text-slate-400" /> : <VolumeX className="h-4 w-4 mr-2 text-slate-500 dark:text-slate-400" />}
-                                {muted ? "Unmute" : "Mute"}
-                              </DropdownMenuItem>
-                            );
-                          })()}
-                          {myReport ? (
-                            <DropdownMenuItem
-                              className="cursor-pointer text-amber-700 dark:text-amber-400 focus:text-amber-800 dark:focus:text-amber-300"
-                              onClick={async () => {
-                                const snapshot = myReport;
-                                setMyReport(null); // optimistic: chip + menu flip instantly
-                                const result = await social.unreport(hexPubkey);
-                                if (result.cancelled) { setMyReport(snapshot); return; }
-                                if (result.success) {
-                                  toast({ title: "Report removed", description: "Scores may take a little while to reflect this." });
-                                } else {
-                                  setMyReport(snapshot); // rollback
-                                  toast({ title: "Error", description: result.error || "Couldn't remove report", variant: "destructive" });
-                                }
-                              }}
-                              data-testid="button-unreport"
-                            >
-                              <Flag className="h-4 w-4 mr-2" /> Undo report
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem className="cursor-pointer text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300" onClick={() => setReportDialogOpen(true)} data-testid="button-report">
-                              <Flag className="h-4 w-4 mr-2" /> Report
-                            </DropdownMenuItem>
+                        <span data-testid="stat-profile-following">
+                          <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                            {fmtStat(verifiedCounts.followingTotal)}
+                          </span>
+                          <span className="ml-1 text-slate-500 dark:text-slate-400">Following</span>
+                        </span>
+                        <span data-testid="stat-profile-followers">
+                          <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                            {fmtStat(verifiedCounts.followersTotal)}
+                          </span>
+                          <span className="ml-1 text-slate-500 dark:text-slate-400">Followers</span>
+                        </span>
+                        <span data-testid="stat-profile-mutual">
+                          <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                            {fmtStat(mutualPubkeys.length)}
+                          </span>
+                          <span className="ml-1 text-slate-500 dark:text-slate-400">Mutual</span>
+                        </span>
+                        {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
+                        {hasSession &&
+                          !isOwnProfile &&
+                          user?.pubkey &&
+                          hexPubkey &&
+                          localStorage.getItem("brainstorm_calc_completed") === "true" && (
+                            <DegreeChip
+                              fromPubkey={user.pubkey}
+                              toPubkey={hexPubkey}
+                              rawId={npubParam}
+                              pov="personalized"
+                              variant="bold"
+                            />
                           )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      {myReport && (
-                        <Chip
-                          tone="amber"
-                          icon={Flag}
-                          className="text-[11px]"
-                          title="Your report is published. Undo it from the ⋯ menu. Scores may take a little while to reflect changes."
-                          data-testid="chip-you-reported"
-                        >
-                          You reported this{myReport.reportType ? ` (${myReport.reportType})` : ""}
-                        </Chip>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                        aria-label={searchPostsLabel}
-                        title={searchPostsLabel}
-                        data-testid="button-search-posts"
+                        {theyFollowMe && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link dark:bg-brand-primary/10"
+                            data-testid="badge-follows-you"
+                          >
+                            <ArrowLeft className="h-3 w-3" /> Follows you
+                          </span>
+                        )}
+                      </div>
+                      {/* One tidy action bar — full-width, aligned with the stats above.
+                    Follow is primary; the rest tuck into a "more" menu. */}
+                      <div className="mb-4 flex flex-wrap items-center gap-2" data-testid="row-profile-actions">
+                        {hexPubkey && !isAnon && !social.isSelf(hexPubkey) ? (
+                          <>
+                            {social.listsLoading ? (
+                              <div
+                                className="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800"
+                                data-testid="skeleton-follow-button"
+                              />
+                            ) : (
+                              (() => {
+                                const following = social.isFollowing(hexPubkey);
+                                const pending =
+                                  social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
+                                return (
+                                  <button
+                                    type="button"
+                                    disabled={pending || social.isAnyPending}
+                                    onMouseEnter={() => following && setFollowHovered(true)}
+                                    onMouseLeave={() => setFollowHovered(false)}
+                                    onClick={async () => {
+                                      const result = following
+                                        ? await social.unfollow(hexPubkey)
+                                        : await social.follow(hexPubkey);
+                                      // A declined unlock is a deliberate no — say nothing.
+                                      if (result.cancelled) {
+                                        setFollowHovered(false);
+                                        return;
+                                      }
+                                      if (result.success) {
+                                        toast({
+                                          title: following ? "Unfollowed" : "Followed",
+                                          description: following
+                                            ? "Removed from your contact list"
+                                            : "Added to your contact list",
+                                        });
+                                      } else {
+                                        toast({
+                                          title: "Error",
+                                          description: result.error || "Action failed",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                      setFollowHovered(false);
+                                    }}
+                                    className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-4 text-xs font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 ${
+                                      following
+                                        ? followHovered
+                                          ? "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
+                                          : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700"
+                                        : "bg-brand-primary text-white shadow-sm hover:bg-brand-primary-hover"
+                                    }`}
+                                    data-testid="button-follow-toggle"
+                                  >
+                                    {following ? (
+                                      followHovered ? (
+                                        <UserMinus className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <UserCheck className="h-3.5 w-3.5" />
+                                      )
+                                    ) : (
+                                      <UserPlus className="h-3.5 w-3.5" />
+                                    )}
+                                    <span>{following ? (followHovered ? "Unfollow" : "Following") : "Follow"}</span>
+                                  </button>
+                                );
+                              })()
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+                              aria-label={searchPostsLabel}
+                              title={searchPostsLabel}
+                              data-testid="button-search-posts"
+                            >
+                              <SearchIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/p/${displayNpub}`)}
+                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+                              data-testid="link-public-page"
+                              title="See the public, shareable version of this profile"
+                            >
+                              <Globe className="h-3.5 w-3.5 shrink-0" /> Public page
+                            </button>
+                            {displayNostrProfile?.lud16 && (
+                              <button
+                                type="button"
+                                onClick={() => setZapOpen(true)}
+                                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+                                data-testid="button-zap"
+                                title="Send a zap"
+                              >
+                                <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
+                              </button>
+                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+                                  aria-label="More actions"
+                                  data-testid="button-profile-more"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align="start"
+                                className="w-44 bg-white/95 backdrop-blur-xl dark:bg-slate-900/95"
+                              >
+                                <DropdownMenuItem
+                                  className="cursor-pointer"
+                                  onClick={() => setShareOpen(true)}
+                                  data-testid="button-share-profile"
+                                >
+                                  <Share2 className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" /> Share
+                                </DropdownMenuItem>
+                                {(() => {
+                                  const muted = social.isMuted(hexPubkey);
+                                  return (
+                                    <DropdownMenuItem
+                                      className="cursor-pointer"
+                                      onClick={async () => {
+                                        const result = muted
+                                          ? await social.unmute(hexPubkey)
+                                          : await social.mute(hexPubkey);
+                                        if (result.cancelled) return;
+                                        if (result.success) {
+                                          toast({
+                                            title: muted ? "Unmuted" : "Muted",
+                                            description: muted
+                                              ? "Removed from your mute list"
+                                              : "Added to your mute list",
+                                          });
+                                        } else {
+                                          toast({
+                                            title: "Error",
+                                            description: result.error || "Action failed",
+                                            variant: "destructive",
+                                          });
+                                        }
+                                      }}
+                                      data-testid="button-mute-toggle"
+                                    >
+                                      {muted ? (
+                                        <Volume2 className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" />
+                                      ) : (
+                                        <VolumeX className="mr-2 h-4 w-4 text-slate-500 dark:text-slate-400" />
+                                      )}
+                                      {muted ? "Unmute" : "Mute"}
+                                    </DropdownMenuItem>
+                                  );
+                                })()}
+                                {myReport ? (
+                                  <DropdownMenuItem
+                                    className="cursor-pointer text-amber-700 focus:text-amber-800 dark:text-amber-400 dark:focus:text-amber-300"
+                                    onClick={async () => {
+                                      const snapshot = myReport;
+                                      setMyReport(null); // optimistic: chip + menu flip instantly
+                                      const result = await social.unreport(hexPubkey);
+                                      if (result.cancelled) {
+                                        setMyReport(snapshot);
+                                        return;
+                                      }
+                                      if (result.success) {
+                                        toast({
+                                          title: "Report removed",
+                                          description: "Scores may take a little while to reflect this.",
+                                        });
+                                      } else {
+                                        setMyReport(snapshot); // rollback
+                                        toast({
+                                          title: "Error",
+                                          description: result.error || "Couldn't remove report",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }}
+                                    data-testid="button-unreport"
+                                  >
+                                    <Flag className="mr-2 h-4 w-4" /> Undo report
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem
+                                    className="cursor-pointer text-red-600 focus:text-red-700 dark:text-red-400 dark:focus:text-red-300"
+                                    onClick={() => setReportDialogOpen(true)}
+                                    data-testid="button-report"
+                                  >
+                                    <Flag className="mr-2 h-4 w-4" /> Report
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            {myReport && (
+                              <Chip
+                                tone="amber"
+                                icon={Flag}
+                                className="text-[11px]"
+                                title="Your report is published. Undo it from the ⋯ menu. Scores may take a little while to reflect changes."
+                                data-testid="chip-you-reported"
+                              >
+                                You reported this{myReport.reportType ? ` (${myReport.reportType})` : ""}
+                              </Chip>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+                              aria-label={searchPostsLabel}
+                              title={searchPostsLabel}
+                              data-testid="button-search-posts"
+                            >
+                              <SearchIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/p/${displayNpub}`)}
+                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-brand-primary/20 bg-white px-3 text-xs font-semibold text-brand-primary transition-colors hover:border-brand-primary/25 hover:bg-brand-primary/10 dark:border-brand-primary/25 dark:bg-slate-900 dark:text-brand-link dark:hover:border-brand-primary/[0.4] dark:hover:bg-brand-primary/10"
+                              data-testid="link-public-page"
+                              title="See the public, shareable version of this profile"
+                            >
+                              <Globe className="h-3.5 w-3.5 shrink-0" /> Public page
+                            </button>
+                            {!isOwnProfile && displayNostrProfile?.lud16 && (
+                              <button
+                                type="button"
+                                onClick={() => setZapOpen(true)}
+                                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+                                data-testid="button-zap"
+                                title="Send a zap"
+                              >
+                                <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setShareOpen(true)}
+                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-primary"
+                              data-testid="button-share-profile"
+                            >
+                              <Share2 className="h-3.5 w-3.5 shrink-0" /> Share
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {/* Web of Trust — desktop right sidebar, top-aligned beside the identity. */}
+                    <div className="mt-1 hidden md:block md:w-64 md:shrink-0">{renderTrustBadge()}</div>
+                  </div>
+                  {displayNostrProfile?.about && (
+                    <div className="mb-4 overflow-hidden" data-testid="text-profile-about">
+                      <p
+                        className={`overflow-wrap-anywhere whitespace-pre-line break-words text-xs leading-relaxed text-slate-500 dark:text-slate-400 ${!aboutExpanded ? "line-clamp-3" : ""}`}
+                        style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                       >
-                        <SearchIcon className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/p/${displayNpub}`)}
-                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-brand-primary/20 dark:border-brand-primary/25 bg-white dark:bg-slate-900 text-xs font-semibold text-brand-primary dark:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 hover:border-brand-primary/25 dark:hover:border-brand-primary/[0.4] transition-colors"
-                        data-testid="link-public-page"
-                        title="See the public, shareable version of this profile"
-                      >
-                        <Globe className="w-3.5 h-3.5 shrink-0" /> Public page
-                      </button>
-                      {!isOwnProfile && displayNostrProfile?.lud16 && (
+                        {renderLinkedText(displayNostrProfile.about)}
+                      </p>
+                      {displayNostrProfile.about.length > 140 && (
                         <button
-                          type="button"
-                          onClick={() => setZapOpen(true)}
-                          className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                          data-testid="button-zap"
-                          title="Send a zap"
+                          onClick={() => setAboutExpanded(!aboutExpanded)}
+                          className="mt-1 text-xs font-medium text-brand-primary"
+                          data-testid="button-about-toggle"
                         >
-                          <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
+                          {aboutExpanded ? "Show less" : "Show more"}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => setShareOpen(true)}
-                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-brand-primary text-xs font-semibold text-white hover:bg-brand-primary transition-colors"
-                        data-testid="button-share-profile"
-                      >
-                        <Share2 className="w-3.5 h-3.5 shrink-0" /> Share
-                      </button>
-                    </>
-                  )}
-                </div>
-                </div>
-                {/* Web of Trust — desktop right sidebar, top-aligned beside the identity. */}
-                <div className="hidden md:block md:w-64 md:shrink-0 mt-1">{renderTrustBadge()}</div>
-                </div>
-                {displayNostrProfile?.about && (
-                  <div className="mb-4 overflow-hidden" data-testid="text-profile-about">
-                    <p className={`text-xs text-slate-500 dark:text-slate-400 leading-relaxed whitespace-pre-line break-words overflow-wrap-anywhere ${!aboutExpanded ? "line-clamp-3" : ""}`} style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                      {renderLinkedText(displayNostrProfile.about)}
-                    </p>
-                    {displayNostrProfile.about.length > 140 && (
-                      <button
-                        onClick={() => setAboutExpanded(!aboutExpanded)}
-                        className="text-xs text-brand-primary font-medium mt-1"
-                        data-testid="button-about-toggle"
-                      >
-                        {aboutExpanded ? "Show less" : "Show more"}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {isOwnProfile ? (
-                  <div className="mb-4 rounded-xl bg-gradient-to-r from-brand-primary/10 via-brand-primary/10 to-white/40 dark:bg-none dark:bg-brand-primary/10 border border-brand-primary/20 dark:border-brand-primary/25 backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3" data-testid="banner-own-profile">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-brand-primary/15 dark:bg-brand-primary/15 flex items-center justify-center shrink-0">
-                      <Eye className="h-4 w-4 text-brand-primary" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      {/* Was "This is how others see you" / "the score people see",
+                  )}
+
+                  {isOwnProfile ? (
+                    <div
+                      className="mb-4 flex items-start gap-3 rounded-xl border border-brand-primary/20 bg-gradient-to-r from-brand-primary/10 via-brand-primary/10 to-white/40 px-3 py-3 backdrop-blur-sm dark:border-brand-primary/25 dark:bg-brand-primary/10 dark:bg-none sm:px-4"
+                      data-testid="banner-own-profile"
+                    >
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-primary/15 dark:bg-brand-primary/15 sm:h-8 sm:w-8">
+                        <Eye className="h-4 w-4 text-brand-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        {/* Was "This is how others see you" / "the score people see",
                           which promises a single universal number. The card shows the
                           HOUSE score — Brainstorm's vantage point, the default before
                           a viewer's own web of trust applies. The old copy even
                           contradicted itself by adding "scores are
                           personalized" one sentence later. */}
-                      <span className="text-xs sm:text-sm font-bold text-brand-primary dark:text-brand-link">This is how Brainstorm sees you</span>
-                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-                        {houseInfluence01 != null
-                          ? "Your public score card — the default view before someone's own network applies. Everyone computes their own number for you, and to yourself you always score 100."
-                          : "Your network is still being scored. The more trusted accounts that connect to you, the stronger your card — invite people so more trusted accounts vouch for you."}
-                      </p>
-                      {houseInfluence01 == null && (
-                        <button
-                          type="button"
-                          onClick={() => setShareOpen(true)}
-                          className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-brand-primary dark:text-brand-link hover:text-brand-primary dark:hover:text-brand-link transition-colors"
-                          data-testid="button-own-profile-invite"
-                        >
-                          <UserPlus className="h-3.5 w-3.5" /> Invite friends
-                        </button>
-                      )}
+                        <span className="text-xs font-bold text-brand-primary dark:text-brand-link sm:text-sm">
+                          This is how Brainstorm sees you
+                        </span>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
+                          {houseInfluence01 != null
+                            ? "Your public score card — the default view before someone's own network applies. Everyone computes their own number for you, and to yourself you always score 100."
+                            : "Your network is still being scored. The more trusted accounts that connect to you, the stronger your card — invite people so more trusted accounts vouch for you."}
+                        </p>
+                        {houseInfluence01 == null && (
+                          <button
+                            type="button"
+                            onClick={() => setShareOpen(true)}
+                            className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-brand-primary transition-colors hover:text-brand-primary dark:text-brand-link dark:hover:text-brand-link sm:text-xs"
+                            data-testid="button-own-profile-invite"
+                          >
+                            <UserPlus className="h-3.5 w-3.5" /> Invite friends
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ) : isFlaggedProfile ? (
-                  /* Flagged leads — the same verdict the public page and the
+                  ) : isFlaggedProfile ? (
+                    /* Flagged leads — the same verdict the public page and the
                      dashboard's Network Alerts show, so a member who clicks
                      "View" from an alert doesn't land on a profile that looks
                      clean. Worded "your network" here: this is the signed-in,
                      personalized surface (the public page says "the network"). */
-                  <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 sm:px-4 py-3" data-testid="banner-profile-flagged">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 dark:bg-red-500/15 flex items-center justify-center shrink-0">
-                      <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div className="min-w-0 flex-1 text-xs leading-relaxed">
-                      <span className="text-xs sm:text-sm font-bold text-red-700 dark:text-red-300">Flagged by your network</span>
-                      <p className="mt-0.5 text-[11px] sm:text-xs text-red-700/90 dark:text-red-300/90">
-                        Reported by {verifiedCounts.reportedBy} verified {verifiedCounts.reportedBy === 1 ? "account" : "accounts"} in your network
-                        {verifiedCounts.mutedBy > 0 ? ` · muted by ${verifiedCounts.mutedBy}` : ""}.
-                      </p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <button type="button" onClick={() => navigate(`/p/${npubParam}/reporters`)} className="font-semibold text-red-700 dark:text-red-300 underline underline-offset-2 hover:text-red-800 dark:hover:text-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 rounded" data-testid="banner-profile-flagged-who">
-                          See who reported
-                        </button>
-                        <button type="button" onClick={() => navigate("/what-is-wot")} className="font-medium text-red-700/80 dark:text-red-300/80 underline underline-offset-2 hover:text-red-800 dark:hover:text-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 rounded" data-testid="banner-profile-flagged-why">
-                          Why am I seeing this?
-                        </button>
+                    <div
+                      className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-3 dark:border-red-500/30 dark:bg-red-500/10 sm:px-4"
+                      data-testid="banner-profile-flagged"
+                    >
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-500/15 sm:h-8 sm:w-8">
+                        <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
                       </div>
-                    </div>
-                  </div>
-                ) : confidenceGuidance && (
-                  <div className={`mb-4 rounded-xl ${confidenceGuidance.bg} border ${confidenceGuidance.border} backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3`} data-testid="banner-confidence-guidance">
-                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg ${confidenceGuidance.iconBg} flex items-center justify-center shrink-0`}>
-                      {confidenceGuidance.icon === "check" && <ShieldCheck className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />}
-                      {confidenceGuidance.icon === "shield" && <Shield className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />}
-                      {confidenceGuidance.icon === "alert" && <ShieldAlert className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />}
-                      {confidenceGuidance.icon === "x" && <ShieldX className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs sm:text-sm font-bold ${confidenceGuidance.color}`} data-testid="text-confidence-label">{confidenceGuidance.label}</span>
-                        <span className={`text-[10px] font-bold font-mono tabular-nums px-1.5 py-0.5 rounded ${confidenceGuidance.iconBg} ${confidenceGuidance.iconColor}`}>{confidenceGuidance.pct}%</span>
-                      </div>
-                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{confidenceGuidance.message}</p>
-                    </div>
-                  </div>
-                )}
-
-                {(() => {
-                  if (!profileResult || (selfFollowedByList.length === 0 && selfFollowingList.length === 0)) return null;
-                  const sharedUnique = new Set([...sharedFollowerPubkeys, ...sharedFollowingPubkeys]);
-                  const sharedCount = sharedUnique.size;
-                  const mutualFollowersCount = sharedFollowerPubkeys.length;
-                  const mutualFollowingCount = sharedFollowingPubkeys.length;
-                  const isExpandable = sharedCount > 0;
-                  const capHit = followedByQuery.hasNextPage || followingQuery.hasNextPage;
-                  const isAnyExpanded = expandedSections["shared_followers"] || expandedSections["shared_following"];
-
-                  return (
-                    <div className="mb-4 rounded-xl border border-brand-primary/15 dark:border-brand-primary/25 bg-brand-primary/10 dark:bg-brand-primary/10 overflow-hidden" data-testid="banner-shared-connections">
-                      <div
-                        className={`px-4 py-3 flex items-start gap-3 ${isExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/15 transition-colors" : ""}`}
-                        onClick={isExpandable ? () => {
-                          if (isAnyExpanded) {
-                            setExpandedSections(prev => ({ ...prev, shared_followers: false, shared_following: false }));
-                          } else {
-                            toggleSection("shared_followers");
-                            if (mutualFollowingCount > 0) {
-                              setTimeout(() => toggleSection("shared_following"), 0);
-                            }
-                          }
-                        } : undefined}
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-brand-primary/15 dark:bg-brand-primary/15 border border-brand-primary/20 dark:border-brand-primary/25 flex items-center justify-center shrink-0 mt-0.5">
-                          <SharedConnectionIcon className="h-4 w-4 text-brand-primary" />
+                      <div className="min-w-0 flex-1 text-xs leading-relaxed">
+                        <span className="text-xs font-bold text-red-700 dark:text-red-300 sm:text-sm">
+                          Flagged by your network
+                        </span>
+                        <p className="mt-0.5 text-[11px] text-red-700/90 dark:text-red-300/90 sm:text-xs">
+                          Reported by {verifiedCounts.reportedBy} verified{" "}
+                          {verifiedCounts.reportedBy === 1 ? "account" : "accounts"} in your network
+                          {verifiedCounts.mutedBy > 0 ? ` · muted by ${verifiedCounts.mutedBy}` : ""}.
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/p/${npubParam}/reporters`)}
+                            className="rounded font-semibold text-red-700 underline underline-offset-2 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 dark:text-red-300 dark:hover:text-red-200"
+                            data-testid="banner-profile-flagged-who"
+                          >
+                            See who reported
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate("/what-is-wot")}
+                            className="rounded font-medium text-red-700/80 underline underline-offset-2 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 dark:text-red-300/80 dark:hover:text-red-200"
+                            data-testid="banner-profile-flagged-why"
+                          >
+                            Why am I seeing this?
+                          </button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          {sharedCount > 0 ? (
-                            <>
-                              <p className="text-sm font-semibold text-brand-primary dark:text-brand-link">
-                                You share {sharedCount.toLocaleString()} connection{sharedCount !== 1 ? "s" : ""} with this person
-                              </p>
-                              <p className="text-xs text-brand-primary dark:text-brand-link mt-0.5">
-                                {mutualFollowersCount.toLocaleString()} mutual follower{mutualFollowersCount !== 1 ? "s" : ""} · {mutualFollowingCount.toLocaleString()} mutual following
-                              </p>
-                              {capHit && (
-                                <p className="text-[11px] text-brand-primary/60 dark:text-brand-link italic mt-1" data-testid="text-shared-connections-cap-notice">
-                                  Based on top 200 connections — full overlap may be larger
-                                </p>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">No shared connections</p>
-                              {capHit && (
-                                <p className="text-[11px] text-slate-400/70 dark:text-slate-500/70 italic mt-1" data-testid="text-shared-connections-cap-notice">
-                                  Based on top 200 connections — overlap may exist beyond this sample
-                                </p>
-                              )}
-                            </>
+                      </div>
+                    </div>
+                  ) : (
+                    confidenceGuidance && (
+                      <div
+                        className={`mb-4 rounded-xl ${confidenceGuidance.bg} border ${confidenceGuidance.border} flex items-start gap-3 px-3 py-3 backdrop-blur-sm sm:px-4`}
+                        data-testid="banner-confidence-guidance"
+                      >
+                        <div
+                          className={`h-7 w-7 rounded-lg sm:h-8 sm:w-8 ${confidenceGuidance.iconBg} flex shrink-0 items-center justify-center`}
+                        >
+                          {confidenceGuidance.icon === "check" && (
+                            <ShieldCheck className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
+                          )}
+                          {confidenceGuidance.icon === "shield" && (
+                            <Shield className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
+                          )}
+                          {confidenceGuidance.icon === "alert" && (
+                            <ShieldAlert className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
+                          )}
+                          {confidenceGuidance.icon === "x" && (
+                            <ShieldX className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />
                           )}
                         </div>
-                        {isExpandable && (
-                          <ChevronDown className={`h-4 w-4 text-brand-link shrink-0 mt-1 transition-transform ${isAnyExpanded ? "rotate-180" : ""}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs font-bold sm:text-sm ${confidenceGuidance.color}`}
+                              data-testid="text-confidence-label"
+                            >
+                              {confidenceGuidance.label}
+                            </span>
+                            <span
+                              className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums ${confidenceGuidance.iconBg} ${confidenceGuidance.iconColor}`}
+                            >
+                              {confidenceGuidance.pct}%
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs">
+                            {confidenceGuidance.message}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {(() => {
+                    if (!profileResult || (selfFollowedByList.length === 0 && selfFollowingList.length === 0))
+                      return null;
+                    const sharedUnique = new Set([...sharedFollowerPubkeys, ...sharedFollowingPubkeys]);
+                    const sharedCount = sharedUnique.size;
+                    const mutualFollowersCount = sharedFollowerPubkeys.length;
+                    const mutualFollowingCount = sharedFollowingPubkeys.length;
+                    const isExpandable = sharedCount > 0;
+                    const capHit = followedByQuery.hasNextPage || followingQuery.hasNextPage;
+                    const isAnyExpanded = expandedSections["shared_followers"] || expandedSections["shared_following"];
+
+                    return (
+                      <div
+                        className="mb-4 overflow-hidden rounded-xl border border-brand-primary/15 bg-brand-primary/10 dark:border-brand-primary/25 dark:bg-brand-primary/10"
+                        data-testid="banner-shared-connections"
+                      >
+                        <div
+                          className={`flex items-start gap-3 px-4 py-3 ${isExpandable ? "cursor-pointer transition-colors hover:bg-brand-primary/10 dark:hover:bg-brand-primary/15" : ""}`}
+                          onClick={
+                            isExpandable
+                              ? () => {
+                                  if (isAnyExpanded) {
+                                    setExpandedSections((prev) => ({
+                                      ...prev,
+                                      shared_followers: false,
+                                      shared_following: false,
+                                    }));
+                                  } else {
+                                    toggleSection("shared_followers");
+                                    if (mutualFollowingCount > 0) {
+                                      setTimeout(() => toggleSection("shared_following"), 0);
+                                    }
+                                  }
+                                }
+                              : undefined
+                          }
+                        >
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-primary/20 bg-brand-primary/15 dark:border-brand-primary/25 dark:bg-brand-primary/15">
+                            <SharedConnectionIcon className="h-4 w-4 text-brand-primary" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            {sharedCount > 0 ? (
+                              <>
+                                <p className="text-sm font-semibold text-brand-primary dark:text-brand-link">
+                                  You share {sharedCount.toLocaleString()} connection{sharedCount !== 1 ? "s" : ""} with
+                                  this person
+                                </p>
+                                <p className="mt-0.5 text-xs text-brand-primary dark:text-brand-link">
+                                  {mutualFollowersCount.toLocaleString()} mutual follower
+                                  {mutualFollowersCount !== 1 ? "s" : ""} · {mutualFollowingCount.toLocaleString()}{" "}
+                                  mutual following
+                                </p>
+                                {capHit && (
+                                  <p
+                                    className="mt-1 text-[11px] italic text-brand-primary/60 dark:text-brand-link"
+                                    data-testid="text-shared-connections-cap-notice"
+                                  >
+                                    Based on top 200 connections — full overlap may be larger
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm font-medium text-slate-400 dark:text-slate-500">
+                                  No shared connections
+                                </p>
+                                {capHit && (
+                                  <p
+                                    className="mt-1 text-[11px] italic text-slate-400/70 dark:text-slate-500/70"
+                                    data-testid="text-shared-connections-cap-notice"
+                                  >
+                                    Based on top 200 connections — overlap may exist beyond this sample
+                                  </p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                          {isExpandable && (
+                            <ChevronDown
+                              className={`mt-1 h-4 w-4 shrink-0 text-brand-link transition-transform ${isAnyExpanded ? "rotate-180" : ""}`}
+                            />
+                          )}
+                        </div>
+                        {isAnyExpanded && (
+                          <div className="border-t border-brand-primary/15 dark:border-brand-primary/25">
+                            {mutualFollowersCount > 0 && (
+                              <div>
+                                <div
+                                  className="flex cursor-pointer items-center justify-between bg-brand-primary/10 px-4 py-2 transition-colors hover:bg-brand-primary/10 dark:bg-brand-primary/[0.06] dark:hover:bg-brand-primary/10"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleSection("shared_followers");
+                                  }}
+                                  data-testid="toggle-shared-followers"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <FollowersIcon className="h-3.5 w-3.5 text-brand-link" />
+                                    <span className="text-xs font-semibold text-brand-primary dark:text-brand-link">
+                                      Mutual Followers ({mutualFollowersCount.toLocaleString()})
+                                    </span>
+                                  </div>
+                                  <ChevronDown
+                                    className={`h-3.5 w-3.5 text-brand-link transition-transform ${expandedSections["shared_followers"] ? "rotate-180" : ""}`}
+                                  />
+                                </div>
+                                {renderExpandedPanel("shared_followers", sharedFollowerPubkeys)}
+                              </div>
+                            )}
+                            {mutualFollowingCount > 0 && (
+                              <div>
+                                <div
+                                  className="flex cursor-pointer items-center justify-between border-t border-brand-primary/15 bg-brand-primary/10 px-4 py-2 transition-colors hover:bg-brand-primary/10 dark:border-brand-primary/20 dark:bg-brand-primary/[0.06] dark:hover:bg-brand-primary/10"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleSection("shared_following");
+                                  }}
+                                  data-testid="toggle-shared-following"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <FollowingIcon className="h-3.5 w-3.5 text-brand-link" />
+                                    <span className="text-xs font-semibold text-brand-primary dark:text-brand-link">
+                                      Mutual Following ({mutualFollowingCount.toLocaleString()})
+                                    </span>
+                                  </div>
+                                  <ChevronDown
+                                    className={`h-3.5 w-3.5 text-brand-link transition-transform ${expandedSections["shared_following"] ? "rotate-180" : ""}`}
+                                  />
+                                </div>
+                                {renderExpandedPanel("shared_following", sharedFollowingPubkeys)}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
-                      {isAnyExpanded && (
-                        <div className="border-t border-brand-primary/15 dark:border-brand-primary/25">
-                          {mutualFollowersCount > 0 && (
-                            <div>
-                              <div
-                                className="flex items-center justify-between px-4 py-2 bg-brand-primary/10 dark:bg-brand-primary/[0.06] cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 transition-colors"
-                                onClick={(e) => { e.stopPropagation(); toggleSection("shared_followers"); }}
-                                data-testid="toggle-shared-followers"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <FollowersIcon className="h-3.5 w-3.5 text-brand-link" />
-                                  <span className="text-xs font-semibold text-brand-primary dark:text-brand-link">
-                                    Mutual Followers ({mutualFollowersCount.toLocaleString()})
-                                  </span>
-                                </div>
-                                <ChevronDown className={`h-3.5 w-3.5 text-brand-link transition-transform ${expandedSections["shared_followers"] ? "rotate-180" : ""}`} />
-                              </div>
-                              {renderExpandedPanel("shared_followers", sharedFollowerPubkeys)}
-                            </div>
-                          )}
-                          {mutualFollowingCount > 0 && (
-                            <div>
-                              <div
-                                className="flex items-center justify-between px-4 py-2 bg-brand-primary/10 dark:bg-brand-primary/[0.06] cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 transition-colors border-t border-brand-primary/15 dark:border-brand-primary/20"
-                                onClick={(e) => { e.stopPropagation(); toggleSection("shared_following"); }}
-                                data-testid="toggle-shared-following"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <FollowingIcon className="h-3.5 w-3.5 text-brand-link" />
-                                  <span className="text-xs font-semibold text-brand-primary dark:text-brand-link">
-                                    Mutual Following ({mutualFollowingCount.toLocaleString()})
-                                  </span>
-                                </div>
-                                <ChevronDown className={`h-3.5 w-3.5 text-brand-link transition-transform ${expandedSections["shared_following"] ? "rotate-180" : ""}`} />
-                              </div>
-                              {renderExpandedPanel("shared_following", sharedFollowingPubkeys)}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
 
-                {hexPubkey && <ProfileRecentPosts pubkey={hexPubkey} />}
+                  {hexPubkey && <ProfileRecentPosts pubkey={hexPubkey} />}
 
-                {(profileResult.followed_by || profileResult.following || profileResult.influence !== undefined) && (() => {
-                  const _ovCounts = profileOverviewQuery.data?.counts;
-                  const mutedByCount = _ovCounts?.muted_by ?? (Array.isArray(profileResult.muted_by) ? toPubkeys(profileResult.muted_by).length : (profileResult.muted_by || 0));
-                  const reportedByCount = _ovCounts?.reported_by ?? (Array.isArray(profileResult.reported_by) ? toPubkeys(profileResult.reported_by).length : (profileResult.reported_by || 0));
-                  const mutingCount = _ovCounts?.muting ?? (Array.isArray(profileResult.muting) ? toPubkeys(profileResult.muting).length : (profileResult.muting || 0));
-                  const reportingCount = _ovCounts?.reporting ?? (Array.isArray(profileResult.reporting) ? toPubkeys(profileResult.reporting).length : (profileResult.reporting || 0));
-                  const hasRiskSignals = mutedByCount > 0 || reportedByCount > 0 || isProfileFlagged;
-                  const totalNegativeSignals = mutedByCount + reportedByCount;
-                  const vMuted = verifiedCounts.mutedBy;
-                  const vReported = verifiedCounts.reportedBy;
+                  {(profileResult.followed_by || profileResult.following || profileResult.influence !== undefined) &&
+                    (() => {
+                      const _ovCounts = profileOverviewQuery.data?.counts;
+                      const mutedByCount =
+                        _ovCounts?.muted_by ??
+                        (Array.isArray(profileResult.muted_by)
+                          ? toPubkeys(profileResult.muted_by).length
+                          : profileResult.muted_by || 0);
+                      const reportedByCount =
+                        _ovCounts?.reported_by ??
+                        (Array.isArray(profileResult.reported_by)
+                          ? toPubkeys(profileResult.reported_by).length
+                          : profileResult.reported_by || 0);
+                      const mutingCount =
+                        _ovCounts?.muting ??
+                        (Array.isArray(profileResult.muting)
+                          ? toPubkeys(profileResult.muting).length
+                          : profileResult.muting || 0);
+                      const reportingCount =
+                        _ovCounts?.reporting ??
+                        (Array.isArray(profileResult.reporting)
+                          ? toPubkeys(profileResult.reporting).length
+                          : profileResult.reporting || 0);
+                      const hasRiskSignals = mutedByCount > 0 || reportedByCount > 0 || isProfileFlagged;
+                      const totalNegativeSignals = mutedByCount + reportedByCount;
+                      const vMuted = verifiedCounts.mutedBy;
+                      const vReported = verifiedCounts.reportedBy;
 
-                  return (
-                  <div className="space-y-5">
-                    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm dark:shadow-none">
-                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-brand-primary" />
-                          <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>
-                        </div>
-                        <span className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 font-mono hidden sm:inline">Network Position</span>
-                      </div>
-                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {profileResult.followed_by !== undefined && (() => {
-                          const fbValue = profileResult.followed_by;
-                          const fbArray = Array.isArray(fbValue) ? fbValue : null;
-                          const fbCount = _ovCounts?.followed_by ?? (fbArray ? toPubkeys(fbArray).length : ((fbValue as number) || 0));
-                          const fbExpandable = fbCount > 0;
-                          return (
-                          <div>
-                            <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fbExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : ""}`}
-                              onClick={fbExpandable ? () => toggleSection("followed_by") : undefined}
-                              data-testid="metric-profile-followers"
-                            >
-                              <div className="flex items-center gap-2 sm:gap-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/25 flex items-center justify-center shrink-0">
-                                  <FollowersIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
-                                </div>
-                                <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.loaded ? "Verified Followers" : "Followers"}</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">People following this account</p>
-                                  {renderTierBadges("followed_by")}
-                                </div>
-                              </div>
+                      return (
+                        <div className="space-y-5">
+                          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none">
+                            <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900 sm:px-4 sm:py-2.5">
                               <div className="flex items-center gap-2">
-                                <div className="text-right">
-                                  <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-followers">
-                                    {verifiedCounts.loaded ? verifiedCounts.followers.toLocaleString() : fbCount.toLocaleString()}
-                                  </p>
-                                  {verifiedCounts.loaded && (
-                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-followers">of {fbCount.toLocaleString()} total</p>
-                                  )}
-                                </div>
-                                {fbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["followed_by"] ? "rotate-180" : ""}`} />}
+                                <div className="h-1.5 w-1.5 rounded-full bg-brand-primary" />
+                                <h4
+                                  className="text-[11px] font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-300 sm:text-xs"
+                                  data-testid="header-social-reach"
+                                >
+                                  Social Reach
+                                </h4>
                               </div>
+                              <span className="hidden font-mono text-[10px] text-slate-400 dark:text-slate-500 sm:inline sm:text-xs">
+                                Network Position
+                              </span>
                             </div>
-                            {fbExpandable && fbArray && renderExpandedPanel("followed_by", toPubkeys(fbArray))}
-                          </div>
-                          );
-                        })()}
-                        {profileResult.following !== undefined && (() => {
-                          const fgValue = profileResult.following;
-                          const fgArray = Array.isArray(fgValue) ? fgValue : null;
-                          const fgCount = _ovCounts?.following ?? (fgArray ? toPubkeys(fgArray).length : ((fgValue as number) || 0));
-                          const fgExpandable = fgCount > 0;
-                          return (
-                          <div>
-                            <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fgExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : ""}`}
-                              onClick={fgExpandable ? () => toggleSection("following") : undefined}
-                              data-testid="metric-profile-following"
-                            >
-                              <div className="flex items-center gap-2 sm:gap-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/25 flex items-center justify-center shrink-0">
-                                  <FollowingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
-                                </div>
-                                <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.loaded ? "Verified Following" : "Following"}</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Accounts this person follows</p>
-                                  {renderTierBadges("following")}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className="text-right">
-                                  <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-following">
-                                    {verifiedCounts.loaded ? verifiedCounts.following.toLocaleString() : fgCount.toLocaleString()}
-                                  </p>
-                                  {verifiedCounts.loaded && (
-                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-following">of {fgCount.toLocaleString()} total</p>
-                                  )}
-                                </div>
-                                {fgExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["following"] ? "rotate-180" : ""}`} />}
-                              </div>
-                            </div>
-                            {fgExpandable && fgArray && renderExpandedPanel("following", toPubkeys(fgArray))}
-                          </div>
-                          );
-                        })()}
-                        {(() => {
-                          const mtCount = mutualPubkeys.length;
-                          const mtExpandable = mtCount > 0;
-                          if (!Array.isArray(profileResult.followed_by) || !Array.isArray(profileResult.following)) return null;
-                          return (
-                          <div>
-                            <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${mtExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : ""}`}
-                              onClick={mtExpandable ? () => toggleSection("mutual") : undefined}
-                              data-testid="metric-profile-mutual"
-                            >
-                              <div className="flex items-center gap-2 sm:gap-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-teal-50 dark:bg-teal-500/10 border border-teal-100 dark:border-teal-500/25 flex items-center justify-center shrink-0">
-                                  <MutualIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-teal-500" />
-                                </div>
-                                <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Mutual</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Follow each other mutually</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-mutual">
-                                  {mtCount.toLocaleString()}
-                                </p>
-                                {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["mutual"] ? "rotate-180" : ""}`} />}
-                              </div>
-                            </div>
-                            {mtExpandable && renderExpandedPanel("mutual", mutualPubkeys)}
-                          </div>
-                          );
-                        })()}
-                        {(() => {
-                          if (profileResult.influence === undefined) return null;
-                          // Own profile shows the NETWORK influence (Brainstorm's
-                          // vantage point), not the self-POV 1.00. Null = not yet scored →
-                          // skip the row (the banner already explains).
-                          const inf = isOwnProfile
-                            ? houseInfluence01
-                            : (typeof profileResult.influence === "number" ? profileResult.influence : null);
-                          if (isOwnProfile && inf == null) return null;
-                          const infNum = typeof inf === "number" ? inf : 0;
-                          return (
-                          <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-profile-influence">
-                            <div className="flex items-center gap-2 sm:gap-3">
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-primary/15 dark:border-brand-primary/25 flex items-center justify-center shrink-0">
-                                <BrainLogo size={14} className="text-brand-primary sm:hidden" />
-                                <BrainLogo size={16} className="text-brand-primary hidden sm:block" />
-                              </div>
-                              <div>
-                                <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Influence</p>
-                                <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Network influence rating (0-1)</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 sm:gap-2.5">
-                              <div className="w-10 sm:w-16 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                <div className="h-full rounded-full bg-gradient-to-r from-brand-primary to-brand-primary" style={{ width: `${Math.min(infNum * 100, 100)}%` }} />
-                              </div>
-                              <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-influence">
-                                {typeof inf === "number" ? inf.toFixed(2) : "—"}
-                              </p>
-                            </div>
-                          </div>
-                          );
-                        })()}
-                        {followerTierBreakdown && followerTierBreakdown.total > 0 && (
-                          <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30 dark:bg-slate-900/30" data-testid="card-audience-quality">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-1 h-1 rounded-full bg-brand-primary" />
-                                <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Audience Quality</span>
-                              </div>
-                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{followerTierBreakdown.total.toLocaleString()} followers</span>
-                            </div>
-                            <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800" data-testid="bar-audience-quality">
-                              {TIER_DISPLAY_CONFIG.map(tier => {
-                                const count = followerTierBreakdown.counts[tier.key] || 0;
-                                if (count === 0) return null;
-                                const widthPct = (count / followerTierBreakdown.total) * 100;
+                            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {profileResult.followed_by !== undefined &&
+                                (() => {
+                                  const fbValue = profileResult.followed_by;
+                                  const fbArray = Array.isArray(fbValue) ? fbValue : null;
+                                  const fbCount =
+                                    _ovCounts?.followed_by ??
+                                    (fbArray ? toPubkeys(fbArray).length : (fbValue as number) || 0);
+                                  const fbExpandable = fbCount > 0;
+                                  return (
+                                    <div>
+                                      <div
+                                        className={`group flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${fbExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : ""}`}
+                                        onClick={fbExpandable ? () => toggleSection("followed_by") : undefined}
+                                        data-testid="metric-profile-followers"
+                                      >
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 dark:border-blue-500/25 dark:bg-blue-500/10 sm:h-8 sm:w-8">
+                                            <FollowersIcon className="h-3.5 w-3.5 text-blue-500 sm:h-4 sm:w-4" />
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
+                                              {verifiedCounts.loaded ? "Verified Followers" : "Followers"}
+                                            </p>
+                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
+                                              People following this account
+                                            </p>
+                                            {renderTierBadges("followed_by")}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <div className="text-right">
+                                            <p
+                                              className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                                              data-testid="text-profile-followers"
+                                            >
+                                              {verifiedCounts.loaded
+                                                ? verifiedCounts.followers.toLocaleString()
+                                                : fbCount.toLocaleString()}
+                                            </p>
+                                            {verifiedCounts.loaded && (
+                                              <p
+                                                className="font-mono text-[10px] tabular-nums text-slate-400 dark:text-slate-500"
+                                                data-testid="text-verified-followers"
+                                              >
+                                                of {fbCount.toLocaleString()} total
+                                              </p>
+                                            )}
+                                          </div>
+                                          {fbExpandable && (
+                                            <ChevronDown
+                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["followed_by"] ? "rotate-180" : ""}`}
+                                            />
+                                          )}
+                                        </div>
+                                      </div>
+                                      {fbExpandable &&
+                                        fbArray &&
+                                        renderExpandedPanel("followed_by", toPubkeys(fbArray))}
+                                    </div>
+                                  );
+                                })()}
+                              {profileResult.following !== undefined &&
+                                (() => {
+                                  const fgValue = profileResult.following;
+                                  const fgArray = Array.isArray(fgValue) ? fgValue : null;
+                                  const fgCount =
+                                    _ovCounts?.following ??
+                                    (fgArray ? toPubkeys(fgArray).length : (fgValue as number) || 0);
+                                  const fgExpandable = fgCount > 0;
+                                  return (
+                                    <div>
+                                      <div
+                                        className={`group flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${fgExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : ""}`}
+                                        onClick={fgExpandable ? () => toggleSection("following") : undefined}
+                                        data-testid="metric-profile-following"
+                                      >
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 dark:border-blue-500/25 dark:bg-blue-500/10 sm:h-8 sm:w-8">
+                                            <FollowingIcon className="h-3.5 w-3.5 text-blue-500 sm:h-4 sm:w-4" />
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
+                                              {verifiedCounts.loaded ? "Verified Following" : "Following"}
+                                            </p>
+                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
+                                              Accounts this person follows
+                                            </p>
+                                            {renderTierBadges("following")}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <div className="text-right">
+                                            <p
+                                              className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                                              data-testid="text-profile-following"
+                                            >
+                                              {verifiedCounts.loaded
+                                                ? verifiedCounts.following.toLocaleString()
+                                                : fgCount.toLocaleString()}
+                                            </p>
+                                            {verifiedCounts.loaded && (
+                                              <p
+                                                className="font-mono text-[10px] tabular-nums text-slate-400 dark:text-slate-500"
+                                                data-testid="text-verified-following"
+                                              >
+                                                of {fgCount.toLocaleString()} total
+                                              </p>
+                                            )}
+                                          </div>
+                                          {fgExpandable && (
+                                            <ChevronDown
+                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["following"] ? "rotate-180" : ""}`}
+                                            />
+                                          )}
+                                        </div>
+                                      </div>
+                                      {fgExpandable && fgArray && renderExpandedPanel("following", toPubkeys(fgArray))}
+                                    </div>
+                                  );
+                                })()}
+                              {(() => {
+                                const mtCount = mutualPubkeys.length;
+                                const mtExpandable = mtCount > 0;
+                                if (
+                                  !Array.isArray(profileResult.followed_by) ||
+                                  !Array.isArray(profileResult.following)
+                                )
+                                  return null;
                                 return (
-                                  <div
-                                    key={tier.key}
-                                    className="h-full transition-all duration-500"
-                                    style={{ width: `${widthPct}%`, backgroundColor: tier.color, minWidth: widthPct > 0 ? "2px" : "0" }}
-                                    title={`${tier.name}: ${count}`}
-                                  />
-                                );
-                              })}
-                            </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                              {TIER_DISPLAY_CONFIG.map(tier => {
-                                const count = followerTierBreakdown.counts[tier.key] || 0;
-                                if (count === 0) return null;
-                                return (
-                                  <div key={tier.key} className="flex items-center gap-1.5" data-testid={`legend-tier-${tier.key}`}>
-                                    <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: tier.color }} />
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{tier.name}</span>
-                                    <span className="text-[10px] text-slate-900 dark:text-slate-100 font-bold font-mono">{count.toLocaleString()}</span>
+                                  <div>
+                                    <div
+                                      className={`group flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${mtExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : ""}`}
+                                      onClick={mtExpandable ? () => toggleSection("mutual") : undefined}
+                                      data-testid="metric-profile-mutual"
+                                    >
+                                      <div className="flex items-center gap-2 sm:gap-3">
+                                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-teal-100 bg-teal-50 dark:border-teal-500/25 dark:bg-teal-500/10 sm:h-8 sm:w-8">
+                                          <MutualIcon className="h-3.5 w-3.5 text-teal-500 sm:h-4 sm:w-4" />
+                                        </div>
+                                        <div>
+                                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
+                                            Mutual
+                                          </p>
+                                          <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
+                                            Follow each other mutually
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <p
+                                          className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                                          data-testid="text-profile-mutual"
+                                        >
+                                          {mtCount.toLocaleString()}
+                                        </p>
+                                        {mtExpandable && (
+                                          <ChevronDown
+                                            className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["mutual"] ? "rotate-180" : ""}`}
+                                          />
+                                        )}
+                                      </div>
+                                    </div>
+                                    {mtExpandable && renderExpandedPanel("mutual", mutualPubkeys)}
                                   </div>
                                 );
-                              })}
+                              })()}
+                              {(() => {
+                                if (profileResult.influence === undefined) return null;
+                                // Own profile shows the NETWORK influence (Brainstorm's
+                                // vantage point), not the self-POV 1.00. Null = not yet scored →
+                                // skip the row (the banner already explains).
+                                const inf = isOwnProfile
+                                  ? houseInfluence01
+                                  : typeof profileResult.influence === "number"
+                                    ? profileResult.influence
+                                    : null;
+                                if (isOwnProfile && inf == null) return null;
+                                const infNum = typeof inf === "number" ? inf : 0;
+                                return (
+                                  <div
+                                    className="group flex cursor-help items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5"
+                                    title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people."
+                                    data-testid="metric-profile-influence"
+                                  >
+                                    <div className="flex items-center gap-2 sm:gap-3">
+                                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand-primary/15 bg-brand-primary/10 dark:border-brand-primary/25 dark:bg-brand-primary/10 sm:h-8 sm:w-8">
+                                        <BrainLogo size={14} className="text-brand-primary sm:hidden" />
+                                        <BrainLogo size={16} className="hidden text-brand-primary sm:block" />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
+                                          Influence
+                                        </p>
+                                        <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
+                                          Network influence rating (0-1)
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 sm:gap-2.5">
+                                      <div className="h-1.5 w-10 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 sm:w-16">
+                                        <div
+                                          className="h-full rounded-full bg-gradient-to-r from-brand-primary to-brand-primary"
+                                          style={{ width: `${Math.min(infNum * 100, 100)}%` }}
+                                        />
+                                      </div>
+                                      <p
+                                        className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                                        data-testid="text-profile-influence"
+                                      >
+                                        {typeof inf === "number" ? inf.toFixed(2) : "—"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                              {followerTierBreakdown && followerTierBreakdown.total > 0 && (
+                                <div
+                                  className="bg-slate-50/30 px-3 py-3 dark:bg-slate-900/30 sm:px-4 sm:py-4"
+                                  data-testid="card-audience-quality"
+                                >
+                                  <div className="mb-2 flex items-center justify-between">
+                                    <div className="flex items-center gap-1.5">
+                                      <div className="h-1 w-1 rounded-full bg-brand-primary" />
+                                      <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 sm:text-[11px]">
+                                        Audience Quality
+                                      </span>
+                                    </div>
+                                    <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                                      {followerTierBreakdown.total.toLocaleString()} followers
+                                    </span>
+                                  </div>
+                                  <div
+                                    className="flex h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                    data-testid="bar-audience-quality"
+                                  >
+                                    {TIER_DISPLAY_CONFIG.map((tier) => {
+                                      const count = followerTierBreakdown.counts[tier.key] || 0;
+                                      if (count === 0) return null;
+                                      const widthPct = (count / followerTierBreakdown.total) * 100;
+                                      return (
+                                        <div
+                                          key={tier.key}
+                                          className="h-full transition-all duration-500"
+                                          style={{
+                                            width: `${widthPct}%`,
+                                            backgroundColor: tier.color,
+                                            minWidth: widthPct > 0 ? "2px" : "0",
+                                          }}
+                                          title={`${tier.name}: ${count}`}
+                                        />
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                                    {TIER_DISPLAY_CONFIG.map((tier) => {
+                                      const count = followerTierBreakdown.counts[tier.key] || 0;
+                                      if (count === 0) return null;
+                                      return (
+                                        <div
+                                          key={tier.key}
+                                          className="flex items-center gap-1.5"
+                                          data-testid={`legend-tier-${tier.key}`}
+                                        >
+                                          <div
+                                            className="h-2 w-2 shrink-0 rounded-sm"
+                                            style={{ backgroundColor: tier.color }}
+                                          />
+                                          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                            {tier.name}
+                                          </span>
+                                          <span className="font-mono text-[10px] font-bold text-slate-900 dark:text-slate-100">
+                                            {count.toLocaleString()}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
 
-                    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm dark:shadow-none">
-                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 dark:bg-none dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-brand-primary" : "bg-slate-300 dark:bg-slate-700"}`} />
-                          <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-widest" data-testid="header-social-context">Social Context</h4>
-                        </div>
-                        <span className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 font-mono hidden sm:inline">{totalNegativeSignals > 0 ? `${totalNegativeSignals.toLocaleString()} total` : ""}</span>
-                      </div>
-                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {isProfileFlagged && (
-                          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3.5 bg-red-50/60 dark:bg-red-500/10" data-testid="metric-profile-flagged-indicator">
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 dark:bg-red-500/15 border border-red-200 dark:border-red-500/25 flex items-center justify-center shrink-0">
-                              <FlaggedIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-xs sm:text-sm font-semibold text-red-700 dark:text-red-300">Flagged</p>
-                              <p className="text-[10px] sm:text-xs text-red-500 dark:text-red-400 leading-tight">Low trust & reported by 2+ of your trusted contacts</p>
-                            </div>
-                          </div>
-                        )}
-                        {profileResult.muted_by !== undefined && (() => {
-                          const mbExpandable = mutedByCount > 0;
-                          return (
-                          <div>
-                            <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mbExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : "cursor-help"}`}
-                              title="A soft negative signal. Muting means someone chose to hide this account's content from their feed."
-                              onClick={mbExpandable ? () => toggleSection("muted_by") : undefined}
-                              data-testid="metric-profile-muted-by"
-                            >
-                              <div className="flex items-center gap-2 sm:gap-3">
-                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/25" : "bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800/60"}`}>
-                                  <MutedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400 dark:text-slate-500"}`} />
-                                </div>
-                                <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.loaded ? "Verified Muted By" : "Muted By"}</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Others who muted this account</p>
-                                  {renderTierBadges("muted_by")}
-                                </div>
-                              </div>
+                          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none">
+                            <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 px-3 py-2 dark:border-slate-800/60 dark:bg-slate-900 dark:bg-none sm:px-4 sm:py-2.5">
                               <div className="flex items-center gap-2">
-                                <div className="text-right">
-                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700 dark:text-amber-300" : "text-slate-900 dark:text-slate-100"}`} data-testid="text-profile-muted-by">
-                                    {verifiedCounts.loaded ? verifiedCounts.mutedBy.toLocaleString() : mutedByCount.toLocaleString()}
-                                  </p>
-                                  {verifiedCounts.loaded && (
-                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-muted-by">of {mutedByCount.toLocaleString()} total</p>
-                                  )}
-                                </div>
-                                {mbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["muted_by"] ? "rotate-180" : ""}`} />}
+                                <div
+                                  className={`h-1.5 w-1.5 rounded-full ${hasRiskSignals ? "bg-brand-primary" : "bg-slate-300 dark:bg-slate-700"}`}
+                                />
+                                <h4
+                                  className="text-[11px] font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-300 sm:text-xs"
+                                  data-testid="header-social-context"
+                                >
+                                  Social Context
+                                </h4>
                               </div>
+                              <span className="hidden font-mono text-[10px] text-slate-400 dark:text-slate-500 sm:inline sm:text-xs">
+                                {totalNegativeSignals > 0 ? `${totalNegativeSignals.toLocaleString()} total` : ""}
+                              </span>
                             </div>
-                            {mbExpandable && Array.isArray(profileResult.muted_by) && renderExpandedPanel("muted_by", toPubkeys(profileResult.muted_by))}
-                          </div>
-                          );
-                        })()}
-                        {profileResult.reported_by !== undefined && (() => {
-                          const rbExpandable = reportedByCount > 0;
-                          return (
-                          <div>
-                            <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rbExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : "cursor-help"}`}
-                              title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior."
-                              onClick={rbExpandable ? () => toggleSection("reported_by") : undefined}
-                              data-testid="metric-profile-reported-by"
-                            >
-                              <div className="flex items-center gap-2 sm:gap-3">
-                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/25" : "bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800/60"}`}>
-                                  <ReportedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400 dark:text-slate-500"}`} />
-                                </div>
-                                <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.loaded ? "Verified Reported By" : "Reported By"}</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Reports filed against this account</p>
-                                  {renderTierBadges("reported_by")}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className="text-right">
-                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"}`} data-testid="text-profile-reported-by">
-                                    {verifiedCounts.loaded ? verifiedCounts.reportedBy.toLocaleString() : reportedByCount.toLocaleString()}
-                                  </p>
-                                  {verifiedCounts.loaded && (
-                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-reported-by">of {reportedByCount.toLocaleString()} total</p>
-                                  )}
-                                </div>
-                                {rbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["reported_by"] ? "rotate-180" : ""}`} />}
-                              </div>
-                            </div>
-                            {rbExpandable && Array.isArray(profileResult.reported_by) && renderExpandedPanel("reported_by", toPubkeys(profileResult.reported_by))}
-                          </div>
-                          );
-                        })()}
-                        {profileResult.muting !== undefined && (() => {
-                          const mtExpandable = mutingCount > 0;
-                          return (
-                          <div>
-                            <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mtExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : ""}`}
-                              onClick={mtExpandable ? () => toggleSection("muting") : undefined}
-                              data-testid="metric-profile-muting"
-                            >
-                              <div className="flex items-center gap-2 sm:gap-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 flex items-center justify-center shrink-0">
-                                  <MutingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400 dark:text-slate-500" />
-                                </div>
-                                <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Muting</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Accounts this person has muted</p>
-                                  {renderTierBadges("muting")}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-muting">
-                                  {mutingCount.toLocaleString()}
-                                </p>
-                                {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["muting"] ? "rotate-180" : ""}`} />}
-                              </div>
-                            </div>
-                            {mtExpandable && Array.isArray(profileResult.muting) && renderExpandedPanel("muting", toPubkeys(profileResult.muting))}
-                          </div>
-                          );
-                        })()}
-                        {profileResult.reporting !== undefined && (() => {
-                          const rpExpandable = reportingCount > 0;
-                          return (
-                          <div>
-                            <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rpExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : ""}`}
-                              onClick={rpExpandable ? () => toggleSection("reporting") : undefined}
-                              data-testid="metric-profile-reporting"
-                            >
-                              <div className="flex items-center gap-2 sm:gap-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 flex items-center justify-center shrink-0">
-                                  <ReportingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400 dark:text-slate-500" />
-                                </div>
-                                <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Reporting</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Reports filed by this person</p>
-                                  {renderTierBadges("reporting")}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-reporting">
-                                  {reportingCount.toLocaleString()}
-                                </p>
-                                {rpExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["reporting"] ? "rotate-180" : ""}`} />}
-                              </div>
-                            </div>
-                            {rpExpandable && Array.isArray(profileResult.reporting) && renderExpandedPanel("reporting", toPubkeys(profileResult.reporting))}
-                          </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    {hasRiskSignals && (() => {
-                      const barTotal = mutedByCount + reportedByCount;
-                      const mutedPct = barTotal > 0 ? (mutedByCount / barTotal) * 100 : 0;
-                      const reportedPct = barTotal > 0 ? (reportedByCount / barTotal) * 100 : 0;
-                      return (
-                      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm dark:shadow-none" data-testid="alert-profile-trust-warning">
-                        <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30 dark:bg-slate-900/30">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-1 h-1 rounded-full bg-brand-primary" />
-                              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Social Context</span>
-                            </div>
-                            <div className="flex items-center gap-2">
+                            <div className="divide-y divide-slate-100 dark:divide-slate-800">
                               {isProfileFlagged && (
-                                <span className="text-[10px] font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/25 px-1.5 py-0.5 rounded-md">Flagged</span>
+                                <div
+                                  className="flex items-center gap-2 bg-red-50/60 px-3 py-2.5 dark:bg-red-500/10 sm:gap-3 sm:px-4 sm:py-3.5"
+                                  data-testid="metric-profile-flagged-indicator"
+                                >
+                                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-100 dark:border-red-500/25 dark:bg-red-500/15 sm:h-8 sm:w-8">
+                                    <FlaggedIcon className="h-3.5 w-3.5 text-red-600 sm:h-4 sm:w-4" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-xs font-semibold text-red-700 dark:text-red-300 sm:text-sm">
+                                      Flagged
+                                    </p>
+                                    <p className="text-[10px] leading-tight text-red-500 dark:text-red-400 sm:text-xs">
+                                      Low trust & reported by 2+ of your trusted contacts
+                                    </p>
+                                  </div>
+                                </div>
                               )}
-                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{barTotal.toLocaleString()} total</span>
+                              {profileResult.muted_by !== undefined &&
+                                (() => {
+                                  const mbExpandable = mutedByCount > 0;
+                                  return (
+                                    <div>
+                                      <div
+                                        className={`flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${mbExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : "cursor-help"}`}
+                                        title="A soft negative signal. Muting means someone chose to hide this account's content from their feed."
+                                        onClick={mbExpandable ? () => toggleSection("muted_by") : undefined}
+                                        data-testid="metric-profile-muted-by"
+                                      >
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                          <div
+                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border sm:h-8 sm:w-8 ${mutedByCount > 0 ? "border-amber-200 bg-amber-50 dark:border-amber-500/25 dark:bg-amber-500/10" : "border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900"}`}
+                                          >
+                                            <MutedByIcon
+                                              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400 dark:text-slate-500"}`}
+                                            />
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
+                                              {verifiedCounts.loaded ? "Verified Muted By" : "Muted By"}
+                                            </p>
+                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
+                                              Others who muted this account
+                                            </p>
+                                            {renderTierBadges("muted_by")}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <div className="text-right">
+                                            <p
+                                              className={`font-mono text-lg font-bold tabular-nums tracking-tight sm:text-xl ${mutedByCount > 0 ? "text-amber-700 dark:text-amber-300" : "text-slate-900 dark:text-slate-100"}`}
+                                              data-testid="text-profile-muted-by"
+                                            >
+                                              {verifiedCounts.loaded
+                                                ? verifiedCounts.mutedBy.toLocaleString()
+                                                : mutedByCount.toLocaleString()}
+                                            </p>
+                                            {verifiedCounts.loaded && (
+                                              <p
+                                                className="font-mono text-[10px] tabular-nums text-slate-400 dark:text-slate-500"
+                                                data-testid="text-verified-muted-by"
+                                              >
+                                                of {mutedByCount.toLocaleString()} total
+                                              </p>
+                                            )}
+                                          </div>
+                                          {mbExpandable && (
+                                            <ChevronDown
+                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["muted_by"] ? "rotate-180" : ""}`}
+                                            />
+                                          )}
+                                        </div>
+                                      </div>
+                                      {mbExpandable &&
+                                        Array.isArray(profileResult.muted_by) &&
+                                        renderExpandedPanel("muted_by", toPubkeys(profileResult.muted_by))}
+                                    </div>
+                                  );
+                                })()}
+                              {profileResult.reported_by !== undefined &&
+                                (() => {
+                                  const rbExpandable = reportedByCount > 0;
+                                  return (
+                                    <div>
+                                      <div
+                                        className={`flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${rbExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : "cursor-help"}`}
+                                        title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior."
+                                        onClick={rbExpandable ? () => toggleSection("reported_by") : undefined}
+                                        data-testid="metric-profile-reported-by"
+                                      >
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                          <div
+                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border sm:h-8 sm:w-8 ${reportedByCount > 0 ? "border-red-200 bg-red-50 dark:border-red-500/25 dark:bg-red-500/10" : "border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900"}`}
+                                          >
+                                            <ReportedByIcon
+                                              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400 dark:text-slate-500"}`}
+                                            />
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
+                                              {verifiedCounts.loaded ? "Verified Reported By" : "Reported By"}
+                                            </p>
+                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
+                                              Reports filed against this account
+                                            </p>
+                                            {renderTierBadges("reported_by")}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <div className="text-right">
+                                            <p
+                                              className={`font-mono text-lg font-bold tabular-nums tracking-tight sm:text-xl ${reportedByCount > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"}`}
+                                              data-testid="text-profile-reported-by"
+                                            >
+                                              {verifiedCounts.loaded
+                                                ? verifiedCounts.reportedBy.toLocaleString()
+                                                : reportedByCount.toLocaleString()}
+                                            </p>
+                                            {verifiedCounts.loaded && (
+                                              <p
+                                                className="font-mono text-[10px] tabular-nums text-slate-400 dark:text-slate-500"
+                                                data-testid="text-verified-reported-by"
+                                              >
+                                                of {reportedByCount.toLocaleString()} total
+                                              </p>
+                                            )}
+                                          </div>
+                                          {rbExpandable && (
+                                            <ChevronDown
+                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["reported_by"] ? "rotate-180" : ""}`}
+                                            />
+                                          )}
+                                        </div>
+                                      </div>
+                                      {rbExpandable &&
+                                        Array.isArray(profileResult.reported_by) &&
+                                        renderExpandedPanel("reported_by", toPubkeys(profileResult.reported_by))}
+                                    </div>
+                                  );
+                                })()}
+                              {profileResult.muting !== undefined &&
+                                (() => {
+                                  const mtExpandable = mutingCount > 0;
+                                  return (
+                                    <div>
+                                      <div
+                                        className={`flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${mtExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : ""}`}
+                                        onClick={mtExpandable ? () => toggleSection("muting") : undefined}
+                                        data-testid="metric-profile-muting"
+                                      >
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900 sm:h-8 sm:w-8">
+                                            <MutingIcon className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 sm:h-4 sm:w-4" />
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
+                                              Muting
+                                            </p>
+                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
+                                              Accounts this person has muted
+                                            </p>
+                                            {renderTierBadges("muting")}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <p
+                                            className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                                            data-testid="text-profile-muting"
+                                          >
+                                            {mutingCount.toLocaleString()}
+                                          </p>
+                                          {mtExpandable && (
+                                            <ChevronDown
+                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["muting"] ? "rotate-180" : ""}`}
+                                            />
+                                          )}
+                                        </div>
+                                      </div>
+                                      {mtExpandable &&
+                                        Array.isArray(profileResult.muting) &&
+                                        renderExpandedPanel("muting", toPubkeys(profileResult.muting))}
+                                    </div>
+                                  );
+                                })()}
+                              {profileResult.reporting !== undefined &&
+                                (() => {
+                                  const rpExpandable = reportingCount > 0;
+                                  return (
+                                    <div>
+                                      <div
+                                        className={`flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3.5 ${rpExpandable ? "cursor-pointer transition-all duration-200 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06]" : ""}`}
+                                        onClick={rpExpandable ? () => toggleSection("reporting") : undefined}
+                                        data-testid="metric-profile-reporting"
+                                      >
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 dark:border-slate-800/60 dark:bg-slate-900 sm:h-8 sm:w-8">
+                                            <ReportingIcon className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 sm:h-4 sm:w-4" />
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 sm:text-sm">
+                                              Reporting
+                                            </p>
+                                            <p className="hidden text-[10px] leading-tight text-slate-400 dark:text-slate-500 sm:block sm:text-xs">
+                                              Reports filed by this person
+                                            </p>
+                                            {renderTierBadges("reporting")}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <p
+                                            className="font-mono text-lg font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                                            data-testid="text-profile-reporting"
+                                          >
+                                            {reportingCount.toLocaleString()}
+                                          </p>
+                                          {rpExpandable && (
+                                            <ChevronDown
+                                              className={`h-4 w-4 text-slate-400 transition-transform dark:text-slate-500 ${expandedSections["reporting"] ? "rotate-180" : ""}`}
+                                            />
+                                          )}
+                                        </div>
+                                      </div>
+                                      {rpExpandable &&
+                                        Array.isArray(profileResult.reporting) &&
+                                        renderExpandedPanel("reporting", toPubkeys(profileResult.reporting))}
+                                    </div>
+                                  );
+                                })()}
                             </div>
                           </div>
-                          {barTotal > 0 && (
-                            <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800" data-testid="bar-social-context">
-                              {mutedByCount > 0 && (
+
+                          {hasRiskSignals &&
+                            (() => {
+                              const barTotal = mutedByCount + reportedByCount;
+                              const mutedPct = barTotal > 0 ? (mutedByCount / barTotal) * 100 : 0;
+                              const reportedPct = barTotal > 0 ? (reportedByCount / barTotal) * 100 : 0;
+                              return (
                                 <div
-                                  className="h-full transition-all duration-500"
-                                  style={{ width: `${mutedPct}%`, backgroundColor: "#f59e0b", minWidth: "2px" }}
-                                  title={`Muted by: ${mutedByCount}`}
-                                />
-                              )}
-                              {reportedByCount > 0 && (
-                                <div
-                                  className="h-full transition-all duration-500"
-                                  style={{ width: `${reportedPct}%`, backgroundColor: "#ef4444", minWidth: "2px" }}
-                                  title={`Reported by: ${reportedByCount}`}
-                                />
-                              )}
-                            </div>
-                          )}
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                            {mutedByCount > 0 && (
-                              <div className="flex items-center gap-1.5" data-testid="legend-muted-by">
-                                <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: "#f59e0b" }} />
-                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Muted by</span>
-                                {vMuted > 0 ? (
-                                  <>
-                                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold font-mono">{vMuted} verified</span>
-                                    <span className="text-[10px] text-slate-300 dark:text-slate-600 font-medium">of {mutedByCount.toLocaleString()}</span>
-                                  </>
-                                ) : (
-                                  <span className="text-[10px] text-slate-900 dark:text-slate-100 font-bold font-mono">{mutedByCount.toLocaleString()}</span>
-                                )}
-                              </div>
-                            )}
-                            {reportedByCount > 0 && (
-                              <div className="flex items-center gap-1.5" data-testid="legend-reported-by">
-                                <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: "#ef4444" }} />
-                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Reported by</span>
-                                {vReported > 0 ? (
-                                  <>
-                                    <span className="text-[10px] text-red-600 dark:text-red-400 font-bold font-mono">{vReported} verified</span>
-                                    <span className="text-[10px] text-slate-300 dark:text-slate-600 font-medium">of {reportedByCount.toLocaleString()}</span>
-                                  </>
-                                ) : (
-                                  <span className="text-[10px] text-slate-900 dark:text-slate-100 font-bold font-mono">{reportedByCount.toLocaleString()}</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                                  className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none"
+                                  data-testid="alert-profile-trust-warning"
+                                >
+                                  <div className="bg-slate-50/30 px-3 py-3 dark:bg-slate-900/30 sm:px-4 sm:py-4">
+                                    <div className="mb-2 flex items-center justify-between">
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="h-1 w-1 rounded-full bg-brand-primary" />
+                                        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 sm:text-[11px]">
+                                          Social Context
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {isProfileFlagged && (
+                                          <span className="rounded-md border border-red-100 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400">
+                                            Flagged
+                                          </span>
+                                        )}
+                                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
+                                          {barTotal.toLocaleString()} total
+                                        </span>
+                                      </div>
+                                    </div>
+                                    {barTotal > 0 && (
+                                      <div
+                                        className="flex h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                        data-testid="bar-social-context"
+                                      >
+                                        {mutedByCount > 0 && (
+                                          <div
+                                            className="h-full transition-all duration-500"
+                                            style={{
+                                              width: `${mutedPct}%`,
+                                              backgroundColor: "#f59e0b",
+                                              minWidth: "2px",
+                                            }}
+                                            title={`Muted by: ${mutedByCount}`}
+                                          />
+                                        )}
+                                        {reportedByCount > 0 && (
+                                          <div
+                                            className="h-full transition-all duration-500"
+                                            style={{
+                                              width: `${reportedPct}%`,
+                                              backgroundColor: "#ef4444",
+                                              minWidth: "2px",
+                                            }}
+                                            title={`Reported by: ${reportedByCount}`}
+                                          />
+                                        )}
+                                      </div>
+                                    )}
+                                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                                      {mutedByCount > 0 && (
+                                        <div className="flex items-center gap-1.5" data-testid="legend-muted-by">
+                                          <div
+                                            className="h-2 w-2 shrink-0 rounded-sm"
+                                            style={{ backgroundColor: "#f59e0b" }}
+                                          />
+                                          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                            Muted by
+                                          </span>
+                                          {vMuted > 0 ? (
+                                            <>
+                                              <span className="font-mono text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                                {vMuted} verified
+                                              </span>
+                                              <span className="text-[10px] font-medium text-slate-300 dark:text-slate-600">
+                                                of {mutedByCount.toLocaleString()}
+                                              </span>
+                                            </>
+                                          ) : (
+                                            <span className="font-mono text-[10px] font-bold text-slate-900 dark:text-slate-100">
+                                              {mutedByCount.toLocaleString()}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                      {reportedByCount > 0 && (
+                                        <div className="flex items-center gap-1.5" data-testid="legend-reported-by">
+                                          <div
+                                            className="h-2 w-2 shrink-0 rounded-sm"
+                                            style={{ backgroundColor: "#ef4444" }}
+                                          />
+                                          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                            Reported by
+                                          </span>
+                                          {vReported > 0 ? (
+                                            <>
+                                              <span className="font-mono text-[10px] font-bold text-red-600 dark:text-red-400">
+                                                {vReported} verified
+                                              </span>
+                                              <span className="text-[10px] font-medium text-slate-300 dark:text-slate-600">
+                                                of {reportedByCount.toLocaleString()}
+                                              </span>
+                                            </>
+                                          ) : (
+                                            <span className="font-mono text-[10px] font-bold text-slate-900 dark:text-slate-100">
+                                              {reportedByCount.toLocaleString()}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                         </div>
-                      </div>
                       );
                     })()}
-                  </div>
-                  );
-                })()}
 
-                {isAdmin && hexPubkey && (
-                  <div className="mt-6 rounded-xl border border-amber-300/60 dark:border-amber-500/25 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 dark:bg-none dark:bg-slate-900 overflow-hidden" data-testid="card-admin-history">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200/60 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/10">
-                      <Shield className="h-4 w-4 text-amber-600" />
-                      <span className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider">Admin — Brainstorm History</span>
-                      <Badge className="ml-auto bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-500/30 text-[10px]">
-                        /admin/users/{"{pubkey}"}/history
-                      </Badge>
-                    </div>
-                    <div className="p-4">
-                      {adminHistoryQuery.isLoading ? (
-                        <div className="flex items-center gap-2 justify-center py-6">
-                          <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
-                          <span className="text-xs text-slate-500 dark:text-slate-400">Loading history...</span>
-                        </div>
-                      ) : adminHistoryQuery.isError ? (
-                        <div className="text-center py-6">
-                          <p className="text-xs text-red-500 dark:text-red-400">Failed to load admin history</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{adminHistoryQuery.error instanceof Error ? adminHistoryQuery.error.message : "Unknown error"}</p>
-                        </div>
-                      ) : !adminHistoryQuery.data?.items?.length ? (
-                        <div className="text-center py-6" data-testid="empty-admin-history">
-                          <Shield className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                          <p className="text-xs text-slate-500 dark:text-slate-400">No Brainstorm calculation history for this user</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">{adminHistoryQuery.data.total} calculation record{adminHistoryQuery.data.total !== 1 ? "s" : ""}</p>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="border-b border-amber-200/40 dark:border-amber-500/20">
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">ID</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Source</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Status</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">TA Status</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Pub Status</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Algorithm</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Queue</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Created</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Updated</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {adminHistoryQuery.data.items.map((item: AdminHistoryItem, idx: number) => (
-                                  <AdminHistoryRow key={item.private_id || idx} item={item} idx={idx} />
-                                ))}
-                              </tbody>
-                            </table>
+                  {isAdmin && hexPubkey && (
+                    <div
+                      className="mt-6 overflow-hidden rounded-xl border border-amber-300/60 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 dark:border-amber-500/25 dark:bg-slate-900 dark:bg-none"
+                      data-testid="card-admin-history"
+                    >
+                      <div className="flex items-center gap-2 border-b border-amber-200/60 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-500/10">
+                        <Shield className="h-4 w-4 text-amber-600" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                          Admin — Brainstorm History
+                        </span>
+                        <Badge className="ml-auto border-amber-300 bg-amber-100 text-[10px] text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300">
+                          /admin/users/{"{pubkey}"}/history
+                        </Badge>
+                      </div>
+                      <div className="p-4">
+                        {adminHistoryQuery.isLoading ? (
+                          <div className="flex items-center justify-center gap-2 py-6">
+                            <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                            <span className="text-xs text-slate-500 dark:text-slate-400">Loading history...</span>
                           </div>
-                        </div>
-                      )}
+                        ) : adminHistoryQuery.isError ? (
+                          <div className="py-6 text-center">
+                            <p className="text-xs text-red-500 dark:text-red-400">Failed to load admin history</p>
+                            <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                              {adminHistoryQuery.error instanceof Error
+                                ? adminHistoryQuery.error.message
+                                : "Unknown error"}
+                            </p>
+                          </div>
+                        ) : !adminHistoryQuery.data?.items?.length ? (
+                          <div className="py-6 text-center" data-testid="empty-admin-history">
+                            <Shield className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              No Brainstorm calculation history for this user
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                              {adminHistoryQuery.data.total} calculation record
+                              {adminHistoryQuery.data.total !== 1 ? "s" : ""}
+                            </p>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b border-amber-200/40 dark:border-amber-500/20">
+                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                                      ID
+                                    </th>
+                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                                      Source
+                                    </th>
+                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                                      Status
+                                    </th>
+                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                                      TA Status
+                                    </th>
+                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                                      Pub Status
+                                    </th>
+                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                                      Algorithm
+                                    </th>
+                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                                      Queue
+                                    </th>
+                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                                      Created
+                                    </th>
+                                    <th className="px-2 py-1.5 text-left text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">
+                                      Updated
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {adminHistoryQuery.data.items.map((item: AdminHistoryItem, idx: number) => (
+                                    <AdminHistoryRow key={item.private_id || idx} item={item} idx={idx} />
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => navigate("/")}
-                    className="h-10 rounded-xl px-4 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-                    data-testid="button-profile-new-search"
-                  >
-                    New Search
-                  </Button>
-                </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => navigate("/")}
+                      className="h-10 rounded-xl border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900"
+                      data-testid="button-profile-new-search"
+                    >
+                      New Search
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -3239,9 +4277,14 @@ export default function ProfilePage() {
         }
       `}</style>
       <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl border-slate-200/80 dark:border-slate-800/80 shadow-xl">
+        <DialogContent className="rounded-2xl border-slate-200/80 shadow-xl dark:border-slate-800/80 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Report User</DialogTitle>
+            <DialogTitle
+              className="text-base font-bold text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Report User
+            </DialogTitle>
             <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
               This will publish a kind 1984 report event to Nostr relays. Choose a reason below.
             </DialogDescription>
@@ -3255,10 +4298,10 @@ export default function ProfilePage() {
             ].map((opt) => (
               <label
                 key={opt.value}
-                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-all duration-200 ${
                   reportReason === opt.value
-                    ? "border-brand-primary/25 dark:border-brand-primary/[0.3] bg-brand-primary/10 dark:bg-brand-primary/10 shadow-sm dark:shadow-none"
-                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-900/50"
+                    ? "border-brand-primary/25 bg-brand-primary/10 shadow-sm dark:border-brand-primary/[0.3] dark:bg-brand-primary/10 dark:shadow-none"
+                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 dark:hover:bg-slate-900/50"
                 }`}
                 data-testid={`report-option-${opt.value}`}
               >
@@ -3272,7 +4315,7 @@ export default function ProfilePage() {
                 />
                 <div>
                   <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{opt.label}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{opt.desc}</p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{opt.desc}</p>
                 </div>
               </label>
             ))}
@@ -3281,7 +4324,7 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => setReportDialogOpen(false)}
-              className="flex-1 sm:flex-none h-9 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+              className="h-9 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-900 sm:flex-none"
               data-testid="button-report-cancel"
             >
               Cancel
@@ -3295,14 +4338,20 @@ export default function ProfilePage() {
                 if (result.success) {
                   // Show the "you reported this" state immediately — the dialog's
                   // own spinner already covered the publish; don't wait on a relay refetch.
-                  setMyReport({ id: "", reportType: reportReason, reason: "", timestamp: Math.floor(Date.now() / 1000), eventIds: [] });
+                  setMyReport({
+                    id: "",
+                    reportType: reportReason,
+                    reason: "",
+                    timestamp: Math.floor(Date.now() / 1000),
+                    eventIds: [],
+                  });
                   toast({ title: "Reported", description: "Report published to Nostr relays" });
                   setReportDialogOpen(false);
                 } else {
                   toast({ title: "Error", description: result.error || "Failed to report", variant: "destructive" });
                 }
               }}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-9 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:pointer-events-none disabled:opacity-50 sm:flex-none"
               data-testid="button-report-confirm"
             >
               {social.isPending("report", hexPubkey) ? (
@@ -3318,13 +4367,13 @@ export default function ProfilePage() {
 
       {isAnon ? (
         <footer
-          className="relative z-10 mt-auto flex items-center justify-between px-4 sm:px-8 py-4 text-xs"
+          className="relative z-10 mt-auto flex items-center justify-between px-4 py-4 text-xs sm:px-8"
           data-testid="footer-profile-anon"
         >
           <button
             type="button"
             onClick={() => navigate("/developers")}
-            className="font-medium text-slate-500 dark:text-slate-400 hover:text-brand-primary transition-colors"
+            className="font-medium text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
             data-testid="link-profile-developers"
           >
             Developers
@@ -3332,7 +4381,7 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => navigate("/how-search-works")}
-            className="font-medium text-slate-500 dark:text-slate-400 hover:text-brand-primary transition-colors"
+            className="font-medium text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
             data-testid="link-profile-how-search-works"
           >
             How search works

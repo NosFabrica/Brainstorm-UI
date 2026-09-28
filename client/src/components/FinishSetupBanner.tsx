@@ -31,11 +31,13 @@ export function FinishSetupBanner({ labelFrom = "sm" }: { labelFrom?: "sm" | "xl
       type="button"
       onClick={() => navigate("/setup")}
       aria-label="Finish setting up your account"
-      className={`inline-flex max-w-full items-center gap-2 sm:gap-2.5 rounded-full border py-1 pl-3 pr-1 animate-glow-amber transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20 ${amber.bg} ${amber.border}`}
+      className={`animate-glow-amber inline-flex max-w-full items-center gap-2 rounded-full border py-1 pl-3 pr-1 transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/20 sm:gap-2.5 ${amber.bg} ${amber.border}`}
       data-testid="banner-finish-setup"
     >
       <AlertTriangle className={`h-3.5 w-3.5 shrink-0 ${amber.icon}`} />
-      <span className={`hidden whitespace-nowrap text-[13px] font-bold text-amber-900 dark:text-amber-200 ${labelFrom === "xl" ? "xl:block" : "sm:block"}`}>
+      <span
+        className={`hidden whitespace-nowrap text-[13px] font-bold text-amber-900 dark:text-amber-200 ${labelFrom === "xl" ? "xl:block" : "sm:block"}`}
+      >
         Finish setting up your account
       </span>
       <span

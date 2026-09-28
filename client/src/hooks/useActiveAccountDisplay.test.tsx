@@ -103,8 +103,12 @@ describe("a newer kind-0 arriving after the first paint", () => {
    * store checks signatures is the store's business and its own concern.
    */
   const realVerify = eventStore.verifyEvent;
-  beforeAll(() => { eventStore.verifyEvent = undefined; });
-  afterAll(() => { eventStore.verifyEvent = realVerify; });
+  beforeAll(() => {
+    eventStore.verifyEvent = undefined;
+  });
+  afterAll(() => {
+    eventStore.verifyEvent = realVerify;
+  });
 
   function withKey() {
     const key = generateSecretKey();

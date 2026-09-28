@@ -19,14 +19,11 @@ export const authApi = {
   },
 
   async verifyAuthChallenge(pubkey: string, signedEvent: NostrEvent) {
-    const response = await fetch(
-      `${getBrainstormApi()}/authChallenge/${pubkey}/verify`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signed_event: signedEvent }),
-      },
-    );
+    const response = await fetch(`${getBrainstormApi()}/authChallenge/${pubkey}/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signed_event: signedEvent }),
+    });
     if (!response.ok) {
       throw new Error(`Auth verification failed (${response.status})`);
     }

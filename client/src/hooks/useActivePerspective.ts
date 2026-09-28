@@ -50,9 +50,15 @@ export function setActivePerspective(perspective: ActivePerspective): void {
   const account = accountManager.active as BrainstormAccount | undefined;
   if (account) updateMetadata(account, { perspective });
   else {
-    try { localStorage.setItem(ANON_KEY, perspective); } catch { /* private browsing */ }
+    try {
+      localStorage.setItem(ANON_KEY, perspective);
+    } catch {
+      /* private browsing */
+    }
   }
-  try { window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: perspective })); } catch {}
+  try {
+    window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: perspective }));
+  } catch {}
 }
 
 export function useActivePerspective(): [ActivePerspective, (p: ActivePerspective) => void] {
@@ -89,7 +95,7 @@ export function useActivePerspective(): [ActivePerspective, (p: ActivePerspectiv
       window.removeEventListener("storage", onStorage);
       watching?.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- resubscribe only on account switch
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resubscribe only on account switch
   }, [account?.id]);
 
   const update = useCallback((p: ActivePerspective) => setActivePerspective(p), []);

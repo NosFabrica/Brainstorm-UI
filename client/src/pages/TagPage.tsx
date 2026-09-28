@@ -15,7 +15,6 @@ import { TagVoteButton } from "@/components/share/TagVoteButton";
 import { TagComments } from "@/components/share/TagComments";
 import { TAG_COMMENTS_ENABLED, TAG_PINS_ENABLED } from "@/config/tagging";
 
-
 import { CarrierMeta } from "@/components/share/CarrierMeta";
 import { TaggedNotes } from "@/components/share/TaggedNotes";
 import { LinkedText } from "@/components/LinkedText";
@@ -62,14 +61,19 @@ function useTagMeta(name: string, count: number, active: boolean) {
       const el = document.querySelector(sel);
       const prev = el?.getAttribute(attr) ?? null;
       el?.setAttribute(attr, val);
-      return () => { if (prev != null) el?.setAttribute(attr, prev); };
+      return () => {
+        if (prev != null) el?.setAttribute(attr, prev);
+      };
     };
     const undo = [
       set('meta[name="description"]', "content", desc),
       set('meta[property="og:title"]', "content", title),
       set('meta[property="og:description"]', "content", desc),
     ];
-    return () => { document.title = prevTitle; undo.forEach((u) => u()); };
+    return () => {
+      document.title = prevTitle;
+      undo.forEach((u) => u());
+    };
   }, [name, count, active]);
 }
 
@@ -93,7 +97,11 @@ export default function TagPage() {
 
   const authorPubkey = useMemo(() => {
     if (!rawAuthor) return undefined;
-    try { return decodeShareId(rawAuthor)?.pubkey; } catch { return undefined; }
+    try {
+      return decodeShareId(rawAuthor)?.pubkey;
+    } catch {
+      return undefined;
+    }
   }, [rawAuthor]);
 
   const detailQuery = useTagDetail(authorPubkey, slug);
@@ -169,9 +177,7 @@ export default function TagPage() {
   // the subject's own assertion (the kit counts it), but "added by N accounts"
   // is a brigading tell about third parties — self-taggers inflating it would
   // undo the point of showing it.
-  const distinctVouchers = new Set(
-    carriers.flatMap((c) => c.asserters.filter((pk) => pk !== c.pubkey)),
-  ).size;
+  const distinctVouchers = new Set(carriers.flatMap((c) => c.asserters.filter((pk) => pk !== c.pubkey))).size;
   const iAmListed = !!viewerPubkey && carriers.some((c) => c.pubkey === viewerPubkey && c.myStance !== "dispute");
 
   /**
@@ -182,7 +188,11 @@ export default function TagPage() {
   const showFilters = carriers.length >= FILTER_THRESHOLD;
   const authorProfile = profileMap?.get(authorPubkey);
   let authorNpub = "";
-  try { authorNpub = npubFromPubkey(authorPubkey); } catch { /* leave unlinked */ }
+  try {
+    authorNpub = npubFromPubkey(authorPubkey);
+  } catch {
+    /* leave unlinked */
+  }
 
   /**
    * The tag does not exist — someone typed or forged the URL (issue #41 B3).
@@ -207,13 +217,13 @@ export default function TagPage() {
   if (status === "absent") return <NotFound />;
 
   return (
-    <div className="min-h-[100dvh] bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
+    <div className="flex min-h-[100dvh] flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <PublicPageHeader maxWidthClass="max-w-2xl" />
-      <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1" data-testid="tag-page">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6 sm:py-8" data-testid="tag-page">
         <button
           type="button"
           onClick={() => goBack("/tags")}
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-primary dark:text-slate-400 transition-colors"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
           data-testid="tag-back"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -285,7 +295,11 @@ export default function TagPage() {
         )}
 
         <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
-          <Link href="/how-tags-work" className="font-semibold text-brand-link hover:underline" data-testid="tag-page-guide">
+          <Link
+            href="/how-tags-work"
+            className="font-semibold text-brand-link hover:underline"
+            data-testid="tag-page-guide"
+          >
             How tags work →
           </Link>
         </p>
@@ -296,9 +310,7 @@ export default function TagPage() {
               type="button"
               onClick={() =>
                 togglePin.mutate(
-                  myPin
-                    ? { pinEventId: myPin.pinEventId }
-                    : { authorPubkey, slug, tagEventId: elementId },
+                  myPin ? { pinEventId: myPin.pinEventId } : { authorPubkey, slug, tagEventId: elementId },
                 )
               }
               disabled={togglePin.isPending}
@@ -317,7 +329,7 @@ export default function TagPage() {
           </div>
         )}
 
-        <div className="mt-5 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        <div className="mb-2 mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
           <span className="flex items-center gap-1.5">
             <Users className="h-3.5 w-3.5" />
             {loading ? "Loading" : `${carriers.length} ${carriers.length === 1 ? "person" : "people"}`}
@@ -328,8 +340,7 @@ export default function TagPage() {
               one. Cheapest brigading tell available while trust is inert. */}
           {!loading && distinctVouchers > 0 && (
             <span className="font-medium normal-case tracking-normal" data-testid="tag-voucher-count">
-              · added by {distinctVouchers}{" "}
-              {distinctVouchers === 1 ? "account" : "accounts"}
+              · added by {distinctVouchers} {distinctVouchers === 1 ? "account" : "accounts"}
             </span>
           )}
         </div>
@@ -339,12 +350,8 @@ export default function TagPage() {
             quietly isn't the same as invisibly, and a list that looks vetted
             when it wasn't is the one failure worth a line of text. */}
         {!loading && detailQuery.data?.trustUnverified && carriers.length > 0 && (
-          <p
-            className="mb-3 text-xs text-slate-400 dark:text-slate-500"
-            data-testid="tag-trust-unverified"
-          >
-            We couldn't check who's reputable right now, so everyone who added a
-            name is counted here.
+          <p className="mb-3 text-xs text-slate-400 dark:text-slate-500" data-testid="tag-trust-unverified">
+            We couldn't check who's reputable right now, so everyone who added a name is counted here.
           </p>
         )}
 
@@ -378,7 +385,7 @@ export default function TagPage() {
           </div>
         )}
 
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
+        <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800/60 dark:border-slate-800 dark:bg-slate-900">
           {loading ? (
             <PersonListSkeleton testId="tag-skeleton" />
           ) : visible.length === 0 && carriers.length > 0 ? (
@@ -438,11 +445,7 @@ export default function TagPage() {
                   meta={
                     // Not `tag-row-count`: that would match a `tag-row-*`
                     // prefix selector and double-count every row.
-                    <CarrierMeta
-                      carrier={c}
-                      profileMap={profileMap}
-                      isViewer={c.pubkey === viewerPubkey}
-                    />
+                    <CarrierMeta carrier={c} profileMap={profileMap} isViewer={c.pubkey === viewerPubkey} />
                   }
                 />
               );
@@ -468,8 +471,7 @@ export default function TagPage() {
             {showDisputed && (
               <div className="mt-2 overflow-hidden rounded-2xl border border-amber-200/60 bg-white shadow-sm dark:border-amber-500/20 dark:bg-slate-900">
                 <p className="border-b border-amber-200/60 bg-amber-50/60 px-4 py-2 text-[11px] text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/[0.06] dark:text-amber-500">
-                  More people disagreed than agreed, so these don't count toward
-                  the tag.
+                  More people disagreed than agreed, so these don't count toward the tag.
                 </p>
                 <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {disputed.map((c) => {
@@ -493,13 +495,7 @@ export default function TagPage() {
                             />
                           ) : undefined
                         }
-                        meta={
-                          <CarrierMeta
-                            carrier={c}
-                            profileMap={profileMap}
-                            isViewer={c.pubkey === viewerPubkey}
-                          />
-                        }
+                        meta={<CarrierMeta carrier={c} profileMap={profileMap} isViewer={c.pubkey === viewerPubkey} />}
                       />
                     );
                   })}
@@ -515,9 +511,7 @@ export default function TagPage() {
 
         {/* Off by default — a comment layer isn't in any kit document, so it
             must not be live during an acceptance run. See TAG_COMMENTS_ENABLED. */}
-        {TAG_COMMENTS_ENABLED && (
-          <TagComments authorPubkey={authorPubkey} slug={slug} canPost={canVote} />
-        )}
+        {TAG_COMMENTS_ENABLED && <TagComments authorPubkey={authorPubkey} slug={slug} canPost={canVote} />}
       </main>
     </div>
   );
@@ -541,9 +535,7 @@ function SortChip({
       onClick={onClick}
       aria-pressed={active}
       className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
-        active
-          ? "bg-brand-primary text-white"
-          : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
+        active ? "bg-brand-primary text-white" : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
       }`}
       data-testid={testId}
     >

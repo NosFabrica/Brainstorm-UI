@@ -47,9 +47,7 @@ export const ROLES: Role[] = [
  * key → label, for reading back roles people saved before tags replaced them.
  * The vocabulary itself lives on as the tag picker's suggestions.
  */
-export const ROLE_LABELS: ReadonlyMap<string, string> = new Map(
-  ROLES.map((r) => [r.key, r.label]),
-);
+export const ROLE_LABELS: ReadonlyMap<string, string> = new Map(ROLES.map((r) => [r.key, r.label]));
 
 export interface PersonalizationPrefs {
   contentTypes: string[];
@@ -65,7 +63,15 @@ export const EMPTY_PERSONALIZATION: PersonalizationPrefs = { contentTypes: [], r
 
 /** Toggleable content sections, in their default display order. */
 export const SECTION_KEYS = [
-  "featured", "live", "events", "selling", "articles", "audio", "videos", "photos", "notes",
+  "featured",
+  "live",
+  "events",
+  "selling",
+  "articles",
+  "audio",
+  "videos",
+  "photos",
+  "notes",
 ] as const;
 export type SectionKey = (typeof SECTION_KEYS)[number];
 

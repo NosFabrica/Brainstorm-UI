@@ -92,7 +92,10 @@ export const fakeSupport = {
 
     if (!rawId) {
       if (method === "GET" && !route.endsWith("/tickets")) {
-        const mine = this.tickets.filter((t) => t.pubkey === CALLER).sort(byActivity).map(summary);
+        const mine = this.tickets
+          .filter((t) => t.pubkey === CALLER)
+          .sort(byActivity)
+          .map(summary);
         return { support_included: this.allowed, tickets: page(mine, query) };
       }
       if (method === "GET" && admin) return page([...this.tickets].sort(byActivity).map(adminSummary), query);

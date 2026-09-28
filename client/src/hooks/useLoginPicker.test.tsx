@@ -20,9 +20,7 @@ function Rows() {
   return (
     <ul>
       {identities.flatMap((identity) =>
-        identity.rows.map((row) => (
-          <li key={row.account.id}>{`${identity.name}:${row.signer}:${row.health}`}</li>
-        )),
+        identity.rows.map((row) => <li key={row.account.id}>{`${identity.name}:${row.signer}:${row.health}`}</li>),
       )}
     </ul>
   );
@@ -73,9 +71,7 @@ describe("the picker's rows", () => {
 
     answer(false);
 
-    await waitFor(() =>
-      expect(screen.getByText("Bob:extension:extension-missing")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText("Bob:extension:extension-missing")).toBeInTheDocument());
   });
 
   it("leaves out the accounts this device didn't keep", async () => {

@@ -13,9 +13,7 @@ const BASE: SchedulerStats = {
 };
 
 function mockStats(stats: Partial<SchedulerStats>) {
-  return vi
-    .spyOn(apiClient, "getSchedulingStats")
-    .mockResolvedValue({ ...BASE, ...stats });
+  return vi.spyOn(apiClient, "getSchedulingStats").mockResolvedValue({ ...BASE, ...stats });
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -72,9 +70,7 @@ describe("SchedulingStatsPanel", () => {
 
     renderWithProviders(<SchedulingStatsPanel active />);
 
-    expect(
-      await screen.findByText(/runs only when enabled globally/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/runs only when enabled globally/i)).toBeInTheDocument();
   });
 
   it("shows a loading state while fetching", () => {

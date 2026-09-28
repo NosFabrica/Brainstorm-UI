@@ -29,7 +29,12 @@ export function ThemeToggle({
 
   if (layout === "stack") {
     return (
-      <div role="radiogroup" aria-label="Appearance" className={cn("grid gap-1.5", className)} data-testid="theme-toggle">
+      <div
+        role="radiogroup"
+        aria-label="Appearance"
+        className={cn("grid gap-1.5", className)}
+        data-testid="theme-toggle"
+      >
         {OPTIONS.map(({ value, label, Icon }) => {
           const selected = choice === value;
           return (
@@ -74,9 +79,7 @@ export function ThemeToggle({
           className={cn(
             "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary",
             pad,
-            choice === value
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
+            choice === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
           )}
           data-testid={`theme-option-${value}`}
         >

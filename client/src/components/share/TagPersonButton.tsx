@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { ROLES } from "@/config/personalization";
 import { resolveOrMintTag, type ProfileTag } from "@/services/tags";
@@ -62,7 +55,11 @@ export function TagPersonButton({
   const [search, setSearch] = useState("");
   // A tag not yet on the profile asks first: what it is, and that it is
   // public and permanent. Agree/Disagree on existing tags stay one tap.
-  const [pendingAdd, setPendingAdd] = useState<{ label: string; description?: string; run: () => Promise<void> } | null>(null);
+  const [pendingAdd, setPendingAdd] = useState<{
+    label: string;
+    description?: string;
+    run: () => Promise<void>;
+  } | null>(null);
   const { toast } = useToast();
   const { data } = useProfileTags(pubkey);
   const applyTag = useApplyTag(pubkey);
@@ -129,8 +126,8 @@ export function TagPersonButton({
           .filter((t) => t.unverified && t.label.toLowerCase().includes(typedForMatch))
           .sort(
             (a, b) =>
-              Number(b.label.toLowerCase() === typedForMatch) -
-                Number(a.label.toLowerCase() === typedForMatch) || b.people - a.people,
+              Number(b.label.toLowerCase() === typedForMatch) - Number(a.label.toLowerCase() === typedForMatch) ||
+              b.people - a.people,
           )
           .slice(0, 5)
       : [];
@@ -169,9 +166,7 @@ export function TagPersonButton({
       }
       toast({
         title: agreeing ? `You agree with "${tag.name}"` : `You disagreed with "${tag.name}"`,
-        description: agreeing
-          ? "Your vote is public."
-          : "Your vote is public, and counts against this tag.",
+        description: agreeing ? "Your vote is public." : "Your vote is public, and counts against this tag.",
       });
     } catch {
       toast({
@@ -183,7 +178,8 @@ export function TagPersonButton({
   }
 
   /** Stage an add behind the confirm panel. */
-  const confirmAdd = (label: string, run: () => Promise<void>, description?: string) => setPendingAdd({ label, description, run });
+  const confirmAdd = (label: string, run: () => Promise<void>, description?: string) =>
+    setPendingAdd({ label, description, run });
 
   /**
    * Apply a tag we already have coordinates for. Skips `resolveOrMintTag`
@@ -277,9 +273,12 @@ export function TagPersonButton({
         {pendingAdd ? (
           <div className="p-3" data-testid="share-tag-confirm">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Add "{pendingAdd.label}"?</p>
-            {pendingAdd.description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{pendingAdd.description}</p>}
+            {pendingAdd.description && (
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{pendingAdd.description}</p>
+            )}
             <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-              {isOwner ? "Others can see this on your profile" : "Anyone can see this on their profile"}, and there is no delete — only disagreeing later.
+              {isOwner ? "Others can see this on your profile" : "Anyone can see this on their profile"}, and there is
+              no delete — only disagreeing later.
             </p>
             <div className="mt-3 flex justify-end gap-2">
               <button
@@ -305,161 +304,159 @@ export function TagPersonButton({
             </div>
           </div>
         ) : (
-        <Command shouldFilter>
-          <CommandInput
-            placeholder={isOwner ? "What are you known for?" : "What are they known for?"}
-            value={search}
-            onValueChange={setSearch}
-            data-testid="share-tag-search"
-          />
-          <CommandList>
-            {!isNew && <CommandEmpty>Type to add your own.</CommandEmpty>}
+          <Command shouldFilter>
+            <CommandInput
+              placeholder={isOwner ? "What are you known for?" : "What are they known for?"}
+              value={search}
+              onValueChange={setSearch}
+              data-testid="share-tag-search"
+            />
+            <CommandList>
+              {!isNew && <CommandEmpty>Type to add your own.</CommandEmpty>}
 
-            {isNew && (
-              <CommandGroup heading="Add your own">
-                <CommandItem value={typed} onSelect={() => confirmAdd(typed, () => addByName(typed))} data-testid="share-tag-create">
-                  <Plus className="mr-2 h-3.5 w-3.5" />
-                  {typed}
-                </CommandItem>
-              </CommandGroup>
-            )}
+              {isNew && (
+                <CommandGroup heading="Add your own">
+                  <CommandItem
+                    value={typed}
+                    onSelect={() => confirmAdd(typed, () => addByName(typed))}
+                    data-testid="share-tag-create"
+                  >
+                    <Plus className="mr-2 h-3.5 w-3.5" />
+                    {typed}
+                  </CommandItem>
+                </CommandGroup>
+              )}
 
-            {/* Already on this profile — where you say whether it fits. Listed
+              {/* Already on this profile — where you say whether it fits. Listed
                 first because reacting to what's there beats scrolling a generic
                 list. One row per tag with Agree and Disagree side by side: both
                 stances reachable from neutral, the one you hold shown as state,
                 and no "Remove" — there is no delete (#41 B2). */}
-            {onProfile.length > 0 && (
-              <CommandGroup heading="Already on this profile">
-                {onProfile.map((tag) => (
-                  <StanceRow
-                    key={tag.key}
-                    name={tag.name}
-                    stance={tag.myStance}
-                    pending={applyTag.isPending}
-                    onVote={(polarity) => void setStance(tag, polarity)}
-                    testId="share-tag-stance"
-                  />
-                ))}
-              </CommandGroup>
-            )}
+              {onProfile.length > 0 && (
+                <CommandGroup heading="Already on this profile">
+                  {onProfile.map((tag) => (
+                    <StanceRow
+                      key={tag.key}
+                      name={tag.name}
+                      stance={tag.myStance}
+                      pending={applyTag.isPending}
+                      onVote={(polarity) => void setStance(tag, polarity)}
+                      testId="share-tag-stance"
+                    />
+                  ))}
+                </CommandGroup>
+              )}
 
-            {/* Roles this person listed before tags existed. Shown to them
+              {/* Roles this person listed before tags existed. Shown to them
                 only, and only until they've added them — a nudge, not a
                 migration that happens behind their back. */}
-            {isOwner && pendingLegacy.length > 0 && (
-              <CommandGroup heading="You listed these before">
-                {pendingLegacy.map((label) => (
-                  <CommandItem
-                    key={label}
-                    value={label}
-                    onSelect={() => confirmAdd(label, () => addByName(label))}
-                    data-testid="share-tag-legacy"
-                  >
-                    <Plus className="mr-2 h-3.5 w-3.5" />
-                    <span className="flex-1 truncate">{label}</span>
-                    <span className="ml-2 shrink-0 text-[10px] text-slate-400">Add as tag</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
+              {isOwner && pendingLegacy.length > 0 && (
+                <CommandGroup heading="You listed these before">
+                  {pendingLegacy.map((label) => (
+                    <CommandItem
+                      key={label}
+                      value={label}
+                      onSelect={() => confirmAdd(label, () => addByName(label))}
+                      data-testid="share-tag-legacy"
+                    >
+                      <Plus className="mr-2 h-3.5 w-3.5" />
+                      <span className="flex-1 truncate">{label}</span>
+                      <span className="ml-2 shrink-0 text-[10px] text-slate-400">Add as tag</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
 
-            {/* Real tags people already use. Applying one of these joins an
+              {/* Real tags people already use. Applying one of these joins an
                 existing list rather than minting a near-duplicate. */}
-            {existing.length > 0 && (
-              <CommandGroup heading="Tags people use">
-                {existing.map((e) => (
-                  <CommandItem
-                    key={e.key}
-                    value={e.label}
-                    onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
-                    data-testid="share-tag-existing"
-                  >
-                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{e.label}</span>
-                      {e.description && (
-                        <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
-                      )}
-                    </span>
-                    <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">
-                      {e.people}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
+              {existing.length > 0 && (
+                <CommandGroup heading="Tags people use">
+                  {existing.map((e) => (
+                    <CommandItem
+                      key={e.key}
+                      value={e.label}
+                      onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
+                      data-testid="share-tag-existing"
+                    >
+                      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{e.label}</span>
+                        {e.description && (
+                          <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
+                        )}
+                      </span>
+                      <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
 
-            {/* Only ever shown against something typed — see the note on
+              {/* Only ever shown against something typed — see the note on
                 `unverifiedMatches`. Applying one of these joins the real,
                 existing list instead of minting a duplicate of it. */}
-            {unverifiedMatches.length > 0 && (
-              <CommandGroup heading="Also called this">
-                {unverifiedMatches.map((e) => (
-                  <CommandItem
-                    key={e.key}
-                    value={e.label}
-                    onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
-                    data-testid="share-tag-unverified"
-                  >
-                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{e.label}</span>
-                      <span className="block truncate text-[10px] text-slate-400">
-                        We don't know who made this tag
+              {unverifiedMatches.length > 0 && (
+                <CommandGroup heading="Also called this">
+                  {unverifiedMatches.map((e) => (
+                    <CommandItem
+                      key={e.key}
+                      value={e.label}
+                      onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
+                      data-testid="share-tag-unverified"
+                    >
+                      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{e.label}</span>
+                        <span className="block truncate text-[10px] text-slate-400">
+                          We don't know who made this tag
+                        </span>
                       </span>
-                    </span>
-                    <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">
-                      {e.people}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
+                      <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
 
-            {/* Tags the applicability split says describe posts rather than
+              {/* Tags the applicability split says describe posts rather than
                 people. Still applicable — the hint is never a gate — just not
                 what someone tagging a person is usually looking for. */}
-            {forNotes.length > 0 && (
-              <CommandGroup heading="Usually used on posts">
-                {forNotes.map((e) => (
-                  <CommandItem
-                    key={e.key}
-                    value={e.label}
-                    onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
-                    data-testid="share-tag-content"
-                  >
-                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{e.label}</span>
-                      {e.description && (
-                        <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
-                      )}
-                    </span>
-                    <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">
-                      {e.people}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
+              {forNotes.length > 0 && (
+                <CommandGroup heading="Usually used on posts">
+                  {forNotes.map((e) => (
+                    <CommandItem
+                      key={e.key}
+                      value={e.label}
+                      onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
+                      data-testid="share-tag-content"
+                    >
+                      <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{e.label}</span>
+                        {e.description && (
+                          <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
+                        )}
+                      </span>
+                      <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">{e.people}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
 
-            {starters.length > 0 && (
-              <CommandGroup heading="Common tags">
-                {starters.map((role) => (
-                  <CommandItem
-                    key={role.key}
-                    value={role.label}
-                    onSelect={() => confirmAdd(role.label, () => addByName(role.label))}
-                    data-testid="share-tag-option"
-                  >
-                    {role.label}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
+              {starters.length > 0 && (
+                <CommandGroup heading="Common tags">
+                  {starters.map((role) => (
+                    <CommandItem
+                      key={role.key}
+                      value={role.label}
+                      onSelect={() => confirmAdd(role.label, () => addByName(role.label))}
+                      data-testid="share-tag-option"
+                    >
+                      {role.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
         )}
       </PopoverContent>
     </Popover>

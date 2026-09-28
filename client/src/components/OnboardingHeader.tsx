@@ -25,7 +25,7 @@ export function OnboardingHeader({
 }) {
   return (
     <header
-      className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur"
+      className="border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80"
       data-testid="onboarding-header"
     >
       <div className="mx-auto flex h-14 max-w-xl items-center justify-between px-4 sm:px-6">

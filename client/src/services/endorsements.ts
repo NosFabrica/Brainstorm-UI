@@ -41,7 +41,11 @@ export type RankedVouch = PersonVouch & { score: number | null; group: EndorserG
 export function rankVouches(vouches: PersonVouch[], ctx: RankContext): RankedVouch[] {
   const by = new Map(rankEndorsers(vouches, ctx).map((r) => [r.pubkey, r]));
   return vouches
-    .map((v) => ({ ...v, score: by.get(v.pubkey)?.score ?? null, group: by.get(v.pubkey)?.group ?? ("other" as EndorserGroup) }))
+    .map((v) => ({
+      ...v,
+      score: by.get(v.pubkey)?.score ?? null,
+      group: by.get(v.pubkey)?.group ?? ("other" as EndorserGroup),
+    }))
     .sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group] || (b.score ?? -1) - (a.score ?? -1) || b.at - a.at);
 }
 
@@ -61,7 +65,10 @@ export function identityConfirmers(ranked: RankedVouch[]): RankedVouch[] {
  * connections endpoint: the house Perspective for a stable public line, the
  * viewer's own when they look through My perspective. Never rejects.
  */
-export async function fetchPersonEndorsements(pubkey: string, opts: { personal: boolean }): Promise<PersonEndorsements> {
+export async function fetchPersonEndorsements(
+  pubkey: string,
+  opts: { personal: boolean },
+): Promise<PersonEndorsements> {
   const [followersRes, vouchesRes] = await Promise.allSettled([
     apiClient.getUserConnections(pubkey, "followed_by", {
       limit: 8,
@@ -69,7 +76,9 @@ export async function fetchPersonEndorsements(pubkey: string, opts: { personal: 
       verified_only: true,
       with_total: true,
       house: !opts.personal,
-    }) as Promise<{ data?: { items?: Array<string | { pubkey?: string; influence?: number | null }>; total?: unknown } } | null>,
+    }) as Promise<{
+      data?: { items?: Array<string | { pubkey?: string; influence?: number | null }>; total?: unknown };
+    } | null>,
     fetchPersonVouches(pubkey),
   ]);
   const res = followersRes.status === "fulfilled" ? followersRes.value : null;
@@ -168,7 +177,11 @@ export function rankEndorsers(items: { pubkey: string; at: number }[], ctx: Rank
   const ranked: Endorser[] = [...latest.entries()].map(([pubkey, at]) => {
     const raw = ctx.scoreOf(pubkey);
     const score = typeof raw === "number" && Number.isFinite(raw) ? raw : null;
-    const group: EndorserGroup = ctx.follows.has(pubkey) ? "followed" : score != null && score >= line ? "verified" : "other";
+    const group: EndorserGroup = ctx.follows.has(pubkey)
+      ? "followed"
+      : score != null && score >= line
+        ? "verified"
+        : "other";
     return { pubkey, at, score, group };
   });
   return ranked.sort(
@@ -212,9 +225,18 @@ export function visiblePersonSets<T extends { exporters: number }>(sets: T[], op
  * reviews, and how many come from accounts the reader can trust. "You
  * follow" outranks "verified" when both apply; with neither, just the count.
  */
-export function reviewsSummaryLabel({ total, followed, verified }: { total: number; followed: number; verified: number }): string {
+export function reviewsSummaryLabel({
+  total,
+  followed,
+  verified,
+}: {
+  total: number;
+  followed: number;
+  verified: number;
+}): string {
   const reviews = `${compactCount(total)} ${total === 1 ? "review" : "reviews"}`;
-  const part = (n: number, one: string, many: string) => (n === 1 ? `1 from ${one}` : `${compactCount(n)} from ${many}`);
+  const part = (n: number, one: string, many: string) =>
+    n === 1 ? `1 from ${one}` : `${compactCount(n)} from ${many}`;
   const who =
     followed > 0
       ? part(followed, "someone you follow", "people you follow")

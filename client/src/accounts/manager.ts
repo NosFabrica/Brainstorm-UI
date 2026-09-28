@@ -8,12 +8,7 @@ import type { LocalSignerData, LocalSignerOptions } from "./local-signer";
 import type { AccountMetadata } from "./metadata";
 import { RemoteAccount } from "./remote-signer";
 import { installRemoteTransport } from "./remote-transport";
-import {
-  browserStorage,
-  createPersistence,
-  type Persistence,
-  type StorageSeam,
-} from "./persist";
+import { browserStorage, createPersistence, type Persistence, type StorageSeam } from "./persist";
 import { deviceUnlockCache, type UnlockCache } from "./unlock-cache";
 
 export type ManagedAccounts = {

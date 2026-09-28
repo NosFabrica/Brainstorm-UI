@@ -39,13 +39,15 @@ export function EventRow({
   return (
     <Link
       href={eventPath(event)}
-      className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+      className="-mx-1.5 flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
       data-testid={`${testIdPrefix}-${event.id}`}
     >
       {cal.startSec > 0 && <EventDateTile startSec={cal.startSec} size="sm" past={past} />}
       <span className="min-w-0 flex-1">
         {cal.startSec > 0 && (
-          <span className={`block truncate text-[11px] font-semibold ${past ? "text-slate-400 dark:text-slate-500" : "text-brand-deep dark:text-brand-link"}`}>
+          <span
+            className={`block truncate text-[11px] font-semibold ${past ? "text-slate-400 dark:text-slate-500" : "text-brand-deep dark:text-brand-link"}`}
+          >
             {formatEventTime(cal.startSec, cal.isDateOnly)}
             {place && <span className="font-normal text-slate-500 dark:text-slate-400"> · {place}</span>}
           </span>
@@ -55,7 +57,9 @@ export function EventRow({
           <span className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
             {showHost && author && (
               <span className="inline-flex min-w-0 items-center gap-1">
-                <Avatar className={`h-3.5 w-3.5 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? author.wotRank ?? null, false, "sm", true) ?? ""}`}>
+                <Avatar
+                  className={`h-3.5 w-3.5 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? author.wotRank ?? null, false, "sm", true) ?? ""}`}
+                >
                   {author.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
                   <AvatarFallback className="overflow-hidden">
                     <DefaultAvatarImg />
@@ -70,7 +74,15 @@ export function EventRow({
       </span>
       {/* Happening mixes calendar events with streams: the row says which. */}
       {showKind && <KindPill event={event} />}
-      {cal.image && <img src={cal.image} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 object-cover" data-testid={`cover-${testIdPrefix}-${event.id}`} />}
+      {cal.image && (
+        <img
+          src={cal.image}
+          alt=""
+          loading="lazy"
+          className="h-12 w-12 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800"
+          data-testid={`cover-${testIdPrefix}-${event.id}`}
+        />
+      )}
     </Link>
   );
 }

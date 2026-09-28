@@ -10,7 +10,8 @@
 import { describe, expect, it } from "vitest";
 import { prepareArticleBody } from "./articleBody";
 
-const NIP = "# NIP-21\n\n## `nostr:` URI scheme\n\n`draft` `optional`\n\nThis NIP standardizes the usage of a common URI scheme.\n\nThe scheme is `nostr:`.";
+const NIP =
+  "# NIP-21\n\n## `nostr:` URI scheme\n\n`draft` `optional`\n\nThis NIP standardizes the usage of a common URI scheme.\n\nThe scheme is `nostr:`.";
 
 describe("prepareArticleBody", () => {
   it("drops the leading heading when it repeats the title, and lifts the status words out", () => {
@@ -47,13 +48,13 @@ const TSM = [
   "",
   "`draft`",
   "",
-  "`kind` `37570` \"TSM Service Announcement\"",
+  '`kind` `37570` "TSM Service Announcement"',
   "",
-  "`kind` `37571` \"TSM Output Standard\"",
+  '`kind` `37571` "TSM Output Standard"',
   "",
-  "`tag` `n` \"nip reference\"",
+  '`tag` `n` "nip reference"',
   "",
-  "`tag` `B` \"price in millisats\"",
+  '`tag` `B` "price in millisats"',
   "",
   "---",
   "",
@@ -62,16 +63,26 @@ const TSM = [
 
 describe("prepareArticleBody — a spec's details", () => {
   it("reads an underlined title as the title, even with a stray space in the tag", () => {
-    const { body } = prepareArticleBody(TSM, "Trust Service Machines (TSM )", { identifier: "tsm-trust-service-machines" });
+    const { body } = prepareArticleBody(TSM, "Trust Service Machines (TSM )", {
+      identifier: "tsm-trust-service-machines",
+    });
     expect(body.startsWith("Nostr needs")).toBe(true);
   });
 
   it("lifts the id, the status, and the kinds and tags it defines, out of the prose", () => {
-    const { body, status, kinds, tags } = prepareArticleBody(TSM, "Trust Service Machines (TSM )", { identifier: "tsm-trust-service-machines" });
+    const { body, status, kinds, tags } = prepareArticleBody(TSM, "Trust Service Machines (TSM )", {
+      identifier: "tsm-trust-service-machines",
+    });
 
     expect(status).toEqual(["draft"]);
-    expect(kinds).toEqual([{ kind: "37570", label: "TSM Service Announcement" }, { kind: "37571", label: "TSM Output Standard" }]);
-    expect(tags).toEqual([{ name: "n", label: "nip reference" }, { name: "B", label: "price in millisats" }]);
+    expect(kinds).toEqual([
+      { kind: "37570", label: "TSM Service Announcement" },
+      { kind: "37571", label: "TSM Output Standard" },
+    ]);
+    expect(tags).toEqual([
+      { name: "n", label: "nip reference" },
+      { name: "B", label: "price in millisats" },
+    ]);
     expect(body).not.toContain("tsm-trust-service-machines");
     expect(body).not.toContain("`kind`");
     expect(body).not.toMatch(/^---/m); // the rule that closed the front matter goes with it
@@ -82,7 +93,10 @@ describe("prepareArticleBody — a spec's details", () => {
   // placeholder heading is the author's and stays; the status is still the
   // spec's details.
   it("lifts the status from under an author's own opening heading", () => {
-    const { status, body } = prepareArticleBody("# NIP-XX\n\n## AI Agent Messages\n\n`draft` `optional`\n\nThis NIP defines a protocol.", "AI Agent Communication");
+    const { status, body } = prepareArticleBody(
+      "# NIP-XX\n\n## AI Agent Messages\n\n`draft` `optional`\n\nThis NIP defines a protocol.",
+      "AI Agent Communication",
+    );
     expect(status).toEqual(["draft", "optional"]);
     expect(body).toBe("# NIP-XX\n\n## AI Agent Messages\n\nThis NIP defines a protocol.");
   });
@@ -90,7 +104,8 @@ describe("prepareArticleBody — a spec's details", () => {
   // The same NIP as the relay holds it: underlined headings. The dashes under
   // the subtitle are its underline, not the rule that closes the front matter.
   it("reads underlined headings among the front matter, dashes and all", () => {
-    const real = "NIP-XX\n======\n\nAI Agent Messages\n-----------------\n\n`draft` `optional`\n\nThis NIP defines a protocol.";
+    const real =
+      "NIP-XX\n======\n\nAI Agent Messages\n-----------------\n\n`draft` `optional`\n\nThis NIP defines a protocol.";
     const { status, body } = prepareArticleBody(real, "AI Agent Communication");
     expect(status).toEqual(["draft", "optional"]);
     expect(body).toBe("NIP-XX\n======\n\nAI Agent Messages\n-----------------\n\nThis NIP defines a protocol.");

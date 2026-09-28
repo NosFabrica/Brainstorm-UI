@@ -65,10 +65,7 @@ async function save() {
   fireEvent.click(screen.getByTestId("button-edit-profile"));
   fireEvent.click(screen.getByTestId("button-edit-save"));
   await waitFor(() => expect(publishProfile).toHaveBeenCalled());
-  const [content, tags] = publishProfile.mock.calls[0] as unknown as [
-    Record<string, unknown>,
-    string[][],
-  ];
+  const [content, tags] = publishProfile.mock.calls[0] as unknown as [Record<string, unknown>, string[][]];
   return { content, tags };
 }
 
@@ -128,9 +125,7 @@ describe("switching accounts while the profile form is open", () => {
    */
   it("ignores a fetch for the account it has already switched away from", async () => {
     let landAlice!: (event: unknown) => void;
-    fetchProfileEvent.mockImplementationOnce(
-      () => new Promise((resolve) => (landAlice = resolve)),
-    );
+    fetchProfileEvent.mockImplementationOnce(() => new Promise((resolve) => (landAlice = resolve)));
     renderWithProviders(<Harness />);
     await waitFor(() => expect(fetchProfileEvent).toHaveBeenCalledWith(ALICE));
 

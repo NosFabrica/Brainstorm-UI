@@ -6,23 +6,54 @@
  * fed from the queue's own metadata.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { closePlayer, extendPlaylist, peekNext, playNext, setPlaylist, stopAllMedia, toggleTrack, togglePlayback } from "./audioPlayer";
+import {
+  closePlayer,
+  extendPlaylist,
+  peekNext,
+  playNext,
+  setPlaylist,
+  stopAllMedia,
+  toggleTrack,
+  togglePlayback,
+} from "./audioPlayer";
 import { installSoloPlayback } from "./playback";
 
 // Wavlake's catalogue, asked for the stream behind a track page; the page URL answers itself otherwise.
-const resolveMock = vi.fn(async (src: string) => (src.includes("wavlake.com/track/") ? "https://cdn.wavlake.example/track/e1c2e15d.mp3" : src));
-vi.mock("@/lib/wavlake", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/wavlake")>()), resolveAudioSrc: (src: string) => resolveMock(src) }));
+const resolveMock = vi.fn(async (src: string) =>
+  src.includes("wavlake.com/track/") ? "https://cdn.wavlake.example/track/e1c2e15d.mp3" : src,
+);
+vi.mock("@/lib/wavlake", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/wavlake")>()),
+  resolveAudioSrc: (src: string) => resolveMock(src),
+}));
 
 type Handler = (() => void) | null;
 const handlers = new Map<string, Handler>();
-const session = { metadata: null as null | { title: string; artist: string; artwork: { src: string }[] }, setActionHandler: vi.fn((name: string, h: Handler) => handlers.set(name, h)) };
+const session = {
+  metadata: null as null | { title: string; artist: string; artwork: { src: string }[] },
+  setActionHandler: vi.fn((name: string, h: Handler) => handlers.set(name, h)),
+};
 
 describe("audioPlayer — Media Session", () => {
   beforeEach(() => {
     handlers.clear();
     session.metadata = null;
     Object.defineProperty(navigator, "mediaSession", { value: session, configurable: true });
-    vi.stubGlobal("MediaMetadata", class { title: string; artist: string; album: string; artwork: { src: string }[]; constructor(init: { title: string; artist?: string; album?: string; artwork?: { src: string }[] }) { this.title = init.title; this.artist = init.artist ?? ""; this.album = init.album ?? ""; this.artwork = init.artwork ?? []; } });
+    vi.stubGlobal(
+      "MediaMetadata",
+      class {
+        title: string;
+        artist: string;
+        album: string;
+        artwork: { src: string }[];
+        constructor(init: { title: string; artist?: string; album?: string; artwork?: { src: string }[] }) {
+          this.title = init.title;
+          this.artist = init.artist ?? "";
+          this.album = init.album ?? "";
+          this.artwork = init.artwork ?? [];
+        }
+      },
+    );
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   });
@@ -34,15 +65,23 @@ describe("audioPlayer — Media Session", () => {
       { id: "b", src: "https://cdn/b.mp3", title: "Duende", artist: "NOVA" },
     ]);
     toggleTrack("a", "https://cdn/a.mp3");
-    expect(session.metadata).toMatchObject({ title: "Old Carbon", artist: "NOVA", artwork: [{ src: "https://img/a.jpg" }] });
+    expect(session.metadata).toMatchObject({
+      title: "Old Carbon",
+      artist: "NOVA",
+      artwork: [{ src: "https://img/a.jpg" }],
+    });
     playNext();
     expect(session.metadata).toMatchObject({ title: "Duende", artist: "NOVA" });
   });
 
   it("wires the hardware keys: play, pause, next and previous", () => {
-    setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "A" }, { id: "b", src: "https://cdn/b.mp3", title: "B" }]);
+    setPlaylist([
+      { id: "a", src: "https://cdn/a.mp3", title: "A" },
+      { id: "b", src: "https://cdn/b.mp3", title: "B" },
+    ]);
     toggleTrack("a", "https://cdn/a.mp3");
-    for (const key of ["play", "pause", "nexttrack", "previoustrack"]) expect(handlers.get(key)).toEqual(expect.any(Function));
+    for (const key of ["play", "pause", "nexttrack", "previoustrack"])
+      expect(handlers.get(key)).toEqual(expect.any(Function));
     handlers.get("nexttrack")!();
     expect(session.metadata?.title).toBe("B");
     handlers.get("previoustrack")!();
@@ -57,7 +96,10 @@ describe("audioPlayer — music outlives the page", () => {
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   });
-  afterEach(() => { closePlayer(); vi.restoreAllMocks(); });
+  afterEach(() => {
+    closePlayer();
+    vi.restoreAllMocks();
+  });
 
   it("a route change pauses videos on the page but not the shared audio", () => {
     const video = document.createElement("video");
@@ -88,12 +130,19 @@ describe("audioPlayer — extending the line-up behind the active track", () => 
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   });
-  afterEach(() => { closePlayer(); vi.restoreAllMocks(); });
+  afterEach(() => {
+    closePlayer();
+    vi.restoreAllMocks();
+  });
 
   it("lines new tracks up right after the active one, once each, keeping what was already queued", () => {
     setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "A" }]);
     toggleTrack("a", "https://cdn/a.mp3");
-    extendPlaylist([{ id: "b", src: "https://cdn/b.mp3", title: "B" }, { id: "a", src: "https://cdn/a.mp3", title: "A" }, { id: "c", src: "https://cdn/c.mp3", title: "C" }]);
+    extendPlaylist([
+      { id: "b", src: "https://cdn/b.mp3", title: "B" },
+      { id: "a", src: "https://cdn/a.mp3", title: "A" },
+      { id: "c", src: "https://cdn/c.mp3", title: "C" },
+    ]);
     expect(peekNext("a")?.id).toBe("b");
     expect(peekNext("b")?.id).toBe("c");
     expect(peekNext("c")).toBeNull();

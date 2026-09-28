@@ -9,8 +9,28 @@ import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
 // them already mapped (the row under edit in most tests here).
 const SERVICES: FlashServiceItem[] = [{ id: "9c1e", name: "Brainstorm", description: null, signup_url: null }];
 const PLANS: FlashPlanItem[] = [
-  { id: "4f2a", service_id: "9c1e", name: "Priority", amount_minor: 200, currency: "USD", billing_interval: "monthly", status: "active", sort_order: 0, mapping_id: 1 },
-  { id: "beef", service_id: "9c1e", name: "Staging - Daily", amount_minor: 10, currency: "USD", billing_interval: "daily", status: "active", sort_order: 1, mapping_id: null },
+  {
+    id: "4f2a",
+    service_id: "9c1e",
+    name: "Priority",
+    amount_minor: 200,
+    currency: "USD",
+    billing_interval: "monthly",
+    status: "active",
+    sort_order: 0,
+    mapping_id: 1,
+  },
+  {
+    id: "beef",
+    service_id: "9c1e",
+    name: "Staging - Daily",
+    amount_minor: 10,
+    currency: "USD",
+    billing_interval: "daily",
+    status: "active",
+    sort_order: 1,
+    mapping_id: null,
+  },
 ];
 const getAdminBillingFlashServices = vi.fn<() => Promise<FlashServiceItem[]>>();
 const getAdminBillingFlashServicePlans = vi.fn<(serviceId: string) => Promise<FlashPlanItem[]>>();
@@ -104,7 +124,12 @@ describe("PlanMappingFormDialog — the two decisions, with the plan picked from
     expect(screen.getByTestId("plan-picker-facts")).toHaveTextContent(/active/);
 
     await user.click(screen.getByTestId("button-plan-mapping-submit"));
-    expect(onSubmit).toHaveBeenCalledWith({ flash_service_id: "9c1e", flash_plan_id: "beef", scheduling_id: 7, is_active: true });
+    expect(onSubmit).toHaveBeenCalledWith({
+      flash_service_id: "9c1e",
+      flash_plan_id: "beef",
+      scheduling_id: 7,
+      is_active: true,
+    });
   });
 
   it("keeps the two decisions Flash cannot make", async () => {
@@ -149,7 +174,17 @@ describe("PlanMappingFormDialog — the two decisions, with the plan picked from
   it("marks a plan another mapping already claims, and one Flash no longer offers", async () => {
     getAdminBillingFlashServicePlans.mockResolvedValue([
       ...PLANS,
-      { id: "old1", service_id: "9c1e", name: "Legacy", amount_minor: 500, currency: "USD", billing_interval: "monthly", status: "archived", sort_order: 2, mapping_id: null },
+      {
+        id: "old1",
+        service_id: "9c1e",
+        name: "Legacy",
+        amount_minor: 500,
+        currency: "USD",
+        billing_interval: "monthly",
+        status: "archived",
+        sort_order: 2,
+        mapping_id: null,
+      },
     ]);
     const user = userEvent.setup();
     renderForm({ mode: "create", initial: undefined });
@@ -211,7 +246,12 @@ describe("PlanMappingFormDialog — the two decisions, with the plan picked from
     await user.type(screen.getByTestId("input-plan-plan-id"), "beef");
     await user.click(screen.getByTestId("button-plan-mapping-submit"));
 
-    expect(onSubmit).toHaveBeenCalledWith({ flash_service_id: "9c1e", flash_plan_id: "beef", scheduling_id: 7, is_active: true });
+    expect(onSubmit).toHaveBeenCalledWith({
+      flash_service_id: "9c1e",
+      flash_plan_id: "beef",
+      scheduling_id: 7,
+      is_active: true,
+    });
   });
 
   it("says when the chosen policy can never reach the pricing page", async () => {

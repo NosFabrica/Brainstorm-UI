@@ -22,22 +22,13 @@ import type { MinimalEvent } from "@/lib/noteRefs";
  * them do. So they're fetched from the app's normal relays, using the relay
  * hints the asserters attached, exactly as the protocol intends.
  */
-export function TaggedNotes({
-  authorPubkey,
-  slug,
-}: {
-  authorPubkey: string;
-  slug: string;
-}) {
+export function TaggedNotes({ authorPubkey, slug }: { authorPubkey: string; slug: string }) {
   const { data: tagged, isLoading } = useTagNotes(authorPubkey, slug);
 
   // Addressable targets (`a`-coordinates) are valid but we don't resolve them
   // yet — no tag on the live hub uses one, and guessing at a render for an
   // untested shape is how you ship a broken card. They're simply not listed.
-  const ids = useMemo(
-    () => (tagged ?? []).map((t) => t.id).filter((id): id is string => !!id),
-    [tagged],
-  );
+  const ids = useMemo(() => (tagged ?? []).map((t) => t.id).filter((id): id is string => !!id), [tagged]);
 
   // Our own relays PLUS wherever the asserters said the notes live. The hub
   // carries assertions about notes, never the notes, so a note published
@@ -56,15 +47,9 @@ export function TaggedNotes({
     retry: false,
   });
 
-  const notes = useMemo(
-    () => (notesQuery.data ?? []) as unknown as MinimalEvent[],
-    [notesQuery.data],
-  );
+  const notes = useMemo(() => (notesQuery.data ?? []) as unknown as MinimalEvent[], [notesQuery.data]);
 
-  const authors = useMemo(
-    () => Array.from(new Set(notes.map((n) => n.pubkey).filter(Boolean) as string[])),
-    [notes],
-  );
+  const authors = useMemo(() => Array.from(new Set(notes.map((n) => n.pubkey).filter(Boolean) as string[])), [notes]);
   const profilesQuery = useQuery({
     queryKey: ["tag-note-profiles", authors.join(",")],
     queryFn: () => fetchProfileMap(authors),
@@ -77,9 +62,7 @@ export function TaggedNotes({
   // Keep the service's ordering (most-vouched first) rather than relay order.
   const ordered = useMemo(() => {
     const byId = new Map(notes.map((n) => [n.id, n]));
-    return (tagged ?? [])
-      .map((t) => (t.id ? byId.get(t.id) : undefined))
-      .filter((n): n is MinimalEvent => !!n);
+    return (tagged ?? []).map((t) => (t.id ? byId.get(t.id) : undefined)).filter((n): n is MinimalEvent => !!n);
   }, [tagged, notes]);
 
   if (isLoading || !tagged?.length) return null;
@@ -106,10 +89,7 @@ export function TaggedNotes({
     <section className="mt-8" data-testid="tag-notes">
       <SectionLabel count={tagged.length} />
       {missing > 0 && !notesQuery.isLoading && (
-        <p
-          className="-mt-2 mb-3 text-[11px] text-slate-400 dark:text-slate-500"
-          data-testid="tag-notes-missing"
-        >
+        <p className="-mt-2 mb-3 text-[11px] text-slate-400 dark:text-slate-500" data-testid="tag-notes-missing">
           {missing === 1 ? "1 isn't" : `${missing} aren't`} on the relays we can reach.
         </p>
       )}

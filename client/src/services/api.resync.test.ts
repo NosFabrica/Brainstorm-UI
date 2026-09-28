@@ -42,8 +42,6 @@ describe("apiClient.resyncObserver", () => {
   it("surfaces the backend detail on a 422", async () => {
     mockFetchOnce({ detail: "invalid resync target 'nope'" }, { ok: false, status: 422 });
 
-    await expect(apiClient.resyncObserver(PK, "nope")).rejects.toThrow(
-      /invalid resync target/i,
-    );
+    await expect(apiClient.resyncObserver(PK, "nope")).rejects.toThrow(/invalid resync target/i);
   });
 });

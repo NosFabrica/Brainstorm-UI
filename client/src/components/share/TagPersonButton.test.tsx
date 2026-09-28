@@ -17,11 +17,27 @@ vi.mock("@/hooks/useTags", () => ({
   useApplyTag: () => ({ mutateAsync: applyMock, isPending: false }),
   usePickerTags: () => ({ data: [] }),
 }));
-vi.mock("@/services/tags", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/services/tags")>()), resolveOrMintTag: vi.fn() }));
+vi.mock("@/services/tags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/tags")>()),
+  resolveOrMintTag: vi.fn(),
+}));
 
 const PK = "a".repeat(64);
 const AUTHOR = "b".repeat(64);
-const tag = (name: string, myStance?: "apply" | "dispute") => ({ key: `${AUTHOR}|${name.toLowerCase()}`, name, slug: name.toLowerCase(), authorPubkey: AUTHOR, counted: true, selfDeclared: false, subjectDisagreed: false, myStance, applications: 3, disputes: 0, asserters: [], addedAt: 1 });
+const tag = (name: string, myStance?: "apply" | "dispute") => ({
+  key: `${AUTHOR}|${name.toLowerCase()}`,
+  name,
+  slug: name.toLowerCase(),
+  authorPubkey: AUTHOR,
+  counted: true,
+  selfDeclared: false,
+  subjectDisagreed: false,
+  myStance,
+  applications: 3,
+  disputes: 0,
+  asserters: [],
+  addedAt: 1,
+});
 
 beforeAll(() => {
   // cmdk scrolls the selected row into view; jsdom has no layout.
@@ -55,7 +71,11 @@ describe("TagPersonButton — tags already on the profile", () => {
     await openPicker();
     const row = screen.getByTestId("share-tag-stance");
     fireEvent.click(within(row).getByTestId("share-tag-stance-vote-disagree"));
-    await waitFor(() => expect(applyMock).toHaveBeenCalledWith(expect.objectContaining({ polarity: -1, tag: { authorPubkey: AUTHOR, slug: "verified human" } })));
+    await waitFor(() =>
+      expect(applyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ polarity: -1, tag: { authorPubkey: AUTHOR, slug: "verified human" } }),
+      ),
+    );
   });
 
   it("the stance you already hold is shown, not offered again", async () => {
@@ -69,7 +89,6 @@ describe("TagPersonButton — tags already on the profile", () => {
     fireEvent.click(agree);
     expect(applyMock).not.toHaveBeenCalled();
   });
-
 });
 
 // Picking a tag published a public, undeletable statement about someone on
@@ -96,7 +115,12 @@ describe("TagPersonButton — adding a tag asks first", () => {
   it("after Add, the answer shows at once and the trigger never spins while the relays are slow", async () => {
     tags = [];
     let settle: (v: unknown) => void = () => {};
-    applyMock.mockImplementationOnce(() => new Promise((r) => { settle = r; }));
+    applyMock.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          settle = r;
+        }),
+    );
     render(<TagPersonButton pubkey={PK} variant="link" />);
     await openPicker();
     fireEvent.change(screen.getByTestId("share-tag-search"), { target: { value: "Ham Radio" } });

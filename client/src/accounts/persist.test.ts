@@ -10,13 +10,7 @@ import { LocalAccount } from "./local-account";
 import { updateMetadata, type AccountMetadata } from "./metadata";
 import type { LocalSignerData } from "./local-signer";
 import { ACCOUNTS_KEY, ACTIVE_KEY, BACKUP_KEY, QUARANTINE_KEY, type StorageSeam } from "./persist";
-import {
-  createFakeUnlockCache,
-  createTestStorage,
-  type FakeUnlockCache,
-  LOW_LOGN,
-  PASSWORD,
-} from "./test-fakes";
+import { createFakeUnlockCache, createTestStorage, type FakeUnlockCache, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 type Stored = SerializedAccount<LocalSignerData, AccountMetadata>;
 
@@ -375,7 +369,10 @@ describe("an account this build could not read, on a build that can", () => {
     static readonly type = "some-future-signer";
     id = "future";
     metadata: Record<string, unknown> = {};
-    constructor(public pubkey: string, public signer: unknown) {}
+    constructor(
+      public pubkey: string,
+      public signer: unknown,
+    ) {}
     static fromJSON(json: SerializedAccount<unknown, Record<string, unknown>>) {
       const account = new FutureAccount(json.pubkey, json.signer);
       account.id = json.id;
@@ -383,7 +380,13 @@ describe("an account this build could not read, on a build that can", () => {
       return account;
     }
     toJSON() {
-      return { id: this.id, type: "some-future-signer", pubkey: this.pubkey, signer: this.signer, metadata: this.metadata };
+      return {
+        id: this.id,
+        type: "some-future-signer",
+        pubkey: this.pubkey,
+        signer: this.signer,
+        metadata: this.metadata,
+      };
     }
   }
 

@@ -109,8 +109,7 @@ const tidyTerms = (s: string): string => s.replace(ORPHAN, "$1").replace(/\s+/g,
 const pad = (n: number, w = 2) => String(n).padStart(w, "0");
 
 /** A Date as the `YYYY-MM-DD` this language writes, in the reader's timezone. */
-export const ymd = (d: Date): string =>
-  `${pad(d.getFullYear(), 4)}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export const ymd = (d: Date): string => `${pad(d.getFullYear(), 4)}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 /**
  * `YYYY-MM-DD` as the unix second that bound means, or null if it is not a day: `since` is
@@ -161,32 +160,107 @@ export const isKey = (v: string): boolean => !!pubkeyParam(String(v ?? "").trim(
 
 // ---- segments -------------------------------------------------------------
 
-export interface TextSeg { type: "text"; text: string }
-export interface KeySeg { type: "key"; raw: string; field: "from" | "to" | null; pubkey: string }
-export interface PointerSeg { type: "pointer"; raw: string; field: "to"; tag: "e" | "a"; value: string }
-export interface DateSeg { type: "date"; raw: string; field: "since" | "until"; at: number; day: string }
-export interface TagSeg { type: "tag"; raw: string; tag: string }
-export interface LabelSeg { type: "label"; raw: string; value: string }
-export interface ScopeSeg { type: "scope"; raw: string; field: string; value: string }
-export interface GroupSeg { type: "group"; raw: string; id: string }
-export interface SortSeg { type: "sort"; raw: string; value: string }
-export interface ObserverSeg { type: "observer"; raw: string; pubkey: string }
-export interface LensSeg { type: "lens"; raw: string }
-export interface FloorSeg { type: "floor"; raw: string; value: number }
-export interface VerifiedSeg { type: "verified"; raw: string }
-export interface KindSeg { type: "kind"; raw: string; value: number }
-export interface ReachSeg { type: "reach"; raw: string; value: "follows" | "friends" }
+export interface TextSeg {
+  type: "text";
+  text: string;
+}
+export interface KeySeg {
+  type: "key";
+  raw: string;
+  field: "from" | "to" | null;
+  pubkey: string;
+}
+export interface PointerSeg {
+  type: "pointer";
+  raw: string;
+  field: "to";
+  tag: "e" | "a";
+  value: string;
+}
+export interface DateSeg {
+  type: "date";
+  raw: string;
+  field: "since" | "until";
+  at: number;
+  day: string;
+}
+export interface TagSeg {
+  type: "tag";
+  raw: string;
+  tag: string;
+}
+export interface LabelSeg {
+  type: "label";
+  raw: string;
+  value: string;
+}
+export interface ScopeSeg {
+  type: "scope";
+  raw: string;
+  field: string;
+  value: string;
+}
+export interface GroupSeg {
+  type: "group";
+  raw: string;
+  id: string;
+}
+export interface SortSeg {
+  type: "sort";
+  raw: string;
+  value: string;
+}
+export interface ObserverSeg {
+  type: "observer";
+  raw: string;
+  pubkey: string;
+}
+export interface LensSeg {
+  type: "lens";
+  raw: string;
+}
+export interface FloorSeg {
+  type: "floor";
+  raw: string;
+  value: number;
+}
+export interface VerifiedSeg {
+  type: "verified";
+  raw: string;
+}
+export interface KindSeg {
+  type: "kind";
+  raw: string;
+  value: number;
+}
+export interface ReachSeg {
+  type: "reach";
+  raw: string;
+  value: "follows" | "friends";
+}
 
 export type TokenSeg =
-  | KeySeg | PointerSeg | DateSeg | TagSeg | LabelSeg | ScopeSeg | GroupSeg
-  | SortSeg | ObserverSeg | LensSeg | FloorSeg | VerifiedSeg | ReachSeg | KindSeg;
+  | KeySeg
+  | PointerSeg
+  | DateSeg
+  | TagSeg
+  | LabelSeg
+  | ScopeSeg
+  | GroupSeg
+  | SortSeg
+  | ObserverSeg
+  | LensSeg
+  | FloorSeg
+  | VerifiedSeg
+  | ReachSeg
+  | KindSeg;
 export type Segment = TextSeg | TokenSeg;
 
 /** The hashtags inside one stretch of plain text, as segments in place. */
 function tagSegments(chunk: string, out: Segment[]): void {
   let at = 0;
   HASHTAG.lastIndex = 0;
-  for (let m: RegExpExecArray | null; (m = HASHTAG.exec(chunk)); ) {
+  for (let m: RegExpExecArray | null; (m = HASHTAG.exec(chunk));) {
     const start = m.index + m[1].length;
     const raw = chunk.slice(start, HASHTAG.lastIndex);
     const tag = m[2].replace(/-+$/, "").toLowerCase();
@@ -229,7 +303,7 @@ export function tokenize(text: string): Segment[] {
   const out: Segment[] = [];
   let at = 0;
   TOKEN.lastIndex = 0;
-  for (let m: RegExpExecArray | null; (m = TOKEN.exec(s)); ) {
+  for (let m: RegExpExecArray | null; (m = TOKEN.exec(s));) {
     const g = m.groups as Record<string, string | undefined>;
     const start = m.index + (g.lead ?? "").length;
     const raw = s.slice(start, TOKEN.lastIndex);
@@ -295,7 +369,17 @@ export function tokenize(text: string): Segment[] {
 
 /** The token types that pill only once the caret has left them. */
 const SETTLES = new Set([
-  "tag", "date", "scope", "group", "label", "sort", "observer", "lens", "floor", "verified", "reach",
+  "tag",
+  "date",
+  "scope",
+  "group",
+  "label",
+  "sort",
+  "observer",
+  "lens",
+  "floor",
+  "verified",
+  "reach",
   "kind",
 ]);
 
@@ -316,7 +400,10 @@ export function drawable(text: string, typingAt: number | null): Segment[] {
   let at = 0;
   return segs.map((seg, i) => {
     const start = at;
-    if (seg.type === "text") { at += seg.text.length; return seg; }
+    if (seg.type === "text") {
+      at += seg.text.length;
+      return seg;
+    }
     at += seg.raw.length;
     // Only a text segment can trail a token inside one word; two adjacent tokens are two words.
     const next = segs[i + 1];
@@ -373,22 +460,48 @@ export interface ParsedQuery {
  */
 export function parseQuery(text: string): ParsedQuery {
   const out: ParsedQuery = {
-    terms: "", authors: [], mentions: [], cites: [], addrs: [], hashtags: [], labels: [],
-    scopes: [], groups: [], since: null, until: null, words: "", kinds: [],
-    sort: null, observer: null, includeSpam: false, rankFloor: null,
-    verifiedOnly: false, reach: null,
+    terms: "",
+    authors: [],
+    mentions: [],
+    cites: [],
+    addrs: [],
+    hashtags: [],
+    labels: [],
+    scopes: [],
+    groups: [],
+    since: null,
+    until: null,
+    words: "",
+    kinds: [],
+    sort: null,
+    observer: null,
+    includeSpam: false,
+    rankFloor: null,
+    verifiedOnly: false,
+    reach: null,
   };
   let terms = "";
   let words = "";
-  const add = (into: string[], v: string) => { if (!into.includes(v)) into.push(v); };
+  const add = (into: string[], v: string) => {
+    if (!into.includes(v)) into.push(v);
+  };
   for (const seg of tokenize(text)) {
     switch (seg.type) {
-      case "text": terms += seg.text; words += seg.text; break;
-      case "tag": add(out.hashtags, seg.tag); break;
+      case "text":
+        terms += seg.text;
+        words += seg.text;
+        break;
+      case "tag":
+        add(out.hashtags, seg.tag);
+        break;
       // The same `to:` question about an event: which tag it is asked with is the pointer's shape.
-      case "pointer": add(seg.tag === "e" ? out.cites : out.addrs, seg.value); break;
+      case "pointer":
+        add(seg.tag === "e" ? out.cites : out.addrs, seg.value);
+        break;
       // A mark is opaque and asked as it stands; the spellings worth asking are tagValues's question.
-      case "label": add(out.labels, seg.value); break;
+      case "label":
+        add(out.labels, seg.value);
+        break;
       // Verbatim, deduped as typed; the spellings worth asking are scopeIds's question.
       case "scope":
         if (!out.scopes.some((s) => s.field === seg.field && s.value === seg.value)) {
@@ -396,7 +509,9 @@ export function parseQuery(text: string): ParsedQuery {
         }
         break;
       // Verbatim and case-exact: a group id is opaque, and `General` and `general` are two groups.
-      case "group": add(out.groups, seg.id); break;
+      case "group":
+        add(out.groups, seg.id);
+        break;
       case "date":
         if (seg.field === "since") out.since = out.since == null ? seg.at : Math.max(out.since, seg.at);
         else out.until = out.until == null ? seg.at : Math.min(out.until, seg.at);
@@ -404,18 +519,40 @@ export function parseQuery(text: string): ParsedQuery {
       // The four ranking tokens are the relay's own NIP-50 extensions: they are read out
       // here for the Filters panel AND left standing in `terms`, exactly where they were
       // typed, because the store is what parses them.
-      case "sort": out.sort = seg.value; terms += seg.raw; break;
-      case "observer": out.observer = seg.pubkey; terms += seg.raw; break;
-      case "lens": out.includeSpam = true; terms += seg.raw; break;
-      case "floor": out.rankFloor = seg.value; terms += seg.raw; break;
+      case "sort":
+        out.sort = seg.value;
+        terms += seg.raw;
+        break;
+      case "observer":
+        out.observer = seg.pubkey;
+        terms += seg.raw;
+        break;
+      case "lens":
+        out.includeSpam = true;
+        terms += seg.raw;
+        break;
+      case "floor":
+        out.rankFloor = seg.value;
+        terms += seg.raw;
+        break;
       // These two the relay knows nothing about (it has no hops and no verification), so
       // they come out of `terms`: sent as text they would match nothing.
-      case "kind": if (!out.kinds.includes(seg.value)) out.kinds.push(seg.value); break;
-      case "verified": out.verifiedOnly = true; break;
-      case "reach": out.reach = seg.value; break;
+      case "kind":
+        if (!out.kinds.includes(seg.value)) out.kinds.push(seg.value);
+        break;
+      case "verified":
+        out.verifiedOnly = true;
+        break;
+      case "reach":
+        out.reach = seg.value;
+        break;
       case "key": {
         const into = seg.field === "from" ? out.authors : seg.field === "to" ? out.mentions : null;
-        if (!into) { terms += seg.raw; words += seg.raw; break; }
+        if (!into) {
+          terms += seg.raw;
+          words += seg.raw;
+          break;
+        }
         add(into, seg.pubkey);
         break;
       }
@@ -462,10 +599,14 @@ export function scopeIds(field: string, value: string): string[] {
     return [...new Set([`isan:${root.toUpperCase()}`, `isan:${root}`, `isan:${v.toUpperCase()}`, `isan:${v}`])];
   }
   if (field === "podcast:publisher" && !/^guid:/i.test(v)) {
-    return [...new Set([
-      `podcast:publisher:guid:${v}`, `podcast:publisher:guid:${v.toLowerCase()}`,
-      `podcast:publisher:${v}`, `podcast:publisher:${v.toLowerCase()}`,
-    ])];
+    return [
+      ...new Set([
+        `podcast:publisher:guid:${v}`,
+        `podcast:publisher:guid:${v.toLowerCase()}`,
+        `podcast:publisher:${v}`,
+        `podcast:publisher:${v.toLowerCase()}`,
+      ]),
+    ];
   }
   return [...new Set([`${field}:${v}`, `${field}:${v.toLowerCase()}`])];
 }
@@ -559,8 +700,7 @@ function partialAt(
 }
 
 /** The `from:`/`to:` token the caret is inside — what the people picker asks. */
-export const mentionAt = (text: string, caret: number): PartialToken | null =>
-  partialAt(text, caret, PARTIAL, isKey);
+export const mentionAt = (text: string, caret: number): PartialToken | null => partialAt(text, caret, PARTIAL, isKey);
 
 /**
  * The `since:`/`until:` token the caret is inside, which the calendar opens on; complete once it
@@ -600,8 +740,9 @@ const hashtagIds = (tags: string[]): string[] => tags.flatMap((t) => [`#${t}`, t
 const tagAsks = (tags: string[]): string[] => [...new Set(tags.flatMap(tagValues))];
 
 /** The `#I`/`#i` value list for a set of scopes: every spelling, deduped. */
-const scopeAsks = (scopes: { field: string; value: string }[]): string[] =>
-  [...new Set(scopes.flatMap((s) => scopeIds(s.field, s.value)))];
+const scopeAsks = (scopes: { field: string; value: string }[]): string[] => [
+  ...new Set(scopes.flatMap((s) => scopeIds(s.field, s.value))),
+];
 
 /** How many results a secondary filter of a union may return; the store applies `limit` per filter. */
 const sideLimit = (limit: number): number => Math.max(4, Math.round(limit / 4));

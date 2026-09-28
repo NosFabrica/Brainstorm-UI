@@ -132,10 +132,7 @@ function currentToken(): string | undefined {
   return account && getSessionToken(account);
 }
 
-export async function authenticatedFetch(
-  url: string,
-  options: RequestInit = {},
-): Promise<Response> {
+export async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
   let token = currentToken();
   if (!token) {
     const reauth = await silentReauth();
@@ -190,10 +187,7 @@ export async function authenticatedFetch(
  * is no session at all we do a plain fetch with NO redirect side effects, so
  * anonymous browsing never wipes localStorage or bounces to the home page.
  */
-export async function optionalAuthFetch(
-  url: string,
-  options: RequestInit = {},
-): Promise<Response> {
+export async function optionalAuthFetch(url: string, options: RequestInit = {}): Promise<Response> {
   // An Account with no Session still counts: `authenticatedFetch` mints one, and
   // a deferred mint falls through to the anonymous read below.
   if (activeAccount()) {
@@ -235,9 +229,7 @@ export async function adminJson<T>(
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) {
-    throw new Error(
-      (await extractApiError(response)) || `${fallback} (${response.status})`,
-    );
+    throw new Error((await extractApiError(response)) || `${fallback} (${response.status})`);
   }
   const text = await response.text();
   if (!text) return undefined as T;

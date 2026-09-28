@@ -1,16 +1,16 @@
 /** The admin page's sections, as `?tab=` names them. */
 export type AdminTab =
-  | "overview"
-  | "users"
-  | "health"
-  | "activity"
-  | "assistants"
-  | "scheduling"
-  | "billing"
-  | "trusted-lists"
-  | "support";
+  "overview" | "users" | "health" | "activity" | "assistants" | "scheduling" | "billing" | "trusted-lists" | "support";
 
-const ALWAYS: readonly AdminTab[] = ["users", "activity", "health", "scheduling", "billing", "trusted-lists", "support"];
+const ALWAYS: readonly AdminTab[] = [
+  "users",
+  "activity",
+  "health",
+  "scheduling",
+  "billing",
+  "trusted-lists",
+  "support",
+];
 
 /**
  * The section a `?tab=` value opens. Assistants only exists behind its feature

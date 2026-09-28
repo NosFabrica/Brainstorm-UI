@@ -3,7 +3,12 @@ import { buildTimeline, statusRank, statusTone } from "./supportDisplay";
 
 describe("supportDisplay", () => {
   it("colors and ranks the known statuses, and treats unknown ones like closed", () => {
-    expect(["open", "answered", "closed", "escalated"].map(statusTone)).toEqual(["info", "success", "neutral", "neutral"]);
+    expect(["open", "answered", "closed", "escalated"].map(statusTone)).toEqual([
+      "info",
+      "success",
+      "neutral",
+      "neutral",
+    ]);
     expect(["open", "answered", "closed", "escalated"].map(statusRank)).toEqual([0, 1, 2, 2]);
   });
 

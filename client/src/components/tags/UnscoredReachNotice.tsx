@@ -31,9 +31,8 @@ export function UnscoredReachNotice({
     <Alert variant="info" className={className} data-testid="viewer-unscored-notice">
       <EyeOff className="h-4 w-4" />
       <AlertDescription className="text-sm">
-        {one ? "Only you can see this one for now." : "Only you can see these for now."}{" "}
-        Other people start seeing your tags once your account is part of the
-        network — that happens as people follow you.
+        {one ? "Only you can see this one for now." : "Only you can see these for now."} Other people start seeing your
+        tags once your account is part of the network — that happens as people follow you.
       </AlertDescription>
     </Alert>
   );

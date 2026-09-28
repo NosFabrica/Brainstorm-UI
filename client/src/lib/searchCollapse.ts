@@ -76,9 +76,7 @@ export function collapseHits(
   const clusters: (HitCluster & { tokens: Set<string> })[] = [];
   for (const hit of hits) {
     const tokens = tokensOf(titleOf(hit));
-    const home = clusters.find(
-      (c) => c.primary.event.pubkey === hit.event.pubkey && similar(c.tokens, tokens),
-    );
+    const home = clusters.find((c) => c.primary.event.pubkey === hit.event.pubkey && similar(c.tokens, tokens));
     if (!home) {
       clusters.push({ primary: hit, others: [], tokens });
       continue;

@@ -36,7 +36,9 @@ export function AddressScreen({ naddr, ptr }: { naddr: string; ptr: AddressPoint
   // Deleted by overwriting: the address resolves to a husk. The event layout
   // says what happened rather than the reader showing an article called "[Deleted]".
   if (ev && (isBlankEvent(ev) || !READER_KINDS.has(ev.kind))) {
-    return <EventScreen event={ev as unknown as MinimalEvent} ptr={{ id: ev.id, author: ev.pubkey, relays: ptr.relays }} />;
+    return (
+      <EventScreen event={ev as unknown as MinimalEvent} ptr={{ id: ev.id, author: ev.pubkey, relays: ptr.relays }} />
+    );
   }
   if (ev) return <ArticleScreen ev={ev} naddr={naddr} ptr={ptr} />;
   return (
@@ -46,16 +48,18 @@ export function AddressScreen({ naddr, ptr }: { naddr: string; ptr: AddressPoint
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
       ) : (
-        <div className="text-center py-20">
-          <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
-          <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">
+        <div className="py-20 text-center">
+          <FileText className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
+          <p className="mt-3 font-medium text-slate-600 dark:text-slate-300">
             We couldn’t find this {READER_KINDS.has(ptr.kind) ? "article" : "post"} on the relays.
           </p>
           {/* The naddr says which kind it is, so only clients that render it are offered. */}
-          <OpenElsewhere entity={{ kind: "article", eventKind: ptr.kind, bech32: naddr, uri: `nostr:${naddr}` }} className="mt-5" />
+          <OpenElsewhere
+            entity={{ kind: "article", eventKind: ptr.kind, bech32: naddr, uri: `nostr:${naddr}` }}
+            className="mt-5"
+          />
         </div>
       )}
     </ArticleShell>
   );
 }
-

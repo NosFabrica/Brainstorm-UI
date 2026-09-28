@@ -18,17 +18,17 @@ is written here as an ask rather than approximated.
 already returns Flash's subscription object unmodified, and Flash's object carries everything the
 question needs. The dialog now shows, per row:
 
-| On the sheet | Flash field(s) |
-| --- | --- |
-| Subscribed since | `createdAt` |
-| Billing cycles ("3 periods billed" / "Period 3, renewal unpaid" / "In trial, nothing billed yet") | `currentPeriodNumber` + `status` |
-| Plan · price · interval, trial days, setup fee | `pricingSnapshot.*` |
-| Current period, next bill, trial end | `currentPeriodStart/End`, `nextBillingDate`, `trialEndDate` |
-| Failed renewal: "Attempt 2 of 3 · first failed …" | `dunningAttempts`, `firstFailedAt`, `dunningPolicy.maxAttempts` |
-| Cancelled on · ends · reason | `canceledAt`, `cancelEffectiveDate`, `cancelReason` |
-| "Flash retries up to 3 times, 3 days apart, 7-day grace, then cancels. Cancellations take effect at period end." | `dunningPolicy`, `cancellationPolicy` |
-| Their Flash portal | `portalUrl` |
-| Test mode chip | `livemode: false` |
+| On the sheet                                                                                                     | Flash field(s)                                                  |
+| ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Subscribed since                                                                                                 | `createdAt`                                                     |
+| Billing cycles ("3 periods billed" / "Period 3, renewal unpaid" / "In trial, nothing billed yet")                | `currentPeriodNumber` + `status`                                |
+| Plan · price · interval, trial days, setup fee                                                                   | `pricingSnapshot.*`                                             |
+| Current period, next bill, trial end                                                                             | `currentPeriodStart/End`, `nextBillingDate`, `trialEndDate`     |
+| Failed renewal: "Attempt 2 of 3 · first failed …"                                                                | `dunningAttempts`, `firstFailedAt`, `dunningPolicy.maxAttempts` |
+| Cancelled on · ends · reason                                                                                     | `canceledAt`, `cancelEffectiveDate`, `cancelReason`             |
+| "Flash retries up to 3 times, 3 days apart, 7-day grace, then cancels. Cancellations take effect at period end." | `dunningPolicy`, `cancellationPolicy`                           |
+| Their Flash portal                                                                                               | `portalUrl`                                                     |
+| Test mode chip                                                                                                   | `livemode: false`                                               |
 
 The raw JSON is still there, folded under "Raw record". Nothing new is fetched: one Flash read
 per open, as before.

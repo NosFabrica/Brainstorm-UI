@@ -1,11 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { BrainLogo } from "@/components/BrainLogo";
 import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle } from "lucide-react";
 import { checkExistingTrustProvider, publishBrainstormTrustAnchor } from "@/services/trustAnchor";
@@ -45,7 +39,9 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       const status = await checkExistingTrustProvider(user.pubkey, serviceKey);
       if (!cancelled && status === "other") setHasOtherProvider(true);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // `user` is stream-backed and null for the first renders, so the effect bails
     // early. Without it in the deps it never re-runs, `hasOtherProvider` stays
     // false, and the "this replaces your existing provider" warning is skipped
@@ -112,107 +108,142 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="sm:max-w-[540px] max-h-[90vh] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden p-0"
+        className="max-h-[90vh] overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:max-w-[540px]"
         data-testid="dialog-activate-brainstorm"
       >
-        <div className="flex flex-col max-h-[90vh]">
-          <div className="overflow-y-auto flex-1 min-h-0">
-          <div className="px-5 sm:px-7 pt-6 sm:pt-8 pb-2">
-            <DialogHeader className="space-y-0 text-left">
-              <div className="flex items-center gap-2.5 mb-3">
-                <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">Your network</span>
-                <div className="h-px w-10 bg-brand-link/30" />
-              </div>
-              <DialogTitle
-                className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 leading-[1.15] tracking-tight"
-                style={{ fontFamily: "var(--font-display)" }}
-                data-testid="text-activate-title"
-              >
-                Broadcast your scores <span className="text-brand-link">across Nostr</span>.
-              </DialogTitle>
-              <DialogDescription className="text-sm sm:text-[15px] text-slate-600 dark:text-slate-300 mt-2.5 leading-relaxed" data-testid="text-activate-subtitle">
-                Selecting Brainstorm as your service provider signs one nostr note that tells compatible clients where to find the personalized scores we publish for you.
-              </DialogDescription>
-            </DialogHeader>
-          </div>
-
-          <div className="px-4 sm:px-6 pb-3 space-y-2" data-testid="accordion-activate-sections">
-            {sections.map((section) => {
-              const isExpanded = expandedSection === section.key;
-              return (
-                <div
-                  key={section.key}
-                  className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 overflow-hidden transition-colors duration-200 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-800/70"
-                  onClick={() => toggleSection(section.key)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSection(section.key); } }}
-                  data-testid={`section-activate-${section.key}`}
-                >
-                  <div
-                    className="w-full flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 text-left"
-                    data-testid={`button-toggle-${section.key}`}
-                  >
-                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-brand-primary/10 dark:bg-brand-primary/15 border border-brand-primary/15 dark:border-brand-primary/25 flex items-center justify-center text-brand-link shrink-0">
-                      {section.icon}
-                    </div>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 flex-1">{section.title}</span>
-                    <ChevronDown
-                      className={`h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
-                    />
-                  </div>
-                  {isExpanded && (
-                    <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-0 ml-8 sm:ml-10" onClick={(e) => e.stopPropagation()} data-testid={`content-${section.key}`}>
-                      {section.content}
-                    </div>
-                  )}
+        <div className="flex max-h-[90vh] flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="px-5 pb-2 pt-6 sm:px-7 sm:pt-8">
+              <DialogHeader className="space-y-0 text-left">
+                <div className="mb-3 flex items-center gap-2.5">
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-brand-link">
+                    Your network
+                  </span>
+                  <div className="h-px w-10 bg-brand-link/30" />
                 </div>
-              );
-            })}
-          </div>
+                <DialogTitle
+                  className="text-xl font-bold leading-[1.15] tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
+                  style={{ fontFamily: "var(--font-display)" }}
+                  data-testid="text-activate-title"
+                >
+                  Broadcast your scores <span className="text-brand-link">across Nostr</span>.
+                </DialogTitle>
+                <DialogDescription
+                  className="mt-2.5 text-sm leading-relaxed text-slate-600 dark:text-slate-300 sm:text-[15px]"
+                  data-testid="text-activate-subtitle"
+                >
+                  Selecting Brainstorm as your service provider signs one nostr note that tells compatible clients where
+                  to find the personalized scores we publish for you.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
 
-          <div className="px-4 sm:px-6 pb-2">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-1">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Supported by</span>
-              <div className="flex items-center gap-2">
-                <a href="https://amethyst.social/#" target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-primary/[0.06] dark:bg-brand-primary/15 border border-brand-primary/15 dark:border-brand-primary/25 text-brand-link text-xs font-semibold hover:bg-brand-primary/[0.1] dark:hover:bg-brand-primary/25 transition-colors" data-testid="link-modal-amethyst">
-                  Amethyst
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </a>
-                <a href="https://www.nostria.app/" target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/25 text-orange-700 dark:text-orange-300 text-xs font-semibold hover:bg-orange-100 dark:hover:bg-orange-500/20 transition-colors" data-testid="link-modal-nostria">
-                  Nostria
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </a>
+            <div className="space-y-2 px-4 pb-3 sm:px-6" data-testid="accordion-activate-sections">
+              {sections.map((section) => {
+                const isExpanded = expandedSection === section.key;
+                return (
+                  <div
+                    key={section.key}
+                    className="cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-50/70 transition-colors duration-200 hover:bg-slate-100/70 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:bg-slate-800/70"
+                    onClick={() => toggleSection(section.key)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleSection(section.key);
+                      }
+                    }}
+                    data-testid={`section-activate-${section.key}`}
+                  >
+                    <div
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left sm:gap-3 sm:px-4 sm:py-3"
+                      data-testid={`button-toggle-${section.key}`}
+                    >
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-brand-primary/15 bg-brand-primary/10 text-brand-link dark:border-brand-primary/25 dark:bg-brand-primary/15 sm:h-7 sm:w-7">
+                        {section.icon}
+                      </div>
+                      <span className="flex-1 text-xs font-semibold text-slate-800 dark:text-slate-200 sm:text-sm">
+                        {section.title}
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 dark:text-slate-500 ${isExpanded ? "rotate-180" : ""}`}
+                      />
+                    </div>
+                    {isExpanded && (
+                      <div
+                        className="ml-8 px-3 pb-3 pt-0 sm:ml-10 sm:px-4 sm:pb-4"
+                        onClick={(e) => e.stopPropagation()}
+                        data-testid={`content-${section.key}`}
+                      >
+                        {section.content}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="px-4 pb-2 sm:px-6">
+              <div className="flex flex-wrap items-center gap-2 px-1 sm:gap-3">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                  Supported by
+                </span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href="https://amethyst.social/#"
+                    target="_blank"
+                    rel="noopener"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-brand-primary/15 bg-brand-primary/[0.06] px-2.5 py-1 text-xs font-semibold text-brand-link transition-colors hover:bg-brand-primary/[0.1] dark:border-brand-primary/25 dark:bg-brand-primary/15 dark:hover:bg-brand-primary/25"
+                    data-testid="link-modal-amethyst"
+                  >
+                    Amethyst
+                    <ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                  <a
+                    href="https://www.nostria.app/"
+                    target="_blank"
+                    rel="noopener"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-orange-100 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 transition-colors hover:bg-orange-100 dark:border-orange-500/25 dark:bg-orange-500/10 dark:text-orange-300 dark:hover:bg-orange-500/20"
+                    data-testid="link-modal-nostria"
+                  >
+                    Nostria
+                    <ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                </div>
               </div>
             </div>
           </div>
-          </div>
 
-          <div className="px-4 sm:px-6 pb-4 sm:pb-6 pt-2 shrink-0">
-            <div className="border-t border-slate-200/60 dark:border-slate-800 pt-3 sm:pt-4">
+          <div className="shrink-0 px-4 pb-4 pt-2 sm:px-6 sm:pb-6">
+            <div className="border-t border-slate-200/60 pt-3 dark:border-slate-800 sm:pt-4">
               {activateState === "success" ? (
                 <div
-                  className="flex items-center justify-center gap-2 sm:gap-3 h-11 sm:h-12 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-300"
+                  className="flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300 sm:h-12 sm:gap-3"
                   data-testid="status-activate-success"
                 >
-                  <div className="h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-emerald-500 flex items-center justify-center">
-                    <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-white" />
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 sm:h-6 sm:w-6">
+                    <Check className="h-3 w-3 text-white sm:h-3.5 sm:w-3.5" />
                   </div>
-                  <span className="text-xs sm:text-sm font-bold">You're all set! Brainstorm is now your service provider.</span>
+                  <span className="text-xs font-bold sm:text-sm">
+                    You're all set! Brainstorm is now your service provider.
+                  </span>
                 </div>
               ) : activateState === "cancelled" ? (
                 <div className="space-y-3">
                   <div
-                    className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 text-amber-700 dark:text-amber-300"
+                    className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300 sm:px-4 sm:py-2.5"
                     data-testid="status-activate-cancelled"
                   >
                     <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span className="text-xs font-medium">Signing was cancelled. You can try again whenever you're ready.</span>
+                    <span className="text-xs font-medium">
+                      Signing was cancelled. You can try again whenever you're ready.
+                    </span>
                   </div>
                   <button
                     type="button"
                     onClick={handleActivate}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-xs font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-all duration-200 hover:bg-brand-primary-hover sm:h-12 sm:text-sm"
                     data-testid="button-activate-retry"
                   >
                     Try Again
@@ -221,16 +252,18 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
               ) : activateState === "error" ? (
                 <div className="space-y-3">
                   <div
-                    className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300"
+                    className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300 sm:px-4 sm:py-2.5"
                     data-testid="status-activate-error"
                   >
                     <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span className="text-xs font-medium">{errorMessage || "Something went wrong. Please try again."}</span>
+                    <span className="text-xs font-medium">
+                      {errorMessage || "Something went wrong. Please try again."}
+                    </span>
                   </div>
                   <button
                     type="button"
                     onClick={handleActivate}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-xs font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-all duration-200 hover:bg-brand-primary-hover sm:h-12 sm:text-sm"
                     data-testid="button-activate-retry"
                   >
                     Try Again
@@ -238,47 +271,53 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                 </div>
               ) : (
                 <>
-                  {activateState === "idle" && (
-                    hasOtherProvider ? (
-                      <div className="flex items-start gap-2 mb-3 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25" data-testid="text-activate-replace-warning">
-                        <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-px" />
+                  {activateState === "idle" &&
+                    (hasOtherProvider ? (
+                      <div
+                        className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-500/25 dark:bg-amber-500/10"
+                        data-testid="text-activate-replace-warning"
+                      >
+                        <AlertCircle className="mt-px h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                         <p className="text-[12px] leading-relaxed text-amber-800 dark:text-amber-200">
-                          Another provider is already publishing your scores. Continuing will <strong className="font-bold">replace it</strong> with Brainstorm for your trusted assertions going forward.
+                          Another provider is already publishing your scores. Continuing will{" "}
+                          <strong className="font-bold">replace it</strong> with Brainstorm for your trusted assertions
+                          going forward.
                         </p>
                       </div>
                     ) : (
-                      <div className="flex items-start gap-2 mb-3 px-1" data-testid="text-activate-disclaimer">
-                        <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
+                      <div className="mb-3 flex items-start gap-2 px-1" data-testid="text-activate-disclaimer">
+                        <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0 text-amber-500" />
                         <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                          If another provider is already publishing your scores, proceeding will override those calculations. By continuing, you confirm Brainstorm as your service provider for trusted assertions going forward.
+                          If another provider is already publishing your scores, proceeding will override those
+                          calculations. By continuing, you confirm Brainstorm as your service provider for trusted
+                          assertions going forward.
                         </p>
                       </div>
-                    )
-                  )}
+                    ))}
                   <button
                     type="button"
                     onClick={handleActivate}
                     disabled={activateState === "signing" || activateState === "publishing"}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-xs font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-all duration-200 hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-70 sm:h-12 sm:text-sm"
                     data-testid="button-activate-confirm"
                   >
-                  {activateState === "signing" ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Waiting for signature...
-                    </>
-                  ) : activateState === "publishing" ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Publishing to relays...
-                    </>
-                  ) : (
-                    <>
-                      <BrainLogo mono size={16} className="text-white" />
-                      Select Brainstorm as my Service Provider
-                    </>
-                  )}
-                </button>
+                    {activateState === "signing" ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Waiting for signature...
+                      </>
+                    ) : activateState === "publishing" ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Publishing to relays...
+                      </>
+                    ) : (
+                      <>
+                        <BrainLogo mono size={16} className="text-white" />
+                        Select Brainstorm as my Service Provider
+                      </>
+                    )}
+                  </button>
                 </>
               )}
             </div>

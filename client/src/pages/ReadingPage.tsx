@@ -52,8 +52,8 @@ export default function ReadingPage() {
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
         sort === val
-          ? "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm"
-          : "text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white",
+          ? "bg-white text-slate-800 shadow-sm dark:bg-slate-900 dark:text-slate-100"
+          : "text-slate-500 hover:text-brand-deep dark:text-slate-400 dark:hover:text-white",
       )}
       data-testid={`reading-tab-${val}`}
     >
@@ -62,7 +62,7 @@ export default function ReadingPage() {
   );
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col">
+    <div className="flex min-h-screen flex-col bg-white dark:bg-slate-950">
       {user && <AppHeader user={user} onLogout={handleLogout} />}
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
         <button
@@ -78,7 +78,10 @@ export default function ReadingPage() {
           <div className="rounded-lg border border-slate-100 bg-white p-2 text-brand-deep shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800">
             <BookOpen className="h-4 w-4" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+          <h1
+            className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
             Reading from your network
           </h1>
         </div>
@@ -87,19 +90,29 @@ export default function ReadingPage() {
         </p>
 
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="inline-flex items-center self-start rounded-full border border-slate-200 bg-slate-100/70 p-0.5 dark:border-slate-800 dark:bg-slate-800/50" role="group" aria-label="Sort">
+          <div
+            className="inline-flex items-center self-start rounded-full border border-slate-200 bg-slate-100/70 p-0.5 dark:border-slate-800 dark:bg-slate-800/50"
+            role="group"
+            aria-label="Sort"
+          >
             {tab("trending", "Trending", Flame)}
             {tab("new", "New", Clock)}
           </div>
           {articles.length > 0 && (
-            <span className="text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400" data-testid="reading-count">
+            <span
+              className="text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400"
+              data-testid="reading-count"
+            >
               {articles.length} {articles.length === 1 ? "article" : "articles"}
             </span>
           )}
         </div>
 
         {!observer ? null : isLoading && articles.length === 0 ? (
-          <div className="flex items-center gap-2 py-8 text-sm text-slate-500 dark:text-slate-400" data-testid="reading-loading">
+          <div
+            className="flex items-center gap-2 py-8 text-sm text-slate-500 dark:text-slate-400"
+            data-testid="reading-loading"
+          >
             <Loader2 className="h-4 w-4 animate-spin" /> Finding what your network is reading…
           </div>
         ) : articles.length === 0 ? (
@@ -109,9 +122,16 @@ export default function ReadingPage() {
               : "Follow a few more accounts and we'll surface what their circles are reading."}
           </div>
         ) : (
-          <div className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="reading-list">
+          <div
+            className="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            data-testid="reading-list"
+          >
             {articles.map((article) => (
-              <NetworkArticleCard key={article.event.id} article={article} profile={profiles.get(article.event.pubkey)} />
+              <NetworkArticleCard
+                key={article.event.id}
+                article={article}
+                profile={profiles.get(article.event.pubkey)}
+              />
             ))}
           </div>
         )}

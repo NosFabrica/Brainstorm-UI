@@ -1,4 +1,9 @@
-import { EMPTY_PERSONALIZATION, EMPTY_PROFILE_PREFS, type PersonalizationPrefs, type ProfilePrefs } from "@/config/personalization";
+import {
+  EMPTY_PERSONALIZATION,
+  EMPTY_PROFILE_PREFS,
+  type PersonalizationPrefs,
+  type ProfilePrefs,
+} from "@/config/personalization";
 import { accountKey } from "@/lib/accountStorage";
 
 /**

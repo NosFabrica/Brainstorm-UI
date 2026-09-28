@@ -13,7 +13,13 @@ import type { NostrEvent } from "nostr-tools";
 const ME = "e".repeat(64);
 const HOST = "f".repeat(64);
 let account: { pubkey: string } | undefined = { pubkey: ME };
-const signAsMock = vi.fn(async (_acct: unknown, template: Record<string, unknown>) => ({ ...template, id: "signed-id", pubkey: ME, sig: "sig", created_at: 1 }));
+const signAsMock = vi.fn(async (_acct: unknown, template: Record<string, unknown>) => ({
+  ...template,
+  id: "signed-id",
+  pubkey: ME,
+  sig: "sig",
+  created_at: 1,
+}));
 // The relay HINT this publish stamps on its tags comes from a NIP-65 lookup.
 // These cases are about the event's shape, so the lookup answers "nothing"
 // rather than opening a real socket.
@@ -48,7 +54,11 @@ const meetup = {
   created_at: 1_760_000_000,
   content: "",
   sig: "",
-  tags: [["d", "north-chicago-sep"], ["title", "North Chicago Bitcoin Meetup"], ["start", "1760400000"]],
+  tags: [
+    ["d", "north-chicago-sep"],
+    ["title", "North Chicago Bitcoin Meetup"],
+    ["start", "1760400000"],
+  ],
 };
 
 beforeEach(() => {
@@ -91,7 +101,13 @@ describe("withdrawRsvp", () => {
     expect(res.success).toBe(true);
     const template = signAsMock.mock.calls[0][1] as { kind: number; tags: string[][] };
     expect(template.kind).toBe(5);
-    expect(template.tags).toEqual(expect.arrayContaining([["e", "rsvp-id"], ["a", `31925:${ME}:abc123`], ["k", "31925"]]));
+    expect(template.tags).toEqual(
+      expect.arrayContaining([
+        ["e", "rsvp-id"],
+        ["a", `31925:${ME}:abc123`],
+        ["k", "31925"],
+      ]),
+    );
   });
 });
 
@@ -99,9 +115,26 @@ describe("fetchMyRsvp", () => {
   it("asks the search relay for my RSVP to this event and returns the newest", async () => {
     const p = fetchMyRsvp(meetup, ME);
     await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(1));
-    expect(searchReqMock.mock.calls[0][0]).toMatchObject({ kinds: [31925], authors: [ME], "#a": [`31923:${HOST}:north-chicago-sep`], search: "include:spam" });
+    expect(searchReqMock.mock.calls[0][0]).toMatchObject({
+      kinds: [31925],
+      authors: [ME],
+      "#a": [`31923:${HOST}:north-chicago-sep`],
+      search: "include:spam",
+    });
     const rsvp = (id: string, status: string, created_at: number, d: string): NostrEvent =>
-      ({ id, kind: 31925, pubkey: ME, created_at, content: "", sig: "", tags: [["a", `31923:${HOST}:north-chicago-sep`], ["d", d], ["status", status]] }) as NostrEvent;
+      ({
+        id,
+        kind: 31925,
+        pubkey: ME,
+        created_at,
+        content: "",
+        sig: "",
+        tags: [
+          ["a", `31923:${HOST}:north-chicago-sep`],
+          ["d", d],
+          ["status", status],
+        ],
+      }) as NostrEvent;
     searchSubject!.next({ type: "EVENT", event: rsvp("old", "tentative", 100, "d1") });
     searchSubject!.next({ type: "EVENT", event: rsvp("new", "accepted", 200, "d2") });
     searchSubject!.next({ type: "EOSE" });

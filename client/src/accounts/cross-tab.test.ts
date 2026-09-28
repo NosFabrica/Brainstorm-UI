@@ -4,13 +4,7 @@ import { AccountManager, BaseAccount } from "applesauce-accounts";
 import { PrivateKeySigner } from "applesauce-signers";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 
-import {
-  createMirror,
-  withTabLock,
-  type CrossTabMessage,
-  type MirroredChange,
-  type TabChannel,
-} from "./cross-tab";
+import { createMirror, withTabLock, type CrossTabMessage, type MirroredChange, type TabChannel } from "./cross-tab";
 import { LocalAccount } from "./local-account";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";

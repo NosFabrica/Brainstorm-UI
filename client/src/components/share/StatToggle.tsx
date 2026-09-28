@@ -44,7 +44,9 @@ export function Stat({
       data-testid={testId}
     >
       <span className={`font-semibold tabular-nums ${numClass}`}>{effective.toLocaleString()}</span>
-      <span className={`border-b border-dotted border-transparent group-hover/stat:border-current/40 ${labelClass}`}>{label}</span>
+      <span className={`group-hover/stat:border-current/40 border-b border-dotted border-transparent ${labelClass}`}>
+        {label}
+      </span>
     </Link>
   );
 }
@@ -55,19 +57,17 @@ export function Stat({
  * at once. Deliberately understated (reads like a footnote, not a control) so it
  * doesn't compete with the stats themselves.
  */
-export function StatLensToggle({
-  value,
-  onChange,
-}: {
-  value: StatLens;
-  onChange: (v: StatLens) => void;
-}) {
+export function StatLensToggle({ value, onChange }: { value: StatLens; onChange: (v: StatLens) => void }) {
   return (
     <button
       type="button"
       onClick={() => onChange(value === "verified" ? "all" : "verified")}
-      className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
-      title={value === "verified" ? "Show all counts, including bots the network filters out" : "Show only network-verified counts"}
+      className="inline-flex items-center gap-1 text-[11px] text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+      title={
+        value === "verified"
+          ? "Show all counts, including bots the network filters out"
+          : "Show only network-verified counts"
+      }
       data-testid="stat-lens-toggle"
       data-mode={value}
     >

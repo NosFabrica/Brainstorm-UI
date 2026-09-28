@@ -43,16 +43,11 @@ export default function TagIndexPage() {
    */
   const tags = useMemo(() => {
     const all = data ?? [];
-    const matched = q
-      ? all.filter((t) => t.name.toLowerCase().includes(q))
-      : all.filter((t) => !t.unverified);
-    const sorted =
-      sort === "az" ? [...matched].sort((a, b) => a.name.localeCompare(b.name)) : matched;
+    const matched = q ? all.filter((t) => t.name.toLowerCase().includes(q)) : all.filter((t) => !t.unverified);
+    const sorted = sort === "az" ? [...matched].sort((a, b) => a.name.localeCompare(b.name)) : matched;
     // Vouched-for creators lead either way; the stable sort keeps the chosen
     // order beneath that.
-    return q
-      ? [...sorted].sort((a, b) => Number(a.unverified) - Number(b.unverified))
-      : sorted;
+    return q ? [...sorted].sort((a, b) => Number(a.unverified) - Number(b.unverified)) : sorted;
   }, [data, sort, q]);
 
   const hidden = useMemo(() => (data ?? []).filter((t) => t.unverified).length, [data]);
@@ -63,9 +58,7 @@ export default function TagIndexPage() {
       onClick={() => setSort(key)}
       aria-pressed={sort === key}
       className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-        sort === key
-          ? "bg-brand-primary text-white"
-          : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
+        sort === key ? "bg-brand-primary text-white" : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
       }`}
       data-testid={`tag-index-sort-${key}`}
     >
@@ -74,11 +67,7 @@ export default function TagIndexPage() {
   );
 
   return (
-    <TagsPageShell
-      view="browse"
-      title="Tags"
-      subtitle="What the network says people are known for."
-    >
+    <TagsPageShell view="browse" title="Tags" subtitle="What the network says people are known for.">
       <div data-testid="tag-index-page">
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <div className="relative min-w-0 flex-1">
@@ -97,7 +86,7 @@ export default function TagIndexPage() {
           </div>
         </div>
 
-        <div className="mt-4 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        <div className="mb-2 mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
           <span className="flex items-center gap-1.5">
             <TagIcon className="h-3.5 w-3.5" />
             {isLoading ? "Loading" : `${tags.length} ${tags.length === 1 ? "tag" : "tags"}`}
@@ -111,10 +100,10 @@ export default function TagIndexPage() {
           )}
         </div>
 
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
+        <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800/60 dark:border-slate-800 dark:bg-slate-900">
           {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse" data-testid="tag-index-skeleton">
+              <div key={i} className="flex animate-pulse items-center gap-3 px-4 py-3" data-testid="tag-index-skeleton">
                 <div className="h-4 w-28 rounded bg-slate-100 dark:bg-slate-800" />
                 <div className="ml-auto h-3 w-16 rounded bg-slate-100 dark:bg-slate-800" />
               </div>
@@ -158,7 +147,11 @@ export default function TagIndexPage() {
 
 function TagIndexRow({ tag }: { tag: TagSummary }) {
   let authorNpub = "";
-  try { authorNpub = npubFromPubkey(tag.authorPubkey); } catch { /* unlinkable */ }
+  try {
+    authorNpub = npubFromPubkey(tag.authorPubkey);
+  } catch {
+    /* unlinkable */
+  }
   if (!authorNpub) return null;
 
   return (

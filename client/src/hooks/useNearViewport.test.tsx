@@ -11,7 +11,11 @@ let io: ReturnType<typeof stubControllableIntersectionObserver>;
 function Probe({ id, margin = "200px" }: { id: string; margin?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const near = useNearViewport(ref, margin);
-  return <span ref={ref} data-testid={id}>{near ? "near" : "far"}</span>;
+  return (
+    <span ref={ref} data-testid={id}>
+      {near ? "near" : "far"}
+    </span>
+  );
 }
 
 beforeEach(() => {

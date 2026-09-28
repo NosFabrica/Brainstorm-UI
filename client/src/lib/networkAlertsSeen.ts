@@ -63,7 +63,10 @@ export function markAlertsSeen(observer: string, flaggedPubkeys: string[]): void
  * last visit. On the first-ever visit this returns [] and silently records the
  * baseline, so the module never greets a new user with "everything is new".
  */
-export function computeNewAlerts(observer: string, currentFlagged: string[]): {
+export function computeNewAlerts(
+  observer: string,
+  currentFlagged: string[],
+): {
   isFirstVisit: boolean;
   newPubkeys: string[];
 } {

@@ -4,13 +4,7 @@ import { Plus, RotateCcw, Server, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { useToast } from "@/hooks/use-toast";
-import {
-  DEFAULT_TAG_RELAYS,
-  isRelayUrl,
-  isTagRelayOverrideActive,
-  setTagRelays,
-  tagRelays,
-} from "@/config/tagging";
+import { DEFAULT_TAG_RELAYS, isRelayUrl, isTagRelayOverrideActive, setTagRelays, tagRelays } from "@/config/tagging";
 import { resetTagCaches } from "@/services/tags";
 
 /**

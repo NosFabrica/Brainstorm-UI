@@ -36,7 +36,11 @@ export function useVerifiedNoFollows(pubkey: string | null | undefined): NoFollo
     staleTime: 60_000,
     retry: 1,
     queryFn: async () => {
-      try { await fetchOutboxRelayList(pubkey!); } catch { /* best-effort warm */ }
+      try {
+        await fetchOutboxRelayList(pubkey!);
+      } catch {
+        /* best-effort warm */
+      }
       const ev = await fetchContactList(pubkey!);
       if (ev) {
         recordFollowList(pubkey!, ev);

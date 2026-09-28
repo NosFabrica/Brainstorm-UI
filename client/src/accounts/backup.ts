@@ -65,9 +65,7 @@ export function canBackUp(account?: BrainstormAccount): boolean {
  * memory, or openable from the Unlock cache. What a forgotten password can be
  * *replaced* depends on: everywhere else, forgetting it is terminal.
  */
-export async function keyReachableWithoutPassword(
-  account?: BrainstormAccount,
-): Promise<boolean> {
+export async function keyReachableWithoutPassword(account?: BrainstormAccount): Promise<boolean> {
   const holder = targetAccount(account);
   if (!(holder instanceof LocalAccount)) return false;
   return !holder.locked || holder.unlockSilently();
@@ -124,9 +122,7 @@ export function backupNeed(account?: BrainstormAccount): BackupNeed | null {
  * `changed$` the minting of a Backup, so a card rendered from this puts itself
  * away the moment either happens — neither of which touches the other's stream.
  */
-export function backupNeedStream(
-  manager: AccountManager<AccountMetadata>,
-): Observable<BackupNeed | null> {
+export function backupNeedStream(manager: AccountManager<AccountMetadata>): Observable<BackupNeed | null> {
   return manager.active$.pipe(
     switchMap((account) => {
       if (!account) return of(null);

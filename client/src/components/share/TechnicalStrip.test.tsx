@@ -10,7 +10,14 @@ import { setTechnicalView } from "@/lib/technicalView";
 import { TechnicalStrip } from "./TechnicalStrip";
 
 const writeText = vi.fn(() => Promise.resolve());
-const ev = { id: "4f2a".padEnd(64, "b"), kind: 30023, pubkey: "a".repeat(64), tags: [["d", "why"]], content: "", created_at: 1_758_500_000 };
+const ev = {
+  id: "4f2a".padEnd(64, "b"),
+  kind: 30023,
+  pubkey: "a".repeat(64),
+  tags: [["d", "why"]],
+  content: "",
+  created_at: 1_758_500_000,
+};
 
 beforeEach(() => {
   localStorage.clear();

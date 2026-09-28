@@ -71,7 +71,11 @@ export default function HopsPathPage() {
   // target's page to the next, and a pick that outlived its target opened
   // jack's page on "flagged · 1 of 1" because Jon's had been tapped.
   const connection = `${fromPubkey}/${toPubkey}`;
-  const [picked, setPicked] = useState<{ of: string; group: PathGroupKey | null; pos: number }>({ of: connection, group: null, pos: 0 });
+  const [picked, setPicked] = useState<{ of: string; group: PathGroupKey | null; pos: number }>({
+    of: connection,
+    group: null,
+    pos: 0,
+  });
   const pick = picked.of === connection ? picked : { group: null, pos: 0 };
   // Sitewide score-POV (personalized vs global) + the shared explainer modal.
   const { pov: scorePov } = useScorePov();
@@ -93,9 +97,19 @@ export default function HopsPathPage() {
   const shown: string[] = list.length ? list[pick.pos % list.length] : (set.paths[0] ?? []);
   const checked = groups.verified.length + groups.unverified.length + groups.flagged.length;
   // "…through 1 person, 130 different ways." — the count rides on the sentence.
-  const ways = d && d.pathCount > 1
-    ? <>, <span className="font-semibold">{d.pathCount.toLocaleString()}{d.pathCountCapped ? "+" : ""}</span> different ways.</>
-    : ".";
+  const ways =
+    d && d.pathCount > 1 ? (
+      <>
+        ,{" "}
+        <span className="font-semibold">
+          {d.pathCount.toLocaleString()}
+          {d.pathCountCapped ? "+" : ""}
+        </span>{" "}
+        different ways.
+      </>
+    ) : (
+      "."
+    );
 
   const subject = useLiveProfile(toPubkey, relayHints).profile;
 
@@ -117,10 +131,13 @@ export default function HopsPathPage() {
         shown.map(async (pk) => {
           const [mine, house] = await Promise.all([
             signedIn
-              ? apiClient.getUserOverview(pk).then((r) => {
-                  const inf = r?.data?.influence;
-                  return typeof inf === "number" ? inf : null;
-                }).catch(() => null)
+              ? apiClient
+                  .getUserOverview(pk)
+                  .then((r) => {
+                    const inf = r?.data?.influence;
+                    return typeof inf === "number" ? inf : null;
+                  })
+                  .catch(() => null)
               : Promise.resolve(null),
             apiClient.getHouseInfluence(pk).catch(() => null),
           ]);
@@ -163,8 +180,7 @@ export default function HopsPathPage() {
   if (originLoading) return null;
   if (!eligible) return <Redirect to={`/p/${rawId}`} replace />;
 
-  const subjectName =
-    subject?.display_name || subject?.name || shortNpub(npubFromPubkey(toPubkey));
+  const subjectName = subject?.display_name || subject?.name || shortNpub(npubFromPubkey(toPubkey));
   const profs = profilesQuery.data;
   const myFollows = followingQuery.data;
 
@@ -194,7 +210,7 @@ export default function HopsPathPage() {
   const backLink = `/p/${rawId}`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       {/* The public pages' header — B mark, the shared search box, account — so
           search stays one tap away below a profile too, with Back pinned in it. */}
       <PublicPageHeader
@@ -205,19 +221,27 @@ export default function HopsPathPage() {
         back={{ label: "Back", onClick: () => goBack(backLink) }}
       />
 
-      <main className="mx-auto max-w-xl px-4 sm:px-6 py-8">
-        <div className="flex items-center gap-2.5 mb-3">
-          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">Connection</span>
+      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">
+        <div className="mb-3 flex items-center gap-2.5">
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-accent">
+            Connection
+          </span>
           <div className="h-px w-10 bg-brand-accent/40" />
         </div>
 
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
+        <h1
+          className="text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
           {originPov === "personalized" ? "Your connection to " : "Brainstorm's connection to "}
           <span className="text-brand-link">{subjectName}</span>
         </h1>
 
         {set.isPending ? (
-          <div className="mt-8 flex items-center gap-2 text-slate-400 dark:text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> {originPov === "personalized" ? "Finding your connection…" : "Finding the connection…"}</div>
+          <div className="mt-8 flex items-center gap-2 text-slate-400 dark:text-slate-500">
+            <Loader2 className="h-4 w-4 animate-spin" />{" "}
+            {originPov === "personalized" ? "Finding your connection…" : "Finding the connection…"}
+          </div>
         ) : !d || !d.reachable || d.hops === 0 ? (
           <p className="mt-4 text-slate-600 dark:text-slate-300" data-testid="hops-unreachable">
             {d && d.hops === 0
@@ -228,14 +252,29 @@ export default function HopsPathPage() {
           </p>
         ) : (
           <>
-            <p className="mt-3 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="hops-degree">
+            <p
+              className="mt-3 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300"
+              data-testid="hops-degree"
+            >
               <span className="font-semibold text-slate-900 dark:text-slate-100">{ordinal(d.hops)} degree</span> —{" "}
               {d.hops === 1 ? (
-                originPov === "personalized" ? <>you follow {subjectName} directly.</> : <>Brainstorm follows {subjectName} directly.</>
+                originPov === "personalized" ? (
+                  <>you follow {subjectName} directly.</>
+                ) : (
+                  <>Brainstorm follows {subjectName} directly.</>
+                )
               ) : originPov === "personalized" ? (
-                <>you're connected to {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}{ways}</>
+                <>
+                  you're connected to {subjectName} through <span className="font-semibold">{d.hops - 1}</span>{" "}
+                  {d.hops - 1 === 1 ? "person" : "people"}
+                  {ways}
+                </>
               ) : (
-                <>Brainstorm reaches {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}{ways}</>
+                <>
+                  Brainstorm reaches {subjectName} through <span className="font-semibold">{d.hops - 1}</span>{" "}
+                  {d.hops - 1 === 1 ? "person" : "people"}
+                  {ways}
+                </>
               )}
             </p>
 
@@ -257,9 +296,9 @@ export default function HopsPathPage() {
             {/* The route — one connected timeline. A rail threads through the avatars
                 so it reads as a single path (you → them), not a stack of cards. Uniform
                 across mobile / desktop / PWA — no breakpoint reflow. */}
-            <div className="mt-4 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 sm:p-4 shadow-sm">
+            <div className="mt-4 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-800/60 dark:bg-slate-900 sm:p-4">
               {list.length > 1 && (
-                <div className="flex justify-end mb-1 -mt-1">
+                <div className="-mt-1 mb-1 flex justify-end">
                   <PathStepper
                     position={(pick.pos % list.length) + 1}
                     total={list.length}
@@ -267,144 +306,188 @@ export default function HopsPathPage() {
                   />
                 </div>
               )}
-            <ol data-testid="hops-path">
-              {shown.map((pk, i) => {
-                const p = profs?.get(pk);
-                const npub = npubFromPubkey(pk);
-                const isOrigin = i === 0;
-                const isMe = pk === myPubkey;
-                const isSubject = i === shown.length - 1;
-                // The target's kind-0 usually lives on its own relays, which the
-                // bulk profile map (fixed relay set) misses — so for the subject
-                // reuse the relay-hint-resolved profile the page title already
-                // fetched. Keeps name + avatar consistent with the header/SharePage.
-                const subj = isSubject ? subject : undefined;
-                const picture = subj?.picture || p?.picture;
-                // Node 0 under House is named by OUR copy — the fetched kind-0
-                // says "nosfabrica", which would contradict the rest of the UI.
-                const name = isOrigin && originPov === "global"
-                  ? "Brainstorm"
-                  : subj?.display_name || subj?.name || p?.display_name || p?.name || shortNpub(npub);
-                const roleLabel = isOrigin
-                  ? (originPov === "personalized" ? "You" : "Brainstorm")
-                  : isMe ? "You" : isSubject ? "Them" : "Connector";
-                const score = scores?.get(pk);
-                // The network's standing of a connector — the same rule that
-                // sorted the paths. The origin and the target are never marked.
-                const risk = !isOrigin && !isSubject ? nodeRisk(pk, signals) : "verified";
-                const tier = typeof score === "number" ? shareTierFor(score, granularity, risk === "flagged") : null;
-                const isWeakLink = i === weakLinkIndex; // decision-maker (authentic)
-                const isEntryBad = i === entryBadIndex; // the risky connector to report (personalized only)
-                const tint = isWeakLink
-                  ? "bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/25"
-                  : isEntryBad
-                    ? "bg-rose-50 dark:bg-rose-500/10 ring-1 ring-rose-200 dark:ring-rose-500/25"
-                    : "";
-                return (
-                  <li key={`${pk}-${i}`} className="flex gap-3" data-testid={`hops-node-${i}`}>
-                    {/* Rail column: avatar sits on the thread; the line fills the rest of
+              <ol data-testid="hops-path">
+                {shown.map((pk, i) => {
+                  const p = profs?.get(pk);
+                  const npub = npubFromPubkey(pk);
+                  const isOrigin = i === 0;
+                  const isMe = pk === myPubkey;
+                  const isSubject = i === shown.length - 1;
+                  // The target's kind-0 usually lives on its own relays, which the
+                  // bulk profile map (fixed relay set) misses — so for the subject
+                  // reuse the relay-hint-resolved profile the page title already
+                  // fetched. Keeps name + avatar consistent with the header/SharePage.
+                  const subj = isSubject ? subject : undefined;
+                  const picture = subj?.picture || p?.picture;
+                  // Node 0 under House is named by OUR copy — the fetched kind-0
+                  // says "nosfabrica", which would contradict the rest of the UI.
+                  const name =
+                    isOrigin && originPov === "global"
+                      ? "Brainstorm"
+                      : subj?.display_name || subj?.name || p?.display_name || p?.name || shortNpub(npub);
+                  const roleLabel = isOrigin
+                    ? originPov === "personalized"
+                      ? "You"
+                      : "Brainstorm"
+                    : isMe
+                      ? "You"
+                      : isSubject
+                        ? "Them"
+                        : "Connector";
+                  const score = scores?.get(pk);
+                  // The network's standing of a connector — the same rule that
+                  // sorted the paths. The origin and the target are never marked.
+                  const risk = !isOrigin && !isSubject ? nodeRisk(pk, signals) : "verified";
+                  const tier = typeof score === "number" ? shareTierFor(score, granularity, risk === "flagged") : null;
+                  const isWeakLink = i === weakLinkIndex; // decision-maker (authentic)
+                  const isEntryBad = i === entryBadIndex; // the risky connector to report (personalized only)
+                  const tint = isWeakLink
+                    ? "bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/25"
+                    : isEntryBad
+                      ? "bg-rose-50 dark:bg-rose-500/10 ring-1 ring-rose-200 dark:ring-rose-500/25"
+                      : "";
+                  return (
+                    <li key={`${pk}-${i}`} className="flex gap-3" data-testid={`hops-node-${i}`}>
+                      {/* Rail column: avatar sits on the thread; the line fills the rest of
                         the row height, connecting down to the next avatar. */}
-                    <div className="flex flex-col items-center shrink-0">
-                      <Link href={`/p/${npub}`} className="group">
-                        <Avatar className={`h-10 w-10 ${tierRing(score) ?? "ring-1 ring-slate-200 dark:ring-slate-800"}`}>
-                          {picture ? <AvatarImage src={picture} alt="" className="object-cover" /> : null}
-                          <AvatarFallback className="bg-transparent p-0"><DefaultAvatarImg flagged={risk === "flagged"} /></AvatarFallback>
-                        </Avatar>
-                      </Link>
-                      {!isSubject && <div className="mt-1.5 w-px flex-1 bg-slate-200 dark:bg-slate-700" aria-hidden />}
-                    </div>
+                      <div className="flex shrink-0 flex-col items-center">
+                        <Link href={`/p/${npub}`} className="group">
+                          <Avatar
+                            className={`h-10 w-10 ${tierRing(score) ?? "ring-1 ring-slate-200 dark:ring-slate-800"}`}
+                          >
+                            {picture ? <AvatarImage src={picture} alt="" className="object-cover" /> : null}
+                            <AvatarFallback className="bg-transparent p-0">
+                              <DefaultAvatarImg flagged={risk === "flagged"} />
+                            </AvatarFallback>
+                          </Avatar>
+                        </Link>
+                        {!isSubject && (
+                          <div className="mt-1.5 w-px flex-1 bg-slate-200 dark:bg-slate-700" aria-hidden />
+                        )}
+                      </div>
 
-                    {/* Content, tinted for weak-link / flagged; pb creates the rail gap. */}
-                    <div className={`min-w-0 flex-1 ${isSubject ? "" : "pb-4"}`}>
-                      <div className={`rounded-xl px-2.5 py-1.5 transition-colors ${tint}`}>
-                        <div className="flex items-start justify-between gap-2">
-                          <Link href={`/p/${npub}`} className="group min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-brand-deep transition-colors">{name}</span>
-                              {isWeakLink && (
-                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/20 border border-amber-300 dark:border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" data-testid={`hops-weaklink-${i}`} title="The trusted account whose follow let a low-trust account into your network">
-                                  Weak link
+                      {/* Content, tinted for weak-link / flagged; pb creates the rail gap. */}
+                      <div className={`min-w-0 flex-1 ${isSubject ? "" : "pb-4"}`}>
+                        <div className={`rounded-xl px-2.5 py-1.5 transition-colors ${tint}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <Link href={`/p/${npub}`} className="group min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="truncate text-sm font-semibold text-slate-800 transition-colors group-hover:text-brand-deep dark:text-slate-200">
+                                  {name}
                                 </span>
-                              )}
-                              {risk === "flagged" && (
-                                <Chip tone="danger" size="sm" title="Flagged by the network" data-testid={`hops-flagged-${i}`}>Flagged</Chip>
-                              )}
-                              {risk === "unverified" && (
-                                <Chip tone="warning" size="sm" title="Not yet verified by the network" data-testid={`hops-unverified-${i}`}>Unverified</Chip>
-                              )}
-                            </div>
-                            <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{roleLabel}</div>
-                          </Link>
-                          {/* Off means off — no score chip at all, same as the
+                                {isWeakLink && (
+                                  <span
+                                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300"
+                                    data-testid={`hops-weaklink-${i}`}
+                                    title="The trusted account whose follow let a low-trust account into your network"
+                                  >
+                                    Weak link
+                                  </span>
+                                )}
+                                {risk === "flagged" && (
+                                  <Chip
+                                    tone="danger"
+                                    size="sm"
+                                    title="Flagged by the network"
+                                    data-testid={`hops-flagged-${i}`}
+                                  >
+                                    Flagged
+                                  </Chip>
+                                )}
+                                {risk === "unverified" && (
+                                  <Chip
+                                    tone="warning"
+                                    size="sm"
+                                    title="Not yet verified by the network"
+                                    data-testid={`hops-unverified-${i}`}
+                                  >
+                                    Unverified
+                                  </Chip>
+                                )}
+                              </div>
+                              <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                {roleLabel}
+                              </div>
+                            </Link>
+                            {/* Off means off — no score chip at all, same as the
                               coin everywhere else. The path itself stays: degree
                               is connection distance, not a verification score. */}
-                          {displayMode !== "off" && !isOrigin && tier && (
-                            <button
-                              type="button"
-                              onClick={() => setScoreExplainOpen(true)}
-                              className={`shrink-0 min-w-[64px] rounded-lg border px-2 py-1 text-right transition-colors hover:brightness-[0.98] ${povChrome(scorePov)}`}
-                              title="What does this score mean?"
-                              data-testid={`hops-score-${i}`}
-                            >
-                              {displayMode === "number" ? (
-                                <>
-                                  <div className={`flex items-center justify-end gap-1 text-sm font-bold tabular-nums leading-tight ${tier.text}`}>
-                                    <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
-                                    {`${Math.round((score as number) * 100)}%`}
-                                  </div>
-                                  <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">{tier.name}</div>
-                                </>
-                              ) : (
-                                // No digits, no two-storey layout: one line, the
-                                // word in the tier's own color.
-                                <div className="flex items-center justify-end gap-1.5 text-xs font-semibold leading-tight" style={{ color: tier.color }}>
-                                  <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
-                                  {tier.name}
-                                </div>
-                              )}
-                              {(() => {
-                                // Subtle hint when the OTHER view disagrees (after
-                                // rounding): its number + which way it moves.
-                                const both = scoresQuery.data?.get(pk);
-                                const other = scorePov === "personalized" ? both?.house : both?.mine;
-                                if (typeof other !== "number") return null;
-                                if (displayMode !== "number") return null;
-                                const shownPct = Math.round((score as number) * 100);
-                                const otherPct = Math.round(other * 100);
-                                if (otherPct === shownPct) return null;
-                                const mine = scorePov === "global";
-                                return (
+                            {displayMode !== "off" && !isOrigin && tier && (
+                              <button
+                                type="button"
+                                onClick={() => setScoreExplainOpen(true)}
+                                className={`min-w-[64px] shrink-0 rounded-lg border px-2 py-1 text-right transition-colors hover:brightness-[0.98] ${povChrome(scorePov)}`}
+                                title="What does this score mean?"
+                                data-testid={`hops-score-${i}`}
+                              >
+                                {displayMode === "number" ? (
+                                  <>
+                                    <div
+                                      className={`flex items-center justify-end gap-1 text-sm font-bold tabular-nums leading-tight ${tier.text}`}
+                                    >
+                                      <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
+                                      {`${Math.round((score as number) * 100)}%`}
+                                    </div>
+                                    <div className="text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                                      {tier.name}
+                                    </div>
+                                  </>
+                                ) : (
+                                  // No digits, no two-storey layout: one line, the
+                                  // word in the tier's own color.
                                   <div
-                                    className={`mt-0.5 flex items-center justify-end gap-0.5 text-[9px] font-semibold tabular-nums leading-tight ${mine ? "text-brand-primary" : "text-slate-400 dark:text-slate-500"}`}
-                                    data-testid={`hops-score-delta-${i}`}
+                                    className="flex items-center justify-end gap-1.5 text-xs font-semibold leading-tight"
+                                    style={{ color: tier.color }}
                                   >
-                                    <PovIcon pov={mine ? "personalized" : "global"} className="h-2 w-2" />
-                                    {otherPct > shownPct ? "▲" : "▼"} {otherPct} {mine ? "for you" : "everyone"}
+                                    <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
+                                    {tier.name}
                                   </div>
-                                );
-                              })()}
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Follow is meaningful in both modes for signed-in viewers;
-                            Report belongs to the personalized promise only. */}
-                        {!isOrigin && !isMe && signedIn && (
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <NodeFollow pubkey={pk} name={name} alreadyFollowing={myFollows?.has(pk) ?? false} />
-                            {originPov === "personalized" && <NodeReport pubkey={pk} name={name} emphasize={isEntryBad} />}
+                                )}
+                                {(() => {
+                                  // Subtle hint when the OTHER view disagrees (after
+                                  // rounding): its number + which way it moves.
+                                  const both = scoresQuery.data?.get(pk);
+                                  const other = scorePov === "personalized" ? both?.house : both?.mine;
+                                  if (typeof other !== "number") return null;
+                                  if (displayMode !== "number") return null;
+                                  const shownPct = Math.round((score as number) * 100);
+                                  const otherPct = Math.round(other * 100);
+                                  if (otherPct === shownPct) return null;
+                                  const mine = scorePov === "global";
+                                  return (
+                                    <div
+                                      className={`mt-0.5 flex items-center justify-end gap-0.5 text-[9px] font-semibold tabular-nums leading-tight ${mine ? "text-brand-primary" : "text-slate-400 dark:text-slate-500"}`}
+                                      data-testid={`hops-score-delta-${i}`}
+                                    >
+                                      <PovIcon pov={mine ? "personalized" : "global"} className="h-2 w-2" />
+                                      {otherPct > shownPct ? "▲" : "▼"} {otherPct} {mine ? "for you" : "everyone"}
+                                    </div>
+                                  );
+                                })()}
+                              </button>
+                            )}
                           </div>
-                        )}
 
-                        {/* Weak-link explanation — unlocked in place. */}
-                        {isWeakLink && <WeakLinkNote scammerName={nameAt(entryBadIndex)} />}
-                        {isEntryBad && youFollowBadDirectly && <DirectFollowNote name={name} />}
+                          {/* Follow is meaningful in both modes for signed-in viewers;
+                            Report belongs to the personalized promise only. */}
+                          {!isOrigin && !isMe && signedIn && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <NodeFollow pubkey={pk} name={name} alreadyFollowing={myFollows?.has(pk) ?? false} />
+                              {originPov === "personalized" && (
+                                <NodeReport pubkey={pk} name={name} emphasize={isEntryBad} />
+                              )}
+                            </div>
+                          )}
+
+                          {/* Weak-link explanation — unlocked in place. */}
+                          {isWeakLink && <WeakLinkNote scammerName={nameAt(entryBadIndex)} />}
+                          {isEntryBad && youFollowBadDirectly && <DirectFollowNote name={name} />}
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
             <PathFootnote
               pathCount={d.pathCount}
@@ -413,12 +496,11 @@ export default function HopsPathPage() {
               complete={set.complete}
               checking={list.length === 0}
             />
-
           </>
         )}
 
         {/* What the metric means + the practical use. */}
-        <div className="mt-8 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900 p-4 sm:p-5 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+        <div className="mt-8 rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm leading-relaxed text-slate-600 dark:border-slate-800/60 dark:bg-slate-900 dark:text-slate-300 sm:p-5">
           <div className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-200">
             <ShieldAlert className="h-4 w-4 text-brand-accent" /> What "degree" means
           </div>
@@ -426,23 +508,28 @@ export default function HopsPathPage() {
             <>
               <p className="mt-1.5">
                 Your degree shows how closely you're connected to someone.{" "}
-                <span className="font-medium text-slate-700 dark:text-slate-200">1st degree</span> means you follow them directly.{" "}
-                <span className="font-medium text-slate-700 dark:text-slate-200">2nd degree</span> means someone you follow, follows them — and so on.
-                Being connected, even a few steps out, means they're part of your trusted network.
+                <span className="font-medium text-slate-700 dark:text-slate-200">1st degree</span> means you follow them
+                directly. <span className="font-medium text-slate-700 dark:text-slate-200">2nd degree</span> means
+                someone you follow, follows them — and so on. Being connected, even a few steps out, means they're part
+                of your trusted network.
               </p>
               <p className="mt-2">
                 It's also a safety tool. Scam accounts usually get into your network because{" "}
-                <span className="font-medium text-slate-700 dark:text-slate-200">one person you trust followed them</span> — often by mistake. That
-                person is the <span className="font-medium text-slate-700 dark:text-slate-200">weak link</span>. Report the scam account itself and it —
-                plus everything hiding behind it — drops out of your network.
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  one person you trust followed them
+                </span>{" "}
+                — often by mistake. That person is the{" "}
+                <span className="font-medium text-slate-700 dark:text-slate-200">weak link</span>. Report the scam
+                account itself and it — plus everything hiding behind it — drops out of your network.
               </p>
             </>
           ) : (
             <p className="mt-1.5">
               The degree shows how closely Brainstorm's network reaches someone.{" "}
-              <span className="font-medium text-slate-700 dark:text-slate-200">1st degree</span> means Brainstorm follows them directly.{" "}
-              <span className="font-medium text-slate-700 dark:text-slate-200">2nd degree</span> means someone Brainstorm follows, follows them — and
-              so on. Sign in and run your own calculation to measure this from your account instead.
+              <span className="font-medium text-slate-700 dark:text-slate-200">1st degree</span> means Brainstorm
+              follows them directly. <span className="font-medium text-slate-700 dark:text-slate-200">2nd degree</span>{" "}
+              means someone Brainstorm follows, follows them — and so on. Sign in and run your own calculation to
+              measure this from your account instead.
             </p>
           )}
         </div>
@@ -460,12 +547,12 @@ export default function HopsPathPage() {
 function WeakLinkNote({ scammerName }: { scammerName: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="mt-3 border-t border-amber-200/70 dark:border-amber-500/25 pt-2.5">
+    <div className="mt-3 border-t border-amber-200/70 pt-2.5 dark:border-amber-500/25">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 transition-colors"
+        className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-700 transition-colors hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
         data-testid="hops-weaklink-why"
       >
         <ShieldAlert className="h-3.5 w-3.5" />
@@ -473,11 +560,14 @@ function WeakLinkNote({ scammerName }: { scammerName: string }) {
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <p className="mt-2 text-[12.5px] leading-relaxed text-amber-900 dark:text-amber-200/90" data-testid="hops-weaklink-detail">
-          This is an account you trust, but it follows <span className="font-semibold">{scammerName}</span> — a low-trust
-          account. Likely an honest mistake, but it's how {scammerName} got into your network.{" "}
-          <span className="font-semibold">Report {scammerName}</span> below to remove it — and anything hiding behind it —
-          from your network.
+        <p
+          className="mt-2 text-[12.5px] leading-relaxed text-amber-900 dark:text-amber-200/90"
+          data-testid="hops-weaklink-detail"
+        >
+          This is an account you trust, but it follows <span className="font-semibold">{scammerName}</span> — a
+          low-trust account. Likely an honest mistake, but it's how {scammerName} got into your network.{" "}
+          <span className="font-semibold">Report {scammerName}</span> below to remove it — and anything hiding behind it
+          — from your network.
         </p>
       )}
     </div>
@@ -490,9 +580,9 @@ function WeakLinkNote({ scammerName }: { scammerName: string }) {
  */
 function DirectFollowNote({ name }: { name: string }) {
   return (
-    <div className="mt-3 border-t border-rose-200/70 dark:border-rose-500/25 pt-2.5">
+    <div className="mt-3 border-t border-rose-200/70 pt-2.5 dark:border-rose-500/25">
       <p className="flex items-start gap-1.5 text-[12.5px] leading-relaxed text-rose-800 dark:text-rose-300">
-        <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+        <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>
           You follow <span className="font-semibold">{name}</span> directly — this low-trust account is in your network
           through your own follow. Review it, and if it's a scammer, report it (or unfollow) to cut it off.
@@ -530,7 +620,10 @@ function NodeFollow({ pubkey, name, alreadyFollowing }: { pubkey: string; name: 
 
   if (following) {
     return (
-      <span className="shrink-0 inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-2 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400" data-testid="hops-following">
+      <span
+        className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+        data-testid="hops-following"
+      >
         <Check className="h-3 w-3 text-emerald-500" /> Following
       </span>
     );
@@ -540,7 +633,7 @@ function NodeFollow({ pubkey, name, alreadyFollowing }: { pubkey: string; name: 
       type="button"
       onClick={follow}
       disabled={busy}
-      className="shrink-0 inline-flex items-center gap-1 rounded-md border border-brand-accent/40 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] font-semibold text-brand-deep hover:bg-brand-accent/[0.06] disabled:opacity-50 transition-colors"
+      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-brand-accent/40 bg-white px-2 py-1 text-[11px] font-semibold text-brand-deep transition-colors hover:bg-brand-accent/[0.06] disabled:opacity-50 dark:bg-slate-900"
       data-testid="hops-follow"
     >
       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />} Follow
@@ -568,7 +661,10 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
     if (res.cancelled) return;
     if (res.success) {
       setDone(true);
-      toast({ title: `Reported ${name}`, description: "Their score drops in your network — so does anyone whose standing came only through them." });
+      toast({
+        title: `Reported ${name}`,
+        description: "Their score drops in your network — so does anyone whose standing came only through them.",
+      });
     } else {
       toast({ variant: "destructive", title: "Couldn't report", description: res.error || "Try again." });
     }
@@ -581,7 +677,7 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
 
   if (done) {
     return (
-      <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+      <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
         <Flag className="h-3 w-3" /> Reported
       </span>
     );
@@ -594,14 +690,27 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
           <button
             key={r}
             type="button"
-            onClick={(e) => { stop(e); void submit(r); }}
+            onClick={(e) => {
+              stop(e);
+              void submit(r);
+            }}
             disabled={busy}
-            className="rounded-md border border-amber-300 dark:border-amber-500/40 bg-white dark:bg-amber-500/10 px-2 py-1 text-[11px] font-semibold capitalize text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/20 disabled:opacity-50"
+            className="rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold capitalize text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
           >
             {r}
           </button>
         ))}
-        <button type="button" onClick={(e) => { stop(e); setOpen(false); }} className="px-1 text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" aria-label="Cancel">✕</button>
+        <button
+          type="button"
+          onClick={(e) => {
+            stop(e);
+            setOpen(false);
+          }}
+          className="px-1 text-[11px] text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+          aria-label="Cancel"
+        >
+          ✕
+        </button>
       </div>
     );
   }
@@ -609,11 +718,14 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
   return (
     <button
       type="button"
-      onClick={(e) => { stop(e); setOpen(true); }}
-      className={`shrink-0 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
+      onClick={(e) => {
+        stop(e);
+        setOpen(true);
+      }}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
         emphasize
-          ? "border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20"
-          : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-amber-300 hover:text-amber-700 dark:hover:border-amber-500/40 dark:hover:text-amber-300"
+          ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
+          : "border-slate-200 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-amber-500/40 dark:hover:text-amber-300"
       }`}
       data-testid="hops-report"
     >

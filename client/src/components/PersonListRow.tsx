@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { BadgeCheck, ChevronRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import type { ScorePov } from "@/components/score/TrustScorePov";
 import { npubFromPubkey } from "@/lib/shareId";
 import { useNip05 } from "@/hooks/useNip05";
@@ -42,14 +42,24 @@ export function TrustAvatar({
   const ring = tierRing(score);
   return (
     <div className="relative shrink-0">
-      <Avatar className={`h-12 w-12 rounded-full bg-white dark:bg-slate-900 ${ring ?? ""}`} style={ring ? undefined : { boxShadow: "0 0 0 1px #e2e8f0" }}>
+      <Avatar
+        className={`h-12 w-12 rounded-full bg-white dark:bg-slate-900 ${ring ?? ""}`}
+        style={ring ? undefined : { boxShadow: "0 0 0 1px #e2e8f0" }}
+      >
         {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
-        <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+        <AvatarFallback className="overflow-hidden rounded-full">
+          <DefaultAvatarImg />
+        </AvatarFallback>
       </Avatar>
       {/* The Verification Score coin — same label-less badge as the profile hero,
           POV-aware (colored personalized / grey global). */}
       {score != null && (
-        <VerificationCoin score01={score} pov={pov} size={24} className={ring && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"} />
+        <VerificationCoin
+          score01={score}
+          pov={pov}
+          size={24}
+          className={ring && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
+        />
       )}
     </div>
   );
@@ -88,7 +98,11 @@ export function PersonListRow({
   // A single malformed pubkey from a relay would otherwise throw and blank the
   // whole list, so the row degrades to an inert link instead.
   let npub = "";
-  try { npub = npubFromPubkey(pubkey); } catch { /* skip bad key */ }
+  try {
+    npub = npubFromPubkey(pubkey);
+  } catch {
+    /* skip bad key */
+  }
 
   const name = displayName || (npub ? npub.slice(0, 12) + "…" : pubkey.slice(0, 12) + "…");
   const nip05Status = useNip05(cleanNip05(nip05) && nip05, pubkey);
@@ -99,29 +113,28 @@ export function PersonListRow({
     // Only the identity block is a link. `actions` and `meta` sit outside it —
     // both can contain buttons and links of their own, and an anchor nested in
     // an anchor is invalid HTML that swallows the inner click.
-    <div
-      className="group px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
-      data-testid={testId}
-    >
+    <div className="group px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800" data-testid={testId}>
       <div className="flex items-center gap-3.5">
-        <Link
-          href={npub ? `/p/${npub}` : "#"}
-          className="flex min-w-0 flex-1 items-center gap-3.5"
-        >
+        <Link href={npub ? `/p/${npub}` : "#"} className="flex min-w-0 flex-1 items-center gap-3.5">
           <TrustAvatar picture={picture} name={name} score={score} pov={pov} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
             {handle ? (
               <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
-                {nip05Status === "verified" && <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />}<span className="truncate">{handle}</span>
+                {nip05Status === "verified" && <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />}
+                <span className="truncate">{handle}</span>
               </p>
             ) : (
-              npub && <p className="mt-0.5 truncate font-mono text-xs text-slate-400 dark:text-slate-500">{npub.slice(0, 16)}…</p>
+              npub && (
+                <p className="mt-0.5 truncate font-mono text-xs text-slate-400 dark:text-slate-500">
+                  {npub.slice(0, 16)}…
+                </p>
+              )
             )}
           </div>
         </Link>
         {actions ?? (
-          <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600 transition-colors group-hover:text-slate-400 dark:group-hover:text-slate-500" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-400 dark:text-slate-600 dark:group-hover:text-slate-500" />
         )}
       </div>
       {/* Indented to line up under the name: avatar (3rem) + gap (0.875rem). */}
@@ -135,8 +148,8 @@ export function PersonListSkeleton({ rows = 6, testId }: { rows?: number; testId
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3.5 px-4 py-3 animate-pulse" data-testid={testId}>
-          <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 shrink-0" />
+        <div key={i} className="flex animate-pulse items-center gap-3.5 px-4 py-3" data-testid={testId}>
+          <div className="h-12 w-12 shrink-0 rounded-full bg-slate-100 dark:bg-slate-800" />
           <div className="flex-1 space-y-1.5">
             <div className="h-3 w-32 rounded bg-slate-100 dark:bg-slate-800" />
             <div className="h-2.5 w-24 rounded bg-slate-100 dark:bg-slate-800" />

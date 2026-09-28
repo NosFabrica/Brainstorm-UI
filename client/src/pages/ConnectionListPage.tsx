@@ -22,12 +22,42 @@ type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
 const TYPE_MAP: Record<
   string,
-  { kind: ConnKind; verifiedOnly: boolean; title: (name: string) => string; subtitle: (name: string) => string; empty: string }
+  {
+    kind: ConnKind;
+    verifiedOnly: boolean;
+    title: (name: string) => string;
+    subtitle: (name: string) => string;
+    empty: string;
+  }
 > = {
-  followers: { kind: "followed_by", verifiedOnly: true, title: (n) => `Verified followers of ${n}`, subtitle: (n) => `Trusted people who follow ${n}.`, empty: "No verified followers yet." },
-  following: { kind: "following", verifiedOnly: false, title: (n) => `${n} is following`, subtitle: (n) => `People ${n} follows.`, empty: "Not following anyone yet." },
-  muters: { kind: "muted_by", verifiedOnly: true, title: (n) => `Verified accounts muting ${n}`, subtitle: (n) => `Trusted people who have muted ${n}.`, empty: "No verified muters." },
-  reporters: { kind: "reported_by", verifiedOnly: true, title: (n) => `Verified accounts reporting ${n}`, subtitle: (n) => `Trusted people who have reported ${n}.`, empty: "No verified reporters." },
+  followers: {
+    kind: "followed_by",
+    verifiedOnly: true,
+    title: (n) => `Verified followers of ${n}`,
+    subtitle: (n) => `Trusted people who follow ${n}.`,
+    empty: "No verified followers yet.",
+  },
+  following: {
+    kind: "following",
+    verifiedOnly: false,
+    title: (n) => `${n} is following`,
+    subtitle: (n) => `People ${n} follows.`,
+    empty: "Not following anyone yet.",
+  },
+  muters: {
+    kind: "muted_by",
+    verifiedOnly: true,
+    title: (n) => `Verified accounts muting ${n}`,
+    subtitle: (n) => `Trusted people who have muted ${n}.`,
+    empty: "No verified muters.",
+  },
+  reporters: {
+    kind: "reported_by",
+    verifiedOnly: true,
+    title: (n) => `Verified accounts reporting ${n}`,
+    subtitle: (n) => `Trusted people who have reported ${n}.`,
+    empty: "No verified reporters.",
+  },
 };
 
 const PAGE = 20;
@@ -47,7 +77,13 @@ export default function ConnectionListPage() {
   // viewer with calculated scores; otherwise (or when the viewer chose Global)
   // the house perspective serves — `house: true` forces the unauthenticated view.
   const signedIn = useHasSession();
-  const calcDone = (() => { try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; } })();
+  const calcDone = (() => {
+    try {
+      return localStorage.getItem("brainstorm_calc_completed") === "true";
+    } catch {
+      return false;
+    }
+  })();
   const { pov: scorePov } = useScorePov();
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
   const myPov = signedIn && calcDone && scorePov === "personalized";
@@ -158,27 +194,64 @@ export default function ConnectionListPage() {
   const currentPath = `/p/${rawId}/${type}`;
   const verifiedPopover = !signedIn ? (
     <>
-      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account the network vouches for — its score clears the threshold, so bots and unknown accounts don't count.</p>
-      <p className="mt-1.5">Right now you're seeing <strong className="font-semibold text-slate-700 dark:text-slate-200">Brainstorm's</strong> point of view. <Link href={`/login?next=${encodeURIComponent(currentPath)}`} className={povLink}>Sign in</Link> to switch to <em>your own</em> network — once your scores are calculated.</p>
-      <Link href="/what-is-wot" className={`mt-2 inline-block ${povLink}`}>Learn how it works →</Link>
+      <p>
+        <strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account the
+        network vouches for — its score clears the threshold, so bots and unknown accounts don't count.
+      </p>
+      <p className="mt-1.5">
+        Right now you're seeing{" "}
+        <strong className="font-semibold text-slate-700 dark:text-slate-200">Brainstorm's</strong> point of view.{" "}
+        <Link href={`/login?next=${encodeURIComponent(currentPath)}`} className={povLink}>
+          Sign in
+        </Link>{" "}
+        to switch to <em>your own</em> network — once your scores are calculated.
+      </p>
+      <Link href="/what-is-wot" className={`mt-2 inline-block ${povLink}`}>
+        Learn how it works →
+      </Link>
     </>
   ) : !calcDone ? (
     <>
-      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account the network vouches for — bots and unknown accounts don't count.</p>
-      <p className="mt-1.5">You're signed in, but <strong className="font-semibold text-slate-700 dark:text-slate-200">your scores are still being calculated</strong>. Until they're ready, this shows Brainstorm's point of view.</p>
-      <Link href="/dashboard" className={`mt-1 inline-block ${povLink}`}>Check your dashboard →</Link>
-      <Link href="/what-is-wot" className={`mt-2 block ${povLink}`}>Learn how it works →</Link>
+      <p>
+        <strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account the
+        network vouches for — bots and unknown accounts don't count.
+      </p>
+      <p className="mt-1.5">
+        You're signed in, but{" "}
+        <strong className="font-semibold text-slate-700 dark:text-slate-200">
+          your scores are still being calculated
+        </strong>
+        . Until they're ready, this shows Brainstorm's point of view.
+      </p>
+      <Link href="/dashboard" className={`mt-1 inline-block ${povLink}`}>
+        Check your dashboard →
+      </Link>
+      <Link href="/what-is-wot" className={`mt-2 block ${povLink}`}>
+        Learn how it works →
+      </Link>
     </>
   ) : (
     <>
-      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account <em>your own</em> network vouches for — the accounts <strong className="font-semibold text-slate-700 dark:text-slate-200">you</strong> trust decide who counts.</p>
-      <p className="mt-1.5">You're seeing your own point of view. Tune the threshold in <Link href="/settings?tab=trust" className={povLink}>Settings</Link> — Relax, Default, or Strict.</p>
-      <Link href="/what-is-wot" className={`mt-2 inline-block ${povLink}`}>Learn how it works →</Link>
+      <p>
+        <strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account{" "}
+        <em>your own</em> network vouches for — the accounts{" "}
+        <strong className="font-semibold text-slate-700 dark:text-slate-200">you</strong> trust decide who counts.
+      </p>
+      <p className="mt-1.5">
+        You're seeing your own point of view. Tune the threshold in{" "}
+        <Link href="/settings?tab=trust" className={povLink}>
+          Settings
+        </Link>{" "}
+        — Relax, Default, or Strict.
+      </p>
+      <Link href="/what-is-wot" className={`mt-2 inline-block ${povLink}`}>
+        Learn how it works →
+      </Link>
     </>
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
+    <div className="flex min-h-screen flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {/* The public pages' header — B mark, the shared search box, account — so
           search stays one tap away below a profile too, with Back pinned in it. */}
       <PublicPageHeader
@@ -200,23 +273,25 @@ export default function ConnectionListPage() {
         back={{ label: `Back to ${subjectName.split(" ")[0]}`, onClick: () => goBack(`/p/${rawId}`) }}
       />
 
-      <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-6">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6">
         <div className="mb-5">
           <div className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/30 bg-brand-deep/5 text-brand-deep">
               <Users className="h-4 w-4" />
             </span>
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="conn-title">
+            <h1
+              className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+              style={{ fontFamily: "var(--font-display)" }}
+              data-testid="conn-title"
+            >
               {cfg.title(subjectName)}
             </h1>
-            {cfg.verifiedOnly && (
-              <InfoHint label="What does verified mean?">{verifiedPopover}</InfoHint>
-            )}
+            {cfg.verifiedOnly && <InfoHint label="What does verified mean?">{verifiedPopover}</InfoHint>}
             <button
               type="button"
               onClick={() => setFiltersOpen((o) => !o)}
               aria-expanded={filtersOpen}
-              className={`ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${filtersOpen || tierFilter !== "all" || sortOrder !== "desc" ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+              className={`ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${filtersOpen || tierFilter !== "all" || sortOrder !== "desc" ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"}`}
               title="Filter & sort"
               data-testid="conn-filter-toggle"
             >
@@ -224,7 +299,9 @@ export default function ConnectionListPage() {
             </button>
           </div>
           {!loading && items.length > 0 && (
-            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
+            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400" data-testid="conn-subtitle">
+              {cfg.subtitle(subjectName)}
+            </p>
           )}
           {/* The POV lens sits LEFT, in the primary reading path, on its own line
               (both breakpoints) — it reframes every score and the tier buckets,
@@ -235,7 +312,10 @@ export default function ConnectionListPage() {
           </div>
 
           {filtersOpen && (
-            <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm space-y-2.5" data-testid="conn-filter-panel">
+            <div
+              className="mt-3 space-y-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              data-testid="conn-filter-panel"
+            >
               {/* Five tier chips plus an inline label can't fit 390px, so they used
                   to wrap onto a second (and ragged third) line. The label now sits
                   above and the chips ride a single horizontally-scrollable line —
@@ -244,32 +324,49 @@ export default function ConnectionListPage() {
                   edge so it reads as scrollable; from `sm:` up there's room, so it
                   reverts to a plain wrapping row. Scrollbars are hidden app-wide. */}
               {granularity === "detailed" && (
-              <div>
-                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Trust level</span>
-                <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-                  {([["all", "All"], ["high", TIER_LABELS.high], ["medium_high", TIER_LABELS.trusted], ["medium", TIER_LABELS.neutral], ["medium_low", TIER_LABELS.low]] as const).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setTierFilter(value)}
-                      className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${tierFilter === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
-                      data-testid={`conn-filter-${value}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div>
+                  <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Trust level
+                  </span>
+                  <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+                    {(
+                      [
+                        ["all", "All"],
+                        ["high", TIER_LABELS.high],
+                        ["medium_high", TIER_LABELS.trusted],
+                        ["medium", TIER_LABELS.neutral],
+                        ["medium_low", TIER_LABELS.low],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setTierFilter(value)}
+                        className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${tierFilter === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"}`}
+                        data-testid={`conn-filter-${value}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
               )}
               <div>
-                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sort</span>
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  Sort
+                </span>
                 <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-                  {([["desc", "Most trusted first"], ["asc", "Least trusted first"]] as const).map(([value, label]) => (
+                  {(
+                    [
+                      ["desc", "Most trusted first"],
+                      ["asc", "Least trusted first"],
+                    ] as const
+                  ).map(([value, label]) => (
                     <button
                       key={value}
                       type="button"
                       onClick={() => setSortOrder(value)}
-                      className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${sortOrder === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                      className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${sortOrder === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"}`}
                       data-testid={`conn-sort-${value}`}
                     >
                       {label}
@@ -281,12 +378,12 @@ export default function ConnectionListPage() {
           )}
         </div>
 
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
+        <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800/60 dark:border-slate-800 dark:bg-slate-900">
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-3 py-3 animate-pulse" data-testid="conn-skeleton">
-                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 shrink-0" />
-                <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 shrink-0" />
+              <div key={i} className="flex animate-pulse items-center gap-3 px-3 py-3" data-testid="conn-skeleton">
+                <div className="h-9 w-9 shrink-0 rounded-full bg-slate-100 dark:bg-slate-800" />
+                <div className="h-10 w-10 shrink-0 rounded-full bg-slate-100 dark:bg-slate-800" />
                 <div className="flex-1 space-y-1.5">
                   <div className="h-3 w-32 rounded bg-slate-100 dark:bg-slate-800" />
                   <div className="h-2.5 w-24 rounded bg-slate-100 dark:bg-slate-800" />
@@ -294,7 +391,9 @@ export default function ConnectionListPage() {
               </div>
             ))
           ) : items.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500" data-testid="conn-empty">{cfg.empty}</p>
+            <p className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500" data-testid="conn-empty">
+              {cfg.empty}
+            </p>
           ) : (
             items.map((entry) => {
               const pk = typeof entry === "string" ? entry : entry.pubkey;
@@ -312,13 +411,31 @@ export default function ConnectionListPage() {
                   score={score}
                   pov={scorePov}
                   testId={`conn-row-${pk.slice(0, 8)}`}
-                  meta={rm && (
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid={`conn-report-${pk.slice(0, 8)}`}>
-                      <span className={`inline-flex items-center rounded border px-1.5 py-px text-[10px] font-medium ${REPORT_TYPE_BADGE_COLORS[rm.reportType] || REPORT_TYPE_BADGE_COLORS.other}`}>{rm.reportType}</span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500">{formatReportTime(rm.timestamp)}</span>
-                      {rm.reason && <span className="max-w-[160px] truncate text-[10px] italic text-slate-400 dark:text-slate-500" title={rm.reason}>"{rm.reason}"</span>}
-                    </div>
-                  )}
+                  meta={
+                    rm && (
+                      <div
+                        className="mt-1 flex flex-wrap items-center gap-1.5"
+                        data-testid={`conn-report-${pk.slice(0, 8)}`}
+                      >
+                        <span
+                          className={`inline-flex items-center rounded border px-1.5 py-px text-[10px] font-medium ${REPORT_TYPE_BADGE_COLORS[rm.reportType] || REPORT_TYPE_BADGE_COLORS.other}`}
+                        >
+                          {rm.reportType}
+                        </span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                          {formatReportTime(rm.timestamp)}
+                        </span>
+                        {rm.reason && (
+                          <span
+                            className="max-w-[160px] truncate text-[10px] italic text-slate-400 dark:text-slate-500"
+                            title={rm.reason}
+                          >
+                            "{rm.reason}"
+                          </span>
+                        )}
+                      </div>
+                    )
+                  }
                 />
               );
             })
@@ -330,7 +447,7 @@ export default function ConnectionListPage() {
             type="button"
             onClick={() => connQuery.fetchNextPage()}
             disabled={connQuery.isFetchingNextPage}
-            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 text-white text-sm font-semibold py-2.5 transition-colors"
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-primary py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
             data-testid="conn-load-more"
           >
             {connQuery.isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -342,4 +459,3 @@ export default function ConnectionListPage() {
     </div>
   );
 }
-

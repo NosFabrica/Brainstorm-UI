@@ -37,10 +37,7 @@ export function getMetadata(account: BrainstormAccount): AccountMetadata {
 }
 
 /** Merge a patch into an Account's metadata. Replaces the object, so `metadata$` emits. */
-export function updateMetadata(
-  account: BrainstormAccount,
-  patch: Partial<AccountMetadata>,
-): AccountMetadata {
+export function updateMetadata(account: BrainstormAccount, patch: Partial<AccountMetadata>): AccountMetadata {
   const next = { ...getMetadata(account), ...patch };
   account.metadata = next;
   return next;

@@ -122,7 +122,15 @@ describe("FlashSubscriptionSheet — how it is going wrong, and how it ends", ()
     render(<FlashSubscriptionSheet raw={{ id: "old", status: "some_future_status", ref: null }} />);
     expect(screen.getByTestId("flash-sheet-status").textContent).toContain("some_future_status");
     expect(screen.getByTestId("flash-sheet-ref").textContent).toContain("Named no account");
-    for (const id of ["flash-sheet-since", "flash-sheet-cycles", "flash-sheet-period", "flash-sheet-next-bill", "flash-sheet-plan", "flash-sheet-policy", "flash-sheet-portal"]) {
+    for (const id of [
+      "flash-sheet-since",
+      "flash-sheet-cycles",
+      "flash-sheet-period",
+      "flash-sheet-next-bill",
+      "flash-sheet-plan",
+      "flash-sheet-policy",
+      "flash-sheet-portal",
+    ]) {
       expect(screen.queryByTestId(id)).toBeNull();
     }
     expect(screen.getByTestId("flash-sheet").textContent).not.toContain("—");

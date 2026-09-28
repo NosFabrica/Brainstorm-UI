@@ -17,7 +17,15 @@ export interface TechnicalId {
 
 const short = (hex: string) => (hex.length > 16 ? `${hex.slice(0, 8)}…${hex.slice(-4)}` : hex);
 
-export function TechnicalStrip({ event, ids, className }: { event: { id: string; kind: number }; ids: TechnicalId[]; className?: string }) {
+export function TechnicalStrip({
+  event,
+  ids,
+  className,
+}: {
+  event: { id: string; kind: number };
+  ids: TechnicalId[];
+  className?: string;
+}) {
   const [copied, setCopied] = useState<string | null>(null);
   if (!technicalView()) return null;
   const nip = nipForKind(event.kind);
@@ -29,8 +37,14 @@ export function TechnicalStrip({ event, ids, className }: { event: { id: string;
   };
   const all = [{ label: "id", value: event.id }, ...ids];
   return (
-    <p className={`flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-slate-400 dark:text-slate-500 ${className ?? ""}`} data-testid="technical-strip">
-      <span title={nip ? `${nip} defines this kind` : undefined}>kind {event.kind}{nip ? ` · ${nip}` : ""}</span>
+    <p
+      className={`flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-slate-400 dark:text-slate-500 ${className ?? ""}`}
+      data-testid="technical-strip"
+    >
+      <span title={nip ? `${nip} defines this kind` : undefined}>
+        kind {event.kind}
+        {nip ? ` · ${nip}` : ""}
+      </span>
       {all.map((id) => (
         <button
           key={id.label}

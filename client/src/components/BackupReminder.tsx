@@ -53,13 +53,13 @@ export function BackupReminder() {
     // doesn't take a column of its own.
     <Card
       accent
-      className="relative w-full max-w-3xl mx-auto mt-4 flex flex-col gap-2.5 px-4 py-3.5 pr-10 sm:py-3"
+      className="relative mx-auto mt-4 flex w-full max-w-3xl flex-col gap-2.5 px-4 py-3.5 pr-10 sm:py-3"
       data-testid="backup-reminder"
     >
       {/* `items-start`: centring the icon against a two-line block left it
           floating. It should anchor the title, which is what the eye pairs it with. */}
-      <div className="flex items-start gap-3 min-w-0">
-        <span className="mt-0.5 h-9 w-9 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/10 text-brand-deep">
           <ShieldCheck className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1 space-y-2.5">
@@ -68,7 +68,7 @@ export function BackupReminder() {
               <p className="text-sm font-semibold text-foreground" data-testid="backup-reminder-title">
                 {message.title}
               </p>
-              <p className="text-[13px] text-muted-foreground leading-snug">{message.body}</p>
+              <p className="text-[13px] leading-snug text-muted-foreground">{message.body}</p>
             </div>
           )}
           <BackupPrompt need={need} onDelivered={() => setDelivered(true)} />

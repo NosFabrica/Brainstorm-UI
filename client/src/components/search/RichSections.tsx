@@ -99,7 +99,12 @@ export function pickTopStories(hits: SearchHit[]): TopStory[] {
   pass(MIN_STORIES, (hit) => {
     const imageUrl = firstImageIn(hit.event.content) ?? tagVal(hit.event, "image");
     if (!imageUrl) return null;
-    const headline = hit.event.content.replace(URL_IN_TEXT, "").split("\n").map((l) => l.trim()).find(Boolean) ?? "";
+    const headline =
+      hit.event.content
+        .replace(URL_IN_TEXT, "")
+        .split("\n")
+        .map((l) => l.trim())
+        .find(Boolean) ?? "";
     return headline ? { headline: headline.slice(0, 140), url: null, domain: null, imageUrl } : null;
   });
   // Three or nothing: a strip of one or two is the accident the rule exists
@@ -142,7 +147,7 @@ function TopStoryCard({ story }: { story: TopStory }) {
           open();
         }
       }}
-      className="group flex w-56 shrink-0 cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      className="group flex w-56 shrink-0 cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-100 bg-white/70 transition-all hover:border-slate-200 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800"
       data-testid={`top-story-${hit.event.id}`}
     >
       {imageUrl && !imgFailed ? (
@@ -151,19 +156,29 @@ function TopStoryCard({ story }: { story: TopStory }) {
           alt=""
           loading="lazy"
           onError={() => setImgFailed(true)}
-          className="aspect-[16/10] w-full object-cover bg-slate-100 dark:bg-slate-800"
+          className="aspect-[16/10] w-full bg-slate-100 object-cover dark:bg-slate-800"
           data-testid="story-image"
         />
       ) : videoUrl ? (
         // The link is the video: its first frame is the thumbnail.
-        <video src={`${videoUrl}#t=0.1`} muted playsInline preload={videoPreload(speed)} className="aspect-[16/10] w-full object-cover bg-black" data-testid="story-video" />
+        <video
+          src={`${videoUrl}#t=0.1`}
+          muted
+          playsInline
+          preload={videoPreload(speed)}
+          className="aspect-[16/10] w-full bg-black object-cover"
+          data-testid="story-video"
+        />
       ) : null}
       {/* Without a picture the card is words — Google's text-only top story:
           the source, then the headline given the room the picture would have
           had. Never a placeholder tile: a grey globe in a large frame reads as
           something missing. (The article's own image still arrives from the
           link-metadata proxy when it knows one.) */}
-      <div className={`flex min-w-0 flex-1 flex-col p-2.5 ${!imageUrl && !videoUrl ? "bg-gradient-to-br from-brand-primary/[0.06] to-brand-accent/[0.08] dark:from-brand-primary/15 dark:to-brand-accent/10" : ""}`} data-testid={!imageUrl && !videoUrl ? "story-text" : undefined}>
+      <div
+        className={`flex min-w-0 flex-1 flex-col p-2.5 ${!imageUrl && !videoUrl ? "bg-gradient-to-br from-brand-primary/[0.06] to-brand-accent/[0.08] dark:from-brand-primary/15 dark:to-brand-accent/10" : ""}`}
+        data-testid={!imageUrl && !videoUrl ? "story-text" : undefined}
+      >
         {news.domain && (
           <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
             <Favicon host={news.domain} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
@@ -176,18 +191,20 @@ function TopStoryCard({ story }: { story: TopStory }) {
             target="_blank"
             rel="noopener"
             onClick={(e) => e.stopPropagation()}
-            className={`mt-1 font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline ${!imageUrl && !videoUrl ? "line-clamp-6 text-sm" : "line-clamp-3 text-[13px]"}`}
+            className={`mt-1 font-semibold leading-snug text-slate-900 hover:text-brand-primary hover:underline dark:text-slate-100 ${!imageUrl && !videoUrl ? "line-clamp-6 text-sm" : "line-clamp-3 text-[13px]"}`}
           >
             {/* The person a headline mentions is named, as in the rows —
                 "Livestream with nostr:npub19r9…" is nobody's headline. */}
             <Headline text={news.headline} query="" />
           </a>
         ) : (
-          <p className={`mt-1 font-semibold leading-snug text-slate-900 dark:text-slate-100 ${!imageUrl && !videoUrl ? "line-clamp-6 text-sm" : "line-clamp-3 text-[13px]"}`}>
+          <p
+            className={`mt-1 font-semibold leading-snug text-slate-900 dark:text-slate-100 ${!imageUrl && !videoUrl ? "line-clamp-6 text-sm" : "line-clamp-3 text-[13px]"}`}
+          >
             <Headline text={news.headline} query="" />
           </p>
         )}
-        <div className="mt-auto pt-1.5 truncate text-[11px] text-slate-400 dark:text-slate-500">
+        <div className="mt-auto truncate pt-1.5 text-[11px] text-slate-400 dark:text-slate-500">
           {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(hit.event.created_at)}
         </div>
       </div>
@@ -196,12 +213,18 @@ function TopStoryCard({ story }: { story: TopStory }) {
 }
 
 /** The horizontal Top stories strip. */
-export function TopStories({ stories, stripRef }: { stories: TopStory[]; stripRef?: (el: HTMLDivElement | null) => void }) {
+export function TopStories({
+  stories,
+  stripRef,
+}: {
+  stories: TopStory[];
+  stripRef?: (el: HTMLDivElement | null) => void;
+}) {
   if (stories.length === 0) return null;
   return (
     <div
       ref={stripRef}
-      className="mb-2 flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="-mx-1 mb-2 flex gap-2.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       data-testid="serp-top-stories"
     >
       {stories.map((s) => (
@@ -211,7 +234,15 @@ export function TopStories({ stories, stripRef }: { stories: TopStory[]; stripRe
   );
 }
 
-function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | null; /** The media no longer answers — the tile should leave the grid. */ onGone?: () => void }) {
+function MediaTile({
+  hit,
+  score,
+  onGone,
+}: {
+  hit: SearchHit;
+  score?: number | null;
+  /** The media no longer answers — the tile should leave the grid. */ onGone?: () => void;
+}) {
   const speed = useConnectionSpeed();
   const [, navigate] = useLocation();
   const openLightbox = useLightbox();
@@ -226,7 +257,14 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
   // playing — the way X, Instagram and TikTok do. The caption opens the post.
   // The full view is told whose it is and where the post lives.
   const context = {
-    author: hit.author ? { name: getDisplayLabel(hit.author), npub: hit.author.npub, picture: hit.author.picture, score01: hit.author.wotRank ?? score ?? null } : null,
+    author: hit.author
+      ? {
+          name: getDisplayLabel(hit.author),
+          npub: hit.author.npub,
+          picture: hit.author.picture,
+          score01: hit.author.wotRank ?? score ?? null,
+        }
+      : null,
     postHref: eventPath(e),
   };
   const openMedia = () => {
@@ -237,7 +275,7 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
   const caption = noteTitle(e.content || tagVal(e, "title") || "", 160);
   return (
     <div
-      className="group overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all"
+      className="group overflow-hidden rounded-xl border border-slate-100 bg-white/70 transition-all hover:border-slate-200 hover:shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800"
       data-testid={`media-tile-${e.id}`}
     >
       <div
@@ -251,7 +289,7 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
             openMedia();
           }
         }}
-        className="relative aspect-[4/3] cursor-pointer bg-slate-100 dark:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+        className="relative aspect-[4/3] cursor-pointer bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:bg-slate-800"
         data-testid="media-tile-media"
       >
         {/* Dead media leaves the grid (Google's rule for a broken image): a
@@ -271,13 +309,19 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
             className="absolute inset-0 h-full w-full object-cover"
           />
         ) : url && isVideo ? (
-          <video src={`${url}#t=0.1`} preload={videoPreload(speed)} muted playsInline tabIndex={-1} aria-hidden onError={() => onGone?.()} className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+          <video
+            src={`${url}#t=0.1`}
+            preload={videoPreload(speed)}
+            muted
+            playsInline
+            tabIndex={-1}
+            aria-hidden
+            onError={() => onGone?.()}
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          />
         ) : null}
         {isVideo && (
-          <span
-            className="absolute inset-0 flex items-center justify-center"
-            data-testid="media-tile-play"
-          >
+          <span className="absolute inset-0 flex items-center justify-center" data-testid="media-tile-play">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-md">
               <Play className="ml-0.5 h-4 w-4 text-brand-deep" />
             </span>
@@ -294,12 +338,16 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
             openPost();
           }
         }}
-        className="cursor-pointer p-2 hover:bg-slate-50 dark:hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+        className="cursor-pointer p-2 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:hover:bg-slate-900"
         data-testid="media-tile-caption"
       >
-        {caption && <p className="line-clamp-2 text-[12px] leading-snug text-slate-700 dark:text-slate-200">{caption}</p>}
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
-          <span className="min-w-0 truncate">{hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(e.created_at)}</span>
+        {caption && (
+          <p className="line-clamp-2 text-[12px] leading-snug text-slate-700 dark:text-slate-200">{caption}</p>
+        )}
+        <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500">
+          <span className="min-w-0 truncate">
+            {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(e.created_at)}
+          </span>
           {/* The picture says what it is; the pill only when asked for everywhere. */}
           <KindPill event={e} mixed={false} />
         </p>
@@ -309,7 +357,13 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
 }
 
 /** The Media tile grid — two across on phones, three on wider screens. */
-export function MediaTiles({ hits, scoreOf }: { hits: SearchHit[]; scoreOf?: (pk: string) => number | null | undefined }) {
+export function MediaTiles({
+  hits,
+  scoreOf,
+}: {
+  hits: SearchHit[];
+  scoreOf?: (pk: string) => number | null | undefined;
+}) {
   // Tiles whose media no longer answers (a dead CDN, a deleted bucket) leave
   // the grid, so it reflows without holes.
   const [gone, setGone] = useState<Set<string>>(() => new Set());
@@ -318,7 +372,12 @@ export function MediaTiles({ hits, scoreOf }: { hits: SearchHit[]; scoreOf?: (pk
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3" data-testid="serp-media-grid">
       {shown.map((h) => (
-        <MediaTile key={h.event.id} hit={h} score={scoreOf?.(h.event.pubkey)} onGone={() => setGone((prev) => new Set(prev).add(h.event.id))} />
+        <MediaTile
+          key={h.event.id}
+          hit={h}
+          score={scoreOf?.(h.event.pubkey)}
+          onGone={() => setGone((prev) => new Set(prev).add(h.event.id))}
+        />
       ))}
     </div>
   );
@@ -328,7 +387,6 @@ export function MediaTiles({ hits, scoreOf }: { hits: SearchHit[]; scoreOf?: (pk
 export function hasVisual(e: NostrEvent): boolean {
   return !!(mediaUrlOf(e) || mediaPosterOf(e));
 }
-
 
 /* ------------------------------------------------------------------ */
 /* Articles as a bento                                                 */
@@ -351,7 +409,9 @@ function articleShape(e: NostrEvent) {
 function ArticleAuthor({ hit, score, light = false }: { hit: SearchHit; score?: number | null; light?: boolean }) {
   const tierRing = useTierRing();
   return (
-    <span className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0 text-[11px] ${light ? "text-white/85" : "text-slate-500 dark:text-slate-400"}`}>
+    <span
+      className={`flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] ${light ? "text-white/85" : "text-slate-500 dark:text-slate-400"}`}
+    >
       <Avatar className={`h-4 w-4 shrink-0 border border-white/60 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
         {hit.author?.picture ? <AvatarImage src={hit.author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">
@@ -366,13 +426,34 @@ function ArticleAuthor({ hit, score, light = false }: { hit: SearchHit; score?: 
   );
 }
 
-function ArticlePicture({ src, className, placeholderClass }: { src: string | null; className: string; placeholderClass: string }) {
+function ArticlePicture({
+  src,
+  className,
+  placeholderClass,
+}: {
+  src: string | null;
+  className: string;
+  placeholderClass: string;
+}) {
   const [failed, setFailed] = useState(false);
   if (src && !failed) {
-    return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className={className} data-testid="article-image" />;
+    return (
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className={className}
+        data-testid="article-image"
+      />
+    );
   }
   return (
-    <div className={`${placeholderClass} flex items-center justify-center bg-gradient-to-br from-brand-primary/15 to-brand-accent/15 dark:from-brand-primary/25 dark:to-brand-accent/20`} aria-hidden="true" data-testid="article-placeholder">
+    <div
+      className={`${placeholderClass} flex items-center justify-center bg-gradient-to-br from-brand-primary/15 to-brand-accent/15 dark:from-brand-primary/25 dark:to-brand-accent/20`}
+      aria-hidden="true"
+      data-testid="article-placeholder"
+    >
       <BookOpen className="h-6 w-6 text-brand-primary/60" />
     </div>
   );
@@ -414,17 +495,23 @@ export function ArticlesBento({
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="articles-bento">
       <div
         {...openable(() => navigate(eventPath(lead.primary.event)))}
-        className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 col-span-2 sm:row-span-2"
+        className="group relative col-span-2 flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white/70 transition-all hover:border-slate-200 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800 sm:row-span-2"
         data-testid={`article-lead-${lead.primary.event.id}`}
       >
-        <ArticlePicture src={leadShape.image} className="aspect-[16/9] w-full object-cover bg-slate-100 dark:bg-slate-800" placeholderClass="aspect-[16/9] w-full" />
+        <ArticlePicture
+          src={leadShape.image}
+          className="aspect-[16/9] w-full bg-slate-100 object-cover dark:bg-slate-800"
+          placeholderClass="aspect-[16/9] w-full"
+        />
         <div className="flex min-w-0 flex-1 flex-col p-3.5 sm:p-4">
           <ArticleAuthor hit={lead.primary} score={scoreOf(lead.primary.event.pubkey)} />
-          <h3 className="mt-1.5 text-base font-semibold leading-snug text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors line-clamp-2 sm:text-lg">
+          <h3 className="mt-1.5 line-clamp-2 text-base font-semibold leading-snug text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100 sm:text-lg">
             {leadShape.title}
           </h3>
           {leadShape.summary && (
-            <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600 dark:text-slate-300 line-clamp-3">{leadShape.summary}</p>
+            <p className="mt-1.5 line-clamp-3 text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
+              {leadShape.summary}
+            </p>
           )}
         </div>
       </div>
@@ -434,12 +521,18 @@ export function ArticlesBento({
           <div
             key={c.primary.event.id}
             {...openable(() => navigate(eventPath(c.primary.event)))}
-            className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white/70 transition-all hover:border-slate-200 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800"
             data-testid={`article-tile-${c.primary.event.id}`}
           >
-            <ArticlePicture src={shape.image} className="aspect-[16/10] w-full object-cover bg-slate-100 dark:bg-slate-800" placeholderClass="aspect-[16/10] w-full" />
+            <ArticlePicture
+              src={shape.image}
+              className="aspect-[16/10] w-full bg-slate-100 object-cover dark:bg-slate-800"
+              placeholderClass="aspect-[16/10] w-full"
+            />
             <div className="flex min-w-0 flex-1 flex-col p-2.5">
-              <p className="text-[13px] font-semibold leading-snug text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors line-clamp-2">{shape.title}</p>
+              <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100">
+                {shape.title}
+              </p>
               <div className="mt-auto pt-1.5">
                 <ArticleAuthor hit={c.primary} score={scoreOf(c.primary.event.pubkey)} />
               </div>

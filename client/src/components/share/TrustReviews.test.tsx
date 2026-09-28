@@ -10,7 +10,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 
 type PersonEndorsements = import("@/services/endorsements").PersonEndorsements;
-const personEndorsementsMock = vi.fn<(pubkey: string | null, personal: boolean) => PersonEndorsements | null>(() => null);
+const personEndorsementsMock = vi.fn<(pubkey: string | null, personal: boolean) => PersonEndorsements | null>(
+  () => null,
+);
 const forgetMock = vi.fn();
 vi.mock("@/hooks/usePersonEndorsements", () => ({
   usePersonEndorsements: (pubkey: string | null, personal: boolean) => personEndorsementsMock(pubkey, personal),
@@ -25,7 +27,9 @@ const scoreByPubkey = new Map<string, number | null>();
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => (scoreByPubkey.has(pk) ? scoreByPubkey.get(pk) : 0.7),
 }));
-const repliesMock = vi.fn<(ids: string[]) => Promise<Map<string, { id: string; pubkey: string; text: string; at: number }>>>(() => Promise.resolve(new Map()));
+const repliesMock = vi.fn<
+  (ids: string[]) => Promise<Map<string, { id: string; pubkey: string; text: string; at: number }>>
+>(() => Promise.resolve(new Map()));
 vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
   fetchVouchReplies: (...a: unknown[]) => repliesMock(...(a as [string[]])),
@@ -33,7 +37,10 @@ vi.mock("@/services/search", async (importOriginal) => ({
 vi.mock("@/services/nostr", () => ({ fetchProfileMap: vi.fn(() => Promise.resolve(new Map())) }));
 let viewerMock: { pubkey: string } | null = null;
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => viewerMock }));
-const publishVouchMock = vi.fn(async (_subject: string, _opts: { type: string; content: string }) => ({ success: true, event: undefined as unknown }));
+const publishVouchMock = vi.fn(async (_subject: string, _opts: { type: string; content: string }) => ({
+  success: true,
+  event: undefined as unknown,
+}));
 const revokeVouchMock = vi.fn(async (_subject: string, _id: string) => ({ success: true }));
 vi.mock("@/services/vouches", () => ({
   publishVouch: (s: string, o: { type: string; content: string }) => publishVouchMock(s, o),
@@ -41,7 +48,12 @@ vi.mock("@/services/vouches", () => ({
 }));
 const knownProfiles = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", () => ({
-  eventStore: { getReplaceable: (_k: number, pubkey: string) => knownProfiles.get(pubkey), getEvent: () => undefined, add: (e: NostrEvent) => e, insert$: { subscribe: () => ({ unsubscribe: () => {} }) } },
+  eventStore: {
+    getReplaceable: (_k: number, pubkey: string) => knownProfiles.get(pubkey),
+    getEvent: () => undefined,
+    add: (e: NostrEvent) => e,
+    insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
+  },
 }));
 
 import { TrustReviews } from "./TrustReviews";
@@ -51,7 +63,15 @@ const BEN = "1".repeat(64);
 const FRIEND = "2".repeat(64);
 const STRANGER = "3".repeat(64);
 const profile = (pubkey: string, name: string): NostrEvent =>
-  ({ id: pubkey.slice(0, 8), kind: 0, pubkey, tags: [], content: JSON.stringify({ name }), created_at: 1, sig: "s" }) as NostrEvent;
+  ({
+    id: pubkey.slice(0, 8),
+    kind: 0,
+    pubkey,
+    tags: [],
+    content: JSON.stringify({ name }),
+    created_at: 1,
+    sig: "s",
+  }) as NostrEvent;
 const NOW = Math.floor(Date.now() / 1000);
 
 beforeEach(() => {
@@ -82,7 +102,20 @@ describe("TrustReviews composer", () => {
     personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [] });
     publishVouchMock.mockResolvedValue({
       success: true,
-      event: { id: "new-v", kind: 31871, pubkey: VIEWER, tags: [["d", SUBJECT], ["p", SUBJECT], ["t", "identity"], ["s", "vouched"]], content: "I know this is really them.", created_at: NOW, sig: "s" },
+      event: {
+        id: "new-v",
+        kind: 31871,
+        pubkey: VIEWER,
+        tags: [
+          ["d", SUBJECT],
+          ["p", SUBJECT],
+          ["t", "identity"],
+          ["s", "vouched"],
+        ],
+        content: "I know this is really them.",
+        created_at: NOW,
+        sig: "s",
+      },
     });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     const section = await screen.findByTestId("trust-reviews");
@@ -91,7 +124,12 @@ describe("TrustReviews composer", () => {
     fireEvent.click(screen.getByTestId("vouch-type-identity"));
     fireEvent.change(screen.getByTestId("vouch-text"), { target: { value: "I know this is really them." } });
     fireEvent.click(screen.getByTestId("vouch-publish"));
-    await vi.waitFor(() => expect(publishVouchMock).toHaveBeenCalledWith(SUBJECT, { type: "identity", content: "I know this is really them." }));
+    await vi.waitFor(() =>
+      expect(publishVouchMock).toHaveBeenCalledWith(SUBJECT, {
+        type: "identity",
+        content: "I know this is really them.",
+      }),
+    );
     // The new review is on the page at once, no refetch.
     const row = await screen.findByTestId("trust-review-new-v");
     expect(row).toHaveTextContent("I know this is really them.");
@@ -104,7 +142,8 @@ describe("TrustReviews composer", () => {
     viewerMock = { pubkey: VIEWER };
     signedInMock = true;
     personEndorsementsMock.mockReturnValue({
-      followedBy: [], total: null,
+      followedBy: [],
+      total: null,
       vouches: [{ id: "mine", pubkey: VIEWER, type: "vouch", text: "Great operator.", at: NOW - 100 }],
     });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
@@ -160,7 +199,8 @@ describe("TrustReviews", () => {
     knownProfiles.set(FRIEND, profile(FRIEND, "friend"));
     knownProfiles.set(BEN, profile(BEN, "benjamin"));
     personEndorsementsMock.mockReturnValue({
-      followedBy: [], total: null,
+      followedBy: [],
+      total: null,
       vouches: [
         { id: "v-friend", pubkey: FRIEND, type: "vouch", text: "Great relay operator.", at: NOW - 3 },
         { id: "v-ben", pubkey: BEN, type: "identity", text: "Real.", at: NOW - 60 },
@@ -187,7 +227,11 @@ describe("TrustReviews", () => {
     viewerMock = { pubkey: BEN };
     signedInMock = true;
     scoreByPubkey.set(BEN, 0.9);
-    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [{ id: "mine", pubkey: BEN, type: "vouch", text: "Solid.", at: NOW }] });
+    personEndorsementsMock.mockReturnValue({
+      followedBy: [],
+      total: null,
+      vouches: [{ id: "mine", pubkey: BEN, type: "vouch", text: "Solid.", at: NOW }],
+    });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     const summary = await screen.findByTestId("trust-reviews-summary");
     expect(summary.querySelector('[data-testid="trust-reviews-write"]')).toBeNull();
@@ -223,7 +267,11 @@ describe("TrustReviews", () => {
     personEndorsementsMock.mockReturnValue(null);
     const { rerender } = render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     expect(scrollSpy).not.toHaveBeenCalled();
-    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [{ id: "v-ben", pubkey: BEN, type: "vouch", text: "Solid.", at: NOW }] });
+    personEndorsementsMock.mockReturnValue({
+      followedBy: [],
+      total: null,
+      vouches: [{ id: "v-ben", pubkey: BEN, type: "vouch", text: "Solid.", at: NOW }],
+    });
     rerender(<TrustReviews pubkey={SUBJECT} personal={false} />);
     expect(await screen.findByTestId("trust-review-v-ben")).toBeInTheDocument();
     await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1));
@@ -240,8 +288,17 @@ describe("TrustReviews", () => {
     knownProfiles.set(FRIEND, profile(FRIEND, "friend"));
     const npub = (await import("nostr-tools")).nip19.npubEncode(FRIEND);
     personEndorsementsMock.mockReturnValue({
-      followedBy: [], total: null,
-      vouches: [{ id: "v-ben", pubkey: BEN, type: "vouch", text: `Built https://relayop.xyz with nostr:${npub} — solid.`, at: NOW }],
+      followedBy: [],
+      total: null,
+      vouches: [
+        {
+          id: "v-ben",
+          pubkey: BEN,
+          type: "vouch",
+          text: `Built https://relayop.xyz with nostr:${npub} — solid.`,
+          at: NOW,
+        },
+      ],
     });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     const row = await screen.findByTestId("trust-review-v-ben");
@@ -261,14 +318,23 @@ describe("TrustReviews", () => {
     knownProfiles.set(FRIEND, profile(FRIEND, "friend"));
     knownProfiles.set(SUBJECT, profile(SUBJECT, "nathan"));
     personEndorsementsMock.mockReturnValue({
-      followedBy: [], total: null,
+      followedBy: [],
+      total: null,
       vouches: [
         { id: "v-stranger", pubkey: STRANGER, type: "vouch", text: "trust me bro", at: NOW - 100 },
-        { id: "v-ben", pubkey: BEN, type: "identity", text: "Leaving this here so others know this is the real Nathan Day account.", at: NOW - 86400 * 60 },
+        {
+          id: "v-ben",
+          pubkey: BEN,
+          type: "identity",
+          text: "Leaving this here so others know this is the real Nathan Day account.",
+          at: NOW - 86400 * 60,
+        },
         { id: "v-friend", pubkey: FRIEND, type: "vouch", text: "Great relay operator.", at: NOW - 86400 * 3 },
       ],
     });
-    repliesMock.mockResolvedValue(new Map([["v-ben", { id: "r1", pubkey: SUBJECT, text: "Confirmed, that's me.", at: NOW - 86400 * 50 }]]));
+    repliesMock.mockResolvedValue(
+      new Map([["v-ben", { id: "r1", pubkey: SUBJECT, text: "Confirmed, that's me.", at: NOW - 86400 * 50 }]]),
+    );
 
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     const section = await screen.findByTestId("trust-reviews");
@@ -284,7 +350,9 @@ describe("TrustReviews", () => {
     expect(screen.getByTestId("trust-review-v-ben")).toHaveTextContent("Confirms identity");
     expect(screen.getByTestId("trust-review-v-ben")).toHaveTextContent("real Nathan Day account");
     // The subject's public answer sits under the vouch it answers.
-    await vi.waitFor(() => expect(screen.getByTestId("trust-review-reply-v-ben")).toHaveTextContent("Confirmed, that's me."));
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("trust-review-reply-v-ben")).toHaveTextContent("Confirmed, that's me."),
+    );
     expect(repliesMock).toHaveBeenCalledWith(["v-stranger", "v-ben", "v-friend"]);
     // Rings on the reviewers.
     expect(screen.getByTestId("trust-review-v-ben").querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
@@ -302,7 +370,11 @@ describe("TrustReviews", () => {
   it("with only outsiders, shows them unfolded — nothing to hide behind", async () => {
     window.location.hash = "#trust-reviews";
     scoreByPubkey.set(STRANGER, null);
-    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [{ id: "v", pubkey: STRANGER, type: "vouch", text: "ok", at: NOW }] });
+    personEndorsementsMock.mockReturnValue({
+      followedBy: [],
+      total: null,
+      vouches: [{ id: "v", pubkey: STRANGER, type: "vouch", text: "ok", at: NOW }],
+    });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     await screen.findByTestId("trust-review-v");
     expect(screen.queryByTestId("trust-reviews-toggle")).toBeNull();

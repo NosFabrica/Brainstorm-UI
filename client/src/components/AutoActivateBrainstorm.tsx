@@ -1,4 +1,4 @@
-import {useEffect} from "react";
+import { useEffect } from "react";
 import { useOncePerPubkey } from "@/hooks/useOncePerPubkey";
 import { ensureBrainstormTrustAnchor, shouldAutoPublishNip85 } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";

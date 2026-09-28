@@ -36,9 +36,12 @@ const TTL_MS = 10 * 60_000;
 
 /** The music lists: the shipped registry, plus any the curators tagged on the hub. */
 async function musicLists(relays: string[]): Promise<DListEntry[]> {
-  const headers = await fetchEventsByFilter({ kinds: [DLIST_HEADER_KIND], authors: CURATOR_PUBKEYS }, relays).catch(() => []);
+  const headers = await fetchEventsByFilter({ kinds: [DLIST_HEADER_KIND], authors: CURATOR_PUBKEYS }, relays).catch(
+    () => [],
+  );
   const byCoord = new Map<string, DListEntry>();
-  for (const e of [...DLIST_REGISTRY, ...dlistsFromHeaders(headers)]) if (e.category === "music") byCoord.set(e.coordinate, e);
+  for (const e of [...DLIST_REGISTRY, ...dlistsFromHeaders(headers)])
+    if (e.category === "music") byCoord.set(e.coordinate, e);
   return [...byCoord.values()];
 }
 
@@ -55,7 +58,10 @@ function newestBy<T>(items: { item: T; key: string; at: number }[]): T[] {
 async function lookup(): Promise<PodcastIndexMusic> {
   const relays = tagRelays();
   const lists = await musicLists(relays);
-  const events = await fetchEventsByFilter({ kinds: [DLIST_ITEM_KIND], "#z": lists.map((l) => l.coordinate), limit: 500 }, relays);
+  const events = await fetchEventsByFilter(
+    { kinds: [DLIST_ITEM_KIND], "#z": lists.map((l) => l.coordinate), limit: 500 },
+    relays,
+  );
   const songs: { item: PodcastSong; key: string; at: number }[] = [];
   const musicians: { item: PodcastMusician; key: string; at: number }[] = [];
   for (const ev of events) {
@@ -68,11 +74,16 @@ async function lookup(): Promise<PodcastIndexMusic> {
       continue;
     }
     const musician = parseDListMusician(ev);
-    if (musician) musicians.push({ item: musician, key: musician.feedGuid ?? musician.name.toLowerCase(), at: ev.created_at });
+    if (musician)
+      musicians.push({ item: musician, key: musician.feedGuid ?? musician.name.toLowerCase(), at: ev.created_at });
   }
   // A republished feed counts once (by guid); then one face per musician,
   // however many album feeds they publish (live: four Robert Willeys).
-  const byFeed = newestBy(musicians).map((item) => ({ item, key: item.name.trim().toLowerCase(), at: musicians.find((m) => m.item === item)!.at }));
+  const byFeed = newestBy(musicians).map((item) => ({
+    item,
+    key: item.name.trim().toLowerCase(),
+    at: musicians.find((m) => m.item === item)!.at,
+  }));
   return { songs: newestBy(songs), musicians: newestBy(byFeed) };
 }
 

@@ -85,9 +85,7 @@ export class PairingCancelled extends Error {
 }
 
 export function isPairingCancelled(error: unknown): boolean {
-  return (
-    error instanceof PairingCancelled || (error as { name?: string })?.name === "PairingCancelled"
-  );
+  return error instanceof PairingCancelled || (error as { name?: string })?.name === "PairingCancelled";
 }
 
 /**
@@ -252,11 +250,7 @@ export function remoteSignerMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? "");
   const message = raw.toLowerCase();
 
-  if (
-    message.includes("invalid secret") ||
-    message.includes("no secret") ||
-    message.includes("secret not in use")
-  ) {
+  if (message.includes("invalid secret") || message.includes("no secret") || message.includes("secret not in use")) {
     return "This link has expired — they're single-use and short-lived. Get a fresh one from your signer and paste it straight away.";
   }
   if (message.includes("already connected")) {

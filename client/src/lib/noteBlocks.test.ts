@@ -57,7 +57,16 @@ describe("prose pass (unmarked articles, e.g. RSS bridges)", () => {
 
   it("gives each prose line its own paragraph and reads headline, caption and section head", () => {
     const b = toNoteBlocks(parseNoteContent(article));
-    expect(b.map((x) => (x.type === "h" ? `h${x.level}` : x.type))).toEqual(["h1", "p", "caption", "p", "p", "h3", "p", "p"]);
+    expect(b.map((x) => (x.type === "h" ? `h${x.level}` : x.type))).toEqual([
+      "h1",
+      "p",
+      "caption",
+      "p",
+      "p",
+      "h3",
+      "p",
+      "p",
+    ]);
     // Caption and credit read as one caption; the indent doesn't survive.
     expect(texts((b[2] as { tokens: never[] }).tokens).trim()).toBe("Caption of the photo, no period\nPhoto credit");
   });
@@ -76,13 +85,28 @@ describe("prose pass (unmarked articles, e.g. RSS bridges)", () => {
 
 describe("layouts that are not prose (from real events)", () => {
   it("keeps whitespace art as one preformatted block, untouched", () => {
-    const art = ["   ) ( (   (", "  (  ) () @@  )  (( (", "( ( ( ()( /---\\   (()( (", " __<__\\__(___)_))_((_(____))__"].join("\n");
+    const art = [
+      "   ) ( (   (",
+      "  (  ) () @@  )  (( (",
+      "( ( ( ()( /---\\   (()( (",
+      " __<__\\__(___)_))_((_(____))__",
+    ].join("\n");
     const b = blocks(art);
     expect(b).toEqual([{ type: "code", text: art, art: true }]);
   });
 
   it("takes a pasted git log / diff to the end as code, blank context lines included", () => {
-    const log = ["commit 57b3c5bda648016747553f49b6107fd6c7d90235", "Author: A <a@b>", "", "diff --git a/x b/x", "@@ -1,3 +1,3 @@", " Global", "-\t\tDebug|x86", " ", "+\tRelease"].join("\n");
+    const log = [
+      "commit 57b3c5bda648016747553f49b6107fd6c7d90235",
+      "Author: A <a@b>",
+      "",
+      "diff --git a/x b/x",
+      "@@ -1,3 +1,3 @@",
+      " Global",
+      "-\t\tDebug|x86",
+      " ",
+      "+\tRelease",
+    ].join("\n");
     const b = blocks(log);
     expect(b.map((x) => x.type)).toEqual(["code"]);
     expect((b[0] as { text: string }).text).toContain("-\t\tDebug|x86");
@@ -95,7 +119,8 @@ describe("layouts that are not prose (from real events)", () => {
   });
 
   it("keeps a run of short lines together between prose paragraphs", () => {
-    const long = "A long line of prose that goes on well past the hundred character mark, as descriptions often do, yes.";
+    const long =
+      "A long line of prose that goes on well past the hundred character mark, as descriptions often do, yes.";
     const b = blocks([long + " More.", "(00:00) Intro", "(02:43) Part two", "(05:45) Part three", long].join("\n"));
     expect(b.map((x) => x.type)).toEqual(["p", "p", "p"]);
     expect(texts((b[1] as { tokens: never[] }).tokens)).toBe("(00:00) Intro\n(02:43) Part two\n(05:45) Part three");
@@ -142,7 +167,8 @@ describe("review regressions", () => {
   });
 
   it("code shows the source verbatim, not the tokens rebuilt", () => {
-    const src = "```\n[docs](https://example.com/a)\nhttps://njump.me/npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6\n```";
+    const src =
+      "```\n[docs](https://example.com/a)\nhttps://njump.me/npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6\n```";
     expect(toNoteBlocks(parseNoteContent(src), { source: src })[0]).toEqual({
       type: "code",
       text: "[docs](https://example.com/a)\nhttps://njump.me/npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6",
@@ -158,7 +184,10 @@ describe("review regressions", () => {
   it("an Arabic or CJK question is a sentence, not a heading", () => {
     for (const q of ["من هم مؤيدي البيتكوين؟", "这是什么？"]) {
       const b = blocks([para.repeat(3), q, para.repeat(3)].join("\n\n"));
-      expect(b.every((x) => x.type === "p"), q).toBe(true);
+      expect(
+        b.every((x) => x.type === "p"),
+        q,
+      ).toBe(true);
     }
   });
 
@@ -196,11 +225,16 @@ describe("final audit regressions", () => {
   });
 
   it("__word__ is still bold; only Python's names are exempt", () => {
-    expect(parseInlineMarkdown("this is __really__ important")[1]).toEqual({ type: "strong", children: [{ type: "text", value: "really" }] });
+    expect(parseInlineMarkdown("this is __really__ important")[1]).toEqual({
+      type: "strong",
+      children: [{ type: "text", value: "really" }],
+    });
   });
 
   it("a reply and a list typed after a pasted git log stay prose", () => {
-    const b = blocks("commit 57b3c5bda648016747553f49b6107fd6c7d90235\nAuthor: A <a@b>\n\n    fix\n\n@bob can you look at this please\n- also this list");
+    const b = blocks(
+      "commit 57b3c5bda648016747553f49b6107fd6c7d90235\nAuthor: A <a@b>\n\n    fix\n\n@bob can you look at this please\n- also this list",
+    );
     expect(b.map((x) => x.type)).toEqual(["code", "p", "ul"]);
     expect((b[0] as { text: string }).text).toContain("    fix");
   });
@@ -248,7 +282,9 @@ describe("markdown notes (real: a test note, bridged GitHub comments)", () => {
 
 describe("refactor review regressions", () => {
   it("backslashes in a note are the author's: ¯\\_(ツ)_/¯ stays whole", () => {
-    expect(parseInlineMarkdown("¯\\_(ツ)_/¯ and C:\\dir\\")).toEqual([{ type: "text", value: "¯\\_(ツ)_/¯ and C:\\dir\\" }]);
+    expect(parseInlineMarkdown("¯\\_(ツ)_/¯ and C:\\dir\\")).toEqual([
+      { type: "text", value: "¯\\_(ツ)_/¯ and C:\\dir\\" },
+    ]);
   });
 
   it("a short separator row still makes a table", () => {
@@ -269,7 +305,10 @@ describe("audit of #97 (blocks)", () => {
   it("=== under a list item, a quote or a # heading doesn't make a heading of the marker", () => {
     for (const t of ["- item\n=====", "> quoted\n=====", "# Title\n====="]) {
       const b = blocks(t);
-      expect(b.some((x) => x.type === "h" && texts((x as { tokens: never[] }).tokens).match(/^[-#>]/)), t).toBe(false);
+      expect(
+        b.some((x) => x.type === "h" && texts((x as { tokens: never[] }).tokens).match(/^[-#>]/)),
+        t,
+      ).toBe(false);
     }
   });
 });
@@ -291,7 +330,13 @@ describe("parseInlineMarkdown", () => {
   });
 
   it("leaves snake_case, arithmetic and lone markers alone", () => {
-    for (const s of ["snake_case_name", "2 * 3 * 4", "** nope **", "file_name.txt and other_file", "call __init__ and __main__ here"]) {
+    for (const s of [
+      "snake_case_name",
+      "2 * 3 * 4",
+      "** nope **",
+      "file_name.txt and other_file",
+      "call __init__ and __main__ here",
+    ]) {
       expect(parseInlineMarkdown(s)).toEqual([{ type: "text", value: s }]);
     }
   });
@@ -299,8 +344,45 @@ describe("parseInlineMarkdown", () => {
 
 describe("fuzz", () => {
   // Seeded, so a failure reproduces. Pieces are the shapes real notes mix.
-  const PIECES = ["a", "Bc", "word ", " ", "   ", "\t", "\n", "\n\n", "# ", "#### ", "- ", "+ ", "* ", "1. ", "> ", "\n| a | b |\n|---|:--:|\n", "\n```\n", "\n```js\n", "```x```", "---", "**", "__", "_", "*", "`",
-    "@@ -1 +1 @@", "diff --git a/x b/x", "commit 1a2b3c4d", "https://ex.am/p?q=1", "#tag", "🎉", "🇨🇭", "ção", "日本", "|  |", "(__)", "\r\n"];
+  const PIECES = [
+    "a",
+    "Bc",
+    "word ",
+    " ",
+    "   ",
+    "\t",
+    "\n",
+    "\n\n",
+    "# ",
+    "#### ",
+    "- ",
+    "+ ",
+    "* ",
+    "1. ",
+    "> ",
+    "\n| a | b |\n|---|:--:|\n",
+    "\n```\n",
+    "\n```js\n",
+    "```x```",
+    "---",
+    "**",
+    "__",
+    "_",
+    "*",
+    "`",
+    "@@ -1 +1 @@",
+    "diff --git a/x b/x",
+    "commit 1a2b3c4d",
+    "https://ex.am/p?q=1",
+    "#tag",
+    "🎉",
+    "🇨🇭",
+    "ção",
+    "日本",
+    "|  |",
+    "(__)",
+    "\r\n",
+  ];
   const letters = (s: string) => (s.match(/\p{L}/gu) || []).sort().join("");
   /** Multiset containment of two sorted letter strings. */
   const within = (small: string, big: string) => {
@@ -316,16 +398,22 @@ describe("fuzz", () => {
   const blockText = (b: NoteBlock): string => {
     const t = (ts: NoteToken[]) => ts.map((x) => (x.type === "mention" ? x.bech32 : x.value)).join("");
     switch (b.type) {
-      case "code": return b.text;
-      case "table": return [...b.head, ...b.rows.flat()].map(t).join("\n");
-      case "hr": return "";
-      case "ul": case "ol": return [...b.items.map(t), ...(b.nested ?? []).flatMap((n) => (n ? n.items.map(t) : []))].join("\n");
-      default: return t(b.tokens);
+      case "code":
+        return b.text;
+      case "table":
+        return [...b.head, ...b.rows.flat()].map(t).join("\n");
+      case "hr":
+        return "";
+      case "ul":
+      case "ol":
+        return [...b.items.map(t), ...(b.nested ?? []).flatMap((n) => (n ? n.items.map(t) : []))].join("\n");
+      default:
+        return t(b.tokens);
     }
   };
   it("never throws and never loses a letter", () => {
     let seed = 42;
-    const rand = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+    const rand = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
     for (let n = 0; n < 400; n++) {
       let src = "";
       const len = 5 + Math.floor(rand() * 120);
@@ -338,7 +426,8 @@ describe("fuzz", () => {
       const why = JSON.stringify(src) + " => " + JSON.stringify(out);
       expect(within(letters(src.replace(/^([ \t]*```)[\w+#.-]*[ \t]*$/gm, "$1")), got), why).toBe(true);
       expect(within(got, letters(src)), why).toBe(true);
-      for (const b of out) if ("tokens" in b) for (const tk of b.tokens) if (tk.type === "text") parseInlineMarkdown(tk.value);
+      for (const b of out)
+        if ("tokens" in b) for (const tk of b.tokens) if (tk.type === "text") parseInlineMarkdown(tk.value);
     }
   });
 });

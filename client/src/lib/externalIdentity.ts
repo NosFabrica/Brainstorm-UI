@@ -4,8 +4,17 @@
 // must not present them as cryptographically "verified".
 
 export type IdentityIcon =
-  | "github" | "x" | "telegram" | "mastodon"
-  | "linkedin" | "youtube" | "signal" | "bluesky" | "facebook" | "tiktok" | "instagram"
+  | "github"
+  | "x"
+  | "telegram"
+  | "mastodon"
+  | "linkedin"
+  | "youtube"
+  | "signal"
+  | "bluesky"
+  | "facebook"
+  | "tiktok"
+  | "instagram"
   | "link";
 
 export interface ExternalIdentity {
@@ -34,24 +43,78 @@ export function parseIdentityClaim(claim: string): ExternalIdentity | null {
       return { platform: "x", identity, label: "X", icon: "x", url: `https://x.com/${identity.replace(/^@/, "")}` };
     case "telegram":
       // Telegram claims are often a numeric user id (not linkable); usernames are.
-      return { platform, identity, label: "Telegram", icon: "telegram", url: /^\d+$/.test(identity) ? undefined : `https://t.me/${identity.replace(/^@/, "")}` };
+      return {
+        platform,
+        identity,
+        label: "Telegram",
+        icon: "telegram",
+        url: /^\d+$/.test(identity) ? undefined : `https://t.me/${identity.replace(/^@/, "")}`,
+      };
     case "mastodon":
-      return { platform, identity, label: "Mastodon", icon: "mastodon", url: `https://${identity.replace(/^https?:\/\//, "")}` };
+      return {
+        platform,
+        identity,
+        label: "Mastodon",
+        icon: "mastodon",
+        url: `https://${identity.replace(/^https?:\/\//, "")}`,
+      };
     case "linkedin":
-      return { platform, identity, label: "LinkedIn", icon: "linkedin", url: `https://www.linkedin.com/in/${identity.replace(/^\/?in\//, "").replace(/^@/, "")}` };
+      return {
+        platform,
+        identity,
+        label: "LinkedIn",
+        icon: "linkedin",
+        url: `https://www.linkedin.com/in/${identity.replace(/^\/?in\//, "").replace(/^@/, "")}`,
+      };
     case "youtube":
-      return { platform, identity, label: "YouTube", icon: "youtube", url: `https://www.youtube.com/@${identity.replace(/^@/, "")}` };
+      return {
+        platform,
+        identity,
+        label: "YouTube",
+        icon: "youtube",
+        url: `https://www.youtube.com/@${identity.replace(/^@/, "")}`,
+      };
     case "signal":
       // Signal usernames have no public profile page; only link a full URL.
-      return { platform, identity, label: "Signal", icon: "signal", url: /^https?:\/\//.test(identity) ? identity : undefined };
+      return {
+        platform,
+        identity,
+        label: "Signal",
+        icon: "signal",
+        url: /^https?:\/\//.test(identity) ? identity : undefined,
+      };
     case "bluesky":
-      return { platform, identity, label: "Bluesky", icon: "bluesky", url: `https://bsky.app/profile/${identity.replace(/^@/, "")}` };
+      return {
+        platform,
+        identity,
+        label: "Bluesky",
+        icon: "bluesky",
+        url: `https://bsky.app/profile/${identity.replace(/^@/, "")}`,
+      };
     case "facebook":
-      return { platform, identity, label: "Facebook", icon: "facebook", url: `https://facebook.com/${identity.replace(/^@/, "")}` };
+      return {
+        platform,
+        identity,
+        label: "Facebook",
+        icon: "facebook",
+        url: `https://facebook.com/${identity.replace(/^@/, "")}`,
+      };
     case "tiktok":
-      return { platform, identity, label: "TikTok", icon: "tiktok", url: `https://www.tiktok.com/@${identity.replace(/^@/, "")}` };
+      return {
+        platform,
+        identity,
+        label: "TikTok",
+        icon: "tiktok",
+        url: `https://www.tiktok.com/@${identity.replace(/^@/, "")}`,
+      };
     case "instagram":
-      return { platform, identity, label: "Instagram", icon: "instagram", url: `https://instagram.com/${identity.replace(/^@/, "")}` };
+      return {
+        platform,
+        identity,
+        label: "Instagram",
+        icon: "instagram",
+        url: `https://instagram.com/${identity.replace(/^@/, "")}`,
+      };
     case "nostr":
       return null; // self-referential
     default: {
@@ -85,7 +148,19 @@ export function splitIdentityClaim(claim: string): { platform: string; identity:
   let platform = claim.slice(0, idx).toLowerCase().trim();
   const identity = claim.slice(idx + 1).trim();
   if (platform === "twitter") platform = "x";
-  const known = new Set(["github", "x", "mastodon", "telegram", "linkedin", "youtube", "signal", "bluesky", "facebook", "tiktok", "instagram"]);
+  const known = new Set([
+    "github",
+    "x",
+    "mastodon",
+    "telegram",
+    "linkedin",
+    "youtube",
+    "signal",
+    "bluesky",
+    "facebook",
+    "tiktok",
+    "instagram",
+  ]);
   return known.has(platform) ? { platform, identity } : { platform: "other", identity: claim.trim() };
 }
 

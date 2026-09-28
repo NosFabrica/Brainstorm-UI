@@ -28,7 +28,9 @@ export function isTextEditing(el: Element | null): boolean {
  * showing through the strip under it. Focus is the one signal there is.
  */
 export function useEditingText(): boolean {
-  const [editing, setEditing] = useState(() => typeof document !== "undefined" && isTextEditing(document.activeElement));
+  const [editing, setEditing] = useState(
+    () => typeof document !== "undefined" && isTextEditing(document.activeElement),
+  );
   useEffect(() => {
     const sync = () => setEditing(isTextEditing(document.activeElement));
     // focusout fires before focus lands on the next element; read it once it has.

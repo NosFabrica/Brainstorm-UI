@@ -23,7 +23,10 @@ export const GH_REF_RE = /github\.com\/([^/\s]+)\/([^/\s]+)\/(?:pull|issues)\/(\
 // A sentence's full stop may follow either ("…at relayop.xyz."), so only a
 // dot that continues into more name ends the match early. A handle starts a
 // word — the @ in name@getalby.com is an address.
-const PROSE_TOKEN_RE = new RegExp(`((?<![\\w@/.])${BARE_DOMAIN}(?![\\w-]|\\.\\w)|(?<![\\w.+-])@[A-Za-z0-9_[\\]./-]*[A-Za-z0-9_\\]])`, "gi");
+const PROSE_TOKEN_RE = new RegExp(
+  `((?<![\\w@/.])${BARE_DOMAIN}(?![\\w-]|\\.\\w)|(?<![\\w.+-])@[A-Za-z0-9_[\\]./-]*[A-Za-z0-9_\\]])`,
+  "gi",
+);
 
 export type ProsePart = { type: "text" | "handle"; value: string } | { type: "domain"; value: string; url: string };
 
@@ -58,10 +61,9 @@ function PrChip({ url, n }: { url: string; n: string }) {
       href={url}
       target="_blank"
       rel="noopener"
-      className="inline-flex items-center gap-1 align-middle rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[12px] font-medium text-slate-600 dark:text-slate-300 no-underline hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+      className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-[12px] font-medium text-slate-600 no-underline transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
     >
-      <Favicon host={host} className="h-3 w-3 shrink-0" />
-      #{n}
+      <Favicon host={host} className="h-3 w-3 shrink-0" />#{n}
     </a>
   );
 }

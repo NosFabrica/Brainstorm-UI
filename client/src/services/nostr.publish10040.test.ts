@@ -62,8 +62,7 @@ const relayList = (...urls: string[]) => ({ kind: 10002, tags: urls.map((u) => [
 
 let nostr: typeof import("./nostr");
 
-const signed = (kind: number) =>
-  finalizeEvent({ kind, created_at: 0, tags: [], content: "" } as never, SECRET);
+const signed = (kind: number) => finalizeEvent({ kind, created_at: 0, tags: [], content: "" } as never, SECRET);
 
 /** The relay list a publish actually targeted, however it was sent. */
 const targeted = (): string[] =>

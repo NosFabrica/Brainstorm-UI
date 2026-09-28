@@ -90,10 +90,7 @@ function getStringLiteral(node: ts.Node | undefined): string | null {
   return null;
 }
 
-function findTopLevelInitializer(
-  sourceFile: ts.SourceFile,
-  name: string,
-): ts.Expression | undefined {
+function findTopLevelInitializer(sourceFile: ts.SourceFile, name: string): ts.Expression | undefined {
   let result: ts.Expression | undefined;
   sourceFile.forEachChild((node) => {
     if (ts.isVariableStatement(node)) {
@@ -107,17 +104,9 @@ function findTopLevelInitializer(
   return result;
 }
 
-function getObjectProp(
-  obj: ts.ObjectLiteralExpression,
-  name: string,
-): ts.Expression | undefined {
+function getObjectProp(obj: ts.ObjectLiteralExpression, name: string): ts.Expression | undefined {
   for (const prop of obj.properties) {
-    if (
-      ts.isPropertyAssignment(prop) &&
-      prop.name &&
-      ts.isIdentifier(prop.name) &&
-      prop.name.text === name
-    ) {
+    if (ts.isPropertyAssignment(prop) && prop.name && ts.isIdentifier(prop.name) && prop.name.text === name) {
       return prop.initializer;
     }
   }
@@ -127,23 +116,14 @@ function getObjectProp(
 /** Extract the ordered list of text tokens authored in a legal page .tsx file. */
 function extractPageTokens(pagePath: string): string[] {
   const fileText = fs.readFileSync(pagePath, "utf8");
-  const sf = ts.createSourceFile(
-    pagePath,
-    fileText,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TSX,
-  );
+  const sf = ts.createSourceFile(pagePath, fileText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
   const where = path.relative(ROOT, pagePath);
 
   const title = getStringLiteral(findTopLevelInitializer(sf, "TITLE"));
   if (title === null) fail(`${where}: could not read a string \`TITLE\` constant.`);
-  const lastRevised = getStringLiteral(
-    findTopLevelInitializer(sf, "LAST_REVISED"),
-  );
-  if (lastRevised === null)
-    fail(`${where}: could not read a string \`LAST_REVISED\` constant.`);
+  const lastRevised = getStringLiteral(findTopLevelInitializer(sf, "LAST_REVISED"));
+  if (lastRevised === null) fail(`${where}: could not read a string \`LAST_REVISED\` constant.`);
 
   const preambleNode = findTopLevelInitializer(sf, "PREAMBLE");
   if (!preambleNode || !ts.isArrayLiteralExpression(preambleNode)) {
@@ -152,8 +132,7 @@ function extractPageTokens(pagePath: string): string[] {
   const preamble: string[] = [];
   preambleNode.elements.forEach((el, i) => {
     const s = getStringLiteral(el);
-    if (s === null)
-      fail(`${where}: PREAMBLE[${i}] is not a plain string literal.`);
+    if (s === null) fail(`${where}: PREAMBLE[${i}] is not a plain string literal.`);
     preamble.push(s);
   });
 
@@ -169,8 +148,7 @@ function extractPageTokens(pagePath: string): string[] {
       fail(`${where}: SECTIONS[${si}] is not an object literal.`);
     }
     const sectionTitle = getStringLiteral(getObjectProp(sectionEl, "title"));
-    if (sectionTitle === null)
-      fail(`${where}: SECTIONS[${si}] has no string \`title\`.`);
+    if (sectionTitle === null) fail(`${where}: SECTIONS[${si}] has no string \`title\`.`);
     tokens.push(sectionTitle);
 
     const blocksNode = getObjectProp(sectionEl, "blocks");
@@ -185,24 +163,16 @@ function extractPageTokens(pagePath: string): string[] {
       const linesNode = getObjectProp(blockEl, "lines");
       if (textNode) {
         const s = getStringLiteral(textNode);
-        if (s === null)
-          fail(
-            `${where}: SECTIONS[${si}].blocks[${bi}].text is not a plain string literal.`,
-          );
+        if (s === null) fail(`${where}: SECTIONS[${si}].blocks[${bi}].text is not a plain string literal.`);
         tokens.push(s);
       } else if (linesNode && ts.isArrayLiteralExpression(linesNode)) {
         linesNode.elements.forEach((lineEl, li) => {
           const s = getStringLiteral(lineEl);
-          if (s === null)
-            fail(
-              `${where}: SECTIONS[${si}].blocks[${bi}].lines[${li}] is not a plain string literal.`,
-            );
+          if (s === null) fail(`${where}: SECTIONS[${si}].blocks[${bi}].lines[${li}] is not a plain string literal.`);
           tokens.push(s);
         });
       } else {
-        fail(
-          `${where}: SECTIONS[${si}].blocks[${bi}] has neither a \`text\` nor a \`lines\` field.`,
-        );
+        fail(`${where}: SECTIONS[${si}].blocks[${bi}] has neither a \`text\` nor a \`lines\` field.`);
       }
     });
   });
@@ -258,10 +228,7 @@ function compareDoc(doc: DocCase): void {
     const actual = pageTokens[i];
     if (expected !== actual) {
       const prevExpected = i > 0 ? sourceTokens[i - 1] : "(start of document)";
-      const focus =
-        expected !== undefined && actual !== undefined
-          ? firstDiffIndex(expected, actual)
-          : undefined;
+      const focus = expected !== undefined && actual !== undefined ? firstDiffIndex(expected, actual) : undefined;
       fail(
         `${doc.name}: content diverged from the approved legal source at entry #${i + 1}.\n\n` +
           `  Page file:   ${pageWhere}\n` +

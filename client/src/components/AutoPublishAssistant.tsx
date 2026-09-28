@@ -1,4 +1,4 @@
-import {useEffect} from "react";
+import { useEffect } from "react";
 import { useOncePerPubkey } from "@/hooks/useOncePerPubkey";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
@@ -40,8 +40,10 @@ export function AutoPublishAssistant() {
     if (!taPubkey) return; // not scored yet — nothing for the bot to speak
 
     once.mark(pk);
-    void ensureAssistantPublished({ follow: false, background: true }).catch(() => { /* retries next load */ });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- `once` is a new object each render (ref-backed)
+    void ensureAssistantPublished({ follow: false, background: true }).catch(() => {
+      /* retries next load */
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `once` is a new object each render (ref-backed)
   }, [pk, history.isSuccess, history.data]);
 
   return null;

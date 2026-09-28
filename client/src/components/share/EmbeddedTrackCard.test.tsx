@@ -18,7 +18,13 @@ vi.mock("@/lib/audioPlayer", async (importOriginal) => ({
   toggleTrack: (...args: unknown[]) => toggleTrackMock(...args),
 }));
 
-const track = { id: "t1", title: "Hand Me Down Heart", artist: "Joe Martin", cover: "https://img/hmdh.jpg", audio: "https://cdn/hmdh.mp3" };
+const track = {
+  id: "t1",
+  title: "Hand Me Down Heart",
+  artist: "Joe Martin",
+  cover: "https://img/hmdh.jpg",
+  audio: "https://cdn/hmdh.mp3",
+};
 
 describe("EmbeddedTrackCard — the playing mark lives on the cover", () => {
   it("idle: the cover offers Play and nothing moves", () => {
@@ -55,7 +61,10 @@ describe("EmbeddedTrackCard — the playing mark lives on the cover", () => {
     render(<EmbeddedTrackCard {...track} sourceLabel="Wavlake" sourceHost="wavlake.com" />);
     const chip = screen.getByTestId("track-source");
     expect(chip).toHaveTextContent("Wavlake");
-    expect(chip.querySelector('[data-testid="favicon"]')).toHaveAttribute("src", expect.stringContaining("wavlake.com"));
+    expect(chip.querySelector('[data-testid="favicon"]')).toHaveAttribute(
+      "src",
+      expect.stringContaining("wavlake.com"),
+    );
     expect(chip.closest("a")).toBeNull();
     expect(chip.querySelector("a")).toBeNull();
   });
@@ -69,7 +78,11 @@ describe("EmbeddedTrackCard — a tap on the row plays, like Spotify", () => {
     const onOpen = vi.fn();
     render(<EmbeddedTrackCard {...track} onOpen={onOpen} flat />);
     fireEvent.click(screen.getByTestId("embedded-track"));
-    expect(toggleTrackMock).toHaveBeenCalledWith("t1", "https://cdn/hmdh.mp3", expect.objectContaining({ title: "Hand Me Down Heart" }));
+    expect(toggleTrackMock).toHaveBeenCalledWith(
+      "t1",
+      "https://cdn/hmdh.mp3",
+      expect.objectContaining({ title: "Hand Me Down Heart" }),
+    );
     expect(onOpen).not.toHaveBeenCalled();
     fireEvent.click(screen.getByText("Hand Me Down Heart"));
     expect(onOpen).toHaveBeenCalledTimes(1);

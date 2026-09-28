@@ -11,17 +11,14 @@ import { ymd } from "@/lib/searchQuery";
 export const midnight = (d: Date): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
 /** `n` days later, by local date fields rather than milliseconds, so the clock-change days land right. */
-export const shiftDays = (d: Date, n: number): Date =>
-  new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+export const shiftDays = (d: Date, n: number): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 
 /** The 1st of the month `n` months away, the grid's own unit of position. */
-export const shiftMonths = (d: Date, n: number): Date =>
-  new Date(d.getFullYear(), d.getMonth() + n, 1);
+export const shiftMonths = (d: Date, n: number): Date => new Date(d.getFullYear(), d.getMonth() + n, 1);
 
 export const sameMonth = (a: Date | null, b: Date | null): boolean =>
   !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
-export const sameDay = (a: Date | null, b: Date | null): boolean =>
-  sameMonth(a, b) && a!.getDate() === b!.getDate();
+export const sameDay = (a: Date | null, b: Date | null): boolean => sameMonth(a, b) && a!.getDate() === b!.getDate();
 
 const fmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(undefined, opts);
 const DAY_FMT = fmt({ day: "numeric", month: "short", year: "numeric" });
@@ -77,7 +74,11 @@ export interface GridDay {
  * One month as the cells a seven-column grid draws. `lead` is the blanks before the 1st.
  * `today` is passed in so a test can pick its day.
  */
-export function monthGrid(month: Date, today: Date, start = WEEK_START): {
+export function monthGrid(
+  month: Date,
+  today: Date,
+  start = WEEK_START,
+): {
   label: string;
   lead: number;
   days: GridDay[];
@@ -112,8 +113,18 @@ export function typedMonth(partial: string): Date | null {
  * `since:7d` would mean a different search every morning.
  */
 const QUICK: Record<string, [string, number][]> = {
-  since: [["Today", 0], ["Last 7 days", -6], ["Last 30 days", -29], ["Last 90 days", -89]],
-  until: [["Today", 0], ["Yesterday", -1], ["A week ago", -7], ["A month ago", -30]],
+  since: [
+    ["Today", 0],
+    ["Last 7 days", -6],
+    ["Last 30 days", -29],
+    ["Last 90 days", -89],
+  ],
+  until: [
+    ["Today", 0],
+    ["Yesterday", -1],
+    ["A week ago", -7],
+    ["A month ago", -30],
+  ],
 };
 
 export const quickPicks = (field: string, today: Date): { label: string; value: string }[] =>

@@ -60,7 +60,7 @@ Endorsement findings (2026-09-03, read-only probe for the reviews work):
 5. **Counts per kind-group (nice-to-have).** A cheap NIP-45-style count
    per vertical would let the UI label tabs ("Notes · 120") without
    extra full REQs. supported_nips already lists 45.
-6a. **Open-vs-closed for repo issues/patches.** The repo cards/pages show
+   6a. **Open-vs-closed for repo issues/patches.** The repo cards/pages show
    issue and patch counts via NIP-45 COUNT (kinds 1621/1617 by the repo
    `#a`), but those are TOTALS — distinguishing open from resolved needs
    NIP-34 status events (kinds 1630–1633) folded in. A count that
@@ -76,7 +76,7 @@ Endorsement findings (2026-09-03, read-only probe for the reviews work):
    installing?" trust details. (App reviews — kind-1111 comments with
    `#a` on the listing address — ARE indexed and power the page's
    "What people say" section and the cards' endorsement lines.)
-8. **Batch endorsement summary (server or relay).** The results page now
+7. **Batch endorsement summary (server or relay).** The results page now
    shows per-app endorsements — review count, zap count, curated-
    collection count — via three NIP-45 COUNTs per card plus one small
    REQ for faces, capped at four in flight. One call taking
@@ -84,10 +84,10 @@ Endorsement findings (2026-09-03, read-only probe for the reviews work):
    address (ideally `collections` as DISTINCT curators, and `zaps` as a
    total across relays) would make an Apps tab of a hundred cards a
    single round-trip. Same shape for people: `{ verifiedFollowers,
-   flagged }` per pubkey would retire the per-author `/overview` fan-out
+flagged }` per pubkey would retire the per-author `/overview` fan-out
    the rings and the flagged chip share today (the standing batch-score
    ask, restated).
-7. **Link-preview proxy — shipped (2026-09-14), differently than asked.**
+8. **Link-preview proxy — shipped (2026-09-14), differently than asked.**
    Asked for as `GET /api/unfurl` on the API; delivered as
    `GET /link-preview?url=` on the UI's own origin, served by
    `brainstorm_og` (why: `brainstorm_og/CONTEXT.md`). Same-origin matters —
@@ -163,7 +163,6 @@ offer a release. A COUNT of kind 30618 under include:spam returns 0, against
 shows status, labels, comments, contributors and activity, but never a
 version. Ask: index 30618 (replaceable, keyed by the repo's d-tag), so the
 newest state per repo answers a `#a`/`d` lookup like everything else here.
-
 
 ## 14. Paging: time is the cursor under `sort:recent`; best match has none (2026-09-09)
 

@@ -55,9 +55,7 @@ vi.mock("@/accounts/login-flow", () => ({
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => mobile }));
 
 function open(props: Record<string, unknown> = {}) {
-  return renderWithProviders(
-    <RemoteSignerModal open onOpenChange={() => {}} onSignedIn={() => {}} {...props} />,
-  );
+  return renderWithProviders(<RemoteSignerModal open onOpenChange={() => {}} onSignedIn={() => {}} {...props} />);
 }
 
 /** A parent that re-renders, handing the modal a fresh inline `onSignedIn`. */
@@ -98,10 +96,7 @@ describe("what the signer is about to be told about us", () => {
 
     expect(shown).toHaveTextContent(appMetadata().name);
     expect(shown).toHaveTextContent(new URL(appMetadata().url).host);
-    expect(screen.getByTestId("img-remote-signer-icon")).toHaveAttribute(
-      "src",
-      appMetadata().image,
-    );
+    expect(screen.getByTestId("img-remote-signer-icon")).toHaveAttribute("src", appMetadata().image);
   });
 
   // The whole point is that the user can compare the two screens, which is
@@ -112,17 +107,13 @@ describe("what the signer is about to be told about us", () => {
     const sent = new URL(screen.getByTestId("link-open-signer-app").getAttribute("href")!);
     const origin = sent.searchParams.get("url")!;
 
-    expect(screen.getByTestId("text-remote-signer-origin")).toHaveTextContent(
-      new URL(origin).host,
-    );
+    expect(screen.getByTestId("text-remote-signer-origin")).toHaveTextContent(new URL(origin).host);
   });
 
   it("names the origin it is really running on, not a hardcoded brand domain", () => {
     open();
 
-    expect(screen.getByTestId("text-remote-signer-origin")).toHaveTextContent(
-      window.location.host,
-    );
+    expect(screen.getByTestId("text-remote-signer-origin")).toHaveTextContent(window.location.host);
   });
 });
 

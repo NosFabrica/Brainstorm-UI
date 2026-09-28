@@ -64,10 +64,7 @@ export async function checkUserLists(pubkey: string, taPubkey: string): Promise<
  * relay read the surface already did. Never throws: a publish must not fail
  * because we couldn't work out whether to mention lists.
  */
-export async function listsToName(
-  pubkey: string,
-  taPubkey: string,
-): Promise<ListDesignation | null> {
+export async function listsToName(pubkey: string, taPubkey: string): Promise<ListDesignation | null> {
   const known = queryClient.getQueryData<UserLists>(["trust-lists-status", pubkey, taPubkey]);
   const lists = known ?? (await checkUserLists(pubkey, taPubkey).catch(() => null));
   return lists?.status === "missing" ? lists.designation : null;

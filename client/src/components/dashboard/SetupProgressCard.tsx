@@ -30,8 +30,7 @@ export function SetupProgressCard({
   showStatus?: boolean;
 }) {
   const [, navigate] = useLocation();
-  const { signedIn, followDone, followPending, activateDone, activatePending, doneCount } =
-    useFinishSetup();
+  const { signedIn, followDone, followPending, activateDone, activatePending, doneCount } = useFinishSetup();
 
   const pending: { key: string; label: string; detail: string; href: string }[] = [];
   if (followPending)
@@ -59,9 +58,15 @@ export function SetupProgressCard({
   if (activateDone) done.push({ key: "activate", label: "Activate your Brainstorm account" });
 
   return (
-    <Card className="mb-6 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900" data-testid="card-setup-progress">
+    <Card
+      className="mb-6 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      data-testid="card-setup-progress"
+    >
       <div className="mb-3 flex items-center gap-2">
-        <span className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>
+        <span
+          className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
           Finish setting up
         </span>
         <Chip tone="slate" size="sm" className="ml-auto tabular-nums">

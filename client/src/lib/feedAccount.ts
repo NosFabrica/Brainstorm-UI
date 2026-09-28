@@ -7,7 +7,9 @@
  */
 const FEED_WORD = /(?:^|[^a-z])(?:bot|rss|feed)(?:$|[^a-z])/i;
 
-export function isFeedAccount(author: { bot?: boolean; name?: string; displayName?: string } | null | undefined): boolean {
+export function isFeedAccount(
+  author: { bot?: boolean; name?: string; displayName?: string } | null | undefined,
+): boolean {
   if (!author) return false;
   if (author.bot === true) return true;
   return FEED_WORD.test(author.name ?? "") || FEED_WORD.test(author.displayName ?? "");

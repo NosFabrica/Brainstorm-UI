@@ -38,9 +38,7 @@ export interface PlanMappingFormDialogProps {
   /** The server's word when it refuses — including the 409 that names the way out. */
   serverError?: string | null;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (
-    body: CreateAdminBillingPlanBody | UpdateAdminBillingPlanBody,
-  ) => void | Promise<void>;
+  onSubmit: (body: CreateAdminBillingPlanBody | UpdateAdminBillingPlanBody) => void | Promise<void>;
 }
 
 /**
@@ -115,8 +113,7 @@ export function PlanMappingFormDialog({
     onSubmit(mode === "edit" ? changedFields(parsed.data) : parsed.data);
   }
 
-  const grantsNonPublic =
-    policies.find((p) => String(p.id) === schedulingId)?.is_public === false;
+  const grantsNonPublic = policies.find((p) => String(p.id) === schedulingId)?.is_public === false;
 
   const reidentifying =
     mode === "edit" &&
@@ -125,17 +122,11 @@ export function PlanMappingFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="sm:max-w-lg max-h-[90vh] overflow-y-auto"
-        data-testid="dialog-plan-mapping-form"
-      >
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" data-testid="dialog-plan-mapping-form">
         <DialogHeader>
-          <DialogTitle>
-            {mode === "create" ? "New plan mapping" : "Edit plan mapping"}
-          </DialogTitle>
+          <DialogTitle>{mode === "create" ? "New plan mapping" : "Edit plan mapping"}</DialogTitle>
           <DialogDescription>
-            Pick the Flash plan, then which scheduling policy buying it grants.
-            Price, period and copy come from Flash.
+            Pick the Flash plan, then which scheduling policy buying it grants. Price, period and copy come from Flash.
           </DialogDescription>
         </DialogHeader>
 
@@ -152,10 +143,8 @@ export function PlanMappingFormDialog({
           />
           {reidentifying && (
             <p className="text-xs text-amber-500" data-testid="plan-mapping-reidentify-warning">
-              Changing the Flash ids re-points this mapping at a different plan.
-              It is allowed only while nobody has bought it — once someone has,
-              the server refuses, because it would retroactively change what
-              they bought.
+              Changing the Flash ids re-points this mapping at a different plan. It is allowed only while nobody has
+              bought it — once someone has, the server refuses, because it would retroactively change what they bought.
             </p>
           )}
 
@@ -177,19 +166,15 @@ export function PlanMappingFormDialog({
               ))}
             </select>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              The policy a subscriber is put on. It is their tier, and the
-              cadence the pricing page quotes.
+              The policy a subscriber is put on. It is their tier, and the cadence the pricing page quotes.
             </p>
             {grantsNonPublic && (
               <p className="mt-1 text-xs text-amber-500" data-testid="plan-mapping-nonpublic-warning">
-                This policy isn't public, so the plan won't appear on the pricing
-                page however it is priced. Make the policy public on the
-                Scheduling tab first.
+                This policy isn't public, so the plan won't appear on the pricing page however it is priced. Make the
+                policy public on the Scheduling tab first.
               </p>
             )}
-            {errors.scheduling_id && (
-              <p className="mt-1 text-xs text-red-500">{errors.scheduling_id}</p>
-            )}
+            {errors.scheduling_id && <p className="mt-1 text-xs text-red-500">{errors.scheduling_id}</p>}
           </div>
 
           <div className="flex items-center gap-2">
@@ -203,9 +188,8 @@ export function PlanMappingFormDialog({
             <Label htmlFor="plan-active">For sale</Label>
           </div>
           <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
-            Ours, not Flash's: their plan status says whether they offer it, this
-            says whether we sell it. Off withdraws it from the pricing page;
-            existing subscribers keep what they have and keep renewing.
+            Ours, not Flash's: their plan status says whether they offer it, this says whether we sell it. Off withdraws
+            it from the pricing page; existing subscribers keep what they have and keep renewing.
           </p>
 
           {serverError && (

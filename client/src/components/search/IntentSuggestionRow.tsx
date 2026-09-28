@@ -8,7 +8,17 @@ import { chipAriaLabel, type PersonContentChip } from "@/lib/personContent";
  * Built to the shape of the other suggestion rows (tile, primary line,
  * secondary line, trailing arrow), so the dropdown stays one list.
  */
-export function IntentSuggestionRow({ name, chip, onSelect, testId = "intent-suggestion" }: { name: string; chip: PersonContentChip; onSelect: () => void; testId?: string }) {
+export function IntentSuggestionRow({
+  name,
+  chip,
+  onSelect,
+  testId = "intent-suggestion",
+}: {
+  name: string;
+  chip: PersonContentChip;
+  onSelect: () => void;
+  testId?: string;
+}) {
   const Icon = PERSON_CONTENT_ICONS[chip.key];
   return (
     <button
@@ -25,7 +35,9 @@ export function IntentSuggestionRow({ name, chip, onSelect, testId = "intent-sug
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{chipAriaLabel(name, chip)}</p>
-        <p className="truncate text-xs text-slate-500 dark:text-slate-400">Only {name}'s {chip.label.toLowerCase()}</p>
+        <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+          Only {name}'s {chip.label.toLowerCase()}
+        </p>
       </div>
       <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" aria-hidden="true" />
     </button>

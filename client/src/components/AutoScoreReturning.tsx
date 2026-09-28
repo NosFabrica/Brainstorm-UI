@@ -1,4 +1,4 @@
-import {useEffect} from "react";
+import { useEffect } from "react";
 import { useOncePerPubkey } from "@/hooks/useOncePerPubkey";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -34,10 +34,16 @@ export function AutoScoreReturning() {
     // key during login itself (authChallenge verify), so every session-holder
     // has one before any calculation ran. The graperank timestamps are the real
     // signal — null until a calc was actually triggered for this account.
-    const h = (history.data as { data?: {
-      last_time_calculated_graperank?: string | null;
-      last_time_triggered_graperank?: string | null;
-    } } | undefined)?.data;
+    const h = (
+      history.data as
+        | {
+            data?: {
+              last_time_calculated_graperank?: string | null;
+              last_time_triggered_graperank?: string | null;
+            };
+          }
+        | undefined
+    )?.data;
     const scored = !!(h?.last_time_calculated_graperank || h?.last_time_triggered_graperank);
     if (scored) return; // a calc was already triggered for this account
 
@@ -46,7 +52,9 @@ export function AutoScoreReturning() {
     try {
       const at = Number(localStorage.getItem(accountKey("brainstorm_calc_triggered_at", pk)) || 0);
       recentlyTriggered = at > 0 && Date.now() - at < 30 * 60_000;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     if (createdInApp || recentlyTriggered) return; // first-timer / just-triggered
     if (knownFollowCount(pk) < 1) return; // no follows → the home-page nudge handles it
 
@@ -64,11 +72,19 @@ export function AutoScoreReturning() {
     // result anyway — it burns queue capacity for every affected user at once. One
     // attempt, then leave it to the explicit (and now confirmed) Recalculate.
     let alreadyKicked = false;
-    try { alreadyKicked = localStorage.getItem(accountKey("brainstorm_auto_score_kicked", pk)) === "true"; } catch { /* ignore */ }
+    try {
+      alreadyKicked = localStorage.getItem(accountKey("brainstorm_auto_score_kicked", pk)) === "true";
+    } catch {
+      /* ignore */
+    }
     if (alreadyKicked) return;
 
     once.mark(pk);
-    try { localStorage.setItem(accountKey("brainstorm_auto_score_kicked", pk), "true"); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(accountKey("brainstorm_auto_score_kicked", pk), "true");
+    } catch {
+      /* ignore */
+    }
     void triggerScoringAndAnchor(pk);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `once` is a new object each render but ref-backed
   }, [pk, history.isSuccess, history.data]);

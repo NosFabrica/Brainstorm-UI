@@ -17,16 +17,12 @@ open another. I'd like to fix that with the smallest possible standard.
 **The idea (opt-out, layout-only):** a user-owned [NIP-78](https://github.com/nostr-protocol/nips/blob/master/78.md)
 record (`kind:30078`) under a reserved `d` tag `nostr/profile-presentation`,
 whose JSON body just describes section order/visibility (keyed by content event
-*kind*) and which well-known profile regions to hide.
+_kind_) and which well-known profile regions to hide.
 
 ```json
 {
   "v": 1,
-  "sections": [
-    { "kind": 20 },
-    { "kind": 1 },
-    { "kind": 30023, "hidden": true }
-  ],
+  "sections": [{ "kind": 20 }, { "kind": 1 }, { "kind": 30023, "hidden": true }],
   "hiddenFields": ["bio"]
 }
 ```
@@ -36,6 +32,7 @@ breakage. Sections are keyed by content kind, so a client with a different set o
 kinds still interprets the subset it knows.
 
 **Deliberately narrow — reuse over reinvention:**
+
 - Featured/pinned content → **NIP-51** (pinned notes / curation sets), not this.
 - Self-declared roles/topics → **NIP-32** labels or `kind:0`, not this.
 - Identity → `kind:0` / **NIP-39**.
@@ -53,6 +50,7 @@ applies it — today under an app-private `d` tag we'd generalize to the reserve
 one. Full draft spec: [link to profile-presentation.md].
 
 **What I'm asking for:**
+
 1. Does layout-portability feel worth standardizing, or is presentation too
    client-specific to bother? (Honest answers welcome.)
 2. Is the reserved-`d`-tag-on-30078 approach the right call vs a dedicated kind?

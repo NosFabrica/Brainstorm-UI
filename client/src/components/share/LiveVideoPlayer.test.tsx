@@ -12,7 +12,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { LiveVideoPlayer } from "./LiveVideoPlayer";
 
-const notAllowed = () => Object.assign(new Error("play() failed because the user didn't interact"), { name: "NotAllowedError" });
+const notAllowed = () =>
+  Object.assign(new Error("play() failed because the user didn't interact"), { name: "NotAllowedError" });
 
 describe("LiveVideoPlayer — starting on arrival", () => {
   let play: ReturnType<typeof vi.spyOn>;

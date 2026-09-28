@@ -10,10 +10,7 @@ import { apiClient, isFlaggedAlert, type NetworkAlertEntry, type NetworkAlertsDa
  * `enabled` defaults to false so callers opt in explicitly (e.g. only when the
  * card scrolls into view / the dashboard is for the signed-in owner).
  */
-export function useNetworkAlerts(
-  observer: string | undefined,
-  opts?: { enabled?: boolean; limit?: number },
-) {
+export function useNetworkAlerts(observer: string | undefined, opts?: { enabled?: boolean; limit?: number }) {
   return useQuery({
     queryKey: ["/networkAlerts", observer, opts?.limit ?? 100],
     queryFn: () => apiClient.getNetworkAlerts(observer!, { limit: opts?.limit }),

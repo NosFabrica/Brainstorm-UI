@@ -50,8 +50,11 @@ export default function PricingPage() {
   if (billingAvailable === false) {
     return (
       <InfoPageLayout testId="page-pricing">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-16 text-center" data-testid="pricing-unavailable">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+        <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6" data-testid="pricing-unavailable">
+          <h1
+            className="text-2xl font-bold text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
             This Brainstorm doesn't offer paid plans
           </h1>
           <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
@@ -64,7 +67,7 @@ export default function PricingPage() {
 
   return (
     <InfoPageLayout testId="page-pricing">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
         <PageHeader
           kicker="Pricing"
           // Leads with what staleness costs rather than with a rate, because the
@@ -74,7 +77,11 @@ export default function PricingPage() {
           // every plan states its own cadence in its row, from the live
           // scheduling policy, so saying it here would be a second copy that
           // can drift.
-          title={<>Your network changes <span className="text-brand-link">every day.</span></>}
+          title={
+            <>
+              Your network changes <span className="text-brand-link">every day.</span>
+            </>
+          }
           subtitle="Brainstorm recalculates who you trust on a schedule. Pick how often."
           testId="section-pricing-header"
         />
@@ -87,8 +94,7 @@ export default function PricingPage() {
           <>
             <Alert variant="warning" className="mt-8" data-testid="pricing-plans-error">
               <AlertDescription className="text-sm">
-                We couldn't load the current plans just now. Reload the page, or
-                get in touch if it keeps happening.
+                We couldn't load the current plans just now. Reload the page, or get in touch if it keeps happening.
               </AlertDescription>
             </Alert>
 
@@ -106,24 +112,18 @@ export default function PricingPage() {
                 >
                   Free
                 </h3>
-                <p className="text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100">
-                  $0
-                </p>
+                <p className="text-2xl font-bold tabular-nums tracking-tight text-slate-900 dark:text-slate-100">$0</p>
               </div>
               <ul className="space-y-1.5">
                 {productClaims().map((f) => (
-                  <li
-                    key={f.key}
-                    className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200"
-                  >
+                  <li key={f.key} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                     <span className="min-w-0 break-words">{f.label}</span>
                   </li>
                 ))}
               </ul>
               <p className="pt-1 text-xs text-slate-500 dark:text-slate-400">
-                On every plan, including this one. What you pay for is how often
-                it all gets recalculated.
+                On every plan, including this one. What you pay for is how often it all gets recalculated.
               </p>
             </Card>
           </>
@@ -144,16 +144,17 @@ export default function PricingPage() {
           </Link>
         </p>
 
-        <p className="mt-10 text-xs text-slate-400 dark:text-slate-500 leading-relaxed max-w-2xl">
-          Cancel any time — a paid plan runs to the end of the period you've
-          paid for. Payments are handled by Flash; we never see your card
-          details.
+        <p className="mt-10 max-w-2xl text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+          Cancel any time — a paid plan runs to the end of the period you've paid for. Payments are handled by Flash; we
+          never see your card details.
         </p>
       </div>
 
       <CheckoutDialog
         open={checkoutPlan !== null}
-        onOpenChange={(o) => { if (!o) setCheckoutPlan(null); }}
+        onOpenChange={(o) => {
+          if (!o) setCheckoutPlan(null);
+        }}
         plan={checkoutPlan}
       />
     </InfoPageLayout>

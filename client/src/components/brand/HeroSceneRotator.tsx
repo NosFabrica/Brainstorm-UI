@@ -133,7 +133,11 @@ export function HeroSceneRotator({
   }, [reduced, scenes.length, intervalMs]);
 
   return (
-    <div className={cn("absolute inset-0 overflow-hidden", className)} aria-hidden="true" data-testid="hero-scene-rotator">
+    <div
+      className={cn("absolute inset-0 overflow-hidden", className)}
+      aria-hidden="true"
+      data-testid="hero-scene-rotator"
+    >
       {scenes.map((s, i) => (
         <img
           key={i}
@@ -148,7 +152,7 @@ export function HeroSceneRotator({
             filter: s.filter ? `${SCENE_GRADE} ${s.filter}` : SCENE_GRADE,
           }}
           className={cn(
-            "absolute inset-0 h-full w-full object-cover select-none transition-opacity ease-in-out",
+            "absolute inset-0 h-full w-full select-none object-cover transition-opacity ease-in-out",
             // Explicit property: tailwindcss-animate also claims `duration-*`.
             "[transition-duration:2000ms] motion-reduce:[transition-duration:0ms]",
             i === index ? "opacity-100" : "opacity-0",

@@ -75,11 +75,12 @@ export interface SearchFieldHandle {
 }
 
 const esc = (s: string): string =>
-  String(s ?? "").replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
+  String(s ?? "").replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
+  );
 
-const clip = (s: string, n: number): string =>
-  s.length > n ? `${s.slice(0, Math.max(0, n - 1))}…` : s;
+const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, Math.max(0, n - 1))}…` : s);
 
 const shortKey = (hex: string): string => {
   try {
@@ -163,7 +164,7 @@ const removeHtml = (what: string, testId: string) =>
   `<button type="button" tabindex="-1" data-remove="1" data-testid="${testId}"` +
   ` aria-label="Remove ${esc(what)}"` +
   ' class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-slate-400' +
-  ' transition-colors hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700' +
+  " transition-colors hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700" +
   ` dark:hover:text-slate-200">${X_ICON}</button>`;
 
 export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers): SearchFieldHandle {
@@ -285,13 +286,27 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     let between = "";
     while (i < nodes.length) {
       const n = nodes[i];
-      if (isScopeChip(n)) { scope.push(n.dataset.token as string); i++; continue; }
+      if (isScopeChip(n)) {
+        scope.push(n.dataset.token as string);
+        i++;
+        continue;
+      }
       // Whitespace between two scope pills belongs to the scope; anything else ends it.
-      if (n.nodeType === 3 && /^\s*$/.test(textOf(n as Text)) && i + 1 < nodes.length && isScopeChip(nodes[i + 1])) { between += textOf(n as Text); i++; continue; }
+      if (n.nodeType === 3 && /^\s*$/.test(textOf(n as Text)) && i + 1 < nodes.length && isScopeChip(nodes[i + 1])) {
+        between += textOf(n as Text);
+        i++;
+        continue;
+      }
       break;
     }
     let rest = "";
-    for (; i < nodes.length; i++) rest += nodes[i].nodeType === 3 ? textOf(nodes[i] as Text) : isChip(nodes[i]) ? (nodes[i] as HTMLElement).dataset.token : visible(nodes[i].textContent || "");
+    for (; i < nodes.length; i++)
+      rest +=
+        nodes[i].nodeType === 3
+          ? textOf(nodes[i] as Text)
+          : isChip(nodes[i])
+            ? (nodes[i] as HTMLElement).dataset.token
+            : visible(nodes[i].textContent || "");
     return { lead: lead.replace(/\u00a0/g, " "), scope, between, rest: rest.replace(/\u00a0/g, " "), leadNodes: 0 };
   }
 
@@ -412,11 +427,12 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       removeHtml(name || "this person", "search-scope-remove");
     span.dataset.face = faceOf(pk);
     const who = name || shortKey(pk);
-    span.title = field === "from"
-      ? `${span.dataset.token} — only what ${who} wrote`
-      : field === "to"
-        ? `${span.dataset.token} — only events that mention ${who}`
-        : (span.dataset.token as string);
+    span.title =
+      field === "from"
+        ? `${span.dataset.token} — only what ${who} wrote`
+        : field === "to"
+          ? `${span.dataset.token} — only events that mention ${who}`
+          : (span.dataset.token as string);
   }
 
   /**
@@ -482,7 +498,8 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
         span.className = pillClass("indigo");
         span.innerHTML =
           `<span class="${KEY_CLASS}">${esc(seg.field)}:</span>` +
-          `<span class="${VALUE_CLASS}">${esc(seg.value)}</span>` + x;
+          `<span class="${VALUE_CLASS}">${esc(seg.value)}</span>` +
+          x;
         const asks = scopeIds(seg.field, seg.value);
         const noun = SCOPE_NOUNS[seg.field] ?? "thing";
         span.title = `${seg.raw} — a NIP-73 scope filter: comments written on that ${noun} (${asks[0] || seg.value})`;
@@ -501,10 +518,10 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
         span.className = pillClass("teal");
         span.innerHTML =
           `<span class="${KEY_CLASS}">label:</span>` +
-          `<span class="${VALUE_CLASS}">${esc(clip(seg.value, 48))}</span>` + x;
+          `<span class="${VALUE_CLASS}">${esc(clip(seg.value, 48))}</span>` +
+          x;
         span.title =
-          `${seg.raw} — a NIP-32 label filter: the kind 1985 labels carrying this mark, ` +
-          "not the events they name";
+          `${seg.raw} — a NIP-32 label filter: the kind 1985 labels carrying this mark, ` + "not the events they name";
         return span;
       case "group":
         // A name drawn over an id nobody can recognise. A view of the token only: the value
@@ -547,8 +564,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
         return span;
       case "floor":
         span.className = pillClass("amber");
-        span.innerHTML =
-          `<span class="${KEY_CLASS}">rank ≥</span><span class="${VALUE_CLASS}">${seg.value}</span>` + x;
+        span.innerHTML = `<span class="${KEY_CLASS}">rank ≥</span><span class="${VALUE_CLASS}">${seg.value}</span>` + x;
         span.title = `${seg.raw} — drop results whose author ranks below ${seg.value} of 100`;
         return span;
       case "kind": {
@@ -578,7 +594,8 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
         span.className = pillClass("emerald");
         span.innerHTML =
           `<span class="${KEY_CLASS}">within</span>` +
-          `<span class="${VALUE_CLASS}">${seg.value === "follows" ? "people you follow" : "friends of friends"}</span>` + x;
+          `<span class="${VALUE_CLASS}">${seg.value === "follows" ? "people you follow" : "friends of friends"}</span>` +
+          x;
         span.title = `${seg.raw} — shown by this page, not asked of the relay`;
         return span;
       default: {
@@ -640,7 +657,9 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
    * undo) until a token finished or broke, or the browser invented a node.
    */
   function structureChanged(text: string, typingAt: number | null): boolean {
-    const want = drawable(text, typingAt).filter((s) => s.type !== "text").map((s) => s.raw);
+    const want = drawable(text, typingAt)
+      .filter((s) => s.type !== "text")
+      .map((s) => s.raw);
     const have: string[] = [];
     for (const n of Array.from(el.childNodes)) {
       if (n.nodeType === 3) continue;
@@ -683,7 +702,10 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
   function setToken(next: ActiveToken | null): void {
     const same =
       (!token && !next) ||
-      (!!token && !!next && token.kind === next.kind && token.start === next.start &&
+      (!!token &&
+        !!next &&
+        token.kind === next.kind &&
+        token.start === next.start &&
         token.partial === next.partial &&
         (token.kind !== "date" || next.kind !== "date" || token.field === next.field));
     if (same) return;
@@ -700,7 +722,13 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     const caret = caretIndex();
     const day = dateAt(text, caret);
     if (day && !day.complete) {
-      setToken({ kind: "date", field: day.field as "since" | "until", partial: day.partial, start: day.start, end: day.end });
+      setToken({
+        kind: "date",
+        field: day.field as "since" | "until",
+        partial: day.partial,
+        start: day.start,
+        end: day.end,
+      });
       return;
     }
     const group = groupAt(text, caret);
@@ -756,10 +784,8 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     handlers.onEdit(readValue());
   }
 
-  const onPaste = (e: ClipboardEvent) =>
-    insertPlain(e, e.clipboardData?.getData("text/plain"));
-  const onDrop = (e: DragEvent) =>
-    insertPlain(e, e.dataTransfer?.getData("text/plain"), dropIndex(e));
+  const onPaste = (e: ClipboardEvent) => insertPlain(e, e.clipboardData?.getData("text/plain"));
+  const onDrop = (e: DragEvent) => insertPlain(e, e.dataTransfer?.getData("text/plain"), dropIndex(e));
 
   /**
    * The other door Enter comes through, and on a phone the only one: a soft keyboard's action
@@ -774,7 +800,14 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     const r = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
     if (!r || !r.collapsed || r.startContainer.nodeType !== 3) return false;
     const t = r.startContainer as Text;
-    if (t.parentNode !== el || !t.data.slice(0, r.startOffset).split("").every((c) => c === ANCHOR)) return false;
+    if (
+      t.parentNode !== el ||
+      !t.data
+        .slice(0, r.startOffset)
+        .split("")
+        .every((c) => c === ANCHOR)
+    )
+      return false;
     const pill = t.previousSibling;
     if (!isChip(pill)) return false;
     e.preventDefault();
@@ -790,7 +823,11 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
   const onBeforeInput = (e: InputEvent) => {
     const t = e.inputType;
     // A word or line delete right after a pill takes the pill too: the anchor is not a word.
-    if ((t === "deleteContentBackward" || t === "deleteWordBackward" || t === "deleteSoftLineBackward") && backspaceOverAnchor(e)) return;
+    if (
+      (t === "deleteContentBackward" || t === "deleteWordBackward" || t === "deleteSoftLineBackward") &&
+      backspaceOverAnchor(e)
+    )
+      return;
     const typed = t === "insertText" && e.data && NEWLINE.test(e.data) ? e.data : null;
     if (!typed && t !== "insertLineBreak" && t !== "insertParagraph") return;
     const rest = typed ? typed.replace(NEWLINES, "") : "";
@@ -817,8 +854,16 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     if (text && structureChanged(text, null)) render(text, caretIndex(), null);
   }
 
-  const onClick = () => { clampCaret(); updateToken(); syncPills(); };
-  const onFocus = () => { clampCaret(); updateToken(); syncPills(); };
+  const onClick = () => {
+    clampCaret();
+    updateToken();
+    syncPills();
+  };
+  const onFocus = () => {
+    clampCaret();
+    updateToken();
+    syncPills();
+  };
   const onKeyUp = (e: KeyboardEvent) => {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End" || e.key === "ArrowUp") {
       clampCaret();

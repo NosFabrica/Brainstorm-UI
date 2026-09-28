@@ -58,9 +58,15 @@ function splitProseCached(text: string) {
 /** Plain text with its bare domains linked and @handles given weight. */
 function renderProse(text: string, key: string): ReactNode[] {
   return splitProseCached(text).map((p, i) =>
-    p.type === "domain" ? <ReadingLink key={`${key}~${i}`} url={p.url} label={p.value} />
-    : p.type === "handle" ? <span key={`${key}~${i}`} dir="auto" className="font-medium text-slate-900 dark:text-slate-100">{p.value}</span>
-    : p.value,
+    p.type === "domain" ? (
+      <ReadingLink key={`${key}~${i}`} url={p.url} label={p.value} />
+    ) : p.type === "handle" ? (
+      <span key={`${key}~${i}`} dir="auto" className="font-medium text-slate-900 dark:text-slate-100">
+        {p.value}
+      </span>
+    ) : (
+      p.value
+    ),
   );
 }
 
@@ -71,11 +77,22 @@ export function renderSpans(spans: InlineSpan[], key: string, prose = false): Re
     const k = `${key}.${i}`;
     if (s.type === "text") return prose ? renderProse(s.value, k) : s.value;
     if (s.type === "code") {
-      return <code key={k} className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.5 font-mono text-[0.85em] text-slate-800 dark:text-slate-100 [overflow-wrap:anywhere]">{s.value}</code>;
+      return (
+        <code
+          key={k}
+          className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.85em] text-slate-800 [overflow-wrap:anywhere] dark:bg-slate-800 dark:text-slate-100"
+        >
+          {s.value}
+        </code>
+      );
     }
-    return s.type === "strong"
-      ? <strong key={k} className="font-semibold text-slate-900 dark:text-white">{renderSpans(s.children, k, prose)}</strong>
-      : <em key={k}>{renderSpans(s.children, k, prose)}</em>;
+    return s.type === "strong" ? (
+      <strong key={k} className="font-semibold text-slate-900 dark:text-white">
+        {renderSpans(s.children, k, prose)}
+      </strong>
+    ) : (
+      <em key={k}>{renderSpans(s.children, k, prose)}</em>
+    );
   });
 }
 
@@ -88,7 +105,10 @@ export function readingLinkLabel(url: string): string {
     const u = new URL(url);
     const last = u.pathname.split("/").filter(Boolean).pop() || "";
     const stem = last.replace(/\.[a-z0-9]{1,5}$/i, "");
-    if (/^[0-9a-f]{16,}$/i.test(stem) || (stem.length >= 20 && !/[-_.]/.test(stem) && /\d/.test(stem) && /[a-z]/i.test(stem))) {
+    if (
+      /^[0-9a-f]{16,}$/i.test(stem) ||
+      (stem.length >= 20 && !/[-_.]/.test(stem) && /\d/.test(stem) && /[a-z]/i.test(stem))
+    ) {
       return u.hostname.replace(/^www\./, "");
     }
   } catch {
@@ -117,21 +137,20 @@ export function ReadingLink({ url, label }: { url: string; label?: string }) {
   const tail = url.slice(href.length);
   return (
     <>
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener"
-      dir="auto"
-      className="font-medium text-brand-link underline decoration-brand-link/30 underline-offset-[3px] hover:decoration-brand-link [overflow-wrap:anywhere]"
-      data-testid="reading-link"
-    >
-      {label ?? readingLinkLabel(href)}
-    </a>
-    {tail}
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener"
+        dir="auto"
+        className="font-medium text-brand-link underline decoration-brand-link/30 underline-offset-[3px] [overflow-wrap:anywhere] hover:decoration-brand-link"
+        data-testid="reading-link"
+      >
+        {label ?? readingLinkLabel(href)}
+      </a>
+      {tail}
     </>
   );
 }
-
 
 function addressKind(bech32: string): number | null {
   try {
@@ -200,9 +219,15 @@ export function ReadingText({
   const [, navigate] = useLocation();
   // Parsed once per text, not per render: the event page re-renders as its
   // author, trust and reference queries land.
-  const plain = useMemo(() => (given ? undefined : normalized ? text || "" : normalizeMarkup(text || "")), [given, text, normalized]);
+  const plain = useMemo(
+    () => (given ? undefined : normalized ? text || "" : normalizeMarkup(text || "")),
+    [given, text, normalized],
+  );
   const tokens = useMemo(() => given ?? parseNoteContent(plain ?? ""), [given, plain]);
-  const blocks = useMemo(() => toNoteBlocks(tokens, { headline, source: source ?? plain }), [tokens, headline, source, plain]);
+  const blocks = useMemo(
+    () => toNoteBlocks(tokens, { headline, source: source ?? plain }),
+    [tokens, headline, source, plain],
+  );
   // Inline emphasis per text run, kept with the blocks it belongs to.
   const spansOf = useMemo(() => {
     const cache = new WeakMap<NoteToken, InlineSpan[]>();
@@ -217,10 +242,29 @@ export function ReadingText({
   const quiet = (t: NoteToken, key: string): ReactNode => {
     switch (t.type) {
       case "image":
-        if (media) return <img key={key} src={t.value} alt="" loading="lazy" className="my-3 block max-h-[34rem] w-full rounded-xl border border-slate-200 dark:border-slate-800 object-contain" />;
+        if (media)
+          return (
+            <img
+              key={key}
+              src={t.value}
+              alt=""
+              loading="lazy"
+              className="my-3 block max-h-[34rem] w-full rounded-xl border border-slate-200 object-contain dark:border-slate-800"
+            />
+          );
         return <ReadingLink key={key} url={t.value} />;
       case "video":
-        if (media) return <video key={key} src={t.value} controls playsInline preload="metadata" className="my-3 block w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-900" />;
+        if (media)
+          return (
+            <video
+              key={key}
+              src={t.value}
+              controls
+              playsInline
+              preload="metadata"
+              className="my-3 block w-full rounded-xl border border-slate-200 bg-slate-900 dark:border-slate-800"
+            />
+          );
         return <ReadingLink key={key} url={t.value} />;
       case "url":
       case "audio":
@@ -228,7 +272,13 @@ export function ReadingText({
         return <ReadingLink key={key} url={t.value} />;
       case "hashtag":
         return (
-          <button key={key} type="button" dir="auto" onClick={() => requestNav({ kind: "hashtag", target: t.value, label: t.value })} className="font-medium text-brand-link hover:underline">
+          <button
+            key={key}
+            type="button"
+            dir="auto"
+            onClick={() => requestNav({ kind: "hashtag", target: t.value, label: t.value })}
+            className="font-medium text-brand-link hover:underline"
+          >
             {t.value}
           </button>
         );
@@ -240,7 +290,12 @@ export function ReadingText({
         const other = address ? addressLink(t.bech32, key, t.url) : null;
         if (other) return other;
         return (
-          <button key={key} type="button" onClick={() => navigate(`/e/${t.bech32}`)} className="font-medium text-brand-link hover:underline">
+          <button
+            key={key}
+            type="button"
+            onClick={() => navigate(`/e/${t.bech32}`)}
+            className="font-medium text-brand-link hover:underline"
+          >
             {address ? addressLabel(t.bech32) : "↳ quoted note"}
           </button>
         );
@@ -261,11 +316,18 @@ export function ReadingText({
   const list = (b: NestedList, k: string, nested?: (NestedList | undefined)[], inner = false): ReactNode => {
     const List = b.type;
     return (
-      <List key={k} dir="auto" start={b.type === "ol" ? b.start : undefined} className={`${b.type === "ul" ? (inner ? "list-[circle]" : "list-disc") : "list-decimal"} space-y-1.5 ps-6 marker:text-slate-400 dark:marker:text-slate-500`}>
+      <List
+        key={k}
+        dir="auto"
+        start={b.type === "ol" ? b.start : undefined}
+        className={`${b.type === "ul" ? (inner ? "list-[circle]" : "list-disc") : "list-decimal"} space-y-1.5 ps-6 marker:text-slate-400 dark:marker:text-slate-500`}
+      >
         {b.items.map((item, j) => (
           <li key={j} className="whitespace-pre-wrap ps-1">
             {inline(item, `${k}.${j}`)}
-            {nested?.[j] && <div className="mt-1.5 whitespace-normal">{list(nested[j]!, `${k}.${j}.n`, undefined, true)}</div>}
+            {nested?.[j] && (
+              <div className="mt-1.5 whitespace-normal">{list(nested[j]!, `${k}.${j}.n`, undefined, true)}</div>
+            )}
           </li>
         ))}
       </List>
@@ -273,28 +335,63 @@ export function ReadingText({
   };
 
   return (
-    <div className={`note-reading w-full max-w-[68ch] break-words [container-type:inline-size] ${SIZE[size]} ${className}`} data-testid={testId}>
+    <div
+      className={`note-reading w-full max-w-[68ch] break-words [container-type:inline-size] ${SIZE[size]} ${className}`}
+      data-testid={testId}
+    >
       {blocks.map((b, i) => {
         const k = String(i);
         switch (b.type) {
           case "p":
-            return <div key={k} dir="auto" className="whitespace-pre-wrap">{inline(b.tokens, k)}</div>;
+            return (
+              <div key={k} dir="auto" className="whitespace-pre-wrap">
+                {inline(b.tokens, k)}
+              </div>
+            );
           case "h": {
             const Tag = (["h2", "h3", "h4"] as const)[b.level - 1];
-            return <Tag key={k} dir="auto" className={`${[h1, h2, h3][b.level - 1]} font-bold leading-snug tracking-tight text-slate-900 dark:text-white`} style={{ fontFamily: "var(--font-display)" }}>{inline(b.tokens, k)}</Tag>;
+            return (
+              <Tag
+                key={k}
+                dir="auto"
+                className={`${[h1, h2, h3][b.level - 1]} font-bold leading-snug tracking-tight text-slate-900 dark:text-white`}
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                {inline(b.tokens, k)}
+              </Tag>
+            );
           }
           case "ul":
           case "ol":
             return list(b, k, b.nested);
           case "quote":
-            return <blockquote key={k} dir="auto" className="whitespace-pre-wrap border-s-[3px] border-slate-300 dark:border-slate-600 ps-4 italic text-slate-600 dark:text-slate-300">{inline(b.tokens, k)}</blockquote>;
+            return (
+              <blockquote
+                key={k}
+                dir="auto"
+                className="whitespace-pre-wrap border-s-[3px] border-slate-300 ps-4 italic text-slate-600 dark:border-slate-600 dark:text-slate-300"
+              >
+                {inline(b.tokens, k)}
+              </blockquote>
+            );
           case "code": {
             // Art fits the column: monospace glyphs are ~0.6em wide, so the
             // longest line sets the size (never above the code size, never
             // below 7px — past that it scrolls). Code keeps its size.
             const cols = b.art ? Math.max(...b.text.split("\n").map((l) => l.replace(/\t/g, "    ").length)) : 0;
-            const fit = cols ? { fontSize: `clamp(7px, calc((100cqw - 2rem) / ${(cols * 0.6).toFixed(1)}), 0.8em)` } : undefined;
-            return <pre key={k} dir="ltr" style={fit} className="overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 font-mono text-[0.8em] leading-relaxed text-slate-800 dark:text-slate-100"><code>{b.text}</code></pre>;
+            const fit = cols
+              ? { fontSize: `clamp(7px, calc((100cqw - 2rem) / ${(cols * 0.6).toFixed(1)}), 0.8em)` }
+              : undefined;
+            return (
+              <pre
+                key={k}
+                dir="ltr"
+                style={fit}
+                className="overflow-x-auto rounded-xl bg-slate-100 px-4 py-3 font-mono text-[0.8em] leading-relaxed text-slate-800 dark:bg-slate-800 dark:text-slate-100"
+              >
+                <code>{b.text}</code>
+              </pre>
+            );
           }
           case "table":
             return (
@@ -303,7 +400,13 @@ export function ReadingText({
                   <thead>
                     <tr>
                       {b.head.map((c, j) => (
-                        <th key={j} style={{ textAlign: b.align[j] }} className="border-b-2 border-slate-200 dark:border-slate-700 px-3 py-2 text-start font-semibold text-slate-900 dark:text-white">{inline(c, `${k}.h${j}`)}</th>
+                        <th
+                          key={j}
+                          style={{ textAlign: b.align[j] }}
+                          className="border-b-2 border-slate-200 px-3 py-2 text-start font-semibold text-slate-900 dark:border-slate-700 dark:text-white"
+                        >
+                          {inline(c, `${k}.h${j}`)}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -311,7 +414,9 @@ export function ReadingText({
                     {b.rows.map((r, ri) => (
                       <tr key={ri} className="border-b border-slate-100 dark:border-slate-800">
                         {b.head.map((_, j) => (
-                          <td key={j} style={{ textAlign: b.align[j] }} className="px-3 py-2 align-top">{r[j] ? inline(r[j], `${k}.${ri}.${j}`) : null}</td>
+                          <td key={j} style={{ textAlign: b.align[j] }} className="px-3 py-2 align-top">
+                            {r[j] ? inline(r[j], `${k}.${ri}.${j}`) : null}
+                          </td>
                         ))}
                       </tr>
                     ))}
@@ -320,7 +425,15 @@ export function ReadingText({
               </div>
             );
           case "caption":
-            return <p key={k} dir="auto" className="note-caption whitespace-pre-wrap text-[0.8em] leading-snug text-slate-500 dark:text-slate-400">{inline(b.tokens, k)}</p>;
+            return (
+              <p
+                key={k}
+                dir="auto"
+                className="note-caption whitespace-pre-wrap text-[0.8em] leading-snug text-slate-500 dark:text-slate-400"
+              >
+                {inline(b.tokens, k)}
+              </p>
+            );
           case "hr":
             return <hr key={k} className="mx-auto w-16 border-slate-200 dark:border-slate-700" />;
         }

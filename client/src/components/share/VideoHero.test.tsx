@@ -19,7 +19,13 @@ const short = {
   sig: "",
   tags: [
     ["d", "b0f9"],
-    ["imeta", "url https://media.divine.video/b0f9046b98cc", "m video/mp4", "image https://media.divine.video/8cf94982", "dim 1080x1920"],
+    [
+      "imeta",
+      "url https://media.divine.video/b0f9046b98cc",
+      "m video/mp4",
+      "image https://media.divine.video/8cf94982",
+      "dim 1080x1920",
+    ],
     ["title", "#Today #June 21 #FunFact"],
     ["summary", "Yep, in 2006 Eminem gifted Sir Elton John a pair of rings."],
   ],
@@ -41,7 +47,15 @@ describe("VideoHero", () => {
   it("a landscape video without imeta falls back to the url tag and a wide frame", () => {
     render(
       <VideoHero
-        event={{ ...short, kind: 21, tags: [["url", "https://cdn.example/talk.mp4"], ["thumb", "https://cdn.example/talk.jpg"], ["title", "A talk"]] }}
+        event={{
+          ...short,
+          kind: 21,
+          tags: [
+            ["url", "https://cdn.example/talk.mp4"],
+            ["thumb", "https://cdn.example/talk.jpg"],
+            ["title", "A talk"],
+          ],
+        }}
       />,
     );
     const video = screen.getByTestId("video-hero-player") as HTMLVideoElement;

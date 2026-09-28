@@ -20,7 +20,14 @@ vi.mock("@/lib/zap", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/zap")>();
   return {
     ...actual,
-    lnurlpFromAddress: async () => ({ callback: "https://getalby.com/lnurlp/joe/callback", minSendable: 1000, maxSendable: 100_000_000, allowsNostr: true, nostrPubkey: "a".repeat(64), commentAllowed: 200 }),
+    lnurlpFromAddress: async () => ({
+      callback: "https://getalby.com/lnurlp/joe/callback",
+      minSendable: 1000,
+      maxSendable: 100_000_000,
+      allowsNostr: true,
+      nostrPubkey: "a".repeat(64),
+      commentAllowed: 200,
+    }),
   };
 });
 
@@ -37,7 +44,9 @@ describe("ZapModal — the recipient row", () => {
   it("a long recipient address reads condensed and copies whole", async () => {
     const long = "npub1m2lrszeztt0jvte79nukgcx5s7d3t7ha9apjtyukqr79cw6s5y3qqgeeph@npub.cash";
     verifiedLud16Mock.mockResolvedValueOnce({ verified: true, lud16: long });
-    render(<ZapModal open onOpenChange={() => {}} recipientPubkey={"b".repeat(64)} lud16={long} displayName="Handled" />);
+    render(
+      <ZapModal open onOpenChange={() => {}} recipientPubkey={"b".repeat(64)} lud16={long} displayName="Handled" />,
+    );
     const copy = await screen.findByTestId("zap-copy-recipient");
     expect(screen.getByTestId("zap-recipient-address")).toHaveTextContent("npub1m2l…geeph@npub.cash");
     expect(screen.getByTestId("zap-recipient-address")).toHaveAttribute("title", long);
@@ -46,7 +55,15 @@ describe("ZapModal — the recipient row", () => {
   });
 
   it("the verified address can be copied with one tap, and says so", async () => {
-    render(<ZapModal open onOpenChange={() => {}} recipientPubkey={"b".repeat(64)} lud16="joemartinmusic@getalby.com" displayName="Joe Martin" />);
+    render(
+      <ZapModal
+        open
+        onOpenChange={() => {}}
+        recipientPubkey={"b".repeat(64)}
+        lud16="joemartinmusic@getalby.com"
+        displayName="Joe Martin"
+      />,
+    );
     // The row waits for the address to be verified against the signed profile.
     const copy = await screen.findByTestId("zap-copy-recipient");
     expect(copy).toHaveAttribute("aria-label", "Copy lightning address");

@@ -22,9 +22,7 @@ export function RequireAuth({ component: Component }: { component: ComponentType
   const nextTryInSec = useCountdown(status.nextProbeAt);
   if (!signedIn) {
     const next =
-      location && location.startsWith("/") && location !== "/login"
-        ? `?next=${encodeURIComponent(location)}`
-        : "";
+      location && location.startsWith("/") && location !== "/login" ? `?next=${encodeURIComponent(location)}` : "";
     // `replace`, not push: pushing leaves the gated URL in history, so pressing
     // Back returns to it, RequireAuth fires again and shoves you forward to
     // /login — a trap you can't reverse out of. Replacing means Back skips
@@ -33,7 +31,14 @@ export function RequireAuth({ component: Component }: { component: ComponentType
   }
   if (status.api === "down") {
     return (
-      <SorryPage scope="api" variant="page" onRetry={() => retryNow("api")} checking={status.checking} nextTryInSec={nextTryInSec} signedIn />
+      <SorryPage
+        scope="api"
+        variant="page"
+        onRetry={() => retryNow("api")}
+        checking={status.checking}
+        nextTryInSec={nextTryInSec}
+        signedIn
+      />
     );
   }
   return <Component />;

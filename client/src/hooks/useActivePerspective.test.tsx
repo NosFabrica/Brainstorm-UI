@@ -85,9 +85,7 @@ describe("a perspective changed in another tab", () => {
   it("reaches a component that is already rendered", () => {
     const account = signIn();
     const { result } = renderHook(() => useActivePerspective(), {
-      wrapper: ({ children }) => (
-        <AccountsProvider manager={accountManager}>{children}</AccountsProvider>
-      ),
+      wrapper: ({ children }) => <AccountsProvider manager={accountManager}>{children}</AccountsProvider>,
     });
     expect(result.current[0]).toBe("nosfabrica");
 

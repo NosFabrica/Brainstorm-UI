@@ -89,7 +89,10 @@ describe("which relays a tag read asks", () => {
     account.current = { pubkey: VIEWER };
     store.held.set(
       `10002:${VIEWER}`,
-      relayList([["r", "wss://mine-out.example", "write"], ["r", "wss://mine-in.example", "read"]]),
+      relayList([
+        ["r", "wss://mine-out.example", "write"],
+        ["r", "wss://mine-in.example", "read"],
+      ]),
     );
 
     for (const relays of await readSomeTags()) {

@@ -9,7 +9,15 @@ import type { SearchHit } from "@/services/search";
  * arrow) so the dropdown reads as one list. Mouse and tap only: the arrow
  * keys walk the people, as before.
  */
-export function ListingSuggestionRow({ hit, onSelect, testId = "listing-suggestion" }: { hit: SearchHit; onSelect?: () => void; testId?: string }) {
+export function ListingSuggestionRow({
+  hit,
+  onSelect,
+  testId = "listing-suggestion",
+}: {
+  hit: SearchHit;
+  onSelect?: () => void;
+  testId?: string;
+}) {
   const l = parseListing(hit.event);
   if (!l) return null;
   const seller = hit.author?.displayName || hit.author?.name || null;
@@ -24,7 +32,11 @@ export function ListingSuggestionRow({ hit, onSelect, testId = "listing-suggesti
       data-testid={testId}
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
-        {l.images[0] ? <img src={l.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" /> : <ShoppingBag className="h-4 w-4" />}
+        {l.images[0] ? (
+          <img src={l.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <ShoppingBag className="h-4 w-4" />
+        )}
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{l.title}</p>

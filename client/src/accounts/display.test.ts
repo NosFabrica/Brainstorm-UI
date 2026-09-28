@@ -6,14 +6,7 @@ import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { npubEncode } from "nostr-tools/nip19";
 
 import { updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
-import {
-  displayNameOf,
-  displayOf,
-  displayStream,
-  npubOf,
-  rememberProfile,
-  type AccountDisplay,
-} from "./display";
+import { displayNameOf, displayOf, displayStream, npubOf, rememberProfile, type AccountDisplay } from "./display";
 
 class TestAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
   static readonly type = "test-identity";

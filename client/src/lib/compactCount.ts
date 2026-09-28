@@ -5,7 +5,5 @@
  */
 export function compactCount(n: number): string {
   if (n < 1000) return String(n);
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 })
-    .format(n)
-    .replace("K", "k");
+  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n).replace("K", "k");
 }

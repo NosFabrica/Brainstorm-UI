@@ -2,7 +2,7 @@ export type GraphEntry = { pubkey: string; influence: number | null; trusted_rep
 
 export function toPubkeys(arr: GraphEntry[] | undefined | null): string[] {
   if (!Array.isArray(arr)) return [];
-  return arr.map(item => typeof item === "string" ? item : item.pubkey);
+  return arr.map((item) => (typeof item === "string" ? item : item.pubkey));
 }
 
 export function toInfluenceMap(arr: GraphEntry[] | undefined | null): Map<string, number | null> {

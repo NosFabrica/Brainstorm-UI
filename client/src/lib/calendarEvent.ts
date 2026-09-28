@@ -48,7 +48,12 @@ export function parseCalendarEvent(ev: MinimalEvent): CalendarEvent {
 export function formatEventDate(startSec: number, isDateOnly: boolean): string {
   if (!startSec) return "";
   const d = new Date(startSec * 1000);
-  const datePart = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const datePart = d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
   if (isDateOnly) return datePart;
   return `${datePart} · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
 }
@@ -62,8 +67,10 @@ export function eventEndSec(e: Pick<CalendarEvent, "startSec" | "endSec" | "isDa
   return e.isDateOnly ? e.startSec + 86_400 : e.startSec;
 }
 
-export const isOver = (e: Pick<CalendarEvent, "startSec" | "endSec" | "isDateOnly">, now: number = Math.floor(Date.now() / 1000)): boolean =>
-  e.startSec > 0 && eventEndSec(e) <= now;
+export const isOver = (
+  e: Pick<CalendarEvent, "startSec" | "endSec" | "isDateOnly">,
+  now: number = Math.floor(Date.now() / 1000),
+): boolean => e.startSec > 0 && eventEndSec(e) <= now;
 
 /** A calendar "date tile" — short month + day-of-month (e.g. { month: "JUN", day: "9" }). */
 export function eventDateTile(startSec: number): { month: string; day: string } {
@@ -74,8 +81,10 @@ export function eventDateTile(startSec: number): { month: string; day: string } 
 /** Human relative time: "Today", "Tomorrow", "In 3 days", "2 weeks ago", … */
 export function relativeEventTime(startSec: number): string {
   if (!startSec) return "";
-  const startDay = new Date(startSec * 1000); startDay.setHours(0, 0, 0, 0);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const startDay = new Date(startSec * 1000);
+  startDay.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const dayDiff = Math.round((startDay.getTime() - today.getTime()) / 86_400_000);
   if (dayDiff === 0) return "Today";
   if (dayDiff === 1) return "Tomorrow";
@@ -100,8 +109,10 @@ export function formatEventTime(startSec: number, isDateOnly: boolean): string {
   return new Date(startSec * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
-const COUNTRY = /^(usa|u\.s\.a\.|united states( of america)?|us|uk|united kingdom|england|scotland|wales|canada|germany|deutschland|france|spain|españa|italy|italia|netherlands|nederland|switzerland|schweiz|austria|österreich|australia|mexico|méxico|brazil|brasil|portugal|slovakia|slovensko|czechia|czech republic|česko|poland|polska|ireland|belgium|sweden|norway|denmark|finland|japan|argentina|el salvador|south africa|india|nigeria)$/i;
-const STREET = /^\d|\b(st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|way|hwy|highway|pl|place|sq|square)\.?$/i;
+const COUNTRY =
+  /^(usa|u\.s\.a\.|united states( of america)?|us|uk|united kingdom|england|scotland|wales|canada|germany|deutschland|france|spain|españa|italy|italia|netherlands|nederland|switzerland|schweiz|austria|österreich|australia|mexico|méxico|brazil|brasil|portugal|slovakia|slovensko|czechia|czech republic|česko|poland|polska|ireland|belgium|sweden|norway|denmark|finland|japan|argentina|el salvador|south africa|india|nigeria)$/i;
+const STREET =
+  /^\d|\b(st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|way|hwy|highway|pl|place|sq|square)\.?$/i;
 
 /**
  * The venue and the town, the way Luma names a place — not the postal
@@ -115,7 +126,10 @@ export function shortPlace(location: string | undefined | null): string {
   if (!location) return "";
   const parts: string[] = [];
   for (const raw of location.split(/,\s*/)) {
-    const part = raw.trim().replace(/\s+\d{4,}(?:-\d+)?$/, "").trim(); // "PA 16652" → "PA"
+    const part = raw
+      .trim()
+      .replace(/\s+\d{4,}(?:-\d+)?$/, "")
+      .trim(); // "PA 16652" → "PA"
     if (!part || /^\d+$/.test(part) || COUNTRY.test(part) || STREET.test(part)) continue;
     if (parts[parts.length - 1]?.toLowerCase() === part.toLowerCase()) continue;
     parts.push(part);

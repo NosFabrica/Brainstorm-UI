@@ -34,8 +34,7 @@ export default function ActivateBrainstormPage() {
   const { followDone, activateDone, listsPending } = useFinishSetup();
 
   const historyQuery = useSelfHistory(user?.pubkey);
-  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data
-    ?.ta_pubkey;
+  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
   // Warn before a silent overwrite: a kind-10040 naming a different provider
   // already exists, and continuing replaces it (same bar as the modal).
   const hasOtherProvider = useTrustProviderStatus(user?.pubkey, taPubkey).data === "other";
@@ -68,7 +67,14 @@ export default function ActivateBrainstormPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
-      <AppHeader user={user} onLogout={() => { logout(); navigate("/"); }} search={false} />
+      <AppHeader
+        user={user}
+        onLogout={() => {
+          logout();
+          navigate("/");
+        }}
+        search={false}
+      />
 
       <main className="flex items-center justify-center px-4 pb-28 pt-8 sm:px-6 sm:pt-12">
         <Card accent className="w-full max-w-xl overflow-hidden" data-testid="card-activate-page">
@@ -85,8 +91,7 @@ export default function ActivateBrainstormPage() {
                 Your Brainstorm account is active
               </h1>
               <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-                Your Treasure Map is published — apps like Nostria and Ditto can now find your trust
-                scores.
+                Your Treasure Map is published — apps like Nostria and Ditto can now find your trust scores.
               </p>
               {/* Already activated, new lists waiting: an update, never a redo. */}
               {listsPending && (
@@ -106,7 +111,7 @@ export default function ActivateBrainstormPage() {
                 <button
                   type="button"
                   onClick={() => navigate("/dashboard")}
-                  className="h-11 rounded-xl border-2 border-brand-primary px-5 text-[13px] font-semibold text-brand-primary transition-colors hover:bg-brand-primary/[0.08] dark:text-brand-link dark:border-brand-link"
+                  className="h-11 rounded-xl border-2 border-brand-primary px-5 text-[13px] font-semibold text-brand-primary transition-colors hover:bg-brand-primary/[0.08] dark:border-brand-link dark:text-brand-link"
                   data-testid="button-activate-go-dashboard"
                 >
                   Go to dashboard
@@ -116,7 +121,7 @@ export default function ActivateBrainstormPage() {
           ) : (
             <div className="p-6 sm:p-8">
               <div className="mb-3 flex items-center gap-2.5">
-                <span className="text-[11px] font-mono font-bold uppercase tracking-[0.25em] text-brand-link">
+                <span className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-brand-link">
                   {followDone ? "One step left" : "Almost there"}
                 </span>
                 <div className="h-px w-10 bg-brand-link/30" />
@@ -154,17 +159,23 @@ export default function ActivateBrainstormPage() {
               </div>
 
               {hasOtherProvider && (
-                <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-500/25 dark:bg-amber-500/10" data-testid="text-activate-page-replace-warning">
+                <div
+                  className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-500/25 dark:bg-amber-500/10"
+                  data-testid="text-activate-page-replace-warning"
+                >
                   <AlertCircle className="mt-px h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                   <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200">
                     Another provider is already publishing your scores. Continuing will{" "}
-                    <strong className="font-bold">replace it</strong> with Brainstorm for your trusted
-                    assertions going forward.
+                    <strong className="font-bold">replace it</strong> with Brainstorm for your trusted assertions going
+                    forward.
                   </p>
                 </div>
               )}
               {error && (
-                <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 dark:border-red-500/25 dark:bg-red-500/10" data-testid="text-activate-page-error">
+                <div
+                  className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 dark:border-red-500/25 dark:bg-red-500/10"
+                  data-testid="text-activate-page-error"
+                >
                   <AlertCircle className="mt-px h-4 w-4 shrink-0 text-red-500" />
                   <p className="text-xs font-medium leading-relaxed text-red-700 dark:text-red-300">{error}</p>
                 </div>
@@ -195,7 +206,10 @@ export default function ActivateBrainstormPage() {
                 )}
               </button>
               {!taPubkey && (
-                <p className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500" data-testid="text-activate-page-preparing">
+                <p
+                  className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500"
+                  data-testid="text-activate-page-preparing"
+                >
                   Your account is still being prepared — this unlocks in a few minutes.
                 </p>
               )}

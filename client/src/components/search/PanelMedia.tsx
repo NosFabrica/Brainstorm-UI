@@ -21,7 +21,17 @@ import { useConnectionSpeed, videoPreload } from "@/lib/connection";
  */
 export type LatestMediaItem =
   | { kind: "video"; id: string; title: string; poster: string | null; url: string; at: number; href: string }
-  | { kind: "podcast"; id: string; title: string; show: string | null; poster: string | null; audio: string; at: number; href: string; pageUrl: string };
+  | {
+      kind: "podcast";
+      id: string;
+      title: string;
+      show: string | null;
+      poster: string | null;
+      audio: string;
+      at: number;
+      href: string;
+      pageUrl: string;
+    };
 
 const FOUNTAIN_LINK = /https?:\/\/(?:www\.)?fountain\.fm\/(?:episode|track)\/[A-Za-z0-9_-]+/g;
 
@@ -30,7 +40,15 @@ export function latestVideos(events: NostrEvent[]): Extract<LatestMediaItem, { k
   for (const e of events) {
     const url = mediaUrlOf(e);
     if (!url || !isVideoUrl(e, url)) continue;
-    out.push({ kind: "video", id: e.id, title: noteTitle(e.content) || "Video", poster: mediaPosterOf(e), url, at: e.created_at, href: eventPath(e) });
+    out.push({
+      kind: "video",
+      id: e.id,
+      title: noteTitle(e.content) || "Video",
+      poster: mediaPosterOf(e),
+      url,
+      at: e.created_at,
+      href: eventPath(e),
+    });
   }
   return out;
 }
@@ -44,7 +62,15 @@ export function fountainLinksOf(events: NostrEvent[]): { event: NostrEvent; url:
   return out;
 }
 
-export function PanelLatestMedia({ person, events, max = 3 }: { person: SearchResult; events: NostrEvent[]; max?: number }) {
+export function PanelLatestMedia({
+  person,
+  events,
+  max = 3,
+}: {
+  person: SearchResult;
+  events: NostrEvent[];
+  max?: number;
+}) {
   const openLightbox = useLightbox();
   const [podcasts, setPodcasts] = useState<Extract<LatestMediaItem, { kind: "podcast" }>[]>([]);
   const videos = useMemo(() => latestVideos(events), [events]);
@@ -59,7 +85,19 @@ export function PanelLatestMedia({ person, events, max = 3 }: { person: SearchRe
     Promise.all(
       podcastLinks.map(async ({ event, url }) => {
         const item: FountainItem | null = await fetchFountainItem(url);
-        return item ? ({ kind: "podcast" as const, id: event.id, title: item.title, show: item.show, poster: item.image, audio: item.audio, at: event.created_at, href: eventPath(event), pageUrl: item.url }) : null;
+        return item
+          ? {
+              kind: "podcast" as const,
+              id: event.id,
+              title: item.title,
+              show: item.show,
+              poster: item.image,
+              audio: item.audio,
+              at: event.created_at,
+              href: eventPath(event),
+              pageUrl: item.url,
+            }
+          : null;
       }),
     ).then((rows) => {
       if (!cancelled) setPodcasts(rows.filter((r): r is Extract<LatestMediaItem, { kind: "podcast" }> => r !== null));
@@ -69,15 +107,24 @@ export function PanelLatestMedia({ person, events, max = 3 }: { person: SearchRe
     };
   }, [podcastLinks]);
 
-  const items = useMemo(() => [...videos, ...podcasts].sort((a, b) => b.at - a.at).slice(0, max), [videos, podcasts, max]);
+  const items = useMemo(
+    () => [...videos, ...podcasts].sort((a, b) => b.at - a.at).slice(0, max),
+    [videos, podcasts, max],
+  );
   if (items.length === 0) return null;
   const author = { name: getDisplayLabel(person), npub: person.npub, picture: person.picture ?? null };
 
   return (
     <div className="mt-3" data-testid="person-media">
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Latest</span>
-        <Link href={`/p/${person.npub}`} className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline" data-testid="person-media-more">
+        <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          Latest
+        </span>
+        <Link
+          href={`/p/${person.npub}`}
+          className="text-[11px] font-medium text-brand-deep hover:underline dark:text-brand-link"
+          data-testid="person-media-more"
+        >
           All →
         </Link>
       </div>
@@ -94,7 +141,12 @@ export function PanelLatestMedia({ person, events, max = 3 }: { person: SearchRe
               at={item.at}
               href={item.href}
               icon={<Video className="h-3 w-3" />}
-              onPlay={() => openLightbox([{ url: item.url, kind: "video", poster: item.poster }], 0, { author, postHref: item.href })}
+              onPlay={() =>
+                openLightbox([{ url: item.url, kind: "video", poster: item.poster }], 0, {
+                  author,
+                  postHref: item.href,
+                })
+              }
               playing={false}
             />
           ) : (
@@ -121,17 +173,43 @@ function PodcastRow({ item, show }: { item: Extract<LatestMediaItem, { kind: "po
         artist={show ?? undefined}
         cover={item.poster ?? undefined}
         audio={item.audio}
-        sourceLabel="Fountain" sourceHost="fountain.fm"
+        sourceLabel="Fountain"
+        sourceHost="fountain.fm"
         href={item.href}
       />
     </div>
   );
 }
 
-function MediaRow({ testId, poster, videoUrl, title, label, at, href, icon, onPlay, playing }: { testId: string; poster: string | null; /** A clip without a poster still has a first frame: the browser paints it from the metadata alone. */ videoUrl?: string; title: string; label: string; at: number; href: string; icon: React.ReactNode; onPlay: () => void; playing: boolean }) {
+function MediaRow({
+  testId,
+  poster,
+  videoUrl,
+  title,
+  label,
+  at,
+  href,
+  icon,
+  onPlay,
+  playing,
+}: {
+  testId: string;
+  poster: string | null;
+  /** A clip without a poster still has a first frame: the browser paints it from the metadata alone. */ videoUrl?: string;
+  title: string;
+  label: string;
+  at: number;
+  href: string;
+  icon: React.ReactNode;
+  onPlay: () => void;
+  playing: boolean;
+}) {
   const speed = useConnectionSpeed();
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5" data-testid={testId}>
+    <div
+      className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900"
+      data-testid={testId}
+    >
       <button
         type="button"
         onClick={onPlay}
@@ -141,7 +219,15 @@ function MediaRow({ testId, poster, videoUrl, title, label, at, href, icon, onPl
         {poster ? (
           <img src={poster} alt="" loading="lazy" className="h-full w-full object-cover" />
         ) : videoUrl ? (
-          <video src={`${videoUrl}#t=0.1`} preload={videoPreload(speed)} muted playsInline tabIndex={-1} aria-hidden className="pointer-events-none h-full w-full object-cover" />
+          <video
+            src={`${videoUrl}#t=0.1`}
+            preload={videoPreload(speed)}
+            muted
+            playsInline
+            tabIndex={-1}
+            aria-hidden
+            className="pointer-events-none h-full w-full object-cover"
+          />
         ) : (
           <span className="absolute inset-0 flex items-center justify-center text-slate-500">{icon}</span>
         )}

@@ -39,9 +39,7 @@ describe("ResyncControl", () => {
   });
 
   it("shows the backend reason and keeps the dialog open on failure", async () => {
-    vi.spyOn(apiClient, "resyncObserver").mockRejectedValue(
-      new Error("resync exploded"),
-    );
+    vi.spyOn(apiClient, "resyncObserver").mockRejectedValue(new Error("resync exploded"));
 
     renderWithProviders(<ResyncControl pubkey={PK} />);
     fireEvent.click(screen.getByRole("button", { name: "Resync" }));

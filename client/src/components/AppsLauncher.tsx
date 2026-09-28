@@ -52,15 +52,51 @@ export function AppsLauncher({ active, className, variant = "dark" }: AppsLaunch
   // destinations (Search / Dashboard / Network) live in the account menu.
   const tiles: AppTile[] = [
     ...(FEATURES.agentSuite
-      ? [{ key: "agentsuite" as const, label: "Agent Suite", path: "/agentsuite", icon: AgentIcon, tone: "special" as const }]
+      ? [
+          {
+            key: "agentsuite" as const,
+            label: "Agent Suite",
+            path: "/agentsuite",
+            icon: AgentIcon,
+            tone: "special" as const,
+          },
+        ]
       : []),
     // Product family (Design System v1.0, p.12) — Signal · Communities · Music ·
     // Events. Product icons read in Aurora Cyan (distinct from the purple
     // toolbar/interface icons), even while coming soon.
-    { key: "reviews", label: "Signal", path: "/", iconSrc: "/brand/sub-brands/signal.svg", comingSoon: true, tone: "product" },
-    { key: "communities", label: "Communities", path: "/", iconSrc: "/brand/sub-brands/communities.svg", comingSoon: true, tone: "product" },
-    { key: "music", label: "Music", path: "/", iconSrc: "/brand/sub-brands/music.svg", comingSoon: true, tone: "product" },
-    { key: "events", label: "Events", path: "/", iconSrc: "/brand/sub-brands/events.svg", comingSoon: true, tone: "product" },
+    {
+      key: "reviews",
+      label: "Signal",
+      path: "/",
+      iconSrc: "/brand/sub-brands/signal.svg",
+      comingSoon: true,
+      tone: "product",
+    },
+    {
+      key: "communities",
+      label: "Communities",
+      path: "/",
+      iconSrc: "/brand/sub-brands/communities.svg",
+      comingSoon: true,
+      tone: "product",
+    },
+    {
+      key: "music",
+      label: "Music",
+      path: "/",
+      iconSrc: "/brand/sub-brands/music.svg",
+      comingSoon: true,
+      tone: "product",
+    },
+    {
+      key: "events",
+      label: "Events",
+      path: "/",
+      iconSrc: "/brand/sub-brands/events.svg",
+      comingSoon: true,
+      tone: "product",
+    },
   ];
 
   return (
@@ -71,8 +107,8 @@ export function AppsLauncher({ active, className, variant = "dark" }: AppsLaunch
           size="icon"
           className={
             (isLight
-              ? "text-slate-500 dark:text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-brand-primary hover:bg-slate-900/5 dark:hover:bg-white/10 rounded-xl "
-              : "text-slate-300 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 rounded-xl ") +
+              ? "no-default-hover-elevate no-default-active-elevate rounded-xl text-slate-500 hover:bg-slate-900/5 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-white/10 "
+              : "no-default-hover-elevate no-default-active-elevate rounded-xl text-slate-300 hover:bg-white/10 hover:text-white ") +
             (className ?? "")
           }
           title="Apps"
@@ -85,7 +121,7 @@ export function AppsLauncher({ active, className, variant = "dark" }: AppsLaunch
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-60 p-3 bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
+        className="w-60 border-slate-200/80 bg-white p-3 shadow-[0_12px_40px_rgba(0,0,0,0.18)] dark:border-slate-800 dark:bg-slate-900"
         data-testid="panel-apps-launcher"
       >
         <p
@@ -104,13 +140,7 @@ export function AppsLauncher({ active, className, variant = "dark" }: AppsLaunch
                 key={tile.key}
                 type="button"
                 disabled={inactive}
-                title={
-                  tile.comingSoon
-                    ? "Coming soon"
-                    : tile.disabled
-                      ? tile.disabledTitle
-                      : undefined
-                }
+                title={tile.comingSoon ? "Coming soon" : tile.disabled ? tile.disabledTitle : undefined}
                 onClick={() => {
                   if (inactive) return;
                   setOpen(false);
@@ -121,22 +151,24 @@ export function AppsLauncher({ active, className, variant = "dark" }: AppsLaunch
                   (tile.comingSoon
                     ? "cursor-default "
                     : tile.disabled
-                      ? "opacity-40 cursor-not-allowed "
+                      ? "cursor-not-allowed opacity-40 "
                       : "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 ") +
-                  (isActive && !inactive ? "bg-brand-primary/10 dark:bg-brand-primary/15 ring-1 ring-inset ring-brand-primary/20 dark:ring-brand-primary/20 " : "")
+                  (isActive && !inactive
+                    ? "bg-brand-primary/10 ring-1 ring-inset ring-brand-primary/20 dark:bg-brand-primary/15 dark:ring-brand-primary/20"
+                    : "")
                 }
                 data-testid={`app-tile-${tile.key}`}
               >
                 <span
                   className={
-                    "h-10 w-10 rounded-xl flex items-center justify-center " +
+                    "flex h-10 w-10 items-center justify-center rounded-xl " +
                     (tile.tone === "product"
-                      ? "bg-brand-accent/[0.08] border border-brand-accent/20 "
+                      ? "border border-brand-accent/20 bg-brand-accent/[0.08]"
                       : tile.comingSoon
-                        ? "bg-slate-400/[0.07] dark:bg-slate-500/[0.12] border border-slate-300/40 dark:border-slate-700/40 "
+                        ? "border border-slate-300/40 bg-slate-400/[0.07] dark:border-slate-700/40 dark:bg-slate-500/[0.12]"
                         : "bg-gradient-to-br from-brand-primary/10 to-brand-primary/[0.04] " +
                           (tile.tone === "special"
-                            ? "border border-brand-primary/[0.3] animate-pulse-glow"
+                            ? "animate-pulse-glow border border-brand-primary/[0.3]"
                             : "border border-brand-primary/10"))
                   }
                 >
@@ -173,7 +205,7 @@ export function AppsLauncher({ active, className, variant = "dark" }: AppsLaunch
                 </span>
                 {tile.comingSoon && (
                   <span
-                    className="text-[8px] font-semibold uppercase tracking-[0.12em] text-slate-400/80 dark:text-slate-500/80 leading-none"
+                    className="text-[8px] font-semibold uppercase leading-none tracking-[0.12em] text-slate-400/80 dark:text-slate-500/80"
                     data-testid={`text-soon-${tile.key}`}
                   >
                     Soon

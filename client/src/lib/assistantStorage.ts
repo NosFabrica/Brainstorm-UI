@@ -45,17 +45,25 @@ function key(suffix: string, owner?: string | null): string | null {
 
 function safeGet(k: string | null): string | null {
   if (!k) return null;
-  try { return localStorage.getItem(k); } catch { return null; }
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
 }
 
 function safeSet(k: string | null, v: string): void {
   if (!k) return;
-  try { localStorage.setItem(k, v); } catch {}
+  try {
+    localStorage.setItem(k, v);
+  } catch {}
 }
 
 function safeRemove(k: string | null): void {
   if (!k) return;
-  try { localStorage.removeItem(k); } catch {}
+  try {
+    localStorage.removeItem(k);
+  } catch {}
 }
 
 function notify(): void {
@@ -70,7 +78,9 @@ export function readPublishedAssistant(): PublishedAssistantState | null {
   const publishedAtStr = safeGet(key(SUFFIX_PUBLISHED_AT));
   if (!pubkey || !eventId || !publishedAtStr) return null;
   let npub = pubkey;
-  try { npub = nip19.npubEncode(pubkey); } catch {}
+  try {
+    npub = nip19.npubEncode(pubkey);
+  } catch {}
   return {
     pubkey,
     npub,
@@ -89,7 +99,11 @@ export function writePublishedAssistant(s: PublishedAssistantState): void {
 export function readAssistantProfile(): AssistantProfile | null {
   const raw = safeGet(key(SUFFIX_PROFILE));
   if (!raw) return null;
-  try { return JSON.parse(raw) as AssistantProfile; } catch { return null; }
+  try {
+    return JSON.parse(raw) as AssistantProfile;
+  } catch {
+    return null;
+  }
 }
 
 export function writeAssistantProfile(p: AssistantProfile): void {

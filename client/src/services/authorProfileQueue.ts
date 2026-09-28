@@ -113,20 +113,18 @@ function send(authors: string[]): void {
   };
   open.add(lookup);
   for (const a of authors) inFlight.set(a, lookup);
-  sub = relay
-    .req({ kinds: [0], authors, search: "include:spam", limit: authors.length })
-    .subscribe({
-      next: (msg: { type: string; event?: NostrEvent }) => {
-        if (msg.type === "EVENT" && msg.event?.kind === 0) {
-          const profile = msg.event;
-          answered.add(profile.pubkey);
-          deliver(profile);
-        } else if (msg.type === "EOSE") {
-          settle(lookup, answered);
-        }
-      },
-      error: () => abort(lookup),
-    });
+  sub = relay.req({ kinds: [0], authors, search: "include:spam", limit: authors.length }).subscribe({
+    next: (msg: { type: string; event?: NostrEvent }) => {
+      if (msg.type === "EVENT" && msg.event?.kind === 0) {
+        const profile = msg.event;
+        answered.add(profile.pubkey);
+        deliver(profile);
+      } else if (msg.type === "EOSE") {
+        settle(lookup, answered);
+      }
+    },
+    error: () => abort(lookup),
+  });
   if (!open.has(lookup)) sub.unsubscribe();
 }
 
@@ -180,7 +178,9 @@ async function ask(authors: string[]): Promise<void> {
       const old = Date.now() - PROFILE_FRESH_MS;
       missing = authors.filter((a) => !held.has(a));
       // Claimed, so a copy the loader is already refreshing isn't asked twice.
-      refresh = [...held.values()].filter((row) => row.at < old && claimRefresh(`0:${row.event.pubkey}:`, 0)).map((row) => row.event.pubkey);
+      refresh = [...held.values()]
+        .filter((row) => row.at < old && claimRefresh(`0:${row.event.pubkey}:`, 0))
+        .map((row) => row.event.pubkey);
       refresh.forEach((a) => refreshing.add(a));
       for (const row of held.values()) deliver(row.event);
     }
