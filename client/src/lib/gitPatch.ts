@@ -43,7 +43,11 @@ export function parsePatch(content: string): ParsedPatch {
   const removed = diffLines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
 
   if (/^From [0-9a-f]{40} /.test(head[0] ?? "")) {
-    const header = (name: string) => head.find((l) => l.startsWith(`${name}: `))?.slice(name.length + 2).trim() ?? null;
+    const header = (name: string) =>
+      head
+        .find((l) => l.startsWith(`${name}: `))
+        ?.slice(name.length + 2)
+        .trim() ?? null;
     const firstBlank = head.findIndex((l) => l.trim() === "");
     let body = firstBlank >= 0 ? head.slice(firstBlank + 1) : [];
     const cut = body.findIndex((l) => l === "---");
@@ -64,7 +68,11 @@ export function parsePatch(content: string): ParsedPatch {
   }
   const commitLine = head[0]?.match(/^commit ([0-9a-f]{40})/);
   if (commitLine) {
-    const header = (name: string) => head.find((l) => l.startsWith(`${name}:`))?.slice(name.length + 1).trim() ?? null;
+    const header = (name: string) =>
+      head
+        .find((l) => l.startsWith(`${name}:`))
+        ?.slice(name.length + 1)
+        .trim() ?? null;
     const indented = head.filter((l) => /^ {4}/.test(l)).map((l) => l.slice(4).trimEnd());
     const title = indented.find((l) => l.trim()) ?? null;
     const rest = indented.slice(indented.indexOf(title ?? "") + 1);
@@ -82,7 +90,18 @@ export function parsePatch(content: string): ParsedPatch {
       removed,
     };
   }
-  return { format: "plain", title: null, author: null, date: null, commit: null, message: head.join("\n").trim(), diff, files, added, removed };
+  return {
+    format: "plain",
+    title: null,
+    author: null,
+    date: null,
+    commit: null,
+    message: head.join("\n").trim(),
+    diff,
+    files,
+    added,
+    removed,
+  };
 }
 
 /**
@@ -97,7 +116,10 @@ export function gitItemTitleOf(event: { kind: number; content: string; tags: str
   if (event.kind === 1617) {
     const parsed = parsePatch(event.content || "");
     // A description tag can run to paragraphs; its first line is the title.
-    const described = tag("description")?.split("\n").map((l) => l.trim()).find((l) => l);
+    const described = tag("description")
+      ?.split("\n")
+      .map((l) => l.trim())
+      .find((l) => l);
     return parsed.title ?? described ?? "Untitled patch";
   }
   const firstLine = (event.content || "")

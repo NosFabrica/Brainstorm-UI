@@ -1,11 +1,5 @@
 import { useState, type FormEvent } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Check, AlertCircle, ArrowRight } from "lucide-react";
 import { createAccount, type NostrUser } from "@/accounts/login-flow";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
@@ -184,10 +178,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
                 data-testid="input-create-confirm"
               />
               {mismatch ? (
-                <p
-                  className={`text-xs font-medium ${tone("danger").text}`}
-                  data-testid="text-create-mismatch"
-                >
+                <p className={`text-xs font-medium ${tone("danger").text}`} data-testid="text-create-mismatch">
                   Passwords don't match.
                 </p>
               ) : (
@@ -205,12 +196,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
             )}
 
             <div className="space-y-3">
-              <Button
-                type="submit"
-                disabled={!canSubmit}
-                className="w-full"
-                data-testid="button-create-submit"
-              >
+              <Button type="submit" disabled={!canSubmit} className="w-full" data-testid="button-create-submit">
                 {busy ? (
                   // No spinner: encrypting the key blocks the thread, so an
                   // animation would visibly stall — as UnlockModal's doesn't.
@@ -221,9 +207,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
                   </>
                 )}
               </Button>
-              <p className="text-center text-[11px] text-muted-foreground">
-                Free · no email · takes a minute
-              </p>
+              <p className="text-center text-[11px] text-muted-foreground">Free · no email · takes a minute</p>
             </div>
           </form>
         )}

@@ -30,9 +30,14 @@ const FACES = 5;
 // Keep the influence the connections endpoint already returns per item — the
 // face-pile tier rings ride on it for free.
 function parseFollowerEntries(res: unknown): { pubkey: string; influence: number | null }[] {
-  const items = (res as { data?: { items?: Array<string | { pubkey?: string; influence?: number | null }> } })?.data?.items ?? [];
+  const items =
+    (res as { data?: { items?: Array<string | { pubkey?: string; influence?: number | null }> } })?.data?.items ?? [];
   return items
-    .map((e) => (typeof e === "string" ? { pubkey: e, influence: null } : { pubkey: e?.pubkey ?? "", influence: typeof e?.influence === "number" ? e.influence : null }))
+    .map((e) =>
+      typeof e === "string"
+        ? { pubkey: e, influence: null }
+        : { pubkey: e?.pubkey ?? "", influence: typeof e?.influence === "number" ? e.influence : null },
+    )
     .filter((e) => !!e.pubkey);
 }
 
@@ -55,7 +60,9 @@ export function useNetworkFaces(observer: string, enabled: boolean) {
     retry: false,
     queryFn: async () => {
       const [following, followersRes] = await Promise.all([
-        fetchContactList(observer).then((c) => Array.from(getFollowedPubkeys(c))).catch(() => [] as string[]),
+        fetchContactList(observer)
+          .then((c) => Array.from(getFollowedPubkeys(c)))
+          .catch(() => [] as string[]),
         apiClient.getUserConnections(observer, "followed_by", { limit: 100, order: "desc" }).catch(() => null),
       ]);
       const followerEntries = parseFollowerEntries(followersRes).filter((e) => e.pubkey !== observer);

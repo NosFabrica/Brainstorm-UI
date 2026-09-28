@@ -15,13 +15,7 @@ type ProfileLite = { name?: string; display_name?: string; picture?: string; nip
  * or not it has a summary; the attribution is pinned to the bottom so those
  * baselines line up too.
  */
-export function NetworkArticleCard({
-  article,
-  profile,
-}: {
-  article: NetworkArticle;
-  profile?: ProfileLite;
-}) {
+export function NetworkArticleCard({ article, profile }: { article: NetworkArticle; profile?: ProfileLite }) {
   const { event, author } = article;
   // House score for the ring on the author chip — shared session cache, one
   // request per author across the dashboard and /reading.

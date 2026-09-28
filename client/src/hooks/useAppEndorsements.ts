@@ -35,9 +35,14 @@ function lookup(address: string, opts: Opts): Promise<AppEndorsements> {
     p = new Promise<AppEndorsements>((resolve) => {
       queue.push(() => {
         fetchAppEndorsements(address, opts)
-          .catch(
-            (): AppEndorsements => ({ address, reviews: [], reviewCount: 0, zaps: [], zapCount: 0, collectionCount: 0 }),
-          )
+          .catch((): AppEndorsements => ({
+            address,
+            reviews: [],
+            reviewCount: 0,
+            zaps: [],
+            zapCount: 0,
+            collectionCount: 0,
+          }))
           .then((e) => {
             inflight--;
             settled.set(key, e);
@@ -66,7 +71,7 @@ export function useAppEndorsements(address: string | null, opts: Opts): AppEndor
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, opts.publisher]);
-  return key ? settled.get(key) ?? null : null;
+  return key ? (settled.get(key) ?? null) : null;
 }
 
 /** Test seam. */

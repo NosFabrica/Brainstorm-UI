@@ -94,10 +94,7 @@ export function signAs(account: BrainstormAccount, template: UnsignedTemplate): 
  * `window.nostr` — reaching for the extension directly silently fails for a
  * remote signer, and signs as the wrong identity when both are present.
  */
-export async function encryptToSelf(
-  account: BrainstormAccount,
-  plaintext: string,
-): Promise<string | null> {
+export async function encryptToSelf(account: BrainstormAccount, plaintext: string): Promise<string | null> {
   try {
     return (await account.nip44?.encrypt(account.pubkey, plaintext)) ?? null;
   } catch (error) {
@@ -109,10 +106,7 @@ export async function encryptToSelf(
 }
 
 /** Inverse of `encryptToSelf`. Null when this Account can't read it. */
-export async function decryptFromSelf(
-  account: BrainstormAccount,
-  ciphertext: string,
-): Promise<string | null> {
+export async function decryptFromSelf(account: BrainstormAccount, ciphertext: string): Promise<string | null> {
   try {
     return (await account.nip44?.decrypt(account.pubkey, ciphertext)) ?? null;
   } catch (error) {

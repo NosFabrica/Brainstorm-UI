@@ -37,9 +37,7 @@ function sourceFiles(dir: string): string[] {
 
 describe("the app's event store", () => {
   it("is constructed exactly once, and in the module that owns it", () => {
-    const built = sourceFiles(SOURCE_ROOT).filter((file) =>
-      /\bnew EventStore\s*\(/.test(readFileSync(file, "utf8")),
-    );
+    const built = sourceFiles(SOURCE_ROOT).filter((file) => /\bnew EventStore\s*\(/.test(readFileSync(file, "utf8")));
 
     expect(built.map((file) => file.slice(SOURCE_ROOT.length))).toEqual(["lib/eventStore.ts"]);
   });

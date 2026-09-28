@@ -28,8 +28,7 @@ vi.mock("./nostr", () => ({
 vi.mock("@/accounts/signing", () => ({
   activeAccount: () => ({ pubkey: VIEWER }),
   requireActiveAccount: () => ({ pubkey: VIEWER }),
-  signAs: async (_account: unknown, template: Parameters<typeof finalizeEvent>[0]) =>
-    finalizeEvent(template, h.sk),
+  signAs: async (_account: unknown, template: Parameters<typeof finalizeEvent>[0]) => finalizeEvent(template, h.sk),
 }));
 
 beforeEach(async () => {

@@ -49,7 +49,12 @@ describe("ShareNoteCard", () => {
   // Like Wavlake and YouTube, a Fountain link plays where it sits in the text.
   // It used to get an inline chip and a second player card below the note.
   it("renders a Fountain link once, inline, not as chip plus card", () => {
-    const fountain: MinimalEvent = { ...base, id: "f".repeat(64), kind: 1, content: "listen https://fountain.fm/episode/abc123" };
+    const fountain: MinimalEvent = {
+      ...base,
+      id: "f".repeat(64),
+      kind: 1,
+      content: "listen https://fountain.fm/episode/abc123",
+    };
     renderWithProviders(card(fountain));
     expect(screen.queryAllByTestId("link-chip")).toHaveLength(0);
     expect(unfurlMock).not.toHaveBeenCalled();
@@ -62,8 +67,25 @@ describe("ShareNoteCard", () => {
    */
   describe("a Primal link", () => {
     const AUTHOR = "7".repeat(64);
-    const article = { id: "4".repeat(64), kind: 30023, pubkey: AUTHOR, tags: [["d", "were-back"], ["title", "We're back"], ["summary", "White Noise is back on iOS and Android."]], content: "# We're back", created_at: 1, sig: "s" };
-    const post: MinimalEvent = { ...base, id: "p".repeat(64), kind: 1, content: "https://primal.net/whitenoise/were-back" };
+    const article = {
+      id: "4".repeat(64),
+      kind: 30023,
+      pubkey: AUTHOR,
+      tags: [
+        ["d", "were-back"],
+        ["title", "We're back"],
+        ["summary", "White Noise is back on iOS and Android."],
+      ],
+      content: "# We're back",
+      created_at: 1,
+      sig: "s",
+    };
+    const post: MinimalEvent = {
+      ...base,
+      id: "p".repeat(64),
+      kind: 1,
+      content: "https://primal.net/whitenoise/were-back",
+    };
 
     beforeEach(() => {
       stubVisibleIntersectionObserver();
@@ -86,13 +108,25 @@ describe("ShareNoteCard", () => {
       expect(embedded).toHaveTextContent("We're back");
       expect(embedded).toHaveTextContent("White Noise");
       expect(screen.queryAllByTestId("link-chip")).toHaveLength(0);
-      expect(screen.getByTestId("article-read").getAttribute("href")).toBe(`/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "were-back" })}`);
+      expect(screen.getByTestId("article-read").getAttribute("href")).toBe(
+        `/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "were-back" })}`,
+      );
       expect(unfurlMock).not.toHaveBeenCalled();
     });
 
     it("renders a person's link as their name, the way an npub mention reads", async () => {
-      const who: MinimalEvent = { ...base, id: "w".repeat(64), kind: 1, content: "follow https://primal.net/whitenoise" };
-      clientLink.resolve.mockResolvedValue({ kind: "profile", pubkey: AUTHOR, npub: nip19.npubEncode(AUTHOR), profile: { display_name: "White Noise" } });
+      const who: MinimalEvent = {
+        ...base,
+        id: "w".repeat(64),
+        kind: 1,
+        content: "follow https://primal.net/whitenoise",
+      };
+      clientLink.resolve.mockResolvedValue({
+        kind: "profile",
+        pubkey: AUTHOR,
+        npub: nip19.npubEncode(AUTHOR),
+        profile: { display_name: "White Noise" },
+      });
       renderWithProviders(card(who));
       const mention = await screen.findByRole("button", { name: "@White Noise" });
       expect(screen.queryAllByTestId("link-chip")).toHaveLength(0);

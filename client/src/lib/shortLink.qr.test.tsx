@@ -38,8 +38,7 @@ describe("the share QR", () => {
   });
 
   it("stays smaller than the canonical npub link it replaces", () => {
-    const canonical =
-      "https://brainstorm.world/p/npub17ngcvm59n9trc5kwam03rs5ts4n7gewxax53m7f2m4f464ls92cqr5qjta";
+    const canonical = "https://brainstorm.world/p/npub17ngcvm59n9trc5kwam03rs5ts4n7gewxax53m7f2m4f464ls92cqr5qjta";
     expect(modules(qrPayload(SHORT))).toBeLessThan(modules(qrPayload(canonical)));
   });
 

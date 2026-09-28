@@ -2,7 +2,7 @@ export type GraphEntry = { pubkey: string; influence: number | null; trusted_rep
 
 export function toPubkeys(arr: GraphEntry[] | undefined | null): string[] {
   if (!Array.isArray(arr)) return [];
-  return arr.map(item => typeof item === "string" ? item : item.pubkey);
+  return arr.map((item) => (typeof item === "string" ? item : item.pubkey));
 }
 
 export function toInfluenceMap(arr: GraphEntry[] | undefined | null): Map<string, number | null> {
@@ -18,13 +18,13 @@ export function toInfluenceMap(arr: GraphEntry[] | undefined | null): Map<string
   return map;
 }
 
-export function getFlaggedPubkeys(networkData: Record<string, any>, threshold: number): Set<string> {
+export function getFlaggedPubkeys(networkData: Record<string, unknown>, threshold: number): Set<string> {
   const flagged = new Set<string>();
   const arrayKeys = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
   for (const key of arrayKeys) {
     const arr = networkData[key];
     if (!Array.isArray(arr)) continue;
-    for (const item of arr) {
+    for (const item of arr as GraphEntry[]) {
       if (typeof item === "string") continue;
       if (
         typeof item.influence === "number" &&

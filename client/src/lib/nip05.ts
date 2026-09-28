@@ -124,7 +124,10 @@ function claim(nip05: string | undefined | null, pubkey: string | undefined | nu
 }
 
 /** Does the claimed identifier's domain vouch for this pubkey? */
-export async function verifyNip05(nip05: string | undefined | null, pubkey: string | undefined | null): Promise<Nip05Status> {
+export async function verifyNip05(
+  nip05: string | undefined | null,
+  pubkey: string | undefined | null,
+): Promise<Nip05Status> {
   const c = claim(nip05, pubkey);
   if (!c) return "invalid";
   return judge(await entryFor(c.name, c.domain).names, c.name, c.pk);
@@ -147,7 +150,10 @@ export async function resolveNip05(handle: string, timeoutMs = FETCH_TIMEOUT_MS)
  * (scrolling back, a re-rendered results list) paints its verdict at once
  * instead of flashing the unchecked handle. Undefined when not yet known.
  */
-export function peekNip05(nip05: string | undefined | null, pubkey: string | undefined | null): Nip05Status | undefined {
+export function peekNip05(
+  nip05: string | undefined | null,
+  pubkey: string | undefined | null,
+): Nip05Status | undefined {
   const c = claim(nip05, pubkey);
   if (!c) return "invalid";
   const hit = cache.get(`${c.name}@${c.domain}`);

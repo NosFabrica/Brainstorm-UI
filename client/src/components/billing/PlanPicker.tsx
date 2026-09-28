@@ -148,7 +148,7 @@ function PlanRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3
-              className="text-base font-bold tracking-tight text-slate-900 break-words dark:text-slate-100"
+              className="break-words text-base font-bold tracking-tight text-slate-900 dark:text-slate-100"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid={`plan-name-${index}`}
             >
@@ -162,17 +162,14 @@ function PlanRow({
           </div>
           {plan.description && (
             <p
-              className="mt-1 text-sm text-slate-500 break-words dark:text-slate-400"
+              className="mt-1 break-words text-sm text-slate-500 dark:text-slate-400"
               data-testid={`plan-description-${index}`}
             >
               {plan.description}
             </p>
           )}
           {days !== null && (
-            <p
-              className="mt-1 text-sm text-slate-600 dark:text-slate-300"
-              data-testid={`plan-cadence-${index}`}
-            >
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300" data-testid={`plan-cadence-${index}`}>
               New follows show up within {days === 1 ? "1 day" : `${days} days`}
             </p>
           )}
@@ -186,10 +183,7 @@ function PlanRow({
             {price}
           </p>
           {period && (
-            <p
-              className="text-xs text-slate-500 dark:text-slate-400"
-              data-testid={`plan-period-${index}`}
-            >
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid={`plan-period-${index}`}>
               {period}
             </p>
           )}
@@ -204,18 +198,14 @@ function PlanRow({
         <div className="space-y-1.5" data-testid={`plan-copy-${index}`}>
           <ul className="space-y-1.5" data-testid={`plan-included-${index}`}>
             {productClaims().map((f) => (
-              <li
-                key={f.key}
-                className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200"
-              >
+              <li key={f.key} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 <span className="min-w-0 break-words">{f.label}</span>
               </li>
             ))}
           </ul>
           <p className="pt-1 text-xs text-slate-500 dark:text-slate-400">
-            On every plan, including this one. What you pay for is how often it
-            all gets recalculated.
+            On every plan, including this one. What you pay for is how often it all gets recalculated.
           </p>
         </div>
       )}
@@ -228,10 +218,7 @@ function PlanRow({
           {plan.features && (
             <ul className="space-y-1.5" data-testid={`plan-included-${index}`}>
               {plan.features.map((line, i) => (
-                <li
-                  key={`in-${i}`}
-                  className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200"
-                >
+                <li key={`in-${i}`} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                   <span className="min-w-0 break-words">{line}</span>
                 </li>
@@ -241,10 +228,7 @@ function PlanRow({
           {plan.notIncluded && (
             <ul className="space-y-1.5" data-testid={`plan-excluded-${index}`}>
               {plan.notIncluded.map((line, i) => (
-                <li
-                  key={`ex-${i}`}
-                  className="flex items-start gap-2 text-sm text-slate-400 dark:text-slate-500"
-                >
+                <li key={`ex-${i}`} className="flex items-start gap-2 text-sm text-slate-400 dark:text-slate-500">
                   <X className="mt-0.5 h-4 w-4 shrink-0" />
                   <span className="min-w-0 break-words">{line}</span>
                 </li>

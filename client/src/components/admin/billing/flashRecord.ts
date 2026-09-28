@@ -159,7 +159,8 @@ export function describeDunning(r: FlashSubscriptionRecord): string | null {
   const attempts = r.dunningAttempts ?? 0;
   if (r.status !== "past_due" && attempts <= 0) return null;
   const max = r.dunning?.maxAttempts;
-  if (attempts > 0) return max ? `Attempt ${attempts} of ${max}` : `${attempts} ${attempts === 1 ? "attempt" : "attempts"} so far`;
+  if (attempts > 0)
+    return max ? `Attempt ${attempts} of ${max}` : `${attempts} ${attempts === 1 ? "attempt" : "attempts"} so far`;
   return "Renewal failed, Flash is retrying";
 }
 

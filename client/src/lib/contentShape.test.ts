@@ -7,7 +7,8 @@
 import { describe, expect, it } from "vitest";
 import { contentShape } from "./contentShape";
 
-const NIP44 = "AgkXT1NChTXAHiDpLZZwu5PO5rAVpAxTeRwbCyrcWYDpXson5eEnf/JjsvZqC+V/P5uTF4sbspmfOlVeCi8aJb/oceACXS4VBRcA6s3FxVx0AUbFFqpQGtWjw7a4fu51pNS+6NBCYMiMr/0Uta3xMKuyUbZH6KyFwc+0css9hv3Vf+";
+const NIP44 =
+  "AgkXT1NChTXAHiDpLZZwu5PO5rAVpAxTeRwbCyrcWYDpXson5eEnf/JjsvZqC+V/P5uTF4sbspmfOlVeCi8aJb/oceACXS4VBRcA6s3FxVx0AUbFFqpQGtWjw7a4fu51pNS+6NBCYMiMr/0Uta3xMKuyUbZH6KyFwc+0css9hv3Vf+";
 
 describe("contentShape", () => {
   it("knows NIP-44 and NIP-04 ciphertext", () => {
@@ -22,7 +23,9 @@ describe("contentShape", () => {
 
   it("leaves prose, links, and short words as text; nothing as empty", () => {
     expect(contentShape("Records read time to sync notification status across devices.")).toEqual({ kind: "text" });
-    expect(contentShape("gm https://example.com/a/very/long/path/that/has/no/spaces/but/is/a/url")).toEqual({ kind: "text" });
+    expect(contentShape("gm https://example.com/a/very/long/path/that/has/no/spaces/but/is/a/url")).toEqual({
+      kind: "text",
+    });
     expect(contentShape("dGVzdA==")).toEqual({ kind: "text" }); // too short to call ciphertext
     expect(contentShape("  ")).toEqual({ kind: "empty" });
   });

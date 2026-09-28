@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  --button-outline: rgba(0,0,0, .10);
-  --badge-outline: rgba(0,0,0, .05);
+  --button-outline: rgba(0, 0, 0, 0.1);
+  --badge-outline: rgba(0, 0, 0, 0.05);
   --opaque-button-border-intensity: -8;
-  --elevate-1: rgba(0,0,0, .03);
-  --elevate-2: rgba(0,0,0, .08);
+  --elevate-1: rgba(0, 0, 0, 0.03);
+  --elevate-2: rgba(0, 0, 0, 0.08);
 
   --background: 80 8% 95%;
   --foreground: 223 41% 7%;
@@ -32,7 +32,7 @@
   --secondary-foreground: 223 41% 7%;
   --muted: 80 6% 94%;
   --muted-foreground: 216 11% 45%;
-  --accent: 258 100% 61%;   /* Aurora Purple #7237ff (was violet-600) */
+  --accent: 258 100% 61%; /* Aurora Purple #7237ff (was violet-600) */
   --accent-foreground: 0 0% 100%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
@@ -54,20 +54,20 @@
      `*-hover` and `--brand-deep` are SANCTIONED SUPPORTING SHADES (derived depth/
      hover steps of the accents, designer-approved) — not new brand colours.
      Don't add other off-palette hues. Policy: docs/design-system.md. */
-  --brand-primary: 114 55 255;        /* Aurora Purple #7237ff — primary buttons, wordmark */
-  --brand-primary-hover: 97 47 217;   /* #612fd9 — Aurora Purple hover (supporting) */
-  --brand-accent: 19 210 229;         /* Aurora Cyan #13d2e5 — kickers, accent lines, chips */
-  --brand-accent-hover: 40 126 137;   /* #287e89 — Aurora Cyan hover (supporting) */
-  --brand-deep: 43 23 79;             /* #2b174f — dark tint of Aurora Purple (supporting) */
-  --brand-link: 114 55 255;           /* Aurora Purple #7237ff — links */
+  --brand-primary: 114 55 255; /* Aurora Purple #7237ff — primary buttons, wordmark */
+  --brand-primary-hover: 97 47 217; /* #612fd9 — Aurora Purple hover (supporting) */
+  --brand-accent: 19 210 229; /* Aurora Cyan #13d2e5 — kickers, accent lines, chips */
+  --brand-accent-hover: 40 126 137; /* #287e89 — Aurora Cyan hover (supporting) */
+  --brand-deep: 43 23 79; /* #2b174f — dark tint of Aurora Purple (supporting) */
+  --brand-link: 114 55 255; /* Aurora Purple #7237ff — links */
 
   /* Brand typography (Design System v1.0): Figtree for interface content,
      IBM Plex Mono for technical info / metadata. */
-  --font-sans: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   /* Brand signature — top-level page title + logo wordmark. */
-  --font-brand: 'Figtree', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'IBM Plex Mono', 'SF Mono', 'Fira Code', monospace;
+  --font-brand: "Figtree", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
   --radius: 0.75rem;
 
   --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
@@ -83,9 +83,13 @@
   --spacing: 0.25rem;
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
-  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-primary-border: hsl(
+    from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
   --sidebar-accent-border: hsl(var(--sidebar-accent));
-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-accent-border: hsl(
+    from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
   --primary-border: hsl(var(--primary));
   --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --secondary-border: hsl(var(--secondary));
@@ -99,11 +103,11 @@
 }
 
 .dark {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
+  --button-outline: rgba(255, 255, 255, 0.1);
+  --badge-outline: rgba(255, 255, 255, 0.05);
   --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
+  --elevate-1: rgba(255, 255, 255, 0.04);
+  --elevate-2: rgba(255, 255, 255, 0.09);
 
   --background: 223 41% 7%;
   --foreground: 80 8% 95%;
@@ -128,7 +132,7 @@
   --secondary-foreground: 0 0% 98%;
   --muted: 214 22% 21%;
   --muted-foreground: 240 5% 64.9%;
-  --accent: 258 100% 61%;   /* Aurora Purple #7237ff (was violet-600) */
+  --accent: 258 100% 61%; /* Aurora Purple #7237ff (was violet-600) */
   --accent-foreground: 0 0% 100%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 98%;
@@ -143,8 +147,8 @@
   /* Brand palette — dark overrides. The bright brand fills (Aurora Purple/Cyan)
      already pop on dark, so only the dark-toned accents that are used as text/
      borders need to lighten for legibility on the Ink background. */
-  --brand-deep: 185 165 255;   /* light Aurora violet — was Deep Violet (too dark on dark) */
-  --brand-link: 167 139 250;   /* lighter Aurora Purple for readable links on dark */
+  --brand-deep: 185 165 255; /* light Aurora violet — was Deep Violet (too dark on dark) */
+  --brand-link: 167 139 250; /* lighter Aurora Purple for readable links on dark */
 
   --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.2);
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
@@ -156,9 +160,13 @@
   --shadow-2xl: 0 35px 60px -15px rgb(0 0 0 / 0.6);
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
-  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-primary-border: hsl(
+    from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
   --sidebar-accent-border: hsl(var(--sidebar-accent));
-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+  --sidebar-accent-border: hsl(
+    from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha
+  );
   --primary-border: hsl(var(--primary));
   --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --secondary-border: hsl(var(--secondary));
@@ -176,7 +184,7 @@
     @apply border-border;
   }
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply bg-background font-sans text-foreground antialiased;
     /* Design System v1.0: Medium (500) is the default text weight; hierarchy
        comes from scale, emphasis from weight (explicit font-semibold/bold). */
     font-weight: 500;
@@ -192,7 +200,12 @@
     background: #020617;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-display);
     @apply tracking-tight;
   }
@@ -202,18 +215,44 @@
     font-family: var(--font-brand);
   }
 
-  h1 { font-size: 1.5rem; line-height: 1.15; }
-  h2 { font-size: 1.25rem; line-height: 1.2; }
-  h3 { font-size: 1.125rem; line-height: 1.25; }
-  h4 { font-size: 1rem; line-height: 1.35; }
-  h5 { font-size: 0.95rem; line-height: 1.35; }
-  h6 { font-size: 0.875rem; line-height: 1.35; }
+  h1 {
+    font-size: 1.5rem;
+    line-height: 1.15;
+  }
+  h2 {
+    font-size: 1.25rem;
+    line-height: 1.2;
+  }
+  h3 {
+    font-size: 1.125rem;
+    line-height: 1.25;
+  }
+  h4 {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  h5 {
+    font-size: 0.95rem;
+    line-height: 1.35;
+  }
+  h6 {
+    font-size: 0.875rem;
+    line-height: 1.35;
+  }
 
   @media (min-width: 640px) {
-    h1 { font-size: 1.875rem; }
-    h2 { font-size: 1.5rem; }
-    h3 { font-size: 1.25rem; }
-    h4 { font-size: 1.125rem; }
+    h1 {
+      font-size: 1.875rem;
+    }
+    h2 {
+      font-size: 1.5rem;
+    }
+    h3 {
+      font-size: 1.25rem;
+    }
+    h4 {
+      font-size: 1.125rem;
+    }
   }
 }
 
@@ -285,7 +324,10 @@
     box-shadow: 0 0 0 2px rgb(var(--brand-accent) / 0.55);
   }
   .interactive-lift {
-    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    transition:
+      transform 0.18s ease,
+      box-shadow 0.18s ease,
+      border-color 0.18s ease;
   }
   .interactive-lift:hover {
     transform: translateY(-2px);
@@ -310,8 +352,10 @@
     pointer-events: none;
   }
 
-  .no-default-hover-elevate {}
-  .no-default-active-elevate {}
+  .no-default-hover-elevate {
+  }
+  .no-default-active-elevate {
+  }
 
   .toggle-elevate::before,
   .toggle-elevate-2::before {
@@ -371,7 +415,8 @@
 }
 
 @keyframes softPulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateZ(0) scale(1);
     filter: brightness(1);
   }
@@ -404,13 +449,21 @@
 }
 
 @keyframes overlay-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes overlay-exit {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 [data-dialog-overlay][data-state="open"] {
@@ -449,7 +502,8 @@
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
   }
   50% {
@@ -465,10 +519,18 @@
    Used to draw the eye to a deep-linked control (e.g. the backup CTA) without a
    perpetual animation. */
 @keyframes attention-ring {
-  0% { box-shadow: 0 0 0 0 rgba(124, 134, 255, 0); }
-  15% { box-shadow: 0 0 0 4px rgba(124, 134, 255, 0.35); }
-  50% { box-shadow: 0 0 0 6px rgba(124, 134, 255, 0.12); }
-  100% { box-shadow: 0 0 0 0 rgba(124, 134, 255, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(124, 134, 255, 0);
+  }
+  15% {
+    box-shadow: 0 0 0 4px rgba(124, 134, 255, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(124, 134, 255, 0.12);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(124, 134, 255, 0);
+  }
 }
 .animate-attention-ring {
   animation: attention-ring 1.5s ease-out 2;
@@ -477,15 +539,21 @@
 /* The header's finish-setup pill — a slow amber breathe, perpetual by design:
    it lives until setup is done, and done is one click away. */
 @keyframes glow-amber {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
-  50% { box-shadow: 0 0 22px 3px rgba(245, 158, 11, 0.42); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0);
+  }
+  50% {
+    box-shadow: 0 0 22px 3px rgba(245, 158, 11, 0.42);
+  }
 }
 .animate-glow-amber {
   animation: glow-amber 2.6s ease-in-out infinite;
 }
 
 @keyframes aurora-shift {
-  0%, 100% {
+  0%,
+  100% {
     background-position: 0% 50%;
   }
   50% {
@@ -499,7 +567,8 @@
 }
 
 @keyframes soft-pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
   }
   50% {
@@ -515,7 +584,8 @@
   0% {
     transform: translateX(-120%) skewX(-20deg);
   }
-  60%, 100% {
+  60%,
+  100% {
     transform: translateX(220%) skewX(-20deg);
   }
 }
@@ -527,12 +597,7 @@
   left: 0;
   height: 100%;
   width: 40%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.35),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
   transform: translateX(-120%) skewX(-20deg);
   animation: sheen 4.5s ease-in-out infinite;
   pointer-events: none;
@@ -563,9 +628,15 @@
 }
 
 @keyframes highlight-row {
-  0% { background-color: rgba(124, 134, 255, 0.25); }
-  30% { background-color: rgba(124, 134, 255, 0.15); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: rgba(124, 134, 255, 0.25);
+  }
+  30% {
+    background-color: rgba(124, 134, 255, 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 .animate-highlight-row {
   animation: highlight-row 2.5s ease-out forwards;
@@ -643,8 +714,12 @@ html.dark.admin-scrollbars *::-webkit-scrollbar-thumb {
  * listen for (see KeySignInModal) to reconcile the DOM value into state.
  */
 @keyframes onAutoFillStart {
-  from { /* noop */ }
-  to { /* noop */ }
+  from {
+    /* noop */
+  }
+  to {
+    /* noop */
+  }
 }
 input:-webkit-autofill {
   animation-name: onAutoFillStart;
@@ -653,8 +728,13 @@ input:-webkit-autofill {
 
 /* "Now playing" equalizer bars for the public-page music player. */
 @keyframes eq-bar {
-  0%, 100% { transform: scaleY(0.35); }
-  50% { transform: scaleY(1); }
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
 }
 .eq-bar {
   transform-origin: bottom;
@@ -663,17 +743,36 @@ input:-webkit-autofill {
 
 /* The now-playing bar rises into view when a track starts and drops on close. */
 @keyframes np-rise {
-  from { transform: translateY(100%); opacity: 0.6; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(100%);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 @keyframes np-drop {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(100%); opacity: 0.6; }
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0.6;
+  }
 }
-.np-rise { animation: np-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.np-drop { animation: np-drop 180ms ease-in both; }
+.np-rise {
+  animation: np-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.np-drop {
+  animation: np-drop 180ms ease-in both;
+}
 @media (prefers-reduced-motion: reduce) {
-  .np-rise, .np-drop { animation: none; }
+  .np-rise,
+  .np-drop {
+    animation: none;
+  }
 }
 
 /* The article reader's code. Inline code — a `nostr:` scheme, an example URI —

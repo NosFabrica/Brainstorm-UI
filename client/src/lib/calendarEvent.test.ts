@@ -15,7 +15,9 @@ describe("shortPlace", () => {
   it("keeps the venue and the town, dropping street, postcode and country", () => {
     expect(shortPlace("235 Robert Parker Coffin Road, Long Grove, IL, USA")).toBe("Long Grove, IL");
     expect(shortPlace("200 N La Salle St, 200 N La Salle St, Chicago, IL, United States")).toBe("Chicago, IL");
-    expect(shortPlace("Juniata Brewing Company, 1102 Susquehanna Ave, Huntingdon, PA 16652")).toBe("Juniata Brewing Company, Huntingdon");
+    expect(shortPlace("Juniata Brewing Company, 1102 Susquehanna Ave, Huntingdon, PA 16652")).toBe(
+      "Juniata Brewing Company, Huntingdon",
+    );
     expect(shortPlace("Yuzu House, Bratislava")).toBe("Yuzu House, Bratislava");
     expect(shortPlace("Chicago, IL")).toBe("Chicago, IL");
     expect(shortPlace("Online")).toBe("Online");

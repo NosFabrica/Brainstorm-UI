@@ -10,12 +10,7 @@ import {
   isPairingCancelled,
   remoteSignerMessage,
 } from "./remote-login";
-import {
-  isRemoteSignerTimeout,
-  NIP46_PERMISSIONS,
-  PAIRING_TIMEOUT_MS,
-  REQUEST_TIMEOUT_MS,
-} from "./remote-signer";
+import { isRemoteSignerTimeout, NIP46_PERMISSIONS, PAIRING_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from "./remote-signer";
 import { createFakeRemoteSigner } from "./remote-test-fakes";
 import { installRemoteTransport } from "./remote-transport";
 
@@ -208,11 +203,7 @@ describe("where the signer wants to be reached", () => {
 
     await connectWithBunkerURI(fake.bunkerURI({ relays: ["wss://theirs"] }));
 
-    expect(fake.received.map((r) => r.method)).toEqual([
-      "connect",
-      "switch_relays",
-      "get_public_key",
-    ]);
+    expect(fake.received.map((r) => r.method)).toEqual(["connect", "switch_relays", "get_public_key"]);
   });
 
   it("stays where it is when the signer doesn't implement it", async () => {

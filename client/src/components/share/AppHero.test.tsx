@@ -61,7 +61,15 @@ import { AppHero } from "./AppHero";
 
 const PUBLISHER = "b".repeat(64);
 const profileEvent = (pubkey: string, name: string): NostrEvent =>
-  ({ id: pubkey.slice(0, 8), kind: 0, pubkey, tags: [], content: JSON.stringify({ name }), created_at: 1, sig: "s" }) as NostrEvent;
+  ({
+    id: pubkey.slice(0, 8),
+    kind: 0,
+    pubkey,
+    tags: [],
+    content: JSON.stringify({ name }),
+    created_at: 1,
+    sig: "s",
+  }) as NostrEvent;
 
 function listing(tags: string[][], content = ""): NostrEvent {
   return {
@@ -121,8 +129,15 @@ describe("AppHero endorsements", () => {
   const FRIEND = "3".repeat(64);
   const ZAPPER = "4".repeat(64);
   const ADDR = `32267:${PUBLISHER}:social.flotilla`;
-  const review = (id: string, pubkey: string, text: string, at: number, version: string | null = "1.13.1") =>
-    ({ id, pubkey, text, at, version, k: "32267", kind: 1111 });
+  const review = (id: string, pubkey: string, text: string, at: number, version: string | null = "1.13.1") => ({
+    id,
+    pubkey,
+    text,
+    at,
+    version,
+    k: "32267",
+    kind: 1111,
+  });
   const signals = (over: Partial<Endorsements> = {}): Endorsements => ({
     address: ADDR,
     reviews: [
@@ -155,7 +170,14 @@ describe("AppHero endorsements", () => {
   });
 
   it("no signals, no strip and no section", async () => {
-    endorsementsMock.mockReturnValue({ address: ADDR, reviews: [], reviewCount: 0, zaps: [], zapCount: 0, collectionCount: 0 });
+    endorsementsMock.mockReturnValue({
+      address: ADDR,
+      reviews: [],
+      reviewCount: 0,
+      zaps: [],
+      zapCount: 0,
+      collectionCount: 0,
+    });
     render(<AppHero event={FLOTILLA} />);
     await Promise.resolve();
     expect(screen.queryByTestId("app-hero-endorsement-stats")).toBeNull();
@@ -216,7 +238,9 @@ describe("AppHero endorsements", () => {
     const toggle = screen.getByTestId("app-hero-reviews-toggle");
     expect(toggle).toHaveTextContent("Show all 6");
     // Each review's words sit in a bubble, like the person page.
-    expect(screen.getByTestId("app-review-r0").querySelector('[data-testid="app-review-bubble"]')).toHaveTextContent("Review number 0");
+    expect(screen.getByTestId("app-review-r0").querySelector('[data-testid="app-review-bubble"]')).toHaveTextContent(
+      "Review number 0",
+    );
     fireEvent.click(toggle);
     expect(section.querySelectorAll('li[data-testid^="app-review-"]')).toHaveLength(6);
     expect(screen.getByTestId("app-hero-reviews-toggle")).toHaveTextContent("Show less");
@@ -242,7 +266,14 @@ describe("AppHero endorsements", () => {
 
   it("with releases but nobody talking, says so quietly", async () => {
     releasesMock.mockResolvedValue([rel("1.0", 3)]);
-    endorsementsMock.mockReturnValue({ address: ADDR, reviews: [], reviewCount: 0, zaps: [], zapCount: 0, collectionCount: 0 });
+    endorsementsMock.mockReturnValue({
+      address: ADDR,
+      reviews: [],
+      reviewCount: 0,
+      zaps: [],
+      zapCount: 0,
+      collectionCount: 0,
+    });
     render(<AppHero event={FLOTILLA} />);
     await screen.findByTestId("app-hero-release");
     expect(screen.getByTestId("app-hero-reviews-empty")).toHaveTextContent("No reviews from the network yet");
@@ -273,7 +304,7 @@ describe("AppHero", () => {
     expect(screen.getByText(/full community platform/)).toBeInTheDocument();
   });
 
-it("offers the APK itself when the release's asset resolves", async () => {
+  it("offers the APK itself when the release's asset resolves", async () => {
     releasesMock.mockResolvedValue([rel("3.5.25", 2)]);
     assetMock.mockResolvedValue({
       url: "https://github.com/PrimalHQ/primal-android-app/releases/download/3.5.25/primal-3.5.25.apk",
@@ -291,7 +322,9 @@ it("offers the APK itself when the release's asset resolves", async () => {
     expect(dl).toHaveTextContent("153 MB");
     expect(dl).toHaveTextContent("v3.5.25");
     // Benjamin's order: the informational links, the APK, then Zap Store last.
-    const order = [...screen.getByTestId("app-hero-actions").querySelectorAll("a")].map((a) => a.getAttribute("data-testid"));
+    const order = [...screen.getByTestId("app-hero-actions").querySelectorAll("a")].map((a) =>
+      a.getAttribute("data-testid"),
+    );
     expect(order).toEqual(["app-hero-website", "app-hero-source", "app-hero-download", "app-hero-get"]);
   });
 
@@ -458,13 +491,26 @@ it("offers the APK itself when the release's asset resolves", async () => {
   it("suggests similar apps as tappable mini cards", async () => {
     similarMock.mockResolvedValue([
       {
-        id: "s".repeat(64), kind: 32267, pubkey: "9".repeat(64),
-        tags: [["d", "com.wisp"], ["name", "Wisp"], ["icon", "https://cdn.zapstore.dev/wisp.png"], ["t", "nostr-client"]],
-        content: "", created_at: 1, sig: "s",
+        id: "s".repeat(64),
+        kind: 32267,
+        pubkey: "9".repeat(64),
+        tags: [
+          ["d", "com.wisp"],
+          ["name", "Wisp"],
+          ["icon", "https://cdn.zapstore.dev/wisp.png"],
+          ["t", "nostr-client"],
+        ],
+        content: "",
+        created_at: 1,
+        sig: "s",
       } as NostrEvent,
     ]);
     // Similar apps come from category tags — a listing without them asks for none.
-    const tagged = listing([["d", "social.flotilla"], ["name", "Flotilla"], ["t", "nostr-client"]]);
+    const tagged = listing([
+      ["d", "social.flotilla"],
+      ["name", "Flotilla"],
+      ["t", "nostr-client"],
+    ]);
     render(<AppHero event={tagged} />);
     const similar = await screen.findByTestId("app-hero-similar");
     expect(similarMock).toHaveBeenCalledWith(["nostr-client"], `32267:${PUBLISHER}:social.flotilla`);

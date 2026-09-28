@@ -28,7 +28,9 @@ function Rerendering({ child }: { child: (tick: number) => ReactNode }) {
   const [tick, setTick] = useState(0);
   return (
     <>
-      <button type="button" onClick={() => setTick((t) => t + 1)}>tick</button>
+      <button type="button" onClick={() => setTick((t) => t + 1)}>
+        tick
+      </button>
       {child(tick)}
     </>
   );
@@ -39,7 +41,9 @@ const MARKDOWN = "# Title\n\nSome **bold** text and a [link](https://example.com
 describe("markdown bodies parse only when their text changes", () => {
   it("an article body", () => {
     parses = 0;
-    const { getByText, rerender } = render(<Rerendering child={() => <ArticleBody body={MARKDOWN} fromHtml={false} />} />);
+    const { getByText, rerender } = render(
+      <Rerendering child={() => <ArticleBody body={MARKDOWN} fromHtml={false} />} />,
+    );
     expect(parses).toBe(1);
     act(() => getByText("tick").click());
     act(() => getByText("tick").click());

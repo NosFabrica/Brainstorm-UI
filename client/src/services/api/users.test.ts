@@ -10,11 +10,35 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("getShortestPath", () => {
   it("bounds the list it asks for with maxPaths, and reads the paths a server sends back", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: { from: "a", to: "b", reachable: true, hops: 2, path: ["a", "c", "b"], pathCount: 2, pathCountCapped: false, maxHops: 6, paths: [["a", "c", "b"], ["a", "d", "b"]] } }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              from: "a",
+              to: "b",
+              reachable: true,
+              hops: 2,
+              path: ["a", "c", "b"],
+              pathCount: 2,
+              pathCountCapped: false,
+              maxHops: 6,
+              paths: [
+                ["a", "c", "b"],
+                ["a", "d", "b"],
+              ],
+            },
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal("fetch", fetchMock);
     const r = await apiClient.getShortestPath({ from: "a", to: "b", maxPaths: 50 });
     expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.get("maxPaths")).toBe("50");
-    expect(r.paths).toEqual([["a", "c", "b"], ["a", "d", "b"]]);
+    expect(r.paths).toEqual([
+      ["a", "c", "b"],
+      ["a", "d", "b"],
+    ]);
   });
 
   it("asks as before when no bound is given", async () => {

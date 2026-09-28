@@ -15,7 +15,8 @@ vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(
 
 import { ProfileDetails } from "@/components/share/ProfileDetails";
 
-const LNURL = "lnurl1dp68gurn8ghj7um9wfmxjcm99e3k7mf0v9cxj0m385ekvcenxc6r2c35xvukxefcv5mkvv34x5ekzd3ev56nyd3hxqurzepexejxxepnxscrvwfnv9nxzcn9xq6xyefhvgcxxcmyxymnserxfq5fns";
+const LNURL =
+  "lnurl1dp68gurn8ghj7um9wfmxjcm99e3k7mf0v9cxj0m385ekvcenxc6r2c35xvukxefcv5mkvv34x5ekzd3ev56nyd3hxqurzepexejxxepnxscrvwfnv9nxzcn9xq6xyefhvgcxxcmyxymnserxfq5fns";
 
 describe("ProfileDetails", () => {
   beforeEach(() => {

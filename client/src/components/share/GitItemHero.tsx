@@ -5,7 +5,15 @@ import { Bot, GitBranch, GitCommitHorizontal, MessageSquare } from "lucide-react
 import type { NostrEvent } from "nostr-tools";
 import { Chip } from "@/components/ui/chip";
 import { fetchGitCommentCounts, fetchGitStatuses, fetchRepoByAddress } from "@/services/search";
-import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, gitRepoNameOf, gitStateOf, type AgentAuthor } from "@/lib/gitStatus";
+import {
+  GIT_STATE_LABEL,
+  GIT_STATE_TONE,
+  gitAgentOf,
+  gitLabelsOf,
+  gitRepoNameOf,
+  gitStateOf,
+  type AgentAuthor,
+} from "@/lib/gitStatus";
 import { gitItemTitleOf, parsePatch } from "@/lib/gitPatch";
 import { eventPath } from "@/lib/shareId";
 import { MarkdownBody } from "./MarkdownBody";
@@ -52,7 +60,10 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
     };
   }, [event.id, address]);
 
-  const patch = useMemo(() => (event.kind === 1617 ? parsePatch(event.content || "") : null), [event.kind, event.content]);
+  const patch = useMemo(
+    () => (event.kind === 1617 ? parsePatch(event.content || "") : null),
+    [event.kind, event.content],
+  );
   const [diffOpen, setDiffOpen] = useState(false);
   const state = gitStateOf(statusKind ?? undefined, event.kind);
 
@@ -71,10 +82,17 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
 
   return (
     <div data-testid="git-item-hero">
-      <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="git-item-title">
+      <h1
+        className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+        style={{ fontFamily: "var(--font-display)" }}
+        data-testid="git-item-title"
+      >
         {title}
       </h1>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="git-status-line">
+      <div
+        className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
+        data-testid="git-status-line"
+      >
         {statusKind !== null && (
           <Chip size="sm" tone={GIT_STATE_TONE[state]} data-testid="git-status-state">
             {GIT_STATE_LABEL[state]}
@@ -100,16 +118,21 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
       {labels.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-1" data-testid="git-item-labels">
           {labels.map((l) => (
-            <Chip key={l} size="sm" tone="slate">{l}</Chip>
+            <Chip key={l} size="sm" tone="slate">
+              {l}
+            </Chip>
           ))}
         </div>
       )}
 
       {/* A pull request's facts: where it comes from, how much it carries, how to fetch it. */}
       {event.kind === 1618 && (branch || commits > 0 || clone) && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300" data-testid="git-pr-facts">
+        <div
+          className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300"
+          data-testid="git-pr-facts"
+        >
           {branch && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 font-mono text-[11px]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-mono text-[11px] dark:bg-slate-800">
               <GitBranch className="h-3 w-3" /> {branch}
               {target && <span className="text-slate-400"> → {target}</span>}
             </span>
@@ -124,7 +147,7 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
               type="button"
               onClick={() => void navigator.clipboard?.writeText(clone).catch(() => {})}
               title="Copy clone URL"
-              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3 py-1 font-mono text-[11px] text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors"
+              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 font-mono text-[11px] text-slate-600 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
               data-testid="git-pr-clone"
             >
               <span className="truncate">{clone.replace(/^https?:\/\//, "")}</span>
@@ -137,7 +160,10 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
       {patch ? (
         <div className="mt-4" data-testid="git-item-body">
           {(patch.author || patch.date || patch.commit) && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400" data-testid="git-patch-meta">
+            <div
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400"
+              data-testid="git-patch-meta"
+            >
               {patch.author && <span className="font-medium text-slate-700 dark:text-slate-200">{patch.author}</span>}
               {patch.date && <span>{patch.date}</span>}
               {patch.commit && (
@@ -150,19 +176,37 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
           {patch.message && (
             // A commit message is literal: "#42" is an issue, "deploy.sh" a
             // file — the reading renderer would make them a hashtag and a link.
-            <p className="mt-2 max-w-[68ch] whitespace-pre-wrap break-words text-[15px] sm:text-base leading-[1.65] text-slate-700 dark:text-slate-200" data-testid="git-patch-message">
+            <p
+              className="mt-2 max-w-[68ch] whitespace-pre-wrap break-words text-[15px] leading-[1.65] text-slate-700 dark:text-slate-200 sm:text-base"
+              data-testid="git-patch-message"
+            >
               {patch.message}
             </p>
           )}
           {patch.diff && (
             <div className="mt-3">
               <div className="mb-1.5 text-xs text-slate-500 dark:text-slate-400" data-testid="git-patch-summary">
-                {patch.files} {patch.files === 1 ? "file" : "files"} changed, <span className="text-emerald-600 dark:text-emerald-400">+{patch.added}</span>{" "}
+                {patch.files} {patch.files === 1 ? "file" : "files"} changed,{" "}
+                <span className="text-emerald-600 dark:text-emerald-400">+{patch.added}</span>{" "}
                 <span className="text-rose-600 dark:text-rose-400">−{patch.removed}</span>
               </div>
-              <pre className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-3 font-mono text-[12px] leading-5" data-testid="git-patch-diff">
+              <pre
+                className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-[12px] leading-5 dark:border-slate-800 dark:bg-slate-900"
+                data-testid="git-patch-diff"
+              >
                 {(diffOpen ? patch.diff.split("\n") : patch.diff.split("\n").slice(0, DIFF_FOLD)).map((line, i) => {
-                  const kind = line.startsWith("+++") || line.startsWith("---") ? "file" : line.startsWith("+") ? "added" : line.startsWith("-") ? "removed" : line.startsWith("@@") ? "hunk" : line.startsWith("diff --git") ? "file" : "context";
+                  const kind =
+                    line.startsWith("+++") || line.startsWith("---")
+                      ? "file"
+                      : line.startsWith("+")
+                        ? "added"
+                        : line.startsWith("-")
+                          ? "removed"
+                          : line.startsWith("@@")
+                            ? "hunk"
+                            : line.startsWith("diff --git")
+                              ? "file"
+                              : "context";
                   const cls =
                     kind === "added"
                       ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
@@ -181,7 +225,12 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
                 })}
               </pre>
               {!diffOpen && patch.diff.split("\n").length > DIFF_FOLD && (
-                <button type="button" onClick={() => setDiffOpen(true)} className="mt-1.5 text-xs font-medium text-slate-500 hover:text-brand-link" data-testid="git-patch-diff-more">
+                <button
+                  type="button"
+                  onClick={() => setDiffOpen(true)}
+                  className="mt-1.5 text-xs font-medium text-slate-500 hover:text-brand-link"
+                  data-testid="git-patch-diff-more"
+                >
                   Show the full diff ({patch.diff.split("\n").length - DIFF_FOLD} more lines)
                 </button>
               )}

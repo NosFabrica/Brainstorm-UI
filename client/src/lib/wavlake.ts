@@ -111,7 +111,9 @@ export function useWavlakeTrack(id: string | undefined) {
     void fetchWavlakeTrack(id).then((track) => {
       if (!cancelled) setState({ loading: false, track, error: track === null });
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   return state;
@@ -176,13 +178,27 @@ async function getJson<T>(url: string): Promise<T | null> {
 }
 
 type SearchItem = { id: string; type: string; name: string; url?: string; avatarUrl?: string; artworkUrl?: string };
-type ArtistBody = { id: string; name: string; url?: string; artistArtUrl?: string; artistNpub?: string; albums?: { id: string; title: string; releaseDate?: string }[] };
-type AlbumBody = { id: string; title: string; albumArtUrl?: string; tracks?: { id: string; title: string; artist?: string; duration?: number; mediaUrl?: string; artistNpub?: string }[] };
+type ArtistBody = {
+  id: string;
+  name: string;
+  url?: string;
+  artistArtUrl?: string;
+  artistNpub?: string;
+  albums?: { id: string; title: string; releaseDate?: string }[];
+};
+type AlbumBody = {
+  id: string;
+  title: string;
+  albumArtUrl?: string;
+  tracks?: { id: string; title: string; artist?: string; duration?: number; mediaUrl?: string; artistNpub?: string }[];
+};
 
 const normalise = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
 async function catalogueSearch(term: string): Promise<SearchItem[]> {
-  const body = await getJson<{ success?: boolean; data?: SearchItem[] }>(`${WAVLAKE_CATALOG}/search?term=${encodeURIComponent(term.trim())}`);
+  const body = await getJson<{ success?: boolean; data?: SearchItem[] }>(
+    `${WAVLAKE_CATALOG}/search?term=${encodeURIComponent(term.trim())}`,
+  );
   return Array.isArray(body?.data) ? body.data : [];
 }
 
@@ -259,7 +275,11 @@ export async function searchWavlake(term: string, limit = 6): Promise<WavlakeCat
   const songs: WavlakeSong[] = [];
   const seen = new Set<string>();
   const push = (list: WavlakeSong[]) => {
-    for (const s of list) if (!seen.has(s.id) && songs.length < limit) { seen.add(s.id); songs.push(s); }
+    for (const s of list)
+      if (!seen.has(s.id) && songs.length < limit) {
+        seen.add(s.id);
+        songs.push(s);
+      }
   };
   for (const a of artists.slice(0, 2)) {
     if (songs.length >= limit) break;
@@ -293,7 +313,13 @@ export async function searchWavlakeTracks(term: string, limit = 6): Promise<Wavl
  * set one, else by the exact name — never a loose match, because "ainsley"
  * naming Ainsley Costello would also name anyone else called Ainsley.
  */
-export async function findWavlakeArtist({ name, pubkey }: { name?: string | null; pubkey?: string | null }): Promise<WavlakeArtist | null> {
+export async function findWavlakeArtist({
+  name,
+  pubkey,
+}: {
+  name?: string | null;
+  pubkey?: string | null;
+}): Promise<WavlakeArtist | null> {
   const wanted = name ? normalise(name) : "";
   if (!wanted) return null;
   const items = (await catalogueSearch(wanted)).filter((i) => i.type === "artist");
@@ -325,7 +351,19 @@ function pubkeyMatches(artistNpub: string, pubkey: string): boolean {
   }
 }
 
-type RankedTrack = { id: string; title: string; artist?: string; albumArtUrl?: string; artistArtUrl?: string; albumId?: string; albumTitle?: string; mediaUrl?: string; url?: string; msatTotal?: string; duration?: number };
+type RankedTrack = {
+  id: string;
+  title: string;
+  artist?: string;
+  albumArtUrl?: string;
+  artistArtUrl?: string;
+  albumId?: string;
+  albumTitle?: string;
+  mediaUrl?: string;
+  url?: string;
+  msatTotal?: string;
+  duration?: number;
+};
 
 /** Wavlake's genre names that its rankings answer for (probed 2026-09-04). */
 export const WAVLAKE_GENRES = ["rock", "hip-hop", "pop", "electronic", "alternative", "country"] as const;
@@ -337,10 +375,14 @@ export type WavlakeGenre = (typeof WAVLAKE_GENRES)[number];
  * genre can be thin, so fewer than six answers widens the window to a month.
  * Empty, never a throw.
  */
-export async function fetchWavlakeTrending({ genre, limit = 12 }: { genre?: string; limit?: number } = {}): Promise<WavlakeSong[]> {
+export async function fetchWavlakeTrending({ genre, limit = 12 }: { genre?: string; limit?: number } = {}): Promise<
+  WavlakeSong[]
+> {
   const ask = async (days: number): Promise<WavlakeSong[]> => {
     const g = genre ? `&genre=${encodeURIComponent(genre)}` : "";
-    const body = await getJson<RankedTrack[]>(`${WAVLAKE_API}/content/rankings?sort=sats&days=${days}&limit=${limit}${g}`);
+    const body = await getJson<RankedTrack[]>(
+      `${WAVLAKE_API}/content/rankings?sort=sats&days=${days}&limit=${limit}${g}`,
+    );
     return (Array.isArray(body) ? body : [])
       .filter((t) => t.id && t.title && t.mediaUrl)
       .map((t) => ({
@@ -365,13 +407,22 @@ export async function fetchWavlakeTrending({ genre, limit = 12 }: { genre?: stri
  * their Wavlake songs — the same song never twice (a relay track that IS a
  * Wavlake song carries its id in the audio URL, or simply its title), capped.
  */
-export function mergeArtistAudio<T extends { title: string; audio?: string }>(native: T[], songs: WavlakeSong[], cap: number): { native: T[]; songs: WavlakeSong[] } {
+export function mergeArtistAudio<T extends { title: string; audio?: string }>(
+  native: T[],
+  songs: WavlakeSong[],
+  cap: number,
+): { native: T[]; songs: WavlakeSong[] } {
   const kept = native.slice(0, cap);
   const titles = new Set(kept.map((t) => t.title.trim().toLowerCase()));
-  const urls = kept.map((t) => t.audio ?? "").join(" ").toLowerCase();
+  const urls = kept
+    .map((t) => t.audio ?? "")
+    .join(" ")
+    .toLowerCase();
   const room = Math.max(0, cap - kept.length);
   const fill = songs
-    .filter((s) => !titles.has(s.title.trim().toLowerCase()) && !urls.includes(s.id.replace(/^wavlake:/, "").toLowerCase()))
+    .filter(
+      (s) => !titles.has(s.title.trim().toLowerCase()) && !urls.includes(s.id.replace(/^wavlake:/, "").toLowerCase()),
+    )
     .slice(0, room);
   return { native: kept, songs: fill };
 }

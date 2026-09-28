@@ -54,9 +54,9 @@ export function gitRepoNameOf(event: { tags: string[][] }): string | null {
 const STRUCTURAL_TAGS = new Set(["root", "root-revision", "cover-letter"]);
 
 export function gitLabelsOf(event: { tags: string[][] }): string[] {
-  return [...new Set(event.tags.filter((t) => t[0] === "t" && t[1]?.trim()).map((t) => t[1].trim().toLowerCase()))].filter(
-    (l) => !STRUCTURAL_TAGS.has(l),
-  );
+  return [
+    ...new Set(event.tags.filter((t) => t[0] === "t" && t[1]?.trim()).map((t) => t[1].trim().toLowerCase())),
+  ].filter((l) => !STRUCTURAL_TAGS.has(l));
 }
 
 /**
@@ -78,12 +78,16 @@ export function gitAgentOf(event: { tags: string[][] }, author?: AgentAuthor): s
   if (t) return t[1]?.trim() || "agent";
   if (!author) return null;
   const label = author.displayName || author.name || "";
-  if (author.bot === true || AGENT_WORD.test(author.name ?? "") || AGENT_WORD.test(author.displayName ?? "")) return label || "agent";
+  if (author.bot === true || AGENT_WORD.test(author.name ?? "") || AGENT_WORD.test(author.displayName ?? ""))
+    return label || "agent";
   return null;
 }
 
 /** People's items first, agents' after — a stable partition. */
-export function peopleBeforeAgents<T>(items: T[], pick: (item: T) => { event: { tags: string[][] }; author?: AgentAuthor }): T[] {
+export function peopleBeforeAgents<T>(
+  items: T[],
+  pick: (item: T) => { event: { tags: string[][] }; author?: AgentAuthor },
+): T[] {
   const isAgent = (i: T) => {
     const { event, author } = pick(i);
     return !!gitAgentOf(event, author);
@@ -106,7 +110,10 @@ export function repoLineageOf(event: { tags: string[][] }): string | null {
  * maintainer (highest score; earliest announcement on a tie). Groups keep
  * the position of their first member; items without a lineage stand alone.
  */
-export function foldForks<T>(items: T[], pick: (item: T) => { event: { kind: number; created_at: number; tags: string[][] }; score: number | null }): { primary: T; forks: T[] }[] {
+export function foldForks<T>(
+  items: T[],
+  pick: (item: T) => { event: { kind: number; created_at: number; tags: string[][] }; score: number | null },
+): { primary: T; forks: T[] }[] {
   const groups: { key: string | null; members: T[] }[] = [];
   const byKey = new Map<string, { key: string | null; members: T[] }>();
   for (const item of items) {
@@ -123,7 +130,8 @@ export function foldForks<T>(items: T[], pick: (item: T) => { event: { kind: num
   }
   return groups.map((g) => {
     const ranked = [...g.members].sort((a, b) => {
-      const pa = pick(a), pb = pick(b);
+      const pa = pick(a),
+        pb = pick(b);
       return (pb.score ?? -1) - (pa.score ?? -1) || pa.event.created_at - pb.event.created_at;
     });
     const [primary, ...forks] = ranked;

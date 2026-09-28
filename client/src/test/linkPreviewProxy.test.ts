@@ -14,10 +14,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import config, { PREVIEW_DOWN } from "../../../vite.config";
 
-const ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../..",
-);
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const conf = fs.readFileSync(path.join(ROOT, "nginx.conf"), "utf8");
 
 /** Body of `location <matcher> {` … `}`, brace-counted so nested blocks survive. */
@@ -54,15 +51,11 @@ describe("nginx /link-preview", () => {
   });
 
   it("forwards X-Forwarded-For, or the service's limiter has nothing to key on", () => {
-    expect(locationBody("^~ /link-preview")).toContain(
-      "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
-    );
+    expect(locationBody("^~ /link-preview")).toContain("proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;");
   });
 
   it("sends upstream failures to the JSON 503 handler", () => {
-    expect(locationBody("^~ /link-preview")).toMatch(
-      /error_page\s+502\s+503\s+504\s+=\s+@preview_down;/,
-    );
+    expect(locationBody("^~ /link-preview")).toMatch(/error_page\s+502\s+503\s+504\s+=\s+@preview_down;/);
   });
 
   it("answers a downed service with JSON, in the envelope the UI expects", () => {
@@ -93,8 +86,7 @@ type ErrorHandler = (
   },
 ) => void;
 
-const preview = (config as { server?: { proxy?: Record<string, ProxyEntry> } })
-  .server?.proxy?.["/link-preview"];
+const preview = (config as { server?: { proxy?: Record<string, ProxyEntry> } }).server?.proxy?.["/link-preview"];
 
 describe("vite dev server", () => {
   it("proxies /link-preview so local development reaches a local service", () => {

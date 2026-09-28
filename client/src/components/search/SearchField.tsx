@@ -5,7 +5,15 @@ import { fetchPillProfiles } from "@/services/searchFaces";
 import { mountSearchField, type ActiveToken, type SearchFieldHandle } from "@/lib/searchFieldDom";
 import { ymd } from "@/lib/searchQuery";
 import {
-  DOW, dayLabel, midnight, monthGrid, quickPicks, sameMonth, shiftDays, shiftMonths, typedMonth,
+  DOW,
+  dayLabel,
+  midnight,
+  monthGrid,
+  quickPicks,
+  sameMonth,
+  shiftDays,
+  shiftMonths,
+  typedMonth,
 } from "@/lib/searchCalendar";
 import { groupName, knowsGroup, where, type GroupCandidate } from "@/lib/nip29";
 import { nameGroups, suggestGroups } from "@/services/groups";
@@ -113,7 +121,9 @@ export function SearchField({
   const today = useMemo(() => midnight(new Date()), []);
   const pickerOpen = token !== null;
 
-  useEffect(() => { onPickerChange?.(pickerOpen); }, [pickerOpen, onPickerChange]);
+  useEffect(() => {
+    onPickerChange?.(pickerOpen);
+  }, [pickerOpen, onPickerChange]);
 
   // --- the handlers the DOM half calls. Held in a ref so the field is mounted once: a
   //     remount would drop the caret and the undo stack on every keystroke.
@@ -143,7 +153,9 @@ export function SearchField({
         const fresh = ids.filter((id) => !knowsGroup(id) && !asking.current.has(id));
         if (!fresh.length) return;
         for (const id of fresh) asking.current.add(id);
-        void nameGroups(fresh).then((changed) => { if (changed) setNamedAt(Date.now()); });
+        void nameGroups(fresh).then((changed) => {
+          if (changed) setNamedAt(Date.now());
+        });
       },
       onKeyDown: (e) => keysRef.current(e),
     });
@@ -168,8 +180,9 @@ export function SearchField({
   }, [value]);
 
   // Profiles and group names land after a render; the pills re-label in place.
-  useEffect(() => { handleRef.current?.repaint(); }, [profiles, namedAt]);
-
+  useEffect(() => {
+    handleRef.current?.repaint();
+  }, [profiles, namedAt]);
 
   // --- the group lookup, debounced, with the last rows left up while the next answer runs.
   useEffect(() => {
@@ -205,37 +218,53 @@ export function SearchField({
   const dateKey = dateToken ? `${dateToken.field}:${dateToken.start}` : null;
   const lastDateKey = useRef<string | null>(null);
   useEffect(() => {
-    if (!dateToken) { lastDateKey.current = null; setCursor(null); return; }
+    if (!dateToken) {
+      lastDateKey.current = null;
+      setCursor(null);
+      return;
+    }
     const typed = typedMonth(dateToken.partial);
     const fresh = lastDateKey.current !== dateKey;
     lastDateKey.current = dateKey;
-    setMonth((was) => typed ?? (fresh ? shiftMonths(today, 0) : was ?? shiftMonths(today, 0)));
+    setMonth((was) => typed ?? (fresh ? shiftMonths(today, 0) : (was ?? shiftMonths(today, 0))));
     if (typed && !sameMonth(cursor, typed)) setCursor(null);
     // `cursor` is read, not watched: a keyboard step sets both and must not re-enter here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateKey, dateToken?.partial, today]);
 
-  const pick = useCallback((tok: string) => {
-    const handle = handleRef.current;
-    if (!handle || !token) return;
-    handle.replaceToken(token, tok);
-    setToken(null);
-  }, [token]);
+  const pick = useCallback(
+    (tok: string) => {
+      const handle = handleRef.current;
+      if (!handle || !token) return;
+      handle.replaceToken(token, tok);
+      setToken(null);
+    },
+    [token],
+  );
 
-  const pickDay = useCallback((day: string) => {
-    if (token?.kind !== "date" || !day) return;
-    pick(`${token.field}:${day}`);
-  }, [token, pick]);
+  const pickDay = useCallback(
+    (day: string) => {
+      if (token?.kind !== "date" || !day) return;
+      pick(`${token.field}:${day}`);
+    },
+    [token, pick],
+  );
 
-  const pickGroup = useCallback((cand: GroupCandidate) => {
-    if (token?.kind !== "group" || !cand) return;
-    pick(`group:${cand.id}`);
-  }, [token, pick]);
+  const pickGroup = useCallback(
+    (cand: GroupCandidate) => {
+      if (token?.kind !== "group" || !cand) return;
+      pick(`group:${cand.id}`);
+    },
+    [token, pick],
+  );
 
   // --- Enter, while a popup is up. A ref, because the DOM half is mounted once.
   const takeEnterRef = useRef<() => boolean>(() => false);
   takeEnterRef.current = () => {
-    if (dateToken && cursor) { pickDay(ymd(cursor)); return true; }
+    if (dateToken && cursor) {
+      pickDay(ymd(cursor));
+      return true;
+    }
     if (token?.kind === "group" && groupRows && groupRows[groupActive]) {
       pickGroup(groupRows[groupActive]);
       return true;
@@ -243,23 +272,38 @@ export function SearchField({
     return false;
   };
 
-  const moveDay = useCallback((by: number) => {
-    setCursor((was) => {
-      const shown = month ?? today;
-      const next = was ? shiftDays(was, by) : sameMonth(today, shown) ? today : new Date(shown.getFullYear(), shown.getMonth(), 1);
-      setMonth(shiftMonths(next, 0));
-      return next;
-    });
-  }, [month, today]);
+  const moveDay = useCallback(
+    (by: number) => {
+      setCursor((was) => {
+        const shown = month ?? today;
+        const next = was
+          ? shiftDays(was, by)
+          : sameMonth(today, shown)
+            ? today
+            : new Date(shown.getFullYear(), shown.getMonth(), 1);
+        setMonth(shiftMonths(next, 0));
+        return next;
+      });
+    },
+    [month, today],
+  );
 
   // --- the keys a popup owns while it is open. Everything else goes to the page.
   const keysRef = useRef<(e: KeyboardEvent) => boolean>(() => false);
   keysRef.current = (e: KeyboardEvent) => {
     if (!token) return onKeyDown?.(e) ?? false;
-    if (e.key === "Escape") { e.preventDefault(); setToken(null); return true; }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setToken(null);
+      return true;
+    }
     if (dateToken) {
       const by = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
-      if (by) { e.preventDefault(); moveDay(by); return true; }
+      if (by) {
+        e.preventDefault();
+        moveDay(by);
+        return true;
+      }
       if (e.key === "PageUp" || e.key === "PageDown") {
         e.preventDefault();
         setMonth((was) => shiftMonths(was ?? today, e.key === "PageUp" ? -1 : 1));
@@ -279,7 +323,11 @@ export function SearchField({
       setGroupActive((i) => (i - 1 + rows.length) % rows.length);
       return true;
     }
-    if (e.key === "Tab" && rows[groupActive]) { e.preventDefault(); pickGroup(rows[groupActive]); return true; }
+    if (e.key === "Tab" && rows[groupActive]) {
+      e.preventDefault();
+      pickGroup(rows[groupActive]);
+      return true;
+    }
     return false;
   };
 
@@ -315,8 +363,12 @@ export function SearchField({
         aria-activedescendant={
           pickerOpen
             ? dateToken
-              ? cursor ? `${domId}-day-${ymd(cursor)}` : undefined
-              : groupActive >= 0 ? `${domId}-group-${groupActive}` : undefined
+              ? cursor
+                ? `${domId}-day-${ymd(cursor)}`
+                : undefined
+              : groupActive >= 0
+                ? `${domId}-group-${groupActive}`
+                : undefined
             : combobox?.activeDescendant
         }
         className={cn(
@@ -339,7 +391,11 @@ export function SearchField({
         data-testid={testId}
       />
       {placeholder && !value.trim() && (
-        <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden" data-testid={`${testId}-placeholder`}>
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden"
+          data-testid={`${testId}-placeholder`}
+        >
           {placeholder}
         </span>
       )}
@@ -365,36 +421,56 @@ export function SearchField({
             <div className="p-2">
               <div className="mb-1 flex items-center justify-between">
                 <button
-                  type="button" tabIndex={-1} aria-label="Previous month"
+                  type="button"
+                  tabIndex={-1}
+                  aria-label="Previous month"
                   onClick={() => setMonth((was) => shiftMonths(was ?? today, -1))}
                   className="h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                >‹</button>
+                >
+                  ‹
+                </button>
                 <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{grid.label}</div>
                 <button
-                  type="button" tabIndex={-1} aria-label="Next month"
+                  type="button"
+                  tabIndex={-1}
+                  aria-label="Next month"
                   onClick={() => setMonth((was) => shiftMonths(was ?? today, 1))}
                   className="h-7 w-7 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                >›</button>
+                >
+                  ›
+                </button>
               </div>
               <div role="listbox" aria-label="Days" className="grid grid-cols-7 gap-0.5">
                 {DOW.map((w) => (
-                  <span key={w.long} title={w.long} aria-hidden="true" className="py-1 text-center text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                  <span
+                    key={w.long}
+                    title={w.long}
+                    aria-hidden="true"
+                    className="py-1 text-center text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                  >
                     {w.narrow}
                   </span>
                 ))}
-                {Array.from({ length: grid.lead }, (_, i) => <span key={`pad-${i}`} aria-hidden="true" />)}
+                {Array.from({ length: grid.lead }, (_, i) => (
+                  <span key={`pad-${i}`} aria-hidden="true" />
+                ))}
                 {grid.days.map((d) => {
                   const on = !!cursor && ymd(cursor) === d.value;
                   return (
                     <button
                       key={d.value}
                       id={`${domId}-day-${d.value}`}
-                      type="button" tabIndex={-1} role="option" aria-selected={on}
+                      type="button"
+                      tabIndex={-1}
+                      role="option"
+                      aria-selected={on}
                       aria-label={dayLabel(d.at)}
                       onClick={() => pickDay(d.value)}
                       className={cn(
                         "h-7 rounded-lg text-xs tabular-nums transition-colors",
-                        on ? "bg-brand-primary text-white" : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800",
+                        on
+                          ? "bg-brand-primary text-white"
+                          : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800",
                         d.today && !on && "font-bold text-brand-primary dark:text-brand-link",
                         d.ahead && !on && "text-slate-300 dark:text-slate-600",
                       )}
@@ -409,7 +485,8 @@ export function SearchField({
                 {quickPicks(dateToken.field, today).map((p) => (
                   <button
                     key={p.label}
-                    type="button" tabIndex={-1}
+                    type="button"
+                    tabIndex={-1}
                     onClick={() => pickDay(p.value)}
                     className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600 hover:border-brand-primary/40 hover:text-brand-link dark:border-slate-700 dark:text-slate-300"
                     data-testid={`${testId}-quick`}
@@ -438,7 +515,9 @@ export function SearchField({
                   <button
                     key={`${cand.id}\u0000${cand.host ?? ""}`}
                     id={`${domId}-group-${i}`}
-                    type="button" role="option" aria-selected={i === groupActive}
+                    type="button"
+                    role="option"
+                    aria-selected={i === groupActive}
                     onMouseEnter={() => setGroupActive(i)}
                     onClick={() => pickGroup(cand)}
                     className={cn(

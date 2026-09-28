@@ -13,7 +13,8 @@ import type { MinimalEvent } from "@/lib/noteRefs";
 
 export function ClientLink({ url }: { url: string }) {
   const { entity } = useClientLink(clientRef(url));
-  if (entity?.kind === "article") return <EmbeddedArticleCard event={entity.event as MinimalEvent} author={entity.author} />;
+  if (entity?.kind === "article")
+    return <EmbeddedArticleCard event={entity.event as MinimalEvent} author={entity.author} />;
   if (entity?.kind === "profile") {
     const name = entity.profile?.display_name || entity.profile?.name;
     return <ProfileMention npub={entity.npub} name={name} picture={entity.profile?.picture} />;

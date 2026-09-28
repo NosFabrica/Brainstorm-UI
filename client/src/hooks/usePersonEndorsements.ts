@@ -35,7 +35,7 @@ export function usePersonEndorsements(pubkey: string | null, personal: boolean):
       alive = false;
     };
   }, [key, pubkey, personal]);
-  return key ? settled.get(key) ?? null : null;
+  return key ? (settled.get(key) ?? null) : null;
 }
 
 /** After the viewer writes or removes a review: forget what we held about this

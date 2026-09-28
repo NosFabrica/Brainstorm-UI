@@ -46,21 +46,25 @@ function classifyTag(tag: Nip85TagCheck, expectedRelayConfigured: boolean, hasTa
   const pubkeyStatus: CheckStatus = !tag.present
     ? "error"
     : !hasTaPubkey
-    ? "neutral"
-    : tag.pubkeyMatches
-    ? "ok"
-    : "error";
+      ? "neutral"
+      : tag.pubkeyMatches
+        ? "ok"
+        : "error";
   const relayStatus: CheckStatus = !tag.present
     ? "error"
     : !expectedRelayConfigured
-    ? "warn"
-    : tag.relayMatches
-    ? "ok"
-    : "error";
+      ? "warn"
+      : tag.relayMatches
+        ? "ok"
+        : "error";
   return { pubkeyStatus, relayStatus };
 }
 
-function hasStaleDuplicate(tags: Nip85TagDetail[] | undefined, hasTaPubkey: boolean, expectedRelayConfigured: boolean): boolean {
+function hasStaleDuplicate(
+  tags: Nip85TagDetail[] | undefined,
+  hasTaPubkey: boolean,
+  expectedRelayConfigured: boolean,
+): boolean {
   if (!tags || tags.length <= 1) return false;
   return tags.some((t) => {
     if (!t.isWinner) {
@@ -72,16 +76,16 @@ function hasStaleDuplicate(tags: Nip85TagDetail[] | undefined, hasTaPubkey: bool
   });
 }
 
-function overallStatus(health: Nip85HealthCheck | undefined, hasTaPubkey: boolean): {
+function overallStatus(
+  health: Nip85HealthCheck | undefined,
+  hasTaPubkey: boolean,
+): {
   label: string;
   tone: CheckStatus;
 } {
   if (!health) return { label: "Loading", tone: "neutral" };
   if (!health.eventFound) return { label: "Missing", tone: "error" };
-  const checks: CheckStatus[] = [
-    health.rankTag.present ? "ok" : "error",
-    health.followersTag.present ? "ok" : "error",
-  ];
+  const checks: CheckStatus[] = [health.rankTag.present ? "ok" : "error", health.followersTag.present ? "ok" : "error"];
   if (hasTaPubkey) {
     checks.push(health.rankTag.pubkeyMatches ? "ok" : "error");
     checks.push(health.followersTag.pubkeyMatches ? "ok" : "error");
@@ -119,7 +123,7 @@ function StatusPill({ tone, label, testId }: { tone: CheckStatus; label: string;
   };
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${tones[tone]}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tones[tone]}`}
       data-testid={testId}
     >
       <StatusIcon status={tone} className="h-3 w-3" />
@@ -134,7 +138,7 @@ function MiniCopy({ text, testId }: { text: string; testId: string }) {
   return (
     <button
       type="button"
-      className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+      className="shrink-0 rounded p-0.5 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
       onClick={(e) => {
         e.stopPropagation();
         copyToClipboard(text);
@@ -143,7 +147,7 @@ function MiniCopy({ text, testId }: { text: string; testId: string }) {
       data-testid={testId}
       aria-label="Copy to clipboard"
     >
-      <Copy className="h-3 w-3 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" />
+      <Copy className="h-3 w-3 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300" />
     </button>
   );
 }
@@ -163,13 +167,13 @@ function CheckRow({
 }) {
   return (
     <div
-      className="flex items-start gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+      className="flex items-start gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
       data-testid={testId}
     >
-      <StatusIcon status={status} className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      <StatusIcon status={status} className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 leading-tight">{label}</p>
-        {detail && <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{detail}</p>}
+        <p className="text-[11px] font-medium leading-tight text-slate-700 dark:text-slate-200">{label}</p>
+        {detail && <p className="mt-0.5 text-[10px] leading-tight text-slate-500 dark:text-slate-400">{detail}</p>}
         {children}
       </div>
     </div>
@@ -190,20 +194,30 @@ function MismatchPair({
   testIdPrefix: string;
 }) {
   return (
-    <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-      <div className="p-1.5 rounded-md bg-emerald-50/60 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/25">
-        <p className="text-[8px] uppercase tracking-wide text-emerald-700/70 dark:text-emerald-300/70 font-bold mb-0.5">{expectedLabel}</p>
-        <div className="flex items-center gap-1 min-w-0">
-          <code className="font-mono text-[9px] text-emerald-800 dark:text-emerald-200 truncate flex-1" data-testid={`${testIdPrefix}-expected`}>
+    <div className="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+      <div className="rounded-md border border-emerald-100 bg-emerald-50/60 p-1.5 dark:border-emerald-500/25 dark:bg-emerald-500/10">
+        <p className="mb-0.5 text-[8px] font-bold uppercase tracking-wide text-emerald-700/70 dark:text-emerald-300/70">
+          {expectedLabel}
+        </p>
+        <div className="flex min-w-0 items-center gap-1">
+          <code
+            className="flex-1 truncate font-mono text-[9px] text-emerald-800 dark:text-emerald-200"
+            data-testid={`${testIdPrefix}-expected`}
+          >
             {expected || "—"}
           </code>
           {expected && <MiniCopy text={expected} testId={`button-copy-${testIdPrefix}-expected`} />}
         </div>
       </div>
-      <div className="p-1.5 rounded-md bg-red-50/60 dark:bg-red-500/10 border border-red-100 dark:border-red-500/25">
-        <p className="text-[8px] uppercase tracking-wide text-red-700/70 dark:text-red-300/70 font-bold mb-0.5">{actualLabel}</p>
-        <div className="flex items-center gap-1 min-w-0">
-          <code className="font-mono text-[9px] text-red-800 dark:text-red-200 truncate flex-1" data-testid={`${testIdPrefix}-actual`}>
+      <div className="rounded-md border border-red-100 bg-red-50/60 p-1.5 dark:border-red-500/25 dark:bg-red-500/10">
+        <p className="mb-0.5 text-[8px] font-bold uppercase tracking-wide text-red-700/70 dark:text-red-300/70">
+          {actualLabel}
+        </p>
+        <div className="flex min-w-0 items-center gap-1">
+          <code
+            className="flex-1 truncate font-mono text-[9px] text-red-800 dark:text-red-200"
+            data-testid={`${testIdPrefix}-actual`}
+          >
             {actual || "—"}
           </code>
           {actual && <MiniCopy text={actual} testId={`button-copy-${testIdPrefix}-actual`} />}
@@ -224,12 +238,12 @@ function RawJsonBlock({ value, testIdPrefix }: { value: unknown; testIdPrefix: s
   }, [value]);
   if (!json) return null;
   return (
-    <div className="mt-2 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900">
-      <div className="flex items-center justify-between px-2 py-1.5 bg-slate-100/70 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800">
+    <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-100/70 px-2 py-1.5 dark:border-slate-800 dark:bg-slate-800/70">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+          className="flex items-center gap-1 text-[10px] font-semibold text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
           data-testid={`button-toggle-${testIdPrefix}`}
         >
           {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
@@ -239,7 +253,7 @@ function RawJsonBlock({ value, testIdPrefix }: { value: unknown; testIdPrefix: s
       </div>
       {open && (
         <pre
-          className="p-2 text-[10px] font-mono text-slate-700 dark:text-slate-200 overflow-x-auto max-h-60 leading-relaxed"
+          className="max-h-60 overflow-x-auto p-2 font-mono text-[10px] leading-relaxed text-slate-700 dark:text-slate-200"
           data-testid={`text-${testIdPrefix}`}
         >
           {json}
@@ -294,31 +308,21 @@ function TagDetailCard({
   expectedRelayConfigured: boolean;
   testIdPrefix: string;
 }) {
-  const pubkeyTone: CheckStatus = !hasTaPubkey
-    ? "neutral"
-    : detail.pubkeyMatches
-    ? "ok"
-    : "error";
-  const relayTone: CheckStatus = !expectedRelayConfigured
-    ? "warn"
-    : detail.relayMatches
-    ? "ok"
-    : "error";
+  const pubkeyTone: CheckStatus = !hasTaPubkey ? "neutral" : detail.pubkeyMatches ? "ok" : "error";
+  const relayTone: CheckStatus = !expectedRelayConfigured ? "warn" : detail.relayMatches ? "ok" : "error";
   // Only treat as fully "Active" when this tag is the winner AND both checks
   // pass on this same tag — matches isUsingBrainstorm conjunction semantics.
   // A winner picked as a partial-match fallback is shown as "Best match" amber
   // so admins don't get a misleading green status.
   const isFullyActive =
-    detail.isWinner &&
-    (!hasTaPubkey || detail.pubkeyMatches) &&
-    (!expectedRelayConfigured || detail.relayMatches);
+    detail.isWinner && (!hasTaPubkey || detail.pubkeyMatches) && (!expectedRelayConfigured || detail.relayMatches);
   const cardTone: CheckStatus = isFullyActive
     ? "ok"
     : detail.isWinner
-    ? "warn"
-    : pubkeyTone === "error" || relayTone === "error"
-    ? "warn"
-    : "neutral";
+      ? "warn"
+      : pubkeyTone === "error" || relayTone === "error"
+        ? "warn"
+        : "neutral";
   const cardClasses: Record<CheckStatus, string> = {
     ok: "border-emerald-200 dark:border-emerald-500/25 bg-emerald-50/40 dark:bg-emerald-500/10",
     warn: "border-amber-200 dark:border-amber-500/25 bg-amber-50/40 dark:bg-amber-500/10",
@@ -326,18 +330,15 @@ function TagDetailCard({
     neutral: "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60",
   };
   return (
-    <div
-      className={`rounded-lg border ${cardClasses[cardTone]} p-2 space-y-1.5`}
-      data-testid={`${testIdPrefix}-card`}
-    >
+    <div className={`rounded-lg border ${cardClasses[cardTone]} space-y-1.5 p-2`} data-testid={`${testIdPrefix}-card`}>
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             {slotLabel} #{detail.index + 1}
           </span>
           {isFullyActive ? (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[8px] font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
               data-testid={`${testIdPrefix}-winner`}
             >
               <CheckCircle2 className="h-2.5 w-2.5" />
@@ -345,7 +346,7 @@ function TagDetailCard({
             </span>
           ) : detail.isWinner ? (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[8px] font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
               data-testid={`${testIdPrefix}-best-match`}
             >
               <AlertTriangle className="h-2.5 w-2.5" />
@@ -353,7 +354,7 @@ function TagDetailCard({
             </span>
           ) : cardTone === "warn" ? (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[8px] font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
               data-testid={`${testIdPrefix}-stale`}
             >
               <AlertTriangle className="h-2.5 w-2.5" />
@@ -361,21 +362,21 @@ function TagDetailCard({
             </span>
           ) : (
             <span
-              className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[8px] font-bold uppercase tracking-wider"
+              className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-slate-600 dark:bg-slate-800 dark:text-slate-300"
               data-testid={`${testIdPrefix}-duplicate`}
             >
               Duplicate
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           <span
             className={`inline-flex items-center gap-0.5 text-[9px] font-semibold ${
               pubkeyTone === "ok"
                 ? "text-emerald-600 dark:text-emerald-400"
                 : pubkeyTone === "error"
-                ? "text-red-600 dark:text-red-400"
-                : "text-slate-400 dark:text-slate-500"
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-slate-400 dark:text-slate-500"
             }`}
             data-testid={`${testIdPrefix}-pubkey-status`}
           >
@@ -387,8 +388,8 @@ function TagDetailCard({
               relayTone === "ok"
                 ? "text-emerald-600 dark:text-emerald-400"
                 : relayTone === "error"
-                ? "text-red-600 dark:text-red-400"
-                : "text-amber-600 dark:text-amber-400"
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-amber-600 dark:text-amber-400"
             }`}
             data-testid={`${testIdPrefix}-relay-status`}
           >
@@ -398,33 +399,29 @@ function TagDetailCard({
         </div>
       </div>
       <div className="grid grid-cols-1 gap-1">
-        <div className="flex items-center gap-1 min-w-0">
-          <span className="text-[8px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold w-12 shrink-0">
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="w-12 shrink-0 text-[8px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Pubkey
           </span>
           <code
-            className="font-mono text-[9px] text-slate-700 dark:text-slate-200 truncate flex-1"
+            className="flex-1 truncate font-mono text-[9px] text-slate-700 dark:text-slate-200"
             data-testid={`${testIdPrefix}-pubkey-value`}
           >
             {detail.innerPubkey || "—"}
           </code>
-          {detail.innerPubkey && (
-            <MiniCopy text={detail.innerPubkey} testId={`button-copy-${testIdPrefix}-pubkey`} />
-          )}
+          {detail.innerPubkey && <MiniCopy text={detail.innerPubkey} testId={`button-copy-${testIdPrefix}-pubkey`} />}
         </div>
-        <div className="flex items-center gap-1 min-w-0">
-          <span className="text-[8px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold w-12 shrink-0">
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="w-12 shrink-0 text-[8px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Relay
           </span>
           <code
-            className="font-mono text-[9px] text-slate-700 dark:text-slate-200 truncate flex-1"
+            className="flex-1 truncate font-mono text-[9px] text-slate-700 dark:text-slate-200"
             data-testid={`${testIdPrefix}-relay-value`}
           >
             {detail.relayHint || "—"}
           </code>
-          {detail.relayHint && (
-            <MiniCopy text={detail.relayHint} testId={`button-copy-${testIdPrefix}-relay`} />
-          )}
+          {detail.relayHint && <MiniCopy text={detail.relayHint} testId={`button-copy-${testIdPrefix}-relay`} />}
         </div>
       </div>
     </div>
@@ -446,24 +443,22 @@ function AllTagsDisclosure({
 }) {
   const safeTags = tags ?? [];
   const hasIssues = safeTags.some(
-    (t) =>
-      !t.isWinner &&
-      ((hasTaPubkey && !t.pubkeyMatches) || (expectedRelayConfigured && !t.relayMatches)),
+    (t) => !t.isWinner && ((hasTaPubkey && !t.pubkeyMatches) || (expectedRelayConfigured && !t.relayMatches)),
   );
   const [open, setOpen] = useState(hasIssues);
   if (safeTags.length <= 1) return null;
   const listId = `${testIdPrefix}-list`;
   return (
-    <div className="mt-1 mb-1.5" data-testid={`${testIdPrefix}-disclosure`}>
+    <div className="mb-1.5 mt-1" data-testid={`${testIdPrefix}-disclosure`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={listId}
-        className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg border transition-colors ${
+        className={`flex w-full items-center justify-between gap-2 rounded-lg border px-2 py-1.5 transition-colors ${
           hasIssues
-            ? "border-amber-200 dark:border-amber-500/25 bg-amber-50/50 dark:bg-amber-500/10 hover:bg-amber-50 dark:hover:bg-amber-500/20"
-            : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800"
+            ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50 dark:border-amber-500/25 dark:bg-amber-500/10 dark:hover:bg-amber-500/20"
+            : "border-slate-200 bg-slate-50/60 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:bg-slate-800"
         }`}
         data-testid={`${testIdPrefix}-toggle`}
       >
@@ -478,7 +473,7 @@ function AllTagsDisclosure({
           </span>
           {hasIssues && (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[8px] font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
               data-testid={`${testIdPrefix}-issues-badge`}
             >
               <AlertTriangle className="h-2.5 w-2.5" />
@@ -486,9 +481,7 @@ function AllTagsDisclosure({
             </span>
           )}
         </div>
-        <span className="text-[9px] text-slate-500 dark:text-slate-400">
-          {open ? "Hide details" : "Show all"}
-        </span>
+        <span className="text-[9px] text-slate-500 dark:text-slate-400">{open ? "Hide details" : "Show all"}</span>
       </button>
       {open && (
         <div id={listId} className="mt-1.5 space-y-1.5" data-testid={`${testIdPrefix}-list`}>
@@ -523,13 +516,16 @@ function PanelShell({
 }) {
   return (
     <div
-      className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-brand-primary/15 dark:border-brand-primary/20 shadow-sm dark:shadow-none flex flex-col min-h-[180px]"
+      className="flex min-h-[180px] flex-col rounded-xl border border-brand-primary/15 bg-white p-3 shadow-sm dark:border-brand-primary/20 dark:bg-slate-900 dark:shadow-none"
       data-testid={testId}
     >
-      <div className="flex items-center justify-between mb-2.5">
+      <div className="mb-2.5 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           {icon}
-          <p className="font-bold text-[11px] text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>
+          <p
+            className="text-[11px] font-bold text-slate-800 dark:text-slate-200"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
             {title}
           </p>
         </div>
@@ -545,8 +541,8 @@ function SkeletonChecklist() {
     <div className="space-y-1.5" data-testid="status-nip85-loading">
       {[0, 1, 2, 3, 4, 5].map((i) => (
         <div key={i} className="flex items-center gap-2 px-2 py-1.5">
-          <div className="h-3.5 w-3.5 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
-          <div className="h-3 flex-1 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-3.5 w-3.5 animate-pulse rounded-full bg-slate-100 dark:bg-slate-800" />
+          <div className="h-3 flex-1 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
         </div>
       ))}
     </div>
@@ -555,26 +551,12 @@ function SkeletonChecklist() {
 
 type Nip85QueryResult = ReturnType<typeof useQuery<Nip85HealthCheck>>;
 
-function Nip85Panel({
-  taPubkey,
-  query,
-}: {
-  taPubkey: string | null;
-  query: Nip85QueryResult;
-}) {
+function Nip85Panel({ taPubkey, query }: { taPubkey: string | null; query: Nip85QueryResult }) {
   const data = query.data;
   const hasTaPubkey = !!taPubkey;
   const overall = overallStatus(query.isLoading ? undefined : data, hasTaPubkey);
-  const pillTone: CheckStatus = query.isLoading
-    ? "neutral"
-    : query.isError
-    ? "error"
-    : overall.tone;
-  const pillLabel = query.isLoading
-    ? "Loading"
-    : query.isError
-    ? "Fetch failed"
-    : overall.label;
+  const pillTone: CheckStatus = query.isLoading ? "neutral" : query.isError ? "error" : overall.tone;
+  const pillLabel = query.isLoading ? "Loading" : query.isError ? "Fetch failed" : overall.label;
 
   return (
     <PanelShell
@@ -585,11 +567,11 @@ function Nip85Panel({
     >
       {!hasTaPubkey && (
         <div
-          className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-2"
+          className="mb-2 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-900"
           data-testid="status-nip85-no-ta"
         >
-          <Info className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 mt-0.5 shrink-0" />
-          <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-tight">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
+          <p className="text-[10px] leading-tight text-slate-600 dark:text-slate-300">
             TA pubkey not yet assigned for this user. Inner-pubkey checks are unavailable until the backend assigns one.
           </p>
         </div>
@@ -599,10 +581,10 @@ function Nip85Panel({
         <SkeletonChecklist />
       ) : query.isError ? (
         <div
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25"
+          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 dark:border-red-500/25 dark:bg-red-500/10"
           data-testid="status-nip85-error"
         >
-          <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+          <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
           <p className="text-[10px] text-red-700 dark:text-red-300">Failed to fetch kind 10040 from relays.</p>
         </div>
       ) : data ? (
@@ -636,11 +618,7 @@ function Nip85Panel({
                 const slotLabel = slot === "rankTag" ? "rank" : "followers";
                 const allTags = slot === "rankTag" ? data.rankTags : data.followersTags;
                 if (!tag.present) return null;
-                const { pubkeyStatus, relayStatus } = classifyTag(
-                  tag,
-                  data.expectedRelayConfigured,
-                  hasTaPubkey,
-                );
+                const { pubkeyStatus, relayStatus } = classifyTag(tag, data.expectedRelayConfigured, hasTaPubkey);
                 return (
                   <div key={slot} className="space-y-0.5">
                     <CheckRow
@@ -650,8 +628,8 @@ function Nip85Panel({
                         !hasTaPubkey
                           ? `Found: ${truncateMid(tag.innerPubkey)} (no TA to compare)`
                           : tag.pubkeyMatches
-                          ? `Matches: ${truncateMid(tag.innerPubkey)}`
-                          : "Mismatch — see below"
+                            ? `Matches: ${truncateMid(tag.innerPubkey)}`
+                            : "Mismatch — see below"
                       }
                       testId={`check-nip85-${slotLabel}-pubkey`}
                     >
@@ -670,8 +648,8 @@ function Nip85Panel({
                         !data.expectedRelayConfigured
                           ? "Expected relay not configured (VITE_NIP85_RELAY_URL is empty)."
                           : tag.relayMatches
-                          ? `Matches: ${tag.relayHint}`
-                          : "Mismatch — see below"
+                            ? `Matches: ${tag.relayHint}`
+                            : "Mismatch — see below"
                       }
                       testId={`check-nip85-${slotLabel}-relay`}
                     >
@@ -722,7 +700,11 @@ function AssistantIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
         <path d="M10.672 8.76001V13.12" strokeWidth="1.5" strokeLinecap="square" strokeLinejoin="round" />
         <path d="M7.92201 13.12L5.79201 8.76001L3.66201 13.12" strokeWidth="1.5" strokeLinecap="square" />
         <path d="M4.20201 12.1201H7.40201" strokeWidth="1.5" strokeLinejoin="round" />
-        <path d="M7.03201 18.16V21.6901H13.862V18.5301H18.082V15.1H20.452L18.532 10.83C18.602 10.44 19.022 7.68005 17.422 5.50005C16.042 3.63005 13.922 2.30005 11.422 2.30005H11.272C9.76201 2.30005 8.34201 2.73005 7.15201 3.48005" strokeWidth="1.5" strokeMiterlimit="10" />
+        <path
+          d="M7.03201 18.16V21.6901H13.862V18.5301H18.082V15.1H20.452L18.532 10.83C18.602 10.44 19.022 7.68005 17.422 5.50005C16.042 3.63005 13.922 2.30005 11.422 2.30005H11.272C9.76201 2.30005 8.34201 2.73005 7.15201 3.48005"
+          strokeWidth="1.5"
+          strokeMiterlimit="10"
+        />
       </g>
       <defs>
         <clipPath id="bs-assistant-icon-clip">
@@ -743,13 +725,15 @@ function parseProfileFromEvent(event: NostrEvent | null): AdminProfile | null {
 }
 
 function useKind0Query(pubkey: string | null, extraRelays: string[] = []) {
-  const extrasKey = extraRelays.filter((r) => r.length > 0).sort().join(",");
+  const extrasKey = extraRelays
+    .filter((r) => r.length > 0)
+    .sort()
+    .join(",");
   return useQuery<Kind0QueryResult>({
     queryKey: ["admin/kind0-profile", pubkey ?? "", extrasKey],
     queryFn: async () => {
       if (!pubkey) return { event: null, profile: null };
-      const event =
-        (await fetchProfileEvent(pubkey, STAFF_TIMEOUT_MS, extraRelays)) ?? null;
+      const event = (await fetchProfileEvent(pubkey, STAFF_TIMEOUT_MS, extraRelays)) ?? null;
       return { event, profile: parseProfileFromEvent(event) };
     },
     enabled: !!pubkey,
@@ -777,31 +761,28 @@ function AssignedAssistantSection({
   const initials = (profile?.display_name || profile?.name || "?").slice(0, 2).toUpperCase();
 
   return (
-    <div
-      className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800"
-      data-testid="section-assigned-assistant"
-    >
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <AssistantIcon className="h-4 w-4 text-emerald-500 shrink-0" />
+    <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800" data-testid="section-assigned-assistant">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <AssistantIcon className="h-4 w-4 shrink-0 text-emerald-500" />
           <p
-            className="font-bold text-[11px] text-slate-800 dark:text-slate-200"
+            className="text-[11px] font-bold text-slate-800 dark:text-slate-200"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Assigned Brainstorm Assistant
           </p>
           {selfAssigned && (
             <span
-              className="inline-flex items-center px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[9px] font-semibold"
+              className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300"
               data-testid="badge-assistant-self-assigned"
             >
               Self-assigned
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1 min-w-0">
+        <div className="flex min-w-0 items-center gap-1">
           <code
-            className="font-mono text-[9px] text-slate-500 dark:text-slate-400 truncate"
+            className="truncate font-mono text-[9px] text-slate-500 dark:text-slate-400"
             data-testid="text-assistant-pubkey"
           >
             {truncateMid(assistantPubkey)}
@@ -813,29 +794,27 @@ function AssignedAssistantSection({
       {query.isLoading ? (
         <div className="space-y-2" data-testid="status-assistant-kind0-loading">
           <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+            <div className="h-10 w-10 animate-pulse rounded-full bg-slate-100 dark:bg-slate-800" />
             <div className="flex-1 space-y-1.5">
-              <div className="h-3 w-32 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-              <div className="h-2.5 w-24 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+              <div className="h-3 w-32 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+              <div className="h-2.5 w-24 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
             </div>
           </div>
         </div>
       ) : query.isError ? (
         <div
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25"
+          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 dark:border-red-500/25 dark:bg-red-500/10"
           data-testid="status-assistant-kind0-error"
         >
-          <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-          <p className="text-[10px] text-red-700 dark:text-red-300">
-            Failed to fetch assistant kind 0 from relays.
-          </p>
+          <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+          <p className="text-[10px] text-red-700 dark:text-red-300">Failed to fetch assistant kind 0 from relays.</p>
         </div>
       ) : !event || !profile ? (
         <div
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
+          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-900"
           data-testid="status-assistant-kind0-empty"
         >
-          <Info className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+          <Info className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
           <p className="text-[10px] text-slate-600 dark:text-slate-300">
             {event
               ? "Assistant kind 0 found but content could not be parsed."
@@ -847,33 +826,33 @@ function AssignedAssistantSection({
           <div className="flex items-start gap-2">
             <Avatar className="h-10 w-10 border border-slate-200 dark:border-slate-800">
               <AvatarImage src={profile.picture} alt={displayName} />
-              <AvatarFallback className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+              <AvatarFallback className="bg-slate-100 text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
               <p
-                className="text-[12px] font-semibold text-slate-800 dark:text-slate-200 truncate"
+                className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-200"
                 data-testid="text-assistant-display-name"
               >
                 {displayName}
               </p>
               {profile.nip05 && (
                 <p
-                  className="text-[10px] text-slate-500 dark:text-slate-400 truncate"
+                  className="truncate text-[10px] text-slate-500 dark:text-slate-400"
                   data-testid="text-assistant-nip05"
                 >
                   {profile.nip05}
                 </p>
               )}
               {profile.website && (
-                <div className="flex items-center gap-1 mt-0.5">
-                  {isAssistant && <BadgeCheck className="h-3 w-3 text-emerald-500 shrink-0" />}
+                <div className="mt-0.5 flex items-center gap-1">
+                  {isAssistant && <BadgeCheck className="h-3 w-3 shrink-0 text-emerald-500" />}
                   <a
                     href={profile.website}
                     target="_blank"
                     rel="noopener"
-                    className={`text-[10px] hover:underline truncate ${
+                    className={`truncate text-[10px] hover:underline ${
                       isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
                     }`}
                     data-testid="link-assistant-website"
@@ -887,7 +866,7 @@ function AssignedAssistantSection({
 
           {profile.about && (
             <p
-              className="text-[10px] text-slate-600 dark:text-slate-300 leading-snug line-clamp-2"
+              className="line-clamp-2 text-[10px] leading-snug text-slate-600 dark:text-slate-300"
               data-testid="text-assistant-about"
             >
               {profile.about}
@@ -948,29 +927,29 @@ function Kind0Panel({
       {query.isLoading ? (
         <div className="space-y-2" data-testid="status-kind0-loading">
           <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+            <div className="h-10 w-10 animate-pulse rounded-full bg-slate-100 dark:bg-slate-800" />
             <div className="flex-1 space-y-1.5">
-              <div className="h-3 w-32 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-              <div className="h-2.5 w-24 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+              <div className="h-3 w-32 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+              <div className="h-2.5 w-24 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
             </div>
           </div>
-          <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-          <div className="h-2.5 w-3/4 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-2.5 w-full animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+          <div className="h-2.5 w-3/4 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
         </div>
       ) : query.isError ? (
         <div
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25"
+          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 dark:border-red-500/25 dark:bg-red-500/10"
           data-testid="status-kind0-error"
         >
-          <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+          <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
           <p className="text-[10px] text-red-700 dark:text-red-300">Failed to fetch kind 0 from relays.</p>
         </div>
       ) : !event || !profile ? (
         <div
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
+          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-900"
           data-testid="status-kind0-empty"
         >
-          <Info className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+          <Info className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
           <p className="text-[10px] text-slate-600 dark:text-slate-300">
             {event ? "Kind 0 event found but content could not be parsed." : "No kind 0 metadata found on relays."}
           </p>
@@ -980,27 +959,30 @@ function Kind0Panel({
           <div className="flex items-start gap-2">
             <Avatar className="h-10 w-10 border border-slate-200 dark:border-slate-800">
               <AvatarImage src={profile.picture} alt={displayName} />
-              <AvatarFallback className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+              <AvatarFallback className="bg-slate-100 text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-200 truncate" data-testid="text-kind0-display-name">
+              <p
+                className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-200"
+                data-testid="text-kind0-display-name"
+              >
                 {displayName}
               </p>
               {profile.nip05 && (
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate" data-testid="text-kind0-nip05">
+                <p className="truncate text-[10px] text-slate-500 dark:text-slate-400" data-testid="text-kind0-nip05">
                   {profile.nip05}
                 </p>
               )}
               {profile.website && (
-                <div className="flex items-center gap-1 mt-0.5">
-                  {isAssistant && <BadgeCheck className="h-3 w-3 text-emerald-500 shrink-0" />}
+                <div className="mt-0.5 flex items-center gap-1">
+                  {isAssistant && <BadgeCheck className="h-3 w-3 shrink-0 text-emerald-500" />}
                   <a
                     href={profile.website}
                     target="_blank"
                     rel="noopener"
-                    className={`text-[10px] hover:underline truncate ${
+                    className={`truncate text-[10px] hover:underline ${
                       isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
                     }`}
                     data-testid="link-kind0-website"
@@ -1013,7 +995,10 @@ function Kind0Panel({
           </div>
 
           {profile.about && (
-            <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-snug line-clamp-2" data-testid="text-kind0-about">
+            <p
+              className="line-clamp-2 text-[10px] leading-snug text-slate-600 dark:text-slate-300"
+              data-testid="text-kind0-about"
+            >
               {profile.about}
             </p>
           )}
@@ -1030,12 +1015,7 @@ function Kind0Panel({
         </div>
       )}
 
-      {assistantPubkey && (
-        <AssignedAssistantSection
-          assistantPubkey={assistantPubkey}
-          selfAssigned={selfAssigned}
-        />
-      )}
+      {assistantPubkey && <AssignedAssistantSection assistantPubkey={assistantPubkey} selfAssigned={selfAssigned} />}
     </PanelShell>
   );
 }
@@ -1049,30 +1029,30 @@ export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey
   });
 
   const assistantPubkey =
-    taPubkey ??
-    nip85Query.data?.rankTag.innerPubkey ??
-    nip85Query.data?.followersTag.innerPubkey ??
-    null;
+    taPubkey ?? nip85Query.data?.rankTag.innerPubkey ?? nip85Query.data?.followersTag.innerPubkey ?? null;
   const selfAssigned = !!assistantPubkey && assistantPubkey === pubkey;
 
   return (
     <div
-      className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-brand-primary/15 dark:border-brand-primary/20 shadow-sm dark:shadow-none"
+      className="mt-2 rounded-xl border border-brand-primary/15 bg-white p-4 shadow-sm dark:border-brand-primary/20 dark:bg-slate-900 dark:shadow-none"
       data-testid={`card-nostr-health-${pubkey.slice(0, 8)}`}
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Loader2 className="h-4 w-4 text-brand-deep hidden" />
+          <Loader2 className="hidden h-4 w-4 text-brand-deep" />
           <Radio className="h-4 w-4 text-brand-deep" />
-          <p className="font-bold text-xs text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>
+          <p
+            className="text-xs font-bold text-slate-800 dark:text-slate-200"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
             Nostr Health
           </p>
         </div>
-        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
           Live from relays
         </span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Nip85Panel taPubkey={taPubkey} query={nip85Query} />
         <Kind0Panel pubkey={pubkey} assistantPubkey={assistantPubkey} selfAssigned={selfAssigned} />
       </div>

@@ -36,9 +36,7 @@ export interface NetworkCardView {
   socialListsLoading: boolean;
 }
 
-const NetworkCardActionsContext = createContext<NetworkCardActions | null>(
-  null,
-);
+const NetworkCardActionsContext = createContext<NetworkCardActions | null>(null);
 const NetworkCardViewContext = createContext<NetworkCardView | null>(null);
 
 export const NetworkCardActionsProvider = NetworkCardActionsContext.Provider;
@@ -46,18 +44,12 @@ export const NetworkCardViewProvider = NetworkCardViewContext.Provider;
 
 export function useNetworkCardActions(): NetworkCardActions {
   const ctx = useContext(NetworkCardActionsContext);
-  if (!ctx)
-    throw new Error(
-      "useNetworkCardActions must be used within a NetworkCardActionsProvider",
-    );
+  if (!ctx) throw new Error("useNetworkCardActions must be used within a NetworkCardActionsProvider");
   return ctx;
 }
 
 export function useNetworkCardView(): NetworkCardView {
   const ctx = useContext(NetworkCardViewContext);
-  if (!ctx)
-    throw new Error(
-      "useNetworkCardView must be used within a NetworkCardViewProvider",
-    );
+  if (!ctx) throw new Error("useNetworkCardView must be used within a NetworkCardViewProvider");
   return ctx;
 }

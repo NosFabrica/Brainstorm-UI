@@ -5,14 +5,9 @@ import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { ladderFor, type Bucket } from "@/lib/trustLadder";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
-import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
 import amethystLogoImg from "@/assets/amethyst-logo.webp";
-import nostriaHeroImg from "../assets/nostria-hero.png";
-import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
-import nostriaTeaserImg from "../assets/nostria-teaser.png";
 import nostriaIconImg from "../assets/nostria-icon.png";
-import brainstormHeroImg from "@assets/image_1773159756760.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -29,59 +24,8 @@ import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useShareUrl } from "@/hooks/useShareUrl";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  LogOut,
-  User as UserIcon,
-  Check,
-  Loader2,
-  TrendingUp,
-  Users,
-  UserPlus,
-  UserMinus,
-  VolumeX,
-  ShieldAlert,
-  Star,
-  Home,
-  Info,
-  RefreshCw,
-  Network,
-  X,
-  ChevronRight,
-  ChevronDown,
-  Award,
-  ExternalLink,
-  Search,
-  Settings as SettingsIcon,
-  BookOpen,
-  Smartphone,
-  ArrowRight,
-  Download,
-  Keyboard,
-  Code,
-  Music,
-  Palette,
-  Bitcoin,
-  Ban,
-  Sparkles,
-  CheckCircle2,
-  Terminal,
-  Mail,
-  HelpCircle,
-  Shield,
-  Copy,
-} from "lucide-react";
-import { AgentIcon } from "@/components/AgentIcon";
-import { FEATURES } from "@/config/featureFlags";
+import { Card } from "@/components/ui/card";
+import { Loader2, Users, ShieldAlert, Info, RefreshCw, X, ChevronDown, Keyboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import {
@@ -95,15 +39,7 @@ import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { ToastAction } from "@/components/ui/toast";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
-import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Slider } from "@/components/ui/slider";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,7 +49,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cacheProfile, fetchProfile, fetchOutboxRelayList } from "@/services/nostr";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
@@ -126,40 +61,29 @@ import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
-import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
-import {
-  ActivateBrainstormPanel,
-  needsActivationPrompt,
-} from "@/components/ActivateBrainstormPanel";
+import { ActivateBrainstormPanel, needsActivationPrompt } from "@/components/ActivateBrainstormPanel";
 
-import protocolDevImg from "@/assets/stock_images/protocol_dev.jpg";
-import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
-import digitalArtImg from "@/assets/stock_images/digital_art.jpg";
-import musicSceneImg from "@/assets/stock_images/music_scene.jpg";
 import { identityHas } from "@/accounts/display";
 import { accountKey } from "@/lib/accountStorage";
 
+interface GrapeRankResult {
+  status?: unknown;
+  ta_status?: unknown;
+  internal_publication_status?: unknown;
+  average?: unknown;
+  score?: unknown;
+  graperank?: unknown;
+  confidence?: unknown;
+  value?: unknown;
+  how_many_others_with_priority?: unknown;
+  created_at?: string;
+  updated_at?: string;
+  count_values?: unknown;
+  graperank_preset_used?: string | null;
+}
 
 const isStatusDone = (s: unknown): boolean => typeof s === "string" && s.toLowerCase() === "success";
-
-const INTEREST_CLUSTERS = [
-  { id: "dev", label: "Protocol Devs", icon: Code, count: 1240, color: "bg-blue-500", unit: "builders", image: protocolDevImg },
-  { id: "btc", label: "Bitcoiners", icon: Bitcoin, count: 8500, color: "bg-orange-500", unit: "peers", image: bitcoinImg },
-  { id: "art", label: "Digital Artists", icon: Palette, count: 3200, color: "bg-brand-deep", unit: "creators", image: digitalArtImg },
-  { id: "music", label: "Music Scene", icon: Music, count: 1800, color: "bg-brand-accent", unit: "artists", image: musicSceneImg },
-];
-
-
-const NETWORK_METRICS = [
-  { key: "followed_by", label: "Followers", icon: UserPlus, color: "text-emerald-500", bgColor: "bg-emerald-500" },
-  { key: "following", label: "Following", icon: Users, color: "text-brand-primary", bgColor: "bg-brand-primary" },
-  { key: "muted_by", label: "Muted By", icon: VolumeX, color: "text-amber-500", bgColor: "bg-amber-500" },
-  { key: "muting", label: "Muting", icon: UserMinus, color: "text-slate-500", bgColor: "bg-slate-400" },
-  { key: "reported_by", label: "Reported By", icon: ShieldAlert, color: "text-red-500", bgColor: "bg-red-500" },
-  { key: "reporting", label: "Reporting", icon: ShieldAlert, color: "text-orange-500", bgColor: "bg-orange-500" },
-] as const;
-
 
 // "Maybe later" on the Select-Brainstorm card is remembered per-account so it
 // doesn't re-nag on every reload, but re-surfaces once after a cooldown.
@@ -184,14 +108,14 @@ function readInviteCardSeen(pubkey?: string): boolean {
 }
 
 export default function DashboardPage() {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [hopRange, setHopRange] = useState([1, 3]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
-  const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
+  const [networkViewMode] = useState<"trust" | "activity">("trust");
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [wotExpanded, setWotExpanded] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
@@ -220,7 +144,12 @@ export default function DashboardPage() {
     setInviteCardSeen(readInviteCardSeen(user?.pubkey));
   }, [user?.pubkey]);
   const markInviteCardSeen = () => {
-    try { const pk = user?.pubkey; if (pk) localStorage.setItem(accountKey("brainstorm_invite_card_seen", pk), "true"); } catch { /* ignore */ }
+    try {
+      const pk = user?.pubkey;
+      if (pk) localStorage.setItem(accountKey("brainstorm_invite_card_seen", pk), "true");
+    } catch {
+      /* ignore */
+    }
     setInviteCardSeen(true);
   };
   useEffect(() => {
@@ -273,7 +202,7 @@ export default function DashboardPage() {
     if (!user) navigate("/", { replace: true });
   }, [user, navigate]);
 
-  const { preset: trustPreset } = useTrustPresetSync(!!user);
+  useTrustPresetSync(!!user);
 
   const needsProfile = !!user && !user.displayName && !user.picture;
   useQuery({
@@ -314,7 +243,7 @@ export default function DashboardPage() {
     refetchInterval: (query) => {
       const d = query.state.data?.data;
       if (!d || typeof d !== "object") return 60_000;
-      const done = isStatusDone((d as any).ta_status);
+      const done = isStatusDone((d as GrapeRankResult).ta_status);
       if (done && recalcTriggeredAtRef.current) {
         const elapsed = Date.now() - recalcTriggeredAtRef.current;
         if (elapsed < 25 * 60 * 1000) return 60_000;
@@ -326,7 +255,7 @@ export default function DashboardPage() {
 
   const prevStatusDoneRef = useRef<boolean | null>(null);
   useEffect(() => {
-    const d = grapeRankQuery.data?.data as any;
+    const d = grapeRankQuery.data?.data as GrapeRankResult | undefined;
     if (!d || typeof d !== "object") return;
     const done = isStatusDone(d.ta_status) || isStatusDone(d.internal_publication_status);
     if (prevStatusDoneRef.current === false && done) {
@@ -351,7 +280,9 @@ export default function DashboardPage() {
       // First-time calc vs a true recalculation reads very differently — don't
       // tell a never-scored user we're "refreshing" / "recalculating".
       let hadPrev = false;
-      try { hadPrev = localStorage.getItem("brainstorm_calc_completed") === "true"; } catch {}
+      try {
+        hadPrev = localStorage.getItem("brainstorm_calc_completed") === "true";
+      } catch {}
       toast({
         title: hadPrev ? "Refreshing your scores" : "Calculating your network",
         description: hadPrev
@@ -365,7 +296,8 @@ export default function DashboardPage() {
       toast({
         variant: "destructive",
         title: "Calculation failed",
-        description: error instanceof Error ? error.message : "Something went wrong. Please wait a moment and try again.",
+        description:
+          error instanceof Error ? error.message : "Something went wrong. Please wait a moment and try again.",
         duration: 8000,
       });
       setTimeout(() => triggerGrapeRankMutation.reset(), 8000);
@@ -394,6 +326,7 @@ export default function DashboardPage() {
       // The flag itself was cleared inside checkExistingTrustProvider.
       if (nip85Activated) setNip85Activated(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- provider data is already keyed on pubkey
   }, [trustServiceProvider.data, nip85Activated]);
 
   const showActivatePrompt = needsActivationPrompt({
@@ -407,14 +340,12 @@ export default function DashboardPage() {
   // /user/history response already carries it. Signing is always performable.
 
   const grapeRankRaw = grapeRankQuery.data?.data;
-  const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
+  const grapeRank: GrapeRankResult | null = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
 
   const handleLogout = () => {
     logout();
     navigate("/");
   };
-
-  const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
 
   const followersCount = overview?.counts?.followed_by ?? 0;
   const followingCount = overview?.counts?.following ?? 0;
@@ -427,44 +358,39 @@ export default function DashboardPage() {
   const verifiedFollowersCount = stats?.followed_by?.verified ?? 0;
   const verifiedFollowingCount = stats?.following?.verified ?? 0;
 
-  const grapeRankStatus = grapeRank
-    ? (grapeRank as any).status || "complete"
-    : triggerGrapeRankMutation.isPending
-    ? "calculating"
-    : "idle";
-
   const grapeRankScoreNum = grapeRank
-    ? [
-        (grapeRank as any).average,
-        (grapeRank as any).score,
-        (grapeRank as any).graperank,
-        (grapeRank as any).confidence,
-        (grapeRank as any).value,
-      ].find((v) => typeof v === "number") ?? null
+    ? ([grapeRank.average, grapeRank.score, grapeRank.graperank, grapeRank.confidence, grapeRank.value].find(
+        (v): v is number => typeof v === "number",
+      ) ?? null)
     : null;
-  const grapeRankScore = grapeRankScoreNum !== null
-    ? grapeRankScoreNum.toFixed(4)
-    : null;
+  const grapeRankScore = grapeRankScoreNum !== null ? grapeRankScoreNum.toFixed(4) : null;
 
   const queuePosition = grapeRank
-    ? typeof (grapeRank as any).how_many_others_with_priority === "number"
-      ? (grapeRank as any).how_many_others_with_priority
+    ? typeof grapeRank.how_many_others_with_priority === "number"
+      ? grapeRank.how_many_others_with_priority
       : null
     : null;
 
-  const grapeRankCreatedAt = grapeRank && (grapeRank as any).created_at ? new Date((grapeRank as any).created_at.endsWith("Z") ? (grapeRank as any).created_at : (grapeRank as any).created_at + "Z") : null;
-  const grapeRankUpdatedAt = grapeRank && (grapeRank as any).updated_at ? new Date((grapeRank as any).updated_at.endsWith("Z") ? (grapeRank as any).updated_at : (grapeRank as any).updated_at + "Z") : null;
+  const grapeRankCreatedAt =
+    grapeRank && grapeRank.created_at
+      ? new Date(grapeRank.created_at.endsWith("Z") ? grapeRank.created_at : grapeRank.created_at + "Z")
+      : null;
+  const grapeRankUpdatedAt =
+    grapeRank && grapeRank.updated_at
+      ? new Date(grapeRank.updated_at.endsWith("Z") ? grapeRank.updated_at : grapeRank.updated_at + "Z")
+      : null;
 
-  const calcDone = grapeRank ? isStatusDone((grapeRank as any).internal_publication_status) : false;
-  const publishDone = calcDone && grapeRank ? isStatusDone((grapeRank as any).ta_status) : false;
+  const calcDone = grapeRank ? isStatusDone(grapeRank.internal_publication_status) : false;
+  const publishDone = calcDone && grapeRank ? isStatusDone(grapeRank.ta_status) : false;
 
   const isGrapeRankFailed = grapeRank
-    ? typeof (grapeRank as any).status === "string" && (grapeRank as any).status.toLowerCase() === "failure"
+    ? typeof grapeRank.status === "string" && grapeRank.status.toLowerCase() === "failure"
     : false;
 
-  const isPublishFailed = calcDone && grapeRank
-    ? typeof (grapeRank as any).ta_status === "string" && (grapeRank as any).ta_status.toLowerCase() === "failure"
-    : false;
+  const isPublishFailed =
+    calcDone && grapeRank
+      ? typeof grapeRank.ta_status === "string" && grapeRank.ta_status.toLowerCase() === "failure"
+      : false;
 
   // The backend count alone lied here: it reads 0 until GrapeRank first ingests
   // the contact list, so an existing user on a fresh device was handed the
@@ -482,8 +408,11 @@ export default function DashboardPage() {
   // followed) lets us stop re-nagging them to "follow to begin" and instead show
   // a calm "calculating" state until the count catches up.
   const calcTriggered = (() => {
-    try { return !!user?.pubkey && !!localStorage.getItem(accountKey("brainstorm_calc_triggered_at", user.pubkey)); }
-    catch { return false; }
+    try {
+      return !!user?.pubkey && !!localStorage.getItem(accountKey("brainstorm_calc_triggered_at", user.pubkey));
+    } catch {
+      return false;
+    }
   })();
 
   // The no-follows user just used the inline follow-picker → bridge to the
@@ -508,7 +437,7 @@ export default function DashboardPage() {
     prevCalcDoneRef.current = calcDone;
   }, [calcDone]);
 
-  const [retryCount, setRetryCount] = useState(0);
+  const [, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (!isGrapeRankFailed && !isPublishFailed) {
@@ -532,6 +461,7 @@ export default function DashboardPage() {
       wasAutoTriggeredRef.current = true;
       triggerGrapeRankMutation.mutate();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation object is new each render
   }, [
     grapeRankQuery.isSuccess,
     grapeRank,
@@ -542,24 +472,15 @@ export default function DashboardPage() {
     followingCount,
   ]);
 
-  const formatRelativeTime = (date: Date | null): string => {
-    if (!date || isNaN(date.getTime())) return "";
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    if (diffSec < 60) return "just now";
-    const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
-    const diffDays = Math.floor(diffHr / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
   const formatTimestamp = (date: Date | null): string => {
     if (!date || isNaN(date.getTime())) return "";
-    return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
   const TIER_CONFIG = [
@@ -579,12 +500,14 @@ export default function DashboardPage() {
 
   const countValues = useMemo(() => {
     if (!grapeRank) return null;
-    const raw = (grapeRank as any).count_values;
+    const raw = grapeRank.count_values;
     if (!raw) return null;
     try {
       const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
       if (typeof parsed === "object" && parsed !== null) return parsed as Record<string, Record<string, number>>;
-    } catch { /* ignore parse errors */ }
+    } catch {
+      /* ignore parse errors */
+    }
     return null;
   }, [grapeRank]);
 
@@ -608,9 +531,6 @@ export default function DashboardPage() {
     }
     return Math.max(maxH, 5);
   }, [countValues]);
-
-
-
 
   const aggregateByHopRange = (tierKey: string, lo: number, hi: number): number => {
     if (!countValues || !countValues[tierKey]) return 0;
@@ -638,6 +558,7 @@ export default function DashboardPage() {
       const count = Math.floor(base * Math.pow(8, hopRange[1]));
       setExtendedNetworkCount(count > 1000000 ? 1000000 : count);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- TIER_CONFIG/aggregateByHopRange are per-render, derived from countValues
   }, [hopRange, countValues]);
 
   const enhancedPieData = useMemo(() => {
@@ -645,7 +566,7 @@ export default function DashboardPage() {
       return TIER_CONFIG.map((tier) => {
         const value = aggregateByHopRange(tier.key, hopRange[0], hopRange[1]);
         return { name: tier.name, value, color: tier.color };
-      }).filter(d => d.value > 0 || d.name === "Flagged");
+      }).filter((d) => d.value > 0 || d.name === "Flagged");
     }
     const fallback = [
       { label: TIER_LABELS.high, count: followersCount, color: TRUST_TIER_COLORS.highlyTrusted },
@@ -656,32 +577,43 @@ export default function DashboardPage() {
       { label: "Flagged", count: flaggedCount, color: TRUST_TIER_COLORS.flagged },
     ];
     const currentHops = hopRange[1];
-    return fallback.map((d) => {
-      let multiplier = 1;
-      if (d.label === TIER_LABELS.high) multiplier = Math.max(0.2, 1 - (currentHops - 1) * 0.15);
-      else if (d.label === TIER_LABELS.trusted) multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
-      else if (d.label === TIER_LABELS.neutral) multiplier = 1 + (currentHops - 1) * 0.4;
-      else if (d.label === TIER_LABELS.low) multiplier = 1 + (currentHops - 1) * 0.6;
-      else if (d.label === "Flagged") multiplier = 1;
-      else multiplier = 1 + (currentHops - 1) * 0.8;
-      return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
-    }).filter(d => d.value > 0 || d.name === "Flagged");
+    return fallback
+      .map((d) => {
+        let multiplier = 1;
+        if (d.label === TIER_LABELS.high) multiplier = Math.max(0.2, 1 - (currentHops - 1) * 0.15);
+        else if (d.label === TIER_LABELS.trusted) multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
+        else if (d.label === TIER_LABELS.neutral) multiplier = 1 + (currentHops - 1) * 0.4;
+        else if (d.label === TIER_LABELS.low) multiplier = 1 + (currentHops - 1) * 0.6;
+        else if (d.label === "Flagged") multiplier = 1;
+        else multiplier = 1 + (currentHops - 1) * 0.8;
+        return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
+      })
+      .filter((d) => d.value > 0 || d.name === "Flagged");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- TIER_CONFIG/aggregateByHopRange are per-render, derived from countValues
   }, [countValues, hopRange, followersCount, followingCount, mutedByCount, mutingCount, flaggedCount]);
 
   const pieData = useMemo(() => {
     if (granularity !== "simple") return enhancedPieData;
     const ladder = ladderFor("simple");
     const rung = (k: Bucket) => ladder.find((r) => r.key === k)!;
-    const verifiedNames = new Set<string>([TIER_LABELS.high, TIER_LABELS.trusted, TIER_LABELS.neutral, TIER_LABELS.low]);
-    const sum = (pick: (name: string) => boolean) => enhancedPieData.filter((d) => pick(d.name)).reduce((a, d) => a + d.value, 0);
+    const verifiedNames = new Set<string>([
+      TIER_LABELS.high,
+      TIER_LABELS.trusted,
+      TIER_LABELS.neutral,
+      TIER_LABELS.low,
+    ]);
+    const sum = (pick: (name: string) => boolean) =>
+      enhancedPieData.filter((d) => pick(d.name)).reduce((a, d) => a + d.value, 0);
     return [
       { name: rung("verified").label, value: sum((n) => verifiedNames.has(n)), color: rung("verified").color },
-      { name: rung("unknown").label, value: sum((n) => n === TIER_LABELS.unverified || n === "Unverified"), color: rung("unknown").color },
+      {
+        name: rung("unknown").label,
+        value: sum((n) => n === TIER_LABELS.unverified || n === "Unverified"),
+        color: rung("unknown").color,
+      },
       { name: rung("flagged").label, value: sum((n) => n === "Flagged"), color: rung("flagged").color },
     ].filter((d) => d.value > 0 || d.name === "Flagged");
   }, [enhancedPieData, granularity]);
-
-  const totalNetworkProfiles = pieData.reduce((acc: number, curr: { value: number }) => acc + curr.value, 0);
 
   const activityBreakdown = [
     { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#059669" },
@@ -694,16 +626,14 @@ export default function DashboardPage() {
         extendedNetworkCount -
           Math.floor(extendedNetworkCount * 0.18) -
           Math.floor(extendedNetworkCount * 0.32) -
-          Math.floor(extendedNetworkCount * 0.3)
+          Math.floor(extendedNetworkCount * 0.3),
       ),
       color: "#d1d5db",
     },
   ];
 
-  const totalActivityProfiles = activityBreakdown.reduce((acc, curr) => acc + curr.value, 0);
-
-  const currentPieData: Array<{ name: string; value: number; color: string }> = networkViewMode === "trust" ? pieData : activityBreakdown;
-  const totalCurrentProfiles = networkViewMode === "trust" ? totalNetworkProfiles : totalActivityProfiles;
+  const currentPieData: Array<{ name: string; value: number; color: string }> =
+    networkViewMode === "trust" ? pieData : activityBreakdown;
 
   // Stats `tier_counts` field names now match the GR `count_values` keys
   // used by TIER_CONFIG — pass straight through.
@@ -750,6 +680,7 @@ export default function DashboardPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleExport is per-render; user dep re-binds it
   }, [navigate, user]);
 
   // Per-pubkey — a global flag would leak one account's "has scores" state onto
@@ -758,10 +689,17 @@ export default function DashboardPage() {
   const hadPreviousScores = useMemo(() => {
     const k = user?.pubkey ? accountKey("brainstorm_calc_completed", user.pubkey) : "";
     if (calcDone) {
-      try { if (k) localStorage.setItem(k, "true"); localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
+      try {
+        if (k) localStorage.setItem(k, "true");
+        localStorage.setItem("brainstorm_calc_completed", "true");
+      } catch {}
       return true;
     }
-    try { return !!k && localStorage.getItem(k) === "true"; } catch { return false; }
+    try {
+      return !!k && localStorage.getItem(k) === "true";
+    } catch {
+      return false;
+    }
   }, [calcDone, user?.pubkey]);
 
   // Recently-active faces for the Your Network tiles (follows + followers).
@@ -804,7 +742,14 @@ export default function DashboardPage() {
   // `followsChecking` closes the same flash for the relay verification window:
   // while it's running, hasNoFollowing reads FALSE too, and without the guard
   // the onboarding panel would show for a user about to get the follow picker.
-  const showOnboarding = overviewQuery.isSuccess && !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !followsChecking && !isRecalculating && !hadPreviousScores;
+  const showOnboarding =
+    overviewQuery.isSuccess &&
+    !grapeRankQuery.isLoading &&
+    !publishDone &&
+    !hasNoFollowing &&
+    !followsChecking &&
+    !isRecalculating &&
+    !hadPreviousScores;
   // No-follows is NOT an error — it's the "start here" state (handled by the
   // inline follow-picker). Only real GrapeRank/publish failures are errors, and
   // we suppress those right after a fresh follow+calculate.
@@ -831,7 +776,10 @@ export default function DashboardPage() {
         // IS the new relay state, so nothing refetches into propagation lag
         // and re-raises the prompt we're dismissing.
         setNip85ModalOpen(false);
-        toast({ title: "Brainstorm activated!", description: "Your scores are now available across the nostr ecosystem." });
+        toast({
+          title: "Brainstorm activated!",
+          description: "Your scores are now available across the nostr ecosystem.",
+        });
       }}
     />
   );
@@ -844,27 +792,41 @@ export default function DashboardPage() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-dashboard">
+      <div
+        className="relative flex min-h-screen flex-col overflow-hidden bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
+        data-testid="page-dashboard"
+      >
         <PageBackground />
 
         <AppHeader user={user} onLogout={handleLogout} active="dashboard" />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
-
+        <div className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
           <DeferredSessionNotice className="mb-6" />
 
-          <div className="flex flex-col gap-6 mb-8">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="mb-8 flex flex-col gap-6">
+            <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
               <PageHeader
                 kicker="Brainstorm Dashboard"
-                title={isFirstSession
-                  ? <>Welcome to <span className="text-brand-link">Brainstorm</span></>
-                  : user.displayName
-                    ? <>Welcome back, <span className="text-brand-link">{user.displayName}</span></>
-                    : <>Welcome back</>}
-                subtitle={isFirstSession
-                  ? "Setting up your trust network."
-                  : hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
+                title={
+                  isFirstSession ? (
+                    <>
+                      Welcome to <span className="text-brand-link">Brainstorm</span>
+                    </>
+                  ) : user.displayName ? (
+                    <>
+                      Welcome back, <span className="text-brand-link">{user.displayName}</span>
+                    </>
+                  ) : (
+                    <>Welcome back</>
+                  )
+                }
+                subtitle={
+                  isFirstSession
+                    ? "Setting up your trust network."
+                    : hasNoFollowing
+                      ? "Set up your trust network"
+                      : "Your trust network is active and growing."
+                }
                 testId="section-dashboard-header-copy"
               />
 
@@ -876,273 +838,374 @@ export default function DashboardPage() {
                   stacks directly above the CalculatingNotice, so the duplication is
                   unmissable. It returns the moment scores land. */}
               {isFirstSession && !calcDone ? null : nip85Activated && publishDone ? (
-              <Card
-                className="relative self-start md:self-end w-full max-w-sm overflow-hidden"
-                data-testid="badge-nip85-active"
-              >
-                <button
-                  type="button"
-                  onClick={() => setWotExpanded((v) => !v)}
-                  aria-expanded={wotExpanded}
-                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/60 dark:hover:bg-slate-800/60 transition-colors"
-                  data-testid="button-wot-expand"
+                <Card
+                  className="relative w-full max-w-sm self-start overflow-hidden md:self-end"
+                  data-testid="badge-nip85-active"
                 >
-                  <div className="h-7 w-7 rounded-lg bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
-                    <BrainLogo size={14} className="text-brand-deep" />
-                  </div>
-                  <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Your network</span>
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 shrink-0">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                  <button
+                    type="button"
+                    onClick={() => setWotExpanded((v) => !v)}
+                    aria-expanded={wotExpanded}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/60"
+                    data-testid="button-wot-expand"
+                  >
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand-accent/20 bg-brand-accent/10">
+                      <BrainLogo size={14} className="text-brand-deep" />
+                    </div>
+                    <span
+                      className="shrink-0 text-[13px] font-semibold text-slate-900 dark:text-slate-100"
+                      style={{ fontFamily: "var(--font-display)" }}
+                    >
+                      Your network
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Active</span>
-                  </span>
-                  <span className="flex-1" />
-                  <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 transition-transform ${wotExpanded ? "rotate-180" : ""}`} />
-                </button>
-                {wotExpanded && (
-                <div className="px-3.5 pb-3.5 border-t border-slate-100 dark:border-slate-800/60">
-
-                  <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400 dark:text-slate-500">
-                    {history?.last_time_calculated_graperank && (
-                      <span>Updated {formatTimestamp(new Date(history.last_time_calculated_graperank.endsWith("Z") ? history.last_time_calculated_graperank : history.last_time_calculated_graperank + "Z"))}</span>
-                    )}
-                    <span title="Published as a NIP-85 declaration so compatible apps can read your scores" className="inline-flex items-center">
-                      <Info className="h-3 w-3 text-slate-300 dark:text-slate-600" />
-                    </span>
-                    {grapeRank?.graperank_preset_used && (
-                      <span className="inline-flex items-center gap-1">
-                        <span>Trust</span>
-                        <PresetBadge preset={grapeRank.graperank_preset_used} size="xs" testId="badge-dashboard-preset-used" />
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 dark:border-emerald-500/25 dark:bg-emerald-500/10">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       </span>
-                    )}
-                  </div>
-
-                  <AnimatePresence initial={false}>
-                    {!assistantDismissed && !assistantPubkey && !nip85CreatedInApp && (
-                      <motion.div
-                        key="assistant-inline-prompt"
-                        initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
-                        animate={{ opacity: 1, height: "auto", marginTop: 6, marginBottom: 6 }}
-                        exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
-                        transition={{ duration: 0.25, ease: "easeInOut" }}
-                        className="overflow-hidden"
-                        data-testid="container-assistant-inline-prompt"
-                      >
-                        <div className="rounded-lg bg-gradient-to-br from-brand-accent/8 via-white to-brand-primary/10 dark:bg-none dark:bg-slate-800/50 border border-brand-accent/20 px-2.5 py-2 flex items-center gap-2.5">
-                          <img
-                            src="/assistant-default.webp"
-                            alt=""
-                            aria-hidden="true"
-                            className="w-7 h-7 rounded-full ring-1 ring-brand-accent/30 shrink-0 object-cover"
-                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/assistant-default.jpg"; }}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate" style={{ fontFamily: "var(--font-display)" }}>
-                              Publish your assistant
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight truncate">
-                              Speak your scores to compatible apps
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => publishAssistantMutation.mutate()}
-                            disabled={publishAssistantMutation.isPending}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-br from-brand-primary to-brand-deep text-white text-[10px] font-semibold tracking-wide shadow-sm hover:shadow-md hover:brightness-110 transition-all focus:outline-none focus:ring-2 focus:ring-brand-accent/40 shrink-0 disabled:opacity-70 disabled:cursor-not-allowed"
-                            data-testid="button-assistant-inline-publish"
-                          >
-                            {publishAssistantMutation.isPending ? (
-                              <>
-                                <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                                Publishing
-                              </>
-                            ) : (
-                              "Publish"
+                      <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Active</span>
+                    </span>
+                    <span className="flex-1" />
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 text-slate-400 transition-transform dark:text-slate-500 ${wotExpanded ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {wotExpanded && (
+                    <div className="border-t border-slate-100 px-3.5 pb-3.5 dark:border-slate-800/60">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                        {history?.last_time_calculated_graperank && (
+                          <span>
+                            Updated{" "}
+                            {formatTimestamp(
+                              new Date(
+                                history.last_time_calculated_graperank.endsWith("Z")
+                                  ? history.last_time_calculated_graperank
+                                  : history.last_time_calculated_graperank + "Z",
+                              ),
                             )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAssistantDismissedStorage(true);
-                              setAssistantDismissed(true);
-                            }}
-                            className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40 shrink-0"
-                            aria-label="Dismiss publish assistant prompt"
-                            data-testid="button-assistant-inline-dismiss"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                          </span>
+                        )}
+                        <span
+                          title="Published as a NIP-85 declaration so compatible apps can read your scores"
+                          className="inline-flex items-center"
+                        >
+                          <Info className="h-3 w-3 text-slate-300 dark:text-slate-600" />
+                        </span>
+                        {grapeRank?.graperank_preset_used && (
+                          <span className="inline-flex items-center gap-1">
+                            <span>Trust</span>
+                            <PresetBadge
+                              preset={grapeRank.graperank_preset_used}
+                              size="xs"
+                              testId="badge-dashboard-preset-used"
+                            />
+                          </span>
+                        )}
+                      </div>
 
-                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60">
-                        <div className="flex items-center gap-1.5 mb-2.5">
-                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Readable in compatible apps</span>
-                          <div className="relative group/info">
+                      <AnimatePresence initial={false}>
+                        {!assistantDismissed && !assistantPubkey && !nip85CreatedInApp && (
+                          <motion.div
+                            key="assistant-inline-prompt"
+                            initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
+                            animate={{ opacity: 1, height: "auto", marginTop: 6, marginBottom: 6 }}
+                            exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
+                            transition={{ duration: 0.25, ease: "easeInOut" }}
+                            className="overflow-hidden"
+                            data-testid="container-assistant-inline-prompt"
+                          >
+                            <div className="from-brand-accent/8 flex items-center gap-2.5 rounded-lg border border-brand-accent/20 bg-gradient-to-br via-white to-brand-primary/10 px-2.5 py-2 dark:bg-slate-800/50 dark:bg-none">
+                              <img
+                                src="/assistant-default.webp"
+                                alt=""
+                                aria-hidden="true"
+                                className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-brand-accent/30"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).src = "/assistant-default.jpg";
+                                }}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className="truncate text-[11px] font-semibold leading-tight text-slate-900 dark:text-slate-100"
+                                  style={{ fontFamily: "var(--font-display)" }}
+                                >
+                                  Publish your assistant
+                                </p>
+                                <p className="truncate text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                                  Speak your scores to compatible apps
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => publishAssistantMutation.mutate()}
+                                disabled={publishAssistantMutation.isPending}
+                                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-gradient-to-br from-brand-primary to-brand-deep px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white shadow-sm transition-all hover:shadow-md hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-brand-accent/40 disabled:cursor-not-allowed disabled:opacity-70"
+                                data-testid="button-assistant-inline-publish"
+                              >
+                                {publishAssistantMutation.isPending ? (
+                                  <>
+                                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                    Publishing
+                                  </>
+                                ) : (
+                                  "Publish"
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAssistantDismissedStorage(true);
+                                  setAssistantDismissed(true);
+                                }}
+                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-accent/40 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                                aria-label="Dismiss publish assistant prompt"
+                                data-testid="button-assistant-inline-dismiss"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800/60">
+                        <div className="mb-2.5 flex items-center gap-1.5">
+                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+                            Readable in compatible apps
+                          </span>
+                          <div className="group/info relative">
                             <button
                               type="button"
-                              className="h-3.5 w-3.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
+                              className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-accent/40 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
                               onClick={(e) => e.currentTarget.focus()}
                               aria-label="What are Compatible Clients?"
                               data-testid="button-compatible-clients-info"
                             >
                               <Info className="h-2 w-2" />
                             </button>
-                            <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:translate-y-0 sm:bottom-full sm:mb-2 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
-                              Apps that read the personalized Verification Scores Brainstorm publishes for you — so your network travels with you across the apps you use.
+                            <div
+                              className="pointer-events-none invisible fixed left-4 right-4 top-1/2 z-[100] -translate-y-1/2 rounded-xl border border-white/15 bg-slate-900/95 p-3 text-xs leading-relaxed text-slate-200 opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-200 group-focus-within/info:pointer-events-auto group-focus-within/info:visible group-focus-within/info:opacity-100 group-hover/info:pointer-events-auto group-hover/info:visible group-hover/info:opacity-100 sm:absolute sm:bottom-full sm:left-1/2 sm:right-auto sm:top-auto sm:mb-2 sm:w-80 sm:-translate-x-1/2 sm:translate-y-0"
+                              data-testid="tooltip-compatible-clients"
+                            >
+                              Apps that read the personalized Verification Scores Brainstorm publishes for you — so your
+                              network travels with you across the apps you use.
                             </div>
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <a href="https://amethyst.social/#" target="_blank" rel="noopener" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:border-brand-accent hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
-                            <img src={amethystLogoImg} alt="Amethyst" className="w-5 h-5 rounded-md" />
-                            <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200 group-hover/client:text-brand-deep transition-colors">Amethyst</span>
+                          <a
+                            href="https://amethyst.social/#"
+                            target="_blank"
+                            rel="noopener"
+                            className="group/client flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 shadow-sm transition-all hover:border-brand-accent hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900"
+                            data-testid="link-compatible-amethyst"
+                          >
+                            <img src={amethystLogoImg} alt="Amethyst" className="h-5 w-5 rounded-md" />
+                            <span className="text-[10px] font-semibold text-slate-700 transition-colors group-hover/client:text-brand-deep dark:text-slate-200">
+                              Amethyst
+                            </span>
                           </a>
-                          <a href="https://www.nostria.app/" target="_blank" rel="noopener" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
-                            <img src={nostriaIconImg} alt="Nostria" className="w-5 h-5 rounded-md bg-white object-contain" />
-                            <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200 group-hover/client:text-orange-700 transition-colors">Nostria</span>
+                          <a
+                            href="https://www.nostria.app/"
+                            target="_blank"
+                            rel="noopener"
+                            className="group/client flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2 py-1.5 shadow-sm transition-all hover:border-orange-300 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900"
+                            data-testid="link-compatible-nostria"
+                          >
+                            <img
+                              src={nostriaIconImg}
+                              alt="Nostria"
+                              className="h-5 w-5 rounded-md bg-white object-contain"
+                            />
+                            <span className="text-[10px] font-semibold text-slate-700 transition-colors group-hover/client:text-orange-700 dark:text-slate-200">
+                              Nostria
+                            </span>
                           </a>
                         </div>
                         <button
                           onClick={() => setRecalcConfirmOpen(true)}
                           disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                          className="mt-2.5 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-brand-deep/[0.06] text-brand-deep hover:bg-brand-deep/[0.12] border border-brand-accent/15 hover:border-brand-accent/30 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                          className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-accent/15 bg-brand-deep/[0.06] px-3 py-2 text-brand-deep transition-all hover:border-brand-accent/30 hover:bg-brand-deep/[0.12] disabled:pointer-events-none disabled:opacity-40"
                           data-testid="button-recalculate-wot-card"
                         >
                           {triggerGrapeRankMutation.isPending ? (
-                            <><Loader2 className="w-3 h-3 animate-spin" /><span className="text-[11px] font-semibold tracking-wide">Calculating</span></>
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <span className="text-[11px] font-semibold tracking-wide">Calculating</span>
+                            </>
                           ) : (
-                            <><RefreshCw className="w-3 h-3" /><span className="text-[11px] font-semibold tracking-wide">Recalculate</span></>
+                            <>
+                              <RefreshCw className="h-3 w-3" />
+                              <span className="text-[11px] font-semibold tracking-wide">Recalculate</span>
+                            </>
                           )}
                         </button>
-                  </div>
-                </div>
-                )}
-              </Card>
+                      </div>
+                    </div>
+                  )}
+                </Card>
               ) : (
-              <Card
-                className="flex items-center gap-2.5 rounded-xl px-3 py-2 self-start md:self-end transition-all duration-200"
-                data-testid="card-overall-trust-score"
-              >
-                <div className="flex flex-col leading-tight min-w-0">
-                  <span className="text-xs font-semibold tracking-[0.15em] uppercase text-slate-400 dark:text-slate-500">Trust signals</span>
-                  {triggerGrapeRankMutation.isPending ? (
-                    <span className="text-xs text-brand-primary dark:text-brand-link font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Recalculating...
-                    </span>
-                  ) : publishDone && showActivatePrompt ? (
-                    // Scores exist but no kind-10040 points at them — "Score:
-                    // 47" / "Complete" would be the very hunky-dory signals
-                    // that buried the activation prompt. Say what's missing;
-                    // outranks the score readout on purpose.
-                    <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold" data-testid="text-overall-trust-score-sub">
-                      Not visible in apps yet
-                    </span>
-                  ) : grapeRankScore ? (
-                    <span className="text-xs text-slate-700 dark:text-slate-200 font-semibold" data-testid="text-overall-trust-score-sub">
-                      Score: {grapeRankScore}
-                    </span>
-                  ) : publishDone ? (
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold" data-testid="text-overall-trust-score-sub">
-                      Complete
-                    </span>
-                  ) : justFollowed ? (
-                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Calculating…
-                    </span>
-                  ) : isErrorState ? (
-                    <span className="text-xs text-red-500 font-medium" data-testid="text-overall-trust-score-sub">
-                      {isGrapeRankFailed ? "Calculation failed" : isPublishFailed ? "Publishing failed" : "Action needed"}
-                    </span>
-                  ) : isRecalculation ? (
-                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      {calcDone ? "Publishing…" : "Calculating…"}
-                    </span>
-                  ) : triggerGrapeRankMutation.isPending ? (
-                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Calculating…
-                    </span>
-                  ) : (
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium" data-testid="text-overall-trust-score-sub">
-                      Awaiting calculation
-                    </span>
-                  )}
-                  {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
-                    <span className="text-xs text-slate-400 dark:text-slate-500 mt-0.5" data-testid="text-trust-signals-updated">
-                      Last updated — {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => navigate("/insights")}
-                    className="mt-1 inline-flex items-center gap-1 self-start text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
-                    data-testid="link-view-insights"
-                  >
-                    View insights →
-                  </button>
-                </div>
-                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 shrink-0" />
-                <button
-                  onClick={() => setRecalcConfirmOpen(true)}
-                  disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-deep/10 text-brand-deep hover:bg-brand-deep/20 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-brand-accent/20"
-                  data-testid="button-trigger-graperank"
+                <Card
+                  className="flex items-center gap-2.5 self-start rounded-xl px-3 py-2 transition-all duration-200 md:self-end"
+                  data-testid="card-overall-trust-score"
                 >
-                  {triggerGrapeRankMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      <span className="text-[10px] font-semibold tracking-wide">Calculating</span>
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-3 h-3" />
-                      <span className="text-[10px] font-semibold tracking-wide">Recalculate</span>
-                    </>
-                  )}
-                </button>
-              </Card>
+                  <div className="flex min-w-0 flex-col leading-tight">
+                    <span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+                      Trust signals
+                    </span>
+                    {triggerGrapeRankMutation.isPending ? (
+                      <span
+                        className="flex items-center gap-1 text-xs font-medium text-brand-primary dark:text-brand-link"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Recalculating...
+                      </span>
+                    ) : publishDone && showActivatePrompt ? (
+                      // Scores exist but no kind-10040 points at them — "Score:
+                      // 47" / "Complete" would be the very hunky-dory signals
+                      // that buried the activation prompt. Say what's missing;
+                      // outranks the score readout on purpose.
+                      <span
+                        className="text-xs font-semibold text-amber-600 dark:text-amber-400"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        Not visible in apps yet
+                      </span>
+                    ) : grapeRankScore ? (
+                      <span
+                        className="text-xs font-semibold text-slate-700 dark:text-slate-200"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        Score: {grapeRankScore}
+                      </span>
+                    ) : publishDone ? (
+                      <span
+                        className="text-xs font-semibold text-emerald-600 dark:text-emerald-400"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        Complete
+                      </span>
+                    ) : justFollowed ? (
+                      <span
+                        className="flex items-center gap-1 text-xs font-medium text-brand-primary"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Calculating…
+                      </span>
+                    ) : isErrorState ? (
+                      <span className="text-xs font-medium text-red-500" data-testid="text-overall-trust-score-sub">
+                        {isGrapeRankFailed
+                          ? "Calculation failed"
+                          : isPublishFailed
+                            ? "Publishing failed"
+                            : "Action needed"}
+                      </span>
+                    ) : isRecalculation ? (
+                      <span
+                        className="flex items-center gap-1 text-xs font-medium text-brand-primary"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {calcDone ? "Publishing…" : "Calculating…"}
+                      </span>
+                    ) : triggerGrapeRankMutation.isPending ? (
+                      <span
+                        className="flex items-center gap-1 text-xs font-medium text-brand-primary"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Calculating…
+                      </span>
+                    ) : (
+                      <span
+                        className="text-xs font-medium text-slate-500 dark:text-slate-400"
+                        data-testid="text-overall-trust-score-sub"
+                      >
+                        Awaiting calculation
+                      </span>
+                    )}
+                    {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
+                      <span
+                        className="mt-0.5 text-xs text-slate-400 dark:text-slate-500"
+                        data-testid="text-trust-signals-updated"
+                      >
+                        Last updated — {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/insights")}
+                      className="mt-1 inline-flex items-center gap-1 self-start rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                      data-testid="link-view-insights"
+                    >
+                      View insights →
+                    </button>
+                  </div>
+                  <div className="h-6 w-px shrink-0 bg-slate-200 dark:bg-slate-700" />
+                  <button
+                    onClick={() => setRecalcConfirmOpen(true)}
+                    disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-deep/10 px-2.5 py-1 text-brand-deep ring-1 ring-brand-accent/20 transition-colors hover:bg-brand-deep/20 disabled:pointer-events-none disabled:opacity-40"
+                    data-testid="button-trigger-graperank"
+                  >
+                    {triggerGrapeRankMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="text-[10px] font-semibold tracking-wide">Calculating</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-3 w-3" />
+                        <span className="text-[10px] font-semibold tracking-wide">Recalculate</span>
+                      </>
+                    )}
+                  </button>
+                </Card>
               )}
-
             </div>
 
             {/* Activation prompt — the one thing a signed-in user may still have
                 to DO (sign their kind-10040) before their scores are visible in
                 other apps. Full-width, above everything, and deliberately not
                 waiting on any calculation state; see needsActivationPrompt. */}
-            {showActivatePrompt && (
-              <ActivateBrainstormPanel onActivate={() => navigate("/setup/activate")} />
-            )}
+            {showActivatePrompt && <ActivateBrainstormPanel onActivate={() => navigate("/setup/activate")} />}
 
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
               <AlertDialogContent
-                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden"
+                className="w-[calc(100vw-2rem)] max-w-[420px] overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
                 data-testid="dialog-confirm-recalculate-dashboard"
               >
                 <div className="p-5 sm:p-6">
                   <AlertDialogHeader className="space-y-0 text-left">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">Trust Signals</span>
+                    <div className="mb-3 flex items-center gap-2.5">
+                      <span className="font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-brand-link">
+                        Trust Signals
+                      </span>
                       <div className="h-px w-10 bg-brand-link/30" />
                     </div>
-                    <AlertDialogTitle className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
+                    <AlertDialogTitle
+                      className="text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
+                      style={{ fontFamily: "var(--font-display)" }}
+                      data-testid="text-confirm-recalculate-dashboard-title"
+                    >
                       Recalculate GrapeRank?
                     </AlertDialogTitle>
-                    <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5" data-testid="text-confirm-recalculate-dashboard-desc">
-                      This re-runs your full network trust calculation. It typically takes about 5 minutes and your current scores will be replaced with updated results.
+                    <AlertDialogDescription
+                      className="mt-2.5 text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                      data-testid="text-confirm-recalculate-dashboard-desc"
+                    >
+                      This re-runs your full network trust calculation. It typically takes about 5 minutes and your
+                      current scores will be replaced with updated results.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter className="mt-5 gap-2 sm:gap-2">
-                    <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-dashboard-cancel">Cancel</AlertDialogCancel>
+                    <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-dashboard-cancel">
+                      Cancel
+                    </AlertDialogCancel>
                     <AlertDialogAction
-                      className="rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white shadow-lg shadow-brand-primary/25"
+                      className="rounded-xl bg-brand-primary text-white shadow-lg shadow-brand-primary/25 hover:bg-brand-primary-hover"
                       onClick={() => {
                         setRecalcConfirmOpen(false);
                         triggerGrapeRankMutation.mutate();
@@ -1157,24 +1220,32 @@ export default function DashboardPage() {
             </AlertDialog>
 
             <AnimatePresence>
-              {(isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !followsChecking && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-red-200/60 dark:border-red-500/25 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] w-fit md:ml-auto"
-                  data-testid="graperank-failed"
-                >
-                  <div className="h-8 w-8 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/25 flex items-center justify-center shrink-0">
-                    <ShieldAlert className="w-4 h-4 text-red-500" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-red-700 dark:text-red-300">Calculation incomplete</p>
-                    <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">Please wait a few minutes, then try again.</p>
-                  </div>
-                </motion.div>
-              )}
+              {(isGrapeRankFailed || isPublishFailed) &&
+                !hasNoFollowing &&
+                !followsChecking &&
+                !justFollowed &&
+                !triggerGrapeRankMutation.isError &&
+                !triggerGrapeRankMutation.isPending &&
+                !triggerGrapeRankMutation.isSuccess && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="flex w-fit items-center gap-3 rounded-2xl border border-red-200/60 bg-white/60 p-3 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] backdrop-blur-xl dark:border-red-500/25 dark:bg-slate-900/60 md:ml-auto"
+                    data-testid="graperank-failed"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 dark:border-red-500/25 dark:bg-red-500/10">
+                      <ShieldAlert className="h-4 w-4 text-red-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-red-700 dark:text-red-300">Calculation incomplete</p>
+                      <p className="mt-0.5 text-xs text-red-600/80 dark:text-red-400/80">
+                        Please wait a few minutes, then try again.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
             </AnimatePresence>
             {/* Genuinely new, zero-follows, not-yet-started users → inline
                 follow-picker (same suggestions as /welcome) so they can start
@@ -1188,7 +1259,7 @@ export default function DashboardPage() {
                 follow — reassure that their scores are calculating. */}
             {hasNoFollowing && calcTriggered && !justFollowed && !triggerGrapeRankMutation.isPending && (
               <div
-                className="flex items-center gap-4 rounded-2xl border border-brand-accent/20 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-5 shadow-sm dark:shadow-none"
+                className="flex items-center gap-4 rounded-2xl border border-brand-accent/20 bg-white/60 p-5 shadow-sm backdrop-blur-xl dark:bg-slate-900/60 dark:shadow-none"
                 data-testid="card-building-wot"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-primary dark:text-brand-link">
@@ -1196,7 +1267,9 @@ export default function DashboardPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Building your network</div>
-                  <div className="text-[13px] text-slate-500 dark:text-slate-400">You're all set — your scores are calculating. This can take a few minutes.</div>
+                  <div className="text-[13px] text-slate-500 dark:text-slate-400">
+                    You're all set — your scores are calculating. This can take a few minutes.
+                  </div>
                 </div>
               </div>
             )}
@@ -1218,20 +1291,34 @@ export default function DashboardPage() {
                     point and it was unreadable. Text now wraps and the full sentence
                     shows at every width; the dismiss X is pinned to the corner so it
                     never competes with the button for horizontal room. */}
-                <Card className="relative flex flex-col gap-3 rounded-xl p-3 pr-10 sm:flex-row sm:items-center sm:py-2.5 sm:pl-3.5 sm:pr-12" data-testid="card-invite-grow">
+                <Card
+                  className="relative flex flex-col gap-3 rounded-xl p-3 pr-10 sm:flex-row sm:items-center sm:py-2.5 sm:pl-3.5 sm:pr-12"
+                  data-testid="card-invite-grow"
+                >
                   <div className="flex items-start gap-3 sm:items-center">
-                    <div className="h-8 w-8 rounded-lg bg-brand-primary/[0.07] border border-brand-accent/20 flex items-center justify-center text-brand-link shrink-0">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-accent/20 bg-brand-primary/[0.07] text-brand-link">
                       <Users className="h-4 w-4" />
                     </div>
-                    <p className="min-w-0 text-[13px] text-slate-600 dark:text-slate-300 leading-snug">
-                      <span className="font-semibold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
-                      <span className="text-slate-500 dark:text-slate-400">Invite people — they join connected to you, and everyone's network gets stronger.</span>
+                    <p className="min-w-0 text-[13px] leading-snug text-slate-600 dark:text-slate-300">
+                      <span
+                        className="font-semibold text-slate-900 dark:text-slate-100"
+                        style={{ fontFamily: "var(--font-display)" }}
+                        data-testid="text-invite-grow-title"
+                      >
+                        Your network is live.
+                      </span>{" "}
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Invite people — they join connected to you, and everyone's network gets stronger.
+                      </span>
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => { setInviteShareOpen(true); markInviteCardSeen(); }}
-                    className="h-9 w-full shrink-0 px-4 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5 sm:ml-auto sm:w-auto"
+                    onClick={() => {
+                      setInviteShareOpen(true);
+                      markInviteCardSeen();
+                    }}
+                    className="flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand-primary px-4 text-[13px] font-semibold tracking-wide text-white shadow-sm transition-all hover:bg-brand-primary-hover sm:ml-auto sm:w-auto"
                     data-testid="button-invite-grow"
                   >
                     <Users className="h-4 w-4" />
@@ -1240,7 +1327,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={markInviteCardSeen}
-                    className="absolute right-2 top-2 h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors sm:top-1/2 sm:h-9 sm:w-9 sm:-translate-y-1/2"
+                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300 sm:top-1/2 sm:h-9 sm:w-9 sm:-translate-y-1/2"
                     aria-label="Dismiss"
                     data-testid="button-invite-grow-dismiss"
                   >
@@ -1277,9 +1364,7 @@ export default function DashboardPage() {
                 their status lives in the top-right Trust signals card and the
                 app-wide pill. Failures are carried by the alert above, so the
                 status line stands down rather than promising a time estimate. */}
-            {showOnboarding && (
-              <SetupProgressCard queueAhead={queuePosition} showStatus={!isErrorState} />
-            )}
+            {showOnboarding && <SetupProgressCard queueAhead={queuePosition} showStatus={!isErrorState} />}
 
             {/* Someone put a public label on you. Nothing else in the app would
                 ever tell you — self-hides when there's nothing new. */}
@@ -1297,61 +1382,75 @@ export default function DashboardPage() {
               ta_pubkey, which exists from login — black-box testing showed
               users lost in exactly that gap when the card waited for
               publishDone. */}
-          {(publishDone || showOnboarding) && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && !showActivatePrompt && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15, duration: 0.5 }}
-              className="mb-6"
-            >
-              <Card
-                className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden rounded-xl relative"
-                data-testid="card-nip85-cta"
+          {(publishDone || showOnboarding) &&
+            !isRecalculating &&
+            !nip85Activated &&
+            !nip85Dismissed &&
+            (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) &&
+            !showActivatePrompt && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15, duration: 0.5 }}
+                className="mb-6"
               >
+                <Card
+                  className="relative overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                  data-testid="card-nip85-cta"
+                >
+                  <div className="relative flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-primary shadow-sm shadow-brand-primary/25">
+                      <BrainLogo mono size={24} className="text-white" />
+                    </div>
 
-                <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-brand-primary shadow-sm shadow-brand-primary/25 flex items-center justify-center shrink-0">
-                    <BrainLogo mono size={24} className="text-white" />
-                  </div>
+                    <div className="min-w-0 flex-1">
+                      <h3
+                        className="text-base font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-lg"
+                        style={{ fontFamily: "var(--font-display)" }}
+                        data-testid="text-nip85-cta-title"
+                      >
+                        Use your Brainstorm scores in other apps
+                      </h3>
+                      <p
+                        className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400 sm:text-sm"
+                        data-testid="text-nip85-cta-subtitle"
+                      >
+                        Sign a nostr note that tells other apps where to find your personalized scores.
+                      </p>
+                    </div>
 
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nip85-cta-title">
-                      Use your Brainstorm scores in other apps
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed" data-testid="text-nip85-cta-subtitle">
-                      Sign a nostr note that tells other apps where to find your personalized scores.
-                    </p>
+                    <div className="flex w-full shrink-0 items-center gap-3 sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => setNip85ModalOpen(true)}
+                        className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 text-xs font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-all duration-200 hover:bg-brand-primary-hover sm:flex-none sm:text-sm"
+                        data-testid="button-nip85-cta"
+                      >
+                        <BrainLogo mono size={14} className="text-white" />
+                        Select Brainstorm
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            const pk = user?.pubkey;
+                            if (pk)
+                              localStorage.setItem(accountKey("brainstorm_nip85_dismissed_at", pk), String(Date.now()));
+                          } catch {
+                            /* ignore */
+                          }
+                          setNip85Dismissed(true);
+                        }}
+                        className="whitespace-nowrap text-xs text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                        data-testid="button-nip85-dismiss"
+                      >
+                        Maybe later
+                      </button>
+                    </div>
                   </div>
-
-                  <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={() => setNip85ModalOpen(true)}
-                      className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2"
-                      data-testid="button-nip85-cta"
-                    >
-                      <BrainLogo mono size={14} className="text-white" />
-                      Select Brainstorm
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        try {
-                          const pk = user?.pubkey;
-                          if (pk) localStorage.setItem(accountKey("brainstorm_nip85_dismissed_at", pk), String(Date.now()));
-                        } catch { /* ignore */ }
-                        setNip85Dismissed(true);
-                      }}
-                      className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors whitespace-nowrap"
-                      data-testid="button-nip85-dismiss"
-                    >
-                      Maybe later
-                    </button>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-          )}
+                </Card>
+              </motion.div>
+            )}
 
           {activateModal}
 
@@ -1373,31 +1472,40 @@ export default function DashboardPage() {
               CalculatingNotice above is the one statement; these appear when they
               have something to show. */}
           <div className={`flex flex-col gap-4 ${isCalculationComplete ? "mb-6" : ""}`}>
-
             {isCalculationComplete && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="w-full flex">
-              <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
-            </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="flex w-full"
+              >
+                <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
+              </motion.div>
             )}
 
             {isCalculationComplete && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="w-full flex">
-              <YourNetworkCard
-                isReady={isCalculationComplete}
-                loading={overviewQuery.isLoading || statsQuery.isLoading}
-                followers={verifiedFollowersCount}
-                following={verifiedFollowingCount}
-                extendedCount={extendedNetworkCount}
-                hopRange={hopRange}
-                maxHop={maxHopInData}
-                onHopChange={setHopRange}
-                health={currentPieData}
-                onNavigate={navigate}
-                wide
-                followersFaces={facesQuery.data?.followers ?? []}
-                followingFaces={facesQuery.data?.following ?? []}
-              />
-            </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="flex w-full"
+              >
+                <YourNetworkCard
+                  isReady={isCalculationComplete}
+                  loading={overviewQuery.isLoading || statsQuery.isLoading}
+                  followers={verifiedFollowersCount}
+                  following={verifiedFollowingCount}
+                  extendedCount={extendedNetworkCount}
+                  hopRange={hopRange}
+                  maxHop={maxHopInData}
+                  onHopChange={setHopRange}
+                  health={currentPieData}
+                  onNavigate={navigate}
+                  wide
+                  followersFaces={facesQuery.data?.followers ?? []}
+                  followingFaces={facesQuery.data?.following ?? []}
+                />
+              </motion.div>
             )}
           </div>
 
@@ -1411,48 +1519,50 @@ export default function DashboardPage() {
               faking a composer the product doesn't have yet. */}
           <NetworkThreadModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
 
-
           {/* Expands to fill the gap while the modules above are still gated off,
               and tightens to one row once scores land. See ClientShelf. */}
           <ClientShelf expanded={!isCalculationComplete} onNavigate={navigate} />
-
-
-
         </div>
 
         {showShortcuts && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
             onClick={() => setShowShortcuts(false)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 max-w-sm w-full"
+              className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-900"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
                 <Keyboard className="h-5 w-5 text-brand-primary dark:text-brand-link" />
                 Keyboard Shortcuts
               </h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-600 dark:text-slate-300">Export data</span>
-                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-sm font-mono text-slate-600 dark:text-slate-300">E</kbd>
+                  <kbd className="rounded bg-slate-100 px-2 py-1 font-mono text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    E
+                  </kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-600 dark:text-slate-300">Go home</span>
-                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-sm font-mono text-slate-600 dark:text-slate-300">H</kbd>
+                  <kbd className="rounded bg-slate-100 px-2 py-1 font-mono text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    H
+                  </kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-600 dark:text-slate-300">Toggle shortcuts</span>
-                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-sm font-mono text-slate-600 dark:text-slate-300">?</kbd>
+                  <kbd className="rounded bg-slate-100 px-2 py-1 font-mono text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    ?
+                  </kbd>
                 </div>
               </div>
               <Button
-                className="w-full mt-6 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white"
+                className="mt-6 w-full bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600"
                 onClick={() => setShowShortcuts(false)}
               >
                 Got it

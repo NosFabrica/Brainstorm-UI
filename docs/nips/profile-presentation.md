@@ -22,7 +22,7 @@ switches clients.
 
 This NIP standardizes a **minimal, opt-out** description of that intent so that
 any client MAY honor it, while clients that don't understand it degrade
-gracefully to their own defaults. It deliberately standardizes only *layout* —
+gracefully to their own defaults. It deliberately standardizes only _layout_ —
 it does not introduce new content, identity, list, or labeling primitives, and
 reuses existing NIPs for those concerns.
 
@@ -43,7 +43,7 @@ Presentation preferences are stored as a [NIP-78](78.md) application data event:
 
 - `kind`: `30078` (addressable / parameterized-replaceable, per [NIP-01](01.md)).
 - A single `d` tag with the reserved value `"nostr/profile-presentation"`.
-- `content`: a JSON object (the *preferences object*), defined below.
+- `content`: a JSON object (the _preferences object_), defined below.
 
 Because the event is addressable, a relay retains only the newest event per
 `(pubkey, kind, "nostr/profile-presentation")`; re-publishing overwrites the
@@ -53,7 +53,7 @@ prior preferences. The event is public and readable by anyone.
 {
   "kind": 30078,
   "tags": [["d", "nostr/profile-presentation"]],
-  "content": "<preferences object, JSON-encoded>"
+  "content": "<preferences object, JSON-encoded>",
   // ...pubkey, created_at, id, sig per NIP-01
 }
 ```
@@ -63,28 +63,24 @@ prior preferences. The event is public and readable by anyone.
 ```jsonc
 {
   "v": 1,
-  "sections": [
-    { "kind": 20 },
-    { "kind": 1 },
-    { "kind": 30023, "hidden": true }
-  ],
-  "hiddenFields": ["bio", "banner"]
+  "sections": [{ "kind": 20 }, { "kind": 1 }, { "kind": 30023, "hidden": true }],
+  "hiddenFields": ["bio", "banner"],
 }
 ```
 
-| Field          | Type       | Req. | Meaning |
-| -------------- | ---------- | ---- | ------- |
-| `v`            | integer    | MUST | Schema version. MUST be `1` for this revision. |
-| `sections`     | array      | MAY  | Ordered content sections, keyed by content event `kind`. |
-| `hiddenFields` | string[]   | MAY  | Well-known profile regions the user has hidden. |
+| Field          | Type     | Req. | Meaning                                                  |
+| -------------- | -------- | ---- | -------------------------------------------------------- |
+| `v`            | integer  | MUST | Schema version. MUST be `1` for this revision.           |
+| `sections`     | array    | MAY  | Ordered content sections, keyed by content event `kind`. |
+| `hiddenFields` | string[] | MAY  | Well-known profile regions the user has hidden.          |
 
 ### `sections`
 
 An ordered array. Each entry is an object:
 
-| Key      | Type    | Req. | Meaning |
-| -------- | ------- | ---- | ------- |
-| `kind`   | integer | MUST | The content event kind this section lists. |
+| Key      | Type    | Req. | Meaning                                                       |
+| -------- | ------- | ---- | ------------------------------------------------------------- |
+| `kind`   | integer | MUST | The content event kind this section lists.                    |
 | `hidden` | boolean | MAY  | If `true`, the user has hidden this section. Default `false`. |
 
 - **Order is array position.** The first entry is the topmost section.
@@ -99,16 +95,16 @@ An array of well-known string tokens naming profile regions to hide. Clients
 SHOULD hide the corresponding region for tokens they recognize and MUST ignore
 tokens they do not. Initial registry (extensible by future revisions):
 
-| Token         | Region |
-| ------------- | ------ |
-| `bio`         | The `about` field from `kind:0` |
-| `banner`      | The `banner` image from `kind:0` |
-| `website`     | The `website` field from `kind:0` |
-| `nip05`       | The NIP-05 identifier |
-| `lightning`   | Lightning address / LNURL (`lud16`/`lud06`) |
-| `identities`  | External identities ([NIP-39](39.md)) |
-| `followers`   | A followers list/count region |
-| `following`   | A following list/count region |
+| Token        | Region                                      |
+| ------------ | ------------------------------------------- |
+| `bio`        | The `about` field from `kind:0`             |
+| `banner`     | The `banner` image from `kind:0`            |
+| `website`    | The `website` field from `kind:0`           |
+| `nip05`      | The NIP-05 identifier                       |
+| `lightning`  | Lightning address / LNURL (`lud16`/`lud06`) |
+| `identities` | External identities ([NIP-39](39.md))       |
+| `followers`  | A followers list/count region               |
+| `following`  | A following list/count region               |
 
 Core identity — display name, picture, and the user's public key — represents
 the minimum needed to recognize a profile. Clients SHOULD always render it, and
@@ -152,11 +148,7 @@ bio:
 ```json
 {
   "v": 1,
-  "sections": [
-    { "kind": 20 },
-    { "kind": 1 },
-    { "kind": 30023, "hidden": true }
-  ],
+  "sections": [{ "kind": 20 }, { "kind": 1 }, { "kind": 30023, "hidden": true }],
   "hiddenFields": ["bio"]
 }
 ```
@@ -178,7 +170,7 @@ defaults:
   "kind": 30078,
   "tags": [["d", "nostr/profile-presentation"]],
   "content": "{\"v\":1,\"sections\":[{\"kind\":20},{\"kind\":1},{\"kind\":30023,\"hidden\":true}],\"hiddenFields\":[\"bio\"]}",
-  "sig": "<64-byte-hex>"
+  "sig": "<64-byte-hex>",
 }
 ```
 

@@ -28,7 +28,7 @@ function FountainItemCard({ item }: { item: FountainItem }) {
   const [expanded, setExpanded] = useState(false);
   const foldable = !!item.description && (item.description.length > FOLD_CHARS || item.description.includes("\n"));
   const metaDuration = useTrackDuration(item.audio);
-  const total = player.isActive && player.duration ? player.duration : metaDuration ?? 0;
+  const total = player.isActive && player.duration ? player.duration : (metaDuration ?? 0);
   const pct = total > 0 ? (player.currentTime / total) * 100 : 0;
   const play = (e: MouseEvent) => {
     e.stopPropagation();
@@ -36,7 +36,7 @@ function FountainItemCard({ item }: { item: FountainItem }) {
   };
   return (
     <div
-      className={`mt-2 overflow-hidden rounded-xl border bg-white dark:bg-slate-900 transition-colors ${
+      className={`mt-2 overflow-hidden rounded-xl border bg-white transition-colors dark:bg-slate-900 ${
         player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200 dark:border-slate-800"
       }`}
       data-testid="fountain-card"
@@ -72,9 +72,13 @@ function FountainItemCard({ item }: { item: FountainItem }) {
         </button>
         <div className="min-w-0 flex-1">
           {item.show && (
-            <p className="truncate text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{item.show}</p>
+            <p className="truncate text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {item.show}
+            </p>
           )}
-          <p className={`mt-0.5 text-sm font-semibold leading-snug line-clamp-2 ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>
+          <p
+            className={`mt-0.5 line-clamp-2 text-sm font-semibold leading-snug ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}
+          >
             {item.title}
           </p>
           {item.description && (
@@ -92,7 +96,7 @@ function FountainItemCard({ item }: { item: FountainItem }) {
                 e.stopPropagation();
                 setExpanded((v) => !v);
               }}
-              className="mt-1 text-xs font-medium text-brand-deep dark:text-brand-link hover:underline"
+              className="mt-1 text-xs font-medium text-brand-deep hover:underline dark:text-brand-link"
               aria-expanded={expanded}
               data-testid="fountain-more"
             >
@@ -122,16 +126,17 @@ function FountainItemCard({ item }: { item: FountainItem }) {
           </span>
         </div>
       )}
-      <div className="flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 px-3 py-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+      <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-3 py-1.5 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">
         <span className="flex items-center gap-1.5">
-          <Favicon host="fountain.fm" className="h-3 w-3" /> Fountain · {item.kind === "track" ? "track" : "podcast episode"}
+          <Favicon host="fountain.fm" className="h-3 w-3" /> Fountain ·{" "}
+          {item.kind === "track" ? "track" : "podcast episode"}
           {!player.isActive && metaDuration ? ` · ${formatTime(metaDuration)}` : ""}
         </span>
         <a
           href={item.url}
           target="_blank"
           rel="noopener"
-          className="inline-flex items-center gap-1 font-medium text-brand-deep dark:text-brand-link hover:underline"
+          className="inline-flex items-center gap-1 font-medium text-brand-deep hover:underline dark:text-brand-link"
           data-testid="fountain-open"
         >
           Open on Fountain <ExternalLink className="h-3 w-3" />
@@ -148,7 +153,7 @@ export function FountainLinkCard({ url, pending = false }: { url: string; pendin
       href={url}
       target="_blank"
       rel="noopener"
-      className="mt-2 flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2.5 no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+      className="mt-2 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 no-underline transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
       data-testid="link-card-fountain"
     >
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-deep dark:text-brand-link">

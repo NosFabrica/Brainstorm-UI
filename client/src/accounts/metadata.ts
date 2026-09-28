@@ -1,4 +1,5 @@
 import type { IAccount } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 
 /**
  * Everything the app keeps per Account. Rides in `SerializedAccount.metadata`, so
@@ -27,7 +28,7 @@ export type AccountMetadata = {
   perspective?: "nosfabrica" | "mywot";
 };
 
-export type BrainstormAccount = IAccount<any, any, AccountMetadata>;
+export type BrainstormAccount = IAccount<ISigner, unknown, AccountMetadata>;
 
 const EMPTY: AccountMetadata = { remembered: false };
 
@@ -36,10 +37,7 @@ export function getMetadata(account: BrainstormAccount): AccountMetadata {
 }
 
 /** Merge a patch into an Account's metadata. Replaces the object, so `metadata$` emits. */
-export function updateMetadata(
-  account: BrainstormAccount,
-  patch: Partial<AccountMetadata>,
-): AccountMetadata {
+export function updateMetadata(account: BrainstormAccount, patch: Partial<AccountMetadata>): AccountMetadata {
   const next = { ...getMetadata(account), ...patch };
   account.metadata = next;
   return next;

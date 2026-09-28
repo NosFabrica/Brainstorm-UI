@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { NostrEvent } from "applesauce-core/helpers";
 
-import { declaresLists, declaresTrustProvider, describeDesignation, listRows, mergeDesignation } from "./nip85Declaration";
+import {
+  declaresLists,
+  declaresTrustProvider,
+  describeDesignation,
+  listRows,
+  mergeDesignation,
+} from "./nip85Declaration";
 
 const TA = "a".repeat(64);
 const OTHER_TA = "b".repeat(64);
@@ -97,7 +103,11 @@ describe("listRows / mergeDesignation", () => {
       ["30382:hops", OTHER_TA, RELAY],
       ["30383:rank", "f".repeat(64), "wss://someone-else.example"],
     ];
-    const merged = mergeDesignation(existing, [["30382:rank", TA, RELAY], ["30382:followers", TA, RELAY], ...listRows(LISTS)]);
+    const merged = mergeDesignation(existing, [
+      ["30382:rank", TA, RELAY],
+      ["30382:followers", TA, RELAY],
+      ...listRows(LISTS),
+    ]);
 
     expect(merged).toContainEqual(["30382:hops", OTHER_TA, RELAY]);
     expect(merged).toContainEqual(["30383:rank", "f".repeat(64), "wss://someone-else.example"]);
@@ -132,12 +142,14 @@ describe("declaresLists", () => {
  */
 describe("describeDesignation", () => {
   it("names the signals, the lists, and the provider, for an activation of ours", () => {
-    const d = describeDesignation(event10040([
-      ["30382:rank", TA, "wss://scores.brainstorm.world"],
-      ["30382:followers", TA, "wss://scores.brainstorm.world"],
-      ["30392", TA, "wss://scores.brainstorm.world"],
-      ["30393", TA, "wss://scores.brainstorm.world"],
-    ]));
+    const d = describeDesignation(
+      event10040([
+        ["30382:rank", TA, "wss://scores.brainstorm.world"],
+        ["30382:followers", TA, "wss://scores.brainstorm.world"],
+        ["30392", TA, "wss://scores.brainstorm.world"],
+        ["30393", TA, "wss://scores.brainstorm.world"],
+      ]),
+    );
     expect(d.signals).toEqual(["Rank", "Followers"]);
     expect(d.lists).toBe(true);
     expect(d.providers).toEqual([{ pubkey: TA, relay: "wss://scores.brainstorm.world", brainstorm: true }]);

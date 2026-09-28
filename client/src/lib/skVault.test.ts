@@ -14,7 +14,7 @@ const pubkey = "b".repeat(64);
 const other = "c".repeat(64);
 
 beforeEach(() => {
-  indexedDB = new IDBFactory();
+  globalThis.indexedDB = new IDBFactory();
   Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
 });
 

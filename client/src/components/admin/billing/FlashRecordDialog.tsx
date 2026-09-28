@@ -24,10 +24,15 @@ import { flashRecordKey } from "./FlashFactsStrip";
  * renewal is going, and how it ends. Every line is a fact off Flash's record;
  * a fact Flash did not send is simply not on the sheet.
  */
-export function FlashSubscriptionSheet({ raw, serviceName }: { raw: unknown; /** The service's name from the account's list; the id stands in when unknown. */ serviceName?: string }) {
+export function FlashSubscriptionSheet({
+  raw,
+  serviceName,
+}: {
+  raw: unknown;
+  /** The service's name from the account's list; the id stands in when unknown. */ serviceName?: string;
+}) {
   const r = readFlashSubscription(raw);
-  const price =
-    r.amountMinor !== null && r.currency ? formatAmount(r.amountMinor, r.currency) : null;
+  const price = r.amountMinor !== null && r.currency ? formatAmount(r.amountMinor, r.currency) : null;
   const interval = formatBillingInterval(r.billingInterval);
   const cycles = describeCycles(r);
   const dunning = describeDunning(r);
@@ -37,10 +42,7 @@ export function FlashSubscriptionSheet({ raw, serviceName }: { raw: unknown; /**
   const hasPlan = !!(r.planName || price);
 
   return (
-    <div
-      className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3"
-      data-testid="flash-sheet"
-    >
+    <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800" data-testid="flash-sheet">
       <div className="flex flex-wrap items-center gap-2">
         <Chip tone={statusTone(r.status)} size="sm" data-testid="flash-sheet-status">
           {r.status}
@@ -56,13 +58,16 @@ export function FlashSubscriptionSheet({ raw, serviceName }: { raw: unknown; /**
           </span>
         )}
         {r.id && (
-          <span className="ml-auto font-mono text-[11px] text-slate-500 dark:text-slate-400" data-testid="flash-sheet-id">
+          <span
+            className="ml-auto font-mono text-[11px] text-slate-500 dark:text-slate-400"
+            data-testid="flash-sheet-id"
+          >
             {r.id}
           </span>
         )}
       </div>
 
-      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
         {r.createdAt && <Fact label="Subscribed" value={formatBillingDate(r.createdAt)} testId="flash-sheet-since" />}
         {cycles && <Fact label="Billing cycles" value={cycles} testId="flash-sheet-cycles" />}
         {(r.currentPeriodStart || r.currentPeriodEnd) && (
@@ -111,7 +116,7 @@ export function FlashSubscriptionSheet({ raw, serviceName }: { raw: unknown; /**
           href={r.portalUrl}
           target="_blank"
           rel="noopener"
-          className="inline-flex items-center gap-1 text-xs font-medium text-brand-deep dark:text-brand-link hover:underline"
+          className="inline-flex items-center gap-1 text-xs font-medium text-brand-deep hover:underline dark:text-brand-link"
           data-testid="flash-sheet-portal"
         >
           Their Flash portal <ExternalLink className="h-3 w-3" />
@@ -137,7 +142,7 @@ function accountLabel(ref: string | null): React.ReactNode {
       </span>
     );
   }
-  return <span className="font-mono text-xs break-all">{ref}</span>;
+  return <span className="break-all font-mono text-xs">{ref}</span>;
 }
 
 function Fact({ label, value, testId }: { label: string; value: React.ReactNode; testId: string }) {
@@ -162,13 +167,7 @@ export type FlashRecordTarget = {
   read: () => Promise<unknown>;
 };
 
-export function FlashRecordDialog({
-  target,
-  onClose,
-}: {
-  target: FlashRecordTarget | null;
-  onClose: () => void;
-}) {
+export function FlashRecordDialog({ target, onClose }: { target: FlashRecordTarget | null; onClose: () => void }) {
   const query = useQuery({
     queryKey: flashRecordKey(target?.key ?? ""),
     queryFn: () => target!.read(),
@@ -211,8 +210,8 @@ export function FlashRecordDialog({
             )}
           </DialogTitle>
           <DialogDescription>
-            Exactly what Flash returned for {target?.label ?? ""} — every row, not
-            just the one entitlement uses. Nothing was changed by looking.
+            Exactly what Flash returned for {target?.label ?? ""} — every row, not just the one entitlement uses.
+            Nothing was changed by looking.
           </DialogDescription>
         </DialogHeader>
         {query.isPending ? (
@@ -224,16 +223,20 @@ export function FlashRecordDialog({
             {(query.error as Error)?.message}
           </p>
         ) : (
-          <div className="space-y-3 max-h-[60vh] overflow-auto pr-1">
+          <div className="max-h-[60vh] space-y-3 overflow-auto pr-1">
             {rows?.map((row, i) => (
-              <FlashSubscriptionSheet key={(row as { id?: string })?.id ?? i} raw={row} serviceName={serviceNameOf(row)} />
+              <FlashSubscriptionSheet
+                key={(row as { id?: string })?.id ?? i}
+                raw={row}
+                serviceName={serviceNameOf(row)}
+              />
             ))}
             <details className="group">
-              <summary className="cursor-pointer text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline">
+              <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:underline dark:text-slate-400">
                 Raw record
               </summary>
               <pre
-                className="mt-2 max-h-[40vh] overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 p-3 font-mono text-xs text-slate-700 dark:text-slate-200"
+                className="mt-2 max-h-[40vh] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200"
                 data-testid="billing-flash-record-json"
               >
                 {JSON.stringify(query.data, null, 2)}

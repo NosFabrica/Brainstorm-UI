@@ -20,10 +20,16 @@ describe("audioPlayer — the end of the queue", () => {
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   });
-  afterEach(() => { closePlayer(); vi.restoreAllMocks(); });
+  afterEach(() => {
+    closePlayer();
+    vi.restoreAllMocks();
+  });
 
   it("the last track ends paused and stays the current one; an earlier one hands off", () => {
-    setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "A" }, { id: "b", src: "https://cdn/b.mp3", title: "B" }]);
+    setPlaylist([
+      { id: "a", src: "https://cdn/a.mp3", title: "A" },
+      { id: "b", src: "https://cdn/b.mp3", title: "B" },
+    ]);
     toggleTrack("a", "https://cdn/a.mp3");
     const audio = created[0];
     expect(audio).toBeDefined();

@@ -70,9 +70,7 @@ export function ScrollableTable({ children }: { children: React.ReactNode }) {
         ref={topRef}
         onScroll={onTopScroll}
         aria-hidden="true"
-        className={
-          "admin-hscroll overflow-x-auto overflow-y-hidden " + (scrollable ? "" : "hidden")
-        }
+        className={"admin-hscroll overflow-x-auto overflow-y-hidden " + (scrollable ? "" : "hidden")}
       >
         <div style={{ width: contentWidth, height: 1 }} />
       </div>

@@ -7,7 +7,22 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, personAssist, personScope, readFilters, scopeOf, scopedSearchHref, seeAllLabel, sinceForPreset, splitFilters, typeaheadWords } from "./searchSyntax";
+import {
+  activeFilterCount,
+  applyFilters,
+  browseSafeQuery,
+  datePreset,
+  liftQuery,
+  personAssist,
+  personScope,
+  readFilters,
+  scopeOf,
+  scopedSearchHref,
+  seeAllLabel,
+  sinceForPreset,
+  splitFilters,
+  typeaheadWords,
+} from "./searchSyntax";
 
 // The relay knows no hops and has no verification of its own, so those two
 // controls are done on the CLIENT — but they still speak grammar:
@@ -117,9 +132,7 @@ describe("applyFilters", () => {
   });
 
   it("clears a token when its value is unset, leaving the rest untouched", () => {
-    expect(applyFilters("btc sort:recent filter:rank:gte:20", { sort: null })).toBe(
-      "btc filter:rank:gte:20",
-    );
+    expect(applyFilters("btc sort:recent filter:rank:gte:20", { sort: null })).toBe("btc filter:rank:gte:20");
     expect(applyFilters("btc include:spam", { includeSpam: false })).toBe("btc");
   });
 
@@ -214,11 +227,47 @@ describe("typeaheadWords — what the people typeahead may look up", () => {
   });
 
   it.each([
-    "from:", "to:", "since:", "until:", "kind:", "kind:2", "spec:", "sort:", "sort:rec", "include:", "include:spam",
-    "filter:", "filter:rank:gte:", "filter:rank:gte:50", "observer:", "observer:ja", "trust:", "trust:ver",
-    "reach:", "reach:fol", "site:", "site:exa", "isbn:", "isbn:978", "geo:", "geo:u4p", "isan:", "doi:", "doi:10.1000",
-    "podcast:guid:", "podcast:item:guid:", "podcast:publisher:", "label:", "label:en", "group:", "group:gen",
-    "DOI:10.1000", "jack doi:", "doi: jack", "jack kind:20", "#nostr jack",
+    "from:",
+    "to:",
+    "since:",
+    "until:",
+    "kind:",
+    "kind:2",
+    "spec:",
+    "sort:",
+    "sort:rec",
+    "include:",
+    "include:spam",
+    "filter:",
+    "filter:rank:gte:",
+    "filter:rank:gte:50",
+    "observer:",
+    "observer:ja",
+    "trust:",
+    "trust:ver",
+    "reach:",
+    "reach:fol",
+    "site:",
+    "site:exa",
+    "isbn:",
+    "isbn:978",
+    "geo:",
+    "geo:u4p",
+    "isan:",
+    "doi:",
+    "doi:10.1000",
+    "podcast:guid:",
+    "podcast:item:guid:",
+    "podcast:publisher:",
+    "label:",
+    "label:en",
+    "group:",
+    "group:gen",
+    "DOI:10.1000",
+    "jack doi:",
+    "doi: jack",
+    "jack kind:20",
+    "#nostr jack",
   ])("is null for %s — no name there", (q) => {
     expect(typeaheadWords(q)).toBeNull();
   });
@@ -299,7 +348,11 @@ describe("scopeOf — the one from: token the box shows as a person, and the wor
   const hex = "3".repeat(64);
   const npub = nip19.npubEncode(hex);
   it("splits the scope from the words, keeping the token as typed", () => {
-    expect(scopeOf(`from:${npub} alone in valentine`)).toEqual({ pubkey: hex, token: `from:${npub}`, rest: "alone in valentine" });
+    expect(scopeOf(`from:${npub} alone in valentine`)).toEqual({
+      pubkey: hex,
+      token: `from:${npub}`,
+      rest: "alone in valentine",
+    });
     expect(scopeOf(`valentine from:${npub}`)).toEqual({ pubkey: hex, token: `from:${npub}`, rest: "valentine" });
     expect(scopeOf(`from:${npub}`)).toEqual({ pubkey: hex, token: `from:${npub}`, rest: "" });
   });

@@ -23,9 +23,7 @@ vi.mock("@/services/socialActions", () => ({
 }));
 
 function open() {
-  renderWithProviders(
-    <CreateAccountModal open onOpenChange={() => {}} onCreated={onCreated} />,
-  );
+  renderWithProviders(<CreateAccountModal open onOpenChange={() => {}} onCreated={onCreated} />);
 }
 
 /** Fill the whole form in, ready to submit. */
@@ -91,10 +89,7 @@ describe("letting a password manager capture it", () => {
     expect(confirm).toHaveAttribute("name", "recovery-password-confirm");
     // Outside Chromium the form markup is the only capture there is, and a
     // password with no username field beside it is the case browsers skip.
-    expect(screen.getByTestId("input-create-display-name")).toHaveAttribute(
-      "autocomplete",
-      "username",
-    );
+    expect(screen.getByTestId("input-create-display-name")).toHaveAttribute("autocomplete", "username");
   });
 
   it("submits on enter, not only on the button", async () => {

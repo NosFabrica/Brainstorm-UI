@@ -1,7 +1,6 @@
 import { useState, useMemo, memo } from "react";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierRing } from "@/components/score/VerificationCoin";
-import { tierForScore01 } from "@/components/score/VerificationCoin";
 import { rungFraction } from "@/lib/trustLadder";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { nip19 } from "nostr-tools";
@@ -21,13 +20,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Tooltip as UITooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { BrainLogo } from "@/components/BrainLogo";
-import { toPubkeys } from "@/services/graphHelpers";
+import { toPubkeys, type GraphEntry } from "@/services/graphHelpers";
+import type { ProfileContent } from "applesauce-core/helpers/profile";
 import {
   detailMetrics,
   metricIcons,
@@ -35,17 +31,19 @@ import {
   getVerificationGuidance,
   FlaggedIcon,
 } from "@/components/network/networkGroups";
-import {
-  useNetworkCardActions,
-  useNetworkCardView,
-} from "@/components/network/cardContext";
+import { useNetworkCardActions, useNetworkCardView } from "@/components/network/cardContext";
+
+type DetailGraph = {
+  influence?: number | null;
+  [key: string]: number | GraphEntry[] | null | undefined;
+};
 
 export interface NetworkProfileCardProps {
   pk: string;
-  profile: any | undefined;
+  profile: ProfileContent | undefined;
   trustScore: number | null | undefined;
-  graphData: any | undefined;
-  detail: any | undefined;
+  graphData: { muted_by?: string[]; reported_by?: string[] } | undefined;
+  detail: DetailGraph | null | undefined;
   stats: Record<string, { verified: number; total: number }> | undefined;
   isExpanded: boolean;
   isCopied: boolean;
@@ -79,8 +77,6 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   const [displayMode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
   const {
-    trustCacheRef,
-    activeGroupRef,
     getPubkeyGroups,
     onToggleExpanded,
     onCopyNpub,
@@ -100,17 +96,12 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   const displayName = profile?.display_name || profile?.name || displayNpub;
   const pkShort = pk.slice(0, 8);
   const [cardFollowHovered, setCardFollowHovered] = useState(false);
-  const [cardActionPending, setCardActionPending] = useState<string | null>(
-    null,
-  );
+  const [cardActionPending, setCardActionPending] = useState<string | null>(null);
 
   // Derive group membership from the stable `getPubkeyGroups` instead of
   // receiving a freshly-built array each render — that array prop previously
   // defeated React.memo for every card.
-  const memberGroups = useMemo(
-    () => getPubkeyGroups(pk),
-    [getPubkeyGroups, pk],
-  );
+  const memberGroups = useMemo(() => getPubkeyGroups(pk), [getPubkeyGroups, pk]);
 
   const liveFilteredGroups = useMemo(() => {
     if (socialListsLoading) return memberGroups;
@@ -130,16 +121,13 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     const verifiedReporters = stats?.reported_by?.verified ?? 0;
     if (verifiedMuters === 0 && verifiedReporters === 0) return null;
     return (
-      <div
-        className="flex items-center gap-1.5 flex-wrap"
-        data-testid={`flags-verified-${pkShort}`}
-      >
+      <div className="flex flex-wrap items-center gap-1.5" data-testid={`flags-verified-${pkShort}`}>
         {verifiedMuters > 0 && (
           <UITooltip>
             <TooltipTrigger asChild>
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25 cursor-help no-default-hover-elevate no-default-active-elevate"
+                className="no-default-hover-elevate no-default-active-elevate cursor-help border-amber-200 bg-amber-50 px-1.5 py-0 text-[10px] text-amber-700 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300"
                 data-testid={`badge-verified-muted-${pkShort}`}
               >
                 Muted by {verifiedMuters} verified
@@ -147,13 +135,12 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             </TooltipTrigger>
             <TooltipContent
               side="top"
-              className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 shadow-xl p-2.5 max-w-[240px]"
+              className="max-w-[240px] border-slate-200 bg-white/95 p-2.5 text-slate-700 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-200"
             >
               <p className="text-xs leading-relaxed">
-                {verifiedMuters} verified{" "}
-                {verifiedMuters === 1 ? "user has" : "users have"} muted this
-                account. "Verified" is your trust preset's muter cutoff — change
-                the preset in Settings and this number moves with it.
+                {verifiedMuters} verified {verifiedMuters === 1 ? "user has" : "users have"} muted this account.
+                "Verified" is your trust preset's muter cutoff — change the preset in Settings and this number moves
+                with it.
               </p>
             </TooltipContent>
           </UITooltip>
@@ -163,7 +150,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             <TooltipTrigger asChild>
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25 cursor-help no-default-hover-elevate no-default-active-elevate"
+                className="no-default-hover-elevate no-default-active-elevate cursor-help border-red-200 bg-red-50 px-1.5 py-0 text-[10px] text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300"
                 data-testid={`badge-verified-reported-${pkShort}`}
               >
                 Reported by {verifiedReporters} verified
@@ -171,13 +158,12 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             </TooltipTrigger>
             <TooltipContent
               side="top"
-              className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 shadow-xl p-2.5 max-w-[240px]"
+              className="max-w-[240px] border-slate-200 bg-white/95 p-2.5 text-slate-700 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-200"
             >
               <p className="text-xs leading-relaxed">
-                {verifiedReporters} verified{" "}
-                {verifiedReporters === 1 ? "user has" : "users have"} reported
-                this account. "Verified" is your trust preset's reporter cutoff
-                — change the preset in Settings and this number moves with it.
+                {verifiedReporters} verified {verifiedReporters === 1 ? "user has" : "users have"} reported this
+                account. "Verified" is your trust preset's reporter cutoff — change the preset in Settings and this
+                number moves with it.
               </p>
             </TooltipContent>
           </UITooltip>
@@ -189,16 +175,11 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   const renderTrustBadge = (compact: boolean = false) => {
     if (trustScore === undefined) {
       return (
-        <div
-          className="flex items-center gap-1"
-          data-testid={`trust-loading-${pkShort}`}
-        >
+        <div className="flex items-center gap-1" data-testid={`trust-loading-${pkShort}`}>
           <div
-            className={`rounded-full bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-primary/15 dark:border-brand-primary/25 flex items-center justify-center shrink-0 ${compact ? "w-6 h-6" : "w-8 h-8"}`}
+            className={`flex shrink-0 items-center justify-center rounded-full border border-brand-primary/15 bg-brand-primary/10 dark:border-brand-primary/25 dark:bg-brand-primary/10 ${compact ? "h-6 w-6" : "h-8 w-8"}`}
           >
-            <Loader2
-              className={`text-brand-link animate-spin ${compact ? "h-3 w-3" : "h-3.5 w-3.5"}`}
-            />
+            <Loader2 className={`animate-spin text-brand-link ${compact ? "h-3 w-3" : "h-3.5 w-3.5"}`} />
           </div>
         </div>
       );
@@ -208,8 +189,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     const pct = Math.round(score * 100);
     // Ring follows the display mode: exact / 5-step quantized / full-hue.
     const arcFrac =
-      displayMode === "number" ? score :
-      displayMode === "level" ? rungFraction(score, false, granularity) : 1;
+      displayMode === "number" ? score : displayMode === "level" ? rungFraction(score, false, granularity) : 1;
     const ringColor =
       pct >= 50
         ? "stroke-emerald-500"
@@ -226,17 +206,9 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     return (
       <UITooltip>
         <TooltipTrigger asChild>
-          <div
-            className="flex flex-col items-center shrink-0 cursor-help"
-            data-testid={`badge-trust-${pkShort}`}
-          >
-            <div
-              className={`relative ${size} flex items-center justify-center`}
-            >
-              <svg
-                className="absolute inset-0 w-full h-full -rotate-90"
-                viewBox="0 0 44 44"
-              >
+          <div className="flex shrink-0 cursor-help flex-col items-center" data-testid={`badge-trust-${pkShort}`}>
+            <div className={`relative ${size} flex items-center justify-center`}>
+              <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 44 44">
                 <circle
                   cx="22"
                   cy="22"
@@ -261,9 +233,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   }}
                 />
               </svg>
-              <span
-                className={`${textSize} font-bold font-mono tabular-nums text-brand-primary dark:text-brand-link`}
-              >
+              <span className={`${textSize} font-mono font-bold tabular-nums text-brand-primary dark:text-brand-link`}>
                 {displayMode === "number" ? pct : ""}
               </span>
             </div>
@@ -271,21 +241,15 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
         </TooltipTrigger>
         <TooltipContent
           side="left"
-          className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 shadow-xl p-3 max-w-[260px]"
+          className="max-w-[260px] border-slate-200 bg-white/95 p-3 text-slate-700 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-200"
           data-testid={`tooltip-trust-${pkShort}`}
         >
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-2">
-              <p className="font-bold text-xs text-slate-900 dark:text-slate-100">
-                Verification Score
-              </p>
-              <span className={`text-xs font-semibold ${guidance.color}`}>
-                {guidance.label}
-              </span>
+              <p className="text-xs font-bold text-slate-900 dark:text-slate-100">Verification Score</p>
+              <span className={`text-xs font-semibold ${guidance.color}`}>{guidance.label}</span>
             </div>
-            <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-              {guidance.message}
-            </p>
+            <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">{guidance.message}</p>
           </div>
         </TooltipContent>
       </UITooltip>
@@ -301,7 +265,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     // (full counts for followed_by/following/muting/reporting, plus precise
     // influence). Keys not in the seed render an "—" placeholder instead of
     // a misleading "0" until the fetch completes.
-    const seedDetail: any | null =
+    const seedDetail: DetailGraph | null =
       graphData || trustScore != null
         ? {
             muted_by: graphData?.muted_by ?? [],
@@ -314,34 +278,28 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     // muted_by/reported_by we keep those arrays so the verified-subset
     // display (which requires per-pubkey influence maps) stays intact.
     // Influence falls back to the row's trustScore if overview omits it.
-    const effectiveDetail: any | null = detail
+    const effectiveDetail: DetailGraph | null = detail
       ? {
           ...detail,
-          ...(Array.isArray(graphData?.muted_by)
-            ? { muted_by: graphData!.muted_by }
-            : {}),
-          ...(Array.isArray(graphData?.reported_by)
-            ? { reported_by: graphData!.reported_by }
-            : {}),
-          ...(detail.influence == null && trustScore != null
-            ? { influence: trustScore }
-            : {}),
+          ...(Array.isArray(graphData?.muted_by) ? { muted_by: graphData!.muted_by } : {}),
+          ...(Array.isArray(graphData?.reported_by) ? { reported_by: graphData!.reported_by } : {}),
+          ...(detail.influence == null && trustScore != null ? { influence: trustScore } : {}),
         }
       : seedDetail;
-    const seededKeys = new Set<string>(
-      seedDetail ? Object.keys(seedDetail) : [],
-    );
+    const seededKeys = new Set<string>(seedDetail ? Object.keys(seedDetail) : []);
     // We only show an inline refresh spinner; never a full-panel blocker.
     const isRefreshing = expandedLoading && !detail;
     return (
       <div
-        className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none overflow-hidden animate-fade-up relative ${viewMode === "grid" ? "col-span-full" : ""}`}
+        className={`relative animate-fade-up overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none ${viewMode === "grid" ? "col-span-full" : ""}`}
         data-testid={`detail-panel-${pkShort}`}
       >
         <div className="p-5">
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <Avatar className={`h-12 w-12 border-2 border-brand-accent/20 shrink-0 shadow-sm dark:shadow-none ${tierRing(trustScore) ?? ""}`}>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <Avatar
+                className={`h-12 w-12 shrink-0 border-2 border-brand-accent/20 shadow-sm dark:shadow-none ${tierRing(trustScore) ?? ""}`}
+              >
                 {profile?.picture ? (
                   <AvatarImage
                     src={profile.picture}
@@ -349,55 +307,44 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                     className="object-cover"
                   />
                 ) : null}
-                <AvatarFallback className="bg-brand-primary/10 text-brand-primary text-sm font-bold">
-                  {(profile?.display_name || profile?.name || "?")
-                    .charAt(0)
-                    .toUpperCase()}
+                <AvatarFallback className="bg-brand-primary/10 text-sm font-bold text-brand-primary">
+                  {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">
                 <p
-                  className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate"
+                  className="truncate text-sm font-bold text-slate-900 dark:text-slate-100"
                   data-testid={`detail-name-${pkShort}`}
                 >
-                  {profile?.display_name ||
-                    profile?.name ||
-                    npub.slice(0, 12) + "..."}
+                  {profile?.display_name || profile?.name || npub.slice(0, 12) + "..."}
                 </p>
                 {profile?.nip05 && (
-                  <p
-                    className="text-xs text-brand-primary truncate"
-                    data-testid={`detail-nip05-${pkShort}`}
-                  >
+                  <p className="truncate text-xs text-brand-primary" data-testid={`detail-nip05-${pkShort}`}>
                     {profile.nip05}
                   </p>
                 )}
-                <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="mt-0.5 flex items-center gap-1.5">
                   <p
-                    className="text-xs font-mono text-slate-400 dark:text-slate-500 truncate"
+                    className="truncate font-mono text-xs text-slate-400 dark:text-slate-500"
                     data-testid={`detail-npub-${pkShort}`}
                   >
                     {npub.slice(0, 16) + "..." + npub.slice(-8)}
                   </p>
                   <button
                     type="button"
-                    className="p-0.5 rounded text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
+                    className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
                     onClick={(e) => {
                       e.stopPropagation();
                       onCopyNpub(npub, pk);
                     }}
                     data-testid={`button-detail-copy-npub-${pkShort}`}
                   >
-                    {isCopied ? (
-                      <Check className="h-3 w-3 text-green-500" />
-                    ) : (
-                      <Copy className="h-3 w-3" />
-                    )}
+                    {isCopied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
                   </button>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex shrink-0 items-center gap-2">
               {renderTrustBadge(false)}
               <Button
                 size="icon"
@@ -416,13 +363,11 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
 
           {isFlagged && (
             <div
-              className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25"
+              className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-500/25 dark:bg-red-500/10"
               data-testid={`detail-flagged-badge-${pkShort}`}
             >
               <FlaggedIcon className="h-4 w-4 text-red-600 dark:text-red-400" />
-              <span className="text-xs font-semibold text-red-700 dark:text-red-300">
-                Flagged
-              </span>
+              <span className="text-xs font-semibold text-red-700 dark:text-red-300">Flagged</span>
               <span className="text-[10px] text-red-500 dark:text-red-400">
                 Low trust & reported by 2+ trusted accounts
               </span>
@@ -431,7 +376,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
 
           {profile?.about && (
             <p
-              className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4 line-clamp-3"
+              className="mb-4 line-clamp-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
               data-testid={`detail-about-${pkShort}`}
             >
               {profile.about}
@@ -442,37 +387,26 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             <div>
               {isRefreshing && (
                 <div
-                  className="flex items-center gap-1.5 mb-2 text-[10px] text-brand-primary/80"
+                  className="mb-2 flex items-center gap-1.5 text-[10px] text-brand-primary/80"
                   data-testid={`detail-refreshing-${pkShort}`}
                 >
                   <Loader2 className="h-3 w-3 animate-spin" />
                   <span>Refreshing details…</span>
                 </div>
               )}
-              <div
-                className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4"
-                data-testid={`detail-metrics-${pkShort}`}
-              >
+              <div className="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3" data-testid={`detail-metrics-${pkShort}`}>
                 {detailMetrics.map((m) => {
                   const raw = effectiveDetail[m.key];
                   const hasData = raw !== undefined && raw !== null;
-                  const isPending =
-                    !hasData && !seededKeys.has(m.key) && isRefreshing;
+                  const isPending = !hasData && !seededKeys.has(m.key) && isRefreshing;
                   const isVerifiable =
-                    m.key === "followed_by" ||
-                    m.key === "following" ||
-                    m.key === "muted_by" ||
-                    m.key === "reported_by";
+                    m.key === "followed_by" || m.key === "following" || m.key === "muted_by" || m.key === "reported_by";
                   // Verified counts come from /stats only — they're the
                   // observer's saved preset applied to the full relationship.
                   // Until stats land we show the plain total rather than a
                   // count derived from a threshold this side invented.
                   const serverStat = isVerifiable ? stats?.[m.key] : undefined;
-                  let count = Array.isArray(raw)
-                    ? toPubkeys(raw).length
-                    : typeof raw === "number"
-                      ? raw
-                      : 0;
+                  let count = Array.isArray(raw) ? toPubkeys(raw).length : typeof raw === "number" ? raw : 0;
                   let verifiedCount = 0;
                   const hasVerifiedData = !!serverStat;
                   if (serverStat) {
@@ -482,35 +416,31 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   return (
                     <div
                       key={m.key}
-                      className="flex items-center gap-2.5 rounded-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm border border-brand-primary/15 dark:border-brand-primary/20 shadow-sm dark:shadow-none px-3 py-2.5"
+                      className="flex items-center gap-2.5 rounded-xl border border-brand-primary/15 bg-white/70 px-3 py-2.5 shadow-sm backdrop-blur-sm dark:border-brand-primary/20 dark:bg-slate-900/70 dark:shadow-none"
                       data-testid={`detail-metric-${m.key}-${pkShort}`}
                     >
                       <div
-                        className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${m.iconBg}`}
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${m.iconBg}`}
                       >
                         {metricIcons[m.key]?.(`h-4 w-4 ${m.iconColor}`)}
                       </div>
                       <div className="min-w-0">
                         {isPending ? (
-                          <p className="text-sm font-bold font-mono tabular-nums text-slate-300 dark:text-slate-600">
+                          <p className="font-mono text-sm font-bold tabular-nums text-slate-300 dark:text-slate-600">
                             —
                           </p>
                         ) : (
                           <p
-                            className={`text-sm font-bold font-mono tabular-nums ${count > 0 && (m.key === "muted_by" || m.key === "reported_by") ? m.countColor : "text-slate-900 dark:text-slate-100"}`}
+                            className={`font-mono text-sm font-bold tabular-nums ${count > 0 && (m.key === "muted_by" || m.key === "reported_by") ? m.countColor : "text-slate-900 dark:text-slate-100"}`}
                           >
-                            {isVerifiable && hasVerifiedData
-                              ? verifiedCount.toLocaleString()
-                              : count.toLocaleString()}
+                            {isVerifiable && hasVerifiedData ? verifiedCount.toLocaleString() : count.toLocaleString()}
                           </p>
                         )}
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight truncate">
-                          {isVerifiable && hasVerifiedData
-                            ? `Verified ${m.label}`
-                            : m.label}
+                        <p className="truncate text-[10px] leading-tight text-slate-400 dark:text-slate-500">
+                          {isVerifiable && hasVerifiedData ? `Verified ${m.label}` : m.label}
                         </p>
                         {isVerifiable && hasVerifiedData && (
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 font-mono tabular-nums">
+                          <p className="font-mono text-[9px] tabular-nums text-slate-400 dark:text-slate-500">
                             of {count.toLocaleString()} total
                           </p>
                         )}
@@ -522,18 +452,16 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
 
               {effectiveDetail.influence !== undefined && (
                 <div
-                  className="flex items-center gap-3 rounded-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm border border-brand-primary/15 dark:border-brand-primary/20 shadow-sm dark:shadow-none px-3.5 py-2.5 mb-4"
+                  className="mb-4 flex items-center gap-3 rounded-xl border border-brand-primary/15 bg-white/70 px-3.5 py-2.5 shadow-sm backdrop-blur-sm dark:border-brand-primary/20 dark:bg-slate-900/70 dark:shadow-none"
                   data-testid={`detail-influence-${pkShort}`}
                 >
-                  <div className="w-8 h-8 rounded-xl border border-brand-primary/20 bg-gradient-to-br from-brand-primary/10 to-brand-primary/15 flex items-center justify-center shrink-0">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-brand-primary/20 bg-gradient-to-br from-brand-primary/10 to-brand-primary/15">
                     <BrainLogo size={16} className="text-brand-primary" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
-                      Influence Score
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] leading-tight text-slate-400 dark:text-slate-500">Influence Score</p>
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                         <div
                           className="h-full rounded-full bg-gradient-to-r from-brand-accent to-brand-deep"
                           style={{
@@ -541,7 +469,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                           }}
                         />
                       </div>
-                      <span className="text-xs font-bold font-mono text-slate-700 dark:text-slate-200">
+                      <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-200">
                         {typeof effectiveDetail.influence === "number"
                           ? effectiveDetail.influence.toFixed(3)
                           : effectiveDetail.influence}
@@ -551,7 +479,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                 </div>
               )}
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center gap-2">
                 {(() => {
                   let detailGroups = getPubkeyGroups(pk);
                   if (!socialListsLoading) {
@@ -562,10 +490,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                     });
                   }
                   return detailGroups.length > 0 ? (
-                    <div
-                      className="flex items-center gap-1 flex-wrap"
-                      data-testid={`detail-groups-${pkShort}`}
-                    >
+                    <div className="flex flex-wrap items-center gap-1" data-testid={`detail-groups-${pkShort}`}>
                       {detailGroups.map((gk) => {
                         const groupDef = groups.find((g) => g.key === gk);
                         if (!groupDef) return null;
@@ -573,7 +498,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                           <Badge
                             key={gk}
                             variant="outline"
-                            className={`text-[10px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
+                            className={`px-1.5 py-0 text-[10px] ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
                             data-testid={`detail-badge-group-${gk}-${pkShort}`}
                           >
                             {groupDef.label}
@@ -585,18 +510,15 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                 })()}
                 {renderVerifiedFlags()}
                 {!isSelf && (
-                  <div
-                    className="flex items-center gap-1.5"
-                    data-testid={`detail-social-actions-${pkShort}`}
-                  >
+                  <div className="flex items-center gap-1.5" data-testid={`detail-social-actions-${pkShort}`}>
                     {socialListsLoading ? (
                       <>
                         <div
-                          className="h-7 w-20 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse"
+                          className="h-7 w-20 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-700"
                           data-testid={`skeleton-follow-${pkShort}`}
                         />
                         <div
-                          className="h-7 w-16 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse"
+                          className="h-7 w-16 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-700"
                           data-testid={`skeleton-mute-${pkShort}`}
                         />
                       </>
@@ -605,9 +527,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                         <button
                           type="button"
                           disabled={cardActionPending !== null || socialPending}
-                          onMouseEnter={() =>
-                            isFollowingUser && setCardFollowHovered(true)
-                          }
+                          onMouseEnter={() => isFollowingUser && setCardFollowHovered(true)}
                           onMouseLeave={() => setCardFollowHovered(false)}
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -620,11 +540,11 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                               setCardFollowHovered(false);
                             }
                           }}
-                          className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
+                          className={`inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 ${
                             isFollowingUser
                               ? cardFollowHovered
-                                ? "bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-600 dark:text-red-400"
-                                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300"
+                                ? "border border-red-200 bg-red-50 text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400"
+                                : "border border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
                               : "bg-brand-primary text-white hover:bg-brand-primary-hover"
                           }`}
                           data-testid={`button-follow-${pkShort}`}
@@ -663,10 +583,10 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                               setCardActionPending(null);
                             }
                           }}
-                          className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all duration-200 border disabled:opacity-50 disabled:pointer-events-none ${
+                          className={`inline-flex h-7 items-center gap-1 rounded-lg border px-2.5 text-[11px] font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 ${
                             isMutedUser
-                              ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/25 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/15"
-                              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                              ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/15"
+                              : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-800"
                           }`}
                           data-testid={`button-mute-${pkShort}`}
                         >
@@ -678,11 +598,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                             <VolumeX className="h-3 w-3" />
                           )}
                           <span className="hidden sm:inline">
-                            {cardActionPending === "mute"
-                              ? "..."
-                              : isMutedUser
-                                ? "Unmute"
-                                : "Mute"}
+                            {cardActionPending === "mute" ? "..." : isMutedUser ? "Unmute" : "Mute"}
                           </span>
                         </button>
                       </>
@@ -690,7 +606,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   </div>
                 )}
                 <button
-                  className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-brand-primary text-white shadow-md hover:shadow-lg hover:bg-brand-primary-hover transition-all duration-200"
+                  className="ml-auto inline-flex h-9 items-center gap-2 rounded-xl bg-brand-primary px-4 text-xs font-bold text-white shadow-md transition-all duration-200 hover:bg-brand-primary-hover hover:shadow-lg"
                   onClick={(e) => {
                     e.stopPropagation();
                     onNavigate(`/p/${npub}`);
@@ -713,7 +629,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             </div>
           ) : (
             <p
-              className="text-xs text-slate-400 dark:text-slate-500 py-4 text-center"
+              className="py-4 text-center text-xs text-slate-400 dark:text-slate-500"
               data-testid={`detail-error-${pkShort}`}
             >
               Unable to load details
@@ -733,16 +649,16 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     return (
       <>
         <div
-          className={`bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200 dark:border-slate-800 rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] animate-pulse ${viewMode === "grid" ? "p-4" : "p-3"}`}
+          className={`animate-pulse rounded-xl border border-slate-200 bg-white/90 shadow-[0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/90 ${viewMode === "grid" ? "p-4" : "p-3"}`}
           data-testid={`skeleton-profile-${pkShort}`}
         >
           <div className="flex items-center gap-3">
             <div
-              className={`rounded-full bg-slate-200 dark:bg-slate-700 shrink-0 ${viewMode === "grid" ? "h-8 w-8" : "h-7 w-7"}`}
+              className={`shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 ${viewMode === "grid" ? "h-8 w-8" : "h-7 w-7"}`}
             />
             <div className="flex-1 space-y-2">
-              <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-24" />
-              <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded w-32" />
+              <div className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-2 w-32 rounded bg-slate-100 dark:bg-slate-800" />
             </div>
           </div>
         </div>
@@ -754,51 +670,44 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     return (
       <>
         <div
-          className={`bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border rounded-xl px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-brand-primary/25 hover:shadow-[0_2px_8px_rgb(var(--brand-primary)/0.08)] transition-all duration-200 cursor-pointer flex items-center gap-3 ${isExpanded ? "border-brand-primary/25 shadow-[0_2px_8px_rgb(var(--brand-primary)/0.12)]" : "border-slate-200 dark:border-slate-800"}`}
+          className={`flex cursor-pointer items-center gap-3 rounded-xl border bg-white/90 px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-sm transition-all duration-200 hover:border-brand-primary/25 hover:shadow-[0_2px_8px_rgb(var(--brand-primary)/0.08)] dark:bg-slate-900/90 ${isExpanded ? "border-brand-primary/25 shadow-[0_2px_8px_rgb(var(--brand-primary)/0.12)]" : "border-slate-200 dark:border-slate-800"}`}
           onClick={() => onToggleExpanded(pk)}
           onMouseEnter={() => onPrefetchEnter?.(pk)}
           onMouseLeave={() => onPrefetchLeave?.(pk)}
           data-testid={`card-profile-${pkShort}`}
         >
-          <Avatar className={`h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0 ${tierRing(trustScore) ?? ""}`}>
-            {profile?.picture ? (
-              <AvatarImage
-                src={profile.picture}
-                alt={displayName}
-                className="object-cover"
-              />
-            ) : null}
-            <AvatarFallback className="bg-brand-primary/10 text-brand-primary text-xs font-bold">
+          <Avatar
+            className={`h-7 w-7 shrink-0 border border-slate-200/60 dark:border-slate-800/60 ${tierRing(trustScore) ?? ""}`}
+          >
+            {profile?.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
+            <AvatarFallback className="bg-brand-primary/10 text-xs font-bold text-brand-primary">
               {(displayName || "?").charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <p
-              className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[160px]"
+              className="max-w-[160px] truncate text-sm font-semibold text-slate-800 dark:text-slate-200"
               data-testid={`text-profile-name-${pkShort}`}
             >
               {displayName}
             </p>
             {profile?.nip05 && (
               <span
-                className="text-xs text-brand-primary truncate max-w-[140px] hidden sm:inline"
+                className="hidden max-w-[140px] truncate text-xs text-brand-primary sm:inline"
                 data-testid={`text-profile-nip05-${pkShort}`}
               >
                 {profile.nip05}
               </span>
             )}
             <span
-              className="text-xs font-mono text-slate-400 dark:text-slate-500 truncate hidden md:inline"
+              className="hidden truncate font-mono text-xs text-slate-400 dark:text-slate-500 md:inline"
               data-testid={`text-profile-npub-${pkShort}`}
             >
               {displayNpub}
             </span>
           </div>
           {liveFilteredGroups.length > 0 && (
-            <div
-              className="flex items-center gap-1 shrink-0 flex-wrap"
-              data-testid={`row-profile-groups-${pkShort}`}
-            >
+            <div className="flex shrink-0 flex-wrap items-center gap-1" data-testid={`row-profile-groups-${pkShort}`}>
               {liveFilteredGroups.map((gk) => {
                 const groupDef = groups.find((g) => g.key === gk);
                 if (!groupDef) return null;
@@ -806,7 +715,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   <Badge
                     key={gk}
                     variant="outline"
-                    className={`text-[10px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
+                    className={`px-1.5 py-0 text-[10px] ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
                     data-testid={`badge-group-${gk}-${pkShort}`}
                   >
                     {groupDef.label}
@@ -819,18 +728,14 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
           {renderTrustBadge(true)}
           <button
             type="button"
-            className="p-1 rounded text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
+            className="shrink-0 rounded p-1 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
             onClick={(e) => {
               e.stopPropagation();
               onCopyNpub(npub, pk);
             }}
             data-testid={`button-copy-npub-${pkShort}`}
           >
-            {isCopied ? (
-              <Check className="h-3 w-3 text-green-500" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
+            {isCopied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
           </button>
         </div>
         {renderDetailPanel()}
@@ -841,37 +746,30 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   return (
     <>
       <div
-        className={`bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-brand-primary/25 hover:shadow-[0_2px_8px_rgb(var(--brand-primary)/0.08)] transition-all duration-200 cursor-pointer group ${isExpanded ? "border-brand-primary/25 shadow-[0_2px_8px_rgb(var(--brand-primary)/0.12)]" : "border-slate-200 dark:border-slate-800"}`}
+        className={`group cursor-pointer rounded-xl border bg-white/90 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] backdrop-blur-sm transition-all duration-200 hover:border-brand-primary/25 hover:shadow-[0_2px_8px_rgb(var(--brand-primary)/0.08)] dark:bg-slate-900/90 ${isExpanded ? "border-brand-primary/25 shadow-[0_2px_8px_rgb(var(--brand-primary)/0.12)]" : "border-slate-200 dark:border-slate-800"}`}
         onClick={() => onToggleExpanded(pk)}
         onMouseEnter={() => onPrefetchEnter?.(pk)}
         onMouseLeave={() => onPrefetchLeave?.(pk)}
         data-testid={`card-profile-${pkShort}`}
       >
         <div className="flex items-center gap-3">
-          <Avatar className={`h-8 w-8 border border-slate-200/60 dark:border-slate-800/60 ${tierRing(trustScore) ?? ""}`}>
-            {profile?.picture ? (
-              <AvatarImage
-                src={profile.picture}
-                alt={displayName}
-                className="object-cover"
-              />
-            ) : null}
-            <AvatarFallback className="bg-brand-primary/10 text-brand-primary text-xs font-bold">
+          <Avatar
+            className={`h-8 w-8 border border-slate-200/60 dark:border-slate-800/60 ${tierRing(trustScore) ?? ""}`}
+          >
+            {profile?.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
+            <AvatarFallback className="bg-brand-primary/10 text-xs font-bold text-brand-primary">
               {(displayName || "?").charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <p
-              className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate"
+              className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200"
               data-testid={`text-profile-name-${pkShort}`}
             >
               {displayName}
             </p>
             {profile?.nip05 && (
-              <p
-                className="text-xs text-brand-primary truncate"
-                data-testid={`text-profile-nip05-${pkShort}`}
-              >
+              <p className="truncate text-xs text-brand-primary" data-testid={`text-profile-nip05-${pkShort}`}>
                 {profile.nip05}
               </p>
             )}
@@ -880,32 +778,25 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
         </div>
         <div className="mt-2 flex items-center gap-1.5">
           <span
-            className="text-xs font-mono text-slate-400 dark:text-slate-500 truncate"
+            className="truncate font-mono text-xs text-slate-400 dark:text-slate-500"
             data-testid={`text-profile-npub-${pkShort}`}
           >
             {displayNpub}
           </span>
           <button
             type="button"
-            className="p-0.5 rounded text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
+            className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
             onClick={(e) => {
               e.stopPropagation();
               onCopyNpub(npub, pk);
             }}
             data-testid={`button-copy-npub-${pkShort}`}
           >
-            {isCopied ? (
-              <Check className="h-3 w-3 text-green-500" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
+            {isCopied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
           </button>
         </div>
         {liveFilteredGroups.length > 0 && (
-          <div
-            className="mt-2 flex flex-wrap gap-1"
-            data-testid={`row-profile-groups-${pkShort}`}
-          >
+          <div className="mt-2 flex flex-wrap gap-1" data-testid={`row-profile-groups-${pkShort}`}>
             {liveFilteredGroups.map((gk) => {
               const groupDef = groups.find((g) => g.key === gk);
               if (!groupDef) return null;
@@ -913,7 +804,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                 <Badge
                   key={gk}
                   variant="outline"
-                  className={`text-[10px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
+                  className={`px-1.5 py-0 text-[10px] ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
                   data-testid={`badge-group-${gk}-${pkShort}`}
                 >
                   {groupDef.label}
@@ -922,9 +813,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             })}
           </div>
         )}
-        {renderVerifiedFlags() && (
-          <div className="mt-2">{renderVerifiedFlags()}</div>
-        )}
+        {renderVerifiedFlags() && <div className="mt-2">{renderVerifiedFlags()}</div>}
       </div>
       {renderDetailPanel()}
     </>

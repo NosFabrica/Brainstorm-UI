@@ -38,7 +38,19 @@ const ROOT = "e".repeat(64);
 const SELLER = "b".repeat(64);
 const COORD = `30402:${SELLER}:obscura-vpn`;
 const comment = (id: string, text: string): NostrEvent =>
-  ({ id: id.padEnd(64, "0"), kind: 1111, pubkey: "c".repeat(64), created_at: 1_700_000_000, content: text, sig: "", tags: [["A", COORD], ["K", "30402"], ["P", SELLER]] }) as NostrEvent;
+  ({
+    id: id.padEnd(64, "0"),
+    kind: 1111,
+    pubkey: "c".repeat(64),
+    created_at: 1_700_000_000,
+    content: text,
+    sig: "",
+    tags: [
+      ["A", COORD],
+      ["K", "30402"],
+      ["P", SELLER],
+    ],
+  }) as NostrEvent;
 
 describe("EventThread", () => {
   beforeEach(() => {
@@ -48,7 +60,10 @@ describe("EventThread", () => {
   });
 
   it("shows a listing's comments from the search relay even when the profile relays have none", async () => {
-    indexedMock.mockResolvedValue([comment("q1", "Does it ship to Italy?"), comment("q2", "Great private alternative.")]);
+    indexedMock.mockResolvedValue([
+      comment("q1", "Does it ship to Italy?"),
+      comment("q2", "Great private alternative."),
+    ]);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={qc}>

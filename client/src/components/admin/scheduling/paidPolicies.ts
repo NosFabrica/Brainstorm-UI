@@ -7,9 +7,7 @@
  * but a mapping's price is Flash's answer now and is not on this endpoint —
  * an active mapping IS the decision to sell, which is what this asks.
  */
-export function paidSchedulingIds(
-  mappings: Array<{ scheduling_id: number; is_active: boolean }>,
-): Set<number> {
+export function paidSchedulingIds(mappings: Array<{ scheduling_id: number; is_active: boolean }>): Set<number> {
   return new Set(mappings.filter((m) => m.is_active).map((m) => m.scheduling_id));
 }
 

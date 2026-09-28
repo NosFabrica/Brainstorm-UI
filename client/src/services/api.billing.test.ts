@@ -45,9 +45,7 @@ describe("the admin's writes to a subscription", () => {
     const out = await apiClient.cancelAdminBillingSubscription(PK, "Duplicate signup");
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(
-      `http://test.local/admin/billing/subscriptions/${PK}/cancel`,
-    );
+    expect(url).toBe(`http://test.local/admin/billing/subscriptions/${PK}/cancel`);
     expect(options.method).toBe("POST");
     expect(JSON.parse(options.body)).toEqual({ reason: "Duplicate signup" });
     expect(out.cancellation_scheduled).toBe(true);
@@ -68,9 +66,7 @@ describe("the admin's writes to a subscription", () => {
     await apiClient.setAdminBillingSubscriptionStatus(PK, "paused");
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(
-      `http://test.local/admin/billing/subscriptions/${PK}/status`,
-    );
+    expect(url).toBe(`http://test.local/admin/billing/subscriptions/${PK}/status`);
     expect(options.method).toBe("PATCH");
     expect(JSON.parse(options.body)).toEqual({ status: "paused" });
   });
@@ -84,9 +80,7 @@ describe("the admin's writes to a subscription", () => {
       { ok: false, status: 502 },
     );
 
-    await expect(
-      apiClient.cancelAdminBillingSubscription(PK),
-    ).rejects.toThrow(/scope needed to manage subscriptions/);
+    await expect(apiClient.cancelAdminBillingSubscription(PK)).rejects.toThrow(/scope needed to manage subscriptions/);
   });
 
   it("keeps an unreachable Flash apart from a refused one", async () => {
@@ -95,17 +89,13 @@ describe("the admin's writes to a subscription", () => {
       { ok: false, status: 503 },
     );
 
-    await expect(
-      apiClient.setAdminBillingSubscriptionStatus(PK, "paused"),
-    ).rejects.toThrow(/Could not reach Flash/);
+    await expect(apiClient.setAdminBillingSubscriptionStatus(PK, "paused")).rejects.toThrow(/Could not reach Flash/);
   });
 
   it("still fails legibly when the server says nothing useful", async () => {
     mockFetchOnce(null, { ok: false, status: 500 });
 
-    await expect(
-      apiClient.cancelAdminBillingSubscription(PK),
-    ).rejects.toThrow(/500/);
+    await expect(apiClient.cancelAdminBillingSubscription(PK)).rejects.toThrow(/500/);
   });
 });
 
@@ -135,15 +125,10 @@ describe("resolving an unresolved signup", () => {
   it("attributes by subscription id, sending only the hex key the server validates", async () => {
     const fetchMock = mockFetchOnce(RESOLVED);
 
-    const out = await apiClient.attributeAdminBillingUnresolved(
-      "01a01f88-0d7f-734b-b724-13e32b482f57",
-      PK,
-    );
+    const out = await apiClient.attributeAdminBillingUnresolved("01a01f88-0d7f-734b-b724-13e32b482f57", PK);
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(
-      "http://test.local/admin/billing/unresolved/01a01f88-0d7f-734b-b724-13e32b482f57/attribute",
-    );
+    expect(url).toBe("http://test.local/admin/billing/unresolved/01a01f88-0d7f-734b-b724-13e32b482f57/attribute");
     expect(options.method).toBe("POST");
     expect(JSON.parse(options.body)).toEqual({ pubkey: PK });
     expect(out.applied).toBe(true);
@@ -164,15 +149,14 @@ describe("resolving an unresolved signup", () => {
   it("passes the server's refusal through as the sentence it is", async () => {
     mockFetchOnce(
       {
-        detail:
-          "This user already holds subscription 7d3b. Resolve that one first.",
+        detail: "This user already holds subscription 7d3b. Resolve that one first.",
       },
       { ok: false, status: 409 },
     );
 
-    await expect(
-      apiClient.attributeAdminBillingUnresolved("7d3b", PK),
-    ).rejects.toThrow(/already holds subscription 7d3b/);
+    await expect(apiClient.attributeAdminBillingUnresolved("7d3b", PK)).rejects.toThrow(
+      /already holds subscription 7d3b/,
+    );
   });
 });
 

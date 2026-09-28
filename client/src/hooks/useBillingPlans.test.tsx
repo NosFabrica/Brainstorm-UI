@@ -78,7 +78,15 @@ describe("useBillingPlans — what the one thing on sale is called", () => {
 
   it("ignores plans that cannot be bought — the free row has no checkout", async () => {
     fetchPlans.mockResolvedValue([
-      plan({ policyId: 1, policyName: "Free", isDefault: true, planId: null, planName: null, checkoutUrl: null, amountMinor: 0 }),
+      plan({
+        policyId: 1,
+        policyName: "Free",
+        isDefault: true,
+        planId: null,
+        planName: null,
+        checkoutUrl: null,
+        amountMinor: 0,
+      }),
       plan({}),
     ]);
     const { result } = renderHook(() => useBillingPlans(), { wrapper });

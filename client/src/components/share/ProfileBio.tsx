@@ -15,7 +15,15 @@ type ProfileLite = { name?: string; display_name?: string; picture?: string };
  */
 const LONG_ENOUGH = 160;
 
-export function ProfileBio({ text, profiles, collapsedLines = 3 }: { text: string; profiles?: Map<string, ProfileLite>; collapsedLines?: 2 | 3 | 4 }) {
+export function ProfileBio({
+  text,
+  profiles,
+  collapsedLines = 3,
+}: {
+  text: string;
+  profiles?: Map<string, ProfileLite>;
+  collapsedLines?: 2 | 3 | 4;
+}) {
   const [expanded, setExpanded] = useState(false);
   const lines = text.split("\n").length;
   const hasMore = text.length > LONG_ENOUGH || lines > collapsedLines;
@@ -23,7 +31,7 @@ export function ProfileBio({ text, profiles, collapsedLines = 3 }: { text: strin
   return (
     <div className="mt-2" data-testid="share-bio">
       <p
-        className={`text-sm text-slate-600 dark:text-slate-300 leading-snug break-words ${expanded || !hasMore ? "whitespace-pre-line" : `whitespace-normal ${clamp}`}`}
+        className={`break-words text-sm leading-snug text-slate-600 dark:text-slate-300 ${expanded || !hasMore ? "whitespace-pre-line" : `whitespace-normal ${clamp}`}`}
         data-testid="share-bio-text"
       >
         <ShareBio text={text} profiles={profiles} />
@@ -33,7 +41,7 @@ export function ProfileBio({ text, profiles, collapsedLines = 3 }: { text: strin
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors"
+          className="mt-1 text-xs font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
           data-testid="share-bio-toggle"
         >
           {expanded ? "Show less" : "Show more"}

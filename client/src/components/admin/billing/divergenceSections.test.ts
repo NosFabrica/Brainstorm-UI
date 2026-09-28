@@ -8,7 +8,14 @@
  * signup); the id map lets the exhausted row borrow the signup's handle.
  */
 import { describe, expect, it } from "vitest";
-import { DIVERGENCE_META, firstSentence, groupSignups, orderedSections, splitExhausted, subscriptionIdsByEventId } from "./divergenceSections";
+import {
+  DIVERGENCE_META,
+  firstSentence,
+  groupSignups,
+  orderedSections,
+  splitExhausted,
+  subscriptionIdsByEventId,
+} from "./divergenceSections";
 
 const section = (rows: Record<string, unknown>[] = [{}]) => ({ count: rows.length, truncated: false, rows });
 
@@ -22,7 +29,14 @@ describe("orderedSections", () => {
       stale_syncs: section(),
       exhausted_events: section(),
     });
-    expect(out.map((s) => s.kind)).toEqual(["policy_mismatch", "unmapped_plans", "exhausted_events", "stale_syncs", "abandoned_checkouts", "some_future_kind"]);
+    expect(out.map((s) => s.kind)).toEqual([
+      "policy_mismatch",
+      "unmapped_plans",
+      "exhausted_events",
+      "stale_syncs",
+      "abandoned_checkouts",
+      "some_future_kind",
+    ]);
     expect(out.map((s) => s.tier)).toEqual(["fault", "fault", "fault", "record", "record", "record"]);
     expect(out.find((s) => s.kind === "some_future_kind")?.meta).toBeNull();
   });
@@ -44,8 +58,14 @@ describe("orderedSections", () => {
 describe("subscriptionIdsByEventId", () => {
   it("maps webhook event ids to the Flash subscription id across the signup sections, remembering which", () => {
     const map = subscriptionIdsByEventId({
-      unresolved_signups: section([{ id: 14, flash_subscription_id: "sub_a" }, { id: 15, flash_subscription_id: "sub_b" }]),
-      unmapped_plans: section([{ id: 42, flash_subscription_id: "sub_c" }, { id: 43, flash_subscription_id: null }]),
+      unresolved_signups: section([
+        { id: 14, flash_subscription_id: "sub_a" },
+        { id: 15, flash_subscription_id: "sub_b" },
+      ]),
+      unmapped_plans: section([
+        { id: 42, flash_subscription_id: "sub_c" },
+        { id: 43, flash_subscription_id: null },
+      ]),
       exhausted_events: section([{ id: 14, attempts: 5 }]),
     });
     expect(map.get(14)).toEqual({ subscriptionId: "sub_a", from: "unresolved_signups" });
@@ -62,12 +82,39 @@ describe("subscriptionIdsByEventId", () => {
 // section knows ride the delivery line instead of repeating the row.
 describe("groupSignups", () => {
   const rows = [
-    { id: 14, event: "subscription.activated", created_at: "2026-09-02T00:00:00Z", process_error: "no_reference", flash_subscription_id: "sub_a" },
-    { id: 16, event: "subscription.activated", created_at: "2026-09-01T00:00:00Z", process_error: "no_reference", flash_subscription_id: "sub_b" },
-    { id: 15, event: "subscription.canceled", created_at: "2026-09-04T00:00:00Z", process_error: "no_reference", flash_subscription_id: "sub_a" },
-    { id: 17, event: "subscription.activated", created_at: null, process_error: "no_reference", flash_subscription_id: null },
+    {
+      id: 14,
+      event: "subscription.activated",
+      created_at: "2026-09-02T00:00:00Z",
+      process_error: "no_reference",
+      flash_subscription_id: "sub_a",
+    },
+    {
+      id: 16,
+      event: "subscription.activated",
+      created_at: "2026-09-01T00:00:00Z",
+      process_error: "no_reference",
+      flash_subscription_id: "sub_b",
+    },
+    {
+      id: 15,
+      event: "subscription.canceled",
+      created_at: "2026-09-04T00:00:00Z",
+      process_error: "no_reference",
+      flash_subscription_id: "sub_a",
+    },
+    {
+      id: 17,
+      event: "subscription.activated",
+      created_at: null,
+      process_error: "no_reference",
+      flash_subscription_id: null,
+    },
   ];
-  const exhausted = [{ id: 14, event: "subscription.activated", attempts: 5, process_error: "no_reference" }, { id: 15, event: "subscription.canceled", attempts: 5, process_error: "no_reference" }];
+  const exhausted = [
+    { id: 14, event: "subscription.activated", attempts: 5, process_error: "no_reference" },
+    { id: 15, event: "subscription.canceled", attempts: 5, process_error: "no_reference" },
+  ];
   it("one group per Flash subscription, in order of first appearance; a row with no id stands alone", () => {
     const groups = groupSignups(rows, exhausted);
     expect(groups.map((g) => g.subscriptionId)).toEqual(["sub_a", "sub_b", null]);
@@ -89,7 +136,11 @@ describe("splitExhausted", () => {
       unmapped_plans: section([{ id: 42, flash_subscription_id: "sub_c" }]),
     });
     const out = splitExhausted(
-      [{ id: 14, event: "e", attempts: 5, process_error: "no_reference" }, { id: 42, event: "e", attempts: 5, process_error: "unknown_plan" }, { id: 99, event: "e", attempts: 5, process_error: "boom" }],
+      [
+        { id: 14, event: "e", attempts: 5, process_error: "no_reference" },
+        { id: 42, event: "e", attempts: 5, process_error: "unknown_plan" },
+        { id: 99, event: "e", attempts: 5, process_error: "boom" },
+      ],
       handles,
     );
     expect(out.folded).toBe(1);
@@ -101,8 +152,16 @@ describe("splitExhausted", () => {
 // sentence is enough and the rest waits on hover.
 describe("firstSentence", () => {
   it("keeps the first sentence, whole, and leaves a one-sentence text alone", () => {
-    expect(firstSentence("The read from Flash failed and it still matters — a bad API key. Abandoned checkouts are kept out.")).toBe("The read from Flash failed and it still matters — a bad API key.");
-    expect(firstSentence("Renewing normally on a plan nobody can buy any more.")).toBe("Renewing normally on a plan nobody can buy any more.");
-    expect(firstSentence("Started but never paid; Flash discards them. Individually boring.")).toBe("Started but never paid; Flash discards them.");
+    expect(
+      firstSentence(
+        "The read from Flash failed and it still matters — a bad API key. Abandoned checkouts are kept out.",
+      ),
+    ).toBe("The read from Flash failed and it still matters — a bad API key.");
+    expect(firstSentence("Renewing normally on a plan nobody can buy any more.")).toBe(
+      "Renewing normally on a plan nobody can buy any more.",
+    );
+    expect(firstSentence("Started but never paid; Flash discards them. Individually boring.")).toBe(
+      "Started but never paid; Flash discards them.",
+    );
   });
 });

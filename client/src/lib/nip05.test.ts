@@ -55,9 +55,17 @@ describe("verifyNip05", () => {
   });
 
   it("an unreachable domain is unknown, not verified", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
     expect(await verifyNip05("_@down.example", HZRD)).toBe("unknown");
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("nope", { status: 404 })),
+    );
     expect(await verifyNip05("_@missing.example", HZRD)).toBe("unknown");
   });
 
@@ -96,13 +104,16 @@ describe("verifyNip05", () => {
     let open = 0;
     let peak = 0;
     const release: Array<() => void> = [];
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      open++;
-      peak = Math.max(peak, open);
-      await new Promise<void>((r) => release.push(r));
-      open--;
-      return new Response(JSON.stringify({ names: {} }), { status: 200 });
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        open++;
+        peak = Math.max(peak, open);
+        await new Promise<void>((r) => release.push(r));
+        open--;
+        return new Response(JSON.stringify({ names: {} }), { status: 200 });
+      }),
+    );
     const all = Promise.all(Array.from({ length: 15 }, (_, i) => verifyNip05(`_@d${i}.example.com`, HZRD)));
     while (release.length || open) {
       await new Promise((r) => setTimeout(r, 0));
@@ -114,7 +125,8 @@ describe("verifyNip05", () => {
 });
 
 const PK = "75d737c3472471029c44876b330d2284288a42779b591a2ed4daa1c6c07efaf7";
-const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+const ok = (body: unknown) =>
+  new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 
 describe("resolveNip05", () => {
   beforeEach(() => __resetNip05());
@@ -137,19 +149,36 @@ describe("resolveNip05", () => {
   });
 
   it("answers null, never throws: non-2xx, a dead network, bad JSON, a missing name, a bad key", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 404 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 404 })),
+    );
     expect(await resolveNip05("a@x.org")).toBeNull();
     __resetNip05();
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("blocked"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("blocked");
+      }),
+    );
     expect(await resolveNip05("a@x.org")).toBeNull();
     __resetNip05();
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>", { status: 200 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("<html>", { status: 200 })),
+    );
     expect(await resolveNip05("a@x.org")).toBeNull();
     __resetNip05();
-    vi.stubGlobal("fetch", vi.fn(async () => ok({ names: { someone: PK } })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ok({ names: { someone: PK } })),
+    );
     expect(await resolveNip05("a@x.org")).toBeNull();
     __resetNip05();
-    vi.stubGlobal("fetch", vi.fn(async () => ok({ names: { a: "not-a-key" } })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ok({ names: { a: "not-a-key" } })),
+    );
     expect(await resolveNip05("a@x.org")).toBeNull();
   });
 
@@ -162,11 +191,14 @@ describe("resolveNip05", () => {
   });
   it("a typed handle doesn't wait behind background badge checks", async () => {
     const release: Array<() => void> = [];
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
-      if (String(url).includes("primal.net")) return ok({ names: { alice: PK } });
-      await new Promise<void>((r) => release.push(r));
-      return ok({ names: {} });
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).includes("primal.net")) return ok({ names: { alice: PK } });
+        await new Promise<void>((r) => release.push(r));
+        return ok({ names: {} });
+      }),
+    );
     const background = Array.from({ length: 8 }, (_, i) => verifyNip05(`_@d${i}.example.com`, PK));
     expect(await resolveNip05("alice@primal.net")).toBe(PK);
     while (release.length) release.shift()!();

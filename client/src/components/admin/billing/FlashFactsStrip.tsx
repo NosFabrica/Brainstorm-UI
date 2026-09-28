@@ -72,7 +72,10 @@ export function FlashFactsStrip({
 
   if (query.isPending) {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500" aria-label="Asking Flash">
+      <span
+        className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500"
+        aria-label="Asking Flash"
+      >
         <Loader2 className="h-3 w-3 animate-spin" />
       </span>
     );
@@ -111,9 +114,7 @@ export function FlashFactsStrip({
         </Chip>
         {plan && <span className="font-medium">{plan}</span>}
       </span>
-      {line2.length > 0 && (
-        <span className="text-[11px] text-slate-500 dark:text-slate-400">{line2.join(" · ")}</span>
-      )}
+      {line2.length > 0 && <span className="text-[11px] text-slate-500 dark:text-slate-400">{line2.join(" · ")}</span>}
     </span>
   );
 }

@@ -24,7 +24,15 @@ import { warmRelayLists, resetRelayRoutingCache } from "./relayRouting";
 
 const pk = (i: number) => i.toString(16).padStart(64, "0");
 const relayList = (pubkey: string): NostrEvent =>
-  ({ id: "1".repeat(64), kind: 10002, pubkey, created_at: 1, tags: [["r", "wss://x"]], content: "", sig: "s" }) as NostrEvent;
+  ({
+    id: "1".repeat(64),
+    kind: 10002,
+    pubkey,
+    created_at: 1,
+    tags: [["r", "wss://x"]],
+    content: "",
+    sig: "s",
+  }) as NostrEvent;
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
 

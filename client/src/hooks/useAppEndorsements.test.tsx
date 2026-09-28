@@ -45,7 +45,14 @@ describe("useAppEndorsements", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(addr("one"), { publisher: PUB, reviewLimit: 8, zapLimit: 0 });
     await act(async () => {
-      pending[0].resolve({ address: addr("one"), reviews: [], reviewCount: 14, zaps: [], zapCount: 0, collectionCount: 0 });
+      pending[0].resolve({
+        address: addr("one"),
+        reviews: [],
+        reviewCount: 14,
+        zaps: [],
+        zapCount: 0,
+        collectionCount: 0,
+      });
     });
     expect(screen.getAllByText("reviews:14")).toHaveLength(2);
   });
@@ -60,7 +67,14 @@ describe("useAppEndorsements", () => {
     );
     expect(fetchMock).toHaveBeenCalledTimes(4);
     await act(async () => {
-      pending[0].resolve({ address: addr("a"), reviews: [], reviewCount: 1, zaps: [], zapCount: 0, collectionCount: 0 });
+      pending[0].resolve({
+        address: addr("a"),
+        reviews: [],
+        reviewCount: 1,
+        zaps: [],
+        zapCount: 0,
+        collectionCount: 0,
+      });
     });
     expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(screen.getByTestId("card-a")).toHaveTextContent("reviews:1");

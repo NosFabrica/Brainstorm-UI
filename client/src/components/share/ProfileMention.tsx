@@ -11,7 +11,7 @@ export function ProfileMention({ npub, name, picture }: { npub: string; name?: s
     <button
       type="button"
       onClick={() => requestNav({ kind: "profile", target: npub, label: name || npub.slice(0, 12) + "…", picture })}
-      className="text-brand-link font-medium hover:underline"
+      className="font-medium text-brand-link hover:underline"
     >
       {label}
     </button>

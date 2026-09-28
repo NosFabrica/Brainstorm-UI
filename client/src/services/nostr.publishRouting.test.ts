@@ -67,7 +67,12 @@ describe("routing a publish", () => {
    * which is the entire reason they published a relay list.
    */
   it("also sends to the READ relays of everyone the event names", async () => {
-    seed(relayList(THEM, [["r", "wss://their-out.example", "write"], ["r", "wss://their-in.example", "read"]]));
+    seed(
+      relayList(THEM, [
+        ["r", "wss://their-out.example", "write"],
+        ["r", "wss://their-in.example", "read"],
+      ]),
+    );
 
     const relays = await publishRelaysFor(event(1, [["p", THEM]]));
 
@@ -103,7 +108,12 @@ describe("routing a publish", () => {
   });
 
   it("never routes back to the author's own inbox for naming themself", async () => {
-    seed(relayList(ME, [["r", "wss://my-in.example", "read"], ["r", "wss://my-out.example", "write"]]));
+    seed(
+      relayList(ME, [
+        ["r", "wss://my-in.example", "read"],
+        ["r", "wss://my-out.example", "write"],
+      ]),
+    );
 
     expect(await publishRelaysFor(event(1, [["p", ME]]))).not.toContain("wss://my-in.example/");
   });
@@ -125,9 +135,7 @@ describe("routing a publish", () => {
   it("reads the author hint out of an `e` tag", async () => {
     seed(relayList(THEM, [["r", "wss://their-in.example", "read"]]));
 
-    const relays = await publishRelaysFor(
-      event(1, [["e", "f".repeat(64), "wss://hint.example", "reply", THEM]]),
-    );
+    const relays = await publishRelaysFor(event(1, [["e", "f".repeat(64), "wss://hint.example", "reply", THEM]]));
 
     expect(relays).toContain("wss://their-in.example/");
   });
@@ -144,7 +152,15 @@ describe("routing a publish", () => {
   /** No hint in the tag, but the store already knows who wrote it. */
   it("falls back to the store for a bare `e` tag", async () => {
     seed(relayList(THEM, [["r", "wss://their-in.example", "read"]]));
-    const referenced = { id: "f".repeat(64), kind: 1, pubkey: THEM, created_at: 1, tags: [], content: "", sig: "s" } as NostrEvent;
+    const referenced = {
+      id: "f".repeat(64),
+      kind: 1,
+      pubkey: THEM,
+      created_at: 1,
+      tags: [],
+      content: "",
+      sig: "s",
+    } as NostrEvent;
     events.set(referenced.id, referenced);
 
     const relays = await publishRelaysFor(event(1, [["e", referenced.id]]));
@@ -168,7 +184,11 @@ describe("routing a publish", () => {
     seed(relayList(ME, [["r", "wss://my-in.example", "read"]]));
 
     const relays = await publishRelaysFor(
-      event(5, [["e", "f".repeat(64)], ["a", `31925:${ME}:xyz`], ["k", "31925"]]),
+      event(5, [
+        ["e", "f".repeat(64)],
+        ["a", `31925:${ME}:xyz`],
+        ["k", "31925"],
+      ]),
     );
 
     expect(relays).not.toContain("wss://my-in.example/");

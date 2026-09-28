@@ -9,7 +9,11 @@ import { parseListing, type Listing } from "./listing";
 import { collapseVariants } from "./listingVariants";
 
 const SELLER = "ab".repeat(32);
-const make = (title: string, at: number, opts: { seller?: string; price?: [string, string]; image?: string | null } = {}): Listing =>
+const make = (
+  title: string,
+  at: number,
+  opts: { seller?: string; price?: [string, string]; image?: string | null } = {},
+): Listing =>
   parseListing({
     id: `${title}-${at}`.replace(/\W/g, "").padEnd(64, "0").slice(0, 64),
     pubkey: opts.seller ?? SELLER,
@@ -26,14 +30,22 @@ const make = (title: string, at: number, opts: { seller?: string; price?: [strin
 
 describe("collapseVariants", () => {
   it("folds one shirt in five sizes into one product, newest first, sizes in order — the coffee stays its own card", () => {
-    const shirts = ["XXL", "XL", "LARGE", "MEDIUM", "SMALL"].map((size, i) => make(`SOUND COFFEE T-SHIRT — ${size} / PEPPER`, 500 - i));
+    const shirts = ["XXL", "XL", "LARGE", "MEDIUM", "SMALL"].map((size, i) =>
+      make(`SOUND COFFEE T-SHIRT — ${size} / PEPPER`, 500 - i),
+    );
     const coffee = make("SOUND COFFEE", 600, { price: ["20", "USD"], image: "https://img/bag.jpg" });
     const groups = collapseVariants([coffee, ...shirts]);
     expect(groups.map((g) => g.title)).toEqual(["SOUND COFFEE", "SOUND COFFEE T-SHIRT"]);
     const shirt = groups[1];
     expect(shirt.primary).toBe(shirts[0]);
     expect(shirt.members).toHaveLength(5);
-    expect(shirt.options).toEqual(["XXL / PEPPER", "XL / PEPPER", "LARGE / PEPPER", "MEDIUM / PEPPER", "SMALL / PEPPER"]);
+    expect(shirt.options).toEqual([
+      "XXL / PEPPER",
+      "XL / PEPPER",
+      "LARGE / PEPPER",
+      "MEDIUM / PEPPER",
+      "SMALL / PEPPER",
+    ]);
     expect(groups[0].options).toEqual([]);
   });
 

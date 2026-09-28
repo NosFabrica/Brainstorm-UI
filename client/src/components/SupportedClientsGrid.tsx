@@ -19,14 +19,14 @@ export function SupportedClientsGrid({
   className?: string;
 }) {
   return (
-    <div className={cn("grid grid-cols-2 sm:grid-cols-4 gap-2.5", className)}>
+    <div className={cn("grid grid-cols-2 gap-2.5 sm:grid-cols-4", className)}>
       {SUPPORTED_CLIENTS.map((c) => (
         <a
           key={c.name}
           href={c.href}
           target="_blank"
           rel="noopener"
-          className="group flex items-center gap-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-3 hover:border-brand-accent/40 hover:shadow-sm transition-all"
+          className="group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-3 transition-all hover:border-brand-accent/40 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900"
           data-testid={`${testIdPrefix}-${c.name.toLowerCase()}`}
         >
           <img src={c.logo} alt="" className="h-5 w-5 shrink-0 rounded-md object-contain" />

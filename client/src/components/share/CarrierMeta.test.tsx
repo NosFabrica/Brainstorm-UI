@@ -62,10 +62,7 @@ describe("CarrierMeta", () => {
 
   it("marks a self-declaration as the person's own claim, not the network's", () => {
     render(
-      <CarrierMeta
-        carrier={carrier({ applications: 0, asserters: [], selfDeclared: true })}
-        profileMap={profileMap}
-      />,
+      <CarrierMeta carrier={carrier({ applications: 0, asserters: [], selfDeclared: true })} profileMap={profileMap} />,
     );
     expect(screen.getByTestId("tag-self-declared")).toHaveTextContent("Says this about themselves");
     // Crucially it must NOT read as though somebody vouched.
@@ -82,9 +79,7 @@ describe("CarrierMeta", () => {
   it("surfaces the subject's objection on its own line", () => {
     render(<CarrierMeta carrier={carrier({ subjectDisagreed: true })} profileMap={profileMap} />);
     // The objection can't remove the tag, so it must be impossible to miss.
-    expect(screen.getByTestId("tag-subject-disagrees")).toHaveTextContent(
-      "They disagree with this tag",
-    );
+    expect(screen.getByTestId("tag-subject-disagrees")).toHaveTextContent("They disagree with this tag");
     // And it never suppresses the vouches — no veto.
     expect(screen.getByTestId("tag-vouch-count")).toHaveTextContent("Added by Avi Burra");
   });
@@ -120,9 +115,7 @@ describe("CarrierMeta", () => {
   });
 
   it("does not tell you that you disagree with yourself", () => {
-    render(
-      <CarrierMeta carrier={carrier({ subjectDisagreed: true })} profileMap={profileMap} isViewer />,
-    );
+    render(<CarrierMeta carrier={carrier({ subjectDisagreed: true })} profileMap={profileMap} isViewer />);
     expect(screen.queryByTestId("tag-subject-disagrees")).toBeNull();
   });
 

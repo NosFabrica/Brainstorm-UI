@@ -9,13 +9,28 @@ import { liftQuery } from "@/lib/searchSyntax";
 import { technicalView } from "@/lib/technicalView";
 import { kindsForTab, tagsForTab, type SearchPov, type SearchTab } from "@/services/search";
 
-export function QueryAsSent({ query, tab, pov, timeMs }: { query: string; tab: SearchTab; pov: SearchPov; timeMs: number | null | undefined }) {
+export function QueryAsSent({
+  query,
+  tab,
+  pov,
+  timeMs,
+}: {
+  query: string;
+  tab: SearchTab;
+  pov: SearchPov;
+  timeMs: number | null | undefined;
+}) {
   if (!technicalView()) return null;
   const lifted = liftQuery(query);
   const tabKinds = kindsForTab(tab);
   // The same reading services/search gives the relay: on NIPs a kind is what a spec covers.
   const coveredKinds = tab === "nips" ? lifted.kinds : undefined;
-  const kinds = lifted.kinds && !coveredKinds ? (tabKinds ? tabKinds.filter((k) => lifted.kinds!.includes(k)) : lifted.kinds) : tabKinds;
+  const kinds =
+    lifted.kinds && !coveredKinds
+      ? tabKinds
+        ? tabKinds.filter((k) => lifted.kinds!.includes(k))
+        : lifted.kinds
+      : tabKinds;
   const tags = lifted["#t"] ?? tagsForTab(tab);
   const parts: string[] = [];
   if (lifted.search) parts.push(`“${lifted.search}”`);
@@ -27,7 +42,11 @@ export function QueryAsSent({ query, tab, pov, timeMs }: { query: string; tab: S
   parts.push(`observer ${pov === "mywot" ? "you" : "house"}`);
   if (typeof timeMs === "number") parts.push(`${Math.round(timeMs)} ms`);
   return (
-    <p className="mb-2 px-1 font-mono text-[10px] text-slate-400 dark:text-slate-500" data-testid="query-as-sent" title="The request as it went to the search relay">
+    <p
+      className="mb-2 px-1 font-mono text-[10px] text-slate-400 dark:text-slate-500"
+      data-testid="query-as-sent"
+      title="The request as it went to the search relay"
+    >
       {parts.join(" · ")}
     </p>
   );

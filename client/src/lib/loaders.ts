@@ -63,7 +63,6 @@ eventStore.eventLoader = (pointer) =>
     ? addressLoader(pointer as Parameters<typeof addressLoader>[0])
     : idLoader(pointer as Parameters<typeof idLoader>[0]);
 
-
 /** `lookupRelays`, as a membership test. */
 const LOOKUP = new Set(PROFILE_RELAYS);
 

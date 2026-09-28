@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useShareNav } from "@/components/share/ShareNavContext";
 
-const CHIP_CLS = "shrink-0 whitespace-nowrap rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-xs font-semibold text-brand-link";
+const CHIP_CLS =
+  "shrink-0 whitespace-nowrap rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-xs font-semibold text-brand-link";
 const GAP_PX = 6; // gap-1.5
 
 /**
@@ -29,7 +30,10 @@ export function TopicChips({ topics, trailing }: { topics: string[]; trailing?: 
       let count = 0;
       for (const chip of Array.from(ghost.children) as HTMLElement[]) {
         const w = chip.offsetWidth + (count > 0 ? GAP_PX : 0);
-        if (used + w <= avail) { used += w; count += 1; } else break;
+        if (used + w <= avail) {
+          used += w;
+          count += 1;
+        } else break;
       }
       setVisible(Math.max(1, count));
     };
@@ -50,12 +54,20 @@ export function TopicChips({ topics, trailing }: { topics: string[]; trailing?: 
 
   return (
     <div className="mt-2.5 flex items-center gap-1.5 overflow-hidden" data-testid="share-topics">
-      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Posts about</span>
+      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        Posts about
+      </span>
       <div ref={areaRef} className="relative min-w-0 flex-1">
         {/* Invisible full-width copy used only to measure how many chips fit. */}
-        <div ref={ghostRef} aria-hidden className="pointer-events-none invisible absolute left-0 top-0 flex flex-nowrap items-center gap-1.5">
+        <div
+          ref={ghostRef}
+          aria-hidden
+          className="pointer-events-none invisible absolute left-0 top-0 flex flex-nowrap items-center gap-1.5"
+        >
           {topics.map((t) => (
-            <span key={t} className={CHIP_CLS}>#{t}</span>
+            <span key={t} className={CHIP_CLS}>
+              #{t}
+            </span>
           ))}
         </div>
         <div className="flex flex-nowrap items-center gap-1.5 overflow-hidden">

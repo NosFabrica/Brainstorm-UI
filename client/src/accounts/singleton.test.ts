@@ -17,10 +17,7 @@ const ENVELOPE = "v1.some-device-wrapped-envelope";
 
 // seeded before the import, because the singleton bootstraps at module load
 localStorage.setItem(V1_KEYS.encryptedKey, ENVELOPE);
-localStorage.setItem(
-  V1_KEYS.user,
-  JSON.stringify({ pubkey, npub: nip19.npubEncode(pubkey), displayName: "Alice" }),
-);
+localStorage.setItem(V1_KEYS.user, JSON.stringify({ pubkey, npub: nip19.npubEncode(pubkey), displayName: "Alice" }));
 localStorage.setItem(`brainstorm_backup_done:${pubkey}`, "true");
 
 let accountManager: import("applesauce-accounts").AccountManager;
@@ -34,9 +31,10 @@ beforeAll(async () => {
   // thing it does, and that is what this suite is here to see
   await module.accounts.migrated;
   written = Object.fromEntries(
-    [ACCOUNTS_KEY, ACTIVE_KEY, V1_KEYS.user, V1_KEYS.encryptedKey, `brainstorm_backup_done:${pubkey}`].map(
-      (key) => [key, localStorage.getItem(key)],
-    ),
+    [ACCOUNTS_KEY, ACTIVE_KEY, V1_KEYS.user, V1_KEYS.encryptedKey, `brainstorm_backup_done:${pubkey}`].map((key) => [
+      key,
+      localStorage.getItem(key),
+    ]),
   );
 });
 

@@ -24,7 +24,9 @@ function readState(): Record<string, unknown> {
 function patchState(patch: Record<string, unknown>): void {
   try {
     window.history.replaceState({ ...readState(), ...patch }, "", window.location.href);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
@@ -48,7 +50,7 @@ export function trackHistoryEntry(): void {
 export function historyDepth(): number {
   if (typeof window === "undefined") return 0;
   const stamped = readState()[DEPTH_KEY];
-  return typeof stamped === "number" ? stamped : currentDepth ?? 0;
+  return typeof stamped === "number" ? stamped : (currentDepth ?? 0);
 }
 
 /**

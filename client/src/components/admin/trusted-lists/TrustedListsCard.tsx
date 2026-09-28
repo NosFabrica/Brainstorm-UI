@@ -54,7 +54,7 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
     queryFn: async (): Promise<ReadinessRow | null> => {
       const pubkey = observer!.pubkey;
       const page = await apiClient.getAdminUsers({ search: pubkey, size: 5 });
-      const items = ((page as { items?: Array<ReadinessRow & { pubkey: string }> })?.items ?? []);
+      const items = (page as { items?: Array<ReadinessRow & { pubkey: string }> })?.items ?? [];
       return items.find((u) => u.pubkey === pubkey) ?? null;
     },
     enabled: !!observer,
@@ -180,11 +180,7 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
       )}
 
       {observer && readinessQuery.isSuccess && (
-        <Readiness
-          row={readinessQuery.data}
-          calculating={calculating}
-          onCalculate={() => void calculateFirst()}
-        />
+        <Readiness row={readinessQuery.data} calculating={calculating} onCalculate={() => void calculateFirst()} />
       )}
 
       {observer && (
@@ -224,8 +220,8 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
         remembered && (
           <div className="space-y-2">
             <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="trusted-lists-remembered">
-              Last run on this device · {relativeTime(Math.floor(Date.parse(remembered.at) / 1000))}. The server doesn't keep
-              runs yet, so this is only what this browser saw.
+              Last run on this device · {relativeTime(Math.floor(Date.parse(remembered.at) / 1000))}. The server doesn't
+              keep runs yet, so this is only what this browser saw.
             </p>
             <TrustedListRunResult run={remembered.run} observerName={name} />
           </div>
@@ -268,15 +264,27 @@ function Readiness({
 }) {
   const r = readinessOf(row);
   const start = (label: string) => (
-    <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" disabled={calculating} onClick={onCalculate}>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="h-7 gap-1.5 text-xs"
+      disabled={calculating}
+      onClick={onCalculate}
+    >
       {calculating && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {label}
     </Button>
   );
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300" data-testid="trusted-lists-readiness">
+    <div
+      className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300"
+      data-testid="trusted-lists-readiness"
+    >
       {r.kind === "ready" && (
         <>
-          <Chip tone="success" size="sm" dot>Ready</Chip>
+          <Chip tone="success" size="sm" dot>
+            Ready
+          </Chip>
           <span>
             Trust network calculated
             {r.calculatedAt ? ` ${relativeTime(Math.floor(Date.parse(r.calculatedAt) / 1000))}` : ""}.
@@ -285,17 +293,22 @@ function Readiness({
       )}
       {r.kind === "never" && (
         <>
-          <Chip tone="warning" size="sm" dot>Not calculated</Chip>
-          <span className="basis-full sm:basis-auto sm:flex-1">
-            Their trust network hasn't been calculated yet, so nobody would qualify and their lists would come back empty.
+          <Chip tone="warning" size="sm" dot>
+            Not calculated
+          </Chip>
+          <span className="basis-full sm:flex-1 sm:basis-auto">
+            Their trust network hasn't been calculated yet, so nobody would qualify and their lists would come back
+            empty.
           </span>
           {start("Calculate first")}
         </>
       )}
       {r.kind === "failed" && (
         <>
-          <Chip tone="danger" size="sm" dot>Failed</Chip>
-          <span className="basis-full sm:basis-auto sm:flex-1">
+          <Chip tone="danger" size="sm" dot>
+            Failed
+          </Chip>
+          <span className="basis-full sm:flex-1 sm:basis-auto">
             Their last trust calculation failed — their lists may come back empty.
           </span>
           {start("Calculate again")}
@@ -303,7 +316,9 @@ function Readiness({
       )}
       {r.kind === "pending" && (
         <>
-          <Chip tone="info" size="sm" dot>Calculating</Chip>
+          <Chip tone="info" size="sm" dot>
+            Calculating
+          </Chip>
           <span>Their trust network is being calculated — publish once it finishes.</span>
         </>
       )}

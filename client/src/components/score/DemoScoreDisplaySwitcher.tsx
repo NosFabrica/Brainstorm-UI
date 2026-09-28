@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { FlaskConical, X } from "lucide-react";
-import {
-  useScoreDisplayMode,
-  type ScoreDisplayMode,
-} from "@/hooks/useScoreDisplayMode";
+import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import type { Granularity } from "@/lib/trustLadder";
 
@@ -67,8 +64,8 @@ export function DemoScoreDisplaySwitcher() {
   return (
     <div className="fixed bottom-4 left-4 z-50 print:hidden" data-testid="demo-display-switcher">
       {open ? (
-        <div className="w-64 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-xl backdrop-blur p-3">
-          <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="w-64 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+          <div className="mb-2 flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               <FlaskConical className="h-3.5 w-3.5" /> Demo: verification display
             </span>
@@ -99,7 +96,9 @@ export function DemoScoreDisplaySwitcher() {
               </button>
             ))}
           </div>
-          <p className="mt-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tiers</p>
+          <p className="mb-1 mt-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Tiers
+          </p>
           <div className="grid grid-cols-2 gap-1">
             {LADDERS.map((l) => (
               <button
@@ -119,15 +118,15 @@ export function DemoScoreDisplaySwitcher() {
             ))}
           </div>
           <p className="mt-2 text-[10px] leading-relaxed text-slate-400 dark:text-slate-500">
-            This flips the real per-device setting — the one under Settings →
-            Trust Perspective. Every page follows instantly.
+            This flips the real per-device setting — the one under Settings → Trust Perspective. Every page follows
+            instantly.
           </p>
         </div>
       ) : (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-lg backdrop-blur px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100"
+          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/95 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-500 shadow-lg backdrop-blur hover:text-slate-800 dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-400 dark:hover:text-slate-100"
           data-testid="demo-display-open"
           aria-label="Open verification display demo switcher"
         >

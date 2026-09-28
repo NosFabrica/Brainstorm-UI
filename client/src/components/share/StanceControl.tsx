@@ -78,11 +78,7 @@ export function StanceButtons({
   const a = actions(stance);
 
   return (
-    <div
-      className="flex shrink-0 items-center gap-1"
-      data-testid={testId}
-      data-stance={stance ?? "none"}
-    >
+    <div className="flex shrink-0 items-center gap-1" data-testid={testId} data-stance={stance ?? "none"}>
       <button
         type="button"
         onClick={() => !a.agreed && onVote(1)}
@@ -149,7 +145,12 @@ export function StanceRow({
 }) {
   const a = actions(stance);
   return (
-    <CommandItem value={name} onSelect={() => !a.agreed && onVote(1)} data-testid={testId} data-stance={stance ?? "none"}>
+    <CommandItem
+      value={name}
+      onSelect={() => !a.agreed && onVote(1)}
+      data-testid={testId}
+      data-stance={stance ?? "none"}
+    >
       <span className="flex-1 truncate">{name}</span>
       {/* The buttons are their own targets; a click on them is not a row select. */}
       <span className="shrink-0" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>

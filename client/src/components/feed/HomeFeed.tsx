@@ -11,7 +11,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import type { NostrEvent } from "nostr-tools";
-import { fetchAppsByAddress, type SearchGroup, type SearchHit, type SearchPov, type SearchTab } from "@/services/search";
+import {
+  fetchAppsByAddress,
+  type SearchGroup,
+  type SearchHit,
+  type SearchPov,
+  type SearchTab,
+} from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { Package } from "lucide-react";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
@@ -54,10 +60,16 @@ function FeedBlock({
   const liveStream = useSectionStream("sort:recent", "live", pov, userPubkey, 12, { since, group });
   const latestStream = useSectionStream("sort:recent", "notes", pov, userPubkey, 30, { since, group });
   // Events are announced weeks ahead — look back a month for what's coming up this week.
-  const eventsStream = useSectionStream("sort:recent", "events", pov, userPubkey, 60, { since: since - 29 * DAY, group });
+  const eventsStream = useSectionStream("sort:recent", "events", pov, userPubkey, 60, {
+    since: since - 29 * DAY,
+    group,
+  });
   const mediaStream = useSectionStream("sort:recent", "media", pov, userPubkey, 12, { since, group });
   // Releases ship less often than people post — a week, not a day.
-  const releasesStream = useSectionStream("sort:recent", "releases", pov, userPubkey, 30, { since: since - 6 * DAY, group });
+  const releasesStream = useSectionStream("sort:recent", "releases", pov, userPubkey, 30, {
+    since: since - 6 * DAY,
+    group,
+  });
   const latest = useSettledSnapshot(latestStream);
 
   // New releases: one per app, newest first, wearing the listing's icon.
@@ -86,18 +98,32 @@ function FeedBlock({
 
   // Live now: streams that say they are live, and nothing else.
   const liveNow = useMemo(
-    () => (liveStream?.hits ?? []).filter((h) => (h.event.tags.find((t) => t[0] === "status")?.[1] ?? "").toLowerCase() === "live"),
+    () =>
+      (liveStream?.hits ?? []).filter(
+        (h) => (h.event.tags.find((t) => t[0] === "status")?.[1] ?? "").toLowerCase() === "live",
+      ),
     [liveStream],
   );
   // This week's events: upcoming within seven days, soonest first (the
   // relay only knows publish time — eventFilters does the calendar work).
-  const eventsThisWeek = useMemo(() => filterEventsByWhen(eventsStream?.hits ?? [], "week").slice(0, 6), [eventsStream]);
-  const mediaTiles = useMemo(() => (mediaStream?.hits ?? []).filter((h) => hasVisual(h.event)).slice(0, 8), [mediaStream]);
+  const eventsThisWeek = useMemo(
+    () => filterEventsByWhen(eventsStream?.hits ?? [], "week").slice(0, 6),
+    [eventsStream],
+  );
+  const mediaTiles = useMemo(
+    () => (mediaStream?.hits ?? []).filter((h) => hasVisual(h.event)).slice(0, 8),
+    [mediaStream],
+  );
   // Top stories lead Latest; the rest are rows, an author's near-duplicates folded.
   const stories = useMemo(() => pickTopStories(latest.hits), [latest.hits]);
   const storyIds = useMemo(() => new Set(stories.map((st) => st.hit.event.id)), [stories]);
   const latestClusters = useMemo(
-    () => collapseHits(latest.hits.filter((h) => !storyIds.has(h.event.id)), undefined, { maxPerAuthor: 2 }),
+    () =>
+      collapseHits(
+        latest.hits.filter((h) => !storyIds.has(h.event.id)),
+        undefined,
+        { maxPerAuthor: 2 },
+      ),
     [latest.hits, storyIds],
   );
   const trending = useMemo(() => trendingTags(latest.hits), [latest.hits]);
@@ -121,7 +147,10 @@ function FeedBlock({
 
   return (
     <div className="mt-6 first:mt-0" data-testid={`feed-block-${id}`}>
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500" data-testid={`feed-kicker-${id}`}>
+      <p
+        className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500"
+        data-testid={`feed-kicker-${id}`}
+      >
         {kicker}
       </p>
       {liveNow.length > 0 && (
@@ -141,7 +170,7 @@ function FeedBlock({
               <button
                 type="button"
                 onClick={latest.release}
-                className="rounded-full bg-brand-primary px-3 py-1 text-xs font-semibold text-white shadow-sm hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+                className="rounded-full bg-brand-primary px-3 py-1 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
                 data-testid="feed-new-pill"
               >
                 {latest.pendingCount} new
@@ -151,7 +180,14 @@ function FeedBlock({
           <TopStories stories={stories} stripRef={storiesRef} />
           <div className="space-y-0.5">
             {latestClusters.map((c) => (
-              <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query="" engagementOf={engagementOf} showType={false} />
+              <ClusterRows
+                key={c.primary.event.id}
+                cluster={c}
+                scoreOf={scoreOf}
+                query=""
+                engagementOf={engagementOf}
+                showType={false}
+              />
             ))}
           </div>
         </Section>
@@ -163,7 +199,7 @@ function FeedBlock({
               <Link
                 key={t.tag}
                 href={`/?q=${encodeURIComponent(`#${t.tag}`)}`}
-                className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-deep dark:hover:text-white transition-colors"
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-accent/40 hover:text-brand-deep dark:border-slate-700 dark:text-slate-300 dark:hover:text-white"
                 data-testid={`feed-trend-${t.tag}`}
               >
                 #{t.tag} <span className="text-[10px] text-slate-400 dark:text-slate-500">{t.voices}</span>
@@ -188,22 +224,30 @@ function FeedBlock({
               const listing = listings.get(address);
               const tag = (e: NostrEvent | undefined, k: string) => e?.tags.find((t) => t[0] === k)?.[1];
               const d = tag(h.event, "d") ?? "";
-              const version = d.includes("@") ? d.slice(d.lastIndexOf("@") + 1) : tag(h.event, "version") ?? "";
+              const version = d.includes("@") ? d.slice(d.lastIndexOf("@") + 1) : (tag(h.event, "version") ?? "");
               const name = tag(listing, "name") ?? (d.includes("@") ? d.slice(0, d.lastIndexOf("@")) : d) ?? "App";
               const icon = tag(listing, "icon") ?? tag(listing, "image");
               return (
                 <Link
                   key={h.event.id}
                   href={eventPath(h.event)}
-                  className="flex w-40 shrink-0 items-center gap-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 p-2.5 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                  className="flex w-40 shrink-0 items-center gap-2.5 rounded-xl border border-slate-100 bg-white/70 p-2.5 transition-all hover:border-slate-200 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800"
                   data-testid={`feed-release-${h.event.id}`}
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 ring-1 ring-slate-900/5 dark:ring-white/10">
-                    {icon ? <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Package className="h-4 w-4 text-slate-400" />}
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-900/5 dark:bg-slate-800 dark:ring-white/10">
+                    {icon ? (
+                      <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="h-4 w-4 text-slate-400" />
+                    )}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{name}</span>
-                    {version && <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">v{version}</span>}
+                    <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
+                      {name}
+                    </span>
+                    {version && (
+                      <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">v{version}</span>
+                    )}
                   </span>
                 </Link>
               );
@@ -254,19 +298,38 @@ export function HomeFeed({
   const quiet = showPersonal && personalCount !== null && personalCount < QUIET_BELOW;
   const personalBlock = showPersonal ? (
     // Keyed so a reorder (quiet network) moves the block instead of remounting it — its streams stay open.
-    <FeedBlock key="personal" id="personal" kicker="From people you trust" pov="mywot" group="home-feed-personal" userPubkey={userPubkey} since={since} onBrowse={onBrowse} onSettled={setPersonalCount} />
+    <FeedBlock
+      key="personal"
+      id="personal"
+      kicker="From people you trust"
+      pov="mywot"
+      group="home-feed-personal"
+      userPubkey={userPubkey}
+      since={since}
+      onBrowse={onBrowse}
+      onSettled={setPersonalCount}
+    />
   ) : null;
-  const houseBlock = <FeedBlock key="house" id="house" kicker="Across Nostr" pov="nosfabrica" group="home-feed-house" userPubkey={userPubkey} since={since} onBrowse={onBrowse} />;
+  const houseBlock = (
+    <FeedBlock
+      key="house"
+      id="house"
+      kicker="Across Nostr"
+      pov="nosfabrica"
+      group="home-feed-house"
+      userPubkey={userPubkey}
+      since={since}
+      onBrowse={onBrowse}
+    />
+  );
   return (
-    <div className="w-full max-w-2xl mx-auto mt-4 sm:mt-5 text-left" data-testid="home-feed">
+    <div className="mx-auto mt-4 w-full max-w-2xl text-left sm:mt-5" data-testid="home-feed">
       <div className="mb-3 flex items-center justify-between gap-2" data-testid="home-feed-header">
-        <div className="flex min-w-0 items-center gap-2">
-          {perspective}
-        </div>
+        <div className="flex min-w-0 items-center gap-2">{perspective}</div>
         <button
           type="button"
           onClick={onHide}
-          className="shrink-0 text-xs font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          className="shrink-0 rounded text-xs font-medium text-slate-400 transition-colors hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500 dark:hover:text-white"
           data-testid="home-feed-hide"
         >
           Hide the feed ▴

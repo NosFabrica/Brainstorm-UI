@@ -43,7 +43,8 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
       // The seller's things as products. The product this listing belongs to
       // gives its other sizes as options; the rest are "more for sale".
       const products = productsFromEvents(evs);
-      const isThis = (m: { id: string; pubkey: string; d: string }) => m.id === event.id || `${LISTING_KIND}:${m.pubkey}:${m.d}` === address;
+      const isThis = (m: { id: string; pubkey: string; d: string }) =>
+        m.id === event.id || `${LISTING_KIND}:${m.pubkey}:${m.d}` === address;
       const own = products.find((p) => p.group.members.some(isThis));
       setOptions(
         (own?.group.members ?? [])
@@ -74,8 +75,21 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
         if (!alive) return;
         const next = new Map<string, SearchResult>();
         for (const [pk, c] of map) {
-          const p = c as { name?: string; display_name?: string; displayName?: string; picture?: string; nip05?: string };
-          next.set(pk, { pubkey: pk, npub: nip19.npubEncode(pk), name: p.name, displayName: p.display_name ?? p.displayName, picture: p.picture, nip05: p.nip05 });
+          const p = c as {
+            name?: string;
+            display_name?: string;
+            displayName?: string;
+            picture?: string;
+            nip05?: string;
+          };
+          next.set(pk, {
+            pubkey: pk,
+            npub: nip19.npubEncode(pk),
+            name: p.name,
+            displayName: p.display_name ?? p.displayName,
+            picture: p.picture,
+            nip05: p.nip05,
+          });
         }
         setSellers(next);
       });
@@ -83,13 +97,14 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on event identity
   }, [event.id]);
 
   if (mine.length === 0 && similar.length === 0 && options.length === 0) return null;
   return (
     // The same distance from its neighbours as the posts strip below it (mt-8),
     // and as much between its own rows: a shop page, not a footnote.
-    <div className="mt-8 mb-8 space-y-8" data-testid="listing-related">
+    <div className="mb-8 mt-8 space-y-8" data-testid="listing-related">
       {options.length > 0 && (
         <section data-testid="listing-options" className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Other options</span>
@@ -97,7 +112,7 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
             <Link
               key={o.id}
               href={eventPath({ id: o.id, pubkey: o.pubkey })}
-              className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-accent/40 transition-colors"
+              className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
             >
               {o.label}
             </Link>
@@ -107,17 +122,29 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
       {mine.length > 0 && (
         <section data-testid="listing-more-from-seller">
           <div className="mb-3 flex items-baseline gap-3">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">More for sale from {sellerName || "this seller"}</h2>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              More for sale from {sellerName || "this seller"}
+            </h2>
             {/* Four is a teaser; the seller's page has everything. */}
             {mineTotal > mine.length && (
-              <Link href={`/p/${nip19.npubEncode(event.pubkey)}/selling`} className="ml-auto shrink-0 text-xs font-semibold text-brand-link hover:underline" data-testid="listing-seller-all">
+              <Link
+                href={`/p/${nip19.npubEncode(event.pubkey)}/selling`}
+                className="ml-auto shrink-0 text-xs font-semibold text-brand-link hover:underline"
+                data-testid="listing-seller-all"
+              >
                 See all {mineTotal} →
               </Link>
             )}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {mine.map(({ event: ev, group }) => (
-              <ListingCard key={group.id} event={ev} author={null} showAuthor={false} group={{ title: group.title, options: group.options.length }} />
+              <ListingCard
+                key={group.id}
+                event={ev}
+                author={null}
+                showAuthor={false}
+                group={{ title: group.title, options: group.options.length }}
+              />
             ))}
           </div>
         </section>

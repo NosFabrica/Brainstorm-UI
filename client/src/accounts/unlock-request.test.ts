@@ -46,9 +46,7 @@ describe("raising the unlock prompt", () => {
       .fn<[string], Promise<{ ok: boolean; reason?: string }>>()
       .mockResolvedValueOnce({ ok: false, reason: "wrong-password" })
       .mockResolvedValueOnce({ ok: true });
-    const pending = requestRecoveryPassword(
-      fakeRequest(attempt as unknown as RecoveryPasswordRequest["attempt"]),
-    );
+    const pending = requestRecoveryPassword(fakeRequest(attempt as unknown as RecoveryPasswordRequest["attempt"]));
     const prompt = await nextPrompt();
 
     await expect(prompt.submit("nope")).resolves.toEqual({ ok: false, reason: "wrong-password" });

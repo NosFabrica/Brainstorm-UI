@@ -10,7 +10,12 @@ import type { NostrEvent } from "nostr-tools";
 const reqMock = vi.fn();
 const frames = new Subject<{ type: string; event?: NostrEvent }>();
 vi.mock("@/lib/searchRelay", () => ({
-  searchRelay: () => ({ req: (...args: unknown[]) => { reqMock(...args); return frames; } }),
+  searchRelay: () => ({
+    req: (...args: unknown[]) => {
+      reqMock(...args);
+      return frames;
+    },
+  }),
 }));
 vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => e } }));
 const loadReplaceableMock = vi.fn(async (..._args: unknown[]) => undefined);

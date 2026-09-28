@@ -1,10 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useHasSession } from "@/hooks/useHasSession";
-import {
-  fetchSubscription,
-  DEFAULT_SUBSCRIPTION,
-  type Subscription,
-} from "@/services/subscription";
+import { fetchSubscription, DEFAULT_SUBSCRIPTION, type Subscription } from "@/services/subscription";
 
 /**
  * The logged-in user's subscription — the POLICY they hold, the PLAN they

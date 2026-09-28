@@ -24,7 +24,10 @@ type Script = (id: string, send: (frame: unknown[]) => void, socket: FakeSocket)
 const scripts = new Map<string, Script>();
 
 class FakeSocket {
-  static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSING = 2;
+  static CLOSED = 3;
   readyState = 0;
   binaryType = "blob";
   onopen: ((e: unknown) => void) | null = null;
@@ -35,9 +38,21 @@ class FakeSocket {
   authed = false;
   constructor(public url: string) {
     setTimeout(() => {
-      if (this.url.startsWith(FLAKY) && flakyDropsLeft > 0) { flakyDropsLeft--; this.readyState = 3; this.onerror?.({ type: "error" }); this.onclose?.({ wasClean: false, code: 1006 }); return; }
-      if (this.url.startsWith(DEAD)) { this.readyState = 3; this.onerror?.({ type: "error" }); this.onclose?.({ wasClean: false, code: 1006 }); return; }
-      this.readyState = 1; this.onopen?.({});
+      if (this.url.startsWith(FLAKY) && flakyDropsLeft > 0) {
+        flakyDropsLeft--;
+        this.readyState = 3;
+        this.onerror?.({ type: "error" });
+        this.onclose?.({ wasClean: false, code: 1006 });
+        return;
+      }
+      if (this.url.startsWith(DEAD)) {
+        this.readyState = 3;
+        this.onerror?.({ type: "error" });
+        this.onclose?.({ wasClean: false, code: 1006 });
+        return;
+      }
+      this.readyState = 1;
+      this.onopen?.({});
     }, 0);
   }
   send(data: string) {
@@ -54,10 +69,21 @@ class FakeSocket {
     const script = scripts.get(this.url.replace(/\/$/, ""));
     setTimeout(() => script?.(id, reply, this), 0);
   }
-  close() { this.readyState = 3; this.onclose?.({ wasClean: true }); }
+  close() {
+    this.readyState = 3;
+    this.onclose?.({ wasClean: true });
+  }
 }
 
-const EVENT: NostrEvent = { id: "1".repeat(64), kind: 10002, pubkey: "a".repeat(64), tags: [["r", "wss://open.example"]], content: "", created_at: 1, sig: "s" } as NostrEvent;
+const EVENT: NostrEvent = {
+  id: "1".repeat(64),
+  kind: 10002,
+  pubkey: "a".repeat(64),
+  tags: [["r", "wss://open.example"]],
+  content: "",
+  created_at: 1,
+  sig: "s",
+} as NostrEvent;
 /** What the gated relay serves once a socket has signed in. */
 const GATED_EVENT: NostrEvent = { ...EVENT, id: "2".repeat(64) };
 const OPEN = "wss://open.example";
@@ -73,26 +99,45 @@ const SLOW = "wss://slow.example";
  */
 const FLAKY = "wss://flaky.example";
 let flakyDropsLeft = 0;
-scripts.set(OPEN, (id, send) => { send(["EVENT", id, EVENT]); send(["EOSE", id]); });
-scripts.set(FLAKY, (id, send) => { send(["EVENT", id, EVENT]); send(["EOSE", id]); });
+scripts.set(OPEN, (id, send) => {
+  send(["EVENT", id, EVENT]);
+  send(["EOSE", id]);
+});
+scripts.set(FLAKY, (id, send) => {
+  send(["EVENT", id, EVENT]);
+  send(["EOSE", id]);
+});
 scripts.set(GATED, (id, send, socket) => {
-  if (socket.authed) { send(["EVENT", id, GATED_EVENT]); send(["EOSE", id]); return; }
+  if (socket.authed) {
+    send(["EVENT", id, GATED_EVENT]);
+    send(["EOSE", id]);
+    return;
+  }
   send(["AUTH", "challenge-xyz"]);
   send(["CLOSED", id, "auth-required: not authenticated"]);
 });
 
 /** The account's signer, as services/relayAuth hands it to the relay. */
-const signer = { signEvent: async (template: object) => ({ ...template, id: "f".repeat(64), pubkey: "a".repeat(64), sig: "s" }) as NostrEvent };
+const signer = {
+  signEvent: async (template: object) =>
+    ({ ...template, id: "f".repeat(64), pubkey: "a".repeat(64), sig: "s" }) as NostrEvent,
+};
 
 /** Once the gated relay has refused a REQ and sent its challenge, sign in to it. */
 async function signInWhenGated(pool: RelayPool) {
   const relay = pool.relay(GATED);
-  await firstValueFrom(combineLatest([relay.challenge$, relay.authRequiredForRead$]).pipe(filter(([challenge, gated]) => !!challenge && gated)));
+  await firstValueFrom(
+    combineLatest([relay.challenge$, relay.authRequiredForRead$]).pipe(
+      filter(([challenge, gated]) => !!challenge && gated),
+    ),
+  );
   await relay.authenticate(signer);
 }
 
 const read = (pool: RelayPool, relays = [OPEN, GATED]) =>
-  firstValueFrom(pool.request(relays, { kinds: [10002], authors: ["a".repeat(64)] }, { eventStore: null }).pipe(toArray()));
+  firstValueFrom(
+    pool.request(relays, { kinds: [10002], authors: ["a".repeat(64)] }, { eventStore: null }).pipe(toArray()),
+  );
 
 afterEach(() => vi.useRealTimers());
 
@@ -147,14 +192,25 @@ describe("the app's relay pool", () => {
     ["subscription", (pool: RelayPool) => pool.subscription([OPEN, GATED], { kinds: [10002] }, { eventStore: null })],
     // A live filter map, as a subscription holds one (a plain object ends the
     // REQs once sent); keyed by the pool's own spelling of each URL.
-    ["subscriptionMap", (pool: RelayPool) => pool.subscriptionMap(new BehaviorSubject({ [normalizeURL(OPEN)]: { kinds: [10002] }, [normalizeURL(GATED)]: { kinds: [10002] } }), { eventStore: null })],
-  ])("a live %s waits for a gated relay's login, then receives its events", async (_name, subscribe) => {
-    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
-    const received = firstValueFrom(subscribe(pool).pipe(take(2), toArray()));
-    await signInWhenGated(pool);
-    const events = await received;
-    expect(events.map((e) => e.id).sort()).toEqual([EVENT.id, GATED_EVENT.id]);
-  }, 4000);
+    [
+      "subscriptionMap",
+      (pool: RelayPool) =>
+        pool.subscriptionMap(
+          new BehaviorSubject({ [normalizeURL(OPEN)]: { kinds: [10002] }, [normalizeURL(GATED)]: { kinds: [10002] } }),
+          { eventStore: null },
+        ),
+    ],
+  ])(
+    "a live %s waits for a gated relay's login, then receives its events",
+    async (_name, subscribe) => {
+      const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+      const received = firstValueFrom(subscribe(pool).pipe(take(2), toArray()));
+      await signInWhenGated(pool);
+      const events = await received;
+      expect(events.map((e) => e.id).sort()).toEqual([EVENT.id, GATED_EVENT.id]);
+    },
+    4000,
+  );
 
   // The control: what the library does on its own, and what the team saw.
   it("(control) a stock pool holds the same reads for the library's 5s fallback", async () => {

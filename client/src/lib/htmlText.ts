@@ -23,11 +23,17 @@ export function looksLikeHtml(text: string): boolean {
   const outsidePre = withoutPre(bare);
   // Markdown with some HTML in it (a GitHub comment) is markdown: converting
   // it as HTML would fold its line structure away. stripStrayHtml takes it.
-  const mdLines = outsidePre.replace(/<[^>]*>/g, "").split("\n").filter((l) => /^\s{0,3}(?:#{1,6} |[-*+] |\d+\. |> |\|)/.test(l)).length;
+  const mdLines = outsidePre
+    .replace(/<[^>]*>/g, "")
+    .split("\n")
+    .filter((l) => /^\s{0,3}(?:#{1,6} |[-*+] |\d+\. |> |\|)/.test(l)).length;
   if (mdLines >= 3) return false;
   // HTML the whole way through, not markdown with a few tags in it: most of
   // its lines carry markup (or it is one long line of it).
-  const lines = outsidePre.split("\n").map((l) => l.trim()).filter(Boolean);
+  const lines = outsidePre
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
   const tagLines = lines.filter((l) => /<\/?[a-z][^>]*>/i.test(l)).length;
   // Opening with a block element (a marketplace's "<p>…") counts too:
   // escaped code inside a <pre> is lines of text that are still HTML.
@@ -83,12 +89,14 @@ function cellText(cell: Element): string {
     const t = (n.textContent || "").trim();
     if (/^https?:\/\//i.test(href)) n.replaceWith(t && t !== href ? `[${t}](${href})` : href);
   });
-  return (c.textContent || "")
-    // A broken wiki template (`{{cite web …`, `{{!}}`) to the cell's end.
-    .replace(/\{\{\s*(?:cite|!|efn|refn|sfn|citation)\b[\s\S]*$/i, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\|/g, "\\|");
+  return (
+    (c.textContent || "")
+      // A broken wiki template (`{{cite web …`, `{{!}}`) to the cell's end.
+      .replace(/\{\{\s*(?:cite|!|efn|refn|sfn|citation)\b[\s\S]*$/i, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\|/g, "\\|")
+  );
 }
 
 /** An HTML table as a GFM table (with its caption as a bold line above) —
@@ -96,9 +104,13 @@ function cellText(cell: Element): string {
 function tableToMarkdown(table: Element): string {
   // The table's own rows: a table nested in a cell is that cell's text.
   const own = (table as HTMLTableElement).rows ?? table.querySelectorAll("tr");
-  const rows = Array.from(own).map((tr) =>
-    Array.from(tr.children).filter((c) => /^t[dh]$/i.test(c.tagName)).map(cellText),
-  ).filter((r) => r.length);
+  const rows = Array.from(own)
+    .map((tr) =>
+      Array.from(tr.children)
+        .filter((c) => /^t[dh]$/i.test(c.tagName))
+        .map(cellText),
+    )
+    .filter((r) => r.length);
   if (!rows.length) return "";
   const width = Math.max(...rows.map((r) => r.length));
   const row = (r: string[]) => `| ${[...r, ...Array(width - r.length).fill("")].join(" | ")} |`;
@@ -115,7 +127,10 @@ function walk(node: Node, inPre: boolean, depth = 0): string {
   if (node.nodeType !== Node.ELEMENT_NODE) return "";
   const el = node as Element;
   const tag = el.tagName.toLowerCase();
-  const inner = (d = depth) => Array.from(el.childNodes).map((c) => walk(c, inPre || tag === "pre", d)).join("");
+  const inner = (d = depth) =>
+    Array.from(el.childNodes)
+      .map((c) => walk(c, inPre || tag === "pre", d))
+      .join("");
   switch (tag) {
     case "script":
     case "style":
@@ -142,7 +157,11 @@ function walk(node: Node, inPre: boolean, depth = 0): string {
     case "div":
       return `\n\n${inner().trim()}\n\n`;
     case "blockquote":
-      return `\n\n${inner().trim().split("\n").map((l) => `> ${l}`).join("\n")}\n\n`;
+      return `\n\n${inner()
+        .trim()
+        .split("\n")
+        .map((l) => `> ${l}`)
+        .join("\n")}\n\n`;
     case "h1":
     case "h2":
     case "h3":
@@ -159,7 +178,10 @@ function walk(node: Node, inPre: boolean, depth = 0): string {
       const items = Array.from(el.children)
         .filter((c) => c.tagName.toLowerCase() === "li")
         .map((li) => {
-          const body = Array.from(li.childNodes).map((c) => walk(c, inPre, depth + 1)).join("").trim();
+          const body = Array.from(li.childNodes)
+            .map((c) => walk(c, inPre, depth + 1))
+            .join("")
+            .trim();
           return `${indent}${tag === "ol" ? `${n++}.` : "-"} ${body}`;
         });
       return depth ? `\n${items.join("\n")}` : `\n\n${items.join("\n")}\n\n`;
@@ -226,10 +248,12 @@ function unmask(text: string, spans: string[]): string {
 
 /** Inline wrappers, unwrapped before links so a link around one converts. */
 const INLINE_WRAP = /<\/?(?:span|font|small|big|u|ins|abbr|sub|del|s|strike|mark)\b[^>]*>/gi;
-const UNWRAP = /<\/?(?:details|div|span|center|picture|source|font|small|big|u|ins|abbr|section|article|header|footer|main|figure|figcaption|sub|sup|del|s|strike|mark|dl|dt|dd|colgroup|col|tbody|thead|tfoot)\b[^>]*>/gi;
+const UNWRAP =
+  /<\/?(?:details|div|span|center|picture|source|font|small|big|u|ins|abbr|section|article|header|footer|main|figure|figcaption|sub|sup|del|s|strike|mark|dl|dt|dd|colgroup|col|tbody|thead|tfoot)\b[^>]*>/gi;
 /** Real HTML in markdown, not prose that names a tag ("use the <br> tag"):
  *  a comment, a <details>, a picture, or an element that is closed. */
-const REAL_HTML = /<!--|<summary\b|<img\b[^>]*\bsrc=|<\/(?:p|div|span|a|b|strong|em|i|u|ul|ol|li|table|tr|td|th|h[1-6]|pre|code|blockquote|kbd|sub|sup|center|font|small|del|s|dl|dt|dd|summary|details)\s*>/i;
+const REAL_HTML =
+  /<!--|<summary\b|<img\b[^>]*\bsrc=|<\/(?:p|div|span|a|b|strong|em|i|u|ul|ol|li|table|tr|td|th|h[1-6]|pre|code|blockquote|kbd|sub|sup|center|font|small|del|s|dl|dt|dd|summary|details)\s*>/i;
 /** Elements with structure worth parsing whole: nesting counted, then read
  *  by the same converter full-HTML articles get. */
 const BLOCK_TAG = /<(\/?)(table|pre|ul|ol|blockquote|dl)\b[^>]*>/gi;
@@ -293,21 +317,26 @@ function inlineTags(text: string): string {
     .split("\n")
     .map((line) => {
       const row = line.trimStart().startsWith("|");
-      return line
-        .replace(/<br\s*\/?>/gi, row ? " " : "\n")
-        // A link around a picture (a README badge) is the picture.
-        .replace(/<a\b[^>]*>\s*(<img\b[^>]*>)\s*<\/a>/gi, "$1")
-        .replace(/<img\b[^>]*\bsrc=["']?(https?:\/\/[^"'\s>]+)["']?[^>]*>/gi, row ? " $1 " : "\n$1\n")
-        .replace(/<img\b[^>]*>/gi, "")
-        .replace(/<(code|kbd)\b[^>]*>([^<]{0,500}?)<\/\1>/gi, "`$2`")
-        .replace(/<hr\s*\/?>/gi, row ? "" : "\n\n---\n\n")
-        .replace(/<\/?(?:strong|b)\b[^>]*>/gi, "**")
-        .replace(/<\/?(?:em|i)\b[^>]*>/gi, "*")
-        .replace(/<sup\b[^>]*>([^<]{0,50})<\/sup>/gi, "^$1")
-        .replace(INLINE_WRAP, "")
-        // Links last, so what they wrap (code, bold, a span) is already text.
-        .replace(/<a\b[^>]*\bhref=["']?(https?:\/\/[^"'\s>]+)["']?[^>]*>([^<]{0,500}?)<\/a>/gi, (_, u: string, t: string) => (t.trim() && t.trim() !== u ? `[${t.trim()}](${u})` : u))
-        .replace(/<\/?a\b[^>]*>/gi, "");
+      return (
+        line
+          .replace(/<br\s*\/?>/gi, row ? " " : "\n")
+          // A link around a picture (a README badge) is the picture.
+          .replace(/<a\b[^>]*>\s*(<img\b[^>]*>)\s*<\/a>/gi, "$1")
+          .replace(/<img\b[^>]*\bsrc=["']?(https?:\/\/[^"'\s>]+)["']?[^>]*>/gi, row ? " $1 " : "\n$1\n")
+          .replace(/<img\b[^>]*>/gi, "")
+          .replace(/<(code|kbd)\b[^>]*>([^<]{0,500}?)<\/\1>/gi, "`$2`")
+          .replace(/<hr\s*\/?>/gi, row ? "" : "\n\n---\n\n")
+          .replace(/<\/?(?:strong|b)\b[^>]*>/gi, "**")
+          .replace(/<\/?(?:em|i)\b[^>]*>/gi, "*")
+          .replace(/<sup\b[^>]*>([^<]{0,50})<\/sup>/gi, "^$1")
+          .replace(INLINE_WRAP, "")
+          // Links last, so what they wrap (code, bold, a span) is already text.
+          .replace(
+            /<a\b[^>]*\bhref=["']?(https?:\/\/[^"'\s>]+)["']?[^>]*>([^<]{0,500}?)<\/a>/gi,
+            (_, u: string, t: string) => (t.trim() && t.trim() !== u ? `[${t.trim()}](${u})` : u),
+          )
+          .replace(/<\/?a\b[^>]*>/gi, "")
+      );
     })
     .join("\n")
     .replace(/<summary\b[^>]*>([\s\S]{0,500}?)<\/summary>/gi, (_, t: string) => `\n\n**${t.trim()}**\n\n`)

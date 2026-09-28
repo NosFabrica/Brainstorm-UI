@@ -11,7 +11,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const ME = "e".repeat(64);
 const THEM = "f".repeat(64);
 let account: { pubkey: string } | undefined = { pubkey: ME };
-const signAsMock = vi.fn(async (_acct: unknown, template: Record<string, unknown>) => ({ ...template, id: "signed-id", pubkey: ME, sig: "sig" }));
+const signAsMock = vi.fn(async (_acct: unknown, template: Record<string, unknown>) => ({
+  ...template,
+  id: "signed-id",
+  pubkey: ME,
+  sig: "sig",
+}));
 // The relay HINT this publish stamps on its tags comes from a NIP-65 lookup.
 // These cases are about the event's shape, so the lookup answers "nothing"
 // rather than opening a real socket.

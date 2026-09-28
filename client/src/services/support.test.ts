@@ -51,10 +51,7 @@ describe("priority support seam (against the fake server)", () => {
 
     await postMessage(t.id, "Still nothing this morning.");
     const grown = await fetchThread(t.id);
-    expect(grown.messages.map((m) => m.body)).toEqual([
-      "Not receiving alerts.",
-      "Still nothing this morning.",
-    ]);
+    expect(grown.messages.map((m) => m.body)).toEqual(["Not receiving alerts.", "Still nothing this morning."]);
   });
 
   it("a support reply reaches the user's thread and marks the ticket answered", async () => {

@@ -24,18 +24,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import {
-  Tooltip as UITooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -43,10 +33,7 @@ import { fetchProfiles, eventStore } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
-import {
-  getProfileContent,
-  isValidProfile,
-} from "applesauce-core/helpers/profile";
+import { getProfileContent, isValidProfile, type ProfileContent } from "applesauce-core/helpers/profile";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import {
   useSelfOverview,
@@ -57,7 +44,6 @@ import {
 } from "@/hooks/useSelf";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
-import { BrainLogo } from "@/components/BrainLogo";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
 import { NetworkProfileCard } from "@/components/network/NetworkProfileCard";
@@ -70,95 +56,6 @@ import {
 } from "@/components/network/cardContext";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
-
-const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
-  id: i,
-  x: 8 + Math.random() * 84,
-  y: 8 + Math.random() * 84,
-  size: Math.random() * 2.5 + 1.5,
-  popDelay: i * 1.2 + Math.random() * 2,
-  floatDuration: Math.random() * 20 + 22,
-  floatDelay: Math.random() * 6,
-}));
-
-const connectionPairs = [
-  [0, 3],
-  [1, 4],
-  [2, 5],
-  [3, 7],
-  [4, 8],
-  [5, 9],
-  [0, 6],
-  [1, 7],
-  [2, 8],
-  [6, 9],
-];
-
-const decorativeText = [
-  "trust_score: 0.847",
-  "npub1qd9...k7a2",
-  "hops: 3",
-  "relay: wss://nos.lol",
-  "verify(sig)",
-  "WOT(u) = f(G, seeds)",
-  "muted_by: 0",
-  "followers: 142",
-  "influence: 1.0",
-  "kind: 22242",
-  "relay: wss://damus.io",
-  "G = (V, E, W)",
-  "score = f(hops)",
-  "compute(graperank)",
-  "npub1z8f...m4c9",
-  "following: 87",
-  "attenuation: 0.5",
-  "rigor: 0.25",
-];
-
-function estimateNetworkLineLength(a: number, b: number): number {
-  const dx = floatingNodes[a].x - floatingNodes[b].x;
-  const dy = floatingNodes[a].y - floatingNodes[b].y;
-  return Math.sqrt(dx * dx + dy * dy) * 12;
-}
-
-const connectionLineStyles: React.CSSProperties[] = connectionPairs.map(
-  ([a, b], i) => {
-    const len = estimateNetworkLineLength(a, b);
-    return {
-      ["--dash" as string]: len,
-      animation: `networkLineDraw ${1.2 + (i % 3) * 0.4}s ease-out ${i * 0.8 + 0.3}s forwards, networkLinePulse 12s ease-in-out ${i * 0.8 + 0.3 + 1.5}s infinite`,
-    } as React.CSSProperties;
-  },
-);
-
-const connectionLineDashArrays = connectionPairs.map(([a, b]) =>
-  estimateNetworkLineLength(a, b),
-);
-
-const floatingNodeStyles: React.CSSProperties[] = floatingNodes.map((node) => ({
-  left: `${node.x}%`,
-  top: `${node.y}%`,
-  width: node.size + 5,
-  height: node.size + 5,
-  opacity: 0,
-  transform: "scale(0)",
-  animation: `networkNodePop 0.6s ease-out ${node.popDelay}s forwards, networkNodeFloat ${node.floatDuration}s ease-in-out ${node.popDelay + 0.6}s infinite`,
-}));
-
-const decorativeTextStyles: React.CSSProperties[] = decorativeText.map(
-  (_, i) => {
-    const col = i % 4;
-    const row = Math.floor(i / 4);
-    const left = 3 + col * 24 + (row % 2) * 10;
-    const top = 80 + row * 220;
-    return {
-      left: `${left}%`,
-      top: `${top}px`,
-      opacity: 0,
-      animation: `networkCalcFloat 10s ease-in-out ${i * 1.2 + 1}s infinite`,
-    };
-  },
-);
 
 /**
  * The Network row expander now uses the lightweight `/user/:pk/overview`
@@ -234,9 +131,7 @@ export default function NetworkPage() {
       "reporting",
       "flagged",
     ];
-    return group && validGroups.includes(group as GroupKey)
-      ? (group as GroupKey)
-      : "followed_by";
+    return group && validGroups.includes(group as GroupKey) ? (group as GroupKey) : "followed_by";
   });
   // Mirror activeGroup into a ref so cards can read it lazily inside their
   // "view full profile" navigate handler without re-rendering on every change.
@@ -258,15 +153,7 @@ export default function NetworkPage() {
   const [trustFilter, setTrustFilter] = useState<TrustTier>(() => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("trust");
-    const valid: TrustTier[] = [
-      "verified",
-      "high",
-      "medium",
-      "neutral",
-      "low",
-      "unverified",
-      "flagged",
-    ];
+    const valid: TrustTier[] = ["verified", "high", "medium", "neutral", "low", "unverified", "flagged"];
     if (t && valid.includes(t as TrustTier)) return t as TrustTier;
     return "all";
   });
@@ -297,8 +184,7 @@ export default function NetworkPage() {
     enabled: !!user,
     staleTime: 30_000,
   });
-  const calcDoneNow =
-    grapeRankData?.data?.internal_publication_status === "success";
+  const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
   const hadPreviousCalc = useMemo(() => {
     if (calcDoneNow) {
       try {
@@ -316,15 +202,13 @@ export default function NetworkPage() {
 
   const PAGE_SIZE = 100;
 
-  const profileCache = useRef<Map<string, any>>(new Map());
+  const profileCache = useRef<Map<string, ProfileContent>>(new Map());
   // Pubkeys we've already tried to fetch a kind-0 profile for (whether or not
   // one came back). Lets a row fall back to its npub instead of an endless
   // skeleton when no profile exists. See the gate in NetworkProfileCard.
   const profileAttempted = useRef<Set<string>>(new Set());
   const trustCache = useRef<Map<string, number | null>>(new Map());
-  const graphDataCache = useRef<
-    Map<string, { muted_by?: string[]; reported_by?: string[] }>
-  >(new Map());
+  const graphDataCache = useRef<Map<string, { muted_by?: string[]; reported_by?: string[] }>>(new Map());
   const [trustLoadedCount, setTrustLoadedCount] = useState(0);
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
   const supportsHoverRef = useRef<boolean>(true);
@@ -383,10 +267,7 @@ export default function NetworkPage() {
   // When activeGroup is the derived "flagged" view, drop filters so the
   // cross-kind flag derivation sees unfiltered loaded items.
   const isFlaggedView = activeGroup === "flagged";
-  const UI_TO_GR_TIER: Record<
-    string,
-    NonNullable<Parameters<typeof useSelfConnections>[2]>["tier"]
-  > = {
+  const UI_TO_GR_TIER: Record<string, NonNullable<Parameters<typeof useSelfConnections>[2]>["tier"]> = {
     high: "high",
     medium: "medium_high",
     neutral: "medium",
@@ -483,9 +364,7 @@ export default function NetworkPage() {
 
   // Mark a kind loaded as soon as user navigates to it.
   useEffect(() => {
-    setLoadedKinds((prev) =>
-      prev.has(activeGroup) ? prev : new Set([...prev, activeGroup]),
-    );
+    setLoadedKinds((prev) => (prev.has(activeGroup) ? prev : new Set([...prev, activeGroup])));
   }, [activeGroup]);
 
   // Overall load gate: loading only while overview is in-flight. Connection
@@ -494,18 +373,11 @@ export default function NetworkPage() {
   const isLoading = overviewQuery.isLoading;
 
   useMemo(() => {
-    const allGroups: GroupKey[] = [
-      "followed_by",
-      "following",
-      "muted_by",
-      "muting",
-      "reported_by",
-      "reporting",
-    ];
+    const allGroups: GroupKey[] = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
     for (const groupKey of allGroups) {
       const items = networkData[groupKey];
       if (!items || items.length === 0) continue;
-      const influenceMap = toInfluenceMap(items as any);
+      const influenceMap = toInfluenceMap(items);
       influenceMap.forEach((influence, pk) => {
         if (!trustCache.current.has(pk)) {
           trustCache.current.set(pk, influence);
@@ -575,10 +447,7 @@ export default function NetworkPage() {
         if (res.status === "fulfilled") {
           const graph = res.value?.graph ?? res.value;
           const influence = graph?.influence;
-          trustCache.current.set(
-            pk,
-            typeof influence === "number" ? influence : null,
-          );
+          trustCache.current.set(pk, typeof influence === "number" ? influence : null);
           graphDataCache.current.set(pk, {
             muted_by: toPubkeys(graph?.muted_by),
             reported_by: toPubkeys(graph?.reported_by),
@@ -630,10 +499,7 @@ export default function NetworkPage() {
       ...(ov.influence != null ? { influence: ov.influence } : {}),
     };
   }, [expandedDetailQuery.data]);
-  const expandedIsLoading =
-    !!expandedPubkey &&
-    expandedDetailQuery.isFetching &&
-    expandedDetailQuery.data == null;
+  const expandedIsLoading = !!expandedPubkey && expandedDetailQuery.isFetching && expandedDetailQuery.data == null;
 
   // Parallel server-side stats query for the expanded row. Shares the
   // `["profile-stats", hex, trustPreset]` cache key with the full Profile
@@ -650,11 +516,7 @@ export default function NetworkPage() {
     reporting: SectionStats;
   };
   const expandedStatsQuery = useQuery<StatsResponse | null>({
-    queryKey: [
-      "profile-stats",
-      (expandedPubkey ?? "").toLowerCase(),
-      trustPreset,
-    ],
+    queryKey: ["profile-stats", (expandedPubkey ?? "").toLowerCase(), trustPreset],
     queryFn: async () => {
       const res = await apiClient.getUserStats(expandedPubkey!);
       return res?.data ?? null;
@@ -730,17 +592,8 @@ export default function NetworkPage() {
 
   const groupPubkeySets = useMemo(() => {
     if (!networkData) return null;
-    const sets: Record<GroupKey, Set<string>> = {} as any;
-    (
-      [
-        "followed_by",
-        "following",
-        "muted_by",
-        "muting",
-        "reported_by",
-        "reporting",
-      ] as GroupKey[]
-    ).forEach((k) => {
+    const sets = {} as Record<GroupKey, Set<string>>;
+    (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).forEach((k) => {
       sets[k] = new Set(toPubkeys(networkData[k]));
     });
     sets["flagged"] = flaggedPubkeySet;
@@ -751,21 +604,13 @@ export default function NetworkPage() {
     (pubkey: string): GroupKey[] => {
       if (!groupPubkeySets) return [];
       const memberOf: GroupKey[] = [];
-      (
-        [
-          "followed_by",
-          "following",
-          "muted_by",
-          "muting",
-          "reported_by",
-          "reporting",
-          "flagged",
-        ] as GroupKey[]
-      ).forEach((k) => {
-        if (groupPubkeySets[k].has(pubkey)) {
-          memberOf.push(k);
-        }
-      });
+      (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting", "flagged"] as GroupKey[]).forEach(
+        (k) => {
+          if (groupPubkeySets[k].has(pubkey)) {
+            memberOf.push(k);
+          }
+        },
+      );
       return memberOf;
     },
     [groupPubkeySets],
@@ -777,16 +622,15 @@ export default function NetworkPage() {
     (key: GroupKey): number => {
       // "flagged" comes from overview.flagged_count (DISTINCT across all
       // relationships, computed server-side).
-      if (key === "flagged")
-        return overviewQuery.data?.data?.flagged_count ?? 0;
+      if (key === "flagged") return overviewQuery.data?.data?.flagged_count ?? 0;
       // Always source section header counts from overview/stats (server-side
       // totals), independent of whether the section's items have been fetched.
       const counts = overviewQuery.data?.data?.counts;
       const stats = statsQuery.data?.data;
       if (verifiedOnly && isVerifiableGroup(key)) {
-        return (stats as any)?.[key]?.verified ?? 0;
+        return stats?.[key]?.verified ?? 0;
       }
-      return (counts as any)?.[key] ?? 0;
+      return counts?.[key] ?? 0;
     },
     [verifiedOnly, overviewQuery.data, statsQuery.data],
   );
@@ -814,6 +658,7 @@ export default function NetworkPage() {
       });
     }
     return pubkeys;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadedCount re-runs search as profileCache fills
   }, [activeGroup, searchFilter, getGroupPubkeys, loadedCount]);
 
   useEffect(() => {
@@ -844,6 +689,7 @@ export default function NetworkPage() {
 
     return () => {
       clearTimeout(timer);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- counter, not a DOM ref; bump invalidates in-flight search
       searchAbortRef.current++;
       setSearchLoading(false);
     };
@@ -870,8 +716,7 @@ export default function NetworkPage() {
     async (pk: string) => {
       const result = await social.follow(pk);
       if (result.cancelled) return result;
-      if (result.success)
-        toast({ title: "Followed", description: "Added to your contact list" });
+      if (result.success) toast({ title: "Followed", description: "Added to your contact list" });
       else
         toast({
           title: "Error",
@@ -907,8 +752,7 @@ export default function NetworkPage() {
     async (pk: string) => {
       const result = await social.mute(pk);
       if (result.cancelled) return result;
-      if (result.success)
-        toast({ title: "Muted", description: "Added to your mute list" });
+      if (result.success) toast({ title: "Muted", description: "Added to your mute list" });
       else
         toast({
           title: "Error",
@@ -924,8 +768,7 @@ export default function NetworkPage() {
     async (pk: string) => {
       const result = await social.unmute(pk);
       if (result.cancelled) return result;
-      if (result.success)
-        toast({ title: "Unmuted", description: "Removed from your mute list" });
+      if (result.success) toast({ title: "Unmuted", description: "Removed from your mute list" });
       else
         toast({
           title: "Error",
@@ -986,6 +829,7 @@ export default function NetworkPage() {
   // query param drives ORDER BY in /connections). No client-side re-sort.
   const visiblePubkeys = useMemo(
     () => filteredPubkeys(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- extra deps bust the memo when ref-backed caches fill
     [filteredPubkeys, trustFilter, trustLoadedCount],
   );
 
@@ -1010,7 +854,7 @@ export default function NetworkPage() {
     // Falls back to overview/stats only when no fetch has landed yet.
     const hasSearch = !!searchFilter.trim();
     const serverFilteredTotal: number | undefined = (
-      activeConn?.data?.pages?.[0] as any
+      activeConn?.data?.pages?.[0] as { data?: { total?: number } } | undefined
     )?.data?.total;
     const activeServerCount = hasSearch
       ? visiblePubkeys.length
@@ -1019,7 +863,7 @@ export default function NetworkPage() {
           ? (overviewQuery.data?.data?.flagged_count ?? 0)
           : verifiedOnly
             ? (statsQuery.data?.data?.[activeGroup]?.verified ?? 0)
-            : ((overviewQuery.data?.data?.counts as any)?.[activeGroup] ?? 0)));
+            : (overviewQuery.data?.data?.counts?.[activeGroup] ?? 0)));
     const loadedTotalItems = visiblePubkeys.length;
     const totalItems = Math.max(loadedTotalItems, activeServerCount);
     const totalPages = Math.ceil(totalItems / PAGE_SIZE);
@@ -1054,6 +898,7 @@ export default function NetworkPage() {
         items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE),
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- extra deps bust the memo when ref-backed caches fill
   }, [
     currentPage,
     visiblePubkeys,
@@ -1095,6 +940,7 @@ export default function NetworkPage() {
     if (muterReporterPks.size > 0) {
       fetchTrustScores(Array.from(muterReporterPks));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run on page change only; fetchers are cache-guarded
   }, [visiblePubkeyPage]);
 
   if (!user) return null;
@@ -1107,7 +953,7 @@ export default function NetworkPage() {
       // left "Back to Dashboard" as the only way out — and the dashboard is itself
       // a waiting screen, so a new user just bounced between two of them.
       <div
-        className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col"
+        className="flex min-h-screen flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100"
         data-testid="page-network-gate"
       >
         <AppHeader user={user} onLogout={handleLogout} active="network" />
@@ -1117,12 +963,19 @@ export default function NetworkPage() {
             pb-24 offsets the optical weight of the header so it centres on the eye,
             not the box. */}
         <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-start px-4 py-10 sm:justify-center sm:px-6 sm:pb-24">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-gate-title">
+          <h1
+            className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
+            style={{ fontFamily: "var(--font-display)" }}
+            data-testid="text-network-gate-title"
+          >
             Your network is being mapped
           </h1>
-          <p className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400" data-testid="text-network-gate-description">
-            Trust tiers, extended reach and network health all need your scores. They'll
-            appear here as soon as the first calculation lands.
+          <p
+            className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400"
+            data-testid="text-network-gate-description"
+          >
+            Trust tiers, extended reach and network health all need your scores. They'll appear here as soon as the
+            first calculation lands.
           </p>
           <div className="mt-5">
             {/* The one shared way the app states this — same component the dashboard
@@ -1157,7 +1010,7 @@ export default function NetworkPage() {
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-clip"
+      className="relative flex min-h-screen flex-col overflow-clip bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
       data-testid="page-network"
     >
       <GlossBackground />
@@ -1165,53 +1018,54 @@ export default function NetworkPage() {
       <AppHeader
         user={user}
         onLogout={handleLogout}
-       
+
         active="network"
       />
 
-      <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
+      <main className="relative z-10 mx-auto w-full max-w-5xl px-4 py-12 sm:px-6">
         <DeferredSessionNotice className="mb-8" />
-        <div className="space-y-8 animate-fade-up">
-          <div
-            className="text-left relative z-10 mb-8 pt-2"
-            data-testid="section-network-header"
-          >
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-brand-primary/5 blur-[60px] will-change-transform rounded-full pointer-events-none" />
+        <div className="animate-fade-up space-y-8">
+          <div className="relative z-10 mb-8 pt-2 text-left" data-testid="section-network-header">
+            <div className="pointer-events-none absolute left-1/2 top-1/2 h-[100%] w-[100%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-primary/5 blur-[60px] will-change-transform" />
             <PageHeader
               kicker="Network Explorer"
-              title={<>Your <span className="text-brand-link">Network</span></>}
+              title={
+                <>
+                  Your <span className="text-brand-link">Network</span>
+                </>
+              }
               subtitle="Browse and manage your social graph connections."
               testId="section-network-header"
             />
           </div>
 
           <Card
-            className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none overflow-hidden rounded-xl relative"
+            className="relative overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
             data-testid="card-network-filters"
           >
-            <CardHeader className="relative bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-4 px-5">
+            <CardHeader className="relative border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
               {/* Title row — shared across mobile and desktop */}
               <div className="flex items-center justify-between gap-3 pr-20 sm:pr-0">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm dark:shadow-none text-brand-primary dark:text-brand-link ring-1 ring-slate-100 dark:ring-slate-800/60 shrink-0">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="shrink-0 rounded-lg border border-slate-100 bg-white p-2 text-brand-primary shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:text-brand-link dark:shadow-none dark:ring-slate-800/60">
                     <Filter className="h-4 w-4" />
                   </div>
-                  <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm min-w-0">
+                  <div className="min-w-0 rounded-2xl border border-slate-100 bg-white/50 px-4 py-2 shadow-sm backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/50">
                     <CardTitle
-                      className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight"
+                      className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200"
                       style={{ fontFamily: "var(--font-display)" }}
                     >
                       Network Filters
                     </CardTitle>
-                    <CardDescription className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">
+                    <CardDescription className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Social Graph
                     </CardDescription>
                   </div>
                 </div>
                 {/* Desktop: Verified + NOSTR inline on the right */}
-                <div className="hidden sm:flex items-center gap-3 shrink-0">
+                <div className="hidden shrink-0 items-center gap-3 sm:flex">
                   <label
-                    className="flex items-center gap-2 cursor-pointer select-none"
+                    className="flex cursor-pointer select-none items-center gap-2"
                     data-testid="toggle-verified-only"
                   >
                     <Switch
@@ -1230,15 +1084,10 @@ export default function NetworkPage() {
                     </span>
                   </label>
                   <div
-                    className="px-2 py-1 rounded-full bg-brand-primary/10 text-xs font-bold text-brand-primary dark:text-brand-link border border-brand-primary/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0"
+                    className="flex shrink-0 items-center gap-1.5 rounded-full border border-brand-primary/20 bg-brand-primary/10 px-2 py-1 text-xs font-bold uppercase tracking-wider text-brand-primary dark:text-brand-link"
                     data-testid="badge-nostr-network"
                   >
-                    <img
-                      src="/nostr-ostrich.gif"
-                      alt=""
-                      className="h-4 w-4 object-contain"
-                      aria-hidden="true"
-                    />
+                    <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
                     <span>NOSTR</span>
                   </div>
                 </div>
@@ -1246,27 +1095,22 @@ export default function NetworkPage() {
 
               {/* Mobile: NOSTR badge pinned to top-right corner */}
               <div
-                className="sm:hidden absolute top-4 right-5 px-2 py-1 rounded-full bg-brand-primary/10 text-xs font-bold text-brand-primary dark:text-brand-link border border-brand-primary/20 uppercase tracking-wider flex items-center gap-1.5"
+                className="absolute right-5 top-4 flex items-center gap-1.5 rounded-full border border-brand-primary/20 bg-brand-primary/10 px-2 py-1 text-xs font-bold uppercase tracking-wider text-brand-primary dark:text-brand-link sm:hidden"
                 data-testid="badge-nostr-network-mobile"
               >
-                <img
-                  src="/nostr-ostrich.gif"
-                  alt=""
-                  className="h-4 w-4 object-contain"
-                  aria-hidden="true"
-                />
+                <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
                 <span>NOSTR</span>
               </div>
 
               {/* Mobile: Verified toggle — full-width settings-style row */}
-              <div className="sm:hidden mt-3">
+              <div className="mt-3 sm:hidden">
                 <label
-                  className="flex items-center justify-between gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-primary/15 dark:border-brand-primary/25"
+                  className="flex cursor-pointer select-none items-center justify-between gap-3 rounded-xl border border-brand-primary/15 bg-brand-primary/10 px-3 py-2.5 dark:border-brand-primary/25 dark:bg-brand-primary/10"
                   data-testid="toggle-verified-only-mobile"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     <div
-                      className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-brand-primary/15 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"}`}
+                      className={`shrink-0 rounded-lg p-1.5 transition-colors ${verifiedOnly ? "bg-brand-primary/15 text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link" : "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"}`}
                     >
                       <ShieldCheck className="h-4 w-4" />
                     </div>
@@ -1276,7 +1120,7 @@ export default function NetworkPage() {
                       >
                         Verified
                       </div>
-                      <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
+                      <div className="text-[10px] leading-tight text-slate-400 dark:text-slate-500">
                         Show only verified accounts
                       </div>
                     </div>
@@ -1287,18 +1131,18 @@ export default function NetworkPage() {
                       setVerifiedOnly(checked);
                       setCurrentPage(1);
                     }}
-                    className="data-[state=checked]:bg-brand-primary shrink-0"
+                    className="shrink-0 data-[state=checked]:bg-brand-primary"
                     data-testid="switch-verified-only-mobile"
                   />
                 </label>
               </div>
             </CardHeader>
 
-            <CardContent className="p-3 sm:p-5 bg-white/60 dark:bg-slate-900/60 space-y-2 sm:space-y-3">
+            <CardContent className="space-y-2 bg-white/60 p-3 dark:bg-slate-900/60 sm:space-y-3 sm:p-5">
               {/* Mobile dropdowns — hidden on sm+ */}
-              <div className="sm:hidden flex gap-2">
-                <div className="flex-1 min-w-0">
-                  <label className="flex items-center gap-1 text-[10px] font-semibold text-brand-link uppercase tracking-wider mb-1">
+              <div className="flex gap-2 sm:hidden">
+                <div className="min-w-0 flex-1">
+                  <label className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-brand-link">
                     <Network className="h-3 w-3" />
                     Graph
                   </label>
@@ -1308,32 +1152,25 @@ export default function NetworkPage() {
                       setActiveGroup(e.target.value as GroupKey);
                       setCurrentPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 shadow-sm"
+                    className="w-full rounded-lg border border-slate-200 bg-white/90 px-2.5 py-2 text-xs font-medium text-slate-700 shadow-sm focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary/20 dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-200"
                     data-testid="select-group-filter-mobile"
                   >
-                    {(
-                      [
-                        "followed_by",
-                        "following",
-                        "muted_by",
-                        "muting",
-                        "reported_by",
-                        "reporting",
-                      ] as GroupKey[]
-                    ).map((k) => {
-                      const group = groups.find((g) => g.key === k);
-                      if (!group) return null;
-                      const count = getGroupCount(group.key);
-                      return (
-                        <option key={k} value={k}>
-                          {group.label} — {count}
-                        </option>
-                      );
-                    })}
+                    {(["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).map(
+                      (k) => {
+                        const group = groups.find((g) => g.key === k);
+                        if (!group) return null;
+                        const count = getGroupCount(group.key);
+                        return (
+                          <option key={k} value={k}>
+                            {group.label} — {count}
+                          </option>
+                        );
+                      },
+                    )}
                   </select>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <label className="flex items-center gap-1 text-[10px] font-semibold text-brand-link uppercase tracking-wider mb-1">
+                <div className="min-w-0 flex-1">
+                  <label className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-brand-link">
                     <ShieldCheck className="h-3 w-3" />
                     Trust
                   </label>
@@ -1343,7 +1180,7 @@ export default function NetworkPage() {
                       setTrustFilter(e.target.value as TrustTier);
                       setCurrentPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 shadow-sm"
+                    className="w-full rounded-lg border border-slate-200 bg-white/90 px-2.5 py-2 text-xs font-medium text-slate-700 shadow-sm focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary/20 dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-200"
                     data-testid="select-trust-filter-mobile"
                   >
                     <option value="all">All</option>
@@ -1363,96 +1200,76 @@ export default function NetworkPage() {
                         <option value="unverified">{TIER_LABELS.unverified}</option>
                       </>
                     )}
-                    {getGroupPubkeys("flagged").length > 0 && (
-                      <option value="flagged">Flagged</option>
-                    )}
+                    {getGroupPubkeys("flagged").length > 0 && <option value="flagged">Flagged</option>}
                   </select>
                 </div>
               </div>
 
               {/* Desktop pill rows — hidden on mobile */}
               <div>
-                <div
-                  className="hidden sm:flex sm:flex-wrap items-center gap-1.5"
-                  data-testid="row-group-filters-graph"
-                >
-                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider self-center shrink-0 pr-2 mr-1 border-r border-slate-200/60 dark:border-slate-800">
+                <div className="hidden items-center gap-1.5 sm:flex sm:flex-wrap" data-testid="row-group-filters-graph">
+                  <span className="mr-1 shrink-0 self-center border-r border-slate-200/60 pr-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:text-slate-500">
                     Graph
                   </span>
-                  {(
-                    [
-                      "followed_by",
-                      "following",
-                      "muted_by",
-                      "muting",
-                      "reported_by",
-                      "reporting",
-                    ] as GroupKey[]
-                  ).map((k) => {
-                    const group = groups.find((g) => g.key === k);
-                    if (!group) return null;
-                    const count = getGroupCount(group.key);
-                    const totalCount =
-                      (overviewQuery.data?.data?.counts as any)?.[group.key] ??
-                      0;
-                    const isActive = activeGroup === group.key;
-                    const showVerified =
-                      verifiedOnly && isVerifiableGroup(group.key);
-                    return (
-                      <UITooltip key={group.key} delayDuration={500}>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveGroup(group.key);
-                              setCurrentPage(1);
-                            }}
-                            className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
-                              isActive
-                                ? "bg-brand-primary text-white border border-brand-primary"
-                                : "bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-                            }`}
-                            data-testid={`button-filter-${group.key}`}
-                          >
-                            <group.Icon
-                              className={`h-4 w-4 shrink-0 ${isActive ? "text-white" : group.color}`}
-                            />
-                            <span>{group.shortLabel}</span>
-                            <span
-                              className={`text-xs font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                  {(["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).map(
+                    (k) => {
+                      const group = groups.find((g) => g.key === k);
+                      if (!group) return null;
+                      const count = getGroupCount(group.key);
+                      const totalCount = overviewQuery.data?.data?.counts?.[group.key] ?? 0;
+                      const isActive = activeGroup === group.key;
+                      const showVerified = verifiedOnly && isVerifiableGroup(group.key);
+                      return (
+                        <UITooltip key={group.key} delayDuration={500}>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveGroup(group.key);
+                                setCurrentPage(1);
+                              }}
+                              className={`flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium transition-all ${
                                 isActive
-                                  ? "bg-white/20 text-white"
-                                  : `${group.bgColor} ${group.color} ${group.borderColor} border`
+                                  ? "border border-brand-primary bg-brand-primary text-white"
+                                  : "border border-slate-200/60 bg-white/60 text-slate-600 hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800"
                               }`}
+                              data-testid={`button-filter-${group.key}`}
                             >
-                              {showVerified ? `${count}/${totalCount}` : count}
-                            </span>
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="bottom"
-                          className={`bg-white dark:bg-slate-900 backdrop-blur-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 shadow-lg px-2.5 py-1.5 max-w-[220px] border-l-2 ${group.tooltipAccent}`}
-                        >
-                          <p className="text-xs font-medium">{group.tooltip}</p>
-                          {showVerified && totalCount !== count && (
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                              {count} verified of {totalCount} total
-                            </p>
-                          )}
-                        </TooltipContent>
-                      </UITooltip>
-                    );
-                  })}
+                              <group.Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
+                              <span>{group.shortLabel}</span>
+                              <span
+                                className={`whitespace-nowrap rounded-full px-1.5 py-0.5 text-xs font-bold ${
+                                  isActive
+                                    ? "bg-white/20 text-white"
+                                    : `${group.bgColor} ${group.color} ${group.borderColor} border`
+                                }`}
+                              >
+                                {showVerified ? `${count}/${totalCount}` : count}
+                              </span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="bottom"
+                            className={`max-w-[220px] border border-l-2 border-slate-300 bg-white px-2.5 py-1.5 text-slate-700 shadow-lg backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 ${group.tooltipAccent}`}
+                          >
+                            <p className="text-xs font-medium">{group.tooltip}</p>
+                            {showVerified && totalCount !== count && (
+                              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                {count} verified of {totalCount} total
+                              </p>
+                            )}
+                          </TooltipContent>
+                        </UITooltip>
+                      );
+                    },
+                  )}
                 </div>
               </div>
 
-              <div className="hidden sm:block border-t border-slate-200/60 dark:border-slate-800 my-0.5" />
+              <div className="my-0.5 hidden border-t border-slate-200/60 dark:border-slate-800 sm:block" />
 
-              <div
-                className="hidden sm:flex sm:flex-wrap gap-1.5 sm:gap-2"
-                data-testid="row-trust-filters"
-              >
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60 dark:border-slate-800">
+              <div className="hidden gap-1.5 sm:flex sm:flex-wrap sm:gap-2" data-testid="row-trust-filters">
+                <span className="mr-1 shrink-0 self-center border-r border-slate-200/60 pr-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:text-slate-500">
                   Trust
                 </span>
                 {(
@@ -1519,115 +1336,113 @@ export default function NetworkPage() {
                       shortLabel: "Flagged",
                       icon: "flagged",
                       ringFill: 0,
-                      tooltip:
-                        "Low trust accounts reported by 2+ of your trusted contacts",
+                      tooltip: "Low trust accounts reported by 2+ of your trusted contacts",
                     },
                   ] as const
-                ).filter((tier) =>
-                  granularity === "simple"
-                    ? tier.key === "all" || tier.key === "verified" || tier.key === "unverified" || tier.key === "flagged"
-                    : tier.key !== "verified",
-                ).map((tier) => {
-                  const isActive = trustFilter === tier.key;
-                  return (
-                    <UITooltip key={tier.key} delayDuration={500}>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTrustFilter(tier.key);
-                            setCurrentPage(1);
-                          }}
-                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
-                            isActive
-                              ? tier.key === "flagged"
-                                ? "bg-red-600 text-white border border-red-600"
-                                : "bg-brand-primary text-white border border-brand-primary"
-                              : tier.key === "flagged"
-                                ? "bg-white/60 dark:bg-slate-900/60 border border-red-200 dark:border-red-500/25 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-500/40"
-                                : "bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
-                          }`}
-                          data-testid={`button-trust-filter-${tier.key}`}
-                        >
-                          {tier.key === "flagged" ? (
-                            <svg
-                              className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : "text-red-500"}`}
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-                              <line x1="4" y1="22" x2="4" y2="15" />
-                            </svg>
-                          ) : (
-                            tier.icon &&
-                            tier.icon !== "flagged" && (
+                )
+                  .filter((tier) =>
+                    granularity === "simple"
+                      ? tier.key === "all" ||
+                        tier.key === "verified" ||
+                        tier.key === "unverified" ||
+                        tier.key === "flagged"
+                      : tier.key !== "verified",
+                  )
+                  .map((tier) => {
+                    const isActive = trustFilter === tier.key;
+                    return (
+                      <UITooltip key={tier.key} delayDuration={500}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTrustFilter(tier.key);
+                              setCurrentPage(1);
+                            }}
+                            className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
+                              isActive
+                                ? tier.key === "flagged"
+                                  ? "border border-red-600 bg-red-600 text-white"
+                                  : "border border-brand-primary bg-brand-primary text-white"
+                                : tier.key === "flagged"
+                                  ? "border border-red-200 bg-white/60 text-red-500 hover:border-red-300 hover:bg-red-50 dark:border-red-500/25 dark:bg-slate-900/60 dark:hover:border-red-500/40 dark:hover:bg-red-500/10"
+                                  : "border border-slate-200/60 bg-white/60 text-slate-500 hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-800"
+                            }`}
+                            data-testid={`button-trust-filter-${tier.key}`}
+                          >
+                            {tier.key === "flagged" ? (
                               <svg
-                                className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : tier.icon}`}
-                                viewBox="0 0 44 44"
+                                className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : "text-red-500"}`}
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               >
-                                <circle
-                                  cx="22"
-                                  cy="22"
-                                  r="18"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                  opacity="0.3"
-                                />
-                                <circle
-                                  cx="22"
-                                  cy="22"
-                                  r="18"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                  strokeLinecap="round"
-                                  style={{
-                                    strokeDasharray: `${2 * Math.PI * 18}`,
-                                    strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`,
-                                    transform: "rotate(-90deg)",
-                                    transformOrigin: "center",
-                                  }}
-                                />
+                                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                                <line x1="4" y1="22" x2="4" y2="15" />
                               </svg>
-                            )
-                          )}
-                          <span>
-                            {tier.key === "all" ? tier.shortLabel : tier.label}
-                          </span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="bottom"
-                        className={`bg-white dark:bg-slate-900 backdrop-blur-xl border border-slate-300 dark:border-slate-700 border-l-2 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-brand-primary"} text-slate-700 dark:text-slate-200 shadow-lg px-2.5 py-1.5`}
-                      >
-                        <p className="text-xs font-medium">{tier.tooltip}</p>
-                      </TooltipContent>
-                    </UITooltip>
-                  );
-                })}
+                            ) : (
+                              tier.icon &&
+                              tier.icon !== "flagged" && (
+                                <svg
+                                  className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : tier.icon}`}
+                                  viewBox="0 0 44 44"
+                                >
+                                  <circle
+                                    cx="22"
+                                    cy="22"
+                                    r="18"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                    opacity="0.3"
+                                  />
+                                  <circle
+                                    cx="22"
+                                    cy="22"
+                                    r="18"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                    strokeLinecap="round"
+                                    style={{
+                                      strokeDasharray: `${2 * Math.PI * 18}`,
+                                      strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`,
+                                      transform: "rotate(-90deg)",
+                                      transformOrigin: "center",
+                                    }}
+                                  />
+                                </svg>
+                              )
+                            )}
+                            <span>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="bottom"
+                          className={`border border-l-2 border-slate-300 bg-white backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-brand-primary"} px-2.5 py-1.5 text-slate-700 shadow-lg dark:text-slate-200`}
+                        >
+                          <p className="text-xs font-medium">{tier.tooltip}</p>
+                        </TooltipContent>
+                      </UITooltip>
+                    );
+                  })}
               </div>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-                <div className="relative group/input flex-1">
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-primary to-brand-primary rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
+              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <div className="group/input relative flex-1">
+                  <div className="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-brand-primary to-brand-primary opacity-20 blur transition duration-500 group-hover/input:opacity-50" />
                   <div className="relative flex items-center">
                     {searchLoading ? (
-                      <Loader2 className="absolute left-3 h-4 w-4 text-brand-primary z-10 animate-spin" />
+                      <Loader2 className="absolute left-3 z-10 h-4 w-4 animate-spin text-brand-primary" />
                     ) : (
-                      <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 dark:text-slate-500 z-10" />
+                      <SearchIcon className="absolute left-3 z-10 h-4 w-4 text-slate-400 dark:text-slate-500" />
                     )}
                     <Input
-                      placeholder={
-                        isLoading
-                          ? "Loading your network…"
-                          : "Search by name or npub..."
-                      }
-                      className={`relative bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border-brand-primary/[0.3] shadow-[0_0_10px_rgb(var(--brand-primary)/0.05)] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
+                      placeholder={isLoading ? "Loading your network…" : "Search by name or npub..."}
+                      className={`relative rounded-lg border-brand-primary/[0.3] bg-white/90 pl-9 text-sm text-slate-900 shadow-[0_0_10px_rgb(var(--brand-primary)/0.05)] shadow-sm backdrop-blur-sm transition-all placeholder:text-slate-400 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 dark:bg-slate-900/90 dark:text-slate-100 dark:placeholder:text-slate-500 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
                       value={searchFilter}
                       onChange={(e) => {
                         setSearchFilter(e.target.value);
@@ -1644,7 +1459,7 @@ export default function NetworkPage() {
                           setSearchFilter("");
                           setCurrentPage(1);
                         }}
-                        className="absolute right-2 z-10 p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        className="absolute right-2 z-10 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                         aria-label="Clear search"
                         data-testid="button-clear-network-search"
                       >
@@ -1654,7 +1469,7 @@ export default function NetworkPage() {
                   </div>
                   {searchFilter.trim().length >= 2 && searchLoading && (
                     <p
-                      className="mt-1 ml-1 text-[11px] text-brand-primary/80 flex items-center gap-1.5"
+                      className="ml-1 mt-1 flex items-center gap-1.5 text-[11px] text-brand-primary/80"
                       role="status"
                       aria-live="polite"
                       data-testid="text-network-search-loading"
@@ -1667,7 +1482,7 @@ export default function NetworkPage() {
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-primary/25 dark:hover:border-brand-primary/[0.4] hover:text-brand-primary dark:hover:text-brand-link transition-colors shrink-0"
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200/60 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-brand-primary/25 hover:text-brand-primary dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:border-brand-primary/[0.4] dark:hover:text-brand-link"
                     onClick={() => {
                       setSortDirection((d) => (d === "desc" ? "asc" : "desc"));
                       setCurrentPage(1);
@@ -1678,12 +1493,12 @@ export default function NetworkPage() {
                     <span>Trust {sortDirection === "desc" ? "↓" : "↑"}</span>
                   </button>
                   <div
-                    className="flex items-center bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 rounded-lg p-0.5 shrink-0"
+                    className="flex shrink-0 items-center rounded-lg border border-slate-200/60 bg-white/80 p-0.5 dark:border-slate-800 dark:bg-slate-900/80"
                     data-testid="row-view-toggle"
                   >
                     <button
                       type="button"
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-brand-primary text-white" : "text-slate-400 dark:text-slate-500"}`}
+                      className={`rounded-md p-1.5 transition-colors ${viewMode === "grid" ? "bg-brand-primary text-white" : "text-slate-400 dark:text-slate-500"}`}
                       onClick={() => setViewMode("grid")}
                       data-testid="button-view-grid"
                     >
@@ -1691,7 +1506,7 @@ export default function NetworkPage() {
                     </button>
                     <button
                       type="button"
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-brand-primary text-white" : "text-slate-400 dark:text-slate-500"}`}
+                      className={`rounded-md p-1.5 transition-colors ${viewMode === "list" ? "bg-brand-primary text-white" : "text-slate-400 dark:text-slate-500"}`}
                       onClick={() => setViewMode("list")}
                       data-testid="button-view-list"
                     >
@@ -1703,52 +1518,46 @@ export default function NetworkPage() {
             </CardContent>
           </Card>
 
-          {isLoading ||
-          (activeConn?.isFetching && visiblePubkeys.length === 0) ? (
-            <div
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-              data-testid="grid-network-skeleton"
-            >
+          {isLoading || (activeConn?.isFetching && visiblePubkeys.length === 0) ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3" data-testid="grid-network-skeleton">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800 rounded-xl p-4 animate-pulse"
+                  className="animate-pulse rounded-xl border border-slate-200/60 bg-white/80 p-4 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/80"
                   data-testid={`skeleton-card-${i}`}
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700" />
                     <div className="flex-1 space-y-2">
-                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-24" />
-                      <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded w-32" />
+                      <div className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-2 w-32 rounded bg-slate-100 dark:bg-slate-800" />
                     </div>
                   </div>
                   <div className="mt-3 flex gap-1">
-                    <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-14" />
-                    <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-16" />
+                    <div className="h-4 w-14 rounded bg-slate-100 dark:bg-slate-800" />
+                    <div className="h-4 w-16 rounded bg-slate-100 dark:bg-slate-800" />
                   </div>
                 </div>
               ))}
             </div>
           ) : visiblePubkeys.length === 0 ? (
             <Card
-              className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-none rounded-xl overflow-hidden"
+              className="overflow-hidden rounded-xl border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
               data-testid="card-network-empty"
             >
-              <div className="p-8 flex flex-col items-center text-center">
-                <div className="h-14 w-14 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-brand-primary dark:text-brand-link flex items-center justify-center mb-4">
+              <div className="flex flex-col items-center p-8 text-center">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-brand-primary dark:border-slate-800 dark:bg-slate-900 dark:text-brand-link">
                   <Users className="h-6 w-6" />
                 </div>
                 <h3
-                  className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight"
+                  className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100"
                   style={{ fontFamily: "var(--font-display)" }}
                   data-testid="text-network-empty-title"
                 >
-                  {searchFilter || trustFilter !== "all"
-                    ? "No matches found"
-                    : "No contacts yet"}
+                  {searchFilter || trustFilter !== "all" ? "No matches found" : "No contacts yet"}
                 </h3>
                 <p
-                  className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-md"
+                  className="mt-2 max-w-md text-sm leading-relaxed text-slate-600 dark:text-slate-300"
                   data-testid="text-network-empty-body"
                 >
                   {searchFilter || trustFilter !== "all"
@@ -1765,44 +1574,27 @@ export default function NetworkPage() {
                     <NetworkCardActionsProvider value={cardActions}>
                       <NetworkCardViewProvider value={cardView}>
                         <div
-                          className={`${viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "flex flex-col gap-2"} transition-opacity duration-150 ${activeConn?.isFetching ? "opacity-60" : "opacity-100"}`}
+                          className={`${viewMode === "grid" ? "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3" : "flex flex-col gap-2"} transition-opacity duration-150 ${activeConn?.isFetching ? "opacity-60" : "opacity-100"}`}
                           data-testid="grid-network-profiles"
                         >
                           {visiblePubkeyPage.items.map((pk) => (
-                            <div
-                              key={pk}
-                              className={viewMode === "grid" ? "contents" : ""}
-                            >
+                            <div key={pk} className={viewMode === "grid" ? "contents" : ""}>
                               <NetworkProfileCard
                                 pk={pk}
                                 profile={profileCache.current.get(pk)}
                                 trustScore={trustCache.current.get(pk)}
                                 graphData={graphDataCache.current.get(pk)}
-                                detail={
-                                  expandedPubkey === pk
-                                    ? expandedDetailGraph
-                                    : undefined
-                                }
-                                stats={
-                                  expandedPubkey === pk
-                                    ? expandedStats
-                                    : undefined
-                                }
+                                detail={expandedPubkey === pk ? expandedDetailGraph : undefined}
+                                stats={expandedPubkey === pk ? expandedStats : undefined}
                                 isExpanded={expandedPubkey === pk}
                                 isCopied={copiedPubkey === pk}
                                 isProfileLoaded={profileCache.current.has(pk)}
-                                profileAttempted={profileAttempted.current.has(
-                                  pk,
-                                )}
-                                expandedLoading={
-                                  expandedPubkey === pk && expandedIsLoading
-                                }
+                                profileAttempted={profileAttempted.current.has(pk)}
+                                expandedLoading={expandedPubkey === pk && expandedIsLoading}
                                 isSelf={user?.pubkey === pk}
                                 isFollowingUser={social.isFollowing(pk)}
                                 isMutedUser={social.isMuted(pk)}
-                                isFlagged={
-                                  groupPubkeySets?.flagged?.has(pk) ?? false
-                                }
+                                isFlagged={groupPubkeySets?.flagged?.has(pk) ?? false}
                               />
                             </div>
                           ))}
@@ -1810,14 +1602,10 @@ export default function NetworkPage() {
                       </NetworkCardViewProvider>
                     </NetworkCardActionsProvider>
 
-                    <div
-                      className="flex items-center justify-between gap-4 pt-4"
-                      data-testid="row-pagination"
-                    >
+                    <div className="flex items-center justify-between gap-4 pt-4" data-testid="row-pagination">
                       <span className="text-xs text-slate-500 dark:text-slate-400">
                         {visiblePubkeyPage.startIdx + 1}&ndash;
-                        {visiblePubkeyPage.nextItemStart} of{" "}
-                        {visiblePubkeyPage.totalItems}
+                        {visiblePubkeyPage.nextItemStart} of {visiblePubkeyPage.totalItems}
                       </span>
                       {visiblePubkeyPage.totalPages > 1 && (
                         <div className="flex items-center gap-2">
@@ -1836,20 +1624,16 @@ export default function NetworkPage() {
                             Previous
                           </Button>
                           <span
-                            className="text-xs font-medium text-slate-600 dark:text-slate-300 tabular-nums px-2"
+                            className="px-2 text-xs font-medium tabular-nums text-slate-600 dark:text-slate-300"
                             data-testid="text-page-indicator"
                           >
-                            {visiblePubkeyPage.safePage} /{" "}
-                            {visiblePubkeyPage.totalPages}
+                            {visiblePubkeyPage.safePage} / {visiblePubkeyPage.totalPages}
                           </span>
                           <Button
                             variant="outline"
                             size="sm"
                             className="gap-1.5 text-xs"
-                            disabled={
-                              visiblePubkeyPage.safePage >=
-                              visiblePubkeyPage.totalPages
-                            }
+                            disabled={visiblePubkeyPage.safePage >= visiblePubkeyPage.totalPages}
                             onClick={() => {
                               setCurrentPage(visiblePubkeyPage.safePage + 1);
                               window.scrollTo({ top: 0, behavior: "smooth" });

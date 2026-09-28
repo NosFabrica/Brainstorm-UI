@@ -38,9 +38,7 @@ describe("useShareUrl", () => {
 
     const { result } = renderHook(() => useShareUrl({ npub: NPUB, enabled: true }), { wrapper });
 
-    await waitFor(() =>
-      expect(result.current).toBe(`${window.location.origin}/s/AB3XK9QZ`),
-    );
+    await waitFor(() => expect(result.current).toBe(`${window.location.origin}/s/AB3XK9QZ`));
   });
 
   it("keeps the canonical url when the shortener fails", async () => {

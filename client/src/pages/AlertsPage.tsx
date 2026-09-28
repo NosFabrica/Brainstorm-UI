@@ -7,8 +7,14 @@ import { AppHeader } from "@/components/AppHeader";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
@@ -58,9 +64,20 @@ export default function AlertsPage() {
     retry: false,
   });
   const profiles: Map<string, ProfileLite> = profilesQuery.data ?? new Map();
-  const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
+  const nameFor = (pk: string) =>
+    profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
-  const { dismissed, ignored, isEscalated, ignoredBaseline, actionsFor, ignoreBatch, handleUnignore, unignoreBatch, dialogs } = useAlertActions(observer, flagged);
+  const {
+    dismissed,
+    ignored,
+    isEscalated,
+    ignoredBaseline,
+    actionsFor,
+    ignoreBatch,
+    handleUnignore,
+    unignoreBatch,
+    dialogs,
+  } = useAlertActions(observer, flagged);
   // Seeded from `?scope=`, defaulting to your follows. The dashboard's extended
   // footnote has always linked to /alerts?scope=extended, but nothing read the
   // param, so that deliberate step silently landed on the wrong list. Read-on-
@@ -91,12 +108,11 @@ export default function AlertsPage() {
 
   const rows = useMemo(() => {
     let list =
-      scope === "ignored" ? ignoredList
-      : live.filter((e) => (scope === "follows" ? e.hops <= 1 : e.hops >= 2));
+      scope === "ignored" ? ignoredList : live.filter((e) => (scope === "follows" ? e.hops <= 1 : e.hops >= 2));
     const qq = query.trim().toLowerCase();
     if (qq) list = list.filter((e) => nameFor(e.pubkey).toLowerCase().includes(qq));
     const key = (e: NetworkAlertEntry) =>
-      sort === "reports" ? e.verifiedReporterCount : sort === "muted" ? e.verifiedMuterCount : e.influence ?? 0;
+      sort === "reports" ? e.verifiedReporterCount : sort === "muted" ? e.verifiedMuterCount : (e.influence ?? 0);
     return [...list].sort((a, b) => key(b) - key(a));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, ignoredList, scope, query, sort, profiles]);
@@ -112,14 +128,19 @@ export default function AlertsPage() {
   // be ignored — the two sit side by side on desktop, stacked on mobile.
   const countLabel = searching
     ? `${rows.length} matching “${query.trim()}”`
-    : viewingIgnored ? `${rows.length} ignored`
-    : scope === "extended" ? `${rows.length} in extended reach`
-    : `${rows.length} of your follows`;
+    : viewingIgnored
+      ? `${rows.length} ignored`
+      : scope === "extended"
+        ? `${rows.length} in extended reach`
+        : `${rows.length} of your follows`;
   const bulkLabel = viewingIgnored ? `Un-ignore all ${rows.length}` : `Ignore all ${rows.length}`;
-  const bulkScopeLabel = searching ? undefined
-    : scope === "extended" ? "extended reach"
-    : viewingIgnored ? undefined
-    : "your follows";
+  const bulkScopeLabel = searching
+    ? undefined
+    : scope === "extended"
+      ? "extended reach"
+      : viewingIgnored
+        ? undefined
+        : "your follows";
   // Ignoring accounts you actually follow is higher-stakes than dismissing far-off
   // extended-reach noise, so a batch that includes any follow gets a confirm first.
   // Un-ignoring never needs one: it only ever shows you MORE, so the destructive
@@ -127,7 +148,11 @@ export default function AlertsPage() {
   const bulkHasFollows = !viewingIgnored && rows.some((e) => e.hops <= 1);
   const runBulkIgnore = () => {
     if (viewingIgnored) unignoreBatch(rows.map((e) => e.pubkey));
-    else ignoreBatch(rows.map((e) => ({ pubkey: e.pubkey, atReports: e.verifiedReporterCount })), bulkScopeLabel);
+    else
+      ignoreBatch(
+        rows.map((e) => ({ pubkey: e.pubkey, atReports: e.verifiedReporterCount })),
+        bulkScopeLabel,
+      );
     setConfirmBulk(false);
   };
 
@@ -139,7 +164,9 @@ export default function AlertsPage() {
       onClick={() => setScope(val)}
       className={cn(
         "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
-        scope === val ? "bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white",
+        scope === val
+          ? "bg-white text-slate-800 shadow-sm dark:bg-slate-900 dark:text-slate-100"
+          : "text-slate-500 hover:text-brand-deep dark:text-slate-400 dark:hover:text-white",
       )}
       data-testid={`alerts-scope-${val}`}
     >
@@ -148,42 +175,64 @@ export default function AlertsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col">
+    <div className="flex min-h-screen flex-col bg-white dark:bg-slate-950">
       {user && <AppHeader user={user} onLogout={handleLogout} />}
-      <main className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 flex-1">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
         <button
           type="button"
           onClick={() => goBack("/dashboard")}
-          className="mb-6 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+          className="mb-6 inline-flex items-center gap-2 rounded text-sm text-slate-500 hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400 dark:hover:text-white"
           data-testid="alerts-back"
         >
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
 
-        <div className="flex items-center gap-3 mb-1">
-          <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
+        <div className="mb-1 flex items-center gap-3">
+          <div className="rounded-lg border border-slate-100 bg-white p-2 text-brand-deep shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800">
             <ShieldAlert className="h-4 w-4" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Network Alerts</h1>
+          <h1
+            className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Network Alerts
+          </h1>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Accounts in your network that people you trust have reported or muted.</p>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+          Accounts in your network that people you trust have reported or muted.
+        </p>
 
         {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
-          <div className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5" role="group" aria-label="Scope">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div
+            className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100/70 p-0.5 dark:border-slate-800 dark:bg-slate-800/50"
+            role="group"
+            aria-label="Scope"
+          >
             {scopeTab("follows", "Your follows", followsCount)}
             {scopeTab("extended", "Extended reach", extendedCount)}
             {/* Always rendered, including at 0 — the other two show 0 too, and a
                 tab that appears and disappears reshuffles the row under you. */}
             {scopeTab("ignored", "Ignored", ignoredCount)}
           </div>
-          <div className="sm:ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:ml-auto">
             <div className="relative flex-1 sm:flex-none">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name" className="h-9 w-full sm:w-48 pl-8 text-sm" data-testid="alerts-search" />
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name"
+                className="h-9 w-full pl-8 text-sm sm:w-48"
+                data-testid="alerts-search"
+              />
             </div>
             <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-              <SelectTrigger className="h-9 w-[150px] text-sm" data-testid="alerts-sort"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-[150px] text-sm" data-testid="alerts-sort">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="reports">Most reports</SelectItem>
                 <SelectItem value="muted">Most muted</SelectItem>
@@ -202,10 +251,13 @@ export default function AlertsPage() {
             pill on a phone reads as an afterthought and sits away from the thumb,
             the same problem the footer strip had. */}
         {(rows.length > 1 || ignoredCount > 0) && (
-          <div className="mb-4 border-t border-slate-100 dark:border-slate-800/60 pt-3">
+          <div className="mb-4 border-t border-slate-100 pt-3 dark:border-slate-800/60">
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300" data-testid="alerts-count">
+                <span
+                  className="text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300"
+                  data-testid="alerts-count"
+                >
                   {countLabel}
                 </span>
               </div>
@@ -240,16 +292,20 @@ export default function AlertsPage() {
                 "Climb sharply" was vaguer than the rule; "a lot more people" is
                 plain and stays true for both halves of it (double, or +5). */}
             <p className="mt-2 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-              Ignoring just hides them from your alerts. It doesn't report them, mute them,
-              or tell anyone. If a lot more people report them, they'll show up again.
+              Ignoring just hides them from your alerts. It doesn't report them, mute them, or tell anyone. If a lot
+              more people report them, they'll show up again.
             </p>
             {/* Standing correction, shown wherever the list is described. The
                 toast says this once at the moment it happens; this is for
                 everyone who wasn't looking, or who comes back later wondering
                 why their phone disagrees. */}
             {ignoreSync === "local-only" && (
-              <p className="mt-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-500" data-testid="alerts-local-only">
-                Saved on this device only — we couldn't save your ignore list to your account, so it won't follow you to your other devices.
+              <p
+                className="mt-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-500"
+                data-testid="alerts-local-only"
+              >
+                Saved on this device only — we couldn't save your ignore list to your account, so it won't follow you to
+                your other devices.
               </p>
             )}
           </div>
@@ -257,9 +313,16 @@ export default function AlertsPage() {
 
         {/* Body */}
         {!observer ? null : q.isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 py-8"><Loader2 className="h-4 w-4 animate-spin" /> Scanning your network…</div>
+          <div className="flex items-center gap-2 py-8 text-sm text-slate-500 dark:text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Scanning your network…
+          </div>
         ) : q.isError ? (
-          <div className="text-sm text-slate-500 dark:text-slate-400 py-8">Couldn't load your network alerts. <button type="button" onClick={() => q.refetch()} className="font-semibold text-brand-link hover:underline">Try again</button></div>
+          <div className="py-8 text-sm text-slate-500 dark:text-slate-400">
+            Couldn't load your network alerts.{" "}
+            <button type="button" onClick={() => q.refetch()} className="font-semibold text-brand-link hover:underline">
+              Try again
+            </button>
+          </div>
         ) : rows.length === 0 ? (
           /* Scope-aware, because with "Your follows" as the default this is now
              the MOST COMMON thing on the page — most people follow nobody who's
@@ -283,7 +346,7 @@ export default function AlertsPage() {
               <button
                 type="button"
                 onClick={() => setScope("extended")}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+                className="inline-flex items-center gap-1.5 rounded text-xs font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                 data-testid="alerts-empty-extended-link"
               >
                 <Eye className="h-3.5 w-3.5" />
@@ -294,7 +357,14 @@ export default function AlertsPage() {
         ) : (
           <div className="space-y-1.5" data-testid="alerts-list">
             {rows.map((e) => (
-              <AlertRow key={e.pubkey} entry={e} name={nameFor(e.pubkey)} picture={profiles.get(e.pubkey)?.picture} isNew={false} following={e.hops <= 1} escalatedFrom={isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null}
+              <AlertRow
+                key={e.pubkey}
+                entry={e}
+                name={nameFor(e.pubkey)}
+                picture={profiles.get(e.pubkey)?.picture}
+                isNew={false}
+                following={e.hops <= 1}
+                escalatedFrom={isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null}
                 onDeepDive={() => navigate(`/p/${npubFromPubkey(e.pubkey)}`)}
                 onWhy={() => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`)}
                 {...actionsFor(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount, {
@@ -302,7 +372,11 @@ export default function AlertsPage() {
                   nip05: profiles.get(e.pubkey)?.nip05,
                 })}
                 // Presence of this switches AlertRow to its neutral variant.
-                onUnignore={viewingIgnored ? () => handleUnignore(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount) : undefined}
+                onUnignore={
+                  viewingIgnored
+                    ? () => handleUnignore(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -319,14 +393,19 @@ export default function AlertsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Ignore {rows.length} accounts?</AlertDialogTitle>
             <AlertDialogDescription>
-              This batch includes accounts you follow. Ignoring just hides them from your
-              alerts — it doesn't report them, mute them, or tell anyone, and they'll show
-              up again if a lot more people report them. You can undo right after.
+              This batch includes accounts you follow. Ignoring just hides them from your alerts — it doesn't report
+              them, mute them, or tell anyone, and they'll show up again if a lot more people report them. You can undo
+              right after.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={(ev) => { ev.preventDefault(); runBulkIgnore(); }}>
+            <AlertDialogAction
+              onClick={(ev) => {
+                ev.preventDefault();
+                runBulkIgnore();
+              }}
+            >
               Ignore all
             </AlertDialogAction>
           </AlertDialogFooter>

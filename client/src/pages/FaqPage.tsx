@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import {
-  HelpCircle,
-  ChevronDown,
-  ArrowRight,
-} from "lucide-react";
+import { HelpCircle, ChevronDown, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
@@ -14,62 +10,76 @@ import { Card } from "@/components/ui/card";
 const userFaqs = [
   {
     question: "Why do scores look different between Search and a profile?",
-    answer: "Search lets you pick a perspective (NosFabrica's view, or your own personalized view). When you click a result, the Profile page currently always shows scores from your *personalized* view — even if you searched as NosFabrica — because the per-profile API endpoints don't accept a perspective parameter yet. When this happens we show an amber banner at the top of the profile, and when you arrived from a search we also show NosFabrica's score next to yours as a second small meter so you can compare. The underlying per-profile NosFabrica score is something we're working on with the Brainstorm backend.",
+    answer:
+      "Search lets you pick a perspective (NosFabrica's view, or your own personalized view). When you click a result, the Profile page currently always shows scores from your *personalized* view — even if you searched as NosFabrica — because the per-profile API endpoints don't accept a perspective parameter yet. When this happens we show an amber banner at the top of the profile, and when you arrived from a search we also show NosFabrica's score next to yours as a second small meter so you can compare. The underlying per-profile NosFabrica score is something we're working on with the Brainstorm backend.",
   },
   {
     question: "What does my Verification Score mean?",
-    answer: "Your Verification Score (also called a trust score) reflects how connected and trusted you are within your personal network. It's calculated using GrapeRank, which looks at who follows you, who those people trust, and how that trust flows through your network. A score of 0.50 or higher means you're highly trusted by the people in your graph. It's not a universal rating — it's specific to each observer's point of view.",
+    answer:
+      "Your Verification Score (also called a trust score) reflects how connected and trusted you are within your personal network. It's calculated using GrapeRank, which looks at who follows you, who those people trust, and how that trust flows through your network. A score of 0.50 or higher means you're highly trusted by the people in your graph. It's not a universal rating — it's specific to each observer's point of view.",
   },
   {
     question: "What do the tiers mean?",
-    answer: "Highly verified (50%+) means a strong signal from several different paths in your network. Verified (20–49%) means solid connections with real signal behind them. Neutral (7–19%) means known in your network, but without much signal either way. Limited (below 7%, above your verified threshold) means very little signal — on the edges of your network. Unverified (below your verified threshold) means there isn't enough to go on yet. You can move the verified threshold in Settings — Relax (0%), Default (2%), or Strict (15%). The tiers are relative to your own network, so someone Highly verified to you might be Neutral to someone else.",
+    answer:
+      "Highly verified (50%+) means a strong signal from several different paths in your network. Verified (20–49%) means solid connections with real signal behind them. Neutral (7–19%) means known in your network, but without much signal either way. Limited (below 7%, above your verified threshold) means very little signal — on the edges of your network. Unverified (below your verified threshold) means there isn't enough to go on yet. You can move the verified threshold in Settings — Relax (0%), Default (2%), or Strict (15%). The tiers are relative to your own network, so someone Highly verified to you might be Neutral to someone else.",
   },
   {
     question: 'What does "Flagged" mean?',
-    answer: "A flagged account has a trust score below the verified threshold AND has been reported by 2 or more of your trusted contacts. Think of it as a community signal — people you trust have independently identified this account as potentially problematic. It's not a ban — it's information for you to make your own decision.",
+    answer:
+      "A flagged account has a trust score below the verified threshold AND has been reported by 2 or more of your trusted contacts. Think of it as a community signal — people you trust have independently identified this account as potentially problematic. It's not a ban — it's information for you to make your own decision.",
   },
   {
     question: "How does GrapeRank calculate trust?",
-    answer: "GrapeRank is a graph-based algorithm that propagates trust through your social network. Starting from you (the observer), it follows connections outward — your follows, their follows, and so on. Each hop reduces the trust signal (attenuation), and negative signals like mutes and reports reduce scores further. The result is a personalized trust map unique to your perspective.",
+    answer:
+      "GrapeRank is a graph-based algorithm that propagates trust through your social network. Starting from you (the observer), it follows connections outward — your follows, their follows, and so on. Each hop reduces the trust signal (attenuation), and negative signals like mutes and reports reduce scores further. The result is a personalized trust map unique to your perspective.",
   },
   {
     question: "Why is my score different from what someone else sees?",
-    answer: "Every score is calculated from the observer's point of view. Your network is different from everyone else's, so the trust paths are different. This is by design — there's no central authority deciding who is trusted. You are your own trust anchor.",
+    answer:
+      "Every score is calculated from the observer's point of view. Your network is different from everyone else's, so the trust paths are different. This is by design — there's no central authority deciding who is trusted. You are your own trust anchor.",
   },
   {
     question: 'What are "hops" in the Network Health chart?',
-    answer: "Hops represent degrees of separation. Hop 1 is your direct connections (people you follow). Hop 2 is people they follow. Hop 3 goes one step further, and so on. The slider lets you expand or narrow how far into the network you're looking.",
+    answer:
+      "Hops represent degrees of separation. Hop 1 is your direct connections (people you follow). Hop 2 is people they follow. Hop 3 goes one step further, and so on. The slider lets you expand or narrow how far into the network you're looking.",
   },
   {
     question: "Can I change how my scores are calculated?",
-    answer: "You can adjust your verified threshold in Settings — this controls the cutoff between the Limited and Unverified tiers. Choose Relax (0%), Default (2%), or Strict (15%), or set a custom value. Your scores update when you run a new GrapeRank calculation from the Dashboard.",
+    answer:
+      "You can adjust your verified threshold in Settings — this controls the cutoff between the Limited and Unverified tiers. Choose Relax (0%), Default (2%), or Strict (15%), or set a custom value. Your scores update when you run a new GrapeRank calculation from the Dashboard.",
   },
 ];
 
 const devFaqs = [
   {
     question: "What is NIP-85?",
-    answer: "NIP-85 (Trust Attestations) is a Nostr protocol extension that defines how trust signals are published and consumed. It allows any Nostr client to read and write trust data in a standard format, making trust portable across the ecosystem.",
+    answer:
+      "NIP-85 (Trust Attestations) is a Nostr protocol extension that defines how trust signals are published and consumed. It allows any Nostr client to read and write trust data in a standard format, making trust portable across the ecosystem.",
   },
   {
     question: "What does it take to get my client listed on Brainstorm?",
-    answer: "Your client needs to implement NIP-85 Trust Attestations with full support for observer-relative trust. This means: (1) Trust Anchor selection — users must be able to choose their own Trust Anchor. Hardwiring a single Trust Anchor defeats the purpose of decentralized trust. (2) Score consumption — your client reads Trust Attestation events and uses them to filter, sort, or annotate content and profiles. (3) Observer-relative display — scores should be presented as relative to the viewing user, not as universal ratings.",
+    answer:
+      "Your client needs to implement NIP-85 Trust Attestations with full support for observer-relative trust. This means: (1) Trust Anchor selection — users must be able to choose their own Trust Anchor. Hardwiring a single Trust Anchor defeats the purpose of decentralized trust. (2) Score consumption — your client reads Trust Attestation events and uses them to filter, sort, or annotate content and profiles. (3) Observer-relative display — scores should be presented as relative to the viewing user, not as universal ratings.",
   },
   {
     question: "What's the difference between full and partial NIP-85 support?",
-    answer: "Full support means users can select their Trust Anchor, and scores are observer-relative. Partial support typically means the client hardwires a single Trust Anchor, showing one point of view as if it were \"the\" trust score. Partial implementations are a good starting point, but they miss the key value of NIP-85: that trust is personal and pluralistic.",
+    answer:
+      'Full support means users can select their Trust Anchor, and scores are observer-relative. Partial support typically means the client hardwires a single Trust Anchor, showing one point of view as if it were "the" trust score. Partial implementations are a good starting point, but they miss the key value of NIP-85: that trust is personal and pluralistic.',
   },
   {
     question: "Why does Trust Anchor selection matter?",
-    answer: "The Trust Anchor is the service that computes trust scores using a specific algorithm (like GrapeRank). Different Trust Anchors may use different algorithms, different parameters, or weigh different signals. Letting users choose their Trust Anchor means they control whose math they trust — which is the entire point of sovereign trust. A client that hardwires a single TA is essentially making that choice for the user.",
+    answer:
+      "The Trust Anchor is the service that computes trust scores using a specific algorithm (like GrapeRank). Different Trust Anchors may use different algorithms, different parameters, or weigh different signals. Letting users choose their Trust Anchor means they control whose math they trust — which is the entire point of sovereign trust. A client that hardwires a single TA is essentially making that choice for the user.",
   },
   {
     question: "How do I integrate with Brainstorm as a Trust Anchor?",
-    answer: "Brainstorm publishes Trust Attestation events (NIP-85) to Nostr relays. Your client can: (1) Query for kind 30382 events from the Brainstorm Trust Anchor pubkey. (2) Parse the attestation data to get trust scores for profiles. (3) Display scores in your UI relative to the observing user. Visit nosfabrica.com for integration guidance and to get your client reviewed for listing.",
+    answer:
+      "Brainstorm publishes Trust Attestation events (NIP-85) to Nostr relays. Your client can: (1) Query for kind 30382 events from the Brainstorm Trust Anchor pubkey. (2) Parse the attestation data to get trust scores for profiles. (3) Display scores in your UI relative to the observing user. Visit nosfabrica.com for integration guidance and to get your client reviewed for listing.",
   },
   {
     question: "Can my client use a different trust algorithm?",
-    answer: "Absolutely. NIP-85 is algorithm-agnostic. Brainstorm uses GrapeRank, but any Trust Anchor can implement any algorithm. The protocol defines how scores are published, not how they're computed. This is a feature, not a bug — algorithmic diversity strengthens the ecosystem.",
+    answer:
+      "Absolutely. NIP-85 is algorithm-agnostic. Brainstorm uses GrapeRank, but any Trust Anchor can implement any algorithm. The protocol defines how scores are published, not how they're computed. This is a feature, not a bug — algorithmic diversity strengthens the ecosystem.",
   },
 ];
 
@@ -97,170 +107,193 @@ export default function FaqPage() {
 
   return (
     <InfoPageLayout testId="page-faq" active="faq">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-          <div className="space-y-6 animate-fade-up">
-            <PageHeader
-              kicker="Brainstorm FAQ"
-              title={<>Frequently Asked <span className="text-brand-link">Questions</span></>}
-              subtitle={activeTab === "users"
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="animate-fade-up space-y-6">
+          <PageHeader
+            kicker="Brainstorm FAQ"
+            title={
+              <>
+                Frequently Asked <span className="text-brand-link">Questions</span>
+              </>
+            }
+            subtitle={
+              activeTab === "users"
                 ? "Everything you need to know about Verification Scores, tiers, and your personalized Web of Trust."
-                : "Technical details for client developers implementing NIP-85 Trust Attestations."}
-              testId="section-faq-header"
-            />
+                : "Technical details for client developers implementing NIP-85 Trust Attestations."
+            }
+            testId="section-faq-header"
+          />
 
-            <div className="inline-flex rounded-full p-1 bg-white/70 dark:bg-slate-900/70 border border-brand-accent/12 shadow-sm backdrop-blur-sm" data-testid="tabs-faq">
-              <button
-                onClick={() => handleTabChange("users")}
-                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
-                  activeTab === "users"
-                    ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]"
-                    : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
-                }`}
-                data-testid="tab-users"
-              >
-                Using Brainstorm
-              </button>
-              <button
-                onClick={() => handleTabChange("developers")}
-                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
-                  activeTab === "developers"
-                    ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]"
-                    : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
-                }`}
-                data-testid="tab-developers"
-              >
-                For Developers
-              </button>
-            </div>
-
-            <Card className="overflow-hidden relative group">
-              <div className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
-                    <HelpCircle className="h-4 w-4 text-brand-deep" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                      {activeTab === "users" ? "Using Brainstorm" : "For Developers"}
-                    </h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">
-                      {activeTab === "users" ? "Trust & Scores" : "NIP-85 Integration"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="relative p-4 sm:p-5 space-y-2">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={activeTab}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className="space-y-2"
-                  >
-                    {faqs.map((faq, i) => (
-                      <motion.div
-                        key={`${activeTab}-${i}`}
-                        className={`relative overflow-hidden rounded-xl transition-all duration-300 ${
-                          expandedFaq === i
-                            ? 'bg-gradient-to-br from-brand-accent/8 via-brand-primary/10 to-brand-accent/5 border border-brand-accent/30 shadow-[0_4px_20px_rgb(var(--brand-accent)/0.1)]'
-                            : 'bg-white/60 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/25 hover:bg-white/80 dark:hover:bg-slate-900/80 hover:shadow-sm'
-                        }`}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.05 + i * 0.04 }}
-                      >
-                        {expandedFaq === i && (
-                          <motion.div
-                            className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-brand-accent to-transparent"
-                            initial={{ opacity: 0, scaleX: 0 }}
-                            animate={{ opacity: 1, scaleX: 1 }}
-                          />
-                        )}
-
-                        <button
-                          onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}
-                          className="w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left group"
-                          data-testid={`faq-item-${i}`}
-                        >
-                          <div className="flex items-center gap-3 pr-4">
-                            <div
-                              className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
-                                expandedFaq === i
-                                  ? 'bg-brand-accent/15 border border-brand-accent/30 shadow-sm'
-                                  : 'bg-white dark:bg-slate-900 border border-brand-accent/12 shadow-sm group-hover:bg-brand-accent/10 group-hover:border-brand-accent/25'
-                              }`}
-                            >
-                              {expandedFaq === i ? (
-                                <BrainLogo size={14} className="text-brand-deep" />
-                              ) : (
-                                <span className="text-[10px] font-bold text-brand-accent/70 font-mono group-hover:text-brand-deep">
-                                  {String(i + 1).padStart(2, '0')}
-                                </span>
-                              )}
-                            </div>
-                            <span className={`text-sm font-semibold transition-colors ${
-                              expandedFaq === i ? 'text-brand-deep' : 'text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-slate-100'
-                            }`}>
-                              {faq.question}
-                            </span>
-                          </div>
-                          <motion.div
-                            animate={{ rotate: expandedFaq === i ? 180 : 0 }}
-                            transition={{ duration: 0.3 }}
-                            className="flex-shrink-0"
-                          >
-                            <ChevronDown className={`h-4 w-4 transition-colors ${
-                              expandedFaq === i ? 'text-brand-accent' : 'text-slate-400 dark:text-slate-500 group-hover:text-brand-accent'
-                            }`} />
-                          </motion.div>
-                        </button>
-
-                        <AnimatePresence>
-                          {expandedFaq === i && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.3, ease: "easeInOut" }}
-                              className="overflow-hidden"
-                            >
-                              <div className="px-4 sm:px-5 pb-4 pl-[52px] sm:pl-[56px]">
-                                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid={`faq-answer-${i}`}>
-                                  {faq.answer}
-                                </p>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-            </Card>
-
-            {/* Cross-link */}
+          <div
+            className="border-brand-accent/12 inline-flex rounded-full border bg-white/70 p-1 shadow-sm backdrop-blur-sm dark:bg-slate-900/70"
+            data-testid="tabs-faq"
+          >
             <button
-              onClick={() => navigate("/nostr")}
-              className="group w-full text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-brand-accent/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
-              data-testid="link-to-nostr"
+              onClick={() => handleTabChange("users")}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition-all duration-200 ${
+                activeTab === "users"
+                  ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]"
+                  : "text-slate-500 hover:text-brand-deep dark:text-slate-400"
+              }`}
+              data-testid="tab-users"
             >
-              <div>
-                <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase mb-1.5">
-                  Keep reading
-                </p>
-                <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                  Wondering what Nostr actually is?
-                </p>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">See Built on Nostr</p>
-              </div>
-              <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
+              Using Brainstorm
+            </button>
+            <button
+              onClick={() => handleTabChange("developers")}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition-all duration-200 ${
+                activeTab === "developers"
+                  ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]"
+                  : "text-slate-500 hover:text-brand-deep dark:text-slate-400"
+              }`}
+              data-testid="tab-developers"
+            >
+              For Developers
             </button>
           </div>
+
+          <Card className="group relative overflow-hidden">
+            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800/60">
+                  <HelpCircle className="h-4 w-4 text-brand-deep" />
+                </div>
+                <div>
+                  <h2
+                    className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    {activeTab === "users" ? "Using Brainstorm" : "For Developers"}
+                  </h2>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {activeTab === "users" ? "Trust & Scores" : "NIP-85 Integration"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative space-y-2 p-4 sm:p-5">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-2"
+                >
+                  {faqs.map((faq, i) => (
+                    <motion.div
+                      key={`${activeTab}-${i}`}
+                      className={`relative overflow-hidden rounded-xl transition-all duration-300 ${
+                        expandedFaq === i
+                          ? "from-brand-accent/8 border border-brand-accent/30 bg-gradient-to-br via-brand-primary/10 to-brand-accent/5 shadow-[0_4px_20px_rgb(var(--brand-accent)/0.1)]"
+                          : "border border-slate-200/80 bg-white/60 hover:border-brand-accent/25 hover:bg-white/80 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:bg-slate-900/80"
+                      }`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.05 + i * 0.04 }}
+                    >
+                      {expandedFaq === i && (
+                        <motion.div
+                          className="absolute left-1/4 right-1/4 top-0 h-px bg-gradient-to-r from-transparent via-brand-accent to-transparent"
+                          initial={{ opacity: 0, scaleX: 0 }}
+                          animate={{ opacity: 1, scaleX: 1 }}
+                        />
+                      )}
+
+                      <button
+                        onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}
+                        className="group flex w-full items-center justify-between px-4 py-3.5 text-left sm:px-5"
+                        data-testid={`faq-item-${i}`}
+                      >
+                        <div className="flex items-center gap-3 pr-4">
+                          <div
+                            className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg transition-all ${
+                              expandedFaq === i
+                                ? "border border-brand-accent/30 bg-brand-accent/15 shadow-sm"
+                                : "border-brand-accent/12 border bg-white shadow-sm group-hover:border-brand-accent/25 group-hover:bg-brand-accent/10 dark:bg-slate-900"
+                            }`}
+                          >
+                            {expandedFaq === i ? (
+                              <BrainLogo size={14} className="text-brand-deep" />
+                            ) : (
+                              <span className="font-mono text-[10px] font-bold text-brand-accent/70 group-hover:text-brand-deep">
+                                {String(i + 1).padStart(2, "0")}
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`text-sm font-semibold transition-colors ${
+                              expandedFaq === i
+                                ? "text-brand-deep"
+                                : "text-slate-700 group-hover:text-slate-900 dark:text-slate-200 dark:group-hover:text-slate-100"
+                            }`}
+                          >
+                            {faq.question}
+                          </span>
+                        </div>
+                        <motion.div
+                          animate={{ rotate: expandedFaq === i ? 180 : 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="flex-shrink-0"
+                        >
+                          <ChevronDown
+                            className={`h-4 w-4 transition-colors ${
+                              expandedFaq === i
+                                ? "text-brand-accent"
+                                : "text-slate-400 group-hover:text-brand-accent dark:text-slate-500"
+                            }`}
+                          />
+                        </motion.div>
+                      </button>
+
+                      <AnimatePresence>
+                        {expandedFaq === i && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                            className="overflow-hidden"
+                          >
+                            <div className="px-4 pb-4 pl-[52px] sm:px-5 sm:pl-[56px]">
+                              <p
+                                className="text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+                                data-testid={`faq-answer-${i}`}
+                              >
+                                {faq.answer}
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </Card>
+
+          {/* Cross-link */}
+          <button
+            onClick={() => navigate("/nostr")}
+            className="group flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 text-left transition-all hover:border-brand-accent/40 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900"
+            data-testid="link-to-nostr"
+          >
+            <div>
+              <p className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-accent">
+                Keep reading
+              </p>
+              <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                Wondering what Nostr actually is?
+              </p>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">See Built on Nostr</p>
+            </div>
+            <ArrowRight className="h-5 w-5 shrink-0 text-brand-accent transition-transform group-hover:translate-x-1" />
+          </button>
         </div>
+      </div>
     </InfoPageLayout>
   );
 }

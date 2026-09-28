@@ -35,7 +35,9 @@ const article = (tags: string[][]) => ({
 
 describe("a listing published in Conduit", () => {
   it("opens on Conduit's product page, carrying our referral", () => {
-    const ev = listing([["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]);
+    const ev = listing([
+      ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"],
+    ]);
 
     const app = sourceAppFor(ev);
 
@@ -45,7 +47,12 @@ describe("a listing published in Conduit", () => {
   });
 
   it("is recognised by its marketplace tag, or by a shop link on conduit.market, just the same", () => {
-    const byTag = sourceAppFor(listing([["t", "conduit"], ["t", "hat"]]));
+    const byTag = sourceAppFor(
+      listing([
+        ["t", "conduit"],
+        ["t", "hat"],
+      ]),
+    );
     const byShop = sourceAppFor(listing([["r", "https://shop.conduit.market/store/npub1f0x"]]));
 
     expect(byTag?.name).toBe("Conduit");
@@ -64,7 +71,13 @@ describe("a listing published in Conduit", () => {
 
 describe("a recipe published on zap.cooking", () => {
   it("opens on zap.cooking, and calls itself a recipe rather than an article", () => {
-    const app = sourceAppFor(article([["t", "zapcooking"], ["t", "zapcooking-girik"], ["t", "chicken"]]));
+    const app = sourceAppFor(
+      article([
+        ["t", "zapcooking"],
+        ["t", "zapcooking-girik"],
+        ["t", "chicken"],
+      ]),
+    );
 
     const naddr = nip19.naddrEncode({ kind: 30023, pubkey: COOK, identifier: "girik" });
     expect(app).toMatchObject({ name: "Zap.cooking", host: "zap.cooking", noun: "Recipe" });
@@ -80,7 +93,15 @@ describe("a recipe published on zap.cooking", () => {
   // zap.cooking's own long-form pieces — its newsletter, food stories — wear
   // the recipe tag too, marked `zapreads` (probed 2026-09-22: 5 of 100).
   it("a zap.cooking article, marked zapreads, is not a recipe", () => {
-    expect(sourceAppFor(article([["t", "zapreads"], ["t", "zapcooking"], ["t", "newsletter"]]))).toBeNull();
+    expect(
+      sourceAppFor(
+        article([
+          ["t", "zapreads"],
+          ["t", "zapcooking"],
+          ["t", "newsletter"],
+        ]),
+      ),
+    ).toBeNull();
   });
 
   it("an ordinary article is nobody's", () => {
@@ -98,26 +119,67 @@ describe("a merchant's listing published elsewhere — the same seller, the same
   const conduitTwin = {
     ...listing([["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]),
     id: "3".repeat(64),
-    tags: [["d", "sweet-almond-tallow-soap-bar-x1"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]],
+    tags: [
+      ["d", "sweet-almond-tallow-soap-bar-x1"],
+      ["title", "Sweet Almond Tallow Soap Bar"],
+      ["price", "12000", "sats"],
+      ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"],
+    ],
   };
-  const otherConduit = { ...conduitTwin, id: "4".repeat(64), tags: [["d", "lavender-x2"], ["title", "Lavender Tallow Soap Bar"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]] };
-  const elsewhere = { ...listing([]), id: "5".repeat(64), tags: [["d", "product_1788284895802_51fra"], ["title", "Sweet Almond Tallow Soap Bar"], ["t", "Health & Beauty"], ["t", "SOAP"]] };
+  const otherConduit = {
+    ...conduitTwin,
+    id: "4".repeat(64),
+    tags: [
+      ["d", "lavender-x2"],
+      ["title", "Lavender Tallow Soap Bar"],
+      ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"],
+    ],
+  };
+  const elsewhere = {
+    ...listing([]),
+    id: "5".repeat(64),
+    tags: [
+      ["d", "product_1788284895802_51fra"],
+      ["title", "Sweet Almond Tallow Soap Bar"],
+      ["t", "Health & Beauty"],
+      ["t", "SOAP"],
+    ],
+  };
 
   it("opens on Conduit at the twin's product page when the seller sells the same title there", () => {
     const app = sourceAppFor(elsewhere, { sellerListings: [otherConduit, conduitTwin] });
     expect(app?.name).toBe("Conduit");
-    expect(app?.url).toBe(`https://shop.conduit.market/products/${nip19.naddrEncode({ kind: 30402, pubkey: MERCHANT, identifier: "sweet-almond-tallow-soap-bar-x1" })}?${CONDUIT_REFERRAL}`);
+    expect(app?.url).toBe(
+      `https://shop.conduit.market/products/${nip19.naddrEncode({ kind: 30402, pubkey: MERCHANT, identifier: "sweet-almond-tallow-soap-bar-x1" })}?${CONDUIT_REFERRAL}`,
+    );
   });
 
   it("opens on the seller's Conduit store when they sell on Conduit but not this exact product", () => {
-    const app = sourceAppFor({ ...elsewhere, tags: [["d", "product_9"], ["title", "Something Only Here"]] }, { sellerListings: [otherConduit] });
+    const app = sourceAppFor(
+      {
+        ...elsewhere,
+        tags: [
+          ["d", "product_9"],
+          ["title", "Something Only Here"],
+        ],
+      },
+      { sellerListings: [otherConduit] },
+    );
     expect(app?.name).toBe("Conduit");
     expect(app?.url).toBe(`https://shop.conduit.market/store/${nip19.npubEncode(MERCHANT)}?${CONDUIT_REFERRAL}`);
   });
 
   it("a listing with its own product page keeps it — the seller's Conduit store does not outrank the page the seller wrote", () => {
     // AGORA's T-shirt (2026-09-24): published through Barattolo with swag.btc.pub as its page; the seller also sells on Conduit.
-    const withPage = { ...elsewhere, tags: [["d", "barattolo-342"], ["title", "T-shirt Satoshi Bitcoin Smiley"], ["r", "https://swag.btc.pub/product/satoshi-bitcoin-smiley/"], ["client", "Barattolo", "31990:2e7a:barattolo"]] };
+    const withPage = {
+      ...elsewhere,
+      tags: [
+        ["d", "barattolo-342"],
+        ["title", "T-shirt Satoshi Bitcoin Smiley"],
+        ["r", "https://swag.btc.pub/product/satoshi-bitcoin-smiley/"],
+        ["client", "Barattolo", "31990:2e7a:barattolo"],
+      ],
+    };
     expect(sourceAppFor(withPage, { sellerListings: [otherConduit] })).toBeNull();
   });
 

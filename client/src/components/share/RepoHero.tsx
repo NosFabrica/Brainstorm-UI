@@ -18,7 +18,15 @@ import { fetchProfileMap } from "@/services/nostr";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { Chip } from "@/components/ui/chip";
 import { eventPath } from "@/lib/shareId";
-import { fetchGitCommentCounts, fetchGitStatuses, fetchRepoActivity, fetchRepoCounts, fetchRepoForks, kind0ToSearchResult, type RepoCounts } from "@/services/search";
+import {
+  fetchGitCommentCounts,
+  fetchGitStatuses,
+  fetchRepoActivity,
+  fetchRepoCounts,
+  fetchRepoForks,
+  kind0ToSearchResult,
+  type RepoCounts,
+} from "@/services/search";
 import { repoLineageOf } from "@/lib/gitStatus";
 import { Favicon } from "@/components/share/LinkPreview";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitStateOf, peopleBeforeAgents } from "@/lib/gitStatus";
@@ -59,8 +67,13 @@ function usePublisher(pubkey: string): SearchResult | null {
       if (alive && profile) {
         setFetched(
           kind0ToSearchResult({
-            kind: 0, pubkey, content: JSON.stringify(profile),
-            tags: [], created_at: 0, id: "", sig: "",
+            kind: 0,
+            pubkey,
+            content: JSON.stringify(profile),
+            tags: [],
+            created_at: 0,
+            id: "",
+            sig: "",
           } as NostrEvent),
         );
       }
@@ -103,7 +116,9 @@ export function RepoHero({ event }: { event: RepoEvent }) {
 
   const [activity, setActivity] = useState<NostrEvent[]>([]);
 
-  const [activityAuthors, setActivityAuthors] = useState<Map<string, { name?: string; displayName?: string; bot?: boolean }>>(new Map());
+  const [activityAuthors, setActivityAuthors] = useState<
+    Map<string, { name?: string; displayName?: string; bot?: boolean }>
+  >(new Map());
   const [activityStatuses, setActivityStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
   const [activityComments, setActivityComments] = useState<Map<string, number>>(new Map());
   const [activityOpen, setActivityOpen] = useState(false);
@@ -166,7 +181,8 @@ export function RepoHero({ event }: { event: RepoEvent }) {
   }, [address, lineage]);
   const contributors = counts?.contributors ?? [];
   const faces = contributors.slice(0, 3);
-  const hasNumbers = !!counts && (counts.issues > 0 || counts.patches > 0 || contributors.length > 0 || !!counts.lastAt);
+  const hasNumbers =
+    !!counts && (counts.issues > 0 || counts.patches > 0 || contributors.length > 0 || !!counts.lastAt);
 
   const publisher = usePublisher(event.pubkey);
   const scoreOf = useAuthorScores([event.pubkey, ...faces]);
@@ -183,13 +199,16 @@ export function RepoHero({ event }: { event: RepoEvent }) {
       {/* Identity flush left, repo glyph top-right — the app page's anatomy. */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+          <h1
+            className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
             {name}
           </h1>
           {publisherNpub && (
             <Link
               href={`/p/${publisherNpub}`}
-              className="mt-0.5 inline-flex items-center gap-1.5 rounded-full py-0.5 pr-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+              className="mt-0.5 inline-flex items-center gap-1.5 rounded-full py-0.5 pr-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
               data-testid="repo-hero-publisher"
             >
               <Avatar
@@ -205,20 +224,31 @@ export function RepoHero({ event }: { event: RepoEvent }) {
               </span>
             </Link>
           )}
-          {description && !longDescription && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{description}</p>}
+          {description && !longDescription && (
+            <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-300">{description}</p>
+          )}
           {/* Where it came from and where it went. */}
           {(forkedFrom || forks.length > 0) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
               {forkedFrom && (
                 <span className="inline-flex items-center gap-1" data-testid="repo-hero-fork-of">
                   <GitFork className="h-3 w-3" /> Fork of{" "}
-                  <a href={forkedFrom} target="_blank" rel="noopener" className="font-medium text-brand-link hover:underline">
+                  <a
+                    href={forkedFrom}
+                    target="_blank"
+                    rel="noopener"
+                    className="font-medium text-brand-link hover:underline"
+                  >
                     {repoPathOf(forkedFrom)}
                   </a>
                 </span>
               )}
               {forks.length > 0 && (
-                <Link href={`/?q=${encodeURIComponent(name)}&t=repos`} className="inline-flex items-center gap-1 hover:text-brand-link transition-colors" data-testid="repo-hero-forks">
+                <Link
+                  href={`/?q=${encodeURIComponent(name)}&t=repos`}
+                  className="inline-flex items-center gap-1 transition-colors hover:text-brand-link"
+                  data-testid="repo-hero-forks"
+                >
                   <GitFork className="h-3 w-3" /> {forks.length} {forks.length === 1 ? "fork" : "forks"} on Nostr
                 </Link>
               )}
@@ -229,7 +259,10 @@ export function RepoHero({ event }: { event: RepoEvent }) {
             then at the title's height, a type mark, not a picture the card
             does not have (the list card's rule, 2026-09-09). */}
         {!hasNumbers && (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800" data-testid="repo-hero-glyph">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800"
+            data-testid="repo-hero-glyph"
+          >
             <FolderGit2 className="h-5 w-5 text-slate-400 dark:text-slate-500" />
           </div>
         )}
@@ -242,20 +275,31 @@ export function RepoHero({ event }: { event: RepoEvent }) {
       {/* Is it alive, and who is behind it — the numbers the card already has,
           one strip, the app page's anatomy. */}
       {hasNumbers && counts && (
-        <div className="mt-3 grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 sm:grid-cols-4" data-testid="repo-hero-stats">
+        <div
+          className="mt-3 grid grid-cols-2 divide-x divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800 sm:grid-cols-4"
+          data-testid="repo-hero-stats"
+        >
           <div className="px-3 py-2">
             <div className="text-base font-bold text-slate-900 dark:text-slate-100">{counts.issues}</div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">{counts.issues === 1 ? "issue" : "issues"}</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              {counts.issues === 1 ? "issue" : "issues"}
+            </div>
           </div>
           <div className="px-3 py-2">
             <div className="text-base font-bold text-slate-900 dark:text-slate-100">{counts.patches}</div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">{counts.patches === 1 ? "patch" : "patches"}</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              {counts.patches === 1 ? "patch" : "patches"}
+            </div>
           </div>
           <div className="px-3 py-2">
             <div className="flex items-center gap-1.5">
               <span className="flex -space-x-1.5">
                 {faces.map((pk) => (
-                  <Avatar key={pk} className={`h-5 w-5 border border-white dark:border-slate-900 ${tierRing(scoreOf(pk) ?? null, false, "sm", true) ?? ""}`} data-testid={`repo-hero-contributor-${pk}`}>
+                  <Avatar
+                    key={pk}
+                    className={`h-5 w-5 border border-white dark:border-slate-900 ${tierRing(scoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
+                    data-testid={`repo-hero-contributor-${pk}`}
+                  >
                     <AvatarFallback className="overflow-hidden">
                       <DefaultAvatarImg />
                     </AvatarFallback>
@@ -264,11 +308,17 @@ export function RepoHero({ event }: { event: RepoEvent }) {
               </span>
               <span className="text-base font-bold text-slate-900 dark:text-slate-100">{contributors.length}</span>
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">{contributors.length === 1 ? "contributor" : "contributors"}</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              {contributors.length === 1 ? "contributor" : "contributors"}
+            </div>
           </div>
           <div className="px-3 py-2">
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">{counts.lastAt ? "active" : "activity"}</div>
-            <div className="text-base font-bold text-slate-900 dark:text-slate-100">{counts.lastAt ? ago(counts.lastAt) : "none yet"}</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              {counts.lastAt ? "active" : "activity"}
+            </div>
+            <div className="text-base font-bold text-slate-900 dark:text-slate-100">
+              {counts.lastAt ? ago(counts.lastAt) : "none yet"}
+            </div>
           </div>
         </div>
       )}
@@ -280,7 +330,7 @@ export function RepoHero({ event }: { event: RepoEvent }) {
             href={web}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+            className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
             data-testid="repo-hero-web"
           >
             Browse code <ExternalLink className="h-3 w-3" />
@@ -291,10 +341,11 @@ export function RepoHero({ event }: { event: RepoEvent }) {
             href={source}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-accent/40 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-200"
             data-testid="repo-hero-source"
           >
-            <Favicon host={hostOf(source)!} className="h-3.5 w-3.5 rounded-sm" /> Source <span className="font-normal text-slate-400">· {hostOf(source)}</span>
+            <Favicon host={hostOf(source)!} className="h-3.5 w-3.5 rounded-sm" /> Source{" "}
+            <span className="font-normal text-slate-400">· {hostOf(source)}</span>
           </a>
         )}
         {clone && (
@@ -302,7 +353,7 @@ export function RepoHero({ event }: { event: RepoEvent }) {
             type="button"
             onClick={() => void navigator.clipboard?.writeText(clone).catch(() => {})}
             title="Copy clone URL"
-            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3.5 py-1.5 font-mono text-[11px] text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors"
+            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 px-3.5 py-1.5 font-mono text-[11px] text-slate-600 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
             data-testid="repo-hero-clone"
           >
             <GitBranch className="h-3 w-3 shrink-0" />
@@ -322,7 +373,7 @@ export function RepoHero({ event }: { event: RepoEvent }) {
               <li key={item.id}>
                 <Link
                   href={eventPath(item)}
-                  className="flex items-baseline gap-2 rounded-lg px-2 py-1.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                  className="-mx-2 flex items-baseline gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
                   data-testid={`repo-activity-${item.id}`}
                 >
                   <Chip size="sm" tone={item.kind === 1617 || item.kind === 1618 ? "info" : "warning"}>
@@ -340,16 +391,26 @@ export function RepoHero({ event }: { event: RepoEvent }) {
                     {item.tags.find((t) => t[0] === "subject")?.[1] ?? item.content.slice(0, 80) ?? "Untitled"}
                   </span>
                   {gitAgentOf(item, activityAuthors.get(item.pubkey)) && (
-                    <span className="shrink-0 text-[10px] font-medium text-slate-400 dark:text-slate-500" title={`Filed by ${gitAgentOf(item, activityAuthors.get(item.pubkey))}, an agent`} data-testid={`repo-activity-agent-${item.id}`}>
+                    <span
+                      className="shrink-0 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                      title={`Filed by ${gitAgentOf(item, activityAuthors.get(item.pubkey))}, an agent`}
+                      data-testid={`repo-activity-agent-${item.id}`}
+                    >
                       agent
                     </span>
                   )}
                   {(activityComments.get(item.id) ?? 0) > 0 && (
-                    <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title={`${activityComments.get(item.id)} comments`} data-testid={`repo-activity-comments-${item.id}`}>
+                    <span
+                      className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500"
+                      title={`${activityComments.get(item.id)} comments`}
+                      data-testid={`repo-activity-comments-${item.id}`}
+                    >
                       <MessageSquare className="h-3 w-3" /> {activityComments.get(item.id)}
                     </span>
                   )}
-                  <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{ago(item.created_at)}</span>
+                  <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">
+                    {ago(item.created_at)}
+                  </span>
                 </Link>
               </li>
             ))}
@@ -358,7 +419,7 @@ export function RepoHero({ event }: { event: RepoEvent }) {
             <button
               type="button"
               onClick={() => setActivityOpen(true)}
-              className="mt-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors"
+              className="mt-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
               data-testid="repo-activity-more"
             >
               Show {activity.length - 8} more

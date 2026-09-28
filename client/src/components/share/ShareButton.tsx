@@ -42,7 +42,11 @@ export function ShareButton({
       <button type="button" onClick={share} className={className} data-testid={testId}>
         <Share2 className="h-4 w-4" /> Share
       </button>
-      {modal ? modal({ open, onOpenChange: setOpen }) : <ShareModal open={open} onOpenChange={setOpen} url={url} title={title} />}
+      {modal ? (
+        modal({ open, onOpenChange: setOpen })
+      ) : (
+        <ShareModal open={open} onOpenChange={setOpen} url={url} title={title} />
+      )}
     </>
   );
 }

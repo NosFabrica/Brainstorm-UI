@@ -20,7 +20,11 @@ export type PersonContentKey = "shop" | "articles" | "recipes" | "music" | "medi
  * newsletter (Zap Cooking, 2026-09-24), and one sample would have hidden the
  * recipes behind it. An author with essays and recipes wears both chips.
  */
-export const PERSON_CONTENT_CATEGORIES: readonly { key: PersonContentKey; kinds: readonly number[]; tags?: readonly string[] }[] = [
+export const PERSON_CONTENT_CATEGORIES: readonly {
+  key: PersonContentKey;
+  kinds: readonly number[];
+  tags?: readonly string[];
+}[] = [
   { key: "shop", kinds: [30402] },
   { key: "articles", kinds: [30023, 30818] },
   { key: "recipes", kinds: [30023], tags: RECIPE_TAGS },
@@ -73,13 +77,27 @@ export const NO_PERSON_CONTENT: PersonContent = Object.freeze({ chips: [] }) as 
 
 /** Six filters for one REQ: the newest event of each category, under the lens. */
 export function personContentFilters(pubkey: string): Filter[] {
-  return PERSON_CONTENT_CATEGORIES.map((c) => ({ kinds: [...c.kinds], authors: [pubkey], limit: 1, search: PERSON_CONTENT_LENS, ...(c.tags ? { "#t": [...c.tags] } : {}) }));
+  return PERSON_CONTENT_CATEGORIES.map((c) => ({
+    kinds: [...c.kinds],
+    authors: [pubkey],
+    limit: 1,
+    search: PERSON_CONTENT_LENS,
+    ...(c.tags ? { "#t": [...c.tags] } : {}),
+  }));
 }
 
-const chipFor = (key: PersonContentKey, liveNow = false): PersonContentChip => ({ key, label: PERSON_CONTENT_WORDS[key].label, tab: PERSON_CONTENT_WORDS[key].tab, liveNow });
+const chipFor = (key: PersonContentKey, liveNow = false): PersonContentChip => ({
+  key,
+  label: PERSON_CONTENT_WORDS[key].label,
+  tab: PERSON_CONTENT_WORDS[key].tab,
+  liveNow,
+});
 
 /** Ordered, capped chips from whatever the probe returned. Kinds outside the table are ignored. */
-export function categoriesOf(events: MinimalEvent[], nowSec: number = Math.floor(Date.now() / 1000)): PersonContentChip[] {
+export function categoriesOf(
+  events: MinimalEvent[],
+  nowSec: number = Math.floor(Date.now() / 1000),
+): PersonContentChip[] {
   const chips: PersonContentChip[] = [];
   const isArticle = (e: MinimalEvent) => e.kind === 30023 || e.kind === 30818;
   const isRecipe = (e: MinimalEvent) => e.kind === 30023 && publishedOnZapCooking(e);
@@ -93,7 +111,8 @@ export function categoriesOf(events: MinimalEvent[], nowSec: number = Math.floor
     if (!sample) continue;
     const staleAfter = STALE_AFTER_SEC[category.key];
     if (staleAfter !== undefined && nowSec - sample.created_at > staleAfter) continue;
-    if (category.key === "live") chips.push(chipFor("live", liveStateOf({ ...sample, content: sample.content ?? "" }, nowSec) === "live"));
+    if (category.key === "live")
+      chips.push(chipFor("live", liveStateOf({ ...sample, content: sample.content ?? "" }, nowSec) === "live"));
     else chips.push(chipFor(category.key));
     if (chips.length === MAX_PERSON_CONTENT_CHIPS) break;
   }
@@ -107,13 +126,34 @@ export function chipAriaLabel(name: string, chip: PersonContentChip): string {
 
 /** The words people type for a category: "staci shop", "vitor articles", "zap cooking recipes". */
 const CATEGORY_WORDS: Record<string, PersonContentKey> = {
-  shop: "shop", store: "shop", products: "shop", listings: "shop",
-  articles: "articles", article: "articles", writing: "articles", posts: "articles", blog: "articles",
-  recipes: "recipes", recipe: "recipes",
-  music: "music", songs: "music", tracks: "music",
-  media: "media", photos: "media", pictures: "media", pics: "media", videos: "media", video: "media",
-  live: "live", stream: "live", streams: "live", streaming: "live",
-  code: "repos", repos: "repos", repo: "repos", github: "repos",
+  shop: "shop",
+  store: "shop",
+  products: "shop",
+  listings: "shop",
+  articles: "articles",
+  article: "articles",
+  writing: "articles",
+  posts: "articles",
+  blog: "articles",
+  recipes: "recipes",
+  recipe: "recipes",
+  music: "music",
+  songs: "music",
+  tracks: "music",
+  media: "media",
+  photos: "media",
+  pictures: "media",
+  pics: "media",
+  videos: "media",
+  video: "media",
+  live: "live",
+  stream: "live",
+  streams: "live",
+  streaming: "live",
+  code: "repos",
+  repos: "repos",
+  repo: "repos",
+  github: "repos",
 };
 
 /**

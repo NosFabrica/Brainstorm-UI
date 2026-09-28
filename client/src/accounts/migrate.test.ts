@@ -202,7 +202,11 @@ describe("migrateV1", () => {
       const { storage, pubkey, migrate } = setup();
       storage.device.setItem(
         V1_KEYS.user,
-        v1UserBlob(pubkey, { displayName: "Alice", picture: "https://example.test/a.png", nip05: "alice@example.test" }),
+        v1UserBlob(pubkey, {
+          displayName: "Alice",
+          picture: "https://example.test/a.png",
+          nip05: "alice@example.test",
+        }),
       );
 
       expect(migrate()!.account.metadata).toMatchObject({
@@ -327,10 +331,7 @@ describe("migrateV1", () => {
       // v1's unlock order takes the session key, leaving the envelope behind —
       // and `nostr_user` is the only thing that names its AAD
       storage.tab.setItem(V1_KEYS.sessionKey, bytesToHex(secretKey));
-      storage.device.setItem(
-        V1_KEYS.encryptedKey,
-        await unlockCache.encrypt(stranger, getPublicKey(stranger)),
-      );
+      storage.device.setItem(V1_KEYS.encryptedKey, await unlockCache.encrypt(stranger, getPublicKey(stranger)));
       storage.device.setItem(V1_KEYS.user, v1UserBlob(getPublicKey(stranger)));
       storage.device.setItem(V1_KEYS.token, token({}));
 

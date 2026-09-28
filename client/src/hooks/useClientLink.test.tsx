@@ -11,7 +11,10 @@ import type { ClientLinkEntity } from "@/services/clientLinks";
 
 const resolveMock = vi.fn<(ref: unknown) => Promise<ClientLinkEntity | null>>();
 const peekMock = vi.fn<(ref: unknown) => ClientLinkEntity | null | undefined>(() => undefined);
-vi.mock("@/services/clientLinks", () => ({ resolveClientLink: (r: unknown) => resolveMock(r), peekClientLink: (r: unknown) => peekMock(r) }));
+vi.mock("@/services/clientLinks", () => ({
+  resolveClientLink: (r: unknown) => resolveMock(r),
+  peekClientLink: (r: unknown) => peekMock(r),
+}));
 
 import { useClientLink } from "./useClientLink";
 
@@ -46,7 +49,11 @@ describe("useClientLink", () => {
 
   it("lets go when unmounted before the answer", async () => {
     let settle: (e: ClientLinkEntity | null) => void = () => {};
-    resolveMock.mockReturnValueOnce(new Promise((r) => { settle = r; }));
+    resolveMock.mockReturnValueOnce(
+      new Promise((r) => {
+        settle = r;
+      }),
+    );
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     const { unmount } = renderHook(() => useClientLink(ref));
     unmount();
@@ -62,11 +69,14 @@ describe("useClientLink", () => {
     resolveMock.mockResolvedValueOnce(entity).mockReturnValueOnce(new Promise(() => {}));
     const other = { kind: "profile" as const, nip05: "bob@primal.net" };
     const seen: Array<{ nip05: string; state: ReturnType<typeof useClientLink> }> = [];
-    const { rerender } = renderHook(({ r }) => {
-      const state = useClientLink(r);
-      seen.push({ nip05: r.nip05, state });
-      return state;
-    }, { initialProps: { r: ref } });
+    const { rerender } = renderHook(
+      ({ r }) => {
+        const state = useClientLink(r);
+        seen.push({ nip05: r.nip05, state });
+        return state;
+      },
+      { initialProps: { r: ref } },
+    );
     await waitFor(() => expect(seen.at(-1)?.state).toEqual({ status: "done", entity }));
     rerender({ r: other });
     const forOther = seen.filter((s) => s.nip05 === "bob@primal.net");

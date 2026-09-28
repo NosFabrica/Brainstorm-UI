@@ -1,7 +1,7 @@
-import { useLocation } from 'wouter';
-import { useBillingPlans } from '@/hooks/useBillingPlans';
-import { useSubscription } from '@/hooks/useSubscription';
-import { Wordmark } from '@/components/Wordmark';
+import { useLocation } from "wouter";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
+import { useSubscription } from "@/hooks/useSubscription";
+import { Wordmark } from "@/components/Wordmark";
 
 // Structured, product-grade footer (Google-style tiers). Top tier: the
 // Brainstorm wordmark with the version held to the far right. Hairline. Bottom
@@ -22,20 +22,20 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
   const { isFree } = useSubscription();
 
   const linkClass =
-    'text-[13px] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50';
+    "text-[13px] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50";
 
   return (
     <footer
-      className="relative z-20 w-screen mt-auto bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800/60"
+      className="relative z-20 mt-auto w-screen border-t border-slate-200 bg-white dark:border-slate-800/60 dark:bg-slate-950"
       data-footer-dark="true"
-      style={{ marginLeft: 'calc(50% - 50vw)', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 20px)' }}
+      style={{ marginLeft: "calc(50% - 50vw)", paddingBottom: "max(env(safe-area-inset-bottom, 0px), 20px)" }}
     >
-      <div className="mx-auto w-full max-w-6xl px-6 sm:px-8 pt-7 flex flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-6 pt-7 sm:px-8">
         {/* Tier 1 — brand anchor (left) + version (right) */}
         <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-6">
           <button
             type="button"
-            onClick={() => setLocation('/')}
+            onClick={() => setLocation("/")}
             className="flex items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
             aria-label="Brainstorm home"
             data-testid="footer-brand"
@@ -49,69 +49,105 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
 
         {/* Hairline + Tier 2 (marketing links + partner logos) — hidden in the
             minimal variant used on the signed-in workspace pages. */}
-        {!minimal && <>
-        <div className="h-px w-full bg-slate-200 dark:bg-slate-800/70" />
+        {!minimal && (
+          <>
+            <div className="h-px w-full bg-slate-200 dark:bg-slate-800/70" />
 
-        {/* Tier 2 — links (left) + partner logos (right) */}
-        <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-between sm:gap-6">
-          <nav className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2">
-            <button type="button" onClick={() => setLocation('/nostr')} className={linkClass} data-testid="link-built-on-nostr">
-              Built on Nostr
-            </button>
-            <button type="button" onClick={() => setLocation('/what-is-wot')} className={linkClass} data-testid="button-learn-more">
-              What is Web of Trust?
-            </button>
-            {/* The footer is where people look to find out whether something
+            {/* Tier 2 — links (left) + partner logos (right) */}
+            <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-between sm:gap-6">
+              <nav className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2">
+                <button
+                  type="button"
+                  onClick={() => setLocation("/nostr")}
+                  className={linkClass}
+                  data-testid="link-built-on-nostr"
+                >
+                  Built on Nostr
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocation("/what-is-wot")}
+                  className={linkClass}
+                  data-testid="button-learn-more"
+                >
+                  What is Web of Trust?
+                </button>
+                {/* The footer is where people look to find out whether something
                 costs money. Sits here rather than in the signup funnel on
                 purpose: a price shown before the product has demonstrated
                 itself loses people who would have paid a week later. */}
-            {isFree && billingAvailable !== false && (
-              <button type="button" onClick={() => setLocation('/pricing')} className={linkClass} data-testid="link-pricing">
-                Pricing
-              </button>
-            )}
-            {isFree && (
-              <button type="button" onClick={() => setLocation('/roadmap')} className={linkClass} data-testid="link-roadmap">
-                Roadmap
-              </button>
-            )}
-            {/* The documents a buyer agrees to at checkout — findable from every
+                {isFree && billingAvailable !== false && (
+                  <button
+                    type="button"
+                    onClick={() => setLocation("/pricing")}
+                    className={linkClass}
+                    data-testid="link-pricing"
+                  >
+                    Pricing
+                  </button>
+                )}
+                {isFree && (
+                  <button
+                    type="button"
+                    onClick={() => setLocation("/roadmap")}
+                    className={linkClass}
+                    data-testid="link-roadmap"
+                  >
+                    Roadmap
+                  </button>
+                )}
+                {/* The documents a buyer agrees to at checkout — findable from every
                 page that carries this footer, not only from /login. */}
-            <button type="button" onClick={() => setLocation('/privacy')} className={linkClass} data-testid="link-privacy">
-              Privacy
-            </button>
-            <button type="button" onClick={() => setLocation('/terms')} className={linkClass} data-testid="link-terms">
-              Terms
-            </button>
-          </nav>
+                <button
+                  type="button"
+                  onClick={() => setLocation("/privacy")}
+                  className={linkClass}
+                  data-testid="link-privacy"
+                >
+                  Privacy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocation("/terms")}
+                  className={linkClass}
+                  data-testid="link-terms"
+                >
+                  Terms
+                </button>
+              </nav>
 
-          {/* Partners — NosFabrica badge → Megistus lockup (black art; Megistus inverts in dark) */}
-          <div className="flex items-center gap-5">
-            <a
-              href="https://megistus.xyz/"
-              target="_blank"
-              rel="noopener"
-              data-testid="link-megistus"
-              aria-label="Megistus"
-              className="opacity-90 hover:opacity-100 transition-opacity"
-            >
-              <img src="/megistus-logo.png" alt="Megistus" className="h-6 w-auto dark:invert" />
-            </a>
+              {/* Partners — NosFabrica badge → Megistus lockup (black art; Megistus inverts in dark) */}
+              <div className="flex items-center gap-5">
+                <a
+                  href="https://megistus.xyz/"
+                  target="_blank"
+                  rel="noopener"
+                  data-testid="link-megistus"
+                  aria-label="Megistus"
+                  className="opacity-90 transition-opacity hover:opacity-100"
+                >
+                  <img src="/megistus-logo.png" alt="Megistus" className="h-6 w-auto dark:invert" />
+                </a>
 
-            <a
-              href="https://nosfabrica.com/"
-              target="_blank"
-              rel="noopener"
-              data-testid="link-nosfabrica"
-              aria-label="Nosfabrica"
-              className="opacity-90 hover:opacity-100 transition-opacity"
-            >
-              <img src="/nosfabrica-logo-full.png" alt="Nosfabrica" className="h-5 w-auto dark:hidden" />
-              <img src="/nosfabrica-logo-full-white.png" alt="Nosfabrica" className="h-5 w-auto hidden dark:block" />
-            </a>
-          </div>
-        </div>
-        </>}
+                <a
+                  href="https://nosfabrica.com/"
+                  target="_blank"
+                  rel="noopener"
+                  data-testid="link-nosfabrica"
+                  aria-label="Nosfabrica"
+                  className="opacity-90 transition-opacity hover:opacity-100"
+                >
+                  <img src="/nosfabrica-logo-full.png" alt="Nosfabrica" className="h-5 w-auto dark:hidden" />
+                  <img
+                    src="/nosfabrica-logo-full-white.png"
+                    alt="Nosfabrica"
+                    className="hidden h-5 w-auto dark:block"
+                  />
+                </a>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </footer>
   );

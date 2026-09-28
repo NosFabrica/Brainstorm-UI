@@ -46,7 +46,12 @@ export interface NoteAnalysis {
 }
 
 /** Decode a `nostr:`-stripped bech32 entity into a pubkey, event id, or address. `relays` are an `nevent`'s hints. */
-export function decodeNostrEntity(bech: string): { pubkey?: string; id?: string; relays?: string[]; address?: AddressRef } {
+export function decodeNostrEntity(bech: string): {
+  pubkey?: string;
+  id?: string;
+  relays?: string[];
+  address?: AddressRef;
+} {
   try {
     const d = nip19.decode(bech);
     if (d.type === "npub") return { pubkey: d.data as string };
@@ -92,8 +97,14 @@ function parseATag(value: string, relay?: string): AddressRef | null {
 export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
   const tags = ev.tags || [];
   const eTags = tags.filter((t) => t[0] === "e");
-  const pTags = tags.filter((t) => t[0] === "p").map((t) => t[1]).filter(Boolean);
-  const qTags = tags.filter((t) => t[0] === "q").map((t) => t[1]).filter(Boolean);
+  const pTags = tags
+    .filter((t) => t[0] === "p")
+    .map((t) => t[1])
+    .filter(Boolean);
+  const qTags = tags
+    .filter((t) => t[0] === "q")
+    .map((t) => t[1])
+    .filter(Boolean);
   /** The relay a tag names beside its id, when it names one. */
   const tagRelay = (t: string[]) => (typeof t[2] === "string" && /^wss?:\/\//i.test(t[2]) ? [t[2]] : []);
   // Addressable references via `a` tags (NIP-23 article links etc.).
@@ -119,7 +130,16 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
     // card can show @names instead of raw npubs.
     const innerMentions = repostEvent ? mentionPubkeysFromContent(repostEvent.content) : [];
     const mentionPubkeys = Array.from(new Set([...pTags, ...innerMentions]));
-    return { isReply: false, replyToPubkeys: [], quoteIds: [], quoteRelays, mentionPubkeys, addrs: tagAddrs, repostId, repostEvent };
+    return {
+      isReply: false,
+      replyToPubkeys: [],
+      quoteIds: [],
+      quoteRelays,
+      mentionPubkeys,
+      addrs: tagAddrs,
+      repostId,
+      repostEvent,
+    };
   }
 
   // Quotes + mentions + addressable refs embedded in content.
@@ -136,11 +156,12 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
       if (address) contentAddrs.push(address);
     }
   }
-  const addrs = Array.from(
-    new Map([...tagAddrs, ...contentAddrs].map((a) => [addrCoord(a), a])).values(),
-  );
+  const addrs = Array.from(new Map([...tagAddrs, ...contentAddrs].map((a) => [addrCoord(a), a])).values());
 
-  const mentionMarkerIds = eTags.filter((t) => t[3] === "mention").map((t) => t[1]).filter(Boolean);
+  const mentionMarkerIds = eTags
+    .filter((t) => t[3] === "mention")
+    .map((t) => t[1])
+    .filter(Boolean);
   // Any non-"mention" e tag means this is a reply (covers marked + legacy positional).
   const isReply = eTags.some((t) => t[3] !== "mention");
   const quoteIds = Array.from(new Set([...qTags, ...mentionMarkerIds, ...contentQuoteIds]));
@@ -183,7 +204,12 @@ export function replyRefs(ev: MinimalEvent): { rootId?: string; parentId?: strin
  * Collect every referenced pubkey + event id across a batch of notes, so the
  * share page can resolve profiles + quoted events in two batched relay queries.
  */
-export function collectRefs(events: MinimalEvent[]): { pubkeys: string[]; ids: string[]; idRelays: string[]; addrs: AddressRef[] } {
+export function collectRefs(events: MinimalEvent[]): {
+  pubkeys: string[];
+  ids: string[];
+  idRelays: string[];
+  addrs: AddressRef[];
+} {
   const pubkeys = new Set<string>();
   const ids = new Set<string>();
   const idRelays = new Set<string>();
@@ -194,9 +220,17 @@ export function collectRefs(events: MinimalEvent[]): { pubkeys: string[]; ids: s
     a.replyToPubkeys.forEach((pk) => pubkeys.add(pk));
     a.quoteIds.forEach((id) => ids.add(id));
     a.quoteRelays.forEach((relay) => idRelays.add(relay));
-    a.addrs.forEach((ad) => { addrMap.set(addrCoord(ad), ad); pubkeys.add(ad.pubkey); });
+    a.addrs.forEach((ad) => {
+      addrMap.set(addrCoord(ad), ad);
+      pubkeys.add(ad.pubkey);
+    });
     if (a.repostId) ids.add(a.repostId);
     if (a.repostEvent?.pubkey) pubkeys.add(a.repostEvent.pubkey);
   }
-  return { pubkeys: Array.from(pubkeys), ids: Array.from(ids), idRelays: Array.from(idRelays), addrs: Array.from(addrMap.values()) };
+  return {
+    pubkeys: Array.from(pubkeys),
+    ids: Array.from(ids),
+    idRelays: Array.from(idRelays),
+    addrs: Array.from(addrMap.values()),
+  };
 }

@@ -103,10 +103,10 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
       {children}
       <Dialog open={!!intent} onOpenChange={(o) => !o && setIntent(null)}>
         <DialogContent
-          className="sm:max-w-[400px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/5 p-0 overflow-hidden [&>button]:text-slate-400 dark:[&>button]:text-slate-500 [&>button]:hover:text-slate-700 dark:[&>button]:hover:text-slate-200 [&>button]:opacity-100 [&>button]:hover:bg-slate-100 dark:[&>button]:hover:bg-slate-800 [&>button]:rounded-md [&>button]:p-1"
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-xl shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900 sm:max-w-[400px] [&>button]:rounded-md [&>button]:p-1 [&>button]:text-slate-400 [&>button]:opacity-100 [&>button]:hover:bg-slate-100 [&>button]:hover:text-slate-700 dark:[&>button]:text-slate-500 dark:[&>button]:hover:bg-slate-800 dark:[&>button]:hover:text-slate-200"
           data-testid="modal-share-nav-confirm"
         >
-          <div className="px-5 sm:px-6 pt-5 pb-2">
+          <div className="px-5 pb-2 pt-5 sm:px-6">
             {/* One left axis, and the avatar shares the title's row.
                 DialogHeader defaults to `text-center sm:text-left`, so on a phone
                 the copy centred while the block-level avatar stayed hard-left —
@@ -116,9 +116,13 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
             <DialogHeader className="space-y-0 text-left">
               <div className="flex items-start gap-3">
                 {isProfile && intent?.picture ? (
-                  <Avatar className={`h-10 w-10 shrink-0 rounded-xl border border-brand-accent/20 ${tierRing(score01) ?? ""}`}>
+                  <Avatar
+                    className={`h-10 w-10 shrink-0 rounded-xl border border-brand-accent/20 ${tierRing(score01) ?? ""}`}
+                  >
                     <AvatarImage src={intent.picture} alt={intent.label} className="object-cover" />
-                    <AvatarFallback className="overflow-hidden rounded-xl"><DefaultAvatarImg /></AvatarFallback>
+                    <AvatarFallback className="overflow-hidden rounded-xl">
+                      <DefaultAvatarImg />
+                    </AvatarFallback>
                   </Avatar>
                 ) : (
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/10 text-brand-deep">
@@ -126,13 +130,25 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 leading-snug tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                  <DialogTitle
+                    className="text-base font-bold leading-snug tracking-tight text-slate-900 dark:text-slate-100"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
                     {isProfile ? "View this profile on Brainstorm?" : "Explore on Brainstorm?"}
                   </DialogTitle>
-                  <DialogDescription className="mt-0.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                    {isProfile
-                      ? <>You'll see <span className="font-semibold text-slate-700 dark:text-slate-200">{intent?.label}</span>'s full profile and connections.</>
-                      : <>Search the Brainstorm network for people related to <span className="font-semibold text-slate-700 dark:text-slate-200">{intent?.label}</span>.</>}
+                  <DialogDescription className="mt-0.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400 sm:text-sm">
+                    {isProfile ? (
+                      <>
+                        You'll see{" "}
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">{intent?.label}</span>'s full
+                        profile and connections.
+                      </>
+                    ) : (
+                      <>
+                        Search the Brainstorm network for people related to{" "}
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">{intent?.label}</span>.
+                      </>
+                    )}
                   </DialogDescription>
                 </div>
               </div>
@@ -144,7 +160,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
                 {hasTier ? (
                   <TierTile score01={score01} pov={usePersonal ? "personalized" : "global"} caption={povCaption} />
                 ) : (
-                  <div className="h-[3.25rem] rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="h-[3.25rem] animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
                 )}
               </div>
             )}
@@ -153,7 +169,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
               Cancel, so the pair sat lopsided; emphasis now comes from colour
               alone, which is the stronger signal anyway, and both are full-size
               thumb targets on a phone. */}
-          <div className="flex gap-2.5 px-5 sm:px-6 pb-5 pt-3">
+          <div className="flex gap-2.5 px-5 pb-5 pt-3 sm:px-6">
             <button
               type="button"
               onClick={confirm}

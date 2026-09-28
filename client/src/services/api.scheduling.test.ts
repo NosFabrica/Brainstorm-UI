@@ -27,8 +27,26 @@ describe("apiClient.getSchedulingPolicies", () => {
 
   it("GETs /admin/scheduling with the access_token header and returns the policy list", async () => {
     const policies = [
-      { id: 1, name: "Weekly", schedule_interval_seconds: 604800, priority: 0, enabled: true, is_default: true, manual_quota_limit: 20, manual_quota_window_seconds: 604800 },
-      { id: 2, name: "Daily", schedule_interval_seconds: 86400, priority: 10, enabled: true, is_default: false, manual_quota_limit: 20, manual_quota_window_seconds: 86400 },
+      {
+        id: 1,
+        name: "Weekly",
+        schedule_interval_seconds: 604800,
+        priority: 0,
+        enabled: true,
+        is_default: true,
+        manual_quota_limit: 20,
+        manual_quota_window_seconds: 604800,
+      },
+      {
+        id: 2,
+        name: "Daily",
+        schedule_interval_seconds: 86400,
+        priority: 10,
+        enabled: true,
+        is_default: false,
+        manual_quota_limit: 20,
+        manual_quota_window_seconds: 86400,
+      },
     ];
     const fetchMock = mockFetchOnce(policies);
 
@@ -43,7 +61,16 @@ describe("apiClient.getSchedulingPolicies", () => {
 
   it("unwraps a legacy {code,data,message} envelope", async () => {
     const policies = [
-      { id: 1, name: "Weekly", schedule_interval_seconds: 604800, priority: 0, enabled: true, is_default: true, manual_quota_limit: 20, manual_quota_window_seconds: 604800 },
+      {
+        id: 1,
+        name: "Weekly",
+        schedule_interval_seconds: 604800,
+        priority: 0,
+        enabled: true,
+        is_default: true,
+        manual_quota_limit: 20,
+        manual_quota_window_seconds: 604800,
+      },
     ];
     mockFetchOnce({ code: 200, message: "ok", data: policies });
 
@@ -55,9 +82,7 @@ describe("apiClient.getSchedulingPolicies", () => {
   it("throws the backend 'detail' message on a non-ok response", async () => {
     mockFetchOnce({ detail: "scheduler is on fire" }, { ok: false, status: 500 });
 
-    await expect(apiClient.getSchedulingPolicies()).rejects.toThrow(
-      "scheduler is on fire",
-    );
+    await expect(apiClient.getSchedulingPolicies()).rejects.toThrow("scheduler is on fire");
   });
 });
 
@@ -71,8 +96,13 @@ describe("apiClient scheduling policy mutations", () => {
 
   it("POSTs a new policy and returns the created item", async () => {
     const body = {
-      name: "Hourly", schedule_interval_seconds: 3600, priority: 5,
-      enabled: true, is_default: false, manual_quota_limit: 20, manual_quota_window_seconds: 86400,
+      name: "Hourly",
+      schedule_interval_seconds: 3600,
+      priority: 5,
+      enabled: true,
+      is_default: false,
+      manual_quota_limit: 20,
+      manual_quota_window_seconds: 86400,
     };
     const created = { id: 3, ...body };
     const fetchMock = mockFetchOnce(created, { status: 201 });
@@ -89,8 +119,14 @@ describe("apiClient scheduling policy mutations", () => {
 
   it("PATCHes only the provided fields of a policy", async () => {
     const updated = {
-      id: 2, name: "Renamed", schedule_interval_seconds: 86400, priority: 10,
-      enabled: true, is_default: false, manual_quota_limit: 20, manual_quota_window_seconds: 86400,
+      id: 2,
+      name: "Renamed",
+      schedule_interval_seconds: 86400,
+      priority: 10,
+      enabled: true,
+      is_default: false,
+      manual_quota_limit: 20,
+      manual_quota_window_seconds: 86400,
     };
     const fetchMock = mockFetchOnce(updated);
 
@@ -116,9 +152,7 @@ describe("apiClient scheduling policy mutations", () => {
   it("surfaces the 409 reason when a policy can't be deleted", async () => {
     mockFetchOnce({ detail: "Cannot delete the default policy" }, { ok: false, status: 409 });
 
-    await expect(apiClient.deleteSchedulingPolicy(1)).rejects.toThrow(
-      /default policy/,
-    );
+    await expect(apiClient.deleteSchedulingPolicy(1)).rejects.toThrow(/default policy/);
   });
 });
 
@@ -147,9 +181,7 @@ describe("apiClient.assignUserScheduling", () => {
   it("surfaces a 422 for an unknown policy id", async () => {
     mockFetchOnce({ detail: "Unknown scheduling policy id 99" }, { ok: false, status: 422 });
 
-    await expect(apiClient.assignUserScheduling(PK, 99)).rejects.toThrow(
-      /unknown scheduling policy/i,
-    );
+    await expect(apiClient.assignUserScheduling(PK, 99)).rejects.toThrow(/unknown scheduling policy/i);
   });
 });
 
@@ -223,7 +255,10 @@ describe("apiClient scheduling policy users", () => {
   it("GETs a paginated user page for a policy", async () => {
     const page = {
       items: [{ pubkey: "a".repeat(64), last_time_published_graperank: null }],
-      total: 1, page: 1, size: 20, pages: 1,
+      total: 1,
+      page: 1,
+      size: 20,
+      pages: 1,
     };
     const fetchMock = mockFetchOnce(page);
 

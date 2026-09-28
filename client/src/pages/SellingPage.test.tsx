@@ -11,7 +11,12 @@ import type { NostrEvent } from "nostr-tools";
 
 const recentMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>();
 const profileMock = vi.fn(async () => ({
-  id: "f".repeat(64), kind: 0, pubkey: "ab".repeat(32), created_at: 1, tags: [], sig: "",
+  id: "f".repeat(64),
+  kind: 0,
+  pubkey: "ab".repeat(32),
+  created_at: 1,
+  tags: [],
+  sig: "",
   content: JSON.stringify({ name: "borntobefree", display_name: "Born To Be Free", picture: "https://img/me.jpg" }),
 }));
 vi.mock("@/services/nostr", () => ({
@@ -36,7 +41,15 @@ import { SellerListings } from "./SellingPage";
 
 const SELLER = "ab".repeat(32);
 const listing = (id: string, title: string, created_at: number, extra: string[][] = []): NostrEvent =>
-  ({ id: id.padEnd(64, "0"), pubkey: SELLER, kind: 30402, created_at, content: "", sig: "", tags: [["d", id], ["title", title], ["price", "35", "USD"], ["image", `https://img/${id}.jpg`], ...extra] }) as NostrEvent;
+  ({
+    id: id.padEnd(64, "0"),
+    pubkey: SELLER,
+    kind: 30402,
+    created_at,
+    content: "",
+    sig: "",
+    tags: [["d", id], ["title", title], ["price", "35", "USD"], ["image", `https://img/${id}.jpg`], ...extra],
+  }) as NostrEvent;
 
 describe("SellerListings", () => {
   beforeEach(() => {
@@ -80,7 +93,20 @@ describe("SellerListings", () => {
 
   it("counts products, not size variants — one shirt in three sizes is one card with 3 options", async () => {
     const shirt = (size: string, at: number): NostrEvent =>
-      ({ id: `shirt-${size}`.padEnd(64, "0"), pubkey: SELLER, kind: 30402, created_at: at, content: "", sig: "", tags: [["d", `shirt-${size}`], ["title", `Tee — ${size}`], ["price", "35", "USD"], ["image", "https://img/tee.jpg"]] }) as NostrEvent;
+      ({
+        id: `shirt-${size}`.padEnd(64, "0"),
+        pubkey: SELLER,
+        kind: 30402,
+        created_at: at,
+        content: "",
+        sig: "",
+        tags: [
+          ["d", `shirt-${size}`],
+          ["title", `Tee — ${size}`],
+          ["price", "35", "USD"],
+          ["image", "https://img/tee.jpg"],
+        ],
+      }) as NostrEvent;
     recentMock.mockResolvedValue([shirt("XL", 3), shirt("L", 2), shirt("M", 1), listing("mug", "Mug", 5)]);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(

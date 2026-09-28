@@ -60,7 +60,9 @@ export function DegreeChip({
       : "Brainstorm can't reach them through the accounts it follows.";
 
   const bold = variant === "bold";
-  const numCls = bold ? "font-bold text-slate-900 dark:text-slate-100 tabular-nums" : "font-semibold text-slate-700 dark:text-slate-200";
+  const numCls = bold
+    ? "font-bold text-slate-900 dark:text-slate-100 tabular-nums"
+    : "font-semibold text-slate-700 dark:text-slate-200";
   const labelCls = bold ? "text-slate-500 dark:text-slate-400 ml-1" : "";
 
   return (
@@ -68,7 +70,7 @@ export function DegreeChip({
       <TooltipTrigger asChild>
         <Link
           href={`/p/${rawId}/hops`}
-          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 cursor-help hover:opacity-80 transition-opacity ${povChrome(pov)}`}
+          className={`inline-flex cursor-help items-center gap-1 rounded-full border px-2 py-0.5 transition-opacity hover:opacity-80 ${povChrome(pov)}`}
           data-testid="stat-hops"
           data-pov={pov}
         >
@@ -83,7 +85,10 @@ export function DegreeChip({
           )}
         </Link>
       </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[240px] bg-white/95 dark:bg-slate-900/95 backdrop-blur border border-slate-200 dark:border-slate-800 shadow-lg">
+      <TooltipContent
+        side="top"
+        className="max-w-[240px] border border-slate-200 bg-white/95 shadow-lg backdrop-blur dark:border-slate-800 dark:bg-slate-900/95"
+      >
         <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">{tip}</p>
       </TooltipContent>
     </Tooltip>

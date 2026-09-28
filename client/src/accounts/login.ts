@@ -11,12 +11,7 @@ import { ExtensionAccount } from "applesauce-accounts/accounts";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "./local-account";
 import type { LocalSignerOptions } from "./local-signer";
-import {
-  getMetadata,
-  updateMetadata,
-  type AccountMetadata,
-  type BrainstormAccount,
-} from "./metadata";
+import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 
 declare global {
   interface Window {
@@ -39,10 +34,7 @@ export const EXTENSION_WAIT_MS = 800;
  */
 export const EXTENSION_COLD_BOOT_WAIT_MS = 3000;
 
-export function waitForExtension(
-  maxWaitMs = EXTENSION_WAIT_MS,
-  intervalMs = 100,
-): Promise<boolean> {
+export function waitForExtension(maxWaitMs = EXTENSION_WAIT_MS, intervalMs = 100): Promise<boolean> {
   if (typeof window !== "undefined" && window.nostr) return Promise.resolve(true);
   const deadline = Date.now() + maxWaitMs;
   return new Promise((resolve) => {
@@ -120,7 +112,7 @@ export function adoptAccount(account: BrainstormAccount, metadata: AccountMetada
   let carried: Partial<AccountMetadata> = {};
   for (const held of [...accountManager.accounts]) {
     if (held === account || held.pubkey !== account.pubkey || held.type !== account.type) continue;
-    const { session, remembered, ...rest } = getMetadata(held as BrainstormAccount);
+    const { session: _session, remembered: _remembered, ...rest } = getMetadata(held as BrainstormAccount);
     carried = rest;
     carryBackup(held as BrainstormAccount, account);
     forgetAccount(held as BrainstormAccount);
@@ -144,9 +136,7 @@ export function adoptAccount(account: BrainstormAccount, metadata: AccountMetada
 export function accountFor(pubkey: string): BrainstormAccount | undefined {
   const active = accountManager.active;
   if (active?.pubkey === pubkey) return active as BrainstormAccount;
-  return accountManager.accounts.find((account) => account.pubkey === pubkey) as
-    | BrainstormAccount
-    | undefined;
+  return accountManager.accounts.find((account) => account.pubkey === pubkey) as BrainstormAccount | undefined;
 }
 
 /** Every Account this device holds for an identity. */
@@ -159,9 +149,8 @@ export function accountsFor(pubkey: string): BrainstormAccount[] {
  * through several Signers, but only one of them keeps a key here.
  */
 export function localAccountFor(pubkey: string): LocalAccount | undefined {
-  return accountManager.accounts.find(
-    (account) => account.pubkey === pubkey && account instanceof LocalAccount,
-  ) as LocalAccount | undefined;
+  return accountManager.accounts.find((account) => account.pubkey === pubkey && account instanceof LocalAccount) as
+    LocalAccount | undefined;
 }
 
 /** Make an Account this device already holds the one that signs — the picker's act. */

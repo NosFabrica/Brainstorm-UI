@@ -52,7 +52,13 @@ export function collapseVariants(listings: Listing[]): VariantGroup[] {
       existing.options.push(option as string);
       continue;
     }
-    const group: VariantGroup = { id: l.id, title: option ? prefix : l.title, primary: l, members: [l], options: option ? [option] : [] };
+    const group: VariantGroup = {
+      id: l.id,
+      title: option ? prefix : l.title,
+      primary: l,
+      members: [l],
+      options: option ? [option] : [],
+    };
     groups.push(group);
     if (key) byKey.set(key, group);
   }

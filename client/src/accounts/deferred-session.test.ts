@@ -16,10 +16,7 @@ class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, Account
 
 function signableAccount(): BrainstormAccount {
   const secretKey = generateSecretKey();
-  const account = new AlwaysSignableAccount(
-    getPublicKey(secretKey),
-    new PrivateKeySigner(secretKey),
-  );
+  const account = new AlwaysSignableAccount(getPublicKey(secretKey), new PrivateKeySigner(secretKey));
   account.metadata = { remembered: true };
   return account as unknown as BrainstormAccount;
 }
@@ -44,8 +41,8 @@ async function lockedAccount({ cached = true, requestPassword = fakePrompt() } =
 /** A manager with `account` signed in — the only arrangement these tests need. */
 function signedInAs(account: BrainstormAccount): AccountManager<AccountMetadata> {
   const manager = new AccountManager<AccountMetadata>();
-  manager.addAccount(account as any);
-  manager.setActive(account as any);
+  manager.addAccount(account);
+  manager.setActive(account);
   return manager;
 }
 

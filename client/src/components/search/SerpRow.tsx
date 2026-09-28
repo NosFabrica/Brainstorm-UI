@@ -27,7 +27,7 @@ import { TranslateLine } from "@/components/share/TranslateLine";
 import { useLightbox } from "@/components/share/Lightbox";
 import { eventStore } from "@/lib/eventStore";
 import { MentionChip } from "@/components/share/MentionChip";
-import { fetchEventsByIds, fetchProfileMap } from "@/services/nostr";
+import { fetchEventsByIds } from "@/services/nostr";
 import { highlightTerms } from "@/lib/highlight";
 import { parseNewsShape } from "@/lib/newsShape";
 import { wavlakeTrackId } from "@/lib/wavlake";
@@ -96,7 +96,14 @@ function quotedIn(text: string): { id: string; uri: string }[] {
  * What this result calls itself, when the app that published it has a better
  * word than the kind's: a kind-30023 on zap.cooking is a "Recipe".
  */
-export function typeLabelFor(event: { kind: number; tags: string[][]; pubkey: string; id: string; content: string; created_at: number }): string {
+export function typeLabelFor(event: {
+  kind: number;
+  tags: string[][];
+  pubkey: string;
+  id: string;
+  content: string;
+  created_at: number;
+}): string {
   return dlistTypeFor(event)?.label ?? sourceAppFor(event)?.noun ?? kindLabel(event);
 }
 
@@ -105,7 +112,14 @@ export function typeLabelFor(event: { kind: number; tags: string[][]; pubkey: st
  * musician/songs D-list event ids with the music icon): a header is a
  * "Music list", an item the song or musician it is.
  */
-export function dlistTypeFor(event: { kind: number; tags: string[][]; pubkey: string; id: string; content: string; created_at: number }): { label: string; icon: LucideIcon } | null {
+export function dlistTypeFor(event: {
+  kind: number;
+  tags: string[][];
+  pubkey: string;
+  id: string;
+  content: string;
+  created_at: number;
+}): { label: string; icon: LucideIcon } | null {
   const list = dlistOfEvent(event);
   if (!list) return null;
   const category = list.category.charAt(0).toUpperCase() + list.category.slice(1);
@@ -114,9 +128,6 @@ export function dlistTypeFor(event: { kind: number; tags: string[][]; pubkey: st
   if (parseDListMusician(event)) return { label: "Musician", icon: list.icon };
   return { label: `${category} list item`, icon: list.icon };
 }
-
-
-
 
 /**
  * A headline is words: a mentioned person by name (no second anchor inside
@@ -131,7 +142,11 @@ export function Headline({ text, query }: { text: string; query: string }) {
   return (
     <>
       {parts.map((part, i) =>
-        /^nostr:/i.test(part) ? <MentionChip key={i} uri={part} plain /> : <Marked key={i} text={part.replace(/\s{2,}/g, " ")} query={query} />,
+        /^nostr:/i.test(part) ? (
+          <MentionChip key={i} uri={part} plain />
+        ) : (
+          <Marked key={i} text={part.replace(/\s{2,}/g, " ")} query={query} />
+        ),
       )}
     </>
   );
@@ -154,7 +169,6 @@ function Marked({ text, query }: { text: string; query: string }) {
   );
 }
 
-
 /** The row's media square: a poster/image that HIDES itself if the URL is
  *  dead (expired signed thumbs must not render as broken glass), or a
  *  metadata-only <video> first frame when only the video itself exists. */
@@ -170,13 +184,30 @@ function rowThumbMedia(event: NostrEvent): { url: string | null; poster: string 
   };
 }
 
-function RowThumb({ event, author, score, onFail }: { event: NostrEvent; author: SearchResult | null; score?: number | null; onFail?: () => void }) {
+function RowThumb({
+  event,
+  author,
+  score,
+  onFail,
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+  onFail?: () => void;
+}) {
   const speed = useConnectionSpeed();
   const [failed, setFailed] = useState(false);
   const openLightbox = useLightbox();
   // The full view is told whose media it is and where the post lives.
   const context = {
-    author: author ? { name: getDisplayLabel(author), npub: author.npub, picture: author.picture, score01: score ?? author.wotRank ?? null } : null,
+    author: author
+      ? {
+          name: getDisplayLabel(author),
+          npub: author.npub,
+          picture: author.picture,
+          score01: score ?? author.wotRank ?? null,
+        }
+      : null,
     postHref: eventPath(event),
   };
   const { url, poster, isVideo } = rowThumbMedia(event);
@@ -226,10 +257,22 @@ function RowThumb({ event, author, score, onFail }: { event: NostrEvent; author:
 
 /** Snippet where bare URLs become clickable domain chips. `hide` is a URL
  *  the row already shows another way (its thumbnail), so no chip for it. */
-export function Snippet({ text, query, lines = 3, hide }: { text: string; query: string; lines?: 2 | 3; hide?: string | null }) {
+export function Snippet({
+  text,
+  query,
+  lines = 3,
+  hide,
+}: {
+  text: string;
+  query: string;
+  lines?: 2 | 3;
+  hide?: string | null;
+}) {
   const parts = unwrapMarkdownLinks(text).split(TOKEN_SPLIT_RE);
   return (
-    <p className={`text-[13px] leading-snug text-slate-700 dark:text-slate-200 break-words ${lines === 2 ? "line-clamp-2" : "line-clamp-3"}`}>
+    <p
+      className={`break-words text-[13px] leading-snug text-slate-700 dark:text-slate-200 ${lines === 2 ? "line-clamp-2" : "line-clamp-3"}`}
+    >
       {parts.map((part, i) => {
         if (/^https?:\/\//i.test(part)) {
           if (hide && part === hide) return null;
@@ -278,7 +321,11 @@ function QuotedNoteCard({ id, uri, query }: { id: string; uri: string; query: st
   }, [id, quoted]);
   if (missing) {
     return (
-      <Link href={`/e/${uri.slice("nostr:".length)}`} className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline" data-testid="serp-quote-link">
+      <Link
+        href={`/e/${uri.slice("nostr:".length)}`}
+        className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline"
+        data-testid="serp-quote-link"
+      >
         ↳ quoted note
       </Link>
     );
@@ -292,7 +339,7 @@ function QuotedNoteCard({ id, uri, query }: { id: string; uri: string; query: st
       onKeyDown={(e) => {
         if (e.key === "Enter") navigate(eventPath(quoted));
       }}
-      className="mt-2 cursor-pointer rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 px-3 py-2 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+      className="mt-2 cursor-pointer rounded-xl border border-slate-200 bg-white/70 px-3 py-2 transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700"
       data-testid="serp-quote"
     >
       <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
@@ -330,8 +377,10 @@ function AuthorLine({
 }) {
   const tierRing = useTierRing();
   return (
-    <div className="flex items-center gap-1.5 min-w-0">
-      <Avatar className={`h-5 w-5 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}>
+    <div className="flex min-w-0 items-center gap-1.5">
+      <Avatar
+        className={`h-5 w-5 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}
+      >
         {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">
           <DefaultAvatarImg />
@@ -345,15 +394,23 @@ function AuthorLine({
         </span>
         <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
         {type && TypeIcon ? (
-          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
-            · <TypeIcon className="h-3 w-3" />{type}
+          <span
+            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500"
+            data-testid="serp-type"
+          >
+            · <TypeIcon className="h-3 w-3" />
+            {type}
           </span>
         ) : (
           type && <KindPill event={typeOf} label={type} className="self-center" />
         )}
         {typeOf && <ViaRelay event={typeOf} />}
         {feed && (
-          <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title="An automated feed account" data-testid="serp-feed">
+          <span
+            className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500"
+            title="An automated feed account"
+            data-testid="serp-feed"
+          >
             · <Rss className="h-3 w-3" /> feed
           </span>
         )}
@@ -401,7 +458,8 @@ export function SerpRow({
   const [thumbFailed, setThumbFailed] = useState(false);
 
   const title = tagVal(event, "title") ?? tagVal(event, "name");
-  const news = !title && event.content ? parseNewsShape(event.content, { imageSplitsHeadline: isFeedAccount(author) }) : null;
+  const news =
+    !title && event.content ? parseNewsShape(event.content, { imageSplitsHeadline: isFeedAccount(author) }) : null;
 
   // A wiki page is AsciiDoc; the row shows its words, not "[[comedian]]".
   // A designation is its rows, read for people; anything else with no
@@ -416,8 +474,17 @@ export function SerpRow({
       ? tagVal(event, "alt") || ""
       : event.kind === 10040
         ? describeDesignation(event).summary
-        : (event.kind === 30818 ? wikiPlainText(event.content) : event.content) || tagVal(event, "summary") || tagVal(event, "description") || tagVal(event, "alt") || "";
-  const shapeLine = shape?.kind === "encrypted" ? "Encrypted — only its owner can read it" : shape?.kind === "json" ? `Structured data · ${shape.fields} ${shape.fields === 1 ? "field" : "fields"}` : null;
+        : (event.kind === 30818 ? wikiPlainText(event.content) : event.content) ||
+          tagVal(event, "summary") ||
+          tagVal(event, "description") ||
+          tagVal(event, "alt") ||
+          "";
+  const shapeLine =
+    shape?.kind === "encrypted"
+      ? "Encrypted — only its owner can read it"
+      : shape?.kind === "json"
+        ? `Structured data · ${shape.fields} ${shape.fields === 1 ? "field" : "fields"}`
+        : null;
   // Same link a feed would card for this note, so the two never disagree.
   const cardLink = body ? primaryLink(parseNoteContent(body)) : null;
   // A Primal link names a Nostr thing: an article is its card, the way the
@@ -428,9 +495,15 @@ export function SerpRow({
   // A news row has no body, so it asks about nothing.
   const cardRef = cardLink ? clientRef(cardLink) : null;
   const cardEntity = useClientLink(cardRef);
-  const linkedArticle = cardEntity.status === "done" && cardEntity.entity?.kind === "article" ? cardEntity.entity : null;
+  const linkedArticle =
+    cardEntity.status === "done" && cardEntity.entity?.kind === "article" ? cardEntity.entity : null;
   // While a Primal link resolves, no metadata card either: it would flash and go.
-  const plainCardLink = cardLink && !cardRef ? cardLink : cardLink && cardEntity.status === "done" && cardEntity.entity === null ? cardLink : null;
+  const plainCardLink =
+    cardLink && !cardRef
+      ? cardLink
+      : cardLink && cardEntity.status === "done" && cardEntity.entity === null
+        ? cardLink
+        : null;
 
   const rowProps = {
     role: "link" as const,
@@ -455,9 +528,9 @@ export function SerpRow({
         <div className="min-w-0 flex-1">
           <div className="min-w-0" data-testid="news-source">
             <AuthorLine author={author} score={score} created_at={event.created_at}>
-              <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+              <span className="hidden min-w-0 items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 sm:inline-flex">
                 ·
-                <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
+                <Favicon host={news.domain} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
                 <span className="truncate">{news.domain}</span>
               </span>
             </AuthorLine>
@@ -469,7 +542,9 @@ export function SerpRow({
           <div onClick={(e) => e.stopPropagation()}>
             <WavlakeTrackCard url={news.url} />
           </div>
-          {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
+          {engagement && (
+            <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />
+          )}
         </div>
       </div>
     );
@@ -485,9 +560,9 @@ export function SerpRow({
               the story lives. */}
           <div className="min-w-0" data-testid="news-source">
             <AuthorLine author={author} score={score} created_at={event.created_at} type="News" typeOf={event}>
-              <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+              <span className="hidden min-w-0 items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 sm:inline-flex">
                 ·
-                <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
+                <Favicon host={news.domain} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
                 <span className="truncate">{news.domain}</span>
               </span>
             </AuthorLine>
@@ -497,7 +572,7 @@ export function SerpRow({
             target="_blank"
             rel="noopener"
             onClick={(e) => e.stopPropagation()}
-            className="mt-1.5 block text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline transition-colors break-words line-clamp-2"
+            className="mt-1.5 line-clamp-2 block break-words text-[15px] font-semibold leading-snug text-slate-900 transition-colors hover:text-brand-primary hover:underline dark:text-slate-100"
             data-testid="news-headline"
           >
             <Headline text={news.headline} query={query} />
@@ -508,7 +583,9 @@ export function SerpRow({
             </div>
           )}
           <TranslateLine text={`${news.headline}\n${news.description ?? ""}`.trim()} />
-          {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
+          {engagement && (
+            <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />
+          )}
         </div>
         {thumb && !newsThumbFailed && (
           <a
@@ -524,7 +601,7 @@ export function SerpRow({
               alt=""
               loading="lazy"
               onError={() => setNewsThumbFailed(true)}
-              className="h-20 w-28 rounded-xl object-cover bg-slate-100 dark:bg-slate-800 shadow-sm"
+              className="h-20 w-28 rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
               data-testid="news-thumb"
             />
           </a>
@@ -542,14 +619,25 @@ export function SerpRow({
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
-        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? typeLabelFor(event) : undefined} typeIcon={showType ? dlistTypeFor(event)?.icon : undefined} typeOf={event} feed={isFeedAccount(author)} />
+        <AuthorLine
+          author={author}
+          score={score}
+          created_at={event.created_at}
+          type={showType ? typeLabelFor(event) : undefined}
+          typeIcon={showType ? dlistTypeFor(event)?.icon : undefined}
+          typeOf={event}
+          feed={isFeedAccount(author)}
+        />
         {title && (
-          <div className="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors [&>p]:font-semibold [&>p]:text-sm">
+          <div className="mt-1.5 text-sm font-semibold text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100 [&>p]:text-sm [&>p]:font-semibold">
             <Snippet text={title} query={query} lines={2} />
           </div>
         )}
         {shapeLine && (
-          <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500" data-testid="serp-content-shape">
+          <p
+            className="mt-1.5 inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500"
+            data-testid="serp-content-shape"
+          >
             {shape?.kind === "encrypted" ? <Lock className="h-3 w-3" /> : <Braces className="h-3 w-3" />} {shapeLine}
           </p>
         )}
@@ -567,14 +655,20 @@ export function SerpRow({
         )}
         {plainCardLink && (
           <div onClick={(e) => e.stopPropagation()}>
-            <LinkPreviewCard url={plainCardLink} showImage={!thumb.url} context={[title, shown].filter(Boolean).join("\n")} />
+            <LinkPreviewCard
+              url={plainCardLink}
+              showImage={!thumb.url}
+              context={[title, shown].filter(Boolean).join("\n")}
+            />
           </div>
         )}
-        {quotedIn(body).slice(0, 1).map((q) => (
-          <div key={q.id} onClick={(e) => e.stopPropagation()}>
-            <QuotedNoteCard id={q.id} uri={q.uri} query={query} />
-          </div>
-        ))}
+        {quotedIn(body)
+          .slice(0, 1)
+          .map((q) => (
+            <div key={q.id} onClick={(e) => e.stopPropagation()}>
+              <QuotedNoteCard id={q.id} uri={q.uri} query={query} />
+            </div>
+          ))}
         {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
       </div>
       <RowThumb event={event} author={author} score={score} onFail={() => setThumbFailed(true)} />

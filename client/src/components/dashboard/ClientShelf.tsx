@@ -24,13 +24,7 @@ import { SUPPORTED_CLIENT_NAMES } from "@/config/supportedClients";
  * someone installed, so checkmarks or completion chrome would be a lie. It's a
  * shelf of outbound resources, and it reads as one.
  */
-export function ClientShelf({
-  expanded,
-  onNavigate,
-}: {
-  expanded: boolean;
-  onNavigate: (path: string) => void;
-}) {
+export function ClientShelf({ expanded, onNavigate }: { expanded: boolean; onNavigate: (path: string) => void }) {
   return (
     <div
       className={`mb-8 text-xs ${
@@ -39,7 +33,7 @@ export function ClientShelf({
           : // Stacks centered on mobile (no awkward left/right split), settles into
             // one spaced row on desktop. The client list is its own centered line
             // so it never collides with the two links.
-            "flex flex-col items-center gap-3 border-t border-slate-200/70 dark:border-slate-800/60 pt-4 sm:flex-row sm:justify-between sm:gap-6"
+            "flex flex-col items-center gap-3 border-t border-slate-200/70 pt-4 dark:border-slate-800/60 sm:flex-row sm:justify-between sm:gap-6"
       }`}
       data-testid="dashboard-footer-strip"
     >
@@ -65,7 +59,7 @@ export function ClientShelf({
         <button
           type="button"
           onClick={() => onNavigate("/what-is-wot")}
-          className="inline-flex items-center gap-1.5 font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+          className="inline-flex items-center gap-1.5 rounded font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
           data-testid="button-learn-wot"
         >
           How trust works <ArrowRight className="h-3 w-3" />
@@ -79,7 +73,7 @@ export function ClientShelf({
         <button
           type="button"
           onClick={() => onNavigate("/nostr")}
-          className="font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+          className="rounded font-medium text-slate-400 hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500 dark:hover:text-white"
           data-testid="link-supported-clients"
         >
           See all clients →

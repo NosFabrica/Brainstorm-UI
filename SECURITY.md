@@ -49,45 +49,45 @@ Reports or questions are welcome through the contact above.
 
 ### Product UI — [`NosFabrica/Brainstorm-UI`](https://github.com/NosFabrica/Brainstorm-UI) (this repository)
 
-| Host | Role |
-|---|---|
-| `brainstorm.world` | Production |
-| `brainstorm.nosfabrica.com` | Production alias |
-| `brainstorm-staging.nosfabrica.com` | Staging |
+| Host                                | Role             |
+| ----------------------------------- | ---------------- |
+| `brainstorm.world`                  | Production       |
+| `brainstorm.nosfabrica.com`         | Production alias |
+| `brainstorm-staging.nosfabrica.com` | Staging          |
 
 ### R&D UI — [`nous-clawds4/tapestry`](https://github.com/nous-clawds4/tapestry)
 
-| Host | Role |
-|---|---|
-| `tapestry.brainstorm.world` | Reference deployment |
-| `staging.brainstorm.world` | Pre-production |
-| `tags.brainstorm.world` | Feature sandbox |
-| `communities.brainstorm.world` | Feature sandbox |
-| `magic-carpet.brainstorm.world` | Feature sandbox |
-| `curate.brainstorm.world` | Feature sandbox |
+| Host                            | Role                 |
+| ------------------------------- | -------------------- |
+| `tapestry.brainstorm.world`     | Reference deployment |
+| `staging.brainstorm.world`      | Pre-production       |
+| `tags.brainstorm.world`         | Feature sandbox      |
+| `communities.brainstorm.world`  | Feature sandbox      |
+| `magic-carpet.brainstorm.world` | Feature sandbox      |
+| `curate.brainstorm.world`       | Feature sandbox      |
 
 ### Backend APIs — [`NosFabrica/brainstorm_server`](https://github.com/NosFabrica/brainstorm_server)
 
-| Host | Role |
-|---|---|
-| `api.brainstorm.world` | Production API |
-| `search.brainstorm.world` | Search API |
-| `brainstormserver.nosfabrica.com` | Production API |
-| `brainstormserver-staging.nosfabrica.com` | Staging API |
+| Host                                      | Role           |
+| ----------------------------------------- | -------------- |
+| `api.brainstorm.world`                    | Production API |
+| `search.brainstorm.world`                 | Search API     |
+| `brainstormserver.nosfabrica.com`         | Production API |
+| `brainstormserver-staging.nosfabrica.com` | Staging API    |
 
 ### nostr relays — [strfry](https://github.com/hoytech/strfry)
 
-| Host | Role |
-|---|---|
-| `scores.brainstorm.world` | Public relay |
-| `nip85.brainstorm.world` | NIP-85 Trusted Assertions |
-| `dcosl.brainstorm.world` | Decentralized Curation of Simple Lists |
-| `nip85.nosfabrica.com` | NIP-85 relay |
-| `nip85-staging.nosfabrica.com` | NIP-85 relay (staging) |
+| Host                           | Role                                   |
+| ------------------------------ | -------------------------------------- |
+| `scores.brainstorm.world`      | Public relay                           |
+| `nip85.brainstorm.world`       | NIP-85 Trusted Assertions              |
+| `dcosl.brainstorm.world`       | Decentralized Curation of Simple Lists |
+| `nip85.nosfabrica.com`         | NIP-85 relay                           |
+| `nip85-staging.nosfabrica.com` | NIP-85 relay (staging)                 |
 
 **The `brainstorm.world` and `nosfabrica.com` domains are both ours**, so any host under either of
 them is operated by us — the tables above are a current inventory, not an exhaustive claim. A site
-that resembles Brainstorm on any *other* domain is not affiliated with us; if you find one, that
+that resembles Brainstorm on any _other_ domain is not affiliated with us; if you find one, that
 itself is worth reporting through the link above.
 
 ## Scope
@@ -105,7 +105,7 @@ anyone may publish follows, mutes, reports, tags, and list elements, and the sys
 publication. Trust filtering happens at read time, from a specific point of view.
 
 This means **"an untrusted party published a misleading assertion" is expected behavior, not a
-vulnerability.** Reports in that shape will be closed as working-as-intended. What *is* in scope is
+vulnerability.** Reports in that shape will be closed as working-as-intended. What _is_ in scope is
 anything that breaks the per-POV filtering itself — for example, a way to make an assertion count for
 a point of view that never trusted its author, to forge or alter another user's signed events, or to
 read data a point of view should not be able to see.

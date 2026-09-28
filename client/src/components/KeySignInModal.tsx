@@ -1,42 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  AlertCircle,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  KeyRound,
-  Loader2,
-  ArrowRight,
-  ShieldCheck,
-} from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertCircle, ExternalLink, Eye, EyeOff, KeyRound, Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { loginWithPastedKey, type LoginErrorCode } from "@/accounts/login-flow";
 import { MIN_RECOVERY_PASSWORD_LENGTH, setRecoveryPassword } from "@/accounts/backup";
 import { BACKUP_LOGN } from "@/accounts/local-signer";
-import {
-  backupTooExpensive,
-  backupWorkFactor,
-  extractKeyToken,
-  UNUSABLE_BACKUP_MESSAGE,
-} from "@/accounts/restore";
+import { backupTooExpensive, backupWorkFactor, extractKeyToken, UNUSABLE_BACKUP_MESSAGE } from "@/accounts/restore";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { isVaultSupported } from "@/lib/skVault";
 import { tone } from "@/lib/tones";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface KeySignInModalProps {
   open: boolean;
@@ -57,8 +32,7 @@ const EXTENSIONS = [
   {
     name: "nos2x",
     url: "https://chromewebstore.google.com/detail/nos2x/kpgefcfmnafjgpblomihpgmejjdanjjp",
-    description:
-      "A lightweight Chrome extension that signs you in securely so you never have to paste your key.",
+    description: "A lightweight Chrome extension that signs you in securely so you never have to paste your key.",
   },
 ];
 
@@ -101,8 +75,7 @@ export function KeySignInModal({
   const vaultSupported = isVaultSupported();
   const needsRecoveryPassword = rememberMe && !vaultSupported && !isEncryptedKey;
   const recoveryMismatch = recoveryConfirm.length > 0 && recoveryPassword !== recoveryConfirm;
-  const recoveryReady =
-    recoveryPassword.length >= MIN_RECOVERY_PASSWORD_LENGTH && recoveryPassword === recoveryConfirm;
+  const recoveryReady = recoveryPassword.length >= MIN_RECOVERY_PASSWORD_LENGTH && recoveryPassword === recoveryConfirm;
 
   const canSubmitKey =
     !!secretKey.trim() &&
@@ -147,8 +120,8 @@ export function KeySignInModal({
   const subheadline = isNoExtension
     ? "We couldn't find a sign-in extension in your browser. Add one and try again, or use your key to continue."
     : isServerError
-    ? "We couldn't reach the sign-in server. Check your connection and try again, or use your key to continue."
-    : "We couldn't complete sign-in with your browser extension. Unlock it and try again, or use your key to continue.";
+      ? "We couldn't reach the sign-in server. Check your connection and try again, or use your key to continue."
+      : "We couldn't complete sign-in with your browser extension. Unlock it and try again, or use your key to continue.";
 
   const handleSecretKeyLogin = async () => {
     setSecretKeyError("");
@@ -167,10 +140,7 @@ export function KeySignInModal({
       }
       onLoginSuccess();
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Sign-in failed. Check your key and try again.";
+      const msg = err instanceof Error ? err.message : "Sign-in failed. Check your key and try again.";
       setSecretKeyError(msg);
     } finally {
       setSubmitting(false);
@@ -207,24 +177,21 @@ export function KeySignInModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent
-        className="sm:max-w-[440px] max-h-[90vh] overflow-y-auto"
-        data-testid="dialog-key-signin"
-      >
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[440px]" data-testid="dialog-key-signin">
         <DialogHeader>
           <DialogTitle data-testid="text-key-signin-title">
             {importedCost !== null
               ? "You're in"
               : showSecretKeyForm
-              ? "Sign in with your key"
-              : "Sign-in couldn't complete"}
+                ? "Sign in with your key"
+                : "Sign-in couldn't complete"}
           </DialogTitle>
           <DialogDescription data-testid="text-key-signin-subtitle">
             {importedCost !== null
               ? "Your backup was made with heavier protection than this app uses."
               : showSecretKeyForm
-              ? "Paste your key to continue."
-              : subheadline}
+                ? "Paste your key to continue."
+                : subheadline}
           </DialogDescription>
         </DialogHeader>
 
@@ -237,12 +204,11 @@ export function KeySignInModal({
 
         {importedCost !== null && (
           <div className="space-y-3" data-testid="pane-work-factor">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Unlocking it takes {2 ** (importedCost - BACKUP_LOGN)}× the work Brainstorm asks
-              for, every time — slow on a phone. We can re-encrypt your key here at our own
-              setting, using the same password. That's less protection than whoever made this
-              backup chose, so it's yours to decide; the file you already have is unchanged
-              either way.
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Unlocking it takes {2 ** (importedCost - BACKUP_LOGN)}× the work Brainstorm asks for, every time — slow on
+              a phone. We can re-encrypt your key here at our own setting, using the same password. That's less
+              protection than whoever made this backup chose, so it's yours to decide; the file you already have is
+              unchanged either way.
             </p>
             {secretKeyError && (
               <Alert variant="destructive" data-testid="text-remint-error">
@@ -335,7 +301,7 @@ export function KeySignInModal({
             {isNoExtension && (
               <TooltipProvider delayDuration={150}>
                 <p
-                  className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground pt-1.5"
+                  className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 pt-1.5 text-xs text-muted-foreground"
                   data-testid="text-no-extension-hint"
                 >
                   <span>Need a sign-in extension?</span>
@@ -347,7 +313,7 @@ export function KeySignInModal({
                             href={ext.url}
                             target="_blank"
                             rel="noopener"
-                            className="inline-flex items-center gap-0.5 font-semibold text-brand-link hover:underline transition-colors"
+                            className="inline-flex items-center gap-0.5 font-semibold text-brand-link transition-colors hover:underline"
                             data-testid={`link-install-${ext.name.toLowerCase()}`}
                           >
                             {ext.name}
@@ -394,13 +360,11 @@ export function KeySignInModal({
 
             <Alert variant="success" data-testid="warning-nsec-security">
               <ShieldCheck className="h-4 w-4" />
-              <AlertDescription>
-                Your key stays on your device — we never send or store it.
-              </AlertDescription>
+              <AlertDescription>Your key stays on your device — we never send or store it.</AlertDescription>
             </Alert>
 
             <div className="relative">
-              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 ref={keyInputRef}
                 type={showSecretKey ? "text" : "password"}
@@ -427,7 +391,7 @@ export function KeySignInModal({
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowSecretKey((v) => !v)}
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
+                className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground"
                 data-testid="button-toggle-nsec-visibility"
                 aria-label={showSecretKey ? "Hide key" : "Show key"}
               >
@@ -438,21 +402,17 @@ export function KeySignInModal({
             {isEncryptedKey && (
               <p
                 className={
-                  unusableBackup
-                    ? `text-xs font-medium ${tone("warning").text}`
-                    : "text-xs text-muted-foreground"
+                  unusableBackup ? `text-xs font-medium ${tone("warning").text}` : "text-xs text-muted-foreground"
                 }
                 data-testid={unusableBackup ? "text-backup-unusable" : "text-backup-detected"}
               >
-                {unusableBackup
-                  ? UNUSABLE_BACKUP_MESSAGE
-                  : "Looks like a backup file — enter its password below."}
+                {unusableBackup ? UNUSABLE_BACKUP_MESSAGE : "Looks like a backup file — enter its password below."}
               </p>
             )}
 
             {isEncryptedKey && !unusableBackup && (
               <div className="relative" data-testid="row-backup-password">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="password"
                   name="backup-password"
@@ -479,7 +439,7 @@ export function KeySignInModal({
 
             <label
               htmlFor="remember-me"
-              className="flex items-start gap-2.5 cursor-pointer select-none px-0.5 pt-1"
+              className="flex cursor-pointer select-none items-start gap-2.5 px-0.5 pt-1"
               data-testid="row-remember-me"
             >
               <Checkbox
@@ -490,7 +450,7 @@ export function KeySignInModal({
                 className="mt-0.5"
                 data-testid="checkbox-remember-me"
               />
-              <span className="text-xs text-muted-foreground leading-relaxed">
+              <span className="text-xs leading-relaxed text-muted-foreground">
                 <span className="font-semibold text-foreground">Remember me on this device</span>
                 <br />
                 Stay signed in on this browser. Your key is stored only here — never sent to us.
@@ -530,26 +490,23 @@ export function KeySignInModal({
                     Passwords don't match.
                   </p>
                 ) : (
-                  <p
-                    className="text-xs text-muted-foreground"
-                    data-testid="text-signin-recovery-hint"
-                  >
-                    This browser can't store a key on its own, so staying signed in needs a
-                    password. There's no reset — save it in your password manager.
+                  <p className="text-xs text-muted-foreground" data-testid="text-signin-recovery-hint">
+                    This browser can't store a key on its own, so staying signed in needs a password. There's no reset —
+                    save it in your password manager.
                   </p>
                 )}
               </div>
             )}
 
             <p
-              className="text-[11px] text-muted-foreground leading-relaxed text-center px-1"
+              className="px-1 text-center text-[11px] leading-relaxed text-muted-foreground"
               data-testid="text-nsec-session-note"
             >
               {!rememberMe
                 ? "You'll be signed out when you close this tab."
                 : needsRecoveryPassword && !recoveryReady
-                ? "Set a recovery password to stay signed in, or continue for this tab only."
-                : "You'll stay signed in on this device until you sign out."}
+                  ? "Set a recovery password to stay signed in, or continue for this tab only."
+                  : "You'll stay signed in on this device until you sign out."}
             </p>
 
             <Button

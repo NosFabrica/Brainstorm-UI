@@ -28,7 +28,15 @@ describe("Lightbox", () => {
       <LightboxProvider>
         <Opener
           items={["https://cdn.example/a.jpg"]}
-          context={{ author: { name: "Sports Central", npub: "npub1sports", picture: "https://cdn.example/sc.png", score01: 0.8 }, postHref: "/e/nevent1abc" }}
+          context={{
+            author: {
+              name: "Sports Central",
+              npub: "npub1sports",
+              picture: "https://cdn.example/sc.png",
+              score01: 0.8,
+            },
+            postHref: "/e/nevent1abc",
+          }}
         />
       </LightboxProvider>,
     );
@@ -58,7 +66,9 @@ describe("Lightbox", () => {
   it("plays a video item full view, with controls, starting at once", () => {
     render(
       <LightboxProvider>
-        <Opener items={[{ url: "https://cdn.example/goal.mp4", kind: "video", poster: "https://cdn.example/poster.jpg" }]} />
+        <Opener
+          items={[{ url: "https://cdn.example/goal.mp4", kind: "video", poster: "https://cdn.example/poster.jpg" }]}
+        />
       </LightboxProvider>,
     );
     fireEvent.click(screen.getByText("open"));
@@ -76,13 +86,24 @@ describe("Lightbox", () => {
   it("plays an HLS stream through our player, and a platform page through its embed", () => {
     render(
       <LightboxProvider>
-        <Opener items={[{ url: "https://data.zap.stream/recording/abc.m3u8", kind: "hls", poster: "https://cdn.example/poster.jpg" }, { url: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1", kind: "embed" }]} />
+        <Opener
+          items={[
+            {
+              url: "https://data.zap.stream/recording/abc.m3u8",
+              kind: "hls",
+              poster: "https://cdn.example/poster.jpg",
+            },
+            { url: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1", kind: "embed" },
+          ]}
+        />
       </LightboxProvider>,
     );
     fireEvent.click(screen.getByText("open"));
     expect(screen.getByTestId("lightbox-hls").querySelector('[data-testid="live-player"]')).not.toBeNull();
     fireEvent.click(screen.getByTestId("lightbox-next"));
-    expect((screen.getByTestId("lightbox-embed") as HTMLIFrameElement).getAttribute("src")).toContain("youtube-nocookie.com/embed/dQw4w9WgXcQ");
+    expect((screen.getByTestId("lightbox-embed") as HTMLIFrameElement).getAttribute("src")).toContain(
+      "youtube-nocookie.com/embed/dQw4w9WgXcQ",
+    );
   });
 
   it("still shows plain URL strings as images", () => {

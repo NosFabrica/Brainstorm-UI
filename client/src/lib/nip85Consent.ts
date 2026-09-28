@@ -18,13 +18,17 @@ export function recordNip85Consent(pubkey: string | null | undefined, granted: b
       accountKey("brainstorm_nip85_consent", pubkey),
       JSON.stringify({ granted, at: Date.now() } satisfies Nip85Consent),
     );
-  } catch { /* private browsing */ }
+  } catch {
+    /* private browsing */
+  }
   // A decline is also a dismissal: the dashboard CTA's cooldown is the one
   // re-surface path, and it reads this timestamp.
   if (!granted) {
     try {
       localStorage.setItem(accountKey("brainstorm_nip85_dismissed_at", pubkey), String(Date.now()));
-    } catch { /* private browsing */ }
+    } catch {
+      /* private browsing */
+    }
   }
 }
 

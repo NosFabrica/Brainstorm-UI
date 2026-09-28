@@ -425,7 +425,12 @@ export function searchStream(
     // narrows by `#k` (probed 2026-09-23).
     const tabKinds = params.kinds ?? kindsForTab(params.tab);
     const coveredKinds = params.tab === "nips" ? lifted.kinds : undefined;
-    const kinds = lifted.kinds && !coveredKinds && !params.kinds ? (tabKinds ? tabKinds.filter((k) => lifted.kinds!.includes(k)) : lifted.kinds) : tabKinds;
+    const kinds =
+      lifted.kinds && !coveredKinds && !params.kinds
+        ? tabKinds
+          ? tabKinds.filter((k) => lifted.kinds!.includes(k))
+          : lifted.kinds
+        : tabKinds;
     // A section the typed kind doesn't fit asks nothing and is simply done.
     if (kinds && kinds.length === 0) {
       emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
@@ -540,10 +545,10 @@ export function searchStream(
       // kinds, so a kind no longer says which filter — or which section — an event came back
       // for. It gets a REQ of its own.
       const canGroup = single && !!params.group && !closeAtEose && !!page[0].kinds?.length;
-      const open = (o: { error: (err: unknown) => void; next: (msg: { type: string; event?: NostrEvent; reason?: string }) => void }) =>
-        canGroup
-          ? joinGroupReq(relay, params.group!, page[0], o)
-          : relay.req(page).subscribe(o);
+      const open = (o: {
+        error: (err: unknown) => void;
+        next: (msg: { type: string; event?: NostrEvent; reason?: string }) => void;
+      }) => (canGroup ? joinGroupReq(relay, params.group!, page[0], o) : relay.req(page).subscribe(o));
       const sub = open({
         error: (err: unknown) => {
           clearTimeout(deadline);
@@ -552,62 +557,71 @@ export function searchStream(
           // A prefixed CLOSED — rate-limited:, error:, blocked: — errors the
           // observable instead of arriving as a frame. The socket is fine.
           if (err instanceof RelayClosedError) {
-            emit({ error: /rate-limited/i.test(err.message) ? "Too many searches are open — give it a moment and try again." : `Search was refused: ${err.message}` });
+            emit({
+              error: /rate-limited/i.test(err.message)
+                ? "Too many searches are open — give it a moment and try again."
+                : `Search was refused: ${err.message}`,
+            });
             return;
           }
           if (!relay.connected) reportSearchFailure();
           emit({ error: relay.connected ? "Search ended unexpectedly" : SEARCH_BREAK });
         },
         next: (msg: { type: string; event?: NostrEvent; reason?: string }) => {
-        if (cancelled) return;
-        answered = true;
-        if (msg.type === "EVENT" && msg.event) {
-          const event = msg.event;
-          received++;
-          if (!hostedByThem(event)) return;
-          // A husk deleted by overwriting is not a result (lib/blankEvent).
-          if (isBlankEvent(event)) return;
-          confirmed.add(event.id);
-          if (seen.has(event.id)) return;
-          seen.add(event.id);
-          fresh++;
-          oldest = Math.min(oldest, event.created_at);
-          // Into the store the moment it arrives: the search relay's corpus is
-          // wider than the content relays', so a clicked result must render
-          // from what we already hold, not from relays that may lack it.
-          eventStore.add(event);
-          const hit = { event, author: noteAuthor(event), rank: null };
-          if (!closeAtEose && seed.length) hits.splice(insertAt++, 0, hit);
-          else hits.push(hit);
-          emit({});
-        } else if (msg.type === "EOSE") {
-          eose = true;
-          loadingMore = false;
-          // A guess the search did not stand behind does not stay on screen.
-          if (params.provisionalSeed && !closeAtEose && seeded.size > 0) {
-            for (let i = hits.length - 1; i >= 0; i--) {
-              const id = hits[i].event.id;
-              if (seeded.has(id) && !confirmed.has(id)) {
-                hits.splice(i, 1);
-                seen.delete(id);
+          if (cancelled) return;
+          answered = true;
+          if (msg.type === "EVENT" && msg.event) {
+            const event = msg.event;
+            received++;
+            if (!hostedByThem(event)) return;
+            // A husk deleted by overwriting is not a result (lib/blankEvent).
+            if (isBlankEvent(event)) return;
+            confirmed.add(event.id);
+            if (seen.has(event.id)) return;
+            seen.add(event.id);
+            fresh++;
+            oldest = Math.min(oldest, event.created_at);
+            // Into the store the moment it arrives: the search relay's corpus is
+            // wider than the content relays', so a clicked result must render
+            // from what we already hold, not from relays that may lack it.
+            eventStore.add(event);
+            const hit = { event, author: noteAuthor(event), rank: null };
+            if (!closeAtEose && seed.length) hits.splice(insertAt++, 0, hit);
+            else hits.push(hit);
+            emit({});
+          } else if (msg.type === "EOSE") {
+            eose = true;
+            loadingMore = false;
+            // A guess the search did not stand behind does not stay on screen.
+            if (params.provisionalSeed && !closeAtEose && seeded.size > 0) {
+              for (let i = hits.length - 1; i >= 0; i--) {
+                const id = hits[i].event.id;
+                if (seeded.has(id) && !confirmed.has(id)) {
+                  hits.splice(i, 1);
+                  seen.delete(id);
+                }
               }
+              seeded.clear();
             }
-            seeded.clear();
+            // A page the relay returned short is the last one — counted as the relay sent it,
+            // before dedupe: an `until` page always carries the boundary second again. A full
+            // page with nothing new is the end too, and for a union it is the ONLY end: the
+            // filters are short independently, so their total says nothing.
+            if (fresh === 0 || (single && received < pageLimit_)) exhausted = true;
+            if (closeAtEose) sub.unsubscribe();
+            emit({ timeMs: Date.now() - startedAt });
+          } else if (msg.type === "CLOSED") {
+            loadingMore = false;
+            emit({ error: msg.reason ?? "Search ended unexpectedly" });
           }
-          // A page the relay returned short is the last one — counted as the relay sent it,
-          // before dedupe: an `until` page always carries the boundary second again. A full
-          // page with nothing new is the end too, and for a union it is the ONLY end: the
-          // filters are short independently, so their total says nothing.
-          if (fresh === 0 || (single && received < pageLimit_)) exhausted = true;
-          if (closeAtEose) sub.unsubscribe();
-          emit({ timeMs: Date.now() - startedAt });
-        } else if (msg.type === "CLOSED") {
-          loadingMore = false;
-          emit({ error: msg.reason ?? "Search ended unexpectedly" });
-        }
         },
       });
-      pageSubs.push({ unsubscribe: () => { clearTimeout(deadline); sub.unsubscribe(); } });
+      pageSubs.push({
+        unsubscribe: () => {
+          clearTimeout(deadline);
+          sub.unsubscribe();
+        },
+      });
     };
 
     // How the next page is asked for. Walking back with `until` is only correct when ONE
@@ -746,11 +760,7 @@ export function fetchReleaseAsset(ids: string[], timeoutMs = 5000): Promise<Rele
  * include:spam because we want the publisher's own releases regardless
  * of how the observer ranks them.
  */
-export function fetchReleases(
-  appD: string,
-  publisher: string,
-  timeoutMs = 5000,
-): Promise<AppRelease[]> {
+export function fetchReleases(appD: string, publisher: string, timeoutMs = 5000): Promise<AppRelease[]> {
   return new Promise((resolve) => {
     const relay = searchRelay();
     if (!relay) return resolve([]);
@@ -808,7 +818,10 @@ export interface AppReview {
  * to 0), not a ranker. Trust order is decided on-device, where it can be
  * labeled ("from people you follow", "verified accounts").
  */
-export function fetchAppReviews(address: string, opts: { limit?: number; timeoutMs?: number } = {}): Promise<AppReview[]> {
+export function fetchAppReviews(
+  address: string,
+  opts: { limit?: number; timeoutMs?: number } = {},
+): Promise<AppReview[]> {
   const { limit = 50, timeoutMs = 5000 } = opts;
   return new Promise((resolve) => {
     const relay = searchRelay();
@@ -820,7 +833,15 @@ export function fetchAppReviews(address: string, opts: { limit?: number; timeout
         if (msg.type === "EVENT" && msg.event) {
           const e = msg.event;
           const tag = (name: string) => e.tags.find((t) => t[0] === name)?.[1] ?? null;
-          reviews.push({ id: e.id, pubkey: e.pubkey, text: e.content, at: e.created_at, version: tag("v"), k: tag("k"), kind: e.kind });
+          reviews.push({
+            id: e.id,
+            pubkey: e.pubkey,
+            text: e.content,
+            at: e.created_at,
+            version: tag("v"),
+            k: tag("k"),
+            kind: e.kind,
+          });
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();
         }
@@ -1007,15 +1028,13 @@ export function fetchAppEndorsementCounts(
     };
     const count = (kinds: number[], key: keyof typeof result) => {
       subs.push(
-        relay
-          .count({ kinds, "#a": [address], search: "include:spam" })
-          .subscribe({
-            next: (r: { count?: number }) => {
-              result[key] = r?.count ?? 0;
-            },
-            error: one,
-            complete: one,
-          }),
+        relay.count({ kinds, "#a": [address], search: "include:spam" }).subscribe({
+          next: (r: { count?: number }) => {
+            result[key] = r?.count ?? 0;
+          },
+          error: one,
+          complete: one,
+        }),
       );
     };
     // Timer before subscribing — see fetchRepoCounts.
@@ -1158,7 +1177,8 @@ export function fetchPersonSets(pubkey: string, timeoutMs = 5000): Promise<Perso
           if (!byTitle.has(title)) byTitle.set(title, new Map());
           const perPublisher = byTitle.get(title)!;
           const prev = perPublisher.get(e.pubkey);
-          if (!prev || prev.at < e.created_at) perPublisher.set(e.pubkey, { id: e.id, pubkey: e.pubkey, at: e.created_at });
+          if (!prev || prev.at < e.created_at)
+            perPublisher.set(e.pubkey, { id: e.id, pubkey: e.pubkey, at: e.created_at });
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();
         }
@@ -1248,15 +1268,13 @@ export function fetchRepoCounts(address: string, timeoutMs = 5000): Promise<Repo
     };
     const count = (kind: number, key: "issues" | "patches") => {
       subs.push(
-        relay
-          .count({ kinds: [kind], "#a": [address], search: "include:spam" })
-          .subscribe({
-            next: (r: { count?: number }) => {
-              result[key] = r?.count ?? 0;
-            },
-            error: one,
-            complete: one,
-          }),
+        relay.count({ kinds: [kind], "#a": [address], search: "include:spam" }).subscribe({
+          next: (r: { count?: number }) => {
+            result[key] = r?.count ?? 0;
+          },
+          error: one,
+          complete: one,
+        }),
       );
     };
     // Set the timer BEFORE subscribing: a synchronous count response (or the
@@ -1343,11 +1361,7 @@ export function fetchNipPage(dTags: string[], timeoutMs = 5000): Promise<NostrEv
  * Deduped by address (listings are replaceable), self excluded, ordered by
  * how many of the given tags each one shares.
  */
-export function fetchSimilarApps(
-  tags: string[],
-  selfAddress: string,
-  timeoutMs = 5000,
-): Promise<NostrEvent[]> {
+export function fetchSimilarApps(tags: string[], selfAddress: string, timeoutMs = 5000): Promise<NostrEvent[]> {
   return new Promise((resolve) => {
     const relay = searchRelay();
     if (!relay || tags.length === 0) return resolve([]);
@@ -1368,8 +1382,7 @@ export function fetchSimilarApps(
     function finish() {
       clearTimeout(timer);
       sub.unsubscribe();
-      const overlap = (e: NostrEvent) =>
-        e.tags.filter((t) => t[0] === "t" && tags.includes(t[1])).length;
+      const overlap = (e: NostrEvent) => e.tags.filter((t) => t[0] === "t" && tags.includes(t[1])).length;
       resolve([...byAddress.values()].sort((a, b) => overlap(b) - overlap(a)).slice(0, 6));
     }
   });
@@ -1416,11 +1429,11 @@ export function fetchSimilarListings(
       clearTimeout(timer);
       sub.unsubscribe();
       const overlap = (e: NostrEvent) =>
-        new Set(e.tags.filter((t) => t[0] === "t" && t[1] && wanted.has(t[1].toLowerCase())).map((t) => t[1].toLowerCase())).size;
+        new Set(
+          e.tags.filter((t) => t[0] === "t" && t[1] && wanted.has(t[1].toLowerCase())).map((t) => t[1].toLowerCase()),
+        ).size;
       resolve(
-        [...byAddress.values()]
-          .sort((a, b) => overlap(b) - overlap(a) || b.created_at - a.created_at)
-          .slice(0, 12),
+        [...byAddress.values()].sort((a, b) => overlap(b) - overlap(a) || b.created_at - a.created_at).slice(0, 12),
       );
     }
   });
@@ -1435,12 +1448,21 @@ export function fetchSimilarListings(
  * include:spam on every request. Never rejects; whatever arrived by the
  * deadline is the answer.
  */
-export function fetchCommentsByAddress(address: string | null, eventId: string, timeoutMs = 6000): Promise<NostrEvent[]> {
+export function fetchCommentsByAddress(
+  address: string | null,
+  eventId: string,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
   return new Promise((resolve) => {
     const relay = searchRelay();
     if (!relay) return resolve([]);
     const filters: Record<string, unknown>[] = [
-      ...(address ? [{ kinds: [1111], "#A": [address] }, { kinds: [1111], "#a": [address] }] : []),
+      ...(address
+        ? [
+            { kinds: [1111], "#A": [address] },
+            { kinds: [1111], "#a": [address] },
+          ]
+        : []),
       { kinds: [1111], "#E": [eventId] },
       { kinds: [1, 1111], "#e": [eventId] },
     ];
@@ -1651,7 +1673,9 @@ export function fetchEventRsvps(addresses: string[], timeoutMs = 5000): Promise<
       clearTimeout(timer);
       sub.unsubscribe();
       for (const [addr, people] of latest) {
-        const going = [...people.entries()].filter(([, v]) => v.status === "accepted").sort((a, b) => b[1].at - a[1].at);
+        const going = [...people.entries()]
+          .filter(([, v]) => v.status === "accepted")
+          .sort((a, b) => b[1].at - a[1].at);
         if (going.length) out.set(addr, { going: going.length, faces: going.slice(0, 6).map(([pk]) => pk) });
       }
       resolve(out);
@@ -1753,7 +1777,10 @@ function collectHits(
         if (snapshot.eose || snapshot.error) finish();
       },
     );
-    if (done) { cancel(); return; }
+    if (done) {
+      cancel();
+      return;
+    }
     timer = setTimeout(finish, timeoutMs);
     signal?.addEventListener("abort", finish, { once: true });
   });

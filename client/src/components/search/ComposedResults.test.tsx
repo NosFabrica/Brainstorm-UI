@@ -34,8 +34,7 @@ vi.mock("@/services/search", async (importOriginal) => {
       const call: StreamCall = {
         query,
         params,
-        emit: (partial) =>
-          onSnapshot({ hits: [], eose: false, timeMs: null, error: null, ...partial }),
+        emit: (partial) => onSnapshot({ hits: [], eose: false, timeMs: null, error: null, ...partial }),
         cancelled: false,
       };
       calls.push(call);
@@ -48,11 +47,17 @@ vi.mock("@/services/search", async (importOriginal) => {
 });
 const specsForKindMock = vi.fn<(kind: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.8);
-const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() => Promise.resolve(new Map()));
+const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() =>
+  Promise.resolve(new Map()),
+);
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
-const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({ direct: new Set(), friends: new Set(), ready: true }));
+const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({
+  direct: new Set(),
+  friends: new Set(),
+  ready: true,
+}));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 // The media lightbox — faked so tiles can prove a tap opens the MEDIA, not the post.
 const openLightboxMock = vi.fn();
@@ -61,13 +66,21 @@ vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxM
 const knownNames = new Map<string, { name: string }>();
 vi.mock("@/services/nostr", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/nostr")>()),
-  fetchProfileMap: async (pks: string[]) => new Map(pks.filter((pk) => knownNames.has(pk)).map((pk) => [pk, knownNames.get(pk)!])),
+  fetchProfileMap: async (pks: string[]) =>
+    new Map(pks.filter((pk) => knownNames.has(pk)).map((pk) => [pk, knownNames.get(pk)!])),
 }));
 
 import { ComposedResults } from "./ComposedResults";
 import { nip19 } from "nostr-tools";
 
-function ev(id: string, kind: number, pubkey: string, content = "", tags: string[][] = [], created_at = 1_760_000_000): NostrEvent {
+function ev(
+  id: string,
+  kind: number,
+  pubkey: string,
+  content = "",
+  tags: string[][] = [],
+  created_at = 1_760_000_000,
+): NostrEvent {
   return { id, kind, pubkey, tags, content, created_at, sig: "s" } as NostrEvent;
 }
 const author = (pubkey: string, name: string) => ({
@@ -78,7 +91,9 @@ const author = (pubkey: string, name: string) => ({
   wotFollowers: null,
 });
 // Wavlake as the second music source: nothing unless a test says otherwise.
-const wavlakeSearchMock = vi.fn<(term: string) => Promise<import("@/lib/wavlake").WavlakeSong[]>>(() => Promise.resolve([]));
+const wavlakeSearchMock = vi.fn<(term: string) => Promise<import("@/lib/wavlake").WavlakeSong[]>>(() =>
+  Promise.resolve([]),
+);
 // The V4V lists from Podcast Index (the team, 2026-09-24): the Listen row's third source, with words.
 const podcastIndexMock = vi.fn(async () => ({ songs: [] as unknown[], musicians: [] as unknown[] }));
 vi.mock("@/services/dlists", () => ({ fetchPodcastIndexMusic: () => podcastIndexMock() }));
@@ -96,7 +111,14 @@ const hitOf = (event: NostrEvent, name = "someone") => ({
 
 // The link-metadata proxy (RELAY-ASKS #7): unpictured stories ask it for
 // the article's image. Silent (null) unless a test says otherwise.
-const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; description: string | null; image: string | null; siteName: string | null } | null>>(() => Promise.resolve(null));
+const unfurlMock = vi.fn<
+  (url: string) => Promise<{
+    title: string | null;
+    description: string | null;
+    image: string | null;
+    siteName: string | null;
+  } | null>
+>(() => Promise.resolve(null));
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
 
 const sectionCall = (tab: string) => calls.find((c) => c.params.tab === tab)!;
@@ -132,7 +154,17 @@ describe("ComposedResults — media-rich sections", () => {
     const NOW = Math.floor(Date.now() / 1000);
     (window as unknown as { __headStart?: unknown }).__headStart = {
       query: "liverpool",
-      events: [{ id: "kept", kind: 1, pubkey: "e".repeat(64), tags: [], content: "kept", created_at: NOW, sig: "s" } as NostrEvent],
+      events: [
+        {
+          id: "kept",
+          kind: 1,
+          pubkey: "e".repeat(64),
+          tags: [],
+          content: "kept",
+          created_at: NOW,
+          sig: "s",
+        } as NostrEvent,
+      ],
       eose: true,
       complete: true,
       socket: { close: () => {} },
@@ -151,7 +183,8 @@ describe("ComposedResults — media-rich sections", () => {
 
   it("asks only for what came since, when the head start finished", () => {
     const NOW = Math.floor(Date.now() / 1000);
-    const note = (id: string, at: number) => ({ id, kind: 1, pubkey: "e".repeat(64), tags: [], content: id, created_at: at, sig: "s" }) as NostrEvent;
+    const note = (id: string, at: number) =>
+      ({ id, kind: 1, pubkey: "e".repeat(64), tags: [], content: id, created_at: at, sig: "s" }) as NostrEvent;
     const park = (complete: boolean) => {
       (window as unknown as { __headStart?: unknown }).__headStart = {
         query: "liverpool",
@@ -180,9 +213,22 @@ describe("ComposedResults — media-rich sections", () => {
   });
 
   it("seeds its sections from the head start, but only through the house Perspective", () => {
-    const note = { id: "h1", kind: 1, pubkey: "e".repeat(64), tags: [], content: "from the head start", created_at: Math.floor(Date.now() / 1000), sig: "s" } as NostrEvent;
+    const note = {
+      id: "h1",
+      kind: 1,
+      pubkey: "e".repeat(64),
+      tags: [],
+      content: "from the head start",
+      created_at: Math.floor(Date.now() / 1000),
+      sig: "s",
+    } as NostrEvent;
     const park = () => {
-      (window as unknown as { __headStart?: unknown }).__headStart = { query: "liverpool", events: [note], eose: true, socket: { close: () => {} } };
+      (window as unknown as { __headStart?: unknown }).__headStart = {
+        query: "liverpool",
+        events: [note],
+        eose: true,
+        socket: { close: () => {} },
+      };
       __resetHeadStart();
     };
 
@@ -210,7 +256,14 @@ describe("ComposedResults — media-rich sections", () => {
     const note = hitOf(ev("kept", 1, "9".repeat(64), "still here"), "sam");
     let handed: Record<string, SearchHit[]> = {};
     const first = render(
-      <ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} onSectionHits={(h) => { handed = h; }} />,
+      <ComposedResults
+        query="liverpool"
+        pov="nosfabrica"
+        onTabChange={vi.fn()}
+        onSectionHits={(h) => {
+          handed = h;
+        }}
+      />,
     );
     sectionCall("notes").emit({ hits: [note], eose: true, timeMs: 40 });
     await screen.findByTestId("serp-row-kept");
@@ -245,7 +298,11 @@ describe("ComposedResults — media-rich sections", () => {
     expect(screen.queryByTestId("serp-skeleton-shop")).toBeNull();
     expect(screen.queryByTestId("serp-skeleton-happening")).toBeNull();
 
-    sectionCall("people").emit({ hits: [hitOf(ev("p1", 0, "a".repeat(64), JSON.stringify({ name: "kop" })), "kop")], eose: false, timeMs: 50 });
+    sectionCall("people").emit({
+      hits: [hitOf(ev("p1", 0, "a".repeat(64), JSON.stringify({ name: "kop" })), "kop")],
+      eose: false,
+      timeMs: 50,
+    });
     const people = await screen.findByTestId("serp-section-people");
     expect(screen.queryByTestId("serp-skeleton-people")).toBeNull();
     expect(people.className).toMatch(/fadeIn/);
@@ -297,7 +354,15 @@ describe("ComposedResults — media-rich sections", () => {
     sectionCall("notes").emit({
       // Three or nothing — the strip needs company (7f6971ab).
       hits: [
-        hitOf(ev("s1", 1, "8".repeat(64), `Livestream with nostr:${nip19.npubEncode(JOE)} is Live! https://shosho.live/joemartin`), "shosho.live"),
+        hitOf(
+          ev(
+            "s1",
+            1,
+            "8".repeat(64),
+            `Livestream with nostr:${nip19.npubEncode(JOE)} is Live! https://shosho.live/joemartin`,
+          ),
+          "shosho.live",
+        ),
         hitOf(ev("s2", 1, "2".repeat(64), NEWS(2)), "Echo"),
         hitOf(ev("s3", 1, "3".repeat(64), NEWS(3)), "Guardian"),
       ],
@@ -366,7 +431,11 @@ describe("ComposedResults — media-rich sections", () => {
     expect(within(screen.getByTestId("serp-row-h1")).queryByTestId("serp-feed")).toBeNull();
 
     const article = (id: string, pk: string, name: string, bot?: boolean) => ({
-      event: ev(id, 30023, pk, "Body", [["d", id], ["title", `Article ${id}`], ["image", `https://cdn.example/${id}.jpg`]]),
+      event: ev(id, 30023, pk, "Body", [
+        ["d", id],
+        ["title", `Article ${id}`],
+        ["image", `https://cdn.example/${id}.jpg`],
+      ]),
       author: { ...author(pk, name), ...(bot ? { bot: true } : {}) },
       rank: null,
     });
@@ -388,8 +457,23 @@ describe("ComposedResults — media-rich sections", () => {
     const pk = "7".repeat(64);
     sectionCall("articles").emit({
       hits: [
-        { event: ev("s1", 30817, pk, "# Scheduler DVM", [["d", "s1"], ["title", "Scheduler DVM"], ["k", "5905"]]), author: author(pk, "russell"), rank: null },
-        { event: ev("e1", 30023, pk, "Body", [["d", "e1"], ["title", "Building a DVM"]]), author: author(pk, "russell"), rank: null },
+        {
+          event: ev("s1", 30817, pk, "# Scheduler DVM", [
+            ["d", "s1"],
+            ["title", "Scheduler DVM"],
+            ["k", "5905"],
+          ]),
+          author: author(pk, "russell"),
+          rank: null,
+        },
+        {
+          event: ev("e1", 30023, pk, "Body", [
+            ["d", "e1"],
+            ["title", "Building a DVM"],
+          ]),
+          author: author(pk, "russell"),
+          rank: null,
+        },
       ],
       eose: true,
       timeMs: 100,
@@ -422,7 +506,9 @@ describe("ComposedResults — media-rich sections", () => {
     expect(screen.getByTestId("top-story-n4")).toHaveTextContent("theguardian.com");
     expect(screen.getByTestId("top-story-n4").querySelector('[data-testid="story-image"]')).toBeNull();
     expect(screen.getByTestId("top-story-n5")).toHaveTextContent("Anfield tonight");
-    expect(screen.getByTestId("top-story-n5").querySelector('[data-testid="story-image"]')?.getAttribute("src")).toBe("https://cdn.example/anfield.jpg");
+    expect(screen.getByTestId("top-story-n5").querySelector('[data-testid="story-image"]')?.getAttribute("src")).toBe(
+      "https://cdn.example/anfield.jpg",
+    );
     // Strip items don't repeat as rows.
     expect(screen.queryByTestId("serp-row-n5")).toBeNull();
     expect(screen.getByTestId("serp-row-n2")).toBeInTheDocument();
@@ -435,7 +521,11 @@ describe("ComposedResults — media-rich sections", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const NO_PIC = "Deplatformed by your payment processor?\nhttps://whisperme.org/story-9\nSummary 9.";
     sectionCall("notes").emit({
-      hits: [hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"), hitOf(ev("n9", 1, "9".repeat(64), NO_PIC), "WhisperMe"), hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Times")],
+      hits: [
+        hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"),
+        hitOf(ev("n9", 1, "9".repeat(64), NO_PIC), "WhisperMe"),
+        hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Times"),
+      ],
       eose: true,
       timeMs: 100,
     });
@@ -452,17 +542,29 @@ describe("ComposedResults — media-rich sections", () => {
   // shows the article's image when it answers.
   it("an unpictured story takes its image from the link's metadata", async () => {
     unfurlMock.mockImplementation((url) =>
-      Promise.resolve(url.includes("theguardian") ? { title: null, description: null, image: "https://i.guim.co.uk/barcola.jpg", siteName: null } : null),
+      Promise.resolve(
+        url.includes("theguardian")
+          ? { title: null, description: null, image: "https://i.guim.co.uk/barcola.jpg", siteName: null }
+          : null,
+      ),
     );
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const NO_PIC = "Liverpool confirm the Barcola fee\nhttps://www.theguardian.com/story-4\nSummary 4.";
     sectionCall("notes").emit({
-      hits: [hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"), hitOf(ev("n4", 1, "4".repeat(64), NO_PIC), "Guardian"), hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Times")],
+      hits: [
+        hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"),
+        hitOf(ev("n4", 1, "4".repeat(64), NO_PIC), "Guardian"),
+        hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Times"),
+      ],
       eose: true,
       timeMs: 100,
     });
     const card = await screen.findByTestId("top-story-n4");
-    await vi.waitFor(() => expect(card.querySelector('[data-testid="story-image"]')?.getAttribute("src")).toBe("https://i.guim.co.uk/barcola.jpg"));
+    await vi.waitFor(() =>
+      expect(card.querySelector('[data-testid="story-image"]')?.getAttribute("src")).toBe(
+        "https://i.guim.co.uk/barcola.jpg",
+      ),
+    );
     expect(unfurlMock).toHaveBeenCalledWith("https://www.theguardian.com/story-4");
     // A pictured story never asks.
     expect(unfurlMock).not.toHaveBeenCalledWith("https://www.liverpoolecho.co.uk/story-1");
@@ -474,24 +576,37 @@ describe("ComposedResults — media-rich sections", () => {
   // IS a video file can show its own first frame.
   it("YouTube links wear YouTube's thumbnail; video-file links show their first frame", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
-    const YT = "US Downplays Iran Attacks on Bases in Kuwait and the UAE\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\nRicemoon covers the week.";
-    const MP4 = "NEW - Minister says teams of professionals worked for a year\nhttps://blossom.primal.net/9714.mp4\nFLASH";
+    const YT =
+      "US Downplays Iran Attacks on Bases in Kuwait and the UAE\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\nRicemoon covers the week.";
+    const MP4 =
+      "NEW - Minister says teams of professionals worked for a year\nhttps://blossom.primal.net/9714.mp4\nFLASH";
     sectionCall("notes").emit({
-      hits: [hitOf(ev("y1", 1, "1".repeat(64), YT), "Ricemoon"), hitOf(ev("v1", 1, "2".repeat(64), MP4), "FLASH"), hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Echo")],
+      hits: [
+        hitOf(ev("y1", 1, "1".repeat(64), YT), "Ricemoon"),
+        hitOf(ev("v1", 1, "2".repeat(64), MP4), "FLASH"),
+        hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Echo"),
+      ],
       eose: true,
       timeMs: 100,
     });
     const yt = await screen.findByTestId("top-story-y1");
-    expect(yt.querySelector('[data-testid="story-image"]')?.getAttribute("src")).toBe("https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+    expect(yt.querySelector('[data-testid="story-image"]')?.getAttribute("src")).toBe(
+      "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    );
     const vid = screen.getByTestId("top-story-v1");
-    expect(vid.querySelector('[data-testid="story-video"]')?.getAttribute("src")).toBe("https://blossom.primal.net/9714.mp4#t=0.1");
+    expect(vid.querySelector('[data-testid="story-video"]')?.getAttribute("src")).toBe(
+      "https://blossom.primal.net/9714.mp4#t=0.1",
+    );
     expect(vid.querySelector('[data-testid="story-placeholder"]')).toBeNull();
   });
 
   it("one or two eligible stories make no strip — three or nothing", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("notes").emit({
-      hits: [hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"), hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Guardian")],
+      hits: [
+        hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"),
+        hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Guardian"),
+      ],
       eose: true,
       timeMs: 100,
     });
@@ -509,7 +624,12 @@ describe("ComposedResults — media-rich sections", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const article = (id: string, pk: string, title: string, image?: string) =>
       hitOf(
-        ev(id, 30023, pk, "Long-form body", [["d", id], ["title", title], ["summary", `Summary of ${title}`], ...(image ? [["image", image]] : [])]),
+        ev(id, 30023, pk, "Long-form body", [
+          ["d", id],
+          ["title", title],
+          ["summary", `Summary of ${title}`],
+          ...(image ? [["image", image]] : []),
+        ]),
         `author-${id}`,
       );
     sectionCall("articles").emit({
@@ -530,11 +650,16 @@ describe("ComposedResults — media-rich sections", () => {
     expect(lead).toHaveTextContent("Anfield through the ages");
     expect(lead).toHaveTextContent("Summary of Anfield through the ages");
     expect(lead).toHaveTextContent("author-a1");
-    expect(lead.querySelector('[data-testid="article-image"]')?.getAttribute("src")).toBe("https://cdn.example/anfield.jpg");
+    expect(lead.querySelector('[data-testid="article-image"]')?.getAttribute("src")).toBe(
+      "https://cdn.example/anfield.jpg",
+    );
     // Covered articles fill the grid; the one without a cover is not an empty
     // tile but a text row beneath — nothing dropped, no tile left blank.
-    const tiles = [...section.querySelectorAll('[data-testid^="article-tile-"]')].map((t) => t.getAttribute("data-testid"));
-    for (const tile of section.querySelectorAll('[data-testid^="article-tile-"]')) expect(within(tile as HTMLElement).queryByTestId("kind-pill")).toBeNull();
+    const tiles = [...section.querySelectorAll('[data-testid^="article-tile-"]')].map((t) =>
+      t.getAttribute("data-testid"),
+    );
+    for (const tile of section.querySelectorAll('[data-testid^="article-tile-"]'))
+      expect(within(tile as HTMLElement).queryByTestId("kind-pill")).toBeNull();
     expect(tiles).toEqual(["article-tile-a2", "article-tile-a4", "article-tile-a5"]);
     expect(within(section).queryByTestId("article-placeholder")).toBeNull();
     expect(within(section).getByTestId("serp-row-a3")).toBeInTheDocument();
@@ -548,7 +673,11 @@ describe("ComposedResults — media-rich sections", () => {
 
   it("no pictured news, no strip — Latest stays rows", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
-    sectionCall("notes").emit({ hits: [hitOf(ev("n2", 1, "2".repeat(64), "Just a plain note about Liverpool"))], eose: true, timeMs: 100 });
+    sectionCall("notes").emit({
+      hits: [hitOf(ev("n2", 1, "2".repeat(64), "Just a plain note about Liverpool"))],
+      eose: true,
+      timeMs: 100,
+    });
     await screen.findByTestId("serp-row-n2");
     expect(screen.queryByTestId("serp-top-stories")).toBeNull();
   });
@@ -560,8 +689,21 @@ describe("ComposedResults — media-rich sections", () => {
     render(<ComposedResults query="amethyst" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("media").emit({
       hits: [
-        hitOf(ev("3".repeat(64), 1063, "3".repeat(64), "com.vitorpamplona.amethyst@1.05.1", [["m", "application/vnd.android.package-archive"], ["url", "https://github.com/x/amethyst.apk"], ["size", "45839275"]]), "Amethyst"),
-        hitOf(ev("4".repeat(64), 1063, "4".repeat(64), "", [["m", "image/jpeg"], ["url", "https://cdn.example/pic.jpg"]]), "Pic"),
+        hitOf(
+          ev("3".repeat(64), 1063, "3".repeat(64), "com.vitorpamplona.amethyst@1.05.1", [
+            ["m", "application/vnd.android.package-archive"],
+            ["url", "https://github.com/x/amethyst.apk"],
+            ["size", "45839275"],
+          ]),
+          "Amethyst",
+        ),
+        hitOf(
+          ev("4".repeat(64), 1063, "4".repeat(64), "", [
+            ["m", "image/jpeg"],
+            ["url", "https://cdn.example/pic.jpg"],
+          ]),
+          "Pic",
+        ),
       ],
       eose: true,
       timeMs: 100,
@@ -576,8 +718,18 @@ describe("ComposedResults — media-rich sections", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("media").emit({
       hits: [
-        hitOf(ev("1".repeat(64), 20, "1".repeat(64), "Anfield at night", [["imeta", "url https://cdn.example/anfield.jpg", "m image/jpeg"]]), "Sports Central"),
-        hitOf(ev("2".repeat(64), 21, "2".repeat(64), "Goal!", [["imeta", "url https://cdn.example/goal.mp4", "m video/mp4", "image https://cdn.example/goal-poster.jpg"]]), "AFP"),
+        hitOf(
+          ev("1".repeat(64), 20, "1".repeat(64), "Anfield at night", [
+            ["imeta", "url https://cdn.example/anfield.jpg", "m image/jpeg"],
+          ]),
+          "Sports Central",
+        ),
+        hitOf(
+          ev("2".repeat(64), 21, "2".repeat(64), "Goal!", [
+            ["imeta", "url https://cdn.example/goal.mp4", "m video/mp4", "image https://cdn.example/goal-poster.jpg"],
+          ]),
+          "AFP",
+        ),
       ],
       eose: true,
       timeMs: 100,
@@ -601,7 +753,10 @@ describe("ComposedResults — media-rich sections", () => {
     expect(openLightboxMock).toHaveBeenLastCalledWith(
       [{ url: "https://cdn.example/anfield.jpg", kind: "image" }],
       0,
-      expect.objectContaining({ author: expect.objectContaining({ name: "Sports Central", npub: "npub1Sports Central" }), postHref: expect.stringMatching(/^\/e\/nevent1/) }),
+      expect.objectContaining({
+        author: expect.objectContaining({ name: "Sports Central", npub: "npub1Sports Central" }),
+        postHref: expect.stringMatching(/^\/e\/nevent1/),
+      }),
     );
     expect(window.location.pathname).toBe("/");
     fireEvent.click(video.querySelector('[data-testid="media-tile-play"]')!);
@@ -627,9 +782,28 @@ describe("Media tiles whose media is gone", () => {
     render(<ComposedResults query="thegrinder" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("media").emit({
       hits: [
-        hitOf(ev("a".repeat(64), 1, "1".repeat(64), "Detroit: Become Human https://flare-pub.s3.amazonaws.com/u/x/video/1z", [["imeta", "url https://flare-pub.s3.amazonaws.com/u/x/video/1z", "m video/mp4"]]), "TheGrinder"),
-        hitOf(ev("b".repeat(64), 20, "1".repeat(64), "Old photo", [["imeta", "url https://cdn.satellite.earth/gone.jpg", "m image/jpeg"]]), "TheGrinder"),
-        hitOf(ev("c".repeat(64), 20, "1".repeat(64), "GM coffeechain", [["imeta", "url https://i.nostr.build/fine.png", "m image/jpeg"]]), "TheGrinder"),
+        hitOf(
+          ev(
+            "a".repeat(64),
+            1,
+            "1".repeat(64),
+            "Detroit: Become Human https://flare-pub.s3.amazonaws.com/u/x/video/1z",
+            [["imeta", "url https://flare-pub.s3.amazonaws.com/u/x/video/1z", "m video/mp4"]],
+          ),
+          "TheGrinder",
+        ),
+        hitOf(
+          ev("b".repeat(64), 20, "1".repeat(64), "Old photo", [
+            ["imeta", "url https://cdn.satellite.earth/gone.jpg", "m image/jpeg"],
+          ]),
+          "TheGrinder",
+        ),
+        hitOf(
+          ev("c".repeat(64), 20, "1".repeat(64), "GM coffeechain", [
+            ["imeta", "url https://i.nostr.build/fine.png", "m image/jpeg"],
+          ]),
+          "TheGrinder",
+        ),
       ],
       eose: true,
       timeMs: 100,
@@ -645,7 +819,13 @@ describe("Media tiles whose media is gone", () => {
     expect(screen.queryByTestId(`media-tile-${"b".repeat(64)}`)).toBeNull();
 
     expect(screen.getByTestId(`media-tile-${"c".repeat(64)}`)).toBeInTheDocument();
-    expect(screen.getByTestId("serp-media-grid").querySelectorAll('[data-testid^="media-tile-"]:not([data-testid$="-media"]):not([data-testid$="-caption"]):not([data-testid$="-play"])')).toHaveLength(1);
+    expect(
+      screen
+        .getByTestId("serp-media-grid")
+        .querySelectorAll(
+          '[data-testid^="media-tile-"]:not([data-testid$="-media"]):not([data-testid$="-caption"]):not([data-testid$="-play"])',
+        ),
+    ).toHaveLength(1);
   });
 });
 
@@ -680,7 +860,11 @@ describe("ComposedResults", () => {
     const byKind = sectionCall("everything");
     expect(byKind.params.kinds).toEqual([32267]);
     for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
-    byKind.emit({ hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")], eose: true, timeMs: 200 });
+    byKind.emit({
+      hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")],
+      eose: true,
+      timeMs: 200,
+    });
 
     const section = await screen.findByTestId("serp-section-kind");
     expect(section).toHaveTextContent("App · kind 32267");
@@ -694,15 +878,28 @@ describe("ComposedResults", () => {
   // links the specs that cover it, the first two by name.
   it("the kind section names the kind and the specs that cover it", async () => {
     specsForKindMock.mockResolvedValueOnce([
-      ev("s1", 30817, "b".repeat(64), "#", [["d", "zapstore-apps"], ["title", "App metadata"]]),
-      ev("s2", 30817, "c".repeat(64), "#", [["d", "noornote"], ["title", "NoorNote"]]),
-      ev("s3", 30817, "d".repeat(64), "#", [["d", "x"], ["title", "X"]]),
+      ev("s1", 30817, "b".repeat(64), "#", [
+        ["d", "zapstore-apps"],
+        ["title", "App metadata"],
+      ]),
+      ev("s2", 30817, "c".repeat(64), "#", [
+        ["d", "noornote"],
+        ["title", "NoorNote"],
+      ]),
+      ev("s3", 30817, "d".repeat(64), "#", [
+        ["d", "x"],
+        ["title", "X"],
+      ]),
     ]);
     window.history.replaceState({}, "", "/?q=kind%3A32267");
     render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
     const byKind = sectionCall("everything");
     for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
-    byKind.emit({ hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")], eose: true, timeMs: 200 });
+    byKind.emit({
+      hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")],
+      eose: true,
+      timeMs: 200,
+    });
 
     const link = await screen.findByTestId("serp-kind-spec");
     expect(link).toHaveTextContent("App metadata, NoorNote +1");
@@ -766,13 +963,24 @@ describe("ComposedResults", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const nowSec = Math.floor(Date.now() / 1000);
     const cal = (id: string, pk: string, start: number) =>
-      hitOf(ev(id, 31923, pk, "", [["d", id], ["title", `Meetup ${id}`], ["start", String(start)]]), "club");
+      hitOf(
+        ev(id, 31923, pk, "", [
+          ["d", id],
+          ["title", `Meetup ${id}`],
+          ["start", String(start)],
+        ]),
+        "club",
+      );
     const events = sectionCall("events");
 
     events.emit({ hits: [cal("a", "1".repeat(64), nowSec + 86_400)] });
     events.emit({ hits: [cal("a", "1".repeat(64), nowSec + 86_400), cal("b", "2".repeat(64), nowSec + 172_800)] });
     events.emit({
-      hits: [cal("a", "1".repeat(64), nowSec + 86_400), cal("b", "2".repeat(64), nowSec + 172_800), cal("c", "3".repeat(64), nowSec + 259_200)],
+      hits: [
+        cal("a", "1".repeat(64), nowSec + 86_400),
+        cal("b", "2".repeat(64), nowSec + 172_800),
+        cal("c", "3".repeat(64), nowSec + 259_200),
+      ],
       eose: true,
     });
 
@@ -788,8 +996,19 @@ describe("ComposedResults", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const nowSec = Math.floor(Date.now() / 1000);
     const cal = (id: string, pk: string, title: string, start: number) =>
-      hitOf(ev(id, 31923, pk, "", [["d", id], ["title", title], ["start", String(start)], ["location", "The Baltic Fleet, 33A Wapping, Liverpool, UK"], ["image", `https://img/${id}.jpg`]]), "club");
-    eventRsvpsMock.mockResolvedValue(new Map([["31923:" + "3".repeat(64) + ":soon", { going: 2, faces: ["7".repeat(64), "8".repeat(64)] }]]));
+      hitOf(
+        ev(id, 31923, pk, "", [
+          ["d", id],
+          ["title", title],
+          ["start", String(start)],
+          ["location", "The Baltic Fleet, 33A Wapping, Liverpool, UK"],
+          ["image", `https://img/${id}.jpg`],
+        ]),
+        "club",
+      );
+    eventRsvpsMock.mockResolvedValue(
+      new Map([["31923:" + "3".repeat(64) + ":soon", { going: 2, faces: ["7".repeat(64), "8".repeat(64)] }]]),
+    );
     sectionCall("events").emit({
       hits: [
         cal("far", "1".repeat(64), "Liverpool Bitcoin Conference", nowSec + 30 * 86_400),
@@ -800,12 +1019,23 @@ describe("ComposedResults", () => {
       timeMs: 100,
     });
     sectionCall("live").emit({
-      hits: [hitOf(ev("stream", 30311, "4".repeat(64), "", [["d", "s"], ["title", "Anfield Radio"], ["status", "live"]]), "radio")],
+      hits: [
+        hitOf(
+          ev("stream", 30311, "4".repeat(64), "", [
+            ["d", "s"],
+            ["title", "Anfield Radio"],
+            ["status", "live"],
+          ]),
+          "radio",
+        ),
+      ],
       eose: true,
       timeMs: 100,
     });
     const section = await screen.findByTestId("serp-section-happening");
-    const rows = [...section.querySelectorAll('[data-testid^="event-row-"], [data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
+    const rows = [...section.querySelectorAll('[data-testid^="event-row-"], [data-testid^="serp-row-"]')].map((r) =>
+      r.getAttribute("data-testid"),
+    );
     expect(rows).toEqual(["event-row-soon", "event-row-far", "serp-row-stream"]);
     // Events and streams share the section; by default neither is labelled.
     expect(within(section).queryByTestId("kind-pill")).toBeNull();
@@ -825,8 +1055,19 @@ describe("ComposedResults", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const nowSec = Math.floor(Date.now() / 1000);
     const cal = (id: string, pk: string, title: string, start: number) =>
-      hitOf(ev(id, 31923, pk, "", [["d", id], ["title", title], ["start", String(start)], ["location", "The Baltic Fleet, 33A Wapping, Liverpool, UK"], ["image", `https://img/${id}.jpg`]]), "club");
-    eventRsvpsMock.mockResolvedValue(new Map([["31923:" + "3".repeat(64) + ":soon", { going: 2, faces: ["7".repeat(64), "8".repeat(64)] }]]));
+      hitOf(
+        ev(id, 31923, pk, "", [
+          ["d", id],
+          ["title", title],
+          ["start", String(start)],
+          ["location", "The Baltic Fleet, 33A Wapping, Liverpool, UK"],
+          ["image", `https://img/${id}.jpg`],
+        ]),
+        "club",
+      );
+    eventRsvpsMock.mockResolvedValue(
+      new Map([["31923:" + "3".repeat(64) + ":soon", { going: 2, faces: ["7".repeat(64), "8".repeat(64)] }]]),
+    );
     sectionCall("events").emit({
       hits: [
         cal("far", "1".repeat(64), "Liverpool Bitcoin Conference", nowSec + 30 * 86_400),
@@ -837,12 +1078,23 @@ describe("ComposedResults", () => {
       timeMs: 100,
     });
     sectionCall("live").emit({
-      hits: [hitOf(ev("stream", 30311, "4".repeat(64), "", [["d", "s"], ["title", "Anfield Radio"], ["status", "live"]]), "radio")],
+      hits: [
+        hitOf(
+          ev("stream", 30311, "4".repeat(64), "", [
+            ["d", "s"],
+            ["title", "Anfield Radio"],
+            ["status", "live"],
+          ]),
+          "radio",
+        ),
+      ],
       eose: true,
       timeMs: 100,
     });
     const section = await screen.findByTestId("serp-section-happening");
-    const rows = [...section.querySelectorAll('[data-testid^="event-row-"], [data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
+    const rows = [...section.querySelectorAll('[data-testid^="event-row-"], [data-testid^="serp-row-"]')].map((r) =>
+      r.getAttribute("data-testid"),
+    );
     expect(rows).toEqual(["event-row-soon", "event-row-far", "serp-row-stream"]);
     expect(within(within(section).getByTestId("event-row-soon")).getByTestId("kind-pill")).toHaveTextContent("Event");
     expect(within(within(section).getByTestId("serp-row-stream")).getByTestId("kind-pill")).toHaveTextContent("Stream");
@@ -884,12 +1136,27 @@ describe("ComposedResults", () => {
     render(<ComposedResults query="jazz" pov="nosfabrica" onTabChange={onTabChange} />);
     const nova = "d".repeat(64);
     const track = (id: string, title: string) =>
-      hitOf(ev(id, 31337, nova, "", [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://renaissancemachine.ai/music/${id}.mp3`], ["image", `https://renaissancemachine.ai/${id}.jpg`]]), "NOVA");
+      hitOf(
+        ev(id, 31337, nova, "", [
+          ["d", id],
+          ["title", title],
+          ["artist", "NOVA"],
+          ["media", `https://renaissancemachine.ai/music/${id}.mp3`],
+          ["image", `https://renaissancemachine.ai/${id}.jpg`],
+        ]),
+        "NOVA",
+      );
     sectionCall("music").emit({
       hits: [
         track("s1", "Old Carbon"),
         track("s2", "Duende"),
-        hitOf(ev("junk", 31337, "e".repeat(64), '{"status":"complete","ads":[]}', [["d", "3244b53c"], ["t", "antennapod-adskip"]]), null),
+        hitOf(
+          ev("junk", 31337, "e".repeat(64), '{"status":"complete","ads":[]}', [
+            ["d", "3244b53c"],
+            ["t", "antennapod-adskip"],
+          ]),
+          null,
+        ),
       ],
       eose: true,
       timeMs: 120,
@@ -910,7 +1177,16 @@ describe("ComposedResults", () => {
 
   it("the Listen row carries Wavlake's songs for the words when Nostr has none, labelled", async () => {
     wavlakeSearchMock.mockResolvedValue([
-      { id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" },
+      {
+        id: "wavlake:04cead49",
+        title: "Two Ships",
+        artist: "Ainsley Costello",
+        audio: "https://cdn/two-ships.mp3",
+        durationSec: 217,
+        url: "https://wavlake.com/track/04cead49",
+        source: "wavlake",
+        artistNpub: "",
+      },
     ]);
     const onTabChange = vi.fn();
     render(<ComposedResults query="Ainsley Costello" pov="nosfabrica" onTabChange={onTabChange} />);
@@ -928,23 +1204,63 @@ describe("ComposedResults", () => {
 
   it("the Listen row carries up to three value-for-value songs that answer the words, after Wavlake's", async () => {
     wavlakeSearchMock.mockResolvedValue([
-      { id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" },
+      {
+        id: "wavlake:04cead49",
+        title: "Two Ships",
+        artist: "Ainsley Costello",
+        audio: "https://cdn/two-ships.mp3",
+        durationSec: 217,
+        url: "https://wavlake.com/track/04cead49",
+        source: "wavlake",
+        artistNpub: "",
+      },
     ]);
-    const pi = (n: number, title: string) => ({ id: `podcastindex:${n}`, eventId: String(n), title, artist: "Ainsley Costello", audio: `https://cdn/${n}.mp3`, source: "podcastindex" });
-    podcastIndexMock.mockResolvedValue({ songs: [pi(1, "Cherry on Top"), pi(2, "Lover's Curse"), pi(3, "Dear Silence"), pi(4, "Fourth"), { ...pi(5, "Unrelated"), artist: "Someone Else" }], musicians: [] });
+    const pi = (n: number, title: string) => ({
+      id: `podcastindex:${n}`,
+      eventId: String(n),
+      title,
+      artist: "Ainsley Costello",
+      audio: `https://cdn/${n}.mp3`,
+      source: "podcastindex",
+    });
+    podcastIndexMock.mockResolvedValue({
+      songs: [
+        pi(1, "Cherry on Top"),
+        pi(2, "Lover's Curse"),
+        pi(3, "Dear Silence"),
+        pi(4, "Fourth"),
+        { ...pi(5, "Unrelated"), artist: "Someone Else" },
+      ],
+      musicians: [],
+    });
     render(<ComposedResults query="Ainsley Costello" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("music").emit({ hits: [], eose: true, timeMs: 80 });
     const section = await screen.findByTestId("serp-section-listen");
     await within(section).findByTestId("podcastindex-song-podcastindex:1");
-    const order = [...section.querySelectorAll('[data-testid^="wavlake-song-"], [data-testid^="podcastindex-song-"]')].map((el) => el.getAttribute("data-testid"));
-    expect(order).toEqual(["wavlake-song-wavlake:04cead49", "podcastindex-song-podcastindex:1", "podcastindex-song-podcastindex:2", "podcastindex-song-podcastindex:3"]);
+    const order = [
+      ...section.querySelectorAll('[data-testid^="wavlake-song-"], [data-testid^="podcastindex-song-"]'),
+    ].map((el) => el.getAttribute("data-testid"));
+    expect(order).toEqual([
+      "wavlake-song-wavlake:04cead49",
+      "podcastindex-song-podcastindex:1",
+      "podcastindex-song-podcastindex:2",
+      "podcastindex-song-podcastindex:3",
+    ]);
     expect(within(section).getByTestId("podcastindex-song-podcastindex:1")).toHaveTextContent("Podcast Index");
   });
 
   it("shows no Listen row when nothing on the relay is a song", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
-    sectionCall("music").emit({ hits: [hitOf(ev("junk", 31337, "e".repeat(64), "tester", [["d", "x"]]), null)], eose: true, timeMs: 90 });
-    sectionCall("notes").emit({ hits: [hitOf(ev("n1", 1, "b".repeat(64), "Liverpool are top of the league"), "fan")], eose: true, timeMs: 100 });
+    sectionCall("music").emit({
+      hits: [hitOf(ev("junk", 31337, "e".repeat(64), "tester", [["d", "x"]]), null)],
+      eose: true,
+      timeMs: 90,
+    });
+    sectionCall("notes").emit({
+      hits: [hitOf(ev("n1", 1, "b".repeat(64), "Liverpool are top of the league"), "fan")],
+      eose: true,
+      timeMs: 100,
+    });
     await screen.findByTestId("serp-section-latest");
     expect(screen.queryByTestId("serp-section-listen")).toBeNull();
   });
@@ -956,8 +1272,25 @@ describe("ComposedResults", () => {
     const NOW = Math.floor(Date.now() / 1000);
     const RHR = "b".repeat(64);
     const who = { pubkey: RHR, npub: "npub1rhr", name: "RABBIT HOLE RECAP", wotRank: 0.9, wotFollowers: 7400 };
-    const episode = (id: string, n: number, age: number) =>
-      ({ event: ev(id, 1, RHR, `RHR ${n}: EPISODE WITH nostr:nprofile1qqsabc AND nostr:nprofile1qqsdef https://blossom.primal.net/${id}.mp4`, [["imeta", `url https://blossom.primal.net/${id}.mp4`, "m video/mp4", `image https://blossom.primal.net/${id}.jpg`]], NOW - age), author: who, rank: null });
+    const episode = (id: string, n: number, age: number) => ({
+      event: ev(
+        id,
+        1,
+        RHR,
+        `RHR ${n}: EPISODE WITH nostr:nprofile1qqsabc AND nostr:nprofile1qqsdef https://blossom.primal.net/${id}.mp4`,
+        [
+          [
+            "imeta",
+            `url https://blossom.primal.net/${id}.mp4`,
+            "m video/mp4",
+            `image https://blossom.primal.net/${id}.jpg`,
+          ],
+        ],
+        NOW - age,
+      ),
+      author: who,
+      rank: null,
+    });
     render(
       <ComposedResults
         query="Rabbit Hole Recap"
@@ -980,9 +1313,18 @@ describe("ComposedResults", () => {
     sectionCall("media").emit({ hits: [], eose: true, timeMs: 90 });
 
     const grid = await screen.findByTestId("serp-media-grid");
-    const ids = [...grid.querySelectorAll(":scope > [data-testid^='media-tile-']")].map((n) => n.getAttribute("data-testid"));
+    const ids = [...grid.querySelectorAll(":scope > [data-testid^='media-tile-']")].map((n) =>
+      n.getAttribute("data-testid"),
+    );
     // Newest first, one per episode, six at most — the Media tab has the rest.
-    expect(ids).toEqual(["media-tile-ep421", "media-tile-ep420", "media-tile-ep419b", "media-tile-ep418", "media-tile-ep417", "media-tile-ep416"]);
+    expect(ids).toEqual([
+      "media-tile-ep421",
+      "media-tile-ep420",
+      "media-tile-ep419b",
+      "media-tile-ep418",
+      "media-tile-ep417",
+      "media-tile-ep416",
+    ]);
     expect(within(grid).getAllByTestId("media-tile-play")).toHaveLength(6);
     // Captions are the words, not the raw nostr: references.
     expect(grid).toHaveTextContent("RHR 421: EPISODE");
@@ -998,7 +1340,16 @@ describe("ComposedResults", () => {
     const barattolo = "9".repeat(64);
     const other = "8".repeat(64);
     const listing = (id: string, seller: string, title: string, extra: string[][] = []) =>
-      hitOf(ev(id, 30402, seller, title, [["d", id], ["title", title], ["price", "14100", "sats"], ["image", `https://img/${id}.jpg`], ...extra]), seller === barattolo ? "Barattolo" : "Altro");
+      hitOf(
+        ev(id, 30402, seller, title, [
+          ["d", id],
+          ["title", title],
+          ["price", "14100", "sats"],
+          ["image", `https://img/${id}.jpg`],
+          ...extra,
+        ]),
+        seller === barattolo ? "Barattolo" : "Altro",
+      );
     sectionCall("shop").emit({
       hits: [
         listing("m1", barattolo, "Maglia in kashmir"),
@@ -1012,7 +1363,9 @@ describe("ComposedResults", () => {
     });
 
     const section = await screen.findByTestId("serp-section-shop");
-    const ids = [...section.querySelectorAll("[data-testid^='listing-card-']")].map((n) => n.getAttribute("data-testid"));
+    const ids = [...section.querySelectorAll("[data-testid^='listing-card-']")].map((n) =>
+      n.getAttribute("data-testid"),
+    );
     expect(ids).toEqual(["listing-card-m1", "listing-card-m2", "listing-card-m4"]);
     expect(section).toHaveTextContent("14,100 sats");
     fireEvent.click(within(section).getByTestId("serp-more-shop"));
@@ -1021,8 +1374,25 @@ describe("ComposedResults", () => {
 
   it("shows no Shop row when nothing for sale matches", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
-    sectionCall("shop").emit({ hits: [hitOf(ev("sold", 30402, "8".repeat(64), "x", [["title", "x"], ["price", "1", "USD"], ["status", "sold"]]), "Altro")], eose: true, timeMs: 90 });
-    sectionCall("notes").emit({ hits: [hitOf(ev("n1", 1, "b".repeat(64), "Liverpool are top of the league"), "fan")], eose: true, timeMs: 100 });
+    sectionCall("shop").emit({
+      hits: [
+        hitOf(
+          ev("sold", 30402, "8".repeat(64), "x", [
+            ["title", "x"],
+            ["price", "1", "USD"],
+            ["status", "sold"],
+          ]),
+          "Altro",
+        ),
+      ],
+      eose: true,
+      timeMs: 90,
+    });
+    sectionCall("notes").emit({
+      hits: [hitOf(ev("n1", 1, "b".repeat(64), "Liverpool are top of the league"), "fan")],
+      eose: true,
+      timeMs: 100,
+    });
     await screen.findByTestId("serp-section-latest");
     expect(screen.queryByTestId("serp-section-shop")).toBeNull();
   });
@@ -1054,8 +1424,8 @@ describe("ComposedResults", () => {
       timeMs: 100,
     });
     const strip = await screen.findByTestId("serp-section-people");
-    const names = [...strip.querySelectorAll("[data-testid^='serp-person-']")].map(
-      (el) => el.getAttribute("data-testid"),
+    const names = [...strip.querySelectorAll("[data-testid^='serp-person-']")].map((el) =>
+      el.getAttribute("data-testid"),
     );
     expect(names[0]).toBe(`serp-person-${visited.slice(0, 8)}`);
     expect(screen.getByTestId(`visited-${visited.slice(0, 8)}`)).toBeInTheDocument();
@@ -1074,15 +1444,26 @@ describe("ComposedResults", () => {
     const outside = "2".repeat(64);
     sectionCall("people").emit({
       hits: [
-        { event: ev("k1", 0, inside, JSON.stringify({ name: "jack" })), author: { pubkey: inside, npub: "npub1jack", name: "jack", wotRank: 0.85, wotFollowers: 10 }, rank: null },
-        { event: ev("k2", 0, outside, JSON.stringify({ name: "jack imposter" })), author: { pubkey: outside, npub: "npub1imp", name: "jack imposter", wotRank: 0.01, wotFollowers: 0 }, rank: null },
+        {
+          event: ev("k1", 0, inside, JSON.stringify({ name: "jack" })),
+          author: { pubkey: inside, npub: "npub1jack", name: "jack", wotRank: 0.85, wotFollowers: 10 },
+          rank: null,
+        },
+        {
+          event: ev("k2", 0, outside, JSON.stringify({ name: "jack imposter" })),
+          author: { pubkey: outside, npub: "npub1imp", name: "jack imposter", wotRank: 0.01, wotFollowers: 0 },
+          rank: null,
+        },
       ],
       eose: true,
       timeMs: 100,
     });
     await screen.findByTestId(`serp-person-${inside.slice(0, 8)}`);
     expect(screen.queryByTestId(`person-outside-${inside.slice(0, 8)}`)).toBeNull();
-    expect(screen.getByTestId(`person-outside-${outside.slice(0, 8)}`)).toHaveAttribute("aria-label", "Outside your network");
+    expect(screen.getByTestId(`person-outside-${outside.slice(0, 8)}`)).toHaveAttribute(
+      "aria-label",
+      "Outside your network",
+    );
   });
 
   it("the Articles section asks for the best match while the other content sections ask for the newest", async () => {

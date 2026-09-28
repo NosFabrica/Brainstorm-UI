@@ -140,12 +140,14 @@ export function BrainstormUserPicker({
       {noMatch && (
         <p className="text-[11px] text-slate-500 dark:text-slate-400" data-testid="billing-attribute-no-match">
           Nobody on Brainstorm matches "{query.trim()}".
-          {dropped > 0 ? ` ${dropped} ${dropped === 1 ? "profile" : "profiles"} on Nostr matched but ${dropped === 1 ? "has" : "have"} no Brainstorm account.` : ""}
+          {dropped > 0
+            ? ` ${dropped} ${dropped === 1 ? "profile" : "profiles"} on Nostr matched but ${dropped === 1 ? "has" : "have"} no Brainstorm account.`
+            : ""}
         </p>
       )}
 
       {results.length > 0 && (
-        <div className="space-y-1 max-h-52 overflow-y-auto -mx-1 px-1">
+        <div className="-mx-1 max-h-52 space-y-1 overflow-y-auto px-1">
           {results.map((u) => (
             <UserResultRow
               key={u.pubkey}
@@ -158,7 +160,10 @@ export function BrainstormUserPicker({
             />
           ))}
           {dropped > 0 && (
-            <p className="px-1 pt-1 text-[11px] text-slate-500 dark:text-slate-400" data-testid="billing-attribute-dropped">
+            <p
+              className="px-1 pt-1 text-[11px] text-slate-500 dark:text-slate-400"
+              data-testid="billing-attribute-dropped"
+            >
               {dropped} more on Nostr {dropped === 1 ? "matches" : "match"} without a Brainstorm account — not offered.
             </p>
           )}

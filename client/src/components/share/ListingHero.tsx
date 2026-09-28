@@ -21,8 +21,23 @@ import { ReadingText } from "@/components/share/ReadingText";
  * published. There is no checkout of ours: payment happens where
  * the seller sells.
  */
-export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /** The seller's own website, from their profile — the way in when the listing names no shop and no app we know. */ sellerWebsite?: string | null }) {
-  const l = parseListing({ ...event, id: event.id, pubkey: event.pubkey, kind: event.kind, created_at: event.created_at, tags: event.tags, content: event.content ?? "" });
+export function ListingHero({
+  event,
+  sellerWebsite,
+}: {
+  event: MinimalEvent;
+  /** The seller's own website, from their profile — the way in when the listing names no shop and no app we know. */ sellerWebsite?:
+    string | null;
+}) {
+  const l = parseListing({
+    ...event,
+    id: event.id,
+    pubkey: event.pubkey,
+    kind: event.kind,
+    created_at: event.created_at,
+    tags: event.tags,
+    content: event.content ?? "",
+  });
   const [photo, setPhoto] = useState(0);
   // The app that sold it wins over a stray shop link: that is where the
   // product actually lives and checks out.
@@ -34,16 +49,22 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
     if (sourceAppFor(event)) return;
     let alive = true;
     fetchRecentByKinds(event.pubkey, [30402], 40)
-      .then((evs) => { if (alive) setSellerListings(evs as MinimalEvent[]); })
+      .then((evs) => {
+        if (alive) setSellerListings(evs as MinimalEvent[]);
+      })
       .catch(() => {});
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [event.id, event.pubkey]); // eslint-disable-line react-hooks/exhaustive-deps
   const app = sourceAppFor(event, { sellerListings });
   // The seller's price leads; what it is in the buyer's own money sits under it.
   const rates = useBtcRates();
   const websiteHost = (() => {
     try {
-      return sellerWebsite && /^https?:\/\//i.test(sellerWebsite) ? new URL(sellerWebsite).hostname.replace(/^www\./, "") : null;
+      return sellerWebsite && /^https?:\/\//i.test(sellerWebsite)
+        ? new URL(sellerWebsite).hostname.replace(/^www\./, "")
+        : null;
     } catch {
       return null;
     }
@@ -66,7 +87,12 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
       {/* Gallery */}
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800">
         {current ? (
-          <img src={current} alt="" className="absolute inset-0 h-full w-full object-contain bg-slate-900/5" data-testid="listing-hero-photo" />
+          <img
+            src={current}
+            alt=""
+            className="absolute inset-0 h-full w-full bg-slate-900/5 object-contain"
+            data-testid="listing-hero-photo"
+          />
         ) : (
           <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
             <ShoppingBag className="h-10 w-10" />
@@ -77,11 +103,20 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
             <span data-testid="listing-hero-price">{formatListingPrice(l.price)}</span>
             {(() => {
               const converted = rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
-              return converted ? <span className="text-xs font-medium text-white/75" data-testid="listing-hero-price-converted">{converted}</span> : null;
+              return converted ? (
+                <span className="text-xs font-medium text-white/75" data-testid="listing-hero-price-converted">
+                  {converted}
+                </span>
+              ) : null;
             })()}
           </span>
         ) : (
-          <span className="absolute left-3 top-3 rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold text-white" data-testid="listing-hero-price-unknown">Price on request</span>
+          <span
+            className="absolute left-3 top-3 rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold text-white"
+            data-testid="listing-hero-price-unknown"
+          >
+            Price on request
+          </span>
         )}
         {gone && (
           <span className="absolute right-3 top-3">
@@ -108,7 +143,11 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
         </div>
       )}
 
-      <h1 className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="listing-hero-title">
+      <h1
+        className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
+        style={{ fontFamily: "var(--font-display)" }}
+        data-testid="listing-hero-title"
+      >
         {l.title}
       </h1>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
@@ -138,22 +177,24 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
             href={app.url}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             data-testid="listing-hero-shop"
             title={`Opens ${app.host} in a new tab`}
           >
-            <img src={app.icon} alt="" className="h-3.5 w-3.5 rounded-sm" /> Buy on {app.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+            <img src={app.icon} alt="" className="h-3.5 w-3.5 rounded-sm" /> Buy on {app.name}{" "}
+            <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
           </a>
         ) : l.shopUrl && shopHost ? (
           <a
             href={l.shopUrl}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             data-testid="listing-hero-shop"
             title={`Opens ${shopHost} in a new tab`}
           >
-            <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit {shopHost} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+            <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit {shopHost}{" "}
+            <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
           </a>
         ) : websiteHost ? (
           // No shop on the listing and no marketplace we know (The Bitcoin
@@ -162,11 +203,12 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
             href={sellerWebsite!}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             data-testid="listing-hero-shop"
             title={`Opens ${websiteHost} in a new tab`}
           >
-            <Favicon host={websiteHost} className="h-3.5 w-3.5" /> Visit {websiteHost} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+            <Favicon host={websiteHost} className="h-3.5 w-3.5" /> Visit {websiteHost}{" "}
+            <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
           </a>
         ) : null}
       </div>
@@ -175,7 +217,10 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
       </p>
 
       {l.shipping.length > 0 && (
-        <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 p-3" data-testid="listing-hero-shipping">
+        <div
+          className="mt-4 rounded-xl border border-slate-200 p-3 dark:border-slate-800"
+          data-testid="listing-hero-shipping"
+        >
           <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             <Truck className="h-3.5 w-3.5" /> Shipping
           </p>
@@ -183,7 +228,9 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
             {l.shipping.map((s, i) => (
               <li key={s.name + i} className="flex items-center justify-between gap-3">
                 <span className="truncate">{s.name}</span>
-                <span className="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{formatListingPrice({ amount: s.amount, currency: s.currency || l.price?.currency || "" })}</span>
+                <span className="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">
+                  {formatListingPrice({ amount: s.amount, currency: s.currency || l.price?.currency || "" })}
+                </span>
               </li>
             ))}
           </ul>

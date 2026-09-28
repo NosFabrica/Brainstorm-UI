@@ -49,11 +49,11 @@ payment to an account, and what that account then gets.
 **The paid tier is a scheduling policy.** No new entitlement system is needed —
 the scheduler already does all of this:
 
-| `SchedulingItem` field | what it buys |
-| --- | --- |
+| `SchedulingItem` field      | what it buys                               |
+| --------------------------- | ------------------------------------------ |
 | `schedule_interval_seconds` | **Priority 7 days / free default 60 days** |
-| `priority` | position in the calculation queue |
-| `is_default` | the free tier's policy |
+| `priority`                  | position in the calculation queue          |
+| `is_default`                | the free tier's policy                     |
 
 `manual_quota_limit` is deliberately NOT a tier difference. Manual recalculation
 stays unlimited on both, rate-limited only to stop abuse — the default of 20 per
@@ -104,14 +104,14 @@ nothing.
      must be "a human looks at it", not "the wrong account is upgraded".
 4. **On return**, the client polls (it already refetches on window focus). If a
    held payment matches their pending intent, offer a one-click confirmation —
-   *"we matched a $2 payment from b•••@example.com, is that you?"* — which is
+   _"we matched a $2 payment from b•••@example.com, is that you?"_ — which is
    both less work than typing and a firmer binding than two strings agreeing.
 
 At first-paid-user volume, step 3 collides essentially never, and it degrades
 safely when it does.
 
 Store the email from the webhook regardless — it is how support finds someone,
-and it is what the ticket system keys on. It just isn't the *join*.
+and it is what the ticket system keys on. It just isn't the _join_.
 
 ### Ask Flash
 
@@ -131,11 +131,11 @@ join key becomes the hex pubkey and this whole section collapses to one line.
 https://dev.server.vault.paywithflash.com/subscriptions/signup/{serviceId}/{planId}
 ```
 
-| | dev |
-| --- | --- |
-| serviceId | `019eb7e1-c789-731e-9c9a-e84e83500097` |
-| planId | `019ef08a-3c5f-7228-a15b-4838937045f5` |
-| price | `data-amount="200"`, `data-currency="USD"` |
+|           | dev                                        |
+| --------- | ------------------------------------------ |
+| serviceId | `019eb7e1-c789-731e-9c9a-e84e83500097`     |
+| planId    | `019ef08a-3c5f-7228-a15b-4838937045f5`     |
+| price     | `data-amount="200"`, `data-currency="USD"` |
 
 **Amounts are in minor units** — `200` is $2.00. Store and compare them that way;
 don't round-trip through floats.
@@ -157,13 +157,13 @@ Useful as a reconciliation backstop: if a webhook is missed, this answers
 
 Five events, POSTed as `{ "data": { … } }`:
 
-| event | meaning |
-| --- | --- |
-| `user_signed_up` | first payment succeeded |
-| `renewal_successful` | recurring charge succeeded |
-| `renewal_failed` | recurring charge failed |
-| `user_paused_subscription` | user paused |
-| `user_cancelled_subscription` | user cancelled |
+| event                         | meaning                    |
+| ----------------------------- | -------------------------- |
+| `user_signed_up`              | first payment succeeded    |
+| `renewal_successful`          | recurring charge succeeded |
+| `renewal_failed`              | recurring charge failed    |
+| `user_paused_subscription`    | user paused                |
+| `user_cancelled_subscription` | user cancelled             |
 
 `data` carries `email`, `public_key`, `external_uuid`, `user_plan`,
 `user_plan_id`, `signup_date`, `next_payment_date`, and on payment events
@@ -183,13 +183,13 @@ Settings tab in the dashboard is currently greyed out.
 
 ## What to do on each event
 
-| event | action |
-| --- | --- |
-| `user_signed_up` | resolve email → pubkey; `PUT /admin/users/{pubkey}/scheduling` → Priority; record period end |
-| `renewal_successful` | extend period end; ensure still on Priority |
-| `renewal_failed` | mark `past_due`; **stay on Priority through the 7-day grace** |
-| `user_paused_subscription` | → default policy |
-| `user_cancelled_subscription` | → default policy at end of the current period, not immediately |
+| event                         | action                                                                                       |
+| ----------------------------- | -------------------------------------------------------------------------------------------- |
+| `user_signed_up`              | resolve email → pubkey; `PUT /admin/users/{pubkey}/scheduling` → Priority; record period end |
+| `renewal_successful`          | extend period end; ensure still on Priority                                                  |
+| `renewal_failed`              | mark `past_due`; **stay on Priority through the 7-day grace**                                |
+| `user_paused_subscription`    | → default policy                                                                             |
+| `user_cancelled_subscription` | → default policy at end of the current period, not immediately                               |
 
 Dunning and cancellation are configured in Flash, not by us: 3 attempts, 3 days
 apart, 7-day grace, cancel after the final failure; cancellation takes effect at
@@ -200,15 +200,15 @@ two will disagree about who is paid.
 
 ## What to persist
 
-| field | why |
-| --- | --- |
-| `pubkey` | the account; the key everything else hangs off |
-| `email` | the join key from Flash, and how support finds them |
-| `tier` | `free` \| `priority` |
-| `status` | `none` \| `active` \| `past_due` \| `grace` \| `canceled` |
-| `current_period_end` | drives renewal display and the grace window |
-| `rail` | `card` now, `flash-lightning` later |
-| Flash `service_id` / `plan_id` / last `transaction_id` | reconciliation and idempotency |
+| field                                                  | why                                                       |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| `pubkey`                                               | the account; the key everything else hangs off            |
+| `email`                                                | the join key from Flash, and how support finds them       |
+| `tier`                                                 | `free` \| `priority`                                      |
+| `status`                                               | `none` \| `active` \| `past_due` \| `grace` \| `canceled` |
+| `current_period_end`                                   | drives renewal display and the grace window               |
+| `rail`                                                 | `card` now, `flash-lightning` later                       |
+| Flash `service_id` / `plan_id` / last `transaction_id` | reconciliation and idempotency                            |
 
 ---
 
@@ -227,7 +227,7 @@ response degrades to "free" rather than throwing.
 The client talks to these endpoints and nothing else — there is no mock seam
 and no flag to switch away from the server.
 
-**One caution:** the free tier must be what an *error* resolves to. A backend
+**One caution:** the free tier must be what an _error_ resolves to. A backend
 timeout should never read as "paid", and equally should never strip a paying
 user's policy — the scheduling assignment is the source of truth for what they
 actually get, and this endpoint only reports it.
@@ -239,7 +239,7 @@ actually get, and this endpoint only reports it.
 Most of this already exists. `AdminUser` carries `scheduling_id` and
 `scheduling_name`, the Users table renders a schedule chip per row,
 `UserTierPicker` reassigns a user inline, and `PolicyUsersInline` lists everyone
-on a policy. Since the paid tier *is* a scheduling policy, "who is on Priority"
+on a policy. Since the paid tier _is_ a scheduling policy, "who is on Priority"
 is answerable today. What's missing is the billing half and the failure states.
 
 ### Admin: show both columns, not one
@@ -297,8 +297,8 @@ never, which is exactly why it cannot depend on someone remembering to look.
 
 ### Users: `/insights` is the account page
 
-It already calls itself one — *"your account standing, and exactly how and when
-your scores were computed"* — and already shows last calculated, duration, status
+It already calls itself one — _"your account standing, and exactly how and when
+your scores were computed"_ — and already shows last calculated, duration, status
 and publication state. Plan, next scheduled run and calculation history join it
 there. The split to hold: **Settings holds what you CHANGE, Insights holds what
 you CHECK.**
@@ -405,7 +405,6 @@ vault isn't wired.
 
 11. Is there a return/redirect URL after payment? The new-tab + refetch-on-focus
     flow assumes no; an answer of yes lets us simplify.
-
 
 ## Superseded by UI-HANDOFF.md (2026-08-26)
 

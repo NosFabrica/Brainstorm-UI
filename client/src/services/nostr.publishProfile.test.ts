@@ -37,8 +37,7 @@ const PUBKEY = getPublicKey(SECRET);
 const OTHER = "b".repeat(64);
 
 /** What `pool.publish` answers: one relay accepting is "thin", two is enough. */
-const accepted = (n: number) =>
-  Array.from({ length: 3 }, (_, i) => ({ ok: i < n, from: `wss://r${i}`, message: "" }));
+const accepted = (n: number) => Array.from({ length: 3 }, (_, i) => ({ ok: i < n, from: `wss://r${i}`, message: "" }));
 
 let nostr: typeof import("./nostr");
 
@@ -141,7 +140,10 @@ describe("the relay list a profile save touches", () => {
       {
         kind: 10002,
         created_at: 1,
-        tags: [["r", "wss://theirs.example", "write"], ["r", "wss://theirs-in.example", "read"]],
+        tags: [
+          ["r", "wss://theirs.example", "write"],
+          ["r", "wss://theirs-in.example", "read"],
+        ],
         content: "",
       } as never,
       SECRET,
@@ -158,11 +160,7 @@ describe("the relay list a profile save touches", () => {
     expect(ofKind(signAs.mock.calls, 10002)).toHaveLength(0);
     const sent = ofKind(publish.mock.calls, 10002).map((call) => (call[1] as { id: string }).id);
     expect(sent).toEqual([theirs.id]);
-    expect(nostr.eventStore.getReplaceable(10002, PUBKEY)?.tags).toContainEqual([
-      "r",
-      "wss://theirs.example",
-      "write",
-    ]);
+    expect(nostr.eventStore.getReplaceable(10002, PUBKEY)?.tags).toContainEqual(["r", "wss://theirs.example", "write"]);
   });
 
   it("re-broadcasts it to their own write relays as well as ours", async () => {

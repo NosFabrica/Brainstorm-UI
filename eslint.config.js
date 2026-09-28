@@ -1,25 +1,31 @@
-// One rule, as an error: hooks run in the same order on every render. Two
-// components broke it (a hook below an early return) and each took a page
-// down in production. The plugins are loaded so the source's existing
-// eslint-disable comments name rules ESLint knows; nothing else is enforced.
+import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
+import prettier from "eslint-config-prettier";
+import globals from "globals";
 
-export default [
-  { ignores: ["dist/**", "node_modules/**", "artifacts/**"] },
+export default tseslint.config(
+  {
+    ignores: ["client/src/components/ui", "client/src/lib/tagging-sdk"],
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
     files: ["client/src/**/*.{ts,tsx}"],
-    languageOptions: {
-      parser: tseslint.parser,
-      parserOptions: { ecmaFeatures: { jsx: true } },
-    },
-    plugins: {
-      "@typescript-eslint": tseslint.plugin,
-      "react-hooks": reactHooks,
-    },
-    linterOptions: { reportUnusedDisableDirectives: "off" },
+    languageOptions: { globals: globals.browser },
+    plugins: { "react-hooks": reactHooks },
+    linterOptions: { reportUnusedDisableDirectives: "error" },
     rules: {
-      "react-hooks/rules-of-hooks": "error",
+      ...reactHooks.configs.recommended.rules,
+      "react-hooks/exhaustive-deps": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none" },
+      ],
+      "no-empty": ["error", { allowEmptyCatch: true }],
+      // `let x; ...; x = subscribe(...)` is deliberate where a sync callback reads x.
+      "prefer-const": ["error", { ignoreReadBeforeAssign: true }],
     },
   },
-];
+  prettier,
+);

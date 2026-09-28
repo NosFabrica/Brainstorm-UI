@@ -49,10 +49,15 @@ export function mergeDesignation(existing: string[][], rows: string[][]): string
 }
 
 const sameRelay = (a: unknown, b: string) =>
-  String(a ?? "").trim().replace(/\/+$/, "") === b.trim().replace(/\/+$/, "");
+  String(a ?? "")
+    .trim()
+    .replace(/\/+$/, "") === b.trim().replace(/\/+$/, "");
 
 /** Does this 10040 already name `key` on `relay` for every Trusted List kind? */
-export function declaresLists(event: { tags: string[][] } | null | undefined, { key, relay }: ListDesignation): boolean {
+export function declaresLists(
+  event: { tags: string[][] } | null | undefined,
+  { key, relay }: ListDesignation,
+): boolean {
   if (!event || !key || !relay) return false;
   return LIST_KINDS.every((kind) => event.tags.some((t) => t[0] === kind && t[1] === key && sameRelay(t[2], relay)));
 }
@@ -108,6 +113,16 @@ export function describeDesignation(event: { tags: string[][] }): DesignationDes
  * Lists is Brainstorm's own, by David.
  */
 export const CANONICAL_SPECS = {
-  assertions: { kind: 30817, pubkey: "460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c", identifier: "trusted-assertions", title: "Trusted Assertions (NIP-85)" },
-  lists: { kind: 30817, pubkey: "e5272de914bd301755c439b88e6959a43c9d2664831f093c51e9c799a16a102f", identifier: "trusted-lists", title: "Trusted Lists" },
+  assertions: {
+    kind: 30817,
+    pubkey: "460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c",
+    identifier: "trusted-assertions",
+    title: "Trusted Assertions (NIP-85)",
+  },
+  lists: {
+    kind: 30817,
+    pubkey: "e5272de914bd301755c439b88e6959a43c9d2664831f093c51e9c799a16a102f",
+    identifier: "trusted-lists",
+    title: "Trusted Lists",
+  },
 } as const;

@@ -40,15 +40,15 @@ These fields come directly from user input in the Agent Suite UI. All are option
 }
 ```
 
-| Field | Type | Required | Max Length | Description |
-|-------|------|----------|-----------|-------------|
-| `name` | string | **Yes** | 150 chars | Display name for the assistant. Validated on frontend — user cannot publish without it. |
-| `about` | string | No | 500 chars | Free-text description. Maps to `about` in kind 0 content. |
-| `picture` | string (URL) | No | — | Avatar image URL. Displayed as the assistant's profile picture on Nostr clients. |
-| `banner` | string (URL) | No | — | Banner image URL. Shown as header/cover image on supporting clients. |
-| `lud16` | string | No | — | Lightning address for tips/zaps (e.g. `user@getalby.com`). Maps to `lud16` in kind 0. |
-| `nip05` | string | No | — | NIP-05 verification identifier (e.g. `user@brainstorm.foo`). Maps to `nip05` in kind 0. |
-| `website` | string (URL) | No | — | Website URL. Maps to `website` in kind 0 content. |
+| Field     | Type         | Required | Max Length | Description                                                                             |
+| --------- | ------------ | -------- | ---------- | --------------------------------------------------------------------------------------- |
+| `name`    | string       | **Yes**  | 150 chars  | Display name for the assistant. Validated on frontend — user cannot publish without it. |
+| `about`   | string       | No       | 500 chars  | Free-text description. Maps to `about` in kind 0 content.                               |
+| `picture` | string (URL) | No       | —          | Avatar image URL. Displayed as the assistant's profile picture on Nostr clients.        |
+| `banner`  | string (URL) | No       | —          | Banner image URL. Shown as header/cover image on supporting clients.                    |
+| `lud16`   | string       | No       | —          | Lightning address for tips/zaps (e.g. `user@getalby.com`). Maps to `lud16` in kind 0.   |
+| `nip05`   | string       | No       | —          | NIP-05 verification identifier (e.g. `user@brainstorm.foo`). Maps to `nip05` in kind 0. |
+| `website` | string (URL) | No       | —          | Website URL. Maps to `website` in kind 0 content.                                       |
 
 ### Frontend Source
 
@@ -93,11 +93,11 @@ Merge user-provided fields with server-side templated fields:
 
 These should be injected by the backend — they are NOT sent from the frontend:
 
-| Field / Tag | Value | Purpose |
-|-------------|-------|---------|
-| `bot` (in content) | `true` | NIP standard flag indicating this is an automated/agent account |
-| `display_name` (in content) | Same as `name` | Ensures compatibility with clients that use `display_name` |
-| `["client", "Brainstorm"]` tag | `"Brainstorm"` | Identifies the publishing client |
+| Field / Tag                          | Value                       | Purpose                                                              |
+| ------------------------------------ | --------------------------- | -------------------------------------------------------------------- |
+| `bot` (in content)                   | `true`                      | NIP standard flag indicating this is an automated/agent account      |
+| `display_name` (in content)          | Same as `name`              | Ensures compatibility with clients that use `display_name`           |
+| `["client", "Brainstorm"]` tag       | `"Brainstorm"`              | Identifies the publishing client                                     |
 | `["p", "<service_pubkey>", ...]` tag | Brainstorm's service pubkey | Links the assistant to Brainstorm as the service provider per NIP-85 |
 
 ---
@@ -105,12 +105,15 @@ These should be injected by the backend — they are NOT sent from the frontend:
 ## Signing & Publishing
 
 ### Option A: User's Delegated Key
+
 If the user has granted delegation (NIP-26), sign the kind 0 event with the delegated key and include the delegation tag.
 
 ### Option B: Service Key with User Attribution
+
 Sign with Brainstorm's service key and include a `["p", "<user_pubkey>"]` tag attributing the profile to the user.
 
 ### Relay Targets
+
 Publish to standard profile relays. Recommended set:
 
 ```
@@ -125,13 +128,14 @@ wss://relay.snort.social
 > `VITE_NIP85_RELAY_URL` environment variable (see `README.md` and
 > `Dockerfile`).
 
-The frontend confirmation dialog (UserPanelPage.tsx line 1335) tells users: *"This will publish a kind 0 profile event to 5 Nostr relays."*
+The frontend confirmation dialog (UserPanelPage.tsx line 1335) tells users: _"This will publish a kind 0 profile event to 5 Nostr relays."_
 
 ---
 
 ## Response
 
 ### Success
+
 ```json
 {
   "code": 200,
@@ -145,6 +149,7 @@ The frontend confirmation dialog (UserPanelPage.tsx line 1335) tells users: *"Th
 ```
 
 ### Error
+
 ```json
 {
   "code": 400,
@@ -158,21 +163,25 @@ The frontend confirmation dialog (UserPanelPage.tsx line 1335) tells users: *"Th
 ## Frontend Behavior (Already Implemented)
 
 ### On Success (HTTP 2xx)
+
 - Agent state transitions to `"active"` with `publishedAt` timestamp
 - Toast: "Assistant deployed! {name} is now live on the Nostr network."
 - Agent Suite panel shows green "Active" status badge
 
 ### On 404/405 (Endpoint Not Yet Available)
+
 - Frontend gracefully falls back to **local-only activation**
 - Agent state still transitions to `"active"` (stored in localStorage)
 - Toast: "Assistant activated! {name} is now active. Network publishing coming soon."
 - No error shown to user
 
 ### On Other Errors
+
 - Agent state reverts to `"dormant"`
 - Toast with destructive variant showing error message
 
 ### Update Flow
+
 - Same endpoint, same payload — called again when user edits and clicks "Update"
 - The backend should overwrite the previous kind 0 event (standard Nostr behavior — latest kind 0 wins)
 
@@ -197,10 +206,12 @@ All fields persist in `localStorage` under key `brainstorm_agent_state` between 
 ## Validation Rules
 
 ### Frontend (already implemented)
+
 - `name` must be non-empty (checked before publish is allowed)
 - All URL fields accept any string (no strict URL validation)
 
 ### Backend (recommended)
+
 - Reject if `name` is empty or whitespace-only
 - Validate `picture`, `banner`, `website` as valid URLs if provided
 - Validate `lud16` format (should contain `@`)
@@ -212,13 +223,13 @@ All fields persist in `localStorage` under key `brainstorm_agent_state` between 
 
 ## File References
 
-| File | Lines | What |
-|------|-------|------|
-| `client/src/pages/UserPanelPage.tsx` | 106–117 | `AgentState` interface |
-| `client/src/pages/UserPanelPage.tsx` | 138–152 | Default state & localStorage persistence |
-| `client/src/pages/UserPanelPage.tsx` | 194–200 | Input state variables |
-| `client/src/pages/UserPanelPage.tsx` | 370–378 | `getProfilePayload()` — builds the POST body |
-| `client/src/pages/UserPanelPage.tsx` | 390–421 | Publish & update mutation handlers |
-| `client/src/pages/UserPanelPage.tsx` | 423–439 | Activation flow with validation |
-| `client/src/services/api.ts` | 246–265 | `publishBrainstormAssistantProfile()` — API call |
-| `client/src/components/ActivateBrainstormModal.tsx` | 11–64 | NIP-85 activation modal (Trust Attestation) |
+| File                                                | Lines   | What                                             |
+| --------------------------------------------------- | ------- | ------------------------------------------------ |
+| `client/src/pages/UserPanelPage.tsx`                | 106–117 | `AgentState` interface                           |
+| `client/src/pages/UserPanelPage.tsx`                | 138–152 | Default state & localStorage persistence         |
+| `client/src/pages/UserPanelPage.tsx`                | 194–200 | Input state variables                            |
+| `client/src/pages/UserPanelPage.tsx`                | 370–378 | `getProfilePayload()` — builds the POST body     |
+| `client/src/pages/UserPanelPage.tsx`                | 390–421 | Publish & update mutation handlers               |
+| `client/src/pages/UserPanelPage.tsx`                | 423–439 | Activation flow with validation                  |
+| `client/src/services/api.ts`                        | 246–265 | `publishBrainstormAssistantProfile()` — API call |
+| `client/src/components/ActivateBrainstormModal.tsx` | 11–64   | NIP-85 activation modal (Trust Attestation)      |

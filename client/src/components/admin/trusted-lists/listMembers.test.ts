@@ -24,7 +24,10 @@ const event = (over: Record<string, unknown> = {}) => ({
   pubkey: SIGNER,
   created_at: 1,
   sig: "",
-  tags: [["d", D_TAG], ["p", MEMBER, "", "87"]],
+  tags: [
+    ["d", D_TAG],
+    ["p", MEMBER, "", "87"],
+  ],
   content: JSON.stringify({ members: [{ pubkey: MEMBER, endorsements: 3, disputes: 0, score: 87 }] }),
   ...over,
 });
@@ -37,12 +40,19 @@ describe("loadTrustedList", () => {
   });
 
   it("reads the newest copy from the relay /setup names for lists, with its members and a link", async () => {
-    getSetupRows.mockResolvedValue([["30382:rank", SIGNER, TA_RELAY], ["30392", SIGNER, TL_RELAY]]);
+    getSetupRows.mockResolvedValue([
+      ["30382:rank", SIGNER, TA_RELAY],
+      ["30392", SIGNER, TL_RELAY],
+    ]);
     requestNewest.mockResolvedValue(event());
 
     const list = await loadTrustedList(want);
 
-    expect(requestNewest).toHaveBeenCalledWith([TL_RELAY], { kinds: [30392], authors: [SIGNER], "#d": [D_TAG] }, expect.any(Number));
+    expect(requestNewest).toHaveBeenCalledWith(
+      [TL_RELAY],
+      { kinds: [30392], authors: [SIGNER], "#d": [D_TAG] },
+      expect.any(Number),
+    );
     expect(list?.members).toEqual([{ pubkey: MEMBER, score: 87, endorsements: 3, disputes: 0 }]);
     expect(list?.retracted).toBe(false);
     const decoded = nip19.decode(list!.naddr);
@@ -71,7 +81,15 @@ describe("loadTrustedList", () => {
 
   it("reads a retracted list as having no members", async () => {
     getSetupRows.mockResolvedValue([["30392", SIGNER, TL_RELAY]]);
-    requestNewest.mockResolvedValue(event({ tags: [["d", D_TAG], ["status", "retracted"]], content: "" }));
+    requestNewest.mockResolvedValue(
+      event({
+        tags: [
+          ["d", D_TAG],
+          ["status", "retracted"],
+        ],
+        content: "",
+      }),
+    );
 
     const list = await loadTrustedList(want);
 

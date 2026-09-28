@@ -36,7 +36,7 @@ function renderWith(manager: AccountManager<AccountMetadata>) {
   // The hook reads the ProfileModel now, so it needs the store the app mounts.
   return render(
     <EventStoreProvider eventStore={eventStore}>
-      <AccountsProvider manager={manager as any}>
+      <AccountsProvider manager={manager}>
         <AccountDisplay />
       </AccountsProvider>
     </EventStoreProvider>,
@@ -47,8 +47,8 @@ describe("useActiveAccountDisplay", () => {
   it("has the identity on the very first render", () => {
     const manager = new AccountManager<AccountMetadata>();
     const a = account({ name: "Lira Flint" });
-    manager.addAccount(a as any);
-    manager.setActive(a as any);
+    manager.addAccount(a);
+    manager.setActive(a);
 
     renderWith(manager);
 
@@ -58,8 +58,8 @@ describe("useActiveAccountDisplay", () => {
   it("shows the name and admin badge once they arrive after login", () => {
     const manager = new AccountManager<AccountMetadata>();
     const a = account();
-    manager.addAccount(a as any);
-    manager.setActive(a as any);
+    manager.addAccount(a);
+    manager.setActive(a);
     renderWith(manager);
     expect(screen.getByText("Anon")).toBeInTheDocument();
 
@@ -74,11 +74,11 @@ describe("useActiveAccountDisplay", () => {
   it("clears when the account signs out", () => {
     const manager = new AccountManager<AccountMetadata>();
     const a = account({ name: "Lira Flint" });
-    manager.addAccount(a as any);
-    manager.setActive(a as any);
+    manager.addAccount(a);
+    manager.setActive(a);
     renderWith(manager);
 
-    act(() => manager.removeAccount(a as any));
+    act(() => manager.removeAccount(a));
 
     expect(screen.getByText("signed out")).toBeInTheDocument();
   });
@@ -103,8 +103,12 @@ describe("a newer kind-0 arriving after the first paint", () => {
    * store checks signatures is the store's business and its own concern.
    */
   const realVerify = eventStore.verifyEvent;
-  beforeAll(() => { eventStore.verifyEvent = undefined; });
-  afterAll(() => { eventStore.verifyEvent = realVerify; });
+  beforeAll(() => {
+    eventStore.verifyEvent = undefined;
+  });
+  afterAll(() => {
+    eventStore.verifyEvent = realVerify;
+  });
 
   function withKey() {
     const key = generateSecretKey();

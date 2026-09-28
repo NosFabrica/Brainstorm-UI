@@ -11,11 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type {
-  CreateSchedulingBody,
-  SchedulingItem,
-  UpdateSchedulingBody,
-} from "@/services/api";
+import type { CreateSchedulingBody, SchedulingItem, UpdateSchedulingBody } from "@/services/api";
 
 const UNIT_OPTIONS: Array<{ label: string; seconds: number }> = [
   { label: "Seconds", seconds: 1 },
@@ -59,14 +55,7 @@ export interface PolicyFormDialogProps {
   onSubmit: (body: CreateSchedulingBody | UpdateSchedulingBody) => void | Promise<void>;
 }
 
-export function PolicyFormDialog({
-  open,
-  mode,
-  initial,
-  submitting,
-  onOpenChange,
-  onSubmit,
-}: PolicyFormDialogProps) {
+export function PolicyFormDialog({ open, mode, initial, submitting, onOpenChange, onSubmit }: PolicyFormDialogProps) {
   const DEFAULTS = {
     name: "",
     schedule_interval_seconds: 604800,
@@ -146,14 +135,10 @@ export function PolicyFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {mode === "create" ? "New scheduling policy" : "Edit scheduling policy"}
-          </DialogTitle>
-          <DialogDescription>
-            Set the recalculation cadence and manual-recalc quota for this tier.
-          </DialogDescription>
+          <DialogTitle>{mode === "create" ? "New scheduling policy" : "Edit scheduling policy"}</DialogTitle>
+          <DialogDescription>Set the recalculation cadence and manual-recalc quota for this tier.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -164,18 +149,13 @@ export function PolicyFormDialog({
 
           <div>
             <Label htmlFor="policy-priority">Priority</Label>
-            <Input
-              id="policy-priority"
-              type="number"
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-            />
+            <Input id="policy-priority" type="number" value={priority} onChange={(e) => setPriority(e.target.value)} />
             {errors.priority && <p className="text-xs text-red-500">{errors.priority}</p>}
           </div>
 
           <div>
             <Label htmlFor="policy-interval">Recalculation interval</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_9rem] gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_9rem]">
               <Input
                 id="policy-interval"
                 type="number"
@@ -190,7 +170,9 @@ export function PolicyFormDialog({
                 onChange={(e) => setIntervalUnit(e.target.value)}
               >
                 {UNIT_OPTIONS.map((u) => (
-                  <option key={u.seconds} value={u.seconds}>{u.label}</option>
+                  <option key={u.seconds} value={u.seconds}>
+                    {u.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -199,7 +181,7 @@ export function PolicyFormDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="policy-quota-limit">Manual quota limit</Label>
               <Input
@@ -226,7 +208,9 @@ export function PolicyFormDialog({
                   onChange={(e) => setWindowUnit(e.target.value)}
                 >
                   {UNIT_OPTIONS.map((u) => (
-                    <option key={u.seconds} value={u.seconds}>{u.label}</option>
+                    <option key={u.seconds} value={u.seconds}>
+                      {u.label}
+                    </option>
                   ))}
                 </select>
               </div>

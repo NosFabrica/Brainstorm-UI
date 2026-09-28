@@ -60,7 +60,9 @@ describe("welcoming a new joiner back", () => {
     followPubkeys.mockResolvedValue({ success: false, needsBaseConfirmation: true });
     const result = await loaded();
 
-    await act(async () => { await result.current.welcomeBack([JOINER]); });
+    await act(async () => {
+      await result.current.welcomeBack([JOINER]);
+    });
 
     expect(acknowledgeJoiners).not.toHaveBeenCalled();
     expect(result.current.joiners).toHaveLength(1);
@@ -71,7 +73,9 @@ describe("welcoming a new joiner back", () => {
     const result = await loaded();
 
     let outcome: boolean | undefined;
-    await act(async () => { outcome = await result.current.welcomeBack([JOINER]); });
+    await act(async () => {
+      outcome = await result.current.welcomeBack([JOINER]);
+    });
 
     expect(outcome).toBe(false);
   });
@@ -80,7 +84,9 @@ describe("welcoming a new joiner back", () => {
     followPubkeys.mockResolvedValue({ success: false, error: "Couldn't save your follows" });
     const result = await loaded();
 
-    await act(async () => { await result.current.welcomeBack([JOINER]); });
+    await act(async () => {
+      await result.current.welcomeBack([JOINER]);
+    });
 
     expect(triggerScoringAndAnchor).not.toHaveBeenCalled();
   });
@@ -88,7 +94,9 @@ describe("welcoming a new joiner back", () => {
   it("acknowledges them, and rescores, once the follow really went out", async () => {
     const result = await loaded();
 
-    await act(async () => { await result.current.welcomeBack([JOINER]); });
+    await act(async () => {
+      await result.current.welcomeBack([JOINER]);
+    });
 
     expect(acknowledgeJoiners).toHaveBeenCalledWith(ME, [JOINER]);
     expect(result.current.joiners).toHaveLength(0);

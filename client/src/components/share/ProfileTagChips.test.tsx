@@ -10,10 +10,23 @@ import { ProfileTagChips } from "./ProfileTagChips";
 
 let tags: unknown[] = [];
 vi.mock("@/hooks/useTags", () => ({ useProfileTags: () => ({ data: { tags } }) }));
-vi.mock("@/components/share/TagPersonButton", () => ({ TagPersonButton: () => <button data-testid="share-add-tag">Add a tag</button> }));
+vi.mock("@/components/share/TagPersonButton", () => ({
+  TagPersonButton: () => <button data-testid="share-add-tag">Add a tag</button>,
+}));
 
 const PK = "a".repeat(64);
-const tag = (name: string) => ({ key: name, name, slug: name.toLowerCase(), authorPubkey: "b".repeat(64), counted: true, selfDeclared: false, subjectDisagreed: false, myStance: null, applications: 3, description: "" });
+const tag = (name: string) => ({
+  key: name,
+  name,
+  slug: name.toLowerCase(),
+  authorPubkey: "b".repeat(64),
+  counted: true,
+  selfDeclared: false,
+  subjectDisagreed: false,
+  myStance: null,
+  applications: 3,
+  description: "",
+});
 
 describe("ProfileTagChips", () => {
   it("with no tags there is no row — not even for someone who could add one", () => {

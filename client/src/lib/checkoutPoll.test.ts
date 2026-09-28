@@ -94,9 +94,7 @@ describe("checkoutPoll — the wait between paying and being served", () => {
   it("keeps polling when a refresh throws — a blip is not an answer", async () => {
     const { startCheckoutPoll } = await freshModule();
     const { qc, setQueryData } = fakeClient();
-    refreshSubscription
-      .mockRejectedValueOnce(new Error("network"))
-      .mockResolvedValue(paid);
+    refreshSubscription.mockRejectedValueOnce(new Error("network")).mockResolvedValue(paid);
 
     startCheckoutPoll(qc);
     await vi.advanceTimersByTimeAsync(0);

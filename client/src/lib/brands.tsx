@@ -52,9 +52,7 @@ export function DivineWordmark({ className = "" }: { className?: string }) {
   );
 }
 
-export const BRANDS: readonly Brand[] = [
-  { name: "Divine", matches: hostIs("divine.video"), Wordmark: DivineWordmark },
-];
+export const BRANDS: readonly Brand[] = [{ name: "Divine", matches: hostIs("divine.video"), Wordmark: DivineWordmark }];
 
 export function brandForHost(host: string | null | undefined): Brand | null {
   if (!host) return null;

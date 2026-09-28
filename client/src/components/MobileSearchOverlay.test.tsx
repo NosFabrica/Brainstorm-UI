@@ -17,7 +17,15 @@ vi.mock("@/services/search", async (importOriginal) => ({
   suggestProfiles: (...args: unknown[]) => suggestMock(...args),
   suggestProfileHits: async (...args: unknown[]) =>
     ((await suggestMock(...args)) as { pubkey: string }[]).map((author) => ({
-      event: { id: `k0-${author.pubkey}`, kind: 0, pubkey: author.pubkey, tags: [], content: "{}", created_at: 1, sig: "s" },
+      event: {
+        id: `k0-${author.pubkey}`,
+        kind: 0,
+        pubkey: author.pubkey,
+        tags: [],
+        content: "{}",
+        created_at: 1,
+        sig: "s",
+      },
       author,
       rank: null,
     })),
@@ -78,9 +86,13 @@ describe("typing in the mobile search sheet", () => {
     renderOpen();
     for (const prefix of ["v", "vi", "vit", "vito", "vitor"]) {
       type(prefix);
-      act(() => { vi.advanceTimersByTime(200); });
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
     }
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(suggestMock).toHaveBeenCalledTimes(1);
     expect(suggestMock.mock.calls[0][0]).toBe("vitor");
   });
@@ -88,7 +100,9 @@ describe("typing in the mobile search sheet", () => {
   it("cancels a request that's under way when the next key lands", () => {
     renderOpen();
     type("vito");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(signalOf(0)?.aborted).toBe(false);
     type("vitor");
     expect(signalOf(0)?.aborted).toBe(true);
@@ -97,7 +111,9 @@ describe("typing in the mobile search sheet", () => {
   it("cancels it when the sheet closes", () => {
     renderOpen();
     type("vitor");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     fireEvent.click(screen.getByTestId("mobile-search-close"));
     expect(signalOf(0)?.aborted).toBe(true);
   });
@@ -105,21 +121,39 @@ describe("typing in the mobile search sheet", () => {
   it("cancels it when the sheet goes away", () => {
     const { unmount } = renderOpen();
     type("vitor");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     unmount();
     expect(signalOf(0)?.aborted).toBe(true);
   });
 
   it("a product title under the people opens the listing itself", async () => {
     suggestMock.mockResolvedValue([]);
-    listingsMock.mockResolvedValue([{
-      event: { id: "t".repeat(64), kind: 30402, pubkey: "e".repeat(64), tags: [["d", "smiley"], ["title", "Satoshi Smiley T-shirt"], ["price", "21", "USD"]], content: "", created_at: 1, sig: "s" },
-      author: null,
-      rank: null,
-    }]);
+    listingsMock.mockResolvedValue([
+      {
+        event: {
+          id: "t".repeat(64),
+          kind: 30402,
+          pubkey: "e".repeat(64),
+          tags: [
+            ["d", "smiley"],
+            ["title", "Satoshi Smiley T-shirt"],
+            ["price", "21", "USD"],
+          ],
+          content: "",
+          created_at: 1,
+          sig: "s",
+        },
+        author: null,
+        rank: null,
+      },
+    ]);
     renderOpen();
     type("satoshi");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     await act(async () => {});
     const row = screen.getByTestId("home-product-suggestion-0");
     expect(row).toHaveTextContent("Satoshi Smiley T-shirt");
@@ -132,16 +166,21 @@ describe("typing in the mobile search sheet", () => {
   it("goes to the results right away on Enter, and closes", () => {
     renderOpen();
     type("vitor");
-    fireEvent(input(), new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }));
+    fireEvent(
+      input(),
+      new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }),
+    );
     expect(window.location.search).toBe("?q=vitor");
     expect(sheetOpen()).toBe(false);
   });
 
-  it("keeps \"See all\" up while there are words, even with no one suggested", async () => {
+  it('keeps "See all" up while there are words, even with no one suggested', async () => {
     suggestMock.mockResolvedValue([]);
     renderOpen();
     type("zzzz");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     await act(async () => {});
     fireEvent.mouseDown(screen.getByTestId("home-suggestion-see-all"));
     expect(window.location.search).toBe("?q=zzzz");
@@ -184,9 +223,14 @@ describe("closing the sheet", () => {
   it("opens empty again after a search, never on the last query", () => {
     renderOpen();
     type("vitor");
-    fireEvent(input(), new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }));
+    fireEvent(
+      input(),
+      new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }),
+    );
     expect(sheetOpen()).toBe(false);
-    act(() => { openMobileSearch(); });
+    act(() => {
+      openMobileSearch();
+    });
     expect(input().value).toBe("");
     expect(screen.queryByTestId("container-home-suggestions")).toBeNull();
   });
@@ -197,13 +241,17 @@ describe("what a result publishes", () => {
   const STACI_NPUB = nip19.npubEncode(STACI);
   const shop = { key: "shop", label: "Shop", tab: "shop", liveNow: false };
   beforeEach(() => {
-    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])));
+    contentMock.mockImplementation(
+      (pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])),
+    );
     suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci" }]);
   });
   const typeStaci = async () => {
     renderOpen();
     type("staci");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     await act(async () => {});
   };
 
@@ -218,10 +266,12 @@ describe("what a result publishes", () => {
     expect(chip.closest("button")).toBeNull();
   });
 
-  it("\"staci shop\" looks Staci up and offers her shop first", async () => {
+  it('"staci shop" looks Staci up and offers her shop first', async () => {
     renderOpen();
     type("staci shop");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     await act(async () => {});
     expect(suggestMock.mock.calls.at(-1)?.[0]).toBe("staci");
     const row = screen.getByTestId("home-intent-row");
@@ -251,7 +301,13 @@ describe("a scoped search in the sheet's recents", () => {
   const VINNEY_NPUB = nip19.npubEncode(VINNEY);
 
   it("reads as the person and the tab, and re-runs the scoped search", () => {
-    pushRecentScoped({ pubkey: VINNEY, npub: VINNEY_NPUB, label: "vinney…axkl", picture: "https://img/vinney.jpg", tab: "media" });
+    pushRecentScoped({
+      pubkey: VINNEY,
+      npub: VINNEY_NPUB,
+      label: "vinney…axkl",
+      picture: "https://img/vinney.jpg",
+      tab: "media",
+    });
     renderOpen();
     const row = screen.getByTestId("home-recent-scoped-0");
     expect(row).toHaveTextContent("vinney…axkl");

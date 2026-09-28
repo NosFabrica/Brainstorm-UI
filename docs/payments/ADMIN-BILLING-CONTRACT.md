@@ -42,14 +42,14 @@ Authorization: (admin session, same as /admin/scheduling)
   "data": {
     "subscriptions": [
       {
-        "subscription_id": "7d3b…",          // Flash `id`
-        "ref": "abc123…64-hex…" ,            // Flash `ref` — hex pubkey, or null
-        "plan_id": "019ef08a-…",             // Flash `planId`
-        "plan_name": "Priority",             // resolved server-side if cheap, else null
-        "status": "active",                  // Flash's status, passed through verbatim
-        "current_period_end": "2026-09-25T…",// Flash `currentPeriodEnd`
+        "subscription_id": "7d3b…", // Flash `id`
+        "ref": "abc123…64-hex…", // Flash `ref` — hex pubkey, or null
+        "plan_id": "019ef08a-…", // Flash `planId`
+        "plan_name": "Priority", // resolved server-side if cheap, else null
+        "status": "active", // Flash's status, passed through verbatim
+        "current_period_end": "2026-09-25T…", // Flash `currentPeriodEnd`
         "next_billing_date": "2026-09-25T…", // Flash `nextBillingDate`
-        "created_at": "2026-08-25T…"         // Flash `createdAt`
+        "created_at": "2026-08-25T…" // Flash `createdAt`
       }
     ]
   }

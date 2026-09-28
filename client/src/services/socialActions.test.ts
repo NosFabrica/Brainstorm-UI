@@ -50,8 +50,7 @@ vi.mock("@/lib/relayRouting", () => ({
   outboxRelays: async () => [...relayList],
   outboxRelaysFromDb: () => [...relayList],
   relayHintFor: () => undefined,
-  tagWithHint: (name: string, value: string, hint?: string) =>
-    hint ? [name, value, hint] : [name, value],
+  tagWithHint: (name: string, value: string, hint?: string) => (hint ? [name, value, hint] : [name, value]),
 }));
 
 vi.mock("@/accounts/display", () => ({
@@ -60,23 +59,24 @@ vi.mock("@/accounts/display", () => ({
 
 // The relay reads go through `lib/relayRequest` now, which reaches the pool
 // directly rather than through `services/nostr`.
-const poolRequest = vi.fn((relays: string[], filter: { kinds: number[] }) =>
-  new Observable((subscriber) => {
-    const timer = setTimeout(() => {
-      if (relays.some((r) => deadRelays.has(r))) {
-        subscriber.error(new Error("connection refused"));
-        return;
-      }
-      const kind = filter.kinds[0];
-      const events = [
-        ...(relayHas.get(kind) ?? []),
-        ...relays.flatMap((r) => relayOnlyHas.get(`${r}|${kind}`) ?? []),
-      ];
-      for (const event of events) subscriber.next(event);
-      subscriber.complete();
-    }, 0);
-    return () => clearTimeout(timer);
-  }),
+const poolRequest = vi.fn(
+  (relays: string[], filter: { kinds: number[] }) =>
+    new Observable((subscriber) => {
+      const timer = setTimeout(() => {
+        if (relays.some((r) => deadRelays.has(r))) {
+          subscriber.error(new Error("connection refused"));
+          return;
+        }
+        const kind = filter.kinds[0];
+        const events = [
+          ...(relayHas.get(kind) ?? []),
+          ...relays.flatMap((r) => relayOnlyHas.get(`${r}|${kind}`) ?? []),
+        ];
+        for (const event of events) subscriber.next(event);
+        subscriber.complete();
+      }, 0);
+      return () => clearTimeout(timer);
+    }),
 );
 /**
  * `pool.req` is the message stream: OPEN, then the events, then EOSE — or ERROR
@@ -84,24 +84,25 @@ const poolRequest = vi.fn((relays: string[], filter: { kinds: number[] }) =>
  * difference between "answered with nothing" and "never answered" exists, and
  * `requestNewestWithReach` reads it (#72).
  */
-const poolReq = vi.fn((relays: string[], filter: { kinds: number[] }) =>
-  new Observable((subscriber) => {
-    const timer = setTimeout(() => {
-      const kind = filter.kinds[0];
-      for (const relay of relays) {
-        subscriber.next({ type: "OPEN", from: relay });
-        if (deadRelays.has(relay)) {
-          subscriber.next({ type: "ERROR", from: relay, error: new Error("connection refused") });
-          continue;
+const poolReq = vi.fn(
+  (relays: string[], filter: { kinds: number[] }) =>
+    new Observable((subscriber) => {
+      const timer = setTimeout(() => {
+        const kind = filter.kinds[0];
+        for (const relay of relays) {
+          subscriber.next({ type: "OPEN", from: relay });
+          if (deadRelays.has(relay)) {
+            subscriber.next({ type: "ERROR", from: relay, error: new Error("connection refused") });
+            continue;
+          }
+          const events = [...(relayHas.get(kind) ?? []), ...(relayOnlyHas.get(`${relay}|${kind}`) ?? [])];
+          for (const event of events) subscriber.next({ type: "EVENT", from: relay, id: "sub", event });
+          subscriber.next({ type: "EOSE", from: relay });
         }
-        const events = [...(relayHas.get(kind) ?? []), ...(relayOnlyHas.get(`${relay}|${kind}`) ?? [])];
-        for (const event of events) subscriber.next({ type: "EVENT", from: relay, id: "sub", event });
-        subscriber.next({ type: "EOSE", from: relay });
-      }
-      subscriber.complete();
-    }, 0);
-    return () => clearTimeout(timer);
-  }),
+        subscriber.complete();
+      }, 0);
+      return () => clearTimeout(timer);
+    }),
 );
 vi.mock("@/lib/relayPool", () => ({
   pool: {
@@ -154,7 +155,10 @@ function listEvent(kind: number, pubkeys: string[], created_at = 100) {
 
 /** The tags of the event that was actually signed. */
 const signedTags = () => (signAs.mock.calls.at(-1)?.[1] as { tags: string[][] })?.tags ?? [];
-const signedPubkeys = () => signedTags().filter((t) => t[0] === "p").map((t) => t[1]);
+const signedPubkeys = () =>
+  signedTags()
+    .filter((t) => t[0] === "p")
+    .map((t) => t[1]);
 
 let social: typeof import("./socialActions");
 
@@ -216,9 +220,7 @@ describe("following", () => {
 
     await social.followUser(THEM, base as never);
 
-    expect((signAs.mock.calls.at(-1)?.[1] as { content: string }).content).toBe(
-      '{"wss://relay":{"read":true}}',
-    );
+    expect((signAs.mock.calls.at(-1)?.[1] as { content: string }).content).toBe('{"wss://relay":{"read":true}}');
   });
 });
 
@@ -449,10 +451,7 @@ describe("recovering a follow list from a named relay", () => {
   const PK = getPublicKey(sk);
 
   const signList = (kind: number, pubkeys: string[], key = sk, created_at = 100) =>
-    finalizeEvent(
-      { kind, created_at, tags: pubkeys.map((pk) => ["p", pk]), content: "" },
-      key,
-    );
+    finalizeEvent({ kind, created_at, tags: pubkeys.map((pk) => ["p", pk]), content: "" }, key);
 
   /** The fire-and-forget backend ingest needs a tick to land before asserting. */
   const settle = () => new Promise((r) => setTimeout(r, 0));
@@ -592,14 +591,23 @@ describe("muting", () => {
   it("leaves muted words and threads alone", async () => {
     const withExtras = {
       ...listEvent(10000, [OTHER]),
-      tags: [["p", OTHER], ["word", "spam"], ["t", "nsfw"], ["e", "f".repeat(64)]],
+      tags: [
+        ["p", OTHER],
+        ["word", "spam"],
+        ["t", "nsfw"],
+        ["e", "f".repeat(64)],
+      ],
     };
     relayHas.set(10000, [withExtras]);
 
     await social.muteUser(THEM);
 
     expect(signedTags()).toEqual(
-      expect.arrayContaining([["word", "spam"], ["t", "nsfw"], ["e", "f".repeat(64)]]),
+      expect.arrayContaining([
+        ["word", "spam"],
+        ["t", "nsfw"],
+        ["e", "f".repeat(64)],
+      ]),
     );
   });
 });

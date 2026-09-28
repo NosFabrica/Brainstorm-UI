@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { SignerMismatchError } from "applesauce-accounts";
 
@@ -54,10 +54,7 @@ describe("LocalAccount operations", () => {
   it("unlocks lazily on the first operation and caches the key", async () => {
     const { pubkey, unlockCache, ncryptsec } = await keyFixture();
     const requestPassword = fakePrompt();
-    const account = new LocalAccount(
-      pubkey,
-      new LocalSigner(pubkey, { ncryptsec }, { unlockCache, requestPassword }),
-    );
+    const account = new LocalAccount(pubkey, new LocalSigner(pubkey, { ncryptsec }, { unlockCache, requestPassword }));
 
     const event = await account.signEvent({ kind: 1, content: "hi", tags: [], created_at: 0 });
 
@@ -70,10 +67,7 @@ describe("LocalAccount operations", () => {
   it("asks for the password once when two signs race", async () => {
     const { pubkey, unlockCache, ncryptsec } = await keyFixture();
     const requestPassword = fakePrompt();
-    const account = new LocalAccount(
-      pubkey,
-      new LocalSigner(pubkey, { ncryptsec }, { unlockCache, requestPassword }),
-    );
+    const account = new LocalAccount(pubkey, new LocalSigner(pubkey, { ncryptsec }, { unlockCache, requestPassword }));
 
     await Promise.all([
       account.signEvent({ kind: 1, content: "one", tags: [], created_at: 0 }),
@@ -87,24 +81,21 @@ describe("LocalAccount operations", () => {
     const { pubkey, unlockCache } = await keyFixture();
     const account = new LocalAccount(pubkey, new LocalSigner(pubkey, {}, { unlockCache }));
 
-    await expect(
-      account.signEvent({ kind: 1, content: "hi", tags: [], created_at: 0 }),
-    ).rejects.toBeInstanceOf(NoUnlockPathError);
+    await expect(account.signEvent({ kind: 1, content: "hi", tags: [], created_at: 0 })).rejects.toBeInstanceOf(
+      NoUnlockPathError,
+    );
   });
 
   it("rejects a Signer holding a different identity", async () => {
     const { unlockCache, envelope, pubkey } = await keyFixture();
     // the Signer unlocks a key for `pubkey` while the Account claims to be someone else
     const stranger = getPublicKey(generateSecretKey());
-    const account = new LocalAccount(
-      stranger,
-      new LocalSigner(pubkey, { envelope }, { unlockCache }),
-    );
+    const account = new LocalAccount(stranger, new LocalSigner(pubkey, { envelope }, { unlockCache }));
 
     await expect(account.getPublicKey()).rejects.toBeInstanceOf(SignerMismatchError);
-    await expect(
-      account.signEvent({ kind: 1, content: "hi", tags: [], created_at: 0 }),
-    ).rejects.toBeInstanceOf(SignerMismatchError);
+    await expect(account.signEvent({ kind: 1, content: "hi", tags: [], created_at: 0 })).rejects.toBeInstanceOf(
+      SignerMismatchError,
+    );
   });
 
   it("encrypts and decrypts through the Account, unlocking on the way", async () => {
@@ -157,9 +148,7 @@ describe("LocalAccount.fromKey", () => {
     const unlockCache = createFakeUnlockCache();
     unlockCache.supported = false; // private browsing: no cache, so a password is the only form
 
-    await expect(
-      LocalAccount.fromKey(generateSecretKey(), { unlockCache }),
-    ).rejects.toBeInstanceOf(NoUnlockPathError);
+    await expect(LocalAccount.fromKey(generateSecretKey(), { unlockCache })).rejects.toBeInstanceOf(NoUnlockPathError);
 
     const account = await LocalAccount.fromKey(generateSecretKey(), {
       unlockCache,

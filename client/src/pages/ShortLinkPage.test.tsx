@@ -77,9 +77,7 @@ describe("resolving a short link", () => {
 
     renderWithProviders(<ShortLinkPage />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("app-not-found")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByTestId("app-not-found")).toBeInTheDocument());
     expect(navigate).not.toHaveBeenCalled();
   });
 
@@ -88,9 +86,7 @@ describe("resolving a short link", () => {
 
     renderWithProviders(<ShortLinkPage />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("app-not-found")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByTestId("app-not-found")).toBeInTheDocument());
   });
 
   it("does not flash a spinner on a fast response", async () => {

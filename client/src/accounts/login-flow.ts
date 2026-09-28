@@ -32,23 +32,14 @@ import {
 } from "@/accounts/login";
 import { updateMetadata, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
 import { activePubkey, identityHas, rememberProfile } from "@/accounts/display";
-import {
-  openPastedKey,
-  UNUSABLE_BACKUP_MESSAGE,
-  type RestoreFailure,
-} from "@/accounts/restore";
+import { openPastedKey, UNUSABLE_BACKUP_MESSAGE, type RestoreFailure } from "@/accounts/restore";
 import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
 import { clearAccountStorage, clearSessionScopedStorage } from "@/lib/accountStorage";
 
 export type LoginErrorCode =
-  | "NO_EXTENSION"
-  | "EXTENSION_FAILED"
-  | "PERMISSION_DENIED"
-  | "SIGN_CANCELLED"
-  | "INVALID_NSEC"
-  | "SERVER_ERROR";
+  "NO_EXTENSION" | "EXTENSION_FAILED" | "PERMISSION_DENIED" | "SIGN_CANCELLED" | "INVALID_NSEC" | "SERVER_ERROR";
 
 export class LoginError extends Error {
   code: LoginErrorCode;
@@ -69,8 +60,7 @@ export interface NostrUser {
 
 /** Did the signer's own UI turn us down, rather than something breaking? */
 /** An extension that never answered — its prompt never opened, or was dropped. Not a refusal. */
-const EXTENSION_SILENT =
-  "Your extension didn't answer. Open it, approve the request, and try again — or use your key.";
+const EXTENSION_SILENT = "Your extension didn't answer. Open it, approve the request, and try again — or use your key.";
 
 function refusedBySigner(err: unknown): boolean {
   const message = (err instanceof Error ? err.message : "").toLowerCase();
@@ -117,8 +107,10 @@ async function completeLogin(account: BrainstormAccount, token: string): Promise
       await loadRelayList(pubkey).catch(() => null);
       const { fetchContactList } = await import("@/services/socialActions");
       const ev = await fetchContactList(pubkey);
-      if (ev) recordFollowList(pubkey, ev as any);
-    } catch { /* the dashboard's relay verification is the fallback */ }
+      if (ev) recordFollowList(pubkey, ev);
+    } catch {
+      /* the dashboard's relay verification is the fallback */
+    }
   })();
 
   // Start fetching the user's profile metadata (kind 0) immediately at login
@@ -126,7 +118,9 @@ async function completeLogin(account: BrainstormAccount, token: string): Promise
   // delay from the time-to-avatar. Fire-and-forget so login is never blocked on
   // relay latency; caching it on the Account is what the header renders from.
   void fetchProfile(pubkey)
-    .then((content) => { if (content) cacheProfile(content, pubkey); })
+    .then((content) => {
+      if (content) cacheProfile(content, pubkey);
+    })
     .catch(() => {});
 
   return { pubkey, npub, isAdmin: extractAdminFlag(token) };
@@ -145,18 +139,18 @@ export async function handleLogin(): Promise<NostrUser> {
     if (err instanceof ExtensionMissingError) {
       throw new LoginError(
         "NO_EXTENSION",
-        "No sign-in extension detected. You can use your key instead, or add a browser sign-in extension."
+        "No sign-in extension detected. You can use your key instead, or add a browser sign-in extension.",
       );
     }
     if (refusedBySigner(err)) {
       throw new LoginError(
         "PERMISSION_DENIED",
-        "Your extension denied the request. Unlock it and approve access, or use your key."
+        "Your extension denied the request. Unlock it and approve access, or use your key.",
       );
     }
     throw new LoginError(
       "EXTENSION_FAILED",
-      `Your sign-in extension didn't respond${msg ? `: ${msg}` : ""}. Unlock it and try again, or use your key.`
+      `Your sign-in extension didn't respond${msg ? `: ${msg}` : ""}. Unlock it and try again, or use your key.`,
     );
   }
 
@@ -172,12 +166,12 @@ export async function handleLogin(): Promise<NostrUser> {
     if (refusedBySigner(err)) {
       throw new LoginError(
         "SIGN_CANCELLED",
-        "Signing was cancelled. Approve the request in your extension, or use your key."
+        "Signing was cancelled. Approve the request in your extension, or use your key.",
       );
     }
     throw new LoginError(
       "EXTENSION_FAILED",
-      `Your extension couldn't sign you in${msg ? `: ${msg}` : ""}. Try again, or use your key.`
+      `Your extension couldn't sign you in${msg ? `: ${msg}` : ""}. Try again, or use your key.`,
     );
   }
 }
@@ -303,7 +297,6 @@ export async function loginWithPastedKey(
   });
 }
 
-
 /**
  * Sign out the Active Account. The Session ends and nothing signs, but the
  * Account keeps its place in the picker with its key at rest — signing back in is
@@ -323,7 +316,11 @@ export function logout() {
   clearHydratedStore();
   // Not per-Account: this one says "somebody has scored on this browser", which is
   // what the public pages render, so it must not survive into an anonymous visit.
-  try { localStorage.removeItem("brainstorm_calc_completed"); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem("brainstorm_calc_completed");
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
@@ -341,11 +338,15 @@ export async function runInitialSetup(
   const content: Record<string, unknown> = { name: profile.name, display_name: profile.name };
   if (profile.about) content.about = profile.about;
   if (profile.picture) content.picture = profile.picture;
-  try { await publishProfile(content); } catch {}
+  try {
+    await publishProfile(content);
+  } catch {}
   // `announceRelayList`, not `publishRelayList`: this runs for any account
   // finishing signup, and a replaceable kind-10002 carrying our defaults would
   // overwrite a list an existing key already has elsewhere.
-  try { await announceRelayList(); } catch {}
+  try {
+    await announceRelayList();
+  } catch {}
 
   // NOTE: we intentionally do NOT publish a seed follow list or trigger scoring
   // here. New users choose who to follow in the post-signup "Build your network"

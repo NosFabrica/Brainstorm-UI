@@ -44,8 +44,16 @@ function PlainMention({ name }: { name: string }) {
         try {
           const { results } = await searchByText(name, "nosfabrica", undefined, 5);
           const top = results[0];
-          if (top) requestNav({ kind: "profile", target: top.npub, label: top.displayName || top.name || `@${name}`, picture: top.picture });
-        } catch { /* ignore — leave as plain text on failure */ }
+          if (top)
+            requestNav({
+              kind: "profile",
+              target: top.npub,
+              label: top.displayName || top.name || `@${name}`,
+              picture: top.picture,
+            });
+        } catch {
+          /* ignore — leave as plain text on failure */
+        }
         setBusy(false);
       }}
       className="font-medium text-brand-link hover:underline disabled:opacity-60"
@@ -69,14 +77,26 @@ export function ShareBio({ text, profiles }: { text: string; profiles?: Map<stri
         if (IS_EMAIL.test(part)) {
           const address = part.replace(/^mailto:/, "");
           return (
-            <a key={i} href={`mailto:${address}`} title="Send an email" className="break-words text-brand-primary hover:underline" data-testid="bio-email">
+            <a
+              key={i}
+              href={`mailto:${address}`}
+              title="Send an email"
+              className="break-words text-brand-primary hover:underline"
+              data-testid="bio-email"
+            >
               {address}
             </a>
           );
         }
         if (/^https?:\/\//i.test(part)) {
           return (
-            <a key={i} href={part} target="_blank" rel="noopener" className="break-words text-brand-primary hover:underline">
+            <a
+              key={i}
+              href={part}
+              target="_blank"
+              rel="noopener"
+              className="break-words text-brand-primary hover:underline"
+            >
               {part.replace(/^https?:\/\//, "").replace(/\/$/, "")}
             </a>
           );
@@ -91,7 +111,15 @@ export function ShareBio({ text, profiles }: { text: string; profiles?: Map<stri
             <button
               key={i}
               type="button"
-              onClick={(e) => { e.stopPropagation(); requestNav({ kind: "profile", target: bech32, label: name || bech32.slice(0, 12) + "…", picture: prof?.picture }); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                requestNav({
+                  kind: "profile",
+                  target: bech32,
+                  label: name || bech32.slice(0, 12) + "…",
+                  picture: prof?.picture,
+                });
+              }}
               className="font-medium text-brand-link hover:underline"
               data-testid="bio-mention"
             >
@@ -104,7 +132,10 @@ export function ShareBio({ text, profiles }: { text: string; profiles?: Map<stri
             <button
               key={i}
               type="button"
-              onClick={(e) => { e.stopPropagation(); requestNav({ kind: "hashtag", target: part, label: part }); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                requestNav({ kind: "hashtag", target: part, label: part });
+              }}
               className="font-medium text-brand-link hover:underline"
               data-testid="bio-hashtag"
             >

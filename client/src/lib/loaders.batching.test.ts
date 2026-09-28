@@ -53,8 +53,7 @@ beforeEach(async () => {
 });
 
 /** Every kind this REQ asks about, across all of its filters. */
-const kindsIn = (req: { filters: Filter[] }) =>
-  new Set(req.filters.flatMap((filter) => filter.kinds ?? []));
+const kindsIn = (req: { filters: Filter[] }) => new Set(req.filters.flatMap((filter) => filter.kinds ?? []));
 
 describe("what one window of pointers puts on the wire", () => {
   it("carries a profile and its author's relay list in a single REQ", async () => {

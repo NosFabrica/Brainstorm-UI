@@ -26,10 +26,18 @@ const dateUtc = (sec: number) => {
   return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
 };
 /** RFC 5545 text: backslashes, semicolons and commas escaped, newlines as \n. */
-const escapeText = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+const escapeText = (s: string) =>
+  s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 
 export function buildIcs(input: IcsInput): string {
-  const lines: string[] = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Brainstorm//Events//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "BEGIN:VEVENT"];
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Brainstorm//Events//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+  ];
   lines.push(`UID:${input.uid}`);
   lines.push(`DTSTAMP:${stampUtc(Math.floor(Date.now() / 1000))}`);
   if (input.isDateOnly) {
@@ -51,7 +59,11 @@ export function buildIcs(input: IcsInput): string {
 
 /** A safe file name from a title: "Bitcoin Liverpool Meetup" → "bitcoin-liverpool-meetup.ics". */
 export function icsFileName(title: string): string {
-  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
   return `${slug || "event"}.ics`;
 }
 

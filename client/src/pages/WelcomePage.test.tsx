@@ -18,7 +18,9 @@ const THEM = "b".repeat(64);
 
 const navigate = vi.fn();
 const toast = vi.fn();
-const followPubkeys = vi.fn(async (_pks: string[], _opts?: Record<string, unknown>): Promise<Record<string, unknown>> => ({ success: true }));
+const followPubkeys = vi.fn(
+  async (_pks: string[], _opts?: Record<string, unknown>): Promise<Record<string, unknown>> => ({ success: true }),
+);
 const recoverFollowListFromRelay = vi.fn(async () => ({ found: false }));
 const triggerScoringAndAnchor = vi.fn(async () => {});
 
@@ -38,7 +40,15 @@ vi.mock("@/services/socialActions", () => ({
 }));
 /** The picker is its own screen; here it stands for "the person chose someone". */
 vi.mock("@/components/FollowPicker", () => ({
-  FollowPicker: ({ onContinue, continueLabel, busy }: { onContinue: (pks: string[]) => void; continueLabel: string; busy: boolean }) => (
+  FollowPicker: ({
+    onContinue,
+    continueLabel,
+    busy,
+  }: {
+    onContinue: (pks: string[]) => void;
+    continueLabel: string;
+    busy: boolean;
+  }) => (
     <button type="button" data-testid="welcome-finish" disabled={busy} onClick={() => onContinue([THEM])}>
       {continueLabel}
     </button>

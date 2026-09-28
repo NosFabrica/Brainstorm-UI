@@ -14,7 +14,7 @@ When a logged-out visitor views a public profile (`/p/{npub}`) and clicks
 account from there, the viewed profile (the "inviter") is already preselected
 as a follow in the onboarding picker.
 
-**What's missing:** we do nothing with that inviter's *network*. A new user who
+**What's missing:** we do nothing with that inviter's _network_. A new user who
 arrived through a specific person very likely knows other people in that
 person's circle — but today we show them 8 hardcoded celebrities (jack, Lyn
 Alden, Derek Ross, …) that have nothing to do with why they signed up. We're
@@ -28,18 +28,18 @@ lands on a network they can actually recognize and build from.
 
 ## What already exists (no rebuild needed)
 
-| Capability | Location |
-| --- | --- |
-| Inviter pubkey survives redirect (`?invite=` + sessionStorage fallback) | `SharePage.tsx:652`, `LoginPage.tsx:31` |
-| Inviter auto-threaded into signup | `CreateAccountModal.tsx` (`inviterPubkey` prop) → `createAccount(name, {inviterPubkey})` |
-| Inviter preselected in onboarding picker | `FollowPicker.tsx:44` (`readInviterHex`), `:62` (preselect) |
-| Fetch a pubkey's contact list (kind 3) | `socialActions.ts:98` `fetchContactList(pubkey)` |
-| Parse followed pubkeys | `socialActions.ts:106` `getFollowedPubkeys(list)` |
-| Batch profile fetch | `nostr.ts` `fetchProfileMap(pubkeys)` |
-| Per-author trust score (house POV) | `api.ts` `getHouseInfluence(pubkey)` |
-| Trust tier ramp + avatar ring | `tierForScore` (TrustScoreBadge), ShareNoteCard ring pattern |
-| Multi-follow publish + score trigger | `socialActions.ts:214` `followPubkeys`, `nostr.ts:1449` `triggerScoringAndAnchor` |
-| Static fallback list | `lib/suggestedAccounts.ts` `SUGGESTED_ACCOUNTS` (8 accounts) |
+| Capability                                                              | Location                                                                                 |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Inviter pubkey survives redirect (`?invite=` + sessionStorage fallback) | `SharePage.tsx:652`, `LoginPage.tsx:31`                                                  |
+| Inviter auto-threaded into signup                                       | `CreateAccountModal.tsx` (`inviterPubkey` prop) → `createAccount(name, {inviterPubkey})` |
+| Inviter preselected in onboarding picker                                | `FollowPicker.tsx:44` (`readInviterHex`), `:62` (preselect)                              |
+| Fetch a pubkey's contact list (kind 3)                                  | `socialActions.ts:98` `fetchContactList(pubkey)`                                         |
+| Parse followed pubkeys                                                  | `socialActions.ts:106` `getFollowedPubkeys(list)`                                        |
+| Batch profile fetch                                                     | `nostr.ts` `fetchProfileMap(pubkeys)`                                                    |
+| Per-author trust score (house POV)                                      | `api.ts` `getHouseInfluence(pubkey)`                                                     |
+| Trust tier ramp + avatar ring                                           | `tierForScore` (TrustScoreBadge), ShareNoteCard ring pattern                             |
+| Multi-follow publish + score trigger                                    | `socialActions.ts:214` `followPubkeys`, `nostr.ts:1449` `triggerScoringAndAnchor`        |
+| Static fallback list                                                    | `lib/suggestedAccounts.ts` `SUGGESTED_ACCOUNTS` (8 accounts)                             |
 
 The only new thing is: **fetch the inviter's follows, rank them by trust, and
 render them in the picker.**
@@ -48,7 +48,7 @@ render them in the picker.**
 
 ## Locked design decisions (from grilling)
 
-1. **Source = the inviter's follow list** (who *they* follow — kind-3 contact
+1. **Source = the inviter's follow list** (who _they_ follow — kind-3 contact
    list). Not their followers (expensive, low-signal, relay-unreliable). These
    are the inviter's outbound trust edges.
 
@@ -69,12 +69,12 @@ render them in the picker.**
 
 5. **Framing:**
    - Section header **"People @{name} follows"** + subhead
-     *"Start here — accounts in @{name}'s network you may already know."*
+     _"Start here — accounts in @{name}'s network you may already know."_
    - Relabel the inviter row from **"Who invited you"** → **"You came from
      here"** on the WoT-button path (the label was misleading — nobody invited
      them). Keep "invited you" only for genuine invite links.
    - Per-row **trust ring / tier badge** (reuse `tierForScore` + ShareNoteCard
-     avatar-ring) so onboarding visibly *is* the WoT product.
+     avatar-ring) so onboarding visibly _is_ the WoT product.
 
 6. **Loading = progressive / non-blocking.** Picker mounts instantly with
    inviter + NosFabrica usable; the network section skeleton-loads and fades in
@@ -101,8 +101,8 @@ later, no UI change).
 ```ts
 export type RankedFollow = {
   pubkey: string;
-  score: number;        // house-POV influence 0..1
-  name: string;         // resolved display name (for the row + fallbackName)
+  score: number; // house-POV influence 0..1
+  name: string; // resolved display name (for the row + fallbackName)
 };
 
 /**
@@ -118,10 +118,11 @@ export async function fetchInviterNetwork(
 ```
 
 Steps inside:
+
 1. `fetchContactList(inviterHex)` → `getFollowedPubkeys()` → candidate pubkeys
    (excluding the inviter, NosFabrica seed, and the new user).
 2. `fetchProfileMap(candidates)` → drop anyone with no `name`/`display_name`
-   *and* no `picture` (ghost/spam filter).
+   _and_ no `picture` (ghost/spam filter).
 3. Cap to `scoreCap ≈ 40` survivors, `Promise.all(getHouseInfluence)`.
 4. Filter `score > 0 && score >= threshold` (reuse `PRESET_THRESHOLDS` default).
 5. Sort by score desc; return top `take ≈ 12` as `RankedFollow[]`.
@@ -144,7 +145,7 @@ prefetched.
   section.
 - Keep the existing "Follow & calculate my scores" button behavior
   (`followPubkeys(selected)` → `triggerScoringAndAnchor`) — no change to the
-  publish/score path; we only change *what's offered* and *what's pre-checked*.
+  publish/score path; we only change _what's offered_ and _what's pre-checked_.
 
 ### `client/src/components/CreateAccountModal.tsx`
 
@@ -201,5 +202,5 @@ prefetched.
 
 - Observer-POV ranking (needs backend batch/observer endpoint).
 - Second-degree expansion (follows-of-follows).
-- The inviter's *followers* (vs follows) as a source.
+- The inviter's _followers_ (vs follows) as a source.
 - Any change to organic-signup onboarding.

@@ -4,8 +4,14 @@ import { parseListing, isSellable, formatListingPrice, listingCardLine } from ".
 // NIP-99 as the marketplaces publish it (probed 2026-09-04: Shopstr,
 // Barattolo, bitpopart, Conduit): title, price [amount, currency], images,
 // summary, location, status, categories in `t`, the shop page in `r`.
-const ev = (tags: string[][], content = "", kind = 30402) =>
-  ({ id: "l1", pubkey: "a".repeat(64), kind, created_at: 1_700_000_000, tags, content });
+const ev = (tags: string[][], content = "", kind = 30402) => ({
+  id: "l1",
+  pubkey: "a".repeat(64),
+  kind,
+  created_at: 1_700_000_000,
+  tags,
+  content,
+});
 
 describe("parseListing — a marketplace listing for a buyer", () => {
   it("reads title, price, photos, summary, location, categories and the shop link", () => {
@@ -43,28 +49,72 @@ describe("parseListing — a marketplace listing for a buyer", () => {
   });
 
   it("an app's own name is provenance, not a category", () => {
-    const l = parseListing(ev([["title", "Mug"], ["price", "12", "USD"], ["t", "shopstr"], ["t", "mugs"]]));
+    const l = parseListing(
+      ev([
+        ["title", "Mug"],
+        ["price", "12", "USD"],
+        ["t", "shopstr"],
+        ["t", "mugs"],
+      ]),
+    );
     expect(l?.categories).toEqual(["mugs"]);
   });
 
   it("needs a title; without a price it still parses, but is not sellable", () => {
     expect(parseListing(ev([["price", "10", "USD"]]))).toBeNull();
-    const noPrice = parseListing(ev([["title", "Obscura VPN"], ["summary", "Can't log VPN provider."]]));
+    const noPrice = parseListing(
+      ev([
+        ["title", "Obscura VPN"],
+        ["summary", "Can't log VPN provider."],
+      ]),
+    );
     expect(noPrice?.title).toBe("Obscura VPN");
     expect(noPrice?.price).toBeNull();
     expect(isSellable(noPrice!)).toBe(false);
-    expect(parseListing(ev([["title", "x"], ["price", "abc", "USD"]]))?.price).toBeNull();
+    expect(
+      parseListing(
+        ev([
+          ["title", "x"],
+          ["price", "abc", "USD"],
+        ]),
+      )?.price,
+    ).toBeNull();
   });
 
   it("no status means active — 40% of live stock carries none", () => {
-    const l = parseListing(ev([["title", "Mug"], ["price", "12", "USD"]]));
+    const l = parseListing(
+      ev([
+        ["title", "Mug"],
+        ["price", "12", "USD"],
+      ]),
+    );
     expect(l?.status).toBe("active");
     expect(isSellable(l!)).toBe(true);
   });
 
   it("sold and hidden listings are not for sale", () => {
-    expect(isSellable(parseListing(ev([["title", "Mug"], ["price", "12", "USD"], ["status", "sold"]]))!)).toBe(false);
-    expect(isSellable(parseListing(ev([["title", "Mug"], ["price", "12", "USD"], ["visibility", "hidden"]]))!)).toBe(false);
+    expect(
+      isSellable(
+        parseListing(
+          ev([
+            ["title", "Mug"],
+            ["price", "12", "USD"],
+            ["status", "sold"],
+          ]),
+        )!,
+      ),
+    ).toBe(false);
+    expect(
+      isSellable(
+        parseListing(
+          ev([
+            ["title", "Mug"],
+            ["price", "12", "USD"],
+            ["visibility", "hidden"],
+          ]),
+        )!,
+      ),
+    ).toBe(false);
   });
 });
 
@@ -93,18 +143,57 @@ describe("formatListingPrice — shown exactly as priced, never converted", () =
 });
 
 describe("listingCardLine — one quiet line: where it is, what shipping costs", () => {
-  const base = { id: "l1", pubkey: "a".repeat(64), d: "l1", title: "Mug", summary: "A summary", description: "", price: { amount: 12, currency: "USD" }, images: [], location: null as string | null, status: "active", hidden: false, categories: [], shopUrl: null, shipping: [] as { name: string; amount: number; currency: string }[], createdAt: 0 };
+  const base = {
+    id: "l1",
+    pubkey: "a".repeat(64),
+    d: "l1",
+    title: "Mug",
+    summary: "A summary",
+    description: "",
+    price: { amount: 12, currency: "USD" },
+    images: [],
+    location: null as string | null,
+    status: "active",
+    hidden: false,
+    categories: [],
+    shopUrl: null,
+    shipping: [] as { name: string; amount: number; currency: string }[],
+    createdAt: 0,
+  };
 
   it("country and shipping, when both are known", () => {
-    expect(listingCardLine({ ...base, location: "Gubbio (PG)", shipping: [{ name: "Italia", amount: 500, currency: "SATS" }] })).toBe("Gubbio (PG) · 500 sats shipping");
+    expect(
+      listingCardLine({
+        ...base,
+        location: "Gubbio (PG)",
+        shipping: [{ name: "Italia", amount: 500, currency: "SATS" }],
+      }),
+    ).toBe("Gubbio (PG) · 500 sats shipping");
   });
 
   it("free shipping is the good news, said plainly", () => {
-    expect(listingCardLine({ ...base, location: "United States", shipping: [{ name: "US", amount: 0, currency: "USD" }, { name: "World", amount: 20, currency: "USD" }] })).toBe("United States · Free shipping");
+    expect(
+      listingCardLine({
+        ...base,
+        location: "United States",
+        shipping: [
+          { name: "US", amount: 0, currency: "USD" },
+          { name: "World", amount: 20, currency: "USD" },
+        ],
+      }),
+    ).toBe("United States · Free shipping");
   });
 
   it("several paid options say where the price starts", () => {
-    expect(listingCardLine({ ...base, shipping: [{ name: "Italia", amount: 500, currency: "SATS" }, { name: "Europa", amount: 1500, currency: "SATS" }] })).toBe("Shipping from 500 sats");
+    expect(
+      listingCardLine({
+        ...base,
+        shipping: [
+          { name: "Italia", amount: 500, currency: "SATS" },
+          { name: "Europa", amount: 1500, currency: "SATS" },
+        ],
+      }),
+    ).toBe("Shipping from 500 sats");
   });
 
   it("shipping priced in no money of its own borrows the listing's", () => {

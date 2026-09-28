@@ -38,7 +38,14 @@ export function PathRiskLine({
 }) {
   if (count === 0) return null;
   const one = count === 1;
-  const account = kind === "flagged" ? (one ? "a flagged account" : "flagged accounts") : (one ? "an unverified account" : "unverified accounts");
+  const account =
+    kind === "flagged"
+      ? one
+        ? "a flagged account"
+        : "flagged accounts"
+      : one
+        ? "an unverified account"
+        : "unverified accounts";
   return (
     <Alert
       variant={kind === "flagged" ? "destructive" : "warning"}
@@ -48,13 +55,14 @@ export function PathRiskLine({
       <ShieldAlert className="h-4 w-4" />
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <span>
-          <span className="font-semibold">{count}</span> of the {checked} paths{complete ? "" : " we checked"} {one ? "runs" : "run"} through {account}
+          <span className="font-semibold">{count}</span> of the {checked} paths{complete ? "" : " we checked"}{" "}
+          {one ? "runs" : "run"} through {account}
         </span>
         <button
           type="button"
           aria-pressed={pressed}
           onClick={onToggle}
-          className="font-semibold underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-current/40 rounded"
+          className="focus-visible:ring-current/40 rounded font-semibold underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2"
           data-testid={`hops-group-${kind}`}
         >
           {pressed ? "Show all" : one ? "Show it" : "Show them"}
@@ -70,11 +78,13 @@ export function PathStepper({ position, total, onNext }: { position: number; tot
     <button
       type="button"
       onClick={onNext}
-      className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+      className="inline-flex items-center gap-1 rounded text-xs text-slate-500 transition-colors hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400 dark:hover:text-slate-200"
       title="Show the next path"
       data-testid="hops-next"
     >
-      <span className="tabular-nums">Path {position} of {total}</span>
+      <span className="tabular-nums">
+        Path {position} of {total}
+      </span>
       <span aria-hidden>·</span>
       <span className="font-semibold text-brand-link">Next</span>
       <ChevronRight className="h-3.5 w-3.5 text-brand-link" />
@@ -98,13 +108,17 @@ export function PathFootnote({
   if (pathCount <= 1) return null;
   const countWord = `${pathCount.toLocaleString()}${pathCountCapped ? "+" : ""}`;
   return (
-    <p className="mt-2 px-1 text-xs text-slate-400 dark:text-slate-500 tabular-nums" data-testid="hops-checked">
+    <p className="mt-2 px-1 text-xs tabular-nums text-slate-400 dark:text-slate-500" data-testid="hops-checked">
       {checking ? (
-        <span className="inline-flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Checking who's on these paths…</span>
+        <span className="inline-flex items-center gap-1.5">
+          <Loader2 className="h-3 w-3 animate-spin" /> Checking who's on these paths…
+        </span>
       ) : complete ? (
         <>Checked all {countWord} paths.</>
       ) : (
-        <>Checked {checked} of {countWord} paths.</>
+        <>
+          Checked {checked} of {countWord} paths.
+        </>
       )}
     </p>
   );

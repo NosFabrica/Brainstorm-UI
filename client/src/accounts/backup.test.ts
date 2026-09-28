@@ -3,10 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { BaseAccount } from "applesauce-accounts";
 import { PrivateKeySigner } from "applesauce-signers";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
-import {
-  decrypt as decryptSecretKeyNip49,
-  encrypt as encryptSecretKeyNip49,
-} from "nostr-tools/nip49";
+import { decrypt as decryptSecretKeyNip49, encrypt as encryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { decode } from "nostr-tools/nip19";
 
 import { AccountManager } from "applesauce-accounts";
@@ -51,13 +48,10 @@ async function lockedAccount(requestPassword = fakePrompt()) {
 /** An Account whose key lives elsewhere — an extension or a bunker. */
 function foreignAccount(): BrainstormAccount {
   const secretKey = generateSecretKey();
-  class ExternalAccount extends BaseAccount<PrivateKeySigner, never, any> {
+  class ExternalAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
     static readonly type = "test-external";
   }
-  return new ExternalAccount(
-    getPublicKey(secretKey),
-    new PrivateKeySigner(secretKey),
-  ) as unknown as BrainstormAccount;
+  return new ExternalAccount(getPublicKey(secretKey), new PrivateKeySigner(secretKey)) as unknown as BrainstormAccount;
 }
 
 describe("minting a Backup", () => {
@@ -98,9 +92,7 @@ describe("minting a Backup", () => {
   });
 
   it("refuses an account whose key isn't ours to reach", async () => {
-    await expect(mintBackup(NEW_PASSWORD, { account: foreignAccount() })).rejects.toThrow(
-      NoLocalKeyError,
-    );
+    await expect(mintBackup(NEW_PASSWORD, { account: foreignAccount() })).rejects.toThrow(NoLocalKeyError);
   });
 
   it("refuses when nobody is signed in", async () => {
@@ -145,9 +137,7 @@ describe("a Backup-only account", () => {
       ),
     );
 
-    await expect(
-      mintBackup(NEW_PASSWORD, { account, logn: LOW_LOGN }),
-    ).resolves.toBeTruthy();
+    await expect(mintBackup(NEW_PASSWORD, { account, logn: LOW_LOGN })).resolves.toBeTruthy();
     expect(account.locked).toBe(false);
     expect(account.signer.data.envelope).toBeDefined();
   });
@@ -175,9 +165,7 @@ describe("checking the Recovery password", () => {
   });
 
   it("refuses an account whose key isn't ours to reach", async () => {
-    await expect(verifyRecoveryPassword(PASSWORD, foreignAccount())).rejects.toThrow(
-      NoLocalKeyError,
-    );
+    await expect(verifyRecoveryPassword(PASSWORD, foreignAccount())).rejects.toThrow(NoLocalKeyError);
   });
 });
 
@@ -205,9 +193,7 @@ describe("setting a new Recovery password", () => {
   });
 
   it("refuses an account whose key isn't ours to reach", async () => {
-    await expect(setRecoveryPassword(NEW_PASSWORD, { account: foreignAccount() })).rejects.toThrow(
-      NoLocalKeyError,
-    );
+    await expect(setRecoveryPassword(NEW_PASSWORD, { account: foreignAccount() })).rejects.toThrow(NoLocalKeyError);
   });
 });
 
@@ -350,8 +336,8 @@ describe("the active account's backup need over time", () => {
     const { manager, seen, stop } = watch();
     const { account } = await lockedAccount();
 
-    manager.addAccount(account as any);
-    manager.setActive(account as any);
+    manager.addAccount(account);
+    manager.setActive(account);
 
     expect(seen.at(-1)).toBe("download");
     stop();
@@ -361,8 +347,8 @@ describe("the active account's backup need over time", () => {
   it("drops to nothing the moment the backup is handed over", async () => {
     const { manager, seen, stop } = watch();
     const { account } = await lockedAccount();
-    manager.addAccount(account as any);
-    manager.setActive(account as any);
+    manager.addAccount(account);
+    manager.setActive(account);
 
     markBackedUp(account);
 
@@ -376,8 +362,8 @@ describe("the active account's backup need over time", () => {
     const { manager, seen, stop } = watch();
     const unlockCache = createFakeUnlockCache();
     const account = await LocalAccount.fromKey(generateSecretKey(), { unlockCache });
-    manager.addAccount(account as any);
-    manager.setActive(account as any);
+    manager.addAccount(account);
+    manager.setActive(account);
     expect(seen.at(-1)).toBe("recovery-password");
 
     await setRecoveryPassword(PASSWORD, { account, logn: LOW_LOGN });

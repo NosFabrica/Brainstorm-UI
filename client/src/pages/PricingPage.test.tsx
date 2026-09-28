@@ -24,7 +24,16 @@ vi.mock("@/hooks/useBillingPlans", async (importOriginal) => {
 
 const TWO_PLANS = [
   { policy_id: 1, policy_name: "Free", is_default: true, amount_minor: 0, schedule_interval_seconds: 5_184_000 },
-  { policy_id: 2, policy_name: "Priority", amount_minor: 200, currency: "USD", billing_period_unit: "month", billing_period_count: 1, schedule_interval_seconds: 604_800, checkout_url: "https://vault.example/signup/a/b" },
+  {
+    policy_id: 2,
+    policy_name: "Priority",
+    amount_minor: 200,
+    currency: "USD",
+    billing_period_unit: "month",
+    billing_period_count: 1,
+    schedule_interval_seconds: 604_800,
+    checkout_url: "https://vault.example/signup/a/b",
+  },
 ];
 
 /** The whole page is driven by the array the server sends — that's the point. */
@@ -42,7 +51,16 @@ describe("PricingPage renders whatever is on offer", () => {
   it("shows a plan the frontend has never heard of", async () => {
     servePlans([
       { policy_id: 1, policy_name: "Free", is_default: true, amount_minor: 0, schedule_interval_seconds: 5_184_000 },
-      { policy_id: 4, policy_name: "Priority", plan_name: "Rehearsal", amount_minor: 10, currency: "USD", billing_interval: "daily", schedule_interval_seconds: 86_400, checkout_url: "https://vault.example/signup/a/b" },
+      {
+        policy_id: 4,
+        policy_name: "Priority",
+        plan_name: "Rehearsal",
+        amount_minor: 10,
+        currency: "USD",
+        billing_interval: "daily",
+        schedule_interval_seconds: 86_400,
+        checkout_url: "https://vault.example/signup/a/b",
+      },
     ]);
     renderWithProviders(<PricingPage />);
 

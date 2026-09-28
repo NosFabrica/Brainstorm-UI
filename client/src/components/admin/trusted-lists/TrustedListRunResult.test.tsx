@@ -46,8 +46,24 @@ describe("TrustedListRunResult", () => {
     published: 1,
     failed: 1,
     tags: [
-      { slug: "podcaster", d_tag: "tl-tag-bbbbbbbb-aaaaaaaa-podcaster", tag_event_id: "e".repeat(64), status: "published", taggings_considered: 5, member_count: 3, error: null },
-      { slug: "bitcoiner", d_tag: "tl-tag-bbbbbbbb-aaaaaaaa-bitcoiner", tag_event_id: "f".repeat(64), status: "failed", taggings_considered: 4, member_count: 2, error: "relay said: rate-limited" },
+      {
+        slug: "podcaster",
+        d_tag: "tl-tag-bbbbbbbb-aaaaaaaa-podcaster",
+        tag_event_id: "e".repeat(64),
+        status: "published",
+        taggings_considered: 5,
+        member_count: 3,
+        error: null,
+      },
+      {
+        slug: "bitcoiner",
+        d_tag: "tl-tag-bbbbbbbb-aaaaaaaa-bitcoiner",
+        tag_event_id: "f".repeat(64),
+        status: "failed",
+        taggings_considered: 4,
+        member_count: 2,
+        error: "relay said: rate-limited",
+      },
     ],
   };
 

@@ -30,14 +30,23 @@ vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: () => new Map() }
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.85 }));
 vi.mock("@/hooks/useAppEndorsements", () => ({ useAppEndorsements: () => null }));
-vi.mock("@/hooks/useMyFollows", () => ({ useMyFollows: () => ({ follows: new Set<string>(), ready: true, signedIn: false }) }));
+vi.mock("@/hooks/useMyFollows", () => ({
+  useMyFollows: () => ({ follows: new Set<string>(), ready: true, signedIn: false }),
+}));
 vi.mock("@/hooks/usePersonEndorsements", () => ({ usePersonEndorsements: () => null }));
 vi.mock("@/hooks/useAuthorFlags", () => ({ useAuthorFlags: () => () => false }));
-vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: () => ({ direct: new Set(), friends: new Set(), ready: true }) }));
+vi.mock("@/hooks/useNetworkReach", () => ({
+  useNetworkReach: () => ({ direct: new Set(), friends: new Set(), ready: true }),
+}));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
 vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ isSearchObserver: false }) }));
-vi.mock("@/lib/wavlake", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/wavlake")>()), searchWavlakeTracks: async () => [], searchWavlake: async () => ({ artists: [], albums: [], songs: [] }), fetchWavlakeTrending: async () => [] }));
+vi.mock("@/lib/wavlake", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/wavlake")>()),
+  searchWavlakeTracks: async () => [],
+  searchWavlake: async () => ({ artists: [], albums: [], songs: [] }),
+  fetchWavlakeTrending: async () => [],
+}));
 vi.mock("@/components/feed/HomeFeed", () => ({ HomeFeed: () => null }));
 vi.mock("@/components/FinishSetupBanner", () => ({ FinishSetupBanner: () => null }));
 vi.mock("@/components/AccountCards", () => ({ AccountCards: () => null }));
@@ -75,7 +84,16 @@ describe("the tag catalogue on the home search", () => {
 
   it("is fetched once someone types, and its matches show in the dropdown", async () => {
     fetchTagIndexMock.mockResolvedValue([
-      { key: "a|bitcoiners", authorPubkey: "a".repeat(64), slug: "bitcoiners", name: "Bitcoiners", people: 12, vouches: 3, sharesName: 0, unverified: false },
+      {
+        key: "a|bitcoiners",
+        authorPubkey: "a".repeat(64),
+        slug: "bitcoiners",
+        name: "Bitcoiners",
+        people: 12,
+        vouches: 3,
+        sharesName: 0,
+        unverified: false,
+      },
     ]);
     window.history.replaceState({}, "", "/");
     renderLanding();

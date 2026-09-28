@@ -21,9 +21,7 @@ export function searchRelay(): Relay | null {
   if (cached !== undefined && (cached === null || pool.relays.get(cached.url) === cached)) return cached;
   const url = env.VITE_SEARCH_RELAY_URL.trim();
   if (!url) {
-    console.error(
-      "[search] VITE_SEARCH_RELAY_URL is not configured — relay search is disabled",
-    );
+    console.error("[search] VITE_SEARCH_RELAY_URL is not configured — relay search is disabled");
     cached = null;
     return cached;
   }

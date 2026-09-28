@@ -2,11 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Check, Telescope, AlertCircle, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useActivePerspective, hasStoredPerspective, type ActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
@@ -39,35 +35,35 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
   return (
     <>
       <DropdownMenuLabel
-        className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold flex items-center gap-1.5 pt-2"
+        className="flex items-center gap-1.5 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500"
         data-testid="label-pov-section"
       >
         <Telescope className="h-3 w-3" /> Trust perspective
       </DropdownMenuLabel>
       <DropdownMenuItem
         className={
-          "flex items-start gap-2 px-2.5 py-2 cursor-pointer " +
+          "flex cursor-pointer items-start gap-2 px-2.5 py-2 " +
           (effective === "nosfabrica" ? "bg-brand-primary/10 dark:bg-brand-primary/10" : "")
         }
         onClick={() => setPov("nosfabrica")}
         data-testid="menu-pov-option-nosfabrica"
       >
-        <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+        <Avatar className="mt-0.5 h-7 w-7 shrink-0">
           <AvatarImage src={nosFabricaLogo} alt="Brainstorm" className="object-cover" />
         </Avatar>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="text-[13px] font-medium text-slate-800 dark:text-slate-200">Brainstorm</span>
             {effective === "nosfabrica" && <Check className="h-3 w-3 text-brand-primary" />}
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
+          <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
             The "house" view from Brainstorm's curated trust graph.
           </p>
         </div>
       </DropdownMenuItem>
       <DropdownMenuItem
         className={
-          "flex items-start gap-2 px-2.5 py-2 cursor-pointer " +
+          "flex cursor-pointer items-start gap-2 px-2.5 py-2 " +
           (effective === "mywot" ? "bg-emerald-50/60 dark:bg-emerald-500/10" : "") +
           (!hasMywot ? " opacity-60" : "")
         }
@@ -80,27 +76,27 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
         }}
         data-testid="menu-pov-option-mywot"
       >
-        <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+        <Avatar className="mt-0.5 h-7 w-7 shrink-0">
           {user?.picture ? (
             <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" />
           ) : null}
-          <AvatarFallback className="bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+          <AvatarFallback className="bg-emerald-100 text-[10px] font-bold text-emerald-700">
             {user?.displayName?.charAt(0) || "U"}
           </AvatarFallback>
         </Avatar>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-medium text-slate-800 dark:text-slate-200 truncate">
+            <span className="truncate text-[13px] font-medium text-slate-800 dark:text-slate-200">
               {user?.displayName || "My network"}
             </span>
             {effective === "mywot" && <Check className="h-3 w-3 text-emerald-600" />}
             {!hasMywot && (
-              <span className="ml-auto text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">
+              <span className="ml-auto text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                 Coming soon
               </span>
             )}
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
+          <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
             {hasMywot
               ? "Personalized scores using your own trust graph."
               : "Calculate your trust network in Settings to enable."}
@@ -112,7 +108,7 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
                 e.stopPropagation();
                 navigate("/settings");
               }}
-              className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:underline"
+              className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 hover:text-emerald-800 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
               data-testid="link-calculate-yours"
             >
               Calculate yours <ArrowRight className="h-3 w-3" />
@@ -121,11 +117,11 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
         </div>
       </DropdownMenuItem>
       {scope === "page-not-supported" && (
-        <div className="mx-1 my-1 px-2.5 py-2 flex items-start gap-1.5 rounded text-[10px] text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/25">
-          <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+        <div className="mx-1 my-1 flex items-start gap-1.5 rounded border border-amber-100 bg-amber-50 px-2.5 py-2 text-[10px] text-amber-800 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-200">
+          <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
           <span className="leading-snug">
-            Scores on this page always reflect your personalized view. House-perspective scores
-            aren't supported by the backend here yet.
+            Scores on this page always reflect your personalized view. House-perspective scores aren't supported by the
+            backend here yet.
           </span>
         </div>
       )}

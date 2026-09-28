@@ -36,10 +36,7 @@ export interface CheckoutTarget {
 }
 
 /** The URL Subscribe opens: the server's checkout_url plus our one parameter. */
-export function resolveCheckout(
-  plan: BillingPlan | undefined,
-  pubkey: string | null | undefined,
-): CheckoutTarget {
+export function resolveCheckout(plan: BillingPlan | undefined, pubkey: string | null | undefined): CheckoutTarget {
   const base = plan?.checkoutUrl;
   if (!base || !pubkey) return { external: false, url: "" };
   const sep = base.includes("?") ? "&" : "?";

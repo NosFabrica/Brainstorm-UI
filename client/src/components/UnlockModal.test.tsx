@@ -119,9 +119,7 @@ describe("the unlock modal", () => {
 
     enterPassword(PASSWORD);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("text-unlock-error")).toHaveTextContent(/needs more memory/i),
-    );
+    await waitFor(() => expect(screen.getByTestId("text-unlock-error")).toHaveTextContent(/needs more memory/i));
   });
 
   it("abandons the action quietly when cancelled", async () => {
@@ -145,9 +143,7 @@ describe("the unlock modal", () => {
   it("says the unlock lasts for this tab's visit, so nobody expects to be asked again", async () => {
     await raise(async () => ({ ok: true }));
 
-    expect(screen.getByTestId("modal-unlock")).toHaveTextContent(
-      /in this tab for the rest of your visit/i,
-    );
+    expect(screen.getByTestId("modal-unlock")).toHaveTextContent(/in this tab for the rest of your visit/i);
   });
 });
 

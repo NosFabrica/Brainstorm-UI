@@ -15,11 +15,11 @@ shape the whole approach:
 1. **The reskin and dark mode share one root cause.** The app is painted with
    **~2,700 hardcoded colors across 166 files**, of which **~860 are arbitrary
    brand-hex** (`#7c86ff`, `#333286`, `#6366f1`, `#3730a3`, `#5b63d9`). The reskin
-   changes those *values*; dark mode adds their *dark counterparts*. Tokenizing
+   changes those _values_; dark mode adds their _dark counterparts_. Tokenizing
    them **once** unblocks both — otherwise we pay the codemod cost twice.
 2. **There is no central brand module.** Brand values live in `client/src/index.css`
-   + `tailwind.config.ts` (the token layer) **and** in the inline hex sprawl above.
-   Step one is to make the token layer the single source of truth.
+   - `tailwind.config.ts` (the token layer) **and** in the inline hex sprawl above.
+     Step one is to make the token layer the single source of truth.
 
 Because scope is **look-only**, the literal "Brainstorm" wordmark **text** stays —
 no product-name/copy sweep. (If a name change is ever wanted, that's a separate
@@ -30,17 +30,17 @@ pass over the wordmark strings in `index.html`, `AppHeader`, `MobileMenu`,
 
 ## Inputs required from the brand/Figma pack
 
-Execution of the *visible* phases (2+) is gated on receiving these. Phase 1
+Execution of the _visible_ phases (2+) is gated on receiving these. Phase 1
 (tokenization) is asset-agnostic and can start now.
 
-| Asset (you provide) | Maps to (we change) |
-| --- | --- |
-| **Figma link + UI-guidelines page** (view access) | source of truth for all below |
-| **Token/palette sheet** — roles + ramps + **dark-mode ramps** | `index.css` `:root` + `.dark` CSS vars; new brand tokens |
-| **Logo pack** — SVG (incl. monochrome), PNGs, lockups, favicon sizes | `BrainLogo.tsx`, `brainstormAppIcons.tsx`; `client/public/` favicons + touch icons |
-| **Font families/weights + source** (Google Fonts names or WOFF2 + license) | Google Fonts `<link>` in `index.html`; `--font-*` vars in `index.css` |
-| **OG image / art + imagery-pattern rules** (banners & heroes) | `client/public/og-image.png`; `profileDefaults.ts` banner gradient; default hero/banner backgrounds |
-| **Brand guidelines PDF** (voice/copy) | reference only for look-only; wordmark strings only if a name/tagline shift is later approved |
+| Asset (you provide)                                                        | Maps to (we change)                                                                                 |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Figma link + UI-guidelines page** (view access)                          | source of truth for all below                                                                       |
+| **Token/palette sheet** — roles + ramps + **dark-mode ramps**              | `index.css` `:root` + `.dark` CSS vars; new brand tokens                                            |
+| **Logo pack** — SVG (incl. monochrome), PNGs, lockups, favicon sizes       | `BrainLogo.tsx`, `brainstormAppIcons.tsx`; `client/public/` favicons + touch icons                  |
+| **Font families/weights + source** (Google Fonts names or WOFF2 + license) | Google Fonts `<link>` in `index.html`; `--font-*` vars in `index.css`                               |
+| **OG image / art + imagery-pattern rules** (banners & heroes)              | `client/public/og-image.png`; `profileDefaults.ts` banner gradient; default hero/banner backgrounds |
+| **Brand guidelines PDF** (voice/copy)                                      | reference only for look-only; wordmark strings only if a name/tagline shift is later approved       |
 
 ---
 
@@ -78,13 +78,13 @@ is adding `.dark` values for the same tokens.
 
 Proposed tokens (in `index.css`, exposed as Tailwind colors in `tailwind.config.ts`):
 
-| New token | Replaces (light) | Role |
-| --- | --- | --- |
-| `--brand-primary` → `brand-primary` | `#6366f1` | primary buttons, wordmark |
-| `--brand-primary-hover` | `#5b63d9` / `#4f46e5` | button hover |
-| `--brand-accent` → `brand-accent` | `#7c86ff` | kickers, accent lines, chips |
-| `--brand-deep` → `brand-deep` | `#333286` | deep accent text |
-| `--brand-link` → `brand-link` | `#3730a3` | links, secondary text/border |
+| New token                           | Replaces (light)      | Role                         |
+| ----------------------------------- | --------------------- | ---------------------------- |
+| `--brand-primary` → `brand-primary` | `#6366f1`             | primary buttons, wordmark    |
+| `--brand-primary-hover`             | `#5b63d9` / `#4f46e5` | button hover                 |
+| `--brand-accent` → `brand-accent`   | `#7c86ff`             | kickers, accent lines, chips |
+| `--brand-deep` → `brand-deep`       | `#333286`             | deep accent text             |
+| `--brand-link` → `brand-link`       | `#3730a3`             | links, secondary text/border |
 
 Codemod is **scripted per color, reviewed file-by-file** (some usages are opacity
 variants like `#7c86ff/30` → `brand-accent/30`; a few are semantic). `#F7931A`
@@ -95,11 +95,13 @@ stays literal.
 ## Phased execution (gated; nothing ships broken)
 
 ### Phase 0 — Asset intake + token contract
+
 Collect the six buckets from Figma; finalize the token names/roles above against the
 palette sheet (including which light hex maps to which token, and the dark ramp for
 each). No code change beyond agreeing the contract.
 
 ### Phase 1 — Tokenize the brand sprawl (asset-agnostic, no visible change)
+
 - Add the `--brand-*` vars to `index.css` `:root` **set to today's exact hex** (so
   the app looks identical), and expose them as Tailwind `brand-*` colors in
   `tailwind.config.ts`.
@@ -109,6 +111,7 @@ each). No code change beyond agreeing the contract.
 - **Gate:** `tsc` + `vite build` green; light UI **pixel-identical** to before.
 
 ### Phase 2 — Apply the new brand (light) — needs assets
+
 - **Colors:** change the `--brand-*` (and any `:root` semantic) values to the new
   palette. One file, whole-app effect.
 - **Fonts:** swap the Google Fonts `<link>` (or add WOFF2 `@font-face`) + update
@@ -122,6 +125,7 @@ each). No code change beyond agreeing the contract.
 - **Gate:** dark-preview not yet; light reskin reviewed on every surface.
 
 ### Phase 3 — Dark mode (per `docs/plans/dark-mode.md`, against the new palette)
+
 - **Infra:** `client/src/lib/theme.ts` + `ThemeProvider` + `useTheme()` (System /
   Light / Dark, `localStorage.brainstorm_theme`); no-flash inline script in
   `index.html <head>`; fix shared primitives (`components/ui/card.tsx`,

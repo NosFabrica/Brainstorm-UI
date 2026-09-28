@@ -15,7 +15,11 @@ export function ViaRelay({ event, className }: { event: { kind: number; id: stri
   const seen = [...(getSeenRelays(event as Parameters<typeof getSeenRelays>[0]) ?? [])].map(host).filter(Boolean);
   if (!seen.length) return null;
   return (
-    <span className={`shrink-0 font-mono text-[10px] text-slate-400 dark:text-slate-500 ${className ?? ""}`} title={seen.length > 1 ? `seen on ${seen.join(", ")}` : `seen on ${seen[0]}`} data-testid="via-relay">
+    <span
+      className={`shrink-0 font-mono text-[10px] text-slate-400 dark:text-slate-500 ${className ?? ""}`}
+      title={seen.length > 1 ? `seen on ${seen.join(", ")}` : `seen on ${seen[0]}`}
+      data-testid="via-relay"
+    >
       via {seen[0]}
     </span>
   );

@@ -6,7 +6,9 @@ import { createTicket, fetchThread } from "@/services/support";
 import { AdminSupportCards } from "./AdminSupportCards";
 
 // Kind-0 enrichment, same seam the other admin surfaces use.
-const fetchProfileMap = vi.fn(async (_pubkeys: string[]) => new Map<string, { name?: string; display_name?: string; picture?: string }>());
+const fetchProfileMap = vi.fn(
+  async (_pubkeys: string[]) => new Map<string, { name?: string; display_name?: string; picture?: string }>(),
+);
 vi.mock("@/services/nostr", () => ({
   fetchProfileMap: (pubkeys: string[]) => fetchProfileMap(pubkeys),
 }));
@@ -54,7 +56,9 @@ describe("AdminSupportCards (against the fake server)", () => {
     // Close asks first, with an editable queued message — sent on the press.
     fireEvent.click(screen.getByTestId("admin-close-ticket"));
     const dialog = await screen.findByTestId("close-ticket-dialog");
-    expect((screen.getByTestId("close-message-input") as HTMLTextAreaElement).value).toContain("reply here and it reopens");
+    expect((screen.getByTestId("close-message-input") as HTMLTextAreaElement).value).toContain(
+      "reply here and it reopens",
+    );
     fireEvent.click(screen.getByTestId("close-send"));
 
     await screen.findByTestId("admin-thread-closed");

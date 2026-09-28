@@ -63,7 +63,7 @@ export function SupportTimeline({
             } ${
               item.message.author === "support"
                 ? "border-brand-accent/25 bg-brand-primary/[0.05] dark:bg-brand-primary/10"
-                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
             }`}
             data-testid={`${voice.messageTestId}-${item.message.author}`}
           >
@@ -71,7 +71,9 @@ export function SupportTimeline({
               {voice.author(item.message.author)}
               <span className="ml-2 font-normal normal-case tracking-normal">{fmtWhen(item.message.createdAt)}</span>
             </p>
-            <p className="mt-1.5 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">{item.message.body}</p>
+            <p className="mt-1.5 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">
+              {item.message.body}
+            </p>
           </div>
         ) : (
           <p

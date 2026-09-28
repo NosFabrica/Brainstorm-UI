@@ -122,7 +122,10 @@ export const READER_KINDS = new Set([30023, 30818, 30817]);
 /** On-site path for an event: `/e/<naddr>` (its latest version) for an
  *  article or wiki page we know by kind and name, else `/e/<nevent>` (falls
  *  back to the bare id). */
-export function eventPath(event: { id: string; pubkey?: string; kind?: number; tags?: string[][] }, relays: string[] = []): string {
+export function eventPath(
+  event: { id: string; pubkey?: string; kind?: number; tags?: string[][] },
+  relays: string[] = [],
+): string {
   if (event.kind !== undefined && READER_KINDS.has(event.kind) && event.pubkey && event.tags) {
     const identifier = event.tags.find((t) => t[0] === "d")?.[1];
     if (identifier !== undefined) {

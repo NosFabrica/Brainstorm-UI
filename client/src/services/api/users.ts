@@ -51,12 +51,9 @@ export function isFlaggedAlert(e: NetworkAlertEntry): boolean {
 
 export const usersApi = {
   async getUserHistory() {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/history`,
-      {
-        signal: AbortSignal.timeout(30000),
-      },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/history`, {
+      signal: AbortSignal.timeout(30000),
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch user history (${response.status})`);
     }
@@ -64,12 +61,9 @@ export const usersApi = {
   },
 
   async getUserByPubkey(pubkey: string) {
-    const response = await optionalAuthFetch(
-      `${getBrainstormApi()}/user/${pubkey}`,
-      {
-        signal: AbortSignal.timeout(60000),
-      },
-    );
+    const response = await optionalAuthFetch(`${getBrainstormApi()}/user/${pubkey}`, {
+      signal: AbortSignal.timeout(60000),
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch user data (${response.status})`);
     }
@@ -159,25 +153,12 @@ export const usersApi = {
 
   async getUserConnections(
     pubkey: string,
-    kind:
-      | "followed_by"
-      | "following"
-      | "muted_by"
-      | "muting"
-      | "reported_by"
-      | "reporting"
-      | "flagged",
+    kind: "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting" | "flagged",
     opts?: {
       limit?: number;
       cursor?: string;
       order?: "asc" | "desc";
-      tier?:
-        | "high"
-        | "medium_high"
-        | "medium"
-        | "medium_low"
-        | "low"
-        | "low_and_reported_by_2_or_more_trusted_pubkeys";
+      tier?: "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys";
       // Verified for this `kind` under the observer's saved preset (strict `>`
       // its per-relationship cutoff). Ignored for kind=flagged.
       verified_only?: boolean;
@@ -209,14 +190,11 @@ export const usersApi = {
   // propagation wait). Throws an Error carrying `.status` so the caller can
   // branch on 429 (rate-limit — don't retry) vs transient errors (retry).
   async submitFollowList(signedEvent: Record<string, unknown>) {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/followList`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signed_event: signedEvent }),
-      },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/followList`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signed_event: signedEvent }),
+    });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
       let detail = body?.detail || body?.message || `Failed to ingest follow list (${response.status})`;
@@ -229,10 +207,9 @@ export const usersApi = {
   },
 
   async getBrainstormRequest(requestId: string) {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/brainstormRequest/${requestId}`,
-      { signal: AbortSignal.timeout(15000) },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/admin/brainstormRequest/${requestId}`, {
+      signal: AbortSignal.timeout(15000),
+    });
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
       let detail = errorData?.detail || errorData?.message || "";
@@ -244,15 +221,12 @@ export const usersApi = {
   },
 
   async createBrainstormRequest(data: { pubkey: string; [key: string]: unknown }) {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/brainstormRequest/`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        signal: AbortSignal.timeout(30000),
-      },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/admin/brainstormRequest/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      signal: AbortSignal.timeout(30000),
+    });
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
       let detail = errorData?.detail || errorData?.message || "";
@@ -264,10 +238,9 @@ export const usersApi = {
   },
 
   async getBrainstormPubkey(nostrPubkey: string) {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/brainstormPubkey/${nostrPubkey}`,
-      { signal: AbortSignal.timeout(15000) },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/admin/brainstormPubkey/${nostrPubkey}`, {
+      signal: AbortSignal.timeout(15000),
+    });
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
       let detail = errorData?.detail || errorData?.message || "";

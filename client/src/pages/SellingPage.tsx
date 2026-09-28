@@ -34,7 +34,7 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
   const first = name.split(" ")[0];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
+    <div className="flex min-h-screen flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {/* The public pages' header — B mark, the shared search box, account — so
           search stays one tap away below a profile too, with Back pinned in it. */}
       <PublicPageHeader
@@ -42,12 +42,16 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
         back={{ label: `Back to ${first}`, onClick: () => goBack(`/p/${npub}`) }}
       />
 
-      <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-6">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:px-6">
         <div className="mb-5 flex items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/30 bg-brand-deep/5 text-brand-deep">
             <ShoppingBag className="h-4 w-4" />
           </span>
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="selling-title">
+          <h1
+            className="text-lg font-bold tracking-tight sm:text-xl"
+            style={{ fontFamily: "var(--font-display)" }}
+            data-testid="selling-title"
+          >
             For sale from {name}
           </h1>
           {listingsQuery.isSuccess && (
@@ -68,7 +72,13 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {products.map(({ event, group }) => (
-              <ListingCard key={group.id} event={event as NostrEvent} author={null} showAuthor={false} group={{ title: group.title, options: group.options.length }} />
+              <ListingCard
+                key={group.id}
+                event={event as NostrEvent}
+                author={null}
+                showAuthor={false}
+                group={{ title: group.title, options: group.options.length }}
+              />
             ))}
           </div>
         )}

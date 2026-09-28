@@ -54,14 +54,11 @@ describe("tag relay override", () => {
     // CONFIG.json's URLs have no trailing slash and ours do; a set union that
     // kept both would open two sockets to one relay.
     const { setTagRelays } = await loadConfig();
-    expect(setTagRelays(["wss://a.example.com/", "wss://a.example.com"])).toEqual([
-      "wss://a.example.com",
-    ]);
+    expect(setTagRelays(["wss://a.example.com/", "wss://a.example.com"])).toEqual(["wss://a.example.com"]);
   });
 
   it("returns to the shipped defaults when the list is emptied", async () => {
-    const { setTagRelays, tagRelays, DEFAULT_TAG_RELAYS, isTagRelayOverrideActive } =
-      await loadConfig();
+    const { setTagRelays, tagRelays, DEFAULT_TAG_RELAYS, isTagRelayOverrideActive } = await loadConfig();
     setTagRelays(["wss://relay.example.com"]);
     setTagRelays([]);
     expect(tagRelays()).toEqual(DEFAULT_TAG_RELAYS);

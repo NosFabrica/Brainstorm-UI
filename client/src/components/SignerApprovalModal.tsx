@@ -30,8 +30,8 @@ export function SignerApprovalModal() {
         <DialogHeader>
           <DialogTitle>Approve this in your signer</DialogTitle>
           <DialogDescription>
-            Your signer wants to check with you before it answers. Open it, approve the request,
-            and Brainstorm will carry on where it left off.
+            Your signer wants to check with you before it answers. Open it, approve the request, and Brainstorm will
+            carry on where it left off.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="sm:justify-between">

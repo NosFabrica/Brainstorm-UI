@@ -8,7 +8,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import type { NostrEvent } from "nostr-tools";
 import { ListChecks } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -95,22 +94,28 @@ export function FollowSetHero({ event }: { event: SetEvent }) {
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+            <h1
+              className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
               {title}
             </h1>
             <Chip size="sm" tone="info">
               {members.length} {members.length === 1 ? "member" : "members"}
             </Chip>
           </div>
-          {description && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{description}</p>}
+          {description && <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-300">{description}</p>}
         </div>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800" data-testid="set-hero-glyph">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800"
+          data-testid="set-hero-glyph"
+        >
           <ListChecks className="h-5 w-5 text-slate-400 dark:text-slate-500" />
         </div>
       </div>
 
       {/* The roster — the whole point of opening a pack. */}
-      <div className="mt-4 border-t border-slate-100 dark:border-slate-800/60 pt-3">
+      <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800/60">
         <ul className="space-y-0.5" data-testid="set-hero-roster">
           {shown.map((pk) => {
             const profile = profiles.get(pk);
@@ -120,7 +125,7 @@ export function FollowSetHero({ event }: { event: SetEvent }) {
               <li key={pk}>
                 <Link
                   href={npub ? `/p/${npub}` : "#"}
-                  className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                  className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
                   data-testid={`set-member-${pk}`}
                 >
                   <Avatar

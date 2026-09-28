@@ -38,10 +38,7 @@ export function TagComments({
   const { data: comments, isLoading } = useTagComments(authorPubkey, slug);
   const post = usePostTagComment(authorPubkey, slug);
 
-  const authors = useMemo(
-    () => Array.from(new Set((comments ?? []).map((c) => c.author))),
-    [comments],
-  );
+  const authors = useMemo(() => Array.from(new Set((comments ?? []).map((c) => c.author))), [comments]);
   const profilesQuery = useQuery({
     queryKey: ["tag-comment-profiles", authors.join(",")],
     queryFn: () => fetchProfileMap(authors),
@@ -108,7 +105,7 @@ export function TagComments({
       {isLoading ? (
         <div className="space-y-3" data-testid="tag-comments-loading">
           {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="flex gap-3 animate-pulse">
+            <div key={i} className="flex animate-pulse gap-3">
               <div className="h-8 w-8 shrink-0 rounded-full bg-slate-100 dark:bg-slate-800" />
               <div className="flex-1 space-y-1.5">
                 <div className="h-3 w-24 rounded bg-slate-100 dark:bg-slate-800" />
@@ -119,9 +116,7 @@ export function TagComments({
         </div>
       ) : list.length === 0 ? (
         <p className="text-sm text-slate-400 dark:text-slate-500" data-testid="tag-comments-empty">
-          {canPost
-            ? "No comments yet — say what this tag should mean."
-            : "No comments yet."}
+          {canPost ? "No comments yet — say what this tag should mean." : "No comments yet."}
         </p>
       ) : (
         <ul className="space-y-4">
@@ -129,12 +124,18 @@ export function TagComments({
             const p = profiles?.get(c.author);
             const name = p?.display_name || p?.name || `${c.author.slice(0, 8)}…`;
             let npub = "";
-            try { npub = npubFromPubkey(c.author); } catch { /* unlinkable */ }
+            try {
+              npub = npubFromPubkey(c.author);
+            } catch {
+              /* unlinkable */
+            }
             return (
               <li key={c.id} className="flex gap-3" data-testid="tag-comment">
                 <Avatar className="h-8 w-8 shrink-0 border border-slate-200 dark:border-slate-800">
                   {p?.picture ? <AvatarImage src={p.picture} alt="" className="object-cover" /> : null}
-                  <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                  <AvatarFallback className="overflow-hidden">
+                    <DefaultAvatarImg />
+                  </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2">
@@ -149,9 +150,7 @@ export function TagComments({
                     ) : (
                       <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</span>
                     )}
-                    <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                      {relativeTime(c.createdAt)}
-                    </span>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">{relativeTime(c.createdAt)}</span>
                   </div>
                   <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-slate-600 dark:text-slate-300">
                     <LinkedText text={c.content} />

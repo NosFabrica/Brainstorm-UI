@@ -14,7 +14,8 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () 
 const contactsMock = vi.fn();
 vi.mock("@/services/socialActions", () => ({
   fetchContactList: (...a: unknown[]) => contactsMock(...a),
-  getFollowedPubkeys: (list: { tags: string[][] } | null) => new Set(list?.tags.filter((t) => t[0] === "p").map((t) => t[1]) ?? []),
+  getFollowedPubkeys: (list: { tags: string[][] } | null) =>
+    new Set(list?.tags.filter((t) => t[0] === "p").map((t) => t[1]) ?? []),
 }));
 
 import { useMyFollows } from "./useMyFollows";
@@ -24,7 +25,11 @@ const A = "a".repeat(64);
 
 function Probe() {
   const { follows, ready, signedIn } = useMyFollows();
-  return <div data-testid="probe">{signedIn ? "in" : "out"}:{ready ? "ready" : "loading"}:{[...follows].join(",")}</div>;
+  return (
+    <div data-testid="probe">
+      {signedIn ? "in" : "out"}:{ready ? "ready" : "loading"}:{[...follows].join(",")}
+    </div>
+  );
 }
 
 beforeEach(() => {
@@ -41,7 +46,16 @@ describe("useMyFollows", () => {
 
   it("resolves the signed-in viewer's follows through the shared contacts query", async () => {
     activeMock.mockReturnValue({ pubkey: ME });
-    contactsMock.mockResolvedValue({ kind: 3, pubkey: ME, tags: [["p", A], ["t", "nope"]], content: "", created_at: 1 });
+    contactsMock.mockResolvedValue({
+      kind: 3,
+      pubkey: ME,
+      tags: [
+        ["p", A],
+        ["t", "nope"],
+      ],
+      content: "",
+      created_at: 1,
+    });
     const { queryClient } = renderWithProviders(<Probe />);
     expect(screen.getByTestId("probe")).toHaveTextContent("in:loading:");
     await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent(`in:ready:${A}`));

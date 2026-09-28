@@ -44,9 +44,13 @@ function isMode(v: unknown): v is ScoreDisplayMode {
 // a choice made before the migration isn't lost.
 function scopedKey(): string {
   let who: string | null = null;
-  try { who = activePubkey(); } catch {}
+  try {
+    who = activePubkey();
+  } catch {}
   if (!who) {
-    try { who = JSON.parse(localStorage.getItem("nostr_user") || "{}")?.pubkey || null; } catch {}
+    try {
+      who = JSON.parse(localStorage.getItem("nostr_user") || "{}")?.pubkey || null;
+    } catch {}
   }
   return `${STORAGE_KEY}:${who || "anon"}`;
 }

@@ -68,11 +68,13 @@ describe("takeHeadStart", () => {
 
 describe("the inline script in index.html", () => {
   const html = readFileSync(join(__dirname, "../../index.html"), "utf8");
-  const asked = [...html.matchAll(/\{ kinds: \[([\d, ]+)\], search: (q|fresh) \+ perspective, limit: (\d+) \}/g)].map((m) => ({
-    kinds: m[1].split(",").map((n) => Number(n.trim())),
-    recent: m[2] === "fresh",
-    limit: Number(m[3]),
-  }));
+  const asked = [...html.matchAll(/\{ kinds: \[([\d, ]+)\], search: (q|fresh) \+ perspective, limit: (\d+) \}/g)].map(
+    (m) => ({
+      kinds: m[1].split(",").map((n) => Number(n.trim())),
+      recent: m[2] === "fresh",
+      limit: Number(m[3]),
+    }),
+  );
 
   it("asks each section exactly what the composed page asks it", () => {
     const tabs = ["people", "notes", "articles", "events", "live", "media", "music", "shop"] as const;

@@ -158,10 +158,7 @@ describe("resolveHouseObserver", () => {
   });
 
   it("rejects a malformed pubkey rather than passing it to a relay filter", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ names: { _: "nope" } }) }),
-    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ names: { _: "nope" } }) }));
     const { resolveHouseObserver } = await load();
     expect(await resolveHouseObserver()).toBeNull();
   });

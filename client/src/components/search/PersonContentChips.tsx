@@ -53,8 +53,17 @@ export function PersonContentChips({
 }) {
   const chips = content?.chips ?? [];
   return (
-    <span className={cn("inline-flex h-5 shrink-0 items-center", className)} data-state={content ? "ready" : "pending"} data-testid={testId}>
-      <span className={cn("flex items-center gap-1 transition-opacity duration-200", chips.length ? "opacity-100" : "opacity-0")}>
+    <span
+      className={cn("inline-flex h-5 shrink-0 items-center", className)}
+      data-state={content ? "ready" : "pending"}
+      data-testid={testId}
+    >
+      <span
+        className={cn(
+          "flex items-center gap-1 transition-opacity duration-200",
+          chips.length ? "opacity-100" : "opacity-0",
+        )}
+      >
         {chips.map((c) => {
           const label = chipAriaLabel(name, c);
           return (
@@ -82,7 +91,13 @@ export function PersonContentChips({
                 icon={PERSON_CONTENT_ICONS[c.key]}
                 className="cursor-pointer transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-brand-deep active:bg-indigo-100 dark:hover:border-indigo-500/25 dark:hover:bg-indigo-500/10 dark:hover:text-brand-link dark:active:bg-indigo-500/20"
               >
-                {c.liveNow && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" data-testid="person-content-live-dot" aria-hidden="true" />}
+                {c.liveNow && (
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500"
+                    data-testid="person-content-live-dot"
+                    aria-hidden="true"
+                  />
+                )}
                 <span className="hidden sm:inline">{c.label}</span>
               </Chip>
             </Link>

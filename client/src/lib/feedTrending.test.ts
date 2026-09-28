@@ -15,7 +15,9 @@ const note = (id: string, pubkey: string, tags: string[]): SearchHit => ({
   author: null,
   rank: null,
 });
-const A = "a".repeat(64), B = "b".repeat(64), C = "c".repeat(64);
+const A = "a".repeat(64),
+  B = "b".repeat(64),
+  C = "c".repeat(64);
 
 describe("trendingTags", () => {
   it("ranks tags by how many different people used them, at least two", () => {

@@ -13,7 +13,11 @@ import { TrustedListsUnavailableError, type TrustedListRunData } from "@/service
 
 const publishTrustedLists = vi.fn<(observer: string) => Promise<TrustedListRunData>>();
 type UserRow = { pubkey: string } & Record<string, unknown>;
-const getAdminUsers = vi.fn(async (_p: { search?: string; size?: number }) => ({ items: [] as UserRow[], total: 0, pages: 0 }));
+const getAdminUsers = vi.fn(async (_p: { search?: string; size?: number }) => ({
+  items: [] as UserRow[],
+  total: 0,
+  pages: 0,
+}));
 const triggerUserGraperank = vi.fn(async (_pubkey: string) => undefined as unknown);
 vi.mock("@/services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/api")>();
@@ -50,9 +54,33 @@ const RUN: TrustedListRunData = {
   retracted: 1,
   empty_reason: null,
   tags: [
-    { slug: "podcaster", d_tag: "tl-tag-be7bf5de-aaaaaaaa-podcaster", tag_event_id: "e".repeat(64), status: "published", taggings_considered: 5, member_count: 3, error: null },
-    { slug: "bitcoiner", d_tag: "tl-tag-be7bf5de-aaaaaaaa-bitcoiner", tag_event_id: "f".repeat(64), status: "published", taggings_considered: 9, member_count: 7, error: null },
-    { slug: "old-tag", d_tag: "tl-tag-be7bf5de-aaaaaaaa-old-tag", tag_event_id: "", status: "retracted", taggings_considered: 0, member_count: 0, error: null },
+    {
+      slug: "podcaster",
+      d_tag: "tl-tag-be7bf5de-aaaaaaaa-podcaster",
+      tag_event_id: "e".repeat(64),
+      status: "published",
+      taggings_considered: 5,
+      member_count: 3,
+      error: null,
+    },
+    {
+      slug: "bitcoiner",
+      d_tag: "tl-tag-be7bf5de-aaaaaaaa-bitcoiner",
+      tag_event_id: "f".repeat(64),
+      status: "published",
+      taggings_considered: 9,
+      member_count: 7,
+      error: null,
+    },
+    {
+      slug: "old-tag",
+      d_tag: "tl-tag-be7bf5de-aaaaaaaa-old-tag",
+      tag_event_id: "",
+      status: "retracted",
+      taggings_considered: 0,
+      member_count: 0,
+      error: null,
+    },
   ],
 };
 
@@ -90,9 +118,13 @@ describe("TrustedListsCard", () => {
     getAdminUsers.mockResolvedValue({ items: [], total: 0, pages: 0 });
     renderWithProviders(<TrustedListsCard />);
 
-    fireEvent.change(screen.getByTestId("input-trusted-lists-observer"), { target: { value: nip19.npubEncode("a".repeat(64)) } });
+    fireEvent.change(screen.getByTestId("input-trusted-lists-observer"), {
+      target: { value: nip19.npubEncode("a".repeat(64)) },
+    });
 
-    expect(await screen.findByText(/only someone with a brainstorm account can have trusted lists/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/only someone with a brainstorm account can have trusted lists/i),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /publish trusted lists/i })).toBeNull();
   });
 
@@ -116,12 +148,16 @@ describe("TrustedListsCard", () => {
     await screen.findByTestId("trusted-lists-observer");
 
     fireEvent.click(screen.getByRole("button", { name: /publish trusted lists/i }));
-    fireEvent.click(within(await screen.findByTestId("trusted-lists-confirm")).getByRole("button", { name: /cancel/i }));
+    fireEvent.click(
+      within(await screen.findByTestId("trusted-lists-confirm")).getByRole("button", { name: /cancel/i }),
+    );
     await waitFor(() => expect(screen.queryByTestId("trusted-lists-confirm")).toBeNull());
     expect(publishTrustedLists).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: /publish trusted lists/i }));
-    fireEvent.click(within(await screen.findByTestId("trusted-lists-confirm")).getByRole("button", { name: /^publish$/i }));
+    fireEvent.click(
+      within(await screen.findByTestId("trusted-lists-confirm")).getByRole("button", { name: /^publish$/i }),
+    );
     const button = await screen.findByTestId("trusted-lists-publish");
     await waitFor(() => expect(button).toBeDisabled());
     expect(button).toHaveTextContent(/publishing/i);
@@ -133,11 +169,15 @@ describe("TrustedListsCard", () => {
     fireEvent.click(screen.getByRole("button", { name: /brainstorm \(house\)/i }));
     await screen.findByTestId("trusted-lists-observer");
     fireEvent.click(screen.getByRole("button", { name: /publish trusted lists/i }));
-    fireEvent.click(within(await screen.findByTestId("trusted-lists-confirm")).getByRole("button", { name: /^publish$/i }));
+    fireEvent.click(
+      within(await screen.findByTestId("trusted-lists-confirm")).getByRole("button", { name: /^publish$/i }),
+    );
   }
 
   it("shows the server's words when a run fails, and tries again on request", async () => {
-    publishTrustedLists.mockRejectedValueOnce(new Error("could not connect to wss://relay.example")).mockResolvedValueOnce(RUN);
+    publishTrustedLists
+      .mockRejectedValueOnce(new Error("could not connect to wss://relay.example"))
+      .mockResolvedValueOnce(RUN);
     renderWithProviders(<TrustedListsCard />);
     await publishHouse();
 
@@ -171,7 +211,11 @@ describe("TrustedListsCard", () => {
   // Lists come from the observer's own web of trust: until it's calculated,
   // nobody qualifies and the run comes back empty. Say so before publishing.
   it("warns when the observer's trust network was never calculated, and can start it", async () => {
-    getAdminUsers.mockResolvedValue({ items: [{ pubkey: HOUSE, times_calculated: 0, latest_status: null, last_updated: null }], total: 1, pages: 1 });
+    getAdminUsers.mockResolvedValue({
+      items: [{ pubkey: HOUSE, times_calculated: 0, latest_status: null, last_updated: null }],
+      total: 1,
+      pages: 1,
+    });
     renderWithProviders(<TrustedListsCard />);
     fireEvent.click(screen.getByRole("button", { name: /brainstorm \(house\)/i }));
 
@@ -183,7 +227,11 @@ describe("TrustedListsCard", () => {
   });
 
   it("says when the observer's trust network is ready, with nothing to start", async () => {
-    getAdminUsers.mockResolvedValue({ items: [{ pubkey: HOUSE, times_calculated: 4, latest_status: "success", last_updated: "2026-09-15T10:00:00Z" }], total: 1, pages: 1 });
+    getAdminUsers.mockResolvedValue({
+      items: [{ pubkey: HOUSE, times_calculated: 4, latest_status: "success", last_updated: "2026-09-15T10:00:00Z" }],
+      total: 1,
+      pages: 1,
+    });
     renderWithProviders(<TrustedListsCard />);
     fireEvent.click(screen.getByRole("button", { name: /brainstorm \(house\)/i }));
 

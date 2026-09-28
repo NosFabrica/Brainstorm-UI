@@ -26,8 +26,19 @@ function resolve(ids: string[]): Promise<void> {
   const p = fetchEventsByIds(ids)
     .catch(() => [])
     .then(async (events) => {
-      const people = [...new Set(events.flatMap((e) => [e.pubkey, ...analyzeNote(e as MinimalEvent).mentionPubkeys, ...analyzeNote(e as MinimalEvent).replyToPubkeys]))];
-      const profiles = (people.length ? await fetchProfileMap(people).catch(() => new Map()) : new Map()) as Map<string, ProfileLite>;
+      const people = [
+        ...new Set(
+          events.flatMap((e) => [
+            e.pubkey,
+            ...analyzeNote(e as MinimalEvent).mentionPubkeys,
+            ...analyzeNote(e as MinimalEvent).replyToPubkeys,
+          ]),
+        ),
+      ];
+      const profiles = (people.length ? await fetchProfileMap(people).catch(() => new Map()) : new Map()) as Map<
+        string,
+        ProfileLite
+      >;
       for (const id of ids) {
         const event = events.find((e) => e.id === id);
         settled.set(id, event ? { event: event as MinimalEvent, author: profiles.get(event.pubkey), profiles } : null);

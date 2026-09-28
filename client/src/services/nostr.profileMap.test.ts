@@ -26,7 +26,15 @@ import { fetchProfileMap } from "./nostr";
 const A = "a".repeat(64);
 const B = "b".repeat(64);
 const profile = (pubkey: string, name: string): NostrEvent =>
-  ({ id: `id-${pubkey}`, kind: 0, pubkey, tags: [], content: JSON.stringify({ name }), created_at: 1, sig: "s" }) as NostrEvent;
+  ({
+    id: `id-${pubkey}`,
+    kind: 0,
+    pubkey,
+    tags: [],
+    content: JSON.stringify({ name }),
+    created_at: 1,
+    sig: "s",
+  }) as NostrEvent;
 
 beforeEach(() => {
   vi.clearAllMocks();

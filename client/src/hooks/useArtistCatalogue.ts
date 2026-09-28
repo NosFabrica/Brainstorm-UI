@@ -18,7 +18,10 @@ const IDLE: ArtistCatalogue = { artist: null, songs: [], loading: false };
  * (a search scoped to a key). Nobody on Wavlake, or an outage there, is an
  * empty catalogue, never an error.
  */
-export function useArtistCatalogue(pubkey: string | null | undefined, opts: { name?: string | null; limit?: number } = {}): ArtistCatalogue {
+export function useArtistCatalogue(
+  pubkey: string | null | undefined,
+  opts: { name?: string | null; limit?: number } = {},
+): ArtistCatalogue {
   const { name, limit = 50 } = opts;
   const [state, setState] = useState<ArtistCatalogue>(IDLE);
   useEffect(() => {
@@ -31,7 +34,9 @@ export function useArtistCatalogue(pubkey: string | null | undefined, opts: { na
     (async () => {
       let who = name ?? null;
       if (!who) {
-        const map = await fetchProfileMap([pubkey]).catch(() => new Map<string, { name?: string; display_name?: string }>());
+        const map = await fetchProfileMap([pubkey]).catch(
+          () => new Map<string, { name?: string; display_name?: string }>(),
+        );
         const p = map.get(pubkey) as { name?: string; display_name?: string } | undefined;
         who = p?.display_name || p?.name || null;
       }

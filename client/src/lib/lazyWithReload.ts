@@ -22,6 +22,7 @@ function sessionStore(): ReloadDeps["storage"] {
  * build removed reloads once to pick up the new index; failing again right
  * after that reload throws to the error boundary instead of looping.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- same constraint as React.lazy
 export function lazyWithReload<T extends ComponentType<any>>(
   load: () => Promise<{ default: T }>,
   { storage = sessionStore(), reload = () => window.location.reload() }: ReloadDeps = {},

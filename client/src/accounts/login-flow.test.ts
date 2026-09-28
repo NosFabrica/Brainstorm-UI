@@ -75,7 +75,7 @@ describe("signing out", () => {
     logout();
 
     expect(accountManager.active).toBeUndefined();
-    expect(accountManager.accounts).toContain(account as any);
+    expect(accountManager.accounts).toContain(account as unknown as BrainstormAccount);
     expect(getMetadata(account as unknown as BrainstormAccount).session).toBeUndefined();
     expect(account.persistable).toBe(true);
   });
@@ -88,7 +88,7 @@ describe("removing an account from this device", () => {
 
     expect(removeAccountFromDevice(account as unknown as BrainstormAccount)).toBe(true);
 
-    expect(accountManager.accounts).not.toContain(account as any);
+    expect(accountManager.accounts).not.toContain(account as unknown as BrainstormAccount);
     expect(accountManager.active).toBeUndefined();
   });
 
@@ -126,7 +126,7 @@ describe("removing an account from this device", () => {
 
     expect(removeAccountFromDevice(other as unknown as BrainstormAccount)).toBe(false);
 
-    expect(accountManager.accounts).not.toContain(other as any);
+    expect(accountManager.accounts).not.toContain(other as unknown as BrainstormAccount);
     expect(accountManager.active?.id).toBe(signedIn.id);
   });
 });
@@ -174,6 +174,8 @@ describe("an extension that never answers the sign-in", () => {
 
     expect(failure).toBeInstanceOf(LoginError);
     expect((failure as InstanceType<typeof LoginError>).code).toBe("EXTENSION_FAILED");
-    expect((failure as Error).message).toBe("Your extension didn't answer. Open it, approve the request, and try again — or use your key.");
+    expect((failure as Error).message).toBe(
+      "Your extension didn't answer. Open it, approve the request, and try again — or use your key.",
+    );
   });
 });

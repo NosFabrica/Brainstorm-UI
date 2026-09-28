@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Loader2, PinOff, Tag as TagIcon } from "lucide-react";
+import { ChevronDown, PinOff, Tag as TagIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
@@ -13,13 +13,7 @@ import { UnscoredReachNotice } from "@/components/tags/UnscoredReachNotice";
 import { StanceButtons } from "@/components/share/StanceControl";
 import { useToast } from "@/hooks/use-toast";
 import { fetchProfileMap } from "@/services/nostr";
-import {
-  useApplyTag,
-  useMyAssertions,
-  usePinnedTags,
-  useProfileTags,
-  useTogglePin,
-} from "@/hooks/useTags";
+import { useApplyTag, useMyAssertions, usePinnedTags, useProfileTags, useTogglePin } from "@/hooks/useTags";
 import { TAG_PINS_ENABLED } from "@/config/tagging";
 import { npubFromPubkey } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
@@ -67,8 +61,8 @@ export function YourTagsPanel() {
     /* unlinkable */
   }
 
-  const tagsOnMe = onMe?.tags ?? [];
-  const said = mySaid ?? [];
+  const tagsOnMe = useMemo(() => onMe?.tags ?? [], [onMe]);
+  const said = useMemo(() => mySaid ?? [], [mySaid]);
   const [saidShown, setSaidShown] = useState(SAID_PREVIEW);
   const [stance, setStance] = useState<Stance>("all");
 
@@ -135,7 +129,7 @@ export function YourTagsPanel() {
 
   return (
     <div className="space-y-6" data-testid="your-tags-panel">
-        {/* Leads with what you CAN do.
+      {/* Leads with what you CAN do.
             The first version opened "You can't erase a tag someone else gave
             you — nobody can, on Nostr", which greeted people with a
             restriction and a protocol lecture in one breath. Nobody arriving
@@ -155,150 +149,131 @@ export function YourTagsPanel() {
                polarity 0 and no deletion — you can change your mind, but not
                erase having spoken. The buttons no longer imply otherwise, and
                neither should the paragraph above them. */}
-        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400" data-testid="my-tags-no-delete">
-          Something here that's wrong? Disagree with it. That's a public vote
-          against, and once more people disagree than agree the tag stops
-          counting. It stays on the page either way, marked as disagreed. You can
-          change your mind later, but there's no way to un-say it.
-        </p>
+      <p className="mt-4 text-sm text-slate-500 dark:text-slate-400" data-testid="my-tags-no-delete">
+        Something here that's wrong? Disagree with it. That's a public vote against, and once more people disagree than
+        agree the tag stops counting. It stays on the page either way, marked as disagreed. You can change your mind
+        later, but there's no way to un-say it.
+      </p>
 
-        {/* ── 1. Tags on me ─────────────────────────────────────────────── */}
-        <section className="mt-8" data-testid="my-tags-on-me">
-          <SectionLabel
-            count={tagsOnMe.length}
-            hint="What other people say you're known for."
-          >
-            About you
-          </SectionLabel>
-          {loadingMine ? (
-            <Loading />
-          ) : tagsOnMe.length === 0 ? (
-            <Card className="p-6">
-              <EmptyState
-                icon={TagIcon}
-                compact
-                title="Nobody has tagged you yet"
-                description="When someone does, it shows up here and on your profile."
-              />
-            </Card>
-          ) : (
-            <Card className="divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
-              {tagsOnMe.map((tag) => (
-                <TagOnMeRow
-                  key={tag.key}
-                  tag={tag}
-                  canAct={canAct}
-                  viewerPubkey={viewerPubkey!}
-                  profiles={profiles}
-                />
-              ))}
-            </Card>
-          )}
-        </section>
+      {/* ── 1. Tags on me ─────────────────────────────────────────────── */}
+      <section className="mt-8" data-testid="my-tags-on-me">
+        <SectionLabel count={tagsOnMe.length} hint="What other people say you're known for.">
+          About you
+        </SectionLabel>
+        {loadingMine ? (
+          <Loading />
+        ) : tagsOnMe.length === 0 ? (
+          <Card className="p-6">
+            <EmptyState
+              icon={TagIcon}
+              compact
+              title="Nobody has tagged you yet"
+              description="When someone does, it shows up here and on your profile."
+            />
+          </Card>
+        ) : (
+          <Card className="divide-y divide-slate-100 overflow-hidden dark:divide-slate-800/60">
+            {tagsOnMe.map((tag) => (
+              <TagOnMeRow key={tag.key} tag={tag} canAct={canAct} viewerPubkey={viewerPubkey!} profiles={profiles} />
+            ))}
+          </Card>
+        )}
+      </section>
 
-        {/* ── 2. Tags I've applied ──────────────────────────────────────── */}
-        <section className="mt-8" data-testid="my-tags-said">
-          <SectionLabel
-            count={groups.length}
-            hint="Public and signed by you. These are your claims about other people."
-          >
-            What you've said
-          </SectionLabel>
+      {/* ── 2. Tags I've applied ──────────────────────────────────────── */}
+      <section className="mt-8" data-testid="my-tags-said">
+        <SectionLabel count={groups.length} hint="Public and signed by you. These are your claims about other people.">
+          What you've said
+        </SectionLabel>
 
-          {/* Only where it's actionable: above your own claims, and only once
+        {/* Only where it's actionable: above your own claims, and only once
               you have some. On the "About you" section above it would be
               answering a question nobody asked — those are other people's tags,
               and their reach has nothing to do with your score. */}
-          {onMe?.viewerUnscored && said.length > 0 && (
-            <UnscoredReachNotice className="mb-3" />
-          )}
+        {onMe?.viewerUnscored && said.length > 0 && <UnscoredReachNotice className="mb-3" />}
 
-          {/* One row per PERSON was the obvious build and the wrong one: tagging
+        {/* One row per PERSON was the obvious build and the wrong one: tagging
               is repetitive by nature, so a session of labelling a dozen
               musicians produced a dozen identical chips down the page. Grouped
               by tag, that's one row. Someone with a thousand claims has as many
               rows as they have distinct tags, which is a number a human chose. */}
-          {said.length > 0 && (
-            <div className="mb-3 flex flex-wrap items-center gap-1" data-testid="my-tags-said-filters">
-              <StanceTab active={stance === "all"} onClick={() => setStance("all")} testId="filter-all">
-                All
-              </StanceTab>
-              <StanceTab active={stance === "apply"} onClick={() => setStance("apply")} testId="filter-added">
-                Added {applyCount > 0 && <Count>{applyCount}</Count>}
-              </StanceTab>
-              <StanceTab
-                active={stance === "dispute"}
-                onClick={() => setStance("dispute")}
-                testId="filter-disagreed"
-              >
-                Disagreed {disputeCount > 0 && <Count>{disputeCount}</Count>}
-              </StanceTab>
-            </div>
-          )}
+        {said.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-1" data-testid="my-tags-said-filters">
+            <StanceTab active={stance === "all"} onClick={() => setStance("all")} testId="filter-all">
+              All
+            </StanceTab>
+            <StanceTab active={stance === "apply"} onClick={() => setStance("apply")} testId="filter-added">
+              Added {applyCount > 0 && <Count>{applyCount}</Count>}
+            </StanceTab>
+            <StanceTab active={stance === "dispute"} onClick={() => setStance("dispute")} testId="filter-disagreed">
+              Disagreed {disputeCount > 0 && <Count>{disputeCount}</Count>}
+            </StanceTab>
+          </div>
+        )}
 
-          {loadingSaid ? (
-            <Loading />
-          ) : said.length === 0 ? (
+        {loadingSaid ? (
+          <Loading />
+        ) : said.length === 0 ? (
+          <Card className="p-6">
+            <EmptyState
+              icon={TagIcon}
+              compact
+              title="You haven't tagged anyone yet"
+              description="Open someone's profile and use “Add a tag” to say what they're known for. It shows up here so you can look back at it."
+            />
+          </Card>
+        ) : groups.length === 0 ? (
+          <Card className="p-6">
+            <EmptyState
+              icon={TagIcon}
+              compact
+              title={stance === "dispute" ? "You haven't disagreed with anything" : "Nothing here yet"}
+              description="Switch back to All to see everything you've said."
+            />
+          </Card>
+        ) : (
+          <Card className="divide-y divide-slate-100 overflow-hidden dark:divide-slate-800/60">
+            {groups.slice(0, saidShown).map((g) => (
+              <SaidGroup key={g.key} group={g} profiles={profiles} />
+            ))}
+            {groups.length > saidShown && (
+              <button
+                type="button"
+                onClick={() => setSaidShown(groups.length)}
+                className="w-full px-4 py-3 text-xs font-semibold text-brand-link transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                data-testid="my-tags-said-more"
+              >
+                Show all {groups.length} tags
+              </button>
+            )}
+          </Card>
+        )}
+      </section>
+
+      {/* ── 3. Pinned — the declared deviation, off by default ─────────── */}
+      {TAG_PINS_ENABLED && (
+        <section className="mt-8" data-testid="my-tags-pinned">
+          <SectionLabel>Saved tags</SectionLabel>
+          {!pinned?.length ? (
             <Card className="p-6">
               <EmptyState
                 icon={TagIcon}
                 compact
-                title="You haven't tagged anyone yet"
-                description="Open someone's profile and use “Add a tag” to say what they're known for. It shows up here so you can look back at it."
-              />
-            </Card>
-          ) : groups.length === 0 ? (
-            <Card className="p-6">
-              <EmptyState
-                icon={TagIcon}
-                compact
-                title={stance === "dispute" ? "You haven't disagreed with anything" : "Nothing here yet"}
-                description="Switch back to All to see everything you've said."
+                title="No saved tags"
+                description="Save a tag from its page to keep it here."
               />
             </Card>
           ) : (
-            <Card className="divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
-              {groups.slice(0, saidShown).map((g) => (
-                <SaidGroup key={g.key} group={g} profiles={profiles} />
+            <Card className="divide-y divide-slate-100 overflow-hidden dark:divide-slate-800/60">
+              {pinned.map((p) => (
+                <PinnedRow key={p.key} pin={p} />
               ))}
-              {groups.length > saidShown && (
-                <button
-                  type="button"
-                  onClick={() => setSaidShown(groups.length)}
-                  className="w-full px-4 py-3 text-xs font-semibold text-brand-link transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                  data-testid="my-tags-said-more"
-                >
-                  Show all {groups.length} tags
-                </button>
-              )}
             </Card>
           )}
         </section>
+      )}
 
-        {/* ── 3. Pinned — the declared deviation, off by default ─────────── */}
-        {TAG_PINS_ENABLED && (
-          <section className="mt-8" data-testid="my-tags-pinned">
-            <SectionLabel>Saved tags</SectionLabel>
-            {!pinned?.length ? (
-              <Card className="p-6">
-                <EmptyState
-                  icon={TagIcon}
-                  compact
-                  title="No saved tags"
-                  description="Save a tag from its page to keep it here."
-                />
-              </Card>
-            ) : (
-              <Card className="divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
-                {pinned.map((p) => (
-                  <PinnedRow key={p.key} pin={p} />
-                ))}
-              </Card>
-            )}
-          </section>
-        )}
-
-        {/* The catalogue's home in the app.
+      {/* The catalogue's home in the app.
 
             It used to sit under the search box on the landing page, which was
             the wrong place: that screen asks you to do exactly one thing, and
@@ -309,26 +284,26 @@ export function YourTagsPanel() {
 
             A labelled row, not the pill switcher this replaced: a toggle only
             reads as a toggle once you know what's on the other side. */}
-        <div className="mt-8 space-y-4 border-t border-slate-100 pt-6 dark:border-slate-800/60">
-          <TagsCrossLink
-            href="/tags"
-            title="Browse tags"
-            description="What people are known for, across the network"
-            testId="your-tags-browse"
-          />
+      <div className="mt-8 space-y-4 border-t border-slate-100 pt-6 dark:border-slate-800/60">
+        <TagsCrossLink
+          href="/tags"
+          title="Browse tags"
+          description="What people are known for, across the network"
+          testId="your-tags-browse"
+        />
 
-          {myNpub && (
-            <p className="text-center text-xs">
-              <Link
-                href={`/p/${myNpub}`}
-                className="font-semibold text-brand-link hover:underline"
-                data-testid="your-tags-profile"
-              >
-                See your public profile →
-              </Link>
-            </p>
-          )}
-        </div>
+        {myNpub && (
+          <p className="text-center text-xs">
+            <Link
+              href={`/p/${myNpub}`}
+              className="font-semibold text-brand-link hover:underline"
+              data-testid="your-tags-profile"
+            >
+              See your public profile →
+            </Link>
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -428,9 +403,7 @@ function TagOnMeRow({
           )}
         </p>
         {tag.description && (
-          <p className="mt-0.5 line-clamp-2 text-xs text-slate-400 dark:text-slate-500">
-            {tag.description}
-          </p>
+          <p className="mt-0.5 line-clamp-2 text-xs text-slate-400 dark:text-slate-500">{tag.description}</p>
         )}
       </div>
 
@@ -439,12 +412,7 @@ function TagOnMeRow({
           you — and until now the only button on it said "Agree". */}
       {canAct && (
         <div className="mt-0.5">
-          <StanceButtons
-            stance={tag.myStance}
-            pending={busy}
-            onVote={setStance}
-            testId="my-tag-stance"
-          />
+          <StanceButtons stance={tag.myStance} pending={busy} onVote={setStance} testId="my-tag-stance" />
         </div>
       )}
     </div>
@@ -477,13 +445,7 @@ const GROUP_PREVIEW = 10;
  * repeating "Musician" on all twelve rows is the exact noise this grouping
  * exists to remove.
  */
-function SaidGroup({
-  group,
-  profiles,
-}: {
-  group: SaidGroupData;
-  profiles?: Map<string, FaceProfile>;
-}) {
+function SaidGroup({ group, profiles }: { group: SaidGroupData; profiles?: Map<string, FaceProfile> }) {
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(GROUP_PREVIEW);
 
@@ -629,9 +591,7 @@ function SaidRow({
             {name}
           </Link>
         ) : (
-          <span className="min-w-0 truncate font-semibold text-slate-700 dark:text-slate-200">
-            {name}
-          </span>
+          <span className="min-w-0 truncate font-semibold text-slate-700 dark:text-slate-200">{name}</span>
         )}
       </div>
 
@@ -642,7 +602,11 @@ function SaidRow({
   );
 }
 
-function PinnedRow({ pin }: { pin: { key: string; name: string; authorPubkey: string; slug: string; pinEventId: string } }) {
+function PinnedRow({
+  pin,
+}: {
+  pin: { key: string; name: string; authorPubkey: string; slug: string; pinEventId: string };
+}) {
   const toggle = useTogglePin();
   const { toast } = useToast();
   let authorNpub = "";
@@ -656,10 +620,14 @@ function PinnedRow({ pin }: { pin: { key: string; name: string; authorPubkey: st
     <div className="flex items-center gap-3 px-4 py-3" data-testid="my-pinned-row">
       {authorNpub ? (
         <Link href={`/tags/${authorNpub}/${pin.slug}`} className="min-w-0 flex-1">
-          <Chip tone="brand" className="hover:opacity-80">{pin.name}</Chip>
+          <Chip tone="brand" className="hover:opacity-80">
+            {pin.name}
+          </Chip>
         </Link>
       ) : (
-        <span className="min-w-0 flex-1"><Chip tone="brand">{pin.name}</Chip></span>
+        <span className="min-w-0 flex-1">
+          <Chip tone="brand">{pin.name}</Chip>
+        </span>
       )}
       <button
         type="button"
@@ -700,9 +668,7 @@ function StanceTab({
       onClick={onClick}
       aria-pressed={active}
       className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-        active
-          ? "bg-brand-primary text-white"
-          : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
+        active ? "bg-brand-primary text-white" : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
       }`}
       data-testid={testId}
     >

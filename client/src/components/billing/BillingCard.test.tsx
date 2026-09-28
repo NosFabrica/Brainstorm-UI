@@ -233,10 +233,7 @@ describe("BillingCard — retired plans, cancellation and what we cannot know", 
     renderWithProviders(<BillingCard />);
     expect(screen.getByTestId("billing-plan-retired")).toBeInTheDocument();
     expect(screen.getByTestId("billing-retired-pricing")).toHaveAttribute("href", "/pricing");
-    expect(screen.getByTestId("billing-retired-manage")).toHaveAttribute(
-      "href",
-      "https://vault.example/portal/svc",
-    );
+    expect(screen.getByTestId("billing-retired-manage")).toHaveAttribute("href", "https://vault.example/portal/svc");
     // They keep paying what they signed up at.
     expect(screen.getByTestId("billing-amount")).toHaveTextContent("$2.00 per month");
   });

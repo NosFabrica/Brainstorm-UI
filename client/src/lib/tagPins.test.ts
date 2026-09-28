@@ -30,8 +30,7 @@ const pin = () =>
     taPubkeys: [TA_CANON, TA_LOCAL],
   });
 
-const tagValue = (ev: { tags: string[][] }, name: string) =>
-  ev.tags.find((t) => t[0] === name)?.[1];
+const tagValue = (ev: { tags: string[][] }, name: string) => ev.tags.find((t) => t[0] === name)?.[1];
 
 describe("buildTagPin — wire shape", () => {
   it("is a kind-39999 DList item like every other tag event", () => {
@@ -52,11 +51,10 @@ describe("buildTagPin — wire shape", () => {
   });
 
   it("stamps every honored namespace with the tag-pinning concept", () => {
-    const zs = pin().tags.filter((t) => t[0] === "z").map((t) => t[1]);
-    expect(zs).toEqual([
-      `39998:${TA_CANON}:tag-pinning`,
-      `39998:${TA_LOCAL}:tag-pinning`,
-    ]);
+    const zs = pin()
+      .tags.filter((t) => t[0] === "z")
+      .map((t) => t[1]);
+    expect(zs).toEqual([`39998:${TA_CANON}:tag-pinning`, `39998:${TA_LOCAL}:tag-pinning`]);
   });
 
   it("carries curation-method as STRINGIFIED json, not an object", () => {

@@ -3,7 +3,7 @@ import { useLocation, useSearch } from "wouter";
 import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { pushRecentQuery, pushRecentScoped } from "@/lib/recentSearches";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { nip19 } from "nostr-tools";
 import { resolveNip05 } from "@/lib/nip05";
 import { ArrowRight, Loader2 } from "lucide-react";
@@ -14,12 +14,7 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { FinishSetupBanner } from "@/components/FinishSetupBanner";
 import { logout } from "@/accounts/login-flow";
 import { AccountCards } from "@/components/AccountCards";
-import {
-  getDisplayLabel,
-  isLikelyNpub,
-  isHexPubkey,
-  isNip05Handle,
-} from "@/lib/profileSearch";
+import { getDisplayLabel, isLikelyNpub, isHexPubkey, isNip05Handle } from "@/lib/profileSearch";
 import { type SearchHit } from "@/services/search";
 import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
@@ -33,7 +28,6 @@ import { useProfileMap } from "@/hooks/useProfileMap";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
-
 
 // Example prompts the empty search box gently cycles through to teach
 // first-time visitors what they can search for. The first entry is the
@@ -56,21 +50,27 @@ const PLACEHOLDER_EXAMPLES = [
 // of the rotating hints. First-party + functional → no consent banner needed.
 const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
 
-
-
 /** How far (px) a finger or the page may move before a touch on → stops being a tap. */
 const TAP_SLOP = 10;
 
 export default function Landing() {
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState(() => {
-    try { return new URLSearchParams(window.location.search).get("q") || ""; } catch { return ""; }
+    try {
+      return new URLSearchParams(window.location.search).get("q") || "";
+    } catch {
+      return "";
+    }
   });
   // The active FILTERS, as their tokens ("sort:recent trust:verified") — kept
   // out of the box (Benjamin: tokens in the box look bad) and carried in the
   // URL's `f` so a filtered search still deep-links and survives back/forward.
   const [filters, setFilters] = useState(() => {
-    try { return new URLSearchParams(window.location.search).get("f") || ""; } catch { return ""; }
+    try {
+      return new URLSearchParams(window.location.search).get("f") || "";
+    } catch {
+      return "";
+    }
   });
   /** The typeahead's last answer, as hits, for the People section to start from. */
   const suggestedPeople = useRef<{ query: string; hits: SearchHit[] } | null>(null);
@@ -84,7 +84,11 @@ export default function Landing() {
   // Read once at mount so the current visit reflects prior visits, then persist
   // below so the NEXT visit is treated as returning.
   const [isFirstVisit] = useState(() => {
-    try { return !localStorage.getItem(SEEN_SEARCH_HINTS_KEY); } catch { return true; }
+    try {
+      return !localStorage.getItem(SEEN_SEARCH_HINTS_KEY);
+    } catch {
+      return true;
+    }
   });
   // The SUBMITTED query — what SearchResults streams for. Distinct from
   // `query` (the live box text): results only change on submit/URL, never
@@ -99,7 +103,9 @@ export default function Landing() {
       // ?t= without ?q= is a deep link into browsing that vertical — with
       // whatever filters the link carries: in browse the filters ARE the query.
       return params.get("t") ? (params.get("f") ?? "").trim() : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   });
   const hasSearched = submitted !== null;
   // Brief in-box spinner while a NIP-05 handle resolves to a profile.
@@ -165,28 +171,23 @@ export default function Landing() {
   // lands after login, without a refresh. The perspective rule is the one the
   // box's suggestions use, so results and suggestions rank alike.
   const { user, setPov, effectivePov, hasMywot, isSearchObserver } = useSearchPov();
-  const { openProfile: goToProfile, prefetchEnter: handlePrefetchEnter, prefetchLeave: handlePrefetchLeave } = useOpenProfile(user, effectivePov);
+  const {
+    openProfile: goToProfile,
+    prefetchEnter: handlePrefetchEnter,
+    prefetchLeave: handlePrefetchLeave,
+  } = useOpenProfile(user, effectivePov);
 
   const handleLogout = useCallback(() => {
     logout();
   }, []);
 
-  // Gate the Network app tile until a trust graph has been calculated. We read
-  // the locally cached completion flag so the search-first home stays instant
-  // (no blocking API call just to render the launcher).
-  const calcDone = useMemo(() => {
-    try {
-      return localStorage.getItem("brainstorm_calc_completed") === "true";
-    } catch {
-      return false;
-    }
-  }, [user]);
-
   // Mark this browser as having seen the search hints, so the next visit is
   // treated as returning (calm static placeholder). Set once, on first mount.
   useEffect(() => {
     if (!isFirstVisit) return;
-    try { localStorage.setItem(SEEN_SEARCH_HINTS_KEY, "1"); } catch {}
+    try {
+      localStorage.setItem(SEEN_SEARCH_HINTS_KEY, "1");
+    } catch {}
   }, [isFirstVisit]);
 
   // Gently cycle the empty box's placeholder through example prompts. Runs only
@@ -234,108 +235,108 @@ export default function Landing() {
   // reset and no popstate of its own to observe.
   const handleSearch = useCallback(
     async (overrideQuery?: string, overrideFilters?: string, trigger?: "init" | "pop") => {
-    const q = (overrideQuery ?? query).trim();
-    const f = (overrideFilters ?? filters).trim();
-    if (!q) return;
-    // Only an automatic re-run stays put; typing the same identifier again is
-    // the user asking for the hop.
-    if (trigger !== undefined && hasHopped()) {
-      resetResults();
-      return;
-    }
-    // Remember this query for the "Recent" list (de-duped, most-recent-first).
-    // A search scoped to a person (from:npub…) is a step from their profile,
-    // not words anyone typed — and a key is nothing to show in a list.
-    // A scope is a step from somebody's profile, not words anyone typed, and a query with no
-    // WORDS is a filter — `since:2026-09-16` on its own is what choosing a date preset while
-    // browsing writes, and it is nothing to offer back in a list of recent searches.
-    if (!scopeOf(q) && queryWords(q)) pushRecentQuery(q);
-    // Running a full search cancels any pending/in-flight suggestion request and
-    // closes the dropdown so it can't reopen on top of the results list.
-    boxRef.current?.closeSuggestions();
-
-    // Put the query in the URL so Back returns to it with the box filled in —
-    // for every kind of query, not just the text search below.
-    if (!trigger) {
-      try {
-        const currentUrl = new URL(window.location.href);
-        const prevF = currentUrl.searchParams.get("f") ?? "";
-        if (currentUrl.searchParams.get("q") !== q || prevF !== f) {
-          currentUrl.searchParams.set("q", q);
-          if (f) currentUrl.searchParams.set("f", f);
-          else currentUrl.searchParams.delete("f");
-          window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
-          trackHistoryEntry();
-        }
-      } catch {}
-    }
-    // Leave the home for a direct identifier, stamping the entry we are leaving
-    // so coming back to it lands on the filled search box. A cold `/?q=npub…`
-    // has no such entry worth keeping, so it redirects rather than pushes.
-    const leave = (dest: string) => {
-      markHopped();
-      setLocation(dest, { replace: trigger === "init" });
-    };
-
-    // Pasted note/event or long-form article link → on-site landing page
-    // (njump parity: "paste anything → it just works").
-    const ent = resolveEntityToPath(q);
-    if (ent && (ent.kind === "note" || ent.kind === "article")) {
-      leave(ent.path);
-      return;
-    }
-
-    // A #hashtag query → the trust-ranked CONTENT feed for that tag (not a profile search).
-    // `parseTopicQuery`, not a rule of its own: ONE hashtag and nothing else is a topic, and
-    // anything more is a search carrying a tag filter, which the box's grammar handles. The
-    // inline copy this replaces squashed the whole query into one slug, so `#nostr bitcoin`
-    // left for /t/nostrbitcoin and the combined grammar was unreachable from here.
-    const topic = parseTopicQuery(q);
-    if (topic.isTopic && topic.tag) {
-      leave(topicPath(topic.tag));
-      return;
-    }
-
-    // Direct identifiers resolve to a profile — logged-out visitors get the public
-    // /p page, members get the personalized /profile view (mirrors goToProfile).
-    const profileDest = (np: string) => `/p/${np}`;
-
-    if (isLikelyNpub(q)) {
-      try {
-        const decoded = nip19.decode(q);
-        if (decoded.type === "npub" && typeof decoded.data === "string") {
-          leave(profileDest(q));
-          return;
-        }
-      } catch {}
-    }
-
-    if (isHexPubkey(q)) {
-      const npub = nip19.npubEncode(q.toLowerCase());
-      leave(profileDest(npub));
-      return;
-    }
-
-    if (isNip05Handle(q)) {
-      const searchId = ++searchAbortRef.current;
-      setIsSearching(true);
-      try {
-        const hexPubkey = await resolveNip05(q);
-        if (searchAbortRef.current !== searchId) return;
-        if (hexPubkey) {
-          leave(profileDest(nip19.npubEncode(hexPubkey)));
-          return;
-        }
-        // Unresolvable handle falls through to a plain text search below.
-      } finally {
-        if (searchAbortRef.current === searchId) setIsSearching(false);
+      const q = (overrideQuery ?? query).trim();
+      const f = (overrideFilters ?? filters).trim();
+      if (!q) return;
+      // Only an automatic re-run stays put; typing the same identifier again is
+      // the user asking for the hop.
+      if (trigger !== undefined && hasHopped()) {
+        resetResults();
+        return;
       }
-    }
+      // Remember this query for the "Recent" list (de-duped, most-recent-first).
+      // A search scoped to a person (from:npub…) is a step from their profile,
+      // not words anyone typed — and a key is nothing to show in a list.
+      // A scope is a step from somebody's profile, not words anyone typed, and a query with no
+      // WORDS is a filter — `since:2026-09-16` on its own is what choosing a date preset while
+      // browsing writes, and it is nothing to offer back in a list of recent searches.
+      if (!scopeOf(q) && queryWords(q)) pushRecentQuery(q);
+      // Running a full search cancels any pending/in-flight suggestion request and
+      // closes the dropdown so it can't reopen on top of the results list.
+      boxRef.current?.closeSuggestions();
 
-    // Everything else is a real search: hand it to SearchResults — the stream,
-    // skeleton, errors and count line live there. The URL was written above,
-    // for every kind of query, so Back lands here with the box filled in.
-    setSubmitted(`${q} ${f}`.trim());
+      // Put the query in the URL so Back returns to it with the box filled in —
+      // for every kind of query, not just the text search below.
+      if (!trigger) {
+        try {
+          const currentUrl = new URL(window.location.href);
+          const prevF = currentUrl.searchParams.get("f") ?? "";
+          if (currentUrl.searchParams.get("q") !== q || prevF !== f) {
+            currentUrl.searchParams.set("q", q);
+            if (f) currentUrl.searchParams.set("f", f);
+            else currentUrl.searchParams.delete("f");
+            window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
+            trackHistoryEntry();
+          }
+        } catch {}
+      }
+      // Leave the home for a direct identifier, stamping the entry we are leaving
+      // so coming back to it lands on the filled search box. A cold `/?q=npub…`
+      // has no such entry worth keeping, so it redirects rather than pushes.
+      const leave = (dest: string) => {
+        markHopped();
+        setLocation(dest, { replace: trigger === "init" });
+      };
+
+      // Pasted note/event or long-form article link → on-site landing page
+      // (njump parity: "paste anything → it just works").
+      const ent = resolveEntityToPath(q);
+      if (ent && (ent.kind === "note" || ent.kind === "article")) {
+        leave(ent.path);
+        return;
+      }
+
+      // A #hashtag query → the trust-ranked CONTENT feed for that tag (not a profile search).
+      // `parseTopicQuery`, not a rule of its own: ONE hashtag and nothing else is a topic, and
+      // anything more is a search carrying a tag filter, which the box's grammar handles. The
+      // inline copy this replaces squashed the whole query into one slug, so `#nostr bitcoin`
+      // left for /t/nostrbitcoin and the combined grammar was unreachable from here.
+      const topic = parseTopicQuery(q);
+      if (topic.isTopic && topic.tag) {
+        leave(topicPath(topic.tag));
+        return;
+      }
+
+      // Direct identifiers resolve to a profile — logged-out visitors get the public
+      // /p page, members get the personalized /profile view (mirrors goToProfile).
+      const profileDest = (np: string) => `/p/${np}`;
+
+      if (isLikelyNpub(q)) {
+        try {
+          const decoded = nip19.decode(q);
+          if (decoded.type === "npub" && typeof decoded.data === "string") {
+            leave(profileDest(q));
+            return;
+          }
+        } catch {}
+      }
+
+      if (isHexPubkey(q)) {
+        const npub = nip19.npubEncode(q.toLowerCase());
+        leave(profileDest(npub));
+        return;
+      }
+
+      if (isNip05Handle(q)) {
+        const searchId = ++searchAbortRef.current;
+        setIsSearching(true);
+        try {
+          const hexPubkey = await resolveNip05(q);
+          if (searchAbortRef.current !== searchId) return;
+          if (hexPubkey) {
+            leave(profileDest(nip19.npubEncode(hexPubkey)));
+            return;
+          }
+          // Unresolvable handle falls through to a plain text search below.
+        } finally {
+          if (searchAbortRef.current === searchId) setIsSearching(false);
+        }
+      }
+
+      // Everything else is a real search: hand it to SearchResults — the stream,
+      // skeleton, errors and count line live there. The URL was written above,
+      // for every kind of query, so Back lands here with the box filled in.
+      setSubmitted(`${q} ${f}`.trim());
     },
     [query, filters, setLocation, resetResults],
   );
@@ -397,7 +398,8 @@ export default function Landing() {
   // fetch. A profile with no name stays unnamed: never a key.
   const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
   const scopeProfile = scope ? scopeProfiles.get(scope.pubkey) : undefined;
-  const scopeName = scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
+  const scopeName =
+    scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
   // A search of one person's things is a search — RECENT remembers it the way the chip that
   // opened it read: the face, the name, the tab it opened on, never the key. Recorded from
   // the search that RAN (not each keystroke), once the person's name is known. Tabs browsed
@@ -408,7 +410,14 @@ export default function Landing() {
     const ran = scopeOf(submitted);
     if (!ran || !scopeName || ran.pubkey !== scope?.pubkey) return;
     const openedOn = new URLSearchParams(window.location.search).get("t") || "everything";
-    pushRecentScoped({ pubkey: ran.pubkey, npub: npubFromPubkey(ran.pubkey), label: scopeName, picture: scopeProfile?.picture, tab: openedOn, words: ran.rest });
+    pushRecentScoped({
+      pubkey: ran.pubkey,
+      npub: npubFromPubkey(ran.pubkey),
+      label: scopeName,
+      picture: scopeProfile?.picture,
+      tab: openedOn,
+      words: ran.rest,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submitted, hasSearched, scopeName, scopeProfile?.picture]);
   // Arriving scoped — the profile's magnifier, a "View all" — the cursor is
@@ -423,6 +432,7 @@ export default function Landing() {
     if (focusedScopeRef.current === scope.pubkey) return;
     focusedScopeRef.current = scope.pubkey;
     boxRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scope is rebuilt each render; keyed on pubkey
   }, [scope?.pubkey]);
 
   const clearSearch = useCallback((opts?: { refocus?: boolean }) => {
@@ -447,17 +457,20 @@ export default function Landing() {
 
   // Browse a whole vertical with no keyword — Benjamin's "just show me all
   // the live events". Deep-linkable: ?t=<tab> with no ?q=.
-  const browseVertical = useCallback((tabKey: string) => {
-    boxRef.current?.closeSuggestions();
-    setQuery("");
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("q");
-      url.searchParams.set("t", tabKey);
-      window.history.pushState({}, "", url.pathname + url.search);
-    } catch {}
-    setSubmitted(filters.trim());
-  }, [filters]);
+  const browseVertical = useCallback(
+    (tabKey: string) => {
+      boxRef.current?.closeSuggestions();
+      setQuery("");
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("q");
+        url.searchParams.set("t", tabKey);
+        window.history.pushState({}, "", url.pathname + url.search);
+      } catch {}
+      setSubmitted(filters.trim());
+    },
+    [filters],
+  );
 
   const onPeopleSuggested = useCallback((q: string, hits: SearchHit[]) => {
     // Kept for the People section: submitting asks this very question again.
@@ -472,7 +485,10 @@ export default function Landing() {
   // viewport, and 100vh measures the large (toolbar-hidden) viewport — so the
   // bottom of the page sits under the chrome exactly when room is scarcest.
   return (
-    <div className="min-h-[100dvh] bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative [overflow-x:clip]" data-testid="page-home">
+    <div
+      className="relative flex min-h-[100dvh] flex-col bg-white text-slate-900 [overflow-x:clip] dark:bg-slate-950 dark:text-slate-100"
+      data-testid="page-home"
+    >
       <GlossBackground />
       {/* Aurora glow behind the hero — soft at rest, blooms when the search goes
           active, so the wordmark + search feel alive without any idle noise. Drawn
@@ -482,8 +498,11 @@ export default function Landing() {
           one-screen page, and the page scrolled into nothing to show it. */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <div
-          className={`absolute left-1/2 top-[44dvh] h-[980px] w-[1280px] -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
-          style={{ background: "radial-gradient(closest-side, rgba(114,55,255,0.075) 0%, rgba(90,110,250,0.06) 25%, rgba(19,210,229,0.035) 50%, rgba(19,210,229,0.012) 75%, transparent 100%)" }}
+          className={`absolute left-1/2 top-[44dvh] h-[980px] w-[1280px] -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out ${lifted ? "scale-105 opacity-100" : "opacity-60"}`}
+          style={{
+            background:
+              "radial-gradient(closest-side, rgba(114,55,255,0.075) 0%, rgba(90,110,250,0.06) 25%, rgba(19,210,229,0.035) 50%, rgba(19,210,229,0.012) 75%, transparent 100%)",
+          }}
         />
       </div>
 
@@ -499,32 +518,38 @@ export default function Landing() {
           compact band (small mark · box · actions) and this bar steps aside so
           results start high (Benjamin, 2026-09-04: "Apple-like clean"). */}
       {!hasSearched && (
-      <header className="relative z-20 flex items-center px-4 sm:px-8 py-5 short:py-2.5" data-testid="home-header">
-
-        {/* Center: the finish-setup nudge — this is the page a fresh sign-in
+        <header className="relative z-20 flex items-center px-4 py-5 sm:px-8 short:py-2.5" data-testid="home-header">
+          {/* Center: the finish-setup nudge — this is the page a fresh sign-in
             lands on, so the one persistent reminder has to live here too.
             Absolutely centered because the left mark only exists after a
             search; self-hides once setup is done. */}
-        <div className="absolute left-1/2 top-1/2 z-10 flex max-w-[55vw] -translate-x-1/2 -translate-y-1/2 justify-center">
-          <FinishSetupBanner />
-        </div>
+          <div className="absolute left-1/2 top-1/2 z-10 flex max-w-[55vw] -translate-x-1/2 -translate-y-1/2 justify-center">
+            <FinishSetupBanner />
+          </div>
 
-        {/* Right: actions — apps + avatar when signed in, else Sign in. */}
-        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-          {user ? (
-            <AccountMenu user={user} onLogout={handleLogout} active="home" />
-          ) : (
-            <SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-home-sign-in" />
-          )}
-        </div>
-      </header>
+          {/* Right: actions — apps + avatar when signed in, else Sign in. */}
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+            {user ? (
+              <AccountMenu user={user} onLogout={handleLogout} active="home" />
+            ) : (
+              <SignInButton
+                variant="primary"
+                label="Sign in"
+                className="!rounded-full sm:px-5"
+                data-testid="button-home-sign-in"
+              />
+            )}
+          </div>
+        </header>
       )}
 
       {/* `short:` = a phone in landscape. It lands on the desktop side of every
           width breakpoint, so the optical-centering offset and the generous
           desktop padding both have to be neutralised by height, not width. `!`
           because these override `sm:` utilities of equal specificity. */}
-      <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${hasSearched ? "justify-start pt-3 sm:pt-4" : dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "justify-center -mt-10 sm:-mt-16 short:justify-start short:!mt-0 short:pt-2"}`}>
+      <main
+        className={`relative z-10 flex flex-1 flex-col items-center px-4 ${hasSearched ? "justify-start pt-3 sm:pt-4" : dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "-mt-10 justify-center sm:-mt-16 short:!mt-0 short:justify-start short:pt-2"}`}
+      >
         {/* Two shapes, one tree: the centred hero before a search; after it, a
             compact band — mark left, box centre, actions right — that wraps
             to two rows on a phone (mark and actions above, box below). */}
@@ -532,8 +557,8 @@ export default function Landing() {
           ref={heroRef}
           className={
             hasSearched
-              ? "sticky top-0 z-30 -mt-3 sm:-mt-4 py-2 sm:py-2.5 w-full max-w-6xl mx-auto flex flex-wrap items-center gap-x-3 gap-y-2 sm:flex-nowrap sm:gap-x-5"
-              : "w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]"
+              ? "sticky top-0 z-30 mx-auto -mt-3 flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 py-2 sm:-mt-4 sm:flex-nowrap sm:gap-x-5 sm:py-2.5"
+              : "mx-auto w-full max-w-2xl text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]"
           }
           data-testid={hasSearched ? "search-band" : "search-hero"}
         >
@@ -550,13 +575,17 @@ export default function Landing() {
               data-testid="search-band-backdrop"
               className={`pointer-events-none absolute inset-y-0 left-1/2 -z-10 w-screen -translate-x-1/2 border-b transition-[background-color,box-shadow,border-color] duration-300 ${
                 bandFrosted
-                  ? "border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-sm dark:shadow-none"
+                  ? "border-slate-200/70 bg-white/80 shadow-sm backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-950/80 dark:shadow-none"
                   : "border-transparent bg-transparent"
               }`}
             />
           )}
 
-          <div className={hasSearched ? "order-1 flex shrink-0 items-center" : "flex flex-col items-center mb-8 short:mb-3.5"}>
+          <div
+            className={
+              hasSearched ? "order-1 flex shrink-0 items-center" : "mb-8 flex flex-col items-center short:mb-3.5"
+            }
+          >
             <h1 className={hasSearched ? "flex items-center" : "mb-2.5 short:mb-1.5"} data-testid="text-home-title">
               {/* Wordmark <img> carries the "Brainstorm" accessible name (its
                   alt), so no sr-only duplicate. */}
@@ -588,12 +617,23 @@ export default function Landing() {
                 className="cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                 data-testid="wordmark-home"
               >
-                <Wordmark height={hasSearched ? 26 : 52} variant="gradient" className={hasSearched ? "dark:hidden" : "mx-auto dark:hidden short:!h-9"} />
-                <Wordmark height={hasSearched ? 26 : 52} variant="white" className={hasSearched ? "hidden dark:block" : "mx-auto hidden dark:block short:!h-9"} />
+                <Wordmark
+                  height={hasSearched ? 26 : 52}
+                  variant="gradient"
+                  className={hasSearched ? "dark:hidden" : "mx-auto dark:hidden short:!h-9"}
+                />
+                <Wordmark
+                  height={hasSearched ? 26 : 52}
+                  variant="white"
+                  className={hasSearched ? "hidden dark:block" : "mx-auto hidden dark:block short:!h-9"}
+                />
               </button>
             </h1>
             {!hasSearched && (
-              <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg short:!text-sm font-medium" data-testid="text-home-subtitle">
+              <p
+                className="text-base font-medium text-slate-700 dark:text-slate-100 sm:text-lg short:!text-sm"
+                data-testid="text-home-subtitle"
+              >
                 Search through the people you trust.
               </p>
             )}
@@ -601,16 +641,25 @@ export default function Landing() {
 
           <SearchBox
             boxRef={boxRef}
-            className={hasSearched ? "order-3 basis-full sm:order-2 sm:basis-auto sm:flex-1 sm:min-w-0 sm:max-w-2xl sm:mx-auto" : undefined}
+            className={
+              hasSearched
+                ? "order-3 basis-full sm:order-2 sm:mx-auto sm:min-w-0 sm:max-w-2xl sm:flex-1 sm:basis-auto"
+                : undefined
+            }
             value={query}
             onChange={setQuery}
-            onSearch={(q) => { void handleSearch(q); }}
+            onSearch={(q) => {
+              void handleSearch(q);
+            }}
             onClear={() => clearSearch()}
             onBrowse={browseVertical}
             // Dropping a filter is a decision: the page acts on it at once rather than
             // waiting for Enter. Emptying the box is the ⓧ gesture — back to the home.
             onRemoveToken={(next) => {
-              if (!next.trim()) { clearSearch(); return; }
+              if (!next.trim()) {
+                clearSearch();
+                return;
+              }
               if (hasSearched) void handleSearch(next);
             }}
             // "Recent" belongs to the pristine home, never alongside a results list.
@@ -620,73 +669,75 @@ export default function Landing() {
             onSuggestionsChange={setDropdownOpen}
             autoFocus={!hasSearched}
             placeholder={
-                    <span
-                      className={`${SEARCH_PLACEHOLDER_CLASS} transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
-                      data-testid="text-home-placeholder"
-                    >
-                      {isFirstVisit && !prefersReducedMotion ? PLACEHOLDER_EXAMPLES[phIndex] : PLACEHOLDER_EXAMPLES[0]}
-                    </span>
+              <span
+                className={`${SEARCH_PLACEHOLDER_CLASS} transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
+                data-testid="text-home-placeholder"
+              >
+                {isFirstVisit && !prefersReducedMotion ? PLACEHOLDER_EXAMPLES[phIndex] : PLACEHOLDER_EXAMPLES[0]}
+              </span>
             }
             trailing={
               <>
                 {/* The band has no button: Enter searches, the magnifier spins
                     while it runs. The pristine landing keeps the purple call. */}
                 {!hasSearched && (
-                <button
-                  type="submit"
-                  aria-label="Search"
-                  // Disabled only while a search is in flight — at rest (even
-                  // with an empty box) the button stays solid Aurora Purple
-                  // (#7237ff) instead of washing out to a faded lavender.
-                  // handleSearch() no-ops on an empty query, so an idle click is
-                  // harmless.
-                  disabled={isSearching}
-                  // iOS Safari: a tap here while the field is being edited ends the editing
-                  // first — the keyboard drops, the page scrolls back down — and the click it
-                  // synthesizes afterwards lands wherever the button has moved away from, so the
-                  // search never runs until a second tap. Submit on the touch itself, and cancel
-                  // the late click so it can't hit whatever the results put under the finger.
-                  onTouchStart={(e) => {
-                    const t = e.touches[0];
-                    // One finger is a tap; a second is a pinch, never a search.
-                    searchTouchRef.current = t && e.touches.length === 1 ? { x: t.clientX, y: t.clientY, scrollY: window.scrollY } : null;
-                  }}
-                  onTouchCancel={() => {
-                    searchTouchRef.current = null;
-                  }}
-                  onTouchEnd={(e) => {
-                    const start = searchTouchRef.current;
-                    searchTouchRef.current = null;
-                    const t = e.changedTouches[0];
-                    const r = e.currentTarget.getBoundingClientRect();
-                    // The button rides along with a scroll, so ending inside it proves nothing:
-                    // the finger has to stay put and the page with it. Anything else is left
-                    // to the browser (a scroll, or a click for it to synthesize).
-                    if (!start || !t || e.touches.length > 0) return;
-                    if (Math.abs(t.clientX - start.x) > TAP_SLOP || Math.abs(t.clientY - start.y) > TAP_SLOP) return;
-                    if (Math.abs(window.scrollY - start.scrollY) > TAP_SLOP) return;
-                    if (t.clientX < r.left || t.clientX > r.right || t.clientY < r.top || t.clientY > r.bottom) return;
-                    e.preventDefault();
-                    if (isSearching) return;
-                    // Dropping focus commits what the keyboard still held (autocorrect, a
-                    // prediction, an IME composition); the field has it, `query` is the last
-                    // render's. So the box's own words, read after the blur, as onEnter does.
-                    (document.activeElement as HTMLElement | null)?.blur?.();
-                    boxRef.current?.closeSuggestions();
-                    void handleSearch(boxRef.current?.getValue());
-                  }}
-                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-1.5 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
-                  data-testid="button-home-search"
-                >
-                  {isSearching ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <span className="hidden sm:inline">Search</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
-                </button>
+                  <button
+                    type="submit"
+                    aria-label="Search"
+                    // Disabled only while a search is in flight — at rest (even
+                    // with an empty box) the button stays solid Aurora Purple
+                    // (#7237ff) instead of washing out to a faded lavender.
+                    // handleSearch() no-ops on an empty query, so an idle click is
+                    // harmless.
+                    disabled={isSearching}
+                    // iOS Safari: a tap here while the field is being edited ends the editing
+                    // first — the keyboard drops, the page scrolls back down — and the click it
+                    // synthesizes afterwards lands wherever the button has moved away from, so the
+                    // search never runs until a second tap. Submit on the touch itself, and cancel
+                    // the late click so it can't hit whatever the results put under the finger.
+                    onTouchStart={(e) => {
+                      const t = e.touches[0];
+                      // One finger is a tap; a second is a pinch, never a search.
+                      searchTouchRef.current =
+                        t && e.touches.length === 1 ? { x: t.clientX, y: t.clientY, scrollY: window.scrollY } : null;
+                    }}
+                    onTouchCancel={() => {
+                      searchTouchRef.current = null;
+                    }}
+                    onTouchEnd={(e) => {
+                      const start = searchTouchRef.current;
+                      searchTouchRef.current = null;
+                      const t = e.changedTouches[0];
+                      const r = e.currentTarget.getBoundingClientRect();
+                      // The button rides along with a scroll, so ending inside it proves nothing:
+                      // the finger has to stay put and the page with it. Anything else is left
+                      // to the browser (a scroll, or a click for it to synthesize).
+                      if (!start || !t || e.touches.length > 0) return;
+                      if (Math.abs(t.clientX - start.x) > TAP_SLOP || Math.abs(t.clientY - start.y) > TAP_SLOP) return;
+                      if (Math.abs(window.scrollY - start.scrollY) > TAP_SLOP) return;
+                      if (t.clientX < r.left || t.clientX > r.right || t.clientY < r.top || t.clientY > r.bottom)
+                        return;
+                      e.preventDefault();
+                      if (isSearching) return;
+                      // Dropping focus commits what the keyboard still held (autocorrect, a
+                      // prediction, an IME composition); the field has it, `query` is the last
+                      // render's. So the box's own words, read after the blur, as onEnter does.
+                      (document.activeElement as HTMLElement | null)?.blur?.();
+                      boxRef.current?.closeSuggestions();
+                      void handleSearch(boxRef.current?.getValue());
+                    }}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
+                    data-testid="button-home-search"
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <span className="hidden sm:inline">Search</span>
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </button>
                 )}
               </>
             }
@@ -694,11 +745,19 @@ export default function Landing() {
 
           {/* Band, right: the same account actions the pristine bar carries. */}
           {hasSearched && (
-            <div className="order-2 ml-auto flex shrink-0 items-center gap-1 sm:order-3 sm:ml-0 sm:gap-2" data-testid="band-actions">
+            <div
+              className="order-2 ml-auto flex shrink-0 items-center gap-1 sm:order-3 sm:ml-0 sm:gap-2"
+              data-testid="band-actions"
+            >
               {user ? (
                 <AccountMenu user={user} onLogout={handleLogout} active="home" />
               ) : (
-                <SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-home-sign-in" />
+                <SignInButton
+                  variant="primary"
+                  label="Sign in"
+                  className="!rounded-full sm:px-5"
+                  data-testid="button-home-sign-in"
+                />
               )}
             </div>
           )}
@@ -750,49 +809,51 @@ export default function Landing() {
             HomeFeed keeps the bands for when it comes back. */}
         {hasSearched && (
           <>
-          <BackToTop />
-          <SearchResults
-            peopleSeed={suggestedPeople.current?.query === (submitted ?? "") ? suggestedPeople.current.hits : undefined}
-            query={submitted ?? ""}
-            pov={effectivePov}
-            userPubkey={user?.pubkey}
-            perspective={
-              <PerspectiveToggle
-                compact
-                pov={effectivePov}
-                user={user}
-                hasMywot={hasMywot}
-                isSearchObserver={isSearchObserver}
-                onChange={setPov}
-              />
-            }
-            onOpenProfile={goToProfile}
-            onPrefetchEnter={handlePrefetchEnter}
-            onPrefetchLeave={handlePrefetchLeave}
-            onQueryRewrite={(next) => {
-              // A filter change: the words stay in the box, the tokens go to
-              // filter state + the URL's `f`, and the search resubmits.
-              const { text, tokens } = splitFilters(next);
-              setFilters(tokens);
-              if (text !== query.trim()) setQuery(text);
-              if (text) {
-                void handleSearch(text, tokens);
-                return;
+            <BackToTop />
+            <SearchResults
+              peopleSeed={
+                suggestedPeople.current?.query === (submitted ?? "") ? suggestedPeople.current.hits : undefined
               }
-              // Browse — a tab, no words. Google's tools work for everyone,
-              // signed in or not, and live in the URL: the filters are the
-              // whole query here, so re-run the browse with them and carry
-              // them in `f` for Back, reload and sharing.
-              try {
-                const url = new URL(window.location.href);
-                if (tokens) url.searchParams.set("f", tokens);
-                else url.searchParams.delete("f");
-                window.history.pushState({}, "", url.pathname + url.search);
-                trackHistoryEntry();
-              } catch {}
-              setSubmitted(tokens);
-            }}
-          />
+              query={submitted ?? ""}
+              pov={effectivePov}
+              userPubkey={user?.pubkey}
+              perspective={
+                <PerspectiveToggle
+                  compact
+                  pov={effectivePov}
+                  user={user}
+                  hasMywot={hasMywot}
+                  isSearchObserver={isSearchObserver}
+                  onChange={setPov}
+                />
+              }
+              onOpenProfile={goToProfile}
+              onPrefetchEnter={handlePrefetchEnter}
+              onPrefetchLeave={handlePrefetchLeave}
+              onQueryRewrite={(next) => {
+                // A filter change: the words stay in the box, the tokens go to
+                // filter state + the URL's `f`, and the search resubmits.
+                const { text, tokens } = splitFilters(next);
+                setFilters(tokens);
+                if (text !== query.trim()) setQuery(text);
+                if (text) {
+                  void handleSearch(text, tokens);
+                  return;
+                }
+                // Browse — a tab, no words. Google's tools work for everyone,
+                // signed in or not, and live in the URL: the filters are the
+                // whole query here, so re-run the browse with them and carry
+                // them in `f` for Back, reload and sharing.
+                try {
+                  const url = new URL(window.location.href);
+                  if (tokens) url.searchParams.set("f", tokens);
+                  else url.searchParams.delete("f");
+                  window.history.pushState({}, "", url.pathname + url.search);
+                  trackHistoryEntry();
+                } catch {}
+                setSubmitted(tokens);
+              }}
+            />
           </>
         )}
       </main>

@@ -5,9 +5,9 @@ except the card charge is real; entitlement runs on the mock seam, driven by the
 floating **Demo** pill (bottom-left, any page, signed in). The pill exists only
 in mock mode and removes itself the day real billing ships.
 
-One honest framing sentence to open with: *"Everything you're about to see is
+One honest framing sentence to open with: _"Everything you're about to see is
 the real UI reacting to real state changes — the only thing mocked is Flash's
-webhook, because their backend half doesn't exist yet."*
+webhook, because their backend half doesn't exist yet."_
 
 ## The tour (~5 minutes)
 

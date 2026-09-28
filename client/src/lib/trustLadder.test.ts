@@ -38,7 +38,14 @@ describe("the three-bucket ladder", () => {
   });
 
   it("keeps the detailed ladder as today's five tiers plus Flagged at the bottom", () => {
-    expect(ladderFor("detailed").map((r) => r.key)).toEqual(["flagged", "unverified", "low", "neutral", "trusted", "high"]);
+    expect(ladderFor("detailed").map((r) => r.key)).toEqual([
+      "flagged",
+      "unverified",
+      "low",
+      "neutral",
+      "trusted",
+      "high",
+    ]);
     expect(rungFor(0.9, false, "detailed").key).toBe("high");
     expect(rungFor(0.9, true, "detailed").key).toBe("flagged");
   });

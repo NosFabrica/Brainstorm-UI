@@ -43,6 +43,7 @@ export function SellingBlock({
   const products = useMemo(() => productsFromEvents(q.data ?? []), [q.data]);
   useEffect(() => {
     if (q.isSuccess || q.isError) onCount?.(products.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- report on data change only, not on each new parent callback
   }, [q.isSuccess, q.isError, products.length]);
 
   if (hidden || products.length === 0) return null;
@@ -58,7 +59,13 @@ export function SellingBlock({
     >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {products.slice(0, SHELF_SIZE).map(({ event, group }) => (
-          <ListingCard key={group.id} event={event as NostrEvent} author={null} showAuthor={false} group={{ title: group.title, options: group.options.length }} />
+          <ListingCard
+            key={group.id}
+            event={event as NostrEvent}
+            author={null}
+            showAuthor={false}
+            group={{ title: group.title, options: group.options.length }}
+          />
         ))}
       </div>
     </ContentTeaserBlock>

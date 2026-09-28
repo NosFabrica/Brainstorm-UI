@@ -6,12 +6,24 @@ import { UserTierPicker } from "./UserTierPicker";
 
 const PK = "a".repeat(64);
 const WEEKLY: SchedulingItem = {
-  id: 1, name: "Weekly", schedule_interval_seconds: 604800, priority: 0,
-  enabled: true, is_default: true, manual_quota_limit: 20, manual_quota_window_seconds: 604800,
+  id: 1,
+  name: "Weekly",
+  schedule_interval_seconds: 604800,
+  priority: 0,
+  enabled: true,
+  is_default: true,
+  manual_quota_limit: 20,
+  manual_quota_window_seconds: 604800,
 };
 const DAILY: SchedulingItem = {
-  id: 2, name: "Daily", schedule_interval_seconds: 86400, priority: 10,
-  enabled: true, is_default: false, manual_quota_limit: 20, manual_quota_window_seconds: 86400,
+  id: 2,
+  name: "Daily",
+  schedule_interval_seconds: 86400,
+  priority: 10,
+  enabled: true,
+  is_default: false,
+  manual_quota_limit: 20,
+  manual_quota_window_seconds: 86400,
 };
 const POLICIES = [WEEKLY, DAILY];
 
@@ -19,9 +31,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("UserTierPicker", () => {
   it("preselects the default policy when the user has no explicit tier", () => {
-    renderWithProviders(
-      <UserTierPicker pubkey={PK} schedulingId={null} schedulingName="Weekly" policies={POLICIES} />,
-    );
+    renderWithProviders(<UserTierPicker pubkey={PK} schedulingId={null} schedulingName="Weekly" policies={POLICIES} />);
 
     expect(screen.getByRole("combobox")).toHaveValue("1");
   });
@@ -31,9 +41,7 @@ describe("UserTierPicker", () => {
   it("asks the admin to agree before assigning anything", async () => {
     const spy = vi.spyOn(apiClient, "assignUserScheduling").mockResolvedValue({});
 
-    renderWithProviders(
-      <UserTierPicker pubkey={PK} schedulingId={1} schedulingName="Weekly" policies={POLICIES} />,
-    );
+    renderWithProviders(<UserTierPicker pubkey={PK} schedulingId={1} schedulingName="Weekly" policies={POLICIES} />);
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
 
     // Nothing applied yet — the confirm dialog carries the from → to change.
@@ -55,7 +63,13 @@ describe("UserTierPicker", () => {
   it("names the person in the dialog when a profile is known", async () => {
     vi.spyOn(apiClient, "assignUserScheduling").mockResolvedValue({});
     renderWithProviders(
-      <UserTierPicker pubkey={PK} schedulingId={1} schedulingName="Weekly" policies={POLICIES} displayName="Dr Martha Liz" />,
+      <UserTierPicker
+        pubkey={PK}
+        schedulingId={1}
+        schedulingName="Weekly"
+        policies={POLICIES}
+        displayName="Dr Martha Liz"
+      />,
     );
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
 
@@ -65,9 +79,7 @@ describe("UserTierPicker", () => {
   it("cancelling leaves the tier untouched", async () => {
     const spy = vi.spyOn(apiClient, "assignUserScheduling").mockResolvedValue({});
 
-    renderWithProviders(
-      <UserTierPicker pubkey={PK} schedulingId={1} schedulingName="Weekly" policies={POLICIES} />,
-    );
+    renderWithProviders(<UserTierPicker pubkey={PK} schedulingId={1} schedulingName="Weekly" policies={POLICIES} />);
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
     fireEvent.click(await screen.findByTestId("tier-confirm-cancel"));
 
@@ -76,13 +88,9 @@ describe("UserTierPicker", () => {
   });
 
   it("reverts the selection when assignment fails", async () => {
-    vi.spyOn(apiClient, "assignUserScheduling").mockRejectedValue(
-      new Error("Unknown scheduling policy id 2"),
-    );
+    vi.spyOn(apiClient, "assignUserScheduling").mockRejectedValue(new Error("Unknown scheduling policy id 2"));
 
-    renderWithProviders(
-      <UserTierPicker pubkey={PK} schedulingId={1} schedulingName="Weekly" policies={POLICIES} />,
-    );
+    renderWithProviders(<UserTierPicker pubkey={PK} schedulingId={1} schedulingName="Weekly" policies={POLICIES} />);
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
     fireEvent.click(await screen.findByTestId("tier-confirm-agree"));
 

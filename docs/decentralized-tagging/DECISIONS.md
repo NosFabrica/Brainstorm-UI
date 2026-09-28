@@ -10,15 +10,15 @@ Guidance source: `nous-clawds4/tapestry@generate-nosfabrica-integration-kit` →
 
 ---
 
-## 1. Scope — this is *tagging*
+## 1. Scope — this is _tagging_
 
 > **Revised 2026-08-05, same day.** Originally scoped to floor B. Benjamin then
 > asked for the tag page, and then for tagging other people, so the shipped
-> scope grew past floor B. The reasoning below about *what the feature is* still
+> scope grew past floor B. The reasoning below about _what the feature is_ still
 > stands; only the stopping point moved.
 >
 > **Corrected 2026-08-06.** That revision claimed "floors B, C and **D**" before
-> Floor D was real: it requires note tagging (rung C2) *and* tag pages listing
+> Floor D was real: it requires note tagging (rung C2) _and_ tag pages listing
 > both people and notes, and we had people only.
 >
 > **Earned 2026-08-06, later the same day.** C2 is built — see decision 7 — so
@@ -28,7 +28,7 @@ Guidance source: `nous-clawds4/tapestry@generate-nosfabrica-integration-kit` →
 The feature was requested as "decentralized lists". The kit does not define a
 lists feature; it defines a **decentralized, trust-ranked tagging protocol** for
 people and notes. A list is what you get when you look at everyone carrying a
-tag — so lists are the *payoff* of tagging, not the starting point.
+tag — so lists are the _payoff_ of tagging, not the starting point.
 
 **Built:**
 
@@ -49,8 +49,8 @@ Anyone tagging anyone is the point of a decentralized attribute system, but it
 means a stranger can attach a label to your profile. Two things are supposed to
 contain that, and only one of them currently works:
 
-1. **The trust filter** — the POV decides whose assertions count. *This is
-   presently close to a no-op* (see the field note on `hops` below): unscored
+1. **The trust filter** — the POV decides whose assertions count. _This is
+   presently close to a no-op_ (see the field note on `hops` below): unscored
    asserters are counted, so in practice any pubkey's tag shows up. **This is a
    launch gate, not a build gate** — it's the same reason decision 5's own-POV
    switch matters.
@@ -92,7 +92,7 @@ to re-vendor.
 >
 > **The privacy half of this decision stands unchanged and is the important
 > half:** nothing from `profile-prefs` is ever auto-published as a tag. Rather
-> than delete people's self-declarations, the picker *offers* them back — an
+> than delete people's self-declarations, the picker _offers_ them back — an
 > owner with saved roles sees "You listed these before · Add as tag", and a tap
 > publishes. No tap, no event.
 >
@@ -110,22 +110,22 @@ to re-vendor.
 >
 > Note for the kit owners: overlay `ACCEPTANCE.md` Floor A asserts role chips
 > "still render exactly as before", which contradicts Q2's own migrate option.
-> Floor A's line is the check for Q2's *default*; it should say "if you chose
+> Floor A's line is the check for Q2's _default_; it should say "if you chose
 > coexist". Raised in `KIT-FEEDBACK.md`.
 
 The original reasoning, which still explains why the two are different things:
 
 Two things look similar on `/p/:id` and must stay separate:
 
-| | "What you do" roles | Protocol tags |
-|---|---|---|
-| Storage | our NIP-78 kind-30078, `d` = `brainstorm.world/profile-prefs` | DCoSL events on the tag hub |
-| Who can set | only you | you now; anyone later (floor C) |
-| Ranking | none — it's a self-declaration | web-of-trust ranked |
-| Vocabulary | `ROLES` in `client/src/config/personalization.ts` | open |
+|             | "What you do" roles                                           | Protocol tags                   |
+| ----------- | ------------------------------------------------------------- | ------------------------------- |
+| Storage     | our NIP-78 kind-30078, `d` = `brainstorm.world/profile-prefs` | DCoSL events on the tag hub     |
+| Who can set | only you                                                      | you now; anyone later (floor C) |
+| Ranking     | none — it's a self-declaration                                | web-of-trust ranked             |
+| Vocabulary  | `ROLES` in `client/src/config/personalization.ts`             | open                            |
 
 The tag picker **seeds its suggestions** from `ROLES` so the two vocabularies
-rhyme visually. That is the *only* connection.
+rhyme visually. That is the _only_ connection.
 
 **Nothing a user set under "What you do" is ever published as a protocol tag.**
 Publishing requires an explicit tag action. Auto-bridging would silently push
@@ -157,12 +157,12 @@ our 30382 signing pubkeys from David/Enes.
 
 ## 6. Alignment pass — decided 2026-08-06
 
-Benjamin: *"we need to stick to the script of those docs … I dont want to
-deviate from what they want me to integrate."* Audited both checklists and
+Benjamin: _"we need to stick to the script of those docs … I dont want to
+deviate from what they want me to integrate."_ Audited both checklists and
 changed what genuinely diverged. Results box-by-box in `ACCEPTANCE-RESULTS.md`.
 
 The rule applied: **the kit specifies the machinery, and delegates the
-rendering.** `INTEGRATION.md` §5 — "what the host *renders* with each capability
+rendering.** `INTEGRATION.md` §5 — "what the host _renders_ with each capability
 is the integrator's decision" — and `core/ACCEPTANCE.md` defines "surface" as
 "whatever the host renders the data with, even if that's a `console.table`". So
 UI additions aren't deviations; arithmetic and wire behaviour are.
@@ -173,7 +173,7 @@ UI additions aren't deviations; arithmetic and wire behaviour are.
   the counts. The kit counts distinct trusted asserters with no self exclusion,
   and C1 checks our net against the reference instance's — so we were one behind
   on every self-tagged person. The `selfDeclared` label stays; only the
-  arithmetic changed. UI copy says how many *other* people vouched, via
+  arithmetic changed. UI copy says how many _other_ people vouched, via
   `lib/tagCounts.ts`.
 - **Same-named tags are no longer merged.** Combining two authors' identically
   named tags reported one number where the protocol has two tags — the same
@@ -257,12 +257,12 @@ ordinary UI over machinery the kit already sanctions. No flag, no apology.
 
 The second one earns its place on its own terms: assertions are public,
 permanent and signed with the user's key, and nothing else in the app answers
-*"what have I actually claimed about other people?"*. A client that lets you
+_"what have I actually claimed about other people?"_. A client that lets you
 make permanent public claims owes you a list of them.
 
 **Pinning is the deviation, and it ships off.** `core/protocol/tags.md` §Pins
-specifies a personal curated set; `INTEGRATION.md` §8 lists it under *do not
-build*; the SDK ships the read half and no builder. Built behind
+specifies a personal curated set; `INTEGRATION.md` §8 lists it under _do not
+build_; the SDK ships the read half and no builder. Built behind
 `TAG_PINS_ENABLED = false` — same treatment as tag comments — so an acceptance
 run sees only what the kit describes. Asks filed as KIT-FEEDBACK §14.
 
@@ -342,7 +342,7 @@ mechanically, zero hits for `kind-`, `npub1`, `NIP-`, `assertion`, `polarity`,
 **The point of the page is the three admissions**, not the explanation:
 
 1. **Nothing can be deleted.** Stated as its own section, marked as the thing to
-   understand *before* you tag anyone, and it says outright that promising
+   understand _before_ you tag anyone, and it says outright that promising
    deletion would be a lie.
 2. **Counts are a rough guide, not a verdict.** Jumble's banner claims counts
    are "filtered through a web of trust" and its guide admits three screens
@@ -373,8 +373,8 @@ creator, `npub1aqll77s…`, has no kind-30382 — verified directly against
 working as designed. The scale was not:
 
 | tags with ≥1 carrier | listed in browse | left out |
-| --- | --- | --- |
-| 875 | 34 | 841 |
+| -------------------- | ---------------- | -------- |
+| 875                  | 34               | 841      |
 
 Sorted by carriers, the excluded set is 840 harness tags (`test-tag-…`,
 `tagdetail-s2-…`) **and `lfo`, the second most-used tag on the entire hub at 54
@@ -420,7 +420,7 @@ likely stops being `unverified` on its own, with nothing republished. Worth
 raising with the team as a blocker on tag discovery generally.
 
 **Wording.** "Unknown creator", never "unverified tag" or a warning colour. The
-true statement is narrow — we know nothing about who *made* it — and it is not
+true statement is narrow — we know nothing about who _made_ it — and it is not
 "this is fake", not "these people aren't really this", and not "it's new"
 (`lfo` is one of the oldest and most-used). See `UnverifiedTagChip`.
 
@@ -458,7 +458,7 @@ All 500 sampled kind-30382 events on the house relay carry `d`, `rank` and
 
 The SDK reads a missing `hops` as 999 ("unreachable") and then tests
 `hops <= maxHops`. With the kit's `maxHops: 20`, that rejects every asserter who
-*has* a published score, while everyone with no score at all sails through
+_has_ a published score, while everyone with no score at all sails through
 `unknownPolicy: "trusted"`. david@bitcoinpark — `rank: 100`, the maximum — read
 as untrusted, and the chip row rendered empty on every profile.
 
@@ -492,7 +492,7 @@ reach independently).
   `services/api.ts`.
 - **The public profile is `SharePage.tsx` (`/p/:id`).** `ProfilePage.tsx`
   (`/profile/:npub`) is the members-only analytics view behind `RequireAuth` and
-  is *not* our surface.
+  is _not_ our surface.
 - The insertion point already exists: `SharePage.tsx` carries a literal TODO
   reserving the chip slot for "the team's WoT-ranked attribute chips", with the
   role chips standing in until tag data ships.

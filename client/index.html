@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -20,15 +20,24 @@
       })();
     </script>
     <title>Brainstorm - Web of Trust for Nostr</title>
-    <meta name="description" content="Build trust scores from your own connections — not an algorithm. Brainstorm is the decentralized Web of Trust layer for Nostr." />
-    <meta name="keywords" content="Brainstorm, Nostr, Web of Trust, WoT, GrapeRank, decentralized, trust scores, social graph, NIP-85, reputation" />
+    <meta
+      name="description"
+      content="Build trust scores from your own connections — not an algorithm. Brainstorm is the decentralized Web of Trust layer for Nostr."
+    />
+    <meta
+      name="keywords"
+      content="Brainstorm, Nostr, Web of Trust, WoT, GrapeRank, decentralized, trust scores, social graph, NIP-85, reputation"
+    />
     <meta name="author" content="Brainstorm" />
     <meta name="theme-color" content="#0a0e18" />
 
     <link rel="canonical" href="https://brainstorm.nosfabrica.com/" />
 
     <meta property="og:title" content="Brainstorm — Your Network. Your Rules." />
-    <meta property="og:description" content="Build trust scores from your own connections — not an algorithm. The decentralized Web of Trust layer for Nostr." />
+    <meta
+      property="og:description"
+      content="Build trust scores from your own connections — not an algorithm. The decentralized Web of Trust layer for Nostr."
+    />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://brainstorm.nosfabrica.com/" />
     <meta property="og:image" content="https://brainstorm.nosfabrica.com/og-image.png" />
@@ -39,7 +48,10 @@
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Brainstorm — Your Network. Your Rules." />
-    <meta name="twitter:description" content="Build trust scores from your own connections — not an algorithm. The decentralized Web of Trust layer for Nostr." />
+    <meta
+      name="twitter:description"
+      content="Build trust scores from your own connections — not an algorithm. The decentralized Web of Trust layer for Nostr."
+    />
     <meta name="twitter:image" content="https://brainstorm.nosfabrica.com/og-image.png" />
     <meta name="twitter:image:alt" content="Brainstorm — Search through the people you trust." />
 
@@ -100,55 +112,96 @@
             // no way to go stale would rank against it forever.
             if (held && Date.now() - held.at < 86400000) cached = held.pk;
           } catch (e) {}
-          var observer = /^[0-9a-f]{64}$/.test(cached || "") ? Promise.resolve(cached)
-            : fetch("/.well-known/nostr.json?name=_").then(function (r) { return r.json(); }).then(function (d) {
-                var pk = d && d.names && d.names._;
-                if (!/^[0-9a-f]{64}$/.test(pk || "")) return null;
-                try { localStorage.setItem(KEY, JSON.stringify({ pk: pk, at: Date.now() })); } catch (e) {}
-                return pk;
-              }).catch(function () { return null; });
-          var open = new Promise(function (done) { socket.onopen = done; });
+          var observer = /^[0-9a-f]{64}$/.test(cached || "")
+            ? Promise.resolve(cached)
+            : fetch("/.well-known/nostr.json?name=_")
+                .then(function (r) {
+                  return r.json();
+                })
+                .then(function (d) {
+                  var pk = d && d.names && d.names._;
+                  if (!/^[0-9a-f]{64}$/.test(pk || "")) return null;
+                  try {
+                    localStorage.setItem(KEY, JSON.stringify({ pk: pk, at: Date.now() }));
+                  } catch (e) {}
+                  return pk;
+                })
+                .catch(function () {
+                  return null;
+                });
+          var open = new Promise(function (done) {
+            socket.onopen = done;
+          });
           socket.onmessage = function (e) {
             try {
               var m = JSON.parse(e.data);
               if (m[0] === "EVENT") head.events.push(m[2]);
-              else if (m[0] === "EOSE") { head.eose = true; head.complete = true; }
-              else if (m[0] === "CLOSED") head.eose = true;
+              else if (m[0] === "EOSE") {
+                head.eose = true;
+                head.complete = true;
+              } else if (m[0] === "CLOSED") head.eose = true;
             } catch (err) {
               /* not a frame we know */
             }
           };
-          socket.onerror = function () { head.eose = true; };
+          socket.onerror = function () {
+            head.eose = true;
+          };
           Promise.all([open, observer]).then(function (both) {
             // No Perspective, no head start: an unranked read would answer a
             // different question from the one the app is about to ask.
-            if (!both[1]) { head.eose = true; try { socket.close(); } catch (e) {} return; }
+            if (!both[1]) {
+              head.eose = true;
+              try {
+                socket.close();
+              } catch (e) {}
+              return;
+            }
             // The app may already have taken the head start and closed this —
             // on a fast connection it arrives before the lookup finishes, and
             // it is about to ask the same question itself.
-            if (socket.readyState !== 1) { head.eose = true; return; }
+            if (socket.readyState !== 1) {
+              head.eose = true;
+              return;
+            }
             var perspective = " observer:" + both[1];
-            try { socket.send(JSON.stringify(["REQ", "head", 
-              { kinds: [0], search: q + perspective, limit: 8 },
-              { kinds: [1, 11, 1111], search: fresh + perspective, limit: 10 },
-              { kinds: [30023, 30024, 30818, 30040, 30041, 30817], search: q + perspective, limit: 5 },
-              { kinds: [31922, 31923], search: fresh + perspective, limit: 12 },
-              { kinds: [30311, 30312, 30313], search: fresh + perspective, limit: 8 },
-              { kinds: [20, 21, 22, 1063, 1222, 34235, 34236], search: fresh + perspective, limit: 8 },
-              { kinds: [31337], search: q + perspective, limit: 12 },
-              { kinds: [30402], search: q + perspective, limit: 12 }])); } catch (e) { head.eose = true; }
+            try {
+              socket.send(
+                JSON.stringify([
+                  "REQ",
+                  "head",
+                  { kinds: [0], search: q + perspective, limit: 8 },
+                  { kinds: [1, 11, 1111], search: fresh + perspective, limit: 10 },
+                  { kinds: [30023, 30024, 30818, 30040, 30041, 30817], search: q + perspective, limit: 5 },
+                  { kinds: [31922, 31923], search: fresh + perspective, limit: 12 },
+                  { kinds: [30311, 30312, 30313], search: fresh + perspective, limit: 8 },
+                  { kinds: [20, 21, 22, 1063, 1222, 34235, 34236], search: fresh + perspective, limit: 8 },
+                  { kinds: [31337], search: q + perspective, limit: 12 },
+                  { kinds: [30402], search: q + perspective, limit: 12 },
+                ]),
+              );
+            } catch (e) {
+              head.eose = true;
+            }
           });
           // Nobody came for it: let the socket go rather than hold it open.
-          setTimeout(function () { try { socket.close(); } catch (e) {} }, 30000);
+          setTimeout(function () {
+            try {
+              socket.close();
+            } catch (e) {}
+          }, 30000);
         } catch (e) {
           /* a head start is an optimisation — never a reason to fail the page */
         }
       })();
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Brand fonts only (Design System v1.0): Figtree (interface) + IBM Plex Mono (technical/metadata). -->
-    <link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="root"></div>

@@ -42,7 +42,11 @@ describe("ListsUpdatePill", () => {
 
     await waitFor(() => expect(publish).toHaveBeenCalledWith(ME, TA, undefined, { lists: LISTS }));
     // On brand, and about their lists — no protocol names in a thank-you.
-    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Updated — your lists are live.", variant: "brand" })));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Updated — your lists are live.", variant: "brand" }),
+      ),
+    );
     expect(JSON.stringify(toast.mock.calls)).not.toMatch(/nostr/i);
   });
 
@@ -52,7 +56,9 @@ describe("ListsUpdatePill", () => {
 
     tap();
 
-    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Update skipped", variant: "brand" })));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Update skipped", variant: "brand" })),
+    );
     expect(screen.getByRole("button", { name: /^update$/i })).toBeEnabled();
   });
 
@@ -65,7 +71,9 @@ describe("ListsUpdatePill", () => {
     tap();
 
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't reach your relays", variant: "destructive" })),
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Couldn't reach your relays", variant: "destructive" }),
+      ),
     );
     expect(screen.getByRole("button", { name: /^update$/i })).toBeInTheDocument();
     const action = (toast.mock.calls[0][0] as { action?: React.ReactElement }).action;
@@ -79,7 +87,9 @@ describe("ListsUpdatePill", () => {
     fireEvent.click(screen.getByRole("button", { name: /retry/i }));
 
     await waitFor(() => expect(retry).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Updated — your lists are live." })));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Updated — your lists are live." })),
+    );
     expect(publish).toHaveBeenCalledTimes(1);
   });
 

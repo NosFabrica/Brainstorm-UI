@@ -20,7 +20,7 @@ export function ShareVideo({ url, poster, title }: { url: string; poster?: strin
   };
 
   return (
-    <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-black dark:border-slate-800">
       <div className="relative aspect-video bg-black">
         <video
           ref={ref}
@@ -30,7 +30,7 @@ export function ShareVideo({ url, poster, title }: { url: string; poster?: strin
           preload={videoPreload(speed)}
           controls={playing}
           onPlay={() => setPlaying(true)}
-          className="w-full h-full object-cover"
+          className="h-full w-full object-cover"
           data-testid="share-video-el"
         />
         {!playing && (
@@ -38,16 +38,20 @@ export function ShareVideo({ url, poster, title }: { url: string; poster?: strin
             type="button"
             onClick={start}
             aria-label={`Play ${title || "video"}`}
-            className="group absolute inset-0 flex items-center justify-center bg-black/10 hover:bg-black/20 transition-colors"
+            className="group absolute inset-0 flex items-center justify-center bg-black/10 transition-colors hover:bg-black/20"
             data-testid="share-video-play"
           >
-            <span className="h-12 w-12 rounded-full bg-white/90 group-hover:bg-white flex items-center justify-center shadow-lg transition-all group-hover:scale-105">
-              <Play className="h-5 w-5 text-brand-deep ml-0.5" />
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all group-hover:scale-105 group-hover:bg-white">
+              <Play className="ml-0.5 h-5 w-5 text-brand-deep" />
             </span>
           </button>
         )}
       </div>
-      {title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate bg-white dark:bg-slate-900">{title}</p>}
+      {title && (
+        <p className="truncate bg-white px-3 py-2 text-xs font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          {title}
+        </p>
+      )}
     </div>
   );
 }

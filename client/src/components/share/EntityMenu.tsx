@@ -37,11 +37,18 @@ function CopyMenuItem({ item }: { item: CopyItem }) {
       }}
       data-testid={`menu-copy-${item.id}`}
     >
-      {copied ? <Check className={`h-4 w-4 text-emerald-500 ${item.hint ? "mt-0.5" : ""}`} /> : <Copy className={`h-4 w-4 ${item.hint ? "mt-0.5" : ""}`} />}
+      {copied ? (
+        <Check className={`h-4 w-4 text-emerald-500 ${item.hint ? "mt-0.5" : ""}`} />
+      ) : (
+        <Copy className={`h-4 w-4 ${item.hint ? "mt-0.5" : ""}`} />
+      )}
       <span className="min-w-0">
         <span className="block">{copied ? "Copied" : item.label}</span>
         {item.hint && (
-          <span className="block text-[11px] leading-snug text-slate-400 dark:text-slate-500" data-testid={`menu-copy-${item.id}-hint`}>
+          <span
+            className="block text-[11px] leading-snug text-slate-400 dark:text-slate-500"
+            data-testid={`menu-copy-${item.id}-hint`}
+          >
             {item.hint}
           </span>
         )}
@@ -104,10 +111,16 @@ export function EntityMenu({
         {links.length > 0 && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400 dark:text-slate-500">Open in</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+              Open in
+            </DropdownMenuLabel>
             {links.map((link) => (
               <DropdownMenuItem key={link.id} asChild className="gap-2">
-                <a href={link.href} {...(link.external ? { target: "_blank", rel: "noopener" } : {})} data-testid={`open-${link.id}`}>
+                <a
+                  href={link.href}
+                  {...(link.external ? { target: "_blank", rel: "noopener" } : {})}
+                  data-testid={`open-${link.id}`}
+                >
                   <AppLinkIcon id={link.id} />
                   {link.label}
                 </a>

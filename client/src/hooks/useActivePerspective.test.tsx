@@ -32,8 +32,8 @@ function signIn(): TestAccount {
   const key = generateSecretKey();
   const account = new TestAccount(getPublicKey(key), new PrivateKeySigner(key));
   account.metadata = { remembered: true };
-  accountManager.addAccount(account as any);
-  accountManager.setActive(account as any);
+  accountManager.addAccount(account);
+  accountManager.setActive(account);
   return account;
 }
 
@@ -85,9 +85,7 @@ describe("a perspective changed in another tab", () => {
   it("reaches a component that is already rendered", () => {
     const account = signIn();
     const { result } = renderHook(() => useActivePerspective(), {
-      wrapper: ({ children }) => (
-        <AccountsProvider manager={accountManager}>{children}</AccountsProvider>
-      ),
+      wrapper: ({ children }) => <AccountsProvider manager={accountManager}>{children}</AccountsProvider>,
     });
     expect(result.current[0]).toBe("nosfabrica");
 

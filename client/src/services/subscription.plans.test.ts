@@ -24,7 +24,16 @@ describe("the plans seam", () => {
     api.getBillingPlans.mockResolvedValue({
       plans: [
         { policy_id: 1, policy_name: "Free", is_default: true, amount_minor: 0 },
-        { policy_id: 2, policy_name: "Priority", plan_name: "Monthly", amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x/m", schedule_interval_seconds: 604800 },
+        {
+          policy_id: 2,
+          policy_name: "Priority",
+          plan_name: "Monthly",
+          amount_minor: 200,
+          currency: "USD",
+          billing_interval: "monthly",
+          checkout_url: "https://x/m",
+          schedule_interval_seconds: 604800,
+        },
       ],
     });
     const plans = await fetchPlans();
@@ -56,11 +65,18 @@ describe("the plans seam", () => {
     api.getBillingPlans.mockResolvedValue({
       plans: [
         {
-          policy_id: 7, policy_name: "Priority", plan_name: "Yearly",
-          schedule_interval_seconds: 86400, is_default: false,
-          billing_interval: "yearly", amount_minor: 2000, currency: "USD",
-          checkout_url: "https://x/y", description: "Two months free",
-          features: ["Everything"], not_included: [],
+          policy_id: 7,
+          policy_name: "Priority",
+          plan_name: "Yearly",
+          schedule_interval_seconds: 86400,
+          is_default: false,
+          billing_interval: "yearly",
+          amount_minor: 2000,
+          currency: "USD",
+          checkout_url: "https://x/y",
+          description: "Two months free",
+          features: ["Everything"],
+          not_included: [],
         },
         { policy_id: 9, policy_name: "Mystery", billing_interval: "eon", amount_minor: 5 },
       ],
@@ -68,9 +84,14 @@ describe("the plans seam", () => {
     const plans = await fetchPlans();
     expect(plans).toHaveLength(2);
     expect(plans[0]).toMatchObject({
-      policyId: 7, policyName: "Priority", planName: "Yearly", amountMinor: 2000,
-      scheduleIntervalSeconds: 86400, checkoutUrl: "https://x/y",
-      billingInterval: "yearly", description: "Two months free",
+      policyId: 7,
+      policyName: "Priority",
+      planName: "Yearly",
+      amountMinor: 2000,
+      scheduleIntervalSeconds: 86400,
+      checkoutUrl: "https://x/y",
+      billingInterval: "yearly",
+      description: "Two months free",
       features: ["Everything"],
     });
     // An empty list is copy Flash cleared, not copy to render.
@@ -86,8 +107,26 @@ describe("the plans seam", () => {
     api.getBillingPlans.mockResolvedValue({
       plans: [
         { policy_id: 1, policy_name: "Free", is_default: true, amount_minor: 0 },
-        { policy_id: 2, policy_name: "Priority", plan_id: "mon", plan_name: "Monthly", amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x/m" },
-        { policy_id: 2, policy_name: "Priority", plan_id: "yr", plan_name: "Yearly", amount_minor: 2000, currency: "USD", billing_interval: "yearly", checkout_url: "https://x/y" },
+        {
+          policy_id: 2,
+          policy_name: "Priority",
+          plan_id: "mon",
+          plan_name: "Monthly",
+          amount_minor: 200,
+          currency: "USD",
+          billing_interval: "monthly",
+          checkout_url: "https://x/m",
+        },
+        {
+          policy_id: 2,
+          policy_name: "Priority",
+          plan_id: "yr",
+          plan_name: "Yearly",
+          amount_minor: 2000,
+          currency: "USD",
+          billing_interval: "yearly",
+          checkout_url: "https://x/y",
+        },
       ],
     });
     const plans = await fetchPlans();
@@ -115,7 +154,13 @@ describe("the subscription seam", () => {
     expect(sub.policy).toEqual({ id: 3, name: "Priority", scheduleIntervalSeconds: 604800, isDefault: false });
     // Which plan is still theirs — the id the picker matches a row on — and the
     // price they were snapshotted at.
-    expect(sub.plan).toEqual({ planId: "day", amountMinor: 10, currency: "USD", isActive: false, billingInterval: "daily" });
+    expect(sub.plan).toEqual({
+      planId: "day",
+      amountMinor: 10,
+      currency: "USD",
+      isActive: false,
+      billingInterval: "daily",
+    });
     expect(sub.currentPeriodStart).toBe("2026-08-01T00:00:00Z");
     expect(sub.manageUrl).toContain("portal");
   });

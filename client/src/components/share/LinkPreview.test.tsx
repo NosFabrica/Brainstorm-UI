@@ -11,7 +11,9 @@ import { __resetConnectionSpeed } from "@/lib/connection";
 import { __resetFavicons, Favicon, LinkPreviewCard } from "./LinkPreview";
 
 // Fountain's page, answered or not — the card is the player, not a fetch test.
-const fountainItemMock = vi.fn<(url: string) => { loading: boolean; item: import("@/lib/fountain").FountainItem | null }>(() => ({ loading: false, item: null }));
+const fountainItemMock = vi.fn<
+  (url: string) => { loading: boolean; item: import("@/lib/fountain").FountainItem | null }
+>(() => ({ loading: false, item: null }));
 vi.mock("@/lib/fountain", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/fountain")>()),
   useFountainItem: (url: string) => fountainItemMock(url),
@@ -24,7 +26,17 @@ vi.mock("@/lib/wavlake", async (importOriginal) => {
     ...real,
     useWavlakeTrack: (id: string | undefined) =>
       id
-        ? { loading: false, error: false, track: { id, title: "Need You Whole", artist: "Handled", audioUrl: "https://audio.nostr.build/x.mp3", duration: 201 } }
+        ? {
+            loading: false,
+            error: false,
+            track: {
+              id,
+              title: "Need You Whole",
+              artist: "Handled",
+              audioUrl: "https://audio.nostr.build/x.mp3",
+              duration: 201,
+            },
+          }
         : { loading: false, error: false, track: null },
   };
 });
@@ -113,7 +125,8 @@ describe("LinkPreviewCard — audio links play where they are", () => {
         id: "T0iRUdk8nBSfUEPLLcJ3",
         show: "Radio Detox",
         title: "Right Said Fred",
-        description: "The conversation between Host Heather Larson and Right Said Fred covers the journey of independent artists.",
+        description:
+          "The conversation between Host Heather Larson and Right Said Fred covers the journey of independent artists.",
         image: "https://hosting-media.riverside.com/logos/b64d.jpeg",
         audio: "https://api.riverside.com/media/0abf.mp3",
         url: "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3",
@@ -128,7 +141,9 @@ describe("LinkPreviewCard — audio links play where they are", () => {
     expect(card).toHaveTextContent(/Fountain/);
     expect(card.querySelector("img")?.getAttribute("src")).toBe("https://hosting-media.riverside.com/logos/b64d.jpeg");
     // The page stays one click away; the audio plays here.
-    expect(screen.getByTestId("fountain-open").getAttribute("href")).toBe("https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3");
+    expect(screen.getByTestId("fountain-open").getAttribute("href")).toBe(
+      "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3",
+    );
     const play = screen.getByTestId("fountain-play");
     expect(play).toHaveAttribute("aria-label", "Play");
     // jsdom has no media pipeline; the shared player only needs play() to answer.
@@ -140,12 +155,22 @@ describe("LinkPreviewCard — audio links play where they are", () => {
   });
 
   it("a long description folds to a few lines and opens fully on More", () => {
-    const long = "Paul Keating and DirectorHodl come on the show to talk about Hummingbird, the documentary they just released. " +
+    const long =
+      "Paul Keating and DirectorHodl come on the show to talk about Hummingbird, the documentary they just released. " +
       "The film started life as a small video idea for Bitcoin Jungle and grew over a couple of years into a feature-length meditation on indigenous prophecy, the fiat system, and the strange gravitational pull of one small town in Costa Rica. " +
       "The philosophical spine of the film is the prophecy of the Eagle and the Condor, unpacked in some depth.";
     fountainItemMock.mockReturnValue({
       loading: false,
-      item: { kind: "episode", id: "x", show: "Plebchain Radio", title: "160 – Of Eagles and Condors", description: long, image: null, audio: "https://cdn/x.mp3", url: "https://fountain.fm/episode/x" },
+      item: {
+        kind: "episode",
+        id: "x",
+        show: "Plebchain Radio",
+        title: "160 – Of Eagles and Condors",
+        description: long,
+        image: null,
+        audio: "https://cdn/x.mp3",
+        url: "https://fountain.fm/episode/x",
+      },
     });
     render(<LinkPreviewCard url="https://fountain.fm/episode/x" />);
 
@@ -163,7 +188,16 @@ describe("LinkPreviewCard — audio links play where they are", () => {
   it("a short description has nothing to unfold, so no More", () => {
     fountainItemMock.mockReturnValue({
       loading: false,
-      item: { kind: "episode", id: "y", show: "Show", title: "Short one", description: "A quick chat.", image: null, audio: "https://cdn/y.mp3", url: "https://fountain.fm/episode/y" },
+      item: {
+        kind: "episode",
+        id: "y",
+        show: "Show",
+        title: "Short one",
+        description: "A quick chat.",
+        image: null,
+        audio: "https://cdn/y.mp3",
+        url: "https://fountain.fm/episode/y",
+      },
     });
     render(<LinkPreviewCard url="https://fountain.fm/episode/y" />);
     expect(screen.queryByTestId("fountain-more")).toBeNull();
@@ -203,7 +237,12 @@ describe("the plain-link card", () => {
     __resetConnectionSpeed();
   });
   it("shows the page's own words when the proxy answers", async () => {
-    unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Professional football club", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
+    unfurlMock.mockResolvedValue({
+      title: "Liverpool F.C.",
+      description: "Professional football club",
+      image: "https://img/lfc.jpg",
+      siteName: "Wikipedia",
+    });
     render(<LinkPreviewCard url="https://en.wikipedia.org/wiki/Liverpool_F.C." />);
     expect(await screen.findByText("Liverpool F.C.")).toBeInTheDocument();
     expect(screen.getByText("Professional football club")).toBeInTheDocument();
@@ -218,7 +257,13 @@ describe("the plain-link card", () => {
 
   it("draws no box when the only title is the site's own name", async () => {
     // nostrmag.com's article pages are a JS app: the HTML says only "NostrMag".
-    unfurlMock.mockResolvedValue({ kind: "page", title: "NostrMag", description: null, image: null, siteName: "nostrmag.com" });
+    unfurlMock.mockResolvedValue({
+      kind: "page",
+      title: "NostrMag",
+      description: null,
+      image: null,
+      siteName: "nostrmag.com",
+    });
     render(<LinkPreviewCard url="https://nostrmag.com/article/w37bitcoin02" />);
     await screen.findByTestId("link-card-pending");
     await new Promise((r) => setTimeout(r, 0));
@@ -226,7 +271,13 @@ describe("the plain-link card", () => {
   });
 
   it("drops the card's picture when the note already shows its own", async () => {
-    unfurlMock.mockResolvedValue({ kind: "page", title: "Story", description: "Words", image: "https://img.test/og.jpg", siteName: null });
+    unfurlMock.mockResolvedValue({
+      kind: "page",
+      title: "Story",
+      description: "Words",
+      image: "https://img.test/og.jpg",
+      siteName: null,
+    });
     render(<LinkPreviewCard url="https://news.test/story" showImage={false} />);
     const card = await screen.findByTestId("link-card");
     expect(card).toHaveTextContent("Story");
@@ -234,22 +285,45 @@ describe("the plain-link card", () => {
   });
 
   it("drops the words the note already says, keeping only the new lede", async () => {
-    unfurlMock.mockResolvedValue({ kind: "page", title: "Todos que apoiei venceram na América Latina, diz Trump", description: "Presidente dos EUA afirmou estar nove em nove", image: null, siteName: "O Antagonista" });
-    render(<LinkPreviewCard url="https://oantagonista.com.br/x" context="“Todos que apoiei venceram” na América Latina, diz Trump" />);
+    unfurlMock.mockResolvedValue({
+      kind: "page",
+      title: "Todos que apoiei venceram na América Latina, diz Trump",
+      description: "Presidente dos EUA afirmou estar nove em nove",
+      image: null,
+      siteName: "O Antagonista",
+    });
+    render(
+      <LinkPreviewCard
+        url="https://oantagonista.com.br/x"
+        context="“Todos que apoiei venceram” na América Latina, diz Trump"
+      />,
+    );
     const card = await screen.findByTestId("link-card");
     expect(card).toHaveTextContent("nove em nove");
     expect(card).not.toHaveTextContent("diz Trump");
   });
 
   it("draws nothing when the note already says it all and shows its own picture — the chip names the link", async () => {
-    unfurlMock.mockResolvedValue({ kind: "page", title: "Story headline here | Outlet", description: "Story headline here", image: "https://img.test/og.jpg", siteName: "Outlet" });
+    unfurlMock.mockResolvedValue({
+      kind: "page",
+      title: "Story headline here | Outlet",
+      description: "Story headline here",
+      image: "https://img.test/og.jpg",
+      siteName: "Outlet",
+    });
     render(<LinkPreviewCard url="https://news.test/story" showImage={false} context="Story headline here" />);
     await screen.findByTestId("link-card-echoed");
     expect(screen.queryByTestId("link-card")).toBeNull();
   });
 
   it("is only the picture and its source when the note already says it all", async () => {
-    unfurlMock.mockResolvedValue({ kind: "page", title: "Story headline here", description: null, image: "https://img.test/og.jpg", siteName: "Outlet" });
+    unfurlMock.mockResolvedValue({
+      kind: "page",
+      title: "Story headline here",
+      description: null,
+      image: "https://img.test/og.jpg",
+      siteName: "Outlet",
+    });
     render(<LinkPreviewCard url="https://news.test/story" context="Story headline here" />);
     const card = await screen.findByTestId("link-card-media");
     expect(card.querySelector("img")).toHaveAttribute("src", "https://img.test/og.jpg");
@@ -265,14 +339,26 @@ describe("the plain-link card", () => {
   });
 
   it("gives GitHub links the ordinary card, which holds no bespoke fallback to jump to", async () => {
-    unfurlMock.mockResolvedValue({ kind: "page", title: "GitHub - nostr-protocol/nips", description: "Nostr Implementation Possibilities", image: "https://opengraph.githubassets.com/x/nostr-protocol/nips", siteName: "GitHub" });
+    unfurlMock.mockResolvedValue({
+      kind: "page",
+      title: "GitHub - nostr-protocol/nips",
+      description: "Nostr Implementation Possibilities",
+      image: "https://opengraph.githubassets.com/x/nostr-protocol/nips",
+      siteName: "GitHub",
+    });
     render(<LinkPreviewCard url="https://github.com/nostr-protocol/nips" />);
     expect(await screen.findByTestId("link-card")).toHaveTextContent("nostr-protocol/nips");
     expect(screen.queryByTestId("link-card-github")).toBeNull();
   });
 
   it("shows an extensionless image link as the picture, not a card", async () => {
-    unfurlMock.mockResolvedValue({ kind: "image", title: null, description: null, image: "https://m.stacker.news/19886", siteName: null });
+    unfurlMock.mockResolvedValue({
+      kind: "image",
+      title: null,
+      description: null,
+      image: "https://m.stacker.news/19886",
+      siteName: null,
+    });
     render(<LinkPreviewCard url="https://m.stacker.news/19886" />);
     const box = await screen.findByTestId("link-image");
     expect(box.querySelector("img")).toHaveAttribute("src", "https://m.stacker.news/19886");

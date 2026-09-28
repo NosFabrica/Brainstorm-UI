@@ -9,7 +9,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 
-const statusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() => Promise.resolve(new Map()));
+const statusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() =>
+  Promise.resolve(new Map()),
+);
 const commentsMock = vi.fn<(ids: string[]) => Promise<Map<string, number>>>(() => Promise.resolve(new Map()));
 const repoMock = vi.fn<(address: string) => Promise<NostrEvent | null>>(() => Promise.resolve(null));
 vi.mock("@/services/search", async (importOriginal) => ({
@@ -23,7 +25,18 @@ import { GitItemHero } from "./GitItemHero";
 
 const SELLER = "9".repeat(64);
 const REPO_ADDR = `30617:${SELLER}:armada`;
-const REPO = { id: "r".repeat(64), kind: 30617, pubkey: SELLER, created_at: 1, content: "", sig: "", tags: [["d", "armada"], ["name", "armada"]] } as NostrEvent;
+const REPO = {
+  id: "r".repeat(64),
+  kind: 30617,
+  pubkey: SELLER,
+  created_at: 1,
+  content: "",
+  sig: "",
+  tags: [
+    ["d", "armada"],
+    ["name", "armada"],
+  ],
+} as NostrEvent;
 
 describe("GitItemHero", () => {
   beforeEach(() => {
@@ -36,7 +49,20 @@ describe("GitItemHero", () => {
   });
 
   it("an issue: title, state, linked repo, labels, agent, comments — and its markdown rendered", async () => {
-    const issue = { id: "1".repeat(64), kind: 1621, pubkey: "a".repeat(64), created_at: 1, content: "## Report\n\nA user on **Windows 10** cannot share.", tags: [["a", REPO_ADDR], ["subject", "Windows: screen share fails"], ["t", "bug"], ["t", "android"], ["buzz-origin-agent", "Sentinel"]] };
+    const issue = {
+      id: "1".repeat(64),
+      kind: 1621,
+      pubkey: "a".repeat(64),
+      created_at: 1,
+      content: "## Report\n\nA user on **Windows 10** cannot share.",
+      tags: [
+        ["a", REPO_ADDR],
+        ["subject", "Windows: screen share fails"],
+        ["t", "bug"],
+        ["t", "android"],
+        ["buzz-origin-agent", "Sentinel"],
+      ],
+    };
     statusesMock.mockResolvedValue(new Map([[issue.id, { kind: 1632, at: 5 }]]));
     commentsMock.mockResolvedValue(new Map([[issue.id, 4]]));
     render(<GitItemHero event={issue} />);
@@ -80,7 +106,17 @@ describe("GitItemHero", () => {
       "+trust := cfg.TrustProxy",
       "+_ = trust",
     ].join("\n");
-    const patch = { id: "2".repeat(64), kind: 1617, pubkey: "b".repeat(64), created_at: 1, content, tags: [["a", REPO_ADDR], ["commit", "e7d5515e41b8a9089d229af9a2cf36d373cb0ce7"]] };
+    const patch = {
+      id: "2".repeat(64),
+      kind: 1617,
+      pubkey: "b".repeat(64),
+      created_at: 1,
+      content,
+      tags: [
+        ["a", REPO_ADDR],
+        ["commit", "e7d5515e41b8a9089d229af9a2cf36d373cb0ce7"],
+      ],
+    };
     render(<GitItemHero event={patch} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Trust proxy headers for NIP-98");
     expect(screen.getByTestId("git-patch-meta")).toHaveTextContent("OpenClaw Codex");
@@ -96,7 +132,22 @@ describe("GitItemHero", () => {
   });
 
   it("a pull request: branch, commit count and a clone button, description rendered", async () => {
-    const pr = { id: "3".repeat(64), kind: 1618, pubkey: "c".repeat(64), created_at: 1, content: "Fixes a stuck warning.", tags: [["a", REPO_ADDR], ["subject", "fix(git-pool): recompute stale warning"], ["branch-name", "fix-stale-warning"], ["target-branch", "main"], ["c", "1".repeat(40)], ["c", "2".repeat(40)], ["clone", "https://gitnostr.com/npub15qy/gitworkshop.git"]] };
+    const pr = {
+      id: "3".repeat(64),
+      kind: 1618,
+      pubkey: "c".repeat(64),
+      created_at: 1,
+      content: "Fixes a stuck warning.",
+      tags: [
+        ["a", REPO_ADDR],
+        ["subject", "fix(git-pool): recompute stale warning"],
+        ["branch-name", "fix-stale-warning"],
+        ["target-branch", "main"],
+        ["c", "1".repeat(40)],
+        ["c", "2".repeat(40)],
+        ["clone", "https://gitnostr.com/npub15qy/gitworkshop.git"],
+      ],
+    };
     const writeText = vi.fn(() => Promise.resolve());
     Object.assign(navigator, { clipboard: { writeText } });
     render(<GitItemHero event={pr} />);
@@ -113,7 +164,18 @@ describe("GitItemHero", () => {
   // Bug reports lead with screenshots as bare URLs. A reader wants the
   // picture, not the address.
   it("a bare image URL in an issue body shows as the image", async () => {
-    const issue = { id: "5".repeat(64), kind: 1621, pubkey: "a".repeat(64), created_at: 1, content: "https://blossom.ditto.pub/4f18c2dd.webp\n\nArmada never receives relay lists. See https://example.org/docs for context.", tags: [["a", REPO_ADDR], ["subject", "relay lists"]] };
+    const issue = {
+      id: "5".repeat(64),
+      kind: 1621,
+      pubkey: "a".repeat(64),
+      created_at: 1,
+      content:
+        "https://blossom.ditto.pub/4f18c2dd.webp\n\nArmada never receives relay lists. See https://example.org/docs for context.",
+      tags: [
+        ["a", REPO_ADDR],
+        ["subject", "relay lists"],
+      ],
+    };
     render(<GitItemHero event={issue} />);
     const body = screen.getByTestId("git-item-body");
     const img = body.querySelector("img");
@@ -126,7 +188,14 @@ describe("GitItemHero", () => {
 
   it("an issue nobody has touched is open, with the repo named even before it resolves", async () => {
     repoMock.mockResolvedValue(null);
-    const issue = { id: "4".repeat(64), kind: 1621, pubkey: "a".repeat(64), created_at: 1, content: "plain words", tags: [["a", REPO_ADDR]] };
+    const issue = {
+      id: "4".repeat(64),
+      kind: 1621,
+      pubkey: "a".repeat(64),
+      created_at: 1,
+      content: "plain words",
+      tags: [["a", REPO_ADDR]],
+    };
     render(<GitItemHero event={issue} />);
     expect(await screen.findByTestId("git-status-state")).toHaveTextContent("Open");
     expect(screen.getByTestId("git-status-repo")).toHaveTextContent("armada");

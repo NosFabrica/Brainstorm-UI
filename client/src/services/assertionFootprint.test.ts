@@ -14,15 +14,31 @@ import type { NostrEvent } from "nostr-tools";
 type Frame = { type: "EVENT"; event: NostrEvent } | { type: "EOSE" } | { type: "CLOSED" };
 const subject = new Subject<Frame>();
 const reqMock = vi.fn(() => subject);
-vi.mock("@/lib/relayPool", () => ({ pool: { relay: () => ({ req: (...args: unknown[]) => reqMock(...(args as [])) }) } }));
+vi.mock("@/lib/relayPool", () => ({
+  pool: { relay: () => ({ req: (...args: unknown[]) => reqMock(...(args as [])) }) },
+}));
 
 import { fetchAssertionFootprint, FOOTPRINT_CAP } from "./assertionFootprint";
 
 const PROVIDER = "7".repeat(64);
 const assertion = (n: number, created_at: number): NostrEvent =>
-  ({ id: String(n).padStart(64, "0"), kind: 30382, pubkey: PROVIDER, tags: [["d", String(n).padStart(64, "a")], ["rank", "50"]], content: "", created_at, sig: "s" }) as NostrEvent;
+  ({
+    id: String(n).padStart(64, "0"),
+    kind: 30382,
+    pubkey: PROVIDER,
+    tags: [
+      ["d", String(n).padStart(64, "a")],
+      ["rank", "50"],
+    ],
+    content: "",
+    created_at,
+    sig: "s",
+  }) as NostrEvent;
 
-async function tick() { await Promise.resolve(); await Promise.resolve(); }
+async function tick() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 beforeEach(() => vi.clearAllMocks());
 

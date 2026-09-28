@@ -8,7 +8,16 @@
 import { describe, expect, it } from "vitest";
 import { detectCalendarPlatform, googleCalendarUrl, outlookCalendarUrl, preferredCalendar } from "./calendarLinks";
 
-const event = { uid: "31923:pk:v4v@brainstorm", title: "V4V Chicago: Meet & Greet", startSec: 1_788_555_600, endSec: 1_788_562_800, isDateOnly: false, location: "600 Brazos St, Austin, TX", description: "Bring a friend", url: "https://brainstorm.world/e/nevent1abc" };
+const event = {
+  uid: "31923:pk:v4v@brainstorm",
+  title: "V4V Chicago: Meet & Greet",
+  startSec: 1_788_555_600,
+  endSec: 1_788_562_800,
+  isDateOnly: false,
+  location: "600 Brazos St, Austin, TX",
+  description: "Bring a friend",
+  url: "https://brainstorm.world/e/nevent1abc",
+};
 
 describe("detectCalendarPlatform — the operating system, from what the browser says", () => {
   it("reads the modern hint first, then the user agent", () => {

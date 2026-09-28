@@ -25,11 +25,25 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { PlanCard } from "@/components/billing/PlanCard";
 
-// Ladder order for tier-movement arrows in non-number display modes.
-const TIER_ORDER_ASC: VerificationTier[] = ["unverified", "low", "neutral", "trusted", "high"];
-
 const TIER_LABEL: Record<VerificationTier, string> = {
-  high: TIER_LABELS.high, trusted: TIER_LABELS.trusted, neutral: TIER_LABELS.neutral, low: TIER_LABELS.low, unverified: TIER_LABELS.unverified,
+  high: TIER_LABELS.high,
+  trusted: TIER_LABELS.trusted,
+  neutral: TIER_LABELS.neutral,
+  low: TIER_LABELS.low,
+  unverified: TIER_LABELS.unverified,
+};
+
+/** One GrapeRank run as /user/graperankResult and history records return it. */
+type GrapeRankRun = {
+  private_id?: string | number;
+  status?: string | null;
+  internal_publication_status?: string | null;
+  ta_status?: string | null;
+  graperank_preset_used?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  trigger_source?: string | null;
+  how_many_others_with_priority?: number;
 };
 
 const isDone = (s: unknown) => typeof s === "string" && s.toLowerCase() === "success";
@@ -52,7 +66,13 @@ function fmtWhen(iso?: string | null): string | null {
   if (!iso) return null;
   const d = new Date(withZ(iso));
   if (isNaN(d.getTime())) return null;
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function fmtDuration(startIso?: string | null, endIso?: string | null): string | null {
@@ -66,9 +86,9 @@ function fmtDuration(startIso?: string | null, endIso?: string | null): string |
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5">
+    <div className="rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-slate-800/50">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
-      <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">{value}</p>
+      <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{value}</p>
     </div>
   );
 }
@@ -101,13 +121,11 @@ export default function InsightsPage() {
     // card said "In progress" forever after the server had finished. Poll only
     // while a run is actually in flight; go quiet the moment it settles.
     refetchInterval: (query) => {
-      const raw = query.state.data as any;
+      const raw = query.state.data as (GrapeRankRun & { data?: GrapeRankRun }) | undefined;
       const g = raw?.internal_publication_status !== undefined ? raw : raw?.data;
       if (!g) return false;
       const settled =
-        isDone(g.internal_publication_status) ||
-        isFail(g.status) ||
-        isFail(g.internal_publication_status);
+        isDone(g.internal_publication_status) || isFail(g.status) || isFail(g.internal_publication_status);
       return settled ? false : 15_000;
     },
   });
@@ -130,7 +148,7 @@ export default function InsightsPage() {
   const overview = overviewQuery.data?.data ?? null;
   const stats = statsQuery.data?.data ?? null;
   const history = historyQuery.data?.data ?? null;
-  const grapeRank = grapeRankQuery.data as any;
+  const grapeRank = grapeRankQuery.data as GrapeRankRun | undefined;
 
   const globalInfluence = houseQuery.data ?? null;
   const tier = globalInfluence != null ? tierForScore01(globalInfluence) : null;
@@ -145,16 +163,23 @@ export default function InsightsPage() {
   useEffect(() => {
     if (!pubkey) return;
     let live = true;
-    void hydrateScoreJournal(pubkey).then((j) => { if (live) setJournal(j); }).catch(() => {});
-    return () => { live = false; };
+    void hydrateScoreJournal(pubkey)
+      .then((j) => {
+        if (live) setJournal(j);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
   }, [pubkey]);
   const lastCalcMs = toMs(history?.last_time_calculated_graperank);
   useEffect(() => {
     if (!pubkey || lastCalcMs == null || globalInfluence == null) return;
     // Capture the preset this run used, so each history row shows what setting
     // produced it. Backend value first; fall back to the active preset.
-    const calcPreset = (grapeRank?.graperank_preset_used as string | undefined)
-      ?? (activePreset ? presetToBackend(activePreset) : undefined);
+    const calcPreset =
+      (grapeRank?.graperank_preset_used as string | undefined) ??
+      (activePreset ? presetToBackend(activePreset) : undefined);
     setJournal(recordScore(pubkey, lastCalcMs, globalInfluence, calcPreset));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pubkey, lastCalcMs, globalInfluence]);
@@ -162,8 +187,7 @@ export default function InsightsPage() {
 
   const assistant = useMemo(() => readPublishedAssistant(), []);
   const assistantProfile = useMemo(() => (assistant ? readAssistantProfile() : null), [assistant]);
-  const assistantName =
-    assistantProfile?.display_name || assistantProfile?.name || "Brainstorm assistant";
+  const assistantName = assistantProfile?.display_name || assistantProfile?.name || "Brainstorm assistant";
 
   const calculatedAt = fmtWhen(history?.last_time_calculated_graperank);
   const duration = fmtDuration(grapeRank?.created_at, grapeRank?.updated_at);
@@ -181,7 +205,8 @@ export default function InsightsPage() {
   const calcComplete = isDone(grapeRank?.internal_publication_status);
   const publishComplete = calcComplete && isDone(grapeRank?.ta_status);
   const calcFailed = isFail(grapeRank?.status) || isFail(grapeRank?.internal_publication_status);
-  const queueAhead = typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
+  const queueAhead =
+    typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
 
   // When the poll above watches a run FINISH, the neighbours go stale together:
   // "Last calculated" (history) and the standing number (house influence) both
@@ -202,34 +227,42 @@ export default function InsightsPage() {
   // records array (admins get the full table via /admin/users/:pubkey/history;
   // the user endpoint currently returns a summary, so this needs a small backend
   // addition before it populates).
-  const calcRecords: any[] = Array.isArray((history as any)?.items)
-    ? (history as any).items
-    : Array.isArray((history as any)?.records)
-      ? (history as any).records
+  const calcHistory = history as { items?: unknown; records?: unknown } | null;
+  const calcRecords: GrapeRankRun[] = Array.isArray(calcHistory?.items)
+    ? calcHistory.items
+    : Array.isArray(calcHistory?.records)
+      ? calcHistory.records
       : [];
 
   const handleLogout = () => logout();
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col">
+    <div className="flex min-h-screen flex-col bg-white dark:bg-slate-950">
       {user && <AppHeader user={user} onLogout={handleLogout} />}
-      <main className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 flex-1">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
         <button
           type="button"
           onClick={() => goBack("/dashboard")}
-          className="mb-6 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+          className="mb-6 inline-flex items-center gap-2 rounded text-sm text-slate-500 hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400 dark:hover:text-white"
           data-testid="insights-back"
         >
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
 
-        <div className="flex items-center gap-3 mb-1">
-          <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
+        <div className="mb-1 flex items-center gap-3">
+          <div className="rounded-lg border border-slate-100 bg-white p-2 text-brand-deep shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-900 dark:ring-slate-800">
             <Gauge className="h-4 w-4" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>My Insights</h1>
+          <h1
+            className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            My Insights
+          </h1>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your plan, your calculations, and how Brainstorm sees you.</p>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+          Your plan, your calculations, and how Brainstorm sees you.
+        </p>
 
         {/* Plan first: it sets the frame for everything under it. "Recalculated
             every 60 days" is what makes the "last calculated" date below mean
@@ -239,35 +272,49 @@ export default function InsightsPage() {
         <DeferredSessionNotice className="mb-6" />
 
         {/* Calculation */}
-        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3">
+        <Card className="mb-4 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-3 flex items-center gap-2">
             <Clock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation</span>
+            <span
+              className="text-sm font-bold text-slate-800 dark:text-slate-200"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Calculation
+            </span>
             {grapeRankQuery.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
           </div>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate-500 dark:text-slate-400">Last calculated</dt>
-              <dd className="font-medium text-slate-900 dark:text-slate-100 text-right">{calculatedAt ?? "—"}</dd>
+              <dd className="text-right font-medium text-slate-900 dark:text-slate-100">{calculatedAt ?? "—"}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate-500 dark:text-slate-400">Settings preset</dt>
-              <dd className="text-right">{presetForBadge ? <PresetBadge preset={presetForBadge} size="xs" /> : <span className="text-slate-400">—</span>}</dd>
+              <dd className="text-right">
+                {presetForBadge ? (
+                  <PresetBadge preset={presetForBadge} size="xs" />
+                ) : (
+                  <span className="text-slate-400">—</span>
+                )}
+              </dd>
             </div>
             {duration && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-slate-500 dark:text-slate-400">Took</dt>
-                <dd className="font-medium text-slate-900 dark:text-slate-100 tabular-nums">{duration}</dd>
+                <dd className="font-medium tabular-nums text-slate-900 dark:text-slate-100">{duration}</dd>
               </div>
             )}
             {/* The CALCULATION — what this card is actually about. */}
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate-500 dark:text-slate-400">Status</dt>
-              <dd className="flex items-center gap-1.5 justify-end font-medium">
+              <dd className="flex items-center justify-end gap-1.5 font-medium">
                 {calcFailed ? (
                   <span className="text-red-600 dark:text-red-400">Failed</span>
                 ) : calcComplete ? (
-                  <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> <span className="text-emerald-600 dark:text-emerald-400">Complete</span></>
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />{" "}
+                    <span className="text-emerald-600 dark:text-emerald-400">Complete</span>
+                  </>
                 ) : (
                   <span className="text-amber-600 dark:text-amber-400">In progress</span>
                 )}
@@ -280,9 +327,12 @@ export default function InsightsPage() {
             {calcComplete && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-slate-500 dark:text-slate-400">Published</dt>
-                <dd className="flex items-center gap-1.5 justify-end font-medium">
+                <dd className="flex items-center justify-end gap-1.5 font-medium">
                   {publishComplete ? (
-                    <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> <span className="text-emerald-600 dark:text-emerald-400">Published</span></>
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />{" "}
+                      <span className="text-emerald-600 dark:text-emerald-400">Published</span>
+                    </>
                   ) : (
                     <span className="text-slate-500 dark:text-slate-400">Publishing…</span>
                   )}
@@ -292,7 +342,9 @@ export default function InsightsPage() {
             {queueAhead != null && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-slate-500 dark:text-slate-400">Queue</dt>
-                <dd className="font-medium text-slate-900 dark:text-slate-100">{queueAhead === 0 ? "Idle" : `${queueAhead} ahead`}</dd>
+                <dd className="font-medium text-slate-900 dark:text-slate-100">
+                  {queueAhead === 0 ? "Idle" : `${queueAhead} ahead`}
+                </dd>
               </div>
             )}
           </dl>
@@ -301,7 +353,10 @@ export default function InsightsPage() {
               dashboard card: this page is about how your scores are computed and
               published, so the assistant is context, not promotion. */}
           {assistant && (
-            <div className="mt-3 flex items-center gap-2.5 border-t border-slate-100 dark:border-slate-800/60 pt-3" data-testid="insights-assistant">
+            <div
+              className="mt-3 flex items-center gap-2.5 border-t border-slate-100 pt-3 dark:border-slate-800/60"
+              data-testid="insights-assistant"
+            >
               <span className="text-sm text-slate-500 dark:text-slate-400">Published by</span>
               <button
                 type="button"
@@ -310,17 +365,28 @@ export default function InsightsPage() {
                 data-testid="insights-assistant-link"
               >
                 <Avatar className="h-6 w-6 shrink-0 rounded-full border border-slate-200 dark:border-slate-800">
-                  {assistantProfile?.picture ? <AvatarImage src={assistantProfile.picture} alt={assistantName} className="object-cover" /> : null}
-                  <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+                  {assistantProfile?.picture ? (
+                    <AvatarImage src={assistantProfile.picture} alt={assistantName} className="object-cover" />
+                  ) : null}
+                  <AvatarFallback className="overflow-hidden rounded-full">
+                    <DefaultAvatarImg />
+                  </AvatarFallback>
                 </Avatar>
-                <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-link">{assistantName}</span>
+                <span className="truncate text-sm font-semibold text-slate-900 group-hover:text-brand-link dark:text-slate-100">
+                  {assistantName}
+                </span>
                 <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">your assistant</span>
                 <ArrowRight className="h-3 w-3 shrink-0 text-slate-400 group-hover:text-brand-link" />
               </button>
             </div>
           )}
 
-          <button type="button" onClick={() => navigate("/settings?tab=trust")} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded" data-testid="insights-recalculate">
+          <button
+            type="button"
+            onClick={() => navigate("/settings?tab=trust")}
+            className="mt-3 inline-flex items-center gap-1.5 rounded text-xs font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid="insights-recalculate"
+          >
             <RefreshCw className="h-3 w-3" /> Recalculate or change preset in settings
           </button>
         </Card>
@@ -328,18 +394,31 @@ export default function InsightsPage() {
         {/* Score history — outcome-first: what each calculation DID to your score.
             Journalled client-side because the backend records that a run happened
             but not what it scored. Forward-only, so it starts empty for everyone. */}
-        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4" data-testid="insights-score-history">
-          <div className="flex items-center gap-2 mb-3">
+        <Card
+          className="mb-4 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          data-testid="insights-score-history"
+        >
+          <div className="mb-3 flex items-center gap-2">
             <Clock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation history</span>
+            <span
+              className="text-sm font-bold text-slate-800 dark:text-slate-200"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Calculation history
+            </span>
             {scoreHistory.length > 0 && (
-              <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">{scoreHistory.length} calculation{scoreHistory.length !== 1 ? "s" : ""}</span>
+              <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
+                {scoreHistory.length} calculation{scoreHistory.length !== 1 ? "s" : ""}
+              </span>
             )}
           </div>
           {scoreHistory.length === 0 ? (
-            <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400" data-testid="insights-score-history-empty">
-              Nothing recorded yet. Tracking starts now — after your next calculation
-              completes, you'll see how your number moved and why.
+            <p
+              className="text-xs leading-relaxed text-slate-500 dark:text-slate-400"
+              data-testid="insights-score-history-empty"
+            >
+              Nothing recorded yet. Tracking starts now — after your next calculation completes, you'll see how your
+              number moved and why.
             </p>
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -354,24 +433,47 @@ export default function InsightsPage() {
                   // One clean line at every width: date then the preset it ran at,
                   // inline, with the score movement held right. min-w-0 lets the
                   // date shrink on narrow phones instead of pushing the numbers off.
-                  <li key={e.t} className="flex items-center justify-between gap-3 py-2" data-testid="insights-score-row">
+                  <li
+                    key={e.t}
+                    className="flex items-center justify-between gap-3 py-2"
+                    data-testid="insights-score-row"
+                  >
                     <div className="flex min-w-0 items-center gap-2">
                       <p className="truncate text-sm text-slate-600 dark:text-slate-300">
-                        {new Date(e.t).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                        {new Date(e.t).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
                       </p>
                       {e.preset && (
-                        <PresetBadge preset={e.preset} size="xs" variant={isActiveRun ? "pill" : "quiet"} className="shrink-0" />
+                        <PresetBadge
+                          preset={e.preset}
+                          size="xs"
+                          variant={isActiveRun ? "pill" : "quiet"}
+                          className="shrink-0"
+                        />
                       )}
                     </div>
                     {displayMode === "number" ? (
                       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                         {e.previous != null && (
-                          <span className="font-mono text-xs text-slate-400 dark:text-slate-500 tabular-nums">{score100(e.previous)} →</span>
+                          <span className="font-mono text-xs tabular-nums text-slate-400 dark:text-slate-500">
+                            {score100(e.previous)} →
+                          </span>
                         )}
-                        <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{score100(e.score)}</span>
+                        <span className="font-mono text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                          {score100(e.score)}
+                        </span>
                         <span
                           className={`w-11 text-right font-mono text-xs font-semibold tabular-nums ${
-                            flat ? "text-slate-400 dark:text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                            flat
+                              ? "text-slate-400 dark:text-slate-500"
+                              : up
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-red-500 dark:text-red-400"
                           }`}
                         >
                           {flat ? "—" : `${up ? "▲+" : "▼"}${score100(Math.abs(e.delta ?? 0))}`}
@@ -389,8 +491,12 @@ export default function InsightsPage() {
                         const tierUp = tierMoved && rowRung.rung > prevRung!.rung;
                         return (
                           <div className="flex shrink-0 items-center gap-2 sm:gap-3" data-testid="insights-row-tier">
-                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{rowRung.label}</span>
-                            <span className={`w-5 text-right text-xs font-semibold ${!tierMoved ? "text-slate-400 dark:text-slate-500" : tierUp ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                              {rowRung.label}
+                            </span>
+                            <span
+                              className={`w-5 text-right text-xs font-semibold ${!tierMoved ? "text-slate-400 dark:text-slate-500" : tierUp ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}
+                            >
                               {!tierMoved ? "—" : tierUp ? "▲" : "▼"}
                             </span>
                           </div>
@@ -406,16 +512,23 @@ export default function InsightsPage() {
 
         {/* Calculation history (self-scoped; renders when the endpoint returns records) */}
         {calcRecords.length > 0 && (
-          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">
-            <div className="flex items-center gap-2 mb-3">
+          <Card className="mb-4 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-3 flex items-center gap-2">
               <Clock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
-              <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation history</span>
-              <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">{calcRecords.length} record{calcRecords.length !== 1 ? "s" : ""}</span>
+              <span
+                className="text-sm font-bold text-slate-800 dark:text-slate-200"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Calculation history
+              </span>
+              <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
+                {calcRecords.length} record{calcRecords.length !== 1 ? "s" : ""}
+              </span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 text-left">
+                  <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                     <th className="py-1.5 pr-3 font-semibold">When</th>
                     <th className="py-1.5 pr-3 font-semibold">Source</th>
                     <th className="py-1.5 pr-3 font-semibold">Status</th>
@@ -424,16 +537,22 @@ export default function InsightsPage() {
                 <tbody>
                   {calcRecords.slice(0, 12).map((r, i) => (
                     <tr key={r.private_id ?? i} className="border-t border-slate-100 dark:border-slate-800/60">
-                      <td className="py-2 pr-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">{fmtWhen(r.created_at) ?? "—"}</td>
+                      <td className="whitespace-nowrap py-2 pr-3 text-slate-700 dark:text-slate-300">
+                        {fmtWhen(r.created_at) ?? "—"}
+                      </td>
                       <td className="py-2 pr-3 text-slate-600 dark:text-slate-400">{r.trigger_source || "—"}</td>
                       {/* Same field semantics as the card above: this column reflects
                           whether the CALCULATION completed, so don't label it "Published". */}
                       <td className="py-2 pr-3">
-                        {isFail(r.status) || isFail(r.internal_publication_status)
-                          ? <span className="font-medium text-red-600 dark:text-red-400">Failed</span>
-                          : isDone(r.internal_publication_status)
-                            ? <span className="font-medium text-emerald-600 dark:text-emerald-400">Complete</span>
-                            : <span className="font-medium text-amber-600 dark:text-amber-400">{r.status || "In progress"}</span>}
+                        {isFail(r.status) || isFail(r.internal_publication_status) ? (
+                          <span className="font-medium text-red-600 dark:text-red-400">Failed</span>
+                        ) : isDone(r.internal_publication_status) ? (
+                          <span className="font-medium text-emerald-600 dark:text-emerald-400">Complete</span>
+                        ) : (
+                          <span className="font-medium text-amber-600 dark:text-amber-400">
+                            {r.status || "In progress"}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -444,17 +563,30 @@ export default function InsightsPage() {
         )}
 
         {/* Your standing */}
-        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">
-          <div className="flex items-center gap-2 mb-3">
+        <Card className="mb-4 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-3 flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
             {/* Not "Your standing" — that implies a single ranking everyone agrees
                 on, which is the one thing a web of trust deliberately doesn't have. */}
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>How Brainstorm sees you</span>
+            <span
+              className="text-sm font-bold text-slate-800 dark:text-slate-200"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              How Brainstorm sees you
+            </span>
           </div>
-          <div className="flex items-center gap-3 mb-3 rounded-lg bg-brand-accent/[0.06] border border-brand-accent/20 px-3 py-2.5">
+          <div className="mb-3 flex items-center gap-3 rounded-lg border border-brand-accent/20 bg-brand-accent/[0.06] px-3 py-2.5">
             <VerificationCoin score01={globalInfluence} pov="global" size={40} loading={houseQuery.isLoading} />
             <div>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tier ? (granularity === "simple" ? rungFor(globalInfluence, false, "simple").label : TIER_LABEL[tier]) : houseQuery.isLoading ? "Loading…" : "Not yet scored"}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                {tier
+                  ? granularity === "simple"
+                    ? rungFor(globalInfluence, false, "simple").label
+                    : TIER_LABEL[tier]
+                  : houseQuery.isLoading
+                    ? "Loading…"
+                    : "Not yet scored"}
+              </p>
               {/* This number is getHouseInfluence — BRAINSTORM's vantage point, not
                   a universal verdict. It used to claim "the number others see on
                   your profile", which is exactly wrong: anyone with their own web
@@ -465,7 +597,7 @@ export default function InsightsPage() {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Stat label="Verified followers" value={verifiedFollowers.toLocaleString()} />
             <Stat label="Verified following" value={verifiedFollowing.toLocaleString()} />
             <Stat label="Reported by" value={(counts.reported_by ?? 0).toLocaleString()} />
@@ -476,11 +608,18 @@ export default function InsightsPage() {
         </Card>
 
         {/* Explainer */}
-        <Card className="border border-brand-accent/25 bg-brand-accent/[0.06] rounded-xl p-4">
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">How your number is computed</p>
+        <Card className="rounded-xl border border-brand-accent/25 bg-brand-accent/[0.06] p-4">
+          <p className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">How your number is computed</p>
           <p className="text-[13px] leading-relaxed text-[#0A0E18] dark:text-slate-100">
-            It's built only from what already-verified accounts do — their follows, mutes, and reports — so bots and brand-new accounts carry no weight. That's what makes it resistant to manipulation.{" "}
-            <button type="button" onClick={() => navigate("/how-search-works")} className="inline-flex items-center gap-0.5 font-semibold text-brand-link hover:underline">Learn more <ArrowRight className="h-3 w-3" /></button>
+            It's built only from what already-verified accounts do — their follows, mutes, and reports — so bots and
+            brand-new accounts carry no weight. That's what makes it resistant to manipulation.{" "}
+            <button
+              type="button"
+              onClick={() => navigate("/how-search-works")}
+              className="inline-flex items-center gap-0.5 font-semibold text-brand-link hover:underline"
+            >
+              Learn more <ArrowRight className="h-3 w-3" />
+            </button>
           </p>
         </Card>
       </main>

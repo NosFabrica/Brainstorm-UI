@@ -19,13 +19,18 @@ const listingsMock = vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () 
 let allStreams: { query: string; params: { tab?: string; limit?: number }; cb: (s: SearchSnapshot) => void }[] = [];
 const isPanelProbe = (q: string, p?: { tab?: string; limit?: number }) =>
   q.startsWith("#") || (p?.tab === "apps" && p?.limit === 6) || (p?.tab === "events" && p?.limit === 60);
-const mainStreamCalls = () => streamMock.mock.calls.filter(([q, p]) => !isPanelProbe(String(q), p as { tab?: string; limit?: number }));
+const mainStreamCalls = () =>
+  streamMock.mock.calls.filter(([q, p]) => !isPanelProbe(String(q), p as { tab?: string; limit?: number }));
 vi.mock("@/services/search", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/search")>();
   return {
     ...actual,
     searchStream: (...args: unknown[]) => {
-      allStreams.push({ query: args[0] as string, params: args[1] as { tab?: string; limit?: number }, cb: args[2] as (s: SearchSnapshot) => void });
+      allStreams.push({
+        query: args[0] as string,
+        params: args[1] as { tab?: string; limit?: number },
+        cb: args[2] as (s: SearchSnapshot) => void,
+      });
       streamMock(args[0], args[1]);
       return () => {};
     },
@@ -36,7 +41,15 @@ vi.mock("@/services/search", async (importOriginal) => {
     suggestProfileHits: async (...args: unknown[]) => {
       const people = (await suggestMock(...args)) as { pubkey: string }[];
       return (people ?? []).map((author) => ({
-        event: { id: `k0-${author.pubkey}`, kind: 0, pubkey: author.pubkey, tags: [], content: "{}", created_at: 1, sig: "s" },
+        event: {
+          id: `k0-${author.pubkey}`,
+          kind: 0,
+          pubkey: author.pubkey,
+          tags: [],
+          content: "{}",
+          created_at: 1,
+          sig: "s",
+        },
         author,
         rank: null,
       }));
@@ -50,7 +63,8 @@ vi.mock("@/services/nostr", () => ({
   fetchProfile: async () => null,
   fetchRecentByKinds: async () => [],
   fetchLiveStreams: async () => [],
-  fetchProfileMap: async (pks: string[]) => new Map(pks.filter((pk) => knownProfiles.has(pk)).map((pk) => [pk, knownProfiles.get(pk)!])),
+  fetchProfileMap: async (pks: string[]) =>
+    new Map(pks.filter((pk) => knownProfiles.has(pk)).map((pk) => [pk, knownProfiles.get(pk)!])),
   fetchEventsByIds: async () => [],
   fetchAddressableEvents: async () => new Map(),
 }));
@@ -63,7 +77,18 @@ vi.mock("@/services/searchFaces", () => ({
         .filter((pk) => knownProfiles.has(pk))
         .map((pk) => {
           const p = knownProfiles.get(pk)!;
-          return [pk, { pubkey: pk, npub: "", displayName: p.display_name, name: p.name, picture: p.picture, wotRank: null, wotFollowers: null }];
+          return [
+            pk,
+            {
+              pubkey: pk,
+              npub: "",
+              displayName: p.display_name,
+              name: p.name,
+              picture: p.picture,
+              wotRank: null,
+              wotFollowers: null,
+            },
+          ];
         }),
     ),
 }));
@@ -71,18 +96,27 @@ vi.mock("@/services/api", () => ({ apiClient: new Proxy({}, { get: () => async (
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.85 }));
 vi.mock("@/hooks/useAppEndorsements", () => ({ useAppEndorsements: () => null }));
-vi.mock("@/hooks/useMyFollows", () => ({ useMyFollows: () => ({ follows: new Set<string>(), ready: true, signedIn: false }) }));
+vi.mock("@/hooks/useMyFollows", () => ({
+  useMyFollows: () => ({ follows: new Set<string>(), ready: true, signedIn: false }),
+}));
 vi.mock("@/hooks/usePersonEndorsements", () => ({ usePersonEndorsements: () => null }));
 // What each suggested person publishes — a test that wants chips seeds this.
 const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
 vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/hooks/useAuthorFlags", () => ({ useAuthorFlags: () => () => false }));
-vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: () => ({ direct: new Set(), friends: new Set(), ready: true }) }));
+vi.mock("@/hooks/useNetworkReach", () => ({
+  useNetworkReach: () => ({ direct: new Set(), friends: new Set(), ready: true }),
+}));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
 vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ isSearchObserver: false }) }));
 vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
-vi.mock("@/lib/wavlake", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/wavlake")>()), searchWavlakeTracks: async () => [], searchWavlake: async () => ({ artists: [], albums: [], songs: [] }), fetchWavlakeTrending: async () => [] }));
+vi.mock("@/lib/wavlake", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/wavlake")>()),
+  searchWavlakeTracks: async () => [],
+  searchWavlake: async () => ({ artists: [], albums: [], songs: [] }),
+  fetchWavlakeTrending: async () => [],
+}));
 vi.mock("@/components/feed/HomeFeed", () => ({ HomeFeed: () => null }));
 vi.mock("@/components/FinishSetupBanner", () => ({ FinishSetupBanner: () => null }));
 vi.mock("@/components/AccountCards", () => ({ AccountCards: () => null }));
@@ -205,7 +239,9 @@ describe("a search scoped to a person shows them in the box, never the raw key",
     expect(boxValue()).toBe(`from:${npub} alone in `); // the trailing space survives
     typeInBox(`from:${npub} alone in valentine`);
     fireEvent.submit(screen.getByTestId("form-home-search"));
-    await waitFor(() => expect(mainStreamCalls().some(([q]) => String(q).startsWith(`from:${npub} alone in valentine`))).toBe(true));
+    await waitFor(() =>
+      expect(mainStreamCalls().some(([q]) => String(q).startsWith(`from:${npub} alone in valentine`))).toBe(true),
+    );
     expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${npub} alone in valentine`);
     expect(boxValue()).toBe(`from:${npub} alone in valentine`);
     expect(screen.getByTestId("search-scope-chip")).toHaveTextContent("Joe Martin");
@@ -220,7 +256,9 @@ describe("a search scoped to a person shows them in the box, never the raw key",
     // A soft keyboard's action key and a desktop Return both arrive as an inserted break.
     fireEvent.keyDown(box, { key: "Enter" });
     fireEvent(box, new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }));
-    await waitFor(() => expect(mainStreamCalls().some(([q]) => String(q).startsWith(`from:${npub} checkmate`))).toBe(true));
+    await waitFor(() =>
+      expect(mainStreamCalls().some(([q]) => String(q).startsWith(`from:${npub} checkmate`))).toBe(true),
+    );
     expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${npub} checkmate`);
   });
 
@@ -283,11 +321,32 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
   // straight to it. Up to three product titles sit under the people.
   it("product titles ride the typeahead and open the listing itself", async () => {
     const SELLER = "e".repeat(64);
-    listingsMock.mockResolvedValue([{
-      event: { id: "t".repeat(64), kind: 30402, pubkey: SELLER, tags: [["d", "smiley"], ["title", "Satoshi Smiley T-shirt"], ["price", "21", "USD"], ["image", "https://img/smiley.jpg"]], content: "", created_at: 1, sig: "s" },
-      author: { pubkey: SELLER, npub: nip19.npubEncode(SELLER), name: "Black Sheep", wotRank: null, wotFollowers: null },
-      rank: null,
-    }]);
+    listingsMock.mockResolvedValue([
+      {
+        event: {
+          id: "t".repeat(64),
+          kind: 30402,
+          pubkey: SELLER,
+          tags: [
+            ["d", "smiley"],
+            ["title", "Satoshi Smiley T-shirt"],
+            ["price", "21", "USD"],
+            ["image", "https://img/smiley.jpg"],
+          ],
+          content: "",
+          created_at: 1,
+          sig: "s",
+        },
+        author: {
+          pubkey: SELLER,
+          npub: nip19.npubEncode(SELLER),
+          name: "Black Sheep",
+          wotRank: null,
+          wotFollowers: null,
+        },
+        rank: null,
+      },
+    ]);
     render(<Landing />);
     typeInBox("satoshi smiley");
     const row = await screen.findByTestId("home-product-suggestion-0", {}, { timeout: 3000 });
@@ -301,7 +360,9 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
 
   it("the typeahead's footer names the person, never the key", async () => {
     const GAL = "f".repeat(64);
-    suggestMock.mockResolvedValue([{ pubkey: GAL, npub: nip19.npubEncode(GAL), name: "Guitar Gal", wotRank: null, wotFollowers: null }]);
+    suggestMock.mockResolvedValue([
+      { pubkey: GAL, npub: nip19.npubEncode(GAL), name: "Guitar Gal", wotRank: null, wotFollowers: null },
+    ]);
     render(<Landing />);
     await screen.findByTestId("search-scope-chip");
     typeInBox(`from:${npub} guitar`);
@@ -384,7 +445,9 @@ describe("typing in the home search", () => {
   const typeSlowly = (word: string) => {
     for (let i = 1; i <= word.length; i++) {
       typeInBox(word.slice(0, i));
-      act(() => { vi.advanceTimersByTime(200); });
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
     }
   };
   const signalOf = (call: number) => (suggestMock.mock.calls[call][2] as { signal?: AbortSignal } | undefined)?.signal;
@@ -405,7 +468,9 @@ describe("typing in the home search", () => {
   it("asks for suggestions once, for the whole word, when typing pauses", () => {
     render(<Landing />);
     typeSlowly("vitor");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(suggestMock).toHaveBeenCalledTimes(1);
     expect(suggestMock.mock.calls[0][0]).toBe("vitor");
   });
@@ -413,7 +478,9 @@ describe("typing in the home search", () => {
   it("cancels a suggestion request that's under way when the next key lands", () => {
     render(<Landing />);
     typeInBox("vito");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(signalOf(0)?.aborted).toBe(false);
     typeInBox("vitor");
     expect(signalOf(0)?.aborted).toBe(true);
@@ -422,7 +489,9 @@ describe("typing in the home search", () => {
   it("cancels it when the page goes away", () => {
     const { unmount } = render(<Landing />);
     typeInBox("vitor");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     unmount();
     expect(signalOf(0)?.aborted).toBe(true);
   });
@@ -434,19 +503,27 @@ describe("typing in the home search", () => {
     render(<Landing />);
     const input = typeInBox("vitor");
     fireEvent.keyDown(input, { key: "Escape" });
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(suggestMock).not.toHaveBeenCalled();
     expect(dropdownShowing()).toBe(false);
   });
 
   it("cancels a request when the dropdown closes, and its partial answer doesn't reopen it", async () => {
-    suggestMock.mockImplementation((...args: unknown[]) => new Promise((resolve) => {
-      (args[2] as { signal: AbortSignal }).signal.addEventListener("abort", () =>
-        resolve([{ pubkey: "c".repeat(64), npub: "npub1partial", name: "partial" }]));
-    }));
+    suggestMock.mockImplementation(
+      (...args: unknown[]) =>
+        new Promise((resolve) => {
+          (args[2] as { signal: AbortSignal }).signal.addEventListener("abort", () =>
+            resolve([{ pubkey: "c".repeat(64), npub: "npub1partial", name: "partial" }]),
+          );
+        }),
+    );
     render(<Landing />);
     const input = typeInBox("vitor");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     fireEvent.keyDown(input, { key: "Escape" });
     await act(async () => {});
     expect(signalOf(0)?.aborted).toBe(true);
@@ -458,22 +535,30 @@ describe("typing in the home search", () => {
     render(<Landing />);
     for (const q of ["doi:", "doi:10.1000", "sort:rec", "label:en", "from:", "observer:", "jack kind:20"]) {
       typeSlowly(q);
-      act(() => { vi.advanceTimersByTime(400); });
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
     }
     expect(suggestMock).not.toHaveBeenCalled();
     expect(dropdownShowing()).toBe(false);
     typeSlowly("from:ja");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(suggestMock.mock.calls.at(-1)?.[0]).toBe("ja");
     typeSlowly("observer:vi");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(suggestMock.mock.calls.at(-1)?.[0]).toBe("vi");
   });
 
   it("searches right away on Enter, without waiting for the pause", () => {
     render(<Landing />);
     typeInBox("vitor");
-    act(() => { fireEvent.submit(screen.getByTestId("form-home-search")); });
+    act(() => {
+      fireEvent.submit(screen.getByTestId("form-home-search"));
+    });
     expect(mainStreamCalls().some(([q]) => q === "vitor")).toBe(true);
   });
 });
@@ -490,7 +575,17 @@ describe("the Browse row under the box", () => {
     fireEvent.focus(input);
     const chips = await screen.findByTestId("browse-chips");
     const order = [...chips.querySelectorAll('[data-testid^="browse-"]')].map((el) => el.getAttribute("data-testid"));
-    expect(order).toEqual(["browse-people", "browse-notes", "browse-media", "browse-shop", "browse-apps", "browse-events", "browse-music", "browse-live", "browse-lists"]);
+    expect(order).toEqual([
+      "browse-people",
+      "browse-notes",
+      "browse-media",
+      "browse-shop",
+      "browse-apps",
+      "browse-events",
+      "browse-music",
+      "browse-live",
+      "browse-lists",
+    ]);
   });
 
   it("offers Music, under the music category's icon, and opens the Music tab", async () => {
@@ -523,12 +618,16 @@ describe("what a suggested person publishes", () => {
     suggestMock.mockReset();
     suggestMock.mockResolvedValue([]);
     contentMock.mockReset();
-    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])));
+    contentMock.mockImplementation(
+      (pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])),
+    );
     window.history.replaceState({}, "", "/");
   });
 
   it("a suggested person wears chips for what they publish, linking to their scoped search", async () => {
-    suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null }]);
+    suggestMock.mockResolvedValue([
+      { pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null },
+    ]);
     render(<Landing />);
     typeInBox("staci");
     const row = await screen.findByTestId("home-suggestion-0", {}, { timeout: 3000 });
@@ -542,7 +641,13 @@ describe("what a suggested person publishes", () => {
 
     fireEvent.click(chip);
     // The page runs the scoped search on the Shop tab (it adds its own newest-first order).
-    await waitFor(() => expect(mainStreamCalls().some(([q, p]) => String(q).startsWith(`from:${STACI_NPUB}`) && (p as { tab?: string }).tab === "shop")).toBe(true));
+    await waitFor(() =>
+      expect(
+        mainStreamCalls().some(
+          ([q, p]) => String(q).startsWith(`from:${STACI_NPUB}`) && (p as { tab?: string }).tab === "shop",
+        ),
+      ).toBe(true),
+    );
     expect(new URLSearchParams(window.location.search).get("t")).toBe("shop");
     expect(screen.queryByTestId("home-suggestion-0")).toBeNull();
   });
@@ -550,7 +655,9 @@ describe("what a suggested person publishes", () => {
   // Google reads "nike shoes" as a store and a thing. "staci shop" looks Staci up and
   // offers her shop first, one tap to it.
   it("a name plus a category word offers that person's category first, and looks the name up", async () => {
-    suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null }]);
+    suggestMock.mockResolvedValue([
+      { pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null },
+    ]);
     render(<Landing />);
     typeInBox("staci shop");
     const row = await screen.findByTestId("home-intent-row", {}, { timeout: 3000 });
@@ -563,7 +670,9 @@ describe("what a suggested person publishes", () => {
   });
 
   it("a category the person does not have offers nothing extra", async () => {
-    suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null }]);
+    suggestMock.mockResolvedValue([
+      { pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null },
+    ]);
     render(<Landing />);
     typeInBox("staci music");
     await screen.findByTestId("home-suggestion-0", {}, { timeout: 3000 });
@@ -599,18 +708,37 @@ describe("a scoped search is remembered in RECENT", () => {
     suggestMock.mockReset();
     suggestMock.mockResolvedValue([]);
     contentMock.mockReset();
-    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === VINNEY ? { chips: [media] } : undefined])));
+    contentMock.mockImplementation(
+      (pks: string[]) => new Map(pks.map((pk) => [pk, pk === VINNEY ? { chips: [media] } : undefined])),
+    );
     knownProfiles.set(VINNEY, { display_name: "vinney…axkl", picture: "https://img/vinney.jpg" });
     window.history.replaceState({}, "", "/");
   });
 
   it("a chip tap lands on the person's tab, and RECENT remembers the person and the tab — never the key", async () => {
-    suggestMock.mockResolvedValue([{ pubkey: VINNEY, npub: VINNEY_NPUB, name: "vinney…axkl", picture: "https://img/vinney.jpg", wotRank: null, wotFollowers: null }]);
+    suggestMock.mockResolvedValue([
+      {
+        pubkey: VINNEY,
+        npub: VINNEY_NPUB,
+        name: "vinney…axkl",
+        picture: "https://img/vinney.jpg",
+        wotRank: null,
+        wotFollowers: null,
+      },
+    ]);
     render(<Landing />);
     typeInBox("vinney");
     const row = await screen.findByTestId("home-suggestion-0", {}, { timeout: 3000 });
     fireEvent.click(within(row).getByTestId("person-content-chip-media"));
-    await waitFor(() => expect(getRecentItems()[0]).toMatchObject({ type: "scoped", pubkey: VINNEY, label: "vinney…axkl", tab: "media", words: "" }));
+    await waitFor(() =>
+      expect(getRecentItems()[0]).toMatchObject({
+        type: "scoped",
+        pubkey: VINNEY,
+        label: "vinney…axkl",
+        tab: "media",
+        words: "",
+      }),
+    );
     expect(JSON.stringify(getRecentItems())).not.toContain("from:");
     expect(getRecentItems().some((r) => r.type === "query")).toBe(false);
     // Browsing another tab under the same search is not another search.
@@ -621,7 +749,14 @@ describe("a scoped search is remembered in RECENT", () => {
   });
 
   it("the RECENT row reads as the person and the tab, and re-runs the scoped search", async () => {
-    pushRecentScoped({ pubkey: VINNEY, npub: VINNEY_NPUB, label: "vinney…axkl", picture: "https://img/vinney.jpg", tab: "media", words: "sunset" });
+    pushRecentScoped({
+      pubkey: VINNEY,
+      npub: VINNEY_NPUB,
+      label: "vinney…axkl",
+      picture: "https://img/vinney.jpg",
+      tab: "media",
+      words: "sunset",
+    });
     render(<Landing />);
     const box = screen.getByTestId("input-home-search");
     fireEvent.pointerDown(box);
@@ -759,11 +894,19 @@ describe("submitting with Enter", () => {
     allStreams = [];
     streamMock.mockClear();
     window.history.replaceState({}, "", "/");
-    mm = vi.spyOn(window, "matchMedia").mockImplementation((q: string) => ({
-      matches: q === "(pointer: coarse)" ? coarse : false,
-      media: q, onchange: null,
-      addListener: () => {}, removeListener: () => {}, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
-    }) as MediaQueryList);
+    mm = vi.spyOn(window, "matchMedia").mockImplementation(
+      (q: string) =>
+        ({
+          matches: q === "(pointer: coarse)" ? coarse : false,
+          media: q,
+          onchange: null,
+          addListener: () => {},
+          removeListener: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        }) as MediaQueryList,
+    );
   });
   afterEach(() => mm?.mockRestore());
 

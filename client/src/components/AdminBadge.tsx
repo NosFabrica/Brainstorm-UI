@@ -25,15 +25,13 @@ export function AdminBadge({ variant = "light" }: AdminBadgeProps) {
       title="Open admin dashboard"
       aria-label="Open admin dashboard"
       className={
-        "hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer transition-all hover:shadow-sm active:scale-95 focus:outline-none focus-visible:ring-2 " +
+        "hidden cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 transition-all hover:shadow-sm focus:outline-none focus-visible:ring-2 active:scale-95 sm:flex " +
         tone
       }
       data-testid="badge-admin"
     >
       <Shield className={"h-3.5 w-3.5 " + iconColor} />
-      <span className={"text-[10px] font-bold uppercase tracking-wider " + textColor}>
-        Admin
-      </span>
+      <span className={"text-[10px] font-bold uppercase tracking-wider " + textColor}>Admin</span>
     </button>
   );
 }

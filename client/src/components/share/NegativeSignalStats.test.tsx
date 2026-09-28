@@ -19,20 +19,14 @@ const STATS_UNDER_DEFAULT = {
 
 describe("NegativeSignalStats", () => {
   it("renders both negative signals under the verified lens", () => {
-    render(
-      <NegativeSignalStats stats={STATS_UNDER_DEFAULT} rawId={RAW_ID} lens="verified" />,
-    );
+    render(<NegativeSignalStats stats={STATS_UNDER_DEFAULT} rawId={RAW_ID} lens="verified" />);
 
     expect(screen.getByTestId("share-stat-muters")).toHaveTextContent("4Verified Muters");
-    expect(screen.getByTestId("share-stat-reporters")).toHaveTextContent(
-      "2Verified Reporters",
-    );
+    expect(screen.getByTestId("share-stat-reporters")).toHaveTextContent("2Verified Reporters");
   });
 
   it("shows the raw totals under the all lens", () => {
-    render(
-      <NegativeSignalStats stats={STATS_UNDER_DEFAULT} rawId={RAW_ID} lens="all" />,
-    );
+    render(<NegativeSignalStats stats={STATS_UNDER_DEFAULT} rawId={RAW_ID} lens="all" />);
 
     expect(screen.getByTestId("share-stat-muters")).toHaveTextContent("31All Muters");
     expect(screen.getByTestId("share-stat-reporters")).toHaveTextContent("9All Reporters");
@@ -57,7 +51,13 @@ describe("NegativeSignalStats", () => {
   // (Benjamin, 2026-09-08). A signal shows only when its count under the
   // current lens is above zero; the lens still reveals what the other hides.
   it("with both signals at zero under the lens, the line is not there at all", () => {
-    render(<NegativeSignalStats stats={{ muted_by: { verified: 0, total: 0 }, reported_by: { verified: 0, total: 0 } }} rawId={RAW_ID} lens="verified" />);
+    render(
+      <NegativeSignalStats
+        stats={{ muted_by: { verified: 0, total: 0 }, reported_by: { verified: 0, total: 0 } }}
+        rawId={RAW_ID}
+        lens="verified"
+      />,
+    );
     expect(screen.queryByTestId("share-stats-negative")).toBeNull();
   });
 
@@ -71,36 +71,20 @@ describe("NegativeSignalStats", () => {
   });
 
   it("links each count to its full list", () => {
-    render(
-      <NegativeSignalStats stats={STATS_UNDER_DEFAULT} rawId={RAW_ID} lens="verified" />,
-    );
+    render(<NegativeSignalStats stats={STATS_UNDER_DEFAULT} rawId={RAW_ID} lens="verified" />);
 
-    expect(screen.getByTestId("share-stat-muters")).toHaveAttribute(
-      "href",
-      `/p/${RAW_ID}/muters`,
-    );
-    expect(screen.getByTestId("share-stat-reporters")).toHaveAttribute(
-      "href",
-      `/p/${RAW_ID}/reporters`,
-    );
+    expect(screen.getByTestId("share-stat-muters")).toHaveAttribute("href", `/p/${RAW_ID}/muters`);
+    expect(screen.getByTestId("share-stat-reporters")).toHaveAttribute("href", `/p/${RAW_ID}/reporters`);
   });
 
   it("renders nothing until the stats response lands", () => {
-    const { container } = render(
-      <NegativeSignalStats stats={undefined} rawId={RAW_ID} lens="verified" />,
-    );
+    const { container } = render(<NegativeSignalStats stats={undefined} rawId={RAW_ID} lens="verified" />);
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it("omits a signal the endpoint had no number for", () => {
-    render(
-      <NegativeSignalStats
-        stats={{ reported_by: { verified: 2, total: 9 } }}
-        rawId={RAW_ID}
-        lens="verified"
-      />,
-    );
+    render(<NegativeSignalStats stats={{ reported_by: { verified: 2, total: 9 } }} rawId={RAW_ID} lens="verified" />);
 
     expect(screen.queryByTestId("share-stat-muters")).toBeNull();
     expect(screen.getByTestId("share-stat-reporters")).toBeInTheDocument();

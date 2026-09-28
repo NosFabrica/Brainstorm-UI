@@ -56,21 +56,21 @@ export function ActivateBrainstormPanel({ onActivate }: { onActivate: () => void
       transition={{ duration: 0.4, ease: "easeOut" }}
     >
       <Card accent className="overflow-hidden" data-testid="card-activate-brainstorm">
-        <div className="p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-brand-primary shadow-sm shadow-brand-primary/25 flex items-center justify-center shrink-0">
+        <div className="flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-primary shadow-sm shadow-brand-primary/25">
             <BrainLogo mono size={24} className="text-white" />
           </div>
 
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <h2
-              className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight"
+              className="text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-activate-brainstorm-title"
             >
               Activate your Brainstorm account
             </h2>
             <p
-              className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed"
+              className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400 sm:text-sm"
               data-testid="text-activate-brainstorm-subtitle"
             >
               Sign a note that tells other apps where to find your Brainstorm scores.
@@ -80,7 +80,7 @@ export function ActivateBrainstormPanel({ onActivate }: { onActivate: () => void
           <button
             type="button"
             onClick={onActivate}
-            className="w-full sm:w-auto h-11 px-6 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2 shrink-0"
+            className="flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 text-xs font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-all duration-200 hover:bg-brand-primary-hover sm:w-auto sm:text-sm"
             data-testid="button-activate-brainstorm"
           >
             <BrainLogo mono size={16} className="text-white" />

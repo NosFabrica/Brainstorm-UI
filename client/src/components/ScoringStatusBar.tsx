@@ -75,7 +75,11 @@ function ScoringStatusBarFor() {
     // not-yet-loaded render) — clear this run's hide so the next run re-shows.
     if (wasCalculating.current && !isCalculating) {
       setCalcHidden(false);
-      try { if (pubkey) localStorage.removeItem(accountKey("brainstorm_calc_pill_dismissed", pubkey)); } catch { /* ignore */ }
+      try {
+        if (pubkey) localStorage.removeItem(accountKey("brainstorm_calc_pill_dismissed", pubkey));
+      } catch {
+        /* ignore */
+      }
     }
     wasCalculating.current = isCalculating;
   }, [isCalculating, isReady, navigate, pubkey]);
@@ -135,7 +139,9 @@ function ScoringStatusBarFor() {
 
   const dismissReady = () => {
     setDismissed(true);
-    try { localStorage.removeItem(readyNudgeKey(pubkey)); } catch {}
+    try {
+      localStorage.removeItem(readyNudgeKey(pubkey));
+    } catch {}
   };
 
   const hideCalcPill = () => {
@@ -143,28 +149,32 @@ function ScoringStatusBarFor() {
     // AND hide immediately via state, so it disappears regardless of storage.
     try {
       if (pubkey) localStorage.setItem(accountKey("brainstorm_calc_pill_dismissed", pubkey), String(triggeredAt));
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setCalcHidden(true);
     setConfirming(false);
   };
 
   return (
-    <div className="fixed bottom-[calc(1rem+var(--bs-bottom-chrome,0px))] left-1/2 -translate-x-1/2 z-[60] px-4 w-full max-w-md pointer-events-none">
+    <div className="pointer-events-none fixed bottom-[calc(1rem+var(--bs-bottom-chrome,0px))] left-1/2 z-[60] w-full max-w-md -translate-x-1/2 px-4">
       {phase === "spinner" || phase === "soft" ? (
         confirming ? (
           <div
-            className="pointer-events-auto mx-auto flex items-start gap-3 rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/20 pl-4 pr-3 py-3"
+            className="pointer-events-auto mx-auto flex items-start gap-3 rounded-2xl bg-slate-900 py-3 pl-4 pr-3 text-white shadow-lg shadow-slate-900/20"
             data-testid="scoring-status-confirm"
           >
             <div className="max-w-[16rem]">
-              <p className="text-[13px] font-semibold leading-snug">You can close this — we'll let you know the moment it's ready.</p>
-              <p className="mt-0.5 text-xs text-slate-300 leading-snug">Scoring keeps running in the background.</p>
+              <p className="text-[13px] font-semibold leading-snug">
+                You can close this — we'll let you know the moment it's ready.
+              </p>
+              <p className="mt-0.5 text-xs leading-snug text-slate-300">Scoring keeps running in the background.</p>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+            <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
               <button
                 type="button"
                 onClick={hideCalcPill}
-                className="rounded-full bg-white text-slate-900 hover:bg-slate-100 text-xs font-semibold px-3 py-1.5 transition-colors"
+                className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 transition-colors hover:bg-slate-100"
                 data-testid="scoring-status-confirm-hide"
               >
                 Hide
@@ -172,7 +182,7 @@ function ScoringStatusBarFor() {
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
-                className="rounded-full text-slate-300 hover:text-white hover:bg-white/10 text-xs font-medium px-2.5 py-1.5 transition-colors"
+                className="rounded-full px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
                 data-testid="scoring-status-confirm-keep"
               >
                 Keep showing
@@ -181,10 +191,10 @@ function ScoringStatusBarFor() {
           </div>
         ) : (
           <div
-            className="pointer-events-auto mx-auto w-fit flex items-center gap-2.5 rounded-full bg-slate-900 text-white shadow-lg shadow-slate-900/20 pl-3.5 pr-2 py-2"
+            className="pointer-events-auto mx-auto flex w-fit items-center gap-2.5 rounded-full bg-slate-900 py-2 pl-3.5 pr-2 text-white shadow-lg shadow-slate-900/20"
             data-testid="scoring-status-calculating"
           >
-            <Loader2 className="h-4 w-4 animate-spin text-brand-link shrink-0" />
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-brand-link" />
             <span className="text-sm font-medium">
               {phase === "soft"
                 ? "Still building your network — new accounts can take a few minutes."
@@ -194,7 +204,7 @@ function ScoringStatusBarFor() {
               type="button"
               onClick={() => setConfirming(true)}
               aria-label="Dismiss"
-              className="shrink-0 rounded-full p-1 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              className="shrink-0 rounded-full p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
               data-testid="scoring-status-calculating-dismiss"
             >
               <X className="h-4 w-4" />
@@ -203,19 +213,19 @@ function ScoringStatusBarFor() {
         )
       ) : phase === "standdown" ? (
         <div
-          className="pointer-events-auto mx-auto flex items-center gap-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg shadow-slate-900/10 pl-3 pr-2 py-2"
+          className="pointer-events-auto mx-auto flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white py-2 pl-3 pr-2 shadow-lg shadow-slate-900/10 dark:border-slate-800 dark:bg-slate-900"
           data-testid="scoring-status-standdown"
         >
-          <span className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
             <Clock className="h-4 w-4 text-slate-500 dark:text-slate-400" />
           </span>
-          <span className="text-[13px] text-slate-600 dark:text-slate-300 leading-snug max-w-[15rem]">
+          <span className="max-w-[15rem] text-[13px] leading-snug text-slate-600 dark:text-slate-300">
             We'll keep building your network in the background — check your dashboard later.
           </span>
           <button
             type="button"
             onClick={() => navigate("/dashboard")}
-            className="shrink-0 inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold px-3 py-1.5 transition-colors"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             data-testid="scoring-status-standdown-dashboard"
           >
             Dashboard
@@ -224,7 +234,7 @@ function ScoringStatusBarFor() {
             type="button"
             onClick={() => setStandDownDismissed(true)}
             aria-label="Dismiss"
-            className="shrink-0 rounded-full p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="shrink-0 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             data-testid="scoring-status-standdown-dismiss"
           >
             <X className="h-4 w-4" />
@@ -232,17 +242,20 @@ function ScoringStatusBarFor() {
         </div>
       ) : (
         <div
-          className="pointer-events-auto mx-auto flex items-center gap-2 rounded-full bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/25 shadow-lg shadow-slate-900/10 pl-3 pr-2 py-1.5"
+          className="pointer-events-auto mx-auto flex items-center gap-2 rounded-full border border-emerald-200 bg-white py-1.5 pl-3 pr-2 shadow-lg shadow-slate-900/10 dark:border-emerald-500/25 dark:bg-slate-900"
           data-testid="scoring-status-ready"
         >
-          <span className="h-6 w-6 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-500/10">
             <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           </span>
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your network is ready</span>
           <button
             type="button"
-            onClick={() => { dismissReady(); navigate("/dashboard"); }}
-            className="inline-flex items-center gap-1 rounded-full bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-semibold px-3 py-1.5 transition-colors"
+            onClick={() => {
+              dismissReady();
+              navigate("/dashboard");
+            }}
+            className="inline-flex items-center gap-1 rounded-full bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover"
             data-testid="scoring-status-view"
           >
             See your results <ArrowRight className="h-3.5 w-3.5" />
@@ -251,7 +264,7 @@ function ScoringStatusBarFor() {
             type="button"
             onClick={dismissReady}
             aria-label="Dismiss"
-            className="shrink-0 rounded-full p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="shrink-0 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             data-testid="scoring-status-dismiss"
           >
             <X className="h-4 w-4" />

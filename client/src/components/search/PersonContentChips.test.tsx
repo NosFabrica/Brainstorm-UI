@@ -11,7 +11,12 @@ import { PersonContentChips } from "./PersonContentChips";
 
 const STACI = "5".repeat(64);
 const STACI_NPUB = nip19.npubEncode(STACI);
-const chip = (key: PersonContentChip["key"], label: string, tab = key, liveNow = false): PersonContentChip => ({ key, label, tab, liveNow });
+const chip = (key: PersonContentChip["key"], label: string, tab = key, liveNow = false): PersonContentChip => ({
+  key,
+  label,
+  tab,
+  liveNow,
+});
 const shop = chip("shop", "Shop");
 const recipes = chip("recipes", "Recipes");
 
@@ -57,9 +62,13 @@ describe("PersonContentChips", () => {
   });
 
   it("a stream on air shows the red dot", () => {
-    const { rerender } = render(<PersonContentChips pubkey={STACI} name="Staci" content={{ chips: [chip("live", "Live", "live", true)] }} />);
+    const { rerender } = render(
+      <PersonContentChips pubkey={STACI} name="Staci" content={{ chips: [chip("live", "Live", "live", true)] }} />,
+    );
     expect(screen.getByTestId("person-content-live-dot")).toBeInTheDocument();
-    rerender(<PersonContentChips pubkey={STACI} name="Staci" content={{ chips: [chip("live", "Live", "live", false)] }} />);
+    rerender(
+      <PersonContentChips pubkey={STACI} name="Staci" content={{ chips: [chip("live", "Live", "live", false)] }} />,
+    );
     expect(screen.queryByTestId("person-content-live-dot")).toBeNull();
   });
 

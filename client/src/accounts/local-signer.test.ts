@@ -21,11 +21,7 @@ describe("LocalSigner unlock paths", () => {
   it("unlocks silently from the Unlock cache when both forms are present", async () => {
     const { pubkey, unlockCache, ncryptsec, envelope } = await keyFixture();
     const requestPassword = fakePrompt();
-    const signer = new LocalSigner(
-      pubkey,
-      { ncryptsec, envelope },
-      { unlockCache, requestPassword },
-    );
+    const signer = new LocalSigner(pubkey, { ncryptsec, envelope }, { unlockCache, requestPassword });
 
     expect(signer.unlocked).toBe(false);
     await signer.unlock();
@@ -109,11 +105,7 @@ describe("LocalSigner unlock paths", () => {
     const { pubkey, unlockCache, ncryptsec, envelope } = await keyFixture();
     unlockCache.supported = false;
     const requestPassword = fakePrompt();
-    const signer = new LocalSigner(
-      pubkey,
-      { ncryptsec, envelope },
-      { unlockCache, requestPassword },
-    );
+    const signer = new LocalSigner(pubkey, { ncryptsec, envelope }, { unlockCache, requestPassword });
 
     await signer.unlock();
 
@@ -169,12 +161,10 @@ describe("LocalSigner and the Recovery password prompt", () => {
   // telling someone their correct password is wrong is the worst failure here.
   it("never calls a memory failure a wrong password", () => {
     expect(unlockFailureOf(new Error("invalid tag"))).toBe("wrong-password");
-    expect(
-      unlockFailureOf(new Error('"maxmem" limit was hit, expected 128*r*(N+p) <= "maxmem"=1073742848')),
-    ).toBe("unusable-backup");
-    expect(unlockFailureOf(new RangeError("Array buffer allocation failed"))).toBe(
+    expect(unlockFailureOf(new Error('"maxmem" limit was hit, expected 128*r*(N+p) <= "maxmem"=1073742848'))).toBe(
       "unusable-backup",
     );
+    expect(unlockFailureOf(new RangeError("Array buffer allocation failed"))).toBe("unusable-backup");
   });
 
   it("reads the cost off a foreign Backup rather than attempting a decrypt that can't finish", async () => {
@@ -216,11 +206,7 @@ describe("LocalSigner stale Unlock cache", () => {
     const { pubkey, unlockCache, ncryptsec, envelope } = await keyFixture();
     unlockCache.wipe(); // the device key is gone; the envelope no longer decrypts
     const requestPassword = fakePrompt();
-    const signer = new LocalSigner(
-      pubkey,
-      { ncryptsec, envelope },
-      { unlockCache, requestPassword },
-    );
+    const signer = new LocalSigner(pubkey, { ncryptsec, envelope }, { unlockCache, requestPassword });
 
     await signer.unlock();
 
@@ -359,9 +345,7 @@ describe("LocalSigner concurrency", () => {
     });
     const signer = new LocalSigner(pubkey, { ncryptsec }, { unlockCache, requestPassword });
 
-    await expect(Promise.all([signer.unlock(), signer.unlock()])).rejects.toBeInstanceOf(
-      UnlockCancelled,
-    );
+    await expect(Promise.all([signer.unlock(), signer.unlock()])).rejects.toBeInstanceOf(UnlockCancelled);
     await signer.unlock();
 
     expect(signer.unlocked).toBe(true);

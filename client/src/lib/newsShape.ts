@@ -48,7 +48,8 @@ export function parseNewsShape(raw: string, opts: { imageSplitsHeadline?: boolea
   let lede = "";
   const firstImage = urls.find(isImage);
   const imageAt = firstImage ? content.indexOf(firstImage) : -1;
-  const beforeImage = imageAt > 0 && imageAt < at ? content.slice(0, imageAt).replace(URL_RE, "").trim().replace(/\s+/g, " ") : "";
+  const beforeImage =
+    imageAt > 0 && imageAt < at ? content.slice(0, imageAt).replace(URL_RE, "").trim().replace(/\s+/g, " ") : "";
   if (opts.imageSplitsHeadline && beforeImage.length >= MIN_HEADLINE) {
     headline = beforeImage;
     lede = content.slice(imageAt, at).replace(URL_RE, "").replace(/\s+/g, " ").trim();

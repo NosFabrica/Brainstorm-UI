@@ -35,7 +35,9 @@ export default function WelcomePage() {
     try {
       const n = new URLSearchParams(window.location.search).get("next");
       if (n && n.startsWith("/") && !n.startsWith("//") && n !== "/login" && n !== "/welcome") return n;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return "/setup";
   })();
 
@@ -58,11 +60,18 @@ export default function WelcomePage() {
   // Fire the toast + navigation + background scoring/NIP-85 chain — everything
   // that happens after the kind-3 has been published and acked.
   const proceedHome = () => {
-    if (user?.pubkey) { try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", user.pubkey), String(Date.now())); } catch {} }
+    if (user?.pubkey) {
+      try {
+        localStorage.setItem(accountKey("brainstorm_calc_triggered_at", user.pubkey), String(Date.now()));
+      } catch {}
+    }
     toast(
       alreadyCommitted
         ? { title: "Follow list updated", description: "Your scores will reflect the change on the next calculation." }
-        : { title: "Follow list published", description: "Your trust network is calculating — usually about 5 minutes." },
+        : {
+            title: "Follow list published",
+            description: "Your trust network is calculating — usually about 5 minutes.",
+          },
     );
     navigate(returnPath, { replace: true });
     // The kind-10040 no longer rides along here: activation is its own step on
@@ -98,7 +107,11 @@ export default function WelcomePage() {
     }
     if (!res.success) {
       setSubmitting(false);
-      toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Please try again." });
+      toast({
+        variant: "destructive",
+        title: "Couldn't save your follows",
+        description: res.error || "Please try again.",
+      });
       return;
     }
     proceedHome(); // published and acked
@@ -131,22 +144,22 @@ export default function WelcomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       <OnboardingHeader
         onSkip={() => navigate("/", { replace: true })}
         skipLabel="Skip for now"
         skipTestId="welcome-skip"
       />
 
-      <main className="mx-auto max-w-xl px-4 sm:px-6 py-8">
-        <div className="flex items-center gap-2.5 mb-5">
-          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
+      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">
+        <div className="mb-5 flex items-center gap-2.5">
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-accent">
             Build your network
           </span>
           <div className="h-px w-12 bg-brand-accent/40" />
         </div>
         <h1
-          className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]"
+          className="text-3xl font-bold leading-[1.08] tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
           style={{ fontFamily: "var(--font-display)" }}
         >
           Follow a few accounts <span className="text-brand-link">to begin</span>.
@@ -162,21 +175,21 @@ export default function WelcomePage() {
         </button>
         {whyOpen && (
           <div
-            className="mt-3 flex flex-col gap-2.5 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.03] to-brand-accent/[0.06] dark:from-brand-deep/20 dark:to-brand-accent/10 bg-white dark:bg-slate-900 p-4"
+            className="mt-3 flex flex-col gap-2.5 rounded-2xl border border-brand-accent/25 bg-white bg-gradient-to-br from-brand-deep/[0.03] to-brand-accent/[0.06] p-4 dark:bg-slate-900 dark:from-brand-deep/20 dark:to-brand-accent/10"
             data-testid="welcome-why-panel"
           >
             <div className="flex items-start gap-2.5">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
               <span className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
-                Your Verification Score — and everyone you can see through Brainstorm — is computed
-                from your follow list. No follows, no Web of Trust.
+                Your Verification Score — and everyone you can see through Brainstorm — is computed from your follow
+                list. No follows, no Web of Trust.
               </span>
             </div>
             <div className="flex items-start gap-2.5">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
               <span className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
-                One follow is enough to start. More follows make your scores richer — and you can
-                change your list anytime.
+                One follow is enough to start. More follows make your scores richer — and you can change your list
+                anytime.
               </span>
             </div>
           </div>

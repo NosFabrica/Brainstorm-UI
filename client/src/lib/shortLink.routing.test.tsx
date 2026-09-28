@@ -23,9 +23,7 @@ function routeTo(path: string) {
   render(
     <Router hook={hook}>
       <Switch>
-        <Route path={SHORT_LINK_ROUTE}>
-          {(params) => <div data-testid="matched">{params.code}</div>}
-        </Route>
+        <Route path={SHORT_LINK_ROUTE}>{(params) => <div data-testid="matched">{params.code}</div>}</Route>
         <Route>
           <div data-testid="fell-through" />
         </Route>

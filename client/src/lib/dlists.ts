@@ -40,7 +40,12 @@ const config = raw as {
 };
 
 /** The tagging-hub tags whose trusted carriers a category lists as people: the "Musician" tag for music. */
-export interface CategoryTag { author: string; slug: string; name: string; category: DListCategory }
+export interface CategoryTag {
+  author: string;
+  slug: string;
+  name: string;
+  category: DListCategory;
+}
 export const CATEGORY_TAGS: CategoryTag[] = config.tags ?? [];
 
 export const DLIST_REGISTRY: DListEntry[] = config.lists.map((l) => ({
@@ -68,9 +73,17 @@ export function dlistsFromHeaders(headers: { pubkey: string; kind: number; tags:
   for (const h of headers) {
     if (h.kind !== DLIST_HEADER_KIND || !CURATOR_PUBKEYS.includes(h.pubkey)) continue;
     const d = h.tags.find((t) => t[0] === "d")?.[1];
-    const category = h.tags.find((t) => t[0] === "category")?.[1]?.trim().toLowerCase();
+    const category = h.tags
+      .find((t) => t[0] === "category")?.[1]
+      ?.trim()
+      .toLowerCase();
     if (!d || !isCategory(category)) continue;
-    out.push({ coordinate: `${DLIST_HEADER_KIND}:${h.pubkey}:${d}`, name: h.tags.find((t) => t[0] === "name")?.[1]?.trim() || d, category, shape: "song" });
+    out.push({
+      coordinate: `${DLIST_HEADER_KIND}:${h.pubkey}:${d}`,
+      name: h.tags.find((t) => t[0] === "name")?.[1]?.trim() || d,
+      category,
+      shape: "song",
+    });
   }
   return out;
 }
@@ -80,7 +93,10 @@ export function dlistsFromHeaders(headers: { pubkey: string; kind: number; tags:
  * associate the musician/songs D-list event ids with the music icon): a
  * header is its list, by coordinate; an item is its list, by its `z` tag.
  */
-export function dlistOfEvent(ev: { kind: number; pubkey: string; tags: string[][] }, lists: DListEntry[] = DLIST_REGISTRY): (DListEntry & { icon: LucideIcon }) | null {
+export function dlistOfEvent(
+  ev: { kind: number; pubkey: string; tags: string[][] },
+  lists: DListEntry[] = DLIST_REGISTRY,
+): (DListEntry & { icon: LucideIcon }) | null {
   if (ev.kind === DLIST_HEADER_KIND) {
     const d = ev.tags.find((t) => t[0] === "d")?.[1];
     return d ? dlistFor(`${DLIST_HEADER_KIND}:${ev.pubkey}:${d}`, lists) : null;
@@ -92,7 +108,10 @@ export function dlistOfEvent(ev: { kind: number; pubkey: string; tags: string[][
   return null;
 }
 
-export function dlistFor(coordinate: string, lists: DListEntry[] = DLIST_REGISTRY): (DListEntry & { icon: LucideIcon }) | null {
+export function dlistFor(
+  coordinate: string,
+  lists: DListEntry[] = DLIST_REGISTRY,
+): (DListEntry & { icon: LucideIcon }) | null {
   const entry = lists.find((e) => e.coordinate === coordinate);
   return entry ? { ...entry, icon: CATEGORY_ICON[entry.category] } : null;
 }
@@ -102,7 +121,8 @@ export function dlistCoordinateOf(ev: { tags: string[][] }): string | null {
   return ev.tags.find((t) => t[0] === "z")?.[1] || null;
 }
 
-const tagOf = (ev: { tags: string[][] }, key: string): string | undefined => ev.tags.find((t) => t[0] === key)?.[1]?.trim() || undefined;
+const tagOf = (ev: { tags: string[][] }, key: string): string | undefined =>
+  ev.tags.find((t) => t[0] === key)?.[1]?.trim() || undefined;
 const isHttp = (u: string | undefined): u is string => !!u && /^https?:\/\//i.test(u);
 
 export interface PodcastSong {
@@ -135,7 +155,8 @@ export interface PodcastMusician {
 
 /** A feed named by its owner's email address is not a musician's name, nor a song's artist. */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const feedPage = (feedId: string | undefined): string | undefined => (feedId ? `https://podcastindex.org/podcast/${feedId}` : undefined);
+const feedPage = (feedId: string | undefined): string | undefined =>
+  feedId ? `https://podcastindex.org/podcast/${feedId}` : undefined;
 
 export function parseDListSong(ev: EventLike): PodcastSong | null {
   if (ev.kind !== DLIST_ITEM_KIND) return null;
@@ -207,7 +228,12 @@ export function filterPodcastIndex(query: string, hits: PodcastIndexMusic): Podc
 export function filterTaggedPeople<T extends { name?: string; displayName?: string }>(query: string, people: T[]): T[] {
   const text = (scopeOf(query)?.rest ?? query).trim().toLowerCase();
   if (!text) return [];
-  if (CATEGORY_TAGS.some((t) => t.name.toLowerCase() === text || t.slug.toLowerCase() === text || `${t.name.toLowerCase()}s` === text)) return people;
+  if (
+    CATEGORY_TAGS.some(
+      (t) => t.name.toLowerCase() === text || t.slug.toLowerCase() === text || `${t.name.toLowerCase()}s` === text,
+    )
+  )
+    return people;
   const words = text.split(/\s+/).filter(Boolean);
   return people.filter((p) => {
     const hay = `${p.displayName ?? ""} ${p.name ?? ""}`.toLowerCase();

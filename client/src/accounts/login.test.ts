@@ -20,11 +20,11 @@ import { createFakeUnlockCache, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 /** A NIP-07 extension, injected whenever the test says so. */
 function injectExtension(pubkey: string): void {
-  (globalThis as any).window = { nostr: { getPublicKey: async () => pubkey } };
+  (globalThis as { window?: unknown }).window = { nostr: { getPublicKey: async () => pubkey } };
 }
 
 afterEach(() => {
-  delete (globalThis as any).window;
+  delete (globalThis as { window?: unknown }).window;
   for (const account of [...accountManager.accounts]) accountManager.removeAccount(account);
 });
 

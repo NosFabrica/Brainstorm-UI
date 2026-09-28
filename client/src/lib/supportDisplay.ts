@@ -26,15 +26,16 @@ function format(iso: string, fmt: (d: Date) => string): string {
 }
 
 export const fmtWhen = (iso: string) =>
-  format(iso, (d) => d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }));
+  format(iso, (d) =>
+    d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
+  );
 export const fmtDate = (iso: string) =>
   format(iso, (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
 export const fmtTime = (iso: string) =>
   format(iso, (d) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }));
 
 export type TimelineItem =
-  | { kind: "message"; at: string; message: SupportMessage }
-  | { kind: "event"; at: string; event: TicketEvent };
+  { kind: "message"; at: string; message: SupportMessage } | { kind: "event"; at: string; event: TicketEvent };
 
 /** Messages and lifecycle events in the order they happened; an event wins a tie. */
 export function buildTimeline(messages: SupportMessage[], events: TicketEvent[]): TimelineItem[] {

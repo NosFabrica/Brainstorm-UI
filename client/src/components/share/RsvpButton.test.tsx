@@ -12,7 +12,9 @@ const ME = "e".repeat(64);
 const HOST = "f".repeat(64);
 let viewer: { pubkey: string } | null = { pubkey: ME };
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => viewer }));
-const fetchMyRsvpMock = vi.fn<() => Promise<{ id: string; d: string; status: string } | null>>(() => Promise.resolve(null));
+const fetchMyRsvpMock = vi.fn<() => Promise<{ id: string; d: string; status: string } | null>>(() =>
+  Promise.resolve(null),
+);
 const publishMock = vi.fn(async () => ({ success: true, event: { id: "rsvp-new", tags: [["d", "dnew"]] } }));
 const withdrawMock = vi.fn(async () => ({ success: true }));
 vi.mock("@/services/rsvp", () => ({
@@ -25,7 +27,19 @@ vi.mock("@/services/rsvp", () => ({
 
 import { RsvpButton } from "./RsvpButton";
 
-const meetup = { id: "1".repeat(64), kind: 31923, pubkey: HOST, created_at: 1, content: "", sig: "", tags: [["d", "x"], ["title", "Meetup"], ["start", "1760400000"]] };
+const meetup = {
+  id: "1".repeat(64),
+  kind: 31923,
+  pubkey: HOST,
+  created_at: 1,
+  content: "",
+  sig: "",
+  tags: [
+    ["d", "x"],
+    ["title", "Meetup"],
+    ["start", "1760400000"],
+  ],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();

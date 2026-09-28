@@ -18,7 +18,8 @@ describe("ReadingText (descriptions)", () => {
 
   it("a link to a non-article address says what it is, not 'article'", () => {
     // Real kind-31337 track address from a fanfares.io link in an audio description.
-    const url = "https://fanfares.io/naddr/naddr1qvzqqqr6dypzquvszen0yle0j556up2ewzsdrjaua5eajk9nr5vw2d46xr3k69qpqyvhwumn8ghj7enpdenxzun9wvhxummnw3erztnrdaksqfpsxq6rgcekvc6j6wpsxqmz6dr9xvez6wtz89sj6vf4x93xyerpxfjx2ve4sy5msr";
+    const url =
+      "https://fanfares.io/naddr/naddr1qvzqqqr6dypzquvszen0yle0j556up2ewzsdrjaua5eajk9nr5vw2d46xr3k69qpqyvhwumn8ghj7enpdenxzun9wvhxummnw3erztnrdaksqfpsxq6rgcekvc6j6wpsxqmz6dr9xvez6wtz89sj6vf4x93xyerpxfjx2ve4sy5msr";
     render(<ReadingText text={`Unlock it on ${url}`} />);
     const link = screen.getByTestId("reading-link");
     expect(link).toHaveTextContent("↗ track");
@@ -27,7 +28,8 @@ describe("ReadingText (descriptions)", () => {
   });
 
   it("keeps the punctuation after a labelled address link", () => {
-    const naddr = "naddr1qvzqqqr6dypzquvszen0yle0j556up2ewzsdrjaua5eajk9nr5vw2d46xr3k69qpqyvhwumn8ghj7enpdenxzun9wvhxummnw3erztnrdaksqfpsxq6rgcekvc6j6wpsxqmz6dr9xvez6wtz89sj6vf4x93xyerpxfjx2ve4sy5msr";
+    const naddr =
+      "naddr1qvzqqqr6dypzquvszen0yle0j556up2ewzsdrjaua5eajk9nr5vw2d46xr3k69qpqyvhwumn8ghj7enpdenxzun9wvhxummnw3erztnrdaksqfpsxq6rgcekvc6j6wpsxqmz6dr9xvez6wtz89sj6vf4x93xyerpxfjx2ve4sy5msr";
     const { container } = render(<ReadingText text={`Unlock it (https://fanfares.io/naddr/${naddr}).`} />);
     expect(container).toHaveTextContent("Unlock it (↗ track).");
   });
@@ -44,7 +46,9 @@ describe("ReadingText (descriptions)", () => {
   });
 
   it("renders an HTML description as text, never as markup", () => {
-    const { container } = render(<ReadingText text={'<p>One</p><p>Two <img src=x onerror="alert(1)"><b>bold</b></p><p>Three</p>'} />);
+    const { container } = render(
+      <ReadingText text={'<p>One</p><p>Two <img src=x onerror="alert(1)"><b>bold</b></p><p>Three</p>'} />,
+    );
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector("strong")).toHaveTextContent("bold");
     expect(container).toHaveTextContent("One");

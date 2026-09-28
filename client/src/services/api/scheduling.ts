@@ -4,7 +4,7 @@
  */
 
 import type { AdminUserDetail } from "./admin";
-import { adminJson, fetch, jsonBody } from "./core";
+import { adminJson, jsonBody } from "./core";
 
 export interface SchedulingItem {
   id: number;
@@ -67,33 +67,16 @@ export const schedulingApi = {
     return adminJson("/admin/scheduling", "Failed to fetch scheduling policies");
   },
 
-  async createSchedulingPolicy(
-    body: CreateSchedulingBody,
-  ): Promise<SchedulingItem> {
-    return adminJson(
-      "/admin/scheduling",
-      "Failed to create scheduling policy",
-      jsonBody("POST", body),
-    );
+  async createSchedulingPolicy(body: CreateSchedulingBody): Promise<SchedulingItem> {
+    return adminJson("/admin/scheduling", "Failed to create scheduling policy", jsonBody("POST", body));
   },
 
-  async updateSchedulingPolicy(
-    id: number,
-    body: UpdateSchedulingBody,
-  ): Promise<SchedulingItem> {
-    return adminJson(
-      `/admin/scheduling/${id}`,
-      "Failed to update scheduling policy",
-      jsonBody("PATCH", body),
-    );
+  async updateSchedulingPolicy(id: number, body: UpdateSchedulingBody): Promise<SchedulingItem> {
+    return adminJson(`/admin/scheduling/${id}`, "Failed to update scheduling policy", jsonBody("PATCH", body));
   },
 
   async deleteSchedulingPolicy(id: number): Promise<void> {
-    await adminJson(
-      `/admin/scheduling/${id}`,
-      "Failed to delete scheduling policy",
-      { method: "DELETE" },
-    );
+    await adminJson(`/admin/scheduling/${id}`, "Failed to delete scheduling policy", { method: "DELETE" });
   },
 
   async resyncObserver(pubkey: string, target: string) {
@@ -141,21 +124,10 @@ export const schedulingApi = {
     if (params.page != null) qs.set("page", String(params.page));
     if (params.size != null) qs.set("size", String(params.size));
     const suffix = qs.toString() ? `?${qs}` : "";
-    return adminJson(
-      `/admin/scheduling/${id}/users${suffix}`,
-      "Failed to fetch policy users",
-    );
+    return adminJson(`/admin/scheduling/${id}/users${suffix}`, "Failed to fetch policy users");
   },
 
-  async assignPolicyUsers(
-    id: number,
-    pubkeys: string[],
-  ): Promise<{ assigned: number }> {
-    return adminJson(
-      `/admin/scheduling/${id}/users`,
-      "Failed to assign users",
-      jsonBody("PUT", { pubkeys }),
-      30000,
-    );
+  async assignPolicyUsers(id: number, pubkeys: string[]): Promise<{ assigned: number }> {
+    return adminJson(`/admin/scheduling/${id}/users`, "Failed to assign users", jsonBody("PUT", { pubkeys }), 30000);
   },
 };

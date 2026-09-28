@@ -148,8 +148,7 @@ export function useTagMatches(query: string, max = 3): TagSummary[] {
   return useMemo(() => (enabled ? matchTags(data ?? [], query, max) : []), [enabled, data, query, max]);
 }
 
-export const tagCommentsKey = (authorPubkey: string, slug: string) =>
-  ["tag-comments", authorPubkey, slug] as const;
+export const tagCommentsKey = (authorPubkey: string, slug: string) => ["tag-comments", authorPubkey, slug] as const;
 
 /** Comments on a tag. Anon-readable like everything else here. */
 export function useTagComments(authorPubkey: string | undefined, slug: string | undefined) {
@@ -256,10 +255,7 @@ export function useEventTags(eventId: string | undefined) {
  */
 export function useEventTagsBatch(eventIds: string[]) {
   const viewerPubkey = useActiveAccountDisplay()?.pubkey;
-  const ids = useMemo(
-    () => Array.from(new Set(eventIds.filter(Boolean))).sort(),
-    [eventIds],
-  );
+  const ids = useMemo(() => Array.from(new Set(eventIds.filter(Boolean))).sort(), [eventIds]);
   const observer = useTagObserver();
   return useQuery<Map<string, NoteTagsResult>>({
     queryKey: ["event-tags-batch", ids.join(","), viewerPubkey ?? "anon", observer],
@@ -465,9 +461,7 @@ export function useTagVote(authorPubkey: string | undefined, slug: string | unde
       queryClient.setQueryData<TagDetail>(key, {
         ...previous,
         // Mirror the read's rule so a withdrawn vote doesn't leave a ghost row.
-        carriers: carriers.filter(
-          (c) => c.applications - c.disputes > 0 || c.selfDeclared || !!c.myStance,
-        ),
+        carriers: carriers.filter((c) => c.applications - c.disputes > 0 || c.selfDeclared || !!c.myStance),
       });
       return { previous };
     },
@@ -594,14 +588,8 @@ export function useApplyTag(targetPubkey: string | undefined) {
               const wasDispute = t.myStance === "dispute";
               return {
                 ...t,
-                applications: Math.max(
-                  0,
-                  t.applications + (stance === "apply" ? 1 : wasApply ? -1 : 0),
-                ),
-                disputes: Math.max(
-                  0,
-                  t.disputes + (stance === "dispute" ? 1 : wasDispute ? -1 : 0),
-                ),
+                applications: Math.max(0, t.applications + (stance === "apply" ? 1 : wasApply ? -1 : 0)),
+                disputes: Math.max(0, t.disputes + (stance === "dispute" ? 1 : wasDispute ? -1 : 0)),
                 myStance: stance,
               };
             })
@@ -640,10 +628,7 @@ export function useApplyTag(targetPubkey: string | undefined) {
           // the chip go away now and stay away, instead of lingering at zero
           // until the refetch removes it.
           tags: tags.filter((t) => t.applications > 0),
-          mine: [
-            ...base.mine.filter((m) => m.key !== optimisticKey),
-            { key: optimisticKey, stance },
-          ],
+          mine: [...base.mine.filter((m) => m.key !== optimisticKey), { key: optimisticKey, stance }],
           trustUnverified: base.trustUnverified,
           viewerUnscored: base.viewerUnscored,
         };

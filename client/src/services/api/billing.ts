@@ -149,7 +149,13 @@ export interface AdminBillingResolution {
  */
 export interface SubscriptionView {
   policy: { id: number; name: string; schedule_interval_seconds?: number; is_default: boolean } | null;
-  plan: { plan_id: string | null; amount_minor: number | null; currency: string | null; billing_interval: string | null; is_active: boolean } | null;
+  plan: {
+    plan_id: string | null;
+    amount_minor: number | null;
+    currency: string | null;
+    billing_interval: string | null;
+    is_active: boolean;
+  } | null;
   status: string;
   current_period_start: string | null;
   current_period_end: string | null;
@@ -337,10 +343,9 @@ export const billingApi = {
    * See docs/payments/FLASH-INTEGRATION.md.
    */
   async getSubscription(timeoutMs: number = 15000): Promise<SubscriptionView> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/subscription`,
-      { signal: AbortSignal.timeout(timeoutMs) },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/subscription`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch subscription (${response.status})`);
     }
@@ -360,23 +365,17 @@ export const billingApi = {
    * The redirect's `ref` is never sent: the token already says who this is.
    * Rate-limited server-side — poll with a floor, not a hammer.
    */
-  async refreshSubscription(
-    subscriptionId?: string,
-    timeoutMs: number = 15000,
-  ): Promise<RefreshSubscriptionView> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/subscription/refresh`,
-      {
-        method: "POST",
-        signal: AbortSignal.timeout(timeoutMs),
-        ...(subscriptionId
-          ? {
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ subscription_id: subscriptionId }),
-            }
-          : {}),
-      },
-    );
+  async refreshSubscription(subscriptionId?: string, timeoutMs: number = 15000): Promise<RefreshSubscriptionView> {
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/subscription/refresh`, {
+      method: "POST",
+      signal: AbortSignal.timeout(timeoutMs),
+      ...(subscriptionId
+        ? {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subscription_id: subscriptionId }),
+          }
+        : {}),
+    });
     if (!response.ok) {
       throw new Error(`Failed to refresh subscription (${response.status})`);
     }
@@ -413,10 +412,7 @@ export const billingApi = {
       items?: AdminBillingSubscription[];
       total?: number;
       pages?: number;
-    }>(
-      `/admin/billing/subscriptions?page=${page}&size=${size}`,
-      "Failed to fetch billing subscriptions",
-    );
+    }>(`/admin/billing/subscriptions?page=${page}&size=${size}`, "Failed to fetch billing subscriptions");
     return {
       items: (body?.items ?? []) as AdminBillingSubscription[],
       total: typeof body?.total === "number" ? body.total : 0,
@@ -453,26 +449,20 @@ export const billingApi = {
    * list, and what lets the Scheduling tab badge the policies paid plans grant.
    */
   async getAdminBillingPlanMappings(): Promise<AdminBillingPlanMapping[]> {
-    const body = await adminJson<{
-      plans?: AdminBillingPlanMapping[];
-      items?: AdminBillingPlanMapping[];
-    } | AdminBillingPlanMapping[]>(
-      "/admin/billing/plans",
-      "Failed to fetch billing plan mappings",
-    );
+    const body = await adminJson<
+      | {
+          plans?: AdminBillingPlanMapping[];
+          items?: AdminBillingPlanMapping[];
+        }
+      | AdminBillingPlanMapping[]
+    >("/admin/billing/plans", "Failed to fetch billing plan mappings");
     const list = Array.isArray(body) ? body : (body?.plans ?? body?.items ?? []);
     return list as AdminBillingPlanMapping[];
   },
 
   /** Map a Flash plan to what it grants. It is for sale as soon as this lands. */
-  async createAdminBillingPlan(
-    body: CreateAdminBillingPlanBody,
-  ): Promise<AdminBillingPlanMapping> {
-    return adminJson(
-      "/admin/billing/plans",
-      "Failed to create billing plan mapping",
-      jsonBody("POST", body),
-    );
+  async createAdminBillingPlan(body: CreateAdminBillingPlanBody): Promise<AdminBillingPlanMapping> {
+    return adminJson("/admin/billing/plans", "Failed to create billing plan mapping", jsonBody("POST", body));
   },
 
   /**
@@ -483,15 +473,8 @@ export const billingApi = {
    * are refused with a 409 once anyone has bought the mapping, because
    * rewriting them would retroactively change what those people bought.
    */
-  async updateAdminBillingPlan(
-    id: number,
-    body: UpdateAdminBillingPlanBody,
-  ): Promise<AdminBillingPlanMapping> {
-    return adminJson(
-      `/admin/billing/plans/${id}`,
-      "Failed to update billing plan mapping",
-      jsonBody("PATCH", body),
-    );
+  async updateAdminBillingPlan(id: number, body: UpdateAdminBillingPlanBody): Promise<AdminBillingPlanMapping> {
+    return adminJson(`/admin/billing/plans/${id}`, "Failed to update billing plan mapping", jsonBody("PATCH", body));
   },
 
   /**
@@ -501,9 +484,7 @@ export const billingApi = {
    * with a reason like `held` or `unknown_plan` means it deliberately changed
    * nothing, not that the call failed.
    */
-  async resyncAdminBillingSubscription(
-    pubkey: string,
-  ): Promise<{ applied: boolean; reason: string }> {
+  async resyncAdminBillingSubscription(pubkey: string): Promise<{ applied: boolean; reason: string }> {
     return adminJson(
       `/admin/billing/subscriptions/${pubkey}/resync`,
       "Failed to resync subscription",
@@ -538,10 +519,7 @@ export const billingApi = {
    * The support path only — subscribers still cancel in Flash's portal. Read
    * `cancellation_scheduled` on the result, never `flash_status`.
    */
-  async cancelAdminBillingSubscription(
-    pubkey: string,
-    reason?: string,
-  ): Promise<AdminBillingSubscriptionAction> {
+  async cancelAdminBillingSubscription(pubkey: string, reason?: string): Promise<AdminBillingSubscriptionAction> {
     const trimmed = reason?.trim();
     return writeBillingSubscription(
       `/admin/billing/subscriptions/${pubkey}/cancel`,
@@ -577,9 +555,7 @@ export const billingApi = {
   },
 
   async getAdminBillingFlashRecordForUnresolved(subscriptionId: string): Promise<unknown> {
-    return readFlashRecord(
-      `/admin/billing/unresolved/${encodeURIComponent(subscriptionId)}/flash`,
-    );
+    return readFlashRecord(`/admin/billing/unresolved/${encodeURIComponent(subscriptionId)}/flash`);
   },
 
   /**
@@ -588,17 +564,12 @@ export const billingApi = {
    * an npub gets decoded, so a bad paste is refused before it costs a round
    * trip. Grants exactly what a webhook for the same subscription would.
    */
-  async attributeAdminBillingUnresolved(
-    subscriptionId: string,
-    pubkey: string,
-  ): Promise<AdminBillingResolution> {
+  async attributeAdminBillingUnresolved(subscriptionId: string, pubkey: string): Promise<AdminBillingResolution> {
     return writeUnresolved(subscriptionId, "attribute", { pubkey }, "attribute the signup");
   },
 
   /** Write a signup off as nobody's. Grants nothing and never asks Flash. */
-  async dismissAdminBillingUnresolved(
-    subscriptionId: string,
-  ): Promise<AdminBillingResolution> {
+  async dismissAdminBillingUnresolved(subscriptionId: string): Promise<AdminBillingResolution> {
     return writeUnresolved(subscriptionId, "dismiss", {}, "dismiss the signup");
   },
 

@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { ExternalLink, Flag, Volume2, VolumeX } from "lucide-react";
-import { DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EntityMenu } from "@/components/share/EntityMenu";
 import { muteUser, reportUser, unmuteUser } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
@@ -75,7 +80,16 @@ export function ProfileMenu({
   const copies = [
     { id: "npub", label: "Copy npub", value: npub, hint: "Their public key, for Nostr apps and mentions" },
     { id: "hex", label: "Copy public key (hex)", value: pubkey, hint: "The raw key, for developers and relay tools" },
-    ...(nprofile ? [{ id: "nprofile", label: "Copy nprofile", value: nprofile, hint: "Their key plus the relays their posts live on" }] : []),
+    ...(nprofile
+      ? [
+          {
+            id: "nprofile",
+            label: "Copy nprofile",
+            value: nprofile,
+            hint: "Their key plus the relays their posts live on",
+          },
+        ]
+      : []),
   ];
 
   const social = viewer.loggedIn && !viewer.isOwner;

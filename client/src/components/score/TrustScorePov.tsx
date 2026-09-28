@@ -1,12 +1,6 @@
 import { UserRound, Globe, Lock, AlertCircle, ArrowRight } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -56,11 +50,17 @@ export function PovIcon({ pov, className = "h-3 w-3" }: { pov: ScorePov; classNa
 /** Tiny inline tag naming the view — pairs the icon with a one-word label. */
 export function PovTag({ pov }: { pov: ScorePov }) {
   return pov === "personalized" ? (
-    <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/15 dark:bg-brand-primary/15 border border-brand-primary/20 dark:border-brand-primary/[0.3] px-1.5 py-0.5 text-[10px] font-semibold text-brand-primary dark:text-brand-link" data-testid="pov-tag">
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-brand-primary/20 bg-brand-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-brand-primary dark:border-brand-primary/[0.3] dark:bg-brand-primary/15 dark:text-brand-link"
+      data-testid="pov-tag"
+    >
       <UserRound className="h-2.5 w-2.5" /> Personalized
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400" data-testid="pov-tag">
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-400"
+      data-testid="pov-tag"
+    >
       <Globe className="h-2.5 w-2.5" /> Global
     </span>
   );
@@ -77,7 +77,15 @@ export function PovTag({ pov }: { pov: ScorePov }) {
  * there's only one perspective — we state it honestly with a static Global tag
  * instead of a dead switch.
  */
-export function PovToggle({ canPersonalize, avatarUrl, className }: { canPersonalize: boolean; avatarUrl?: string; className?: string }) {
+export function PovToggle({
+  canPersonalize,
+  avatarUrl,
+  className,
+}: {
+  canPersonalize: boolean;
+  avatarUrl?: string;
+  className?: string;
+}) {
   const { pov, loggedIn, setPersonalized } = useScorePov();
   const [location] = useLocation();
 
@@ -85,8 +93,10 @@ export function PovToggle({ canPersonalize, avatarUrl, className }: { canPersona
   // — the active segment is a plain white chip, no gradient / no wordmark image
   // (guidelines p16/p17). Brainstorm side = a Globe glyph, personal side = the
   // viewer's own avatar. One calm control everywhere POV is switched.
-  const wrap = "inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5";
-  const seg = "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
+  const wrap =
+    "inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5";
+  const seg =
+    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
   const activeSeg = "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm";
   const idleSeg = "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white";
 
@@ -147,7 +157,9 @@ export function PovToggle({ canPersonalize, avatarUrl, className }: { canPersona
       >
         <Avatar className="h-4 w-4 shrink-0">
           {avatarUrl ? <AvatarImage src={avatarUrl} alt="" className="object-cover" /> : null}
-          <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+          <AvatarFallback className="overflow-hidden">
+            <DefaultAvatarImg />
+          </AvatarFallback>
         </Avatar>
         My perspective
       </button>
@@ -201,10 +213,9 @@ export function TrustScoreModal({
         <DialogHeader>
           <DialogTitle>Verification Score</DialogTitle>
           <DialogDescription className="text-[13px] leading-relaxed">
-            A Verification Score (0–100) measures how verified an account is, based on real
-            people's follows, mutes and reports — not an algorithm. The same account can score
-            differently depending on <span className="font-semibold text-slate-700 dark:text-slate-200">whose network</span>{" "}
-            you look through.
+            A Verification Score (0–100) measures how verified an account is, based on real people's follows, mutes and
+            reports — not an algorithm. The same account can score differently depending on{" "}
+            <span className="font-semibold text-slate-700 dark:text-slate-200">whose network</span> you look through.
           </DialogDescription>
         </DialogHeader>
 
@@ -216,12 +227,12 @@ export function TrustScoreModal({
               className={`${p.cls} flex items-start gap-2.5 opacity-90`}
               data-testid="pov-option-personalized-locked"
             >
-              <Lock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
+              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
               <span className="min-w-0">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
                   <UserRound className="h-3.5 w-3.5 text-brand-primary" /> Personalized — for you
                 </span>
-                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                <span className="mt-0.5 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                   Scores through <span className="font-medium">your own</span> network. Sign in free to unlock it{" "}
                   <ArrowRight className="inline h-3 w-3" />
                 </span>
@@ -235,18 +246,29 @@ export function TrustScoreModal({
               className={`${p.cls} flex items-start gap-2.5 disabled:opacity-60`}
               data-testid="pov-option-personalized"
             >
-              <UserRound className="h-4 w-4 text-brand-primary shrink-0 mt-0.5" />
+              <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-brand-primary" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Personalized — for you
-                  {p.active && <span className="text-[10px] font-bold uppercase tracking-wide text-brand-primary dark:text-brand-link">Current view</span>}
+                  {p.active && (
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-brand-primary dark:text-brand-link">
+                      Current view
+                    </span>
+                  )}
                 </span>
-                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Seen through <span className="font-medium">your own</span> network — the people you trust, and who they trust.
+                <span className="mt-0.5 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                  Seen through <span className="font-medium">your own</span> network — the people you trust, and who
+                  they trust.
                 </span>
               </span>
               {scores && (
-                <VerificationCoin score01={scores.personalized} pov="personalized" size={34} ring={false} className="shrink-0 self-center" />
+                <VerificationCoin
+                  score01={scores.personalized}
+                  pov="personalized"
+                  size={34}
+                  ring={false}
+                  className="shrink-0 self-center"
+                />
               )}
             </button>
           )}
@@ -259,29 +281,39 @@ export function TrustScoreModal({
             className={`${g.cls} flex items-start gap-2.5 disabled:opacity-60`}
             data-testid="pov-option-global"
           >
-            <Globe className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
+            <Globe className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Global — everyone
-                {g.active && <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Current view</span>}
+                {g.active && (
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Current view
+                  </span>
+                )}
               </span>
-              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              <span className="mt-0.5 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                 Brainstorm's network-wide view — the same number every visitor sees.
               </span>
             </span>
             {scores && (
-              <VerificationCoin score01={scores.global} pov="global" size={34} ring={false} className="shrink-0 self-center" />
+              <VerificationCoin
+                score01={scores.global}
+                pov="global"
+                size={34}
+                ring={false}
+                className="shrink-0 self-center"
+              />
             )}
           </button>
         </div>
 
         {unsupportedNote && (
-          <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-2 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {unsupportedNote}
+          <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-amber-800 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {unsupportedNote}
           </p>
         )}
 
-        <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
+        <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
           Switching applies everywhere in Brainstorm until you switch back.
         </p>
       </DialogContent>

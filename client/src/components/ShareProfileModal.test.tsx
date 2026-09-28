@@ -19,7 +19,9 @@ const copyMock = vi.fn(async (_text: string) => true);
 vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text) }));
 const navigate = vi.fn();
 vi.mock("wouter", () => ({ useLocation: () => ["/", navigate] }));
-vi.mock("@/components/ShareOgCard", () => ({ ShareOgCard: ({ displayName }: { displayName: string }) => <div data-testid="og-card">{displayName}</div> }));
+vi.mock("@/components/ShareOgCard", () => ({
+  ShareOgCard: ({ displayName }: { displayName: string }) => <div data-testid="og-card">{displayName}</div>,
+}));
 
 const URL = "https://brainstorm.world/p/npub1joe";
 const base = { open: true, onOpenChange: vi.fn(), npub: "npub1joe", displayName: "Joe Martin", shareUrl: URL };

@@ -37,9 +37,14 @@ vi.mock("@/lib/eventStore", () => ({
 import { nip19 } from "nostr-tools";
 // Link metadata comes from the link-preview service — faked so the row can
 // prove it turns a plain link into a card when the answer exists.
-const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; description: string | null; image: string | null; siteName: string | null } | null>>(() =>
-  Promise.resolve(null),
-);
+const unfurlMock = vi.fn<
+  (url: string) => Promise<{
+    title: string | null;
+    description: string | null;
+    image: string | null;
+    siteName: string | null;
+  } | null>
+>(() => Promise.resolve(null));
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
 // A Primal link's resolution, controlled per test — the same seam the note card uses.
 const clientLink = vi.hoisted(() => ({
@@ -56,7 +61,18 @@ vi.mock("@/lib/wavlake", async (importOriginal) => {
     ...real,
     useWavlakeTrack: (id: string | undefined) =>
       id
-        ? { loading: false, error: false, track: { id, title: "Born To Die Young", artist: "Joe Martin", artworkUrl: "https://img/btdy.jpg", audioUrl: "https://cdn/btdy.mp3", duration: 236 } }
+        ? {
+            loading: false,
+            error: false,
+            track: {
+              id,
+              title: "Born To Die Young",
+              artist: "Joe Martin",
+              artworkUrl: "https://img/btdy.jpg",
+              audioUrl: "https://cdn/btdy.mp3",
+              duration: 236,
+            },
+          }
         : { loading: false, error: false, track: null },
   };
 });
@@ -102,7 +118,14 @@ describe("SerpRow — link metadata", () => {
   // its rows — and the row says what they designate.
   it("a trust designation says what it designates, not 'Post'", () => {
     setTechnicalView(true);
-    const ev = { ...note(""), kind: 10040, tags: [["30382:rank", "b".repeat(64), "wss://scores.brainstorm.world"], ["30382:followers", "b".repeat(64), "wss://scores.brainstorm.world"]] };
+    const ev = {
+      ...note(""),
+      kind: 10040,
+      tags: [
+        ["30382:rank", "b".repeat(64), "wss://scores.brainstorm.world"],
+        ["30382:followers", "b".repeat(64), "wss://scores.brainstorm.world"],
+      ],
+    };
     render(<SerpRow event={ev} author={author} score={0.7} query="" />);
     const row = screen.getByTestId(`serp-row-${ev.id}`);
     expect(row).toHaveTextContent("Trust designation");
@@ -116,8 +139,16 @@ describe("SerpRow — link metadata", () => {
   // the common NIP kinds in words, the number kept beside them.
   it("says encrypted content is encrypted instead of printing it, and names the kind in words", () => {
     setTechnicalView(true);
-    const blob = "AgkXT1NChTXAHiDpLZZwu5PO5rAVpAxTeRwbCyrcWYDpXson5eEnf/JjsvZqC+V/P5uTF4sbspmfOlVeCi8aJb/oceACXS4VBRcA6s3FxVx0AUbFFqpQGtWjw7a4fu51pNS";
-    const ev = { ...note(blob), kind: 30078, tags: [["d", "ditto/metadata"], ["name", "Ditto Metadata"]] };
+    const blob =
+      "AgkXT1NChTXAHiDpLZZwu5PO5rAVpAxTeRwbCyrcWYDpXson5eEnf/JjsvZqC+V/P5uTF4sbspmfOlVeCi8aJb/oceACXS4VBRcA6s3FxVx0AUbFFqpQGtWjw7a4fu51pNS";
+    const ev = {
+      ...note(blob),
+      kind: 30078,
+      tags: [
+        ["d", "ditto/metadata"],
+        ["name", "Ditto Metadata"],
+      ],
+    };
     render(<SerpRow event={ev} author={author} score={0.7} query="" />);
     const row = screen.getByTestId(`serp-row-${ev.id}`);
     expect(row).toHaveTextContent("App data");
@@ -135,7 +166,14 @@ describe("SerpRow — link metadata", () => {
 
   it("names the common NIP kinds", () => {
     setTechnicalView(true);
-    for (const [kind, label] of [[3, "Follow list"], [10002, "Relay list"], [7, "Reaction"], [9735, "Zap receipt"], [1984, "Report"], [31990, "App handler"]] as const) {
+    for (const [kind, label] of [
+      [3, "Follow list"],
+      [10002, "Relay list"],
+      [7, "Reaction"],
+      [9735, "Zap receipt"],
+      [1984, "Report"],
+      [31990, "App handler"],
+    ] as const) {
       const ev = { ...note(""), id: `${kind}`.padStart(64, "0"), kind };
       render(<SerpRow event={ev} author={author} score={0.7} query="" />);
       expect(screen.getByTestId(`serp-row-${ev.id}`)).toHaveTextContent(label);
@@ -164,10 +202,45 @@ describe("SerpRow — link metadata", () => {
   // the music icon in the UI. A list header and its items say what they are.
   it("a V4V D-list header is a music list, and its items are songs and musicians, each under the Music icon", () => {
     const AUTHOR = "77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3";
-    const header = { ...note(""), id: "eadfab91".padEnd(64, "0"), pubkey: AUTHOR, kind: 39998, tags: [["d", "b504f5a8-949f-4d31-ad14-8afcebde2b34"], ["name", "V4V Songs"]] };
-    const song = { ...note(""), id: "a313660f".padEnd(64, "0"), pubkey: AUTHOR, kind: 9999, tags: [["z", `39998:${AUTHOR}:b504f5a8-949f-4d31-ad14-8afcebde2b34`], ["title", "Step Into the Light"], ["artist", "Torcon 7"], ["url", "https://mp3s.podcastindex.org/x.mp3"], ["alt", "Song: Step Into the Light by Torcon 7"]] };
-    const musician = { ...note(""), id: "4921a433".padEnd(64, "0"), pubkey: AUTHOR, kind: 9999, tags: [["z", `39998:${AUTHOR}:c7e2e5f1-2258-4d9d-92ed-d29b9837a82a`], ["name", "Torcon 7"], ["alt", "Musician: Torcon 7"]] };
-    for (const [ev, label] of [[header, "Music list"], [song, "Song"], [musician, "Musician"]] as const) {
+    const header = {
+      ...note(""),
+      id: "eadfab91".padEnd(64, "0"),
+      pubkey: AUTHOR,
+      kind: 39998,
+      tags: [
+        ["d", "b504f5a8-949f-4d31-ad14-8afcebde2b34"],
+        ["name", "V4V Songs"],
+      ],
+    };
+    const song = {
+      ...note(""),
+      id: "a313660f".padEnd(64, "0"),
+      pubkey: AUTHOR,
+      kind: 9999,
+      tags: [
+        ["z", `39998:${AUTHOR}:b504f5a8-949f-4d31-ad14-8afcebde2b34`],
+        ["title", "Step Into the Light"],
+        ["artist", "Torcon 7"],
+        ["url", "https://mp3s.podcastindex.org/x.mp3"],
+        ["alt", "Song: Step Into the Light by Torcon 7"],
+      ],
+    };
+    const musician = {
+      ...note(""),
+      id: "4921a433".padEnd(64, "0"),
+      pubkey: AUTHOR,
+      kind: 9999,
+      tags: [
+        ["z", `39998:${AUTHOR}:c7e2e5f1-2258-4d9d-92ed-d29b9837a82a`],
+        ["name", "Torcon 7"],
+        ["alt", "Musician: Torcon 7"],
+      ],
+    };
+    for (const [ev, label] of [
+      [header, "Music list"],
+      [song, "Song"],
+      [musician, "Musician"],
+    ] as const) {
       render(<SerpRow event={ev} author={author} score={0.7} query="" />);
       const row = screen.getByTestId(`serp-row-${ev.id}`);
       expect(row).toHaveTextContent(label);
@@ -180,7 +253,14 @@ describe("SerpRow — link metadata", () => {
   // NIP-31's `alt` tag is the author's own line for exactly this reader.
   it("an unknown kind is named by its number, with the author's alt line when there is one", () => {
     setTechnicalView(true);
-    const ev = { ...note(""), kind: 30079, tags: [["d", "settings"], ["alt", "Nostr Mail settings"]] };
+    const ev = {
+      ...note(""),
+      kind: 30079,
+      tags: [
+        ["d", "settings"],
+        ["alt", "Nostr Mail settings"],
+      ],
+    };
     render(<SerpRow event={ev} author={author} score={0.7} query="" />);
     const row = screen.getByTestId(`serp-row-${ev.id}`);
     expect(row).toHaveTextContent("Kind 30079");
@@ -193,7 +273,20 @@ describe("SerpRow — link metadata", () => {
   // "primal.net" chip. The row resolves the link the way the note card does.
   it("a note that is a Primal link to an article shows the article's card, not a chip", async () => {
     const AUTHOR = "b".repeat(64);
-    const article = { id: "c".repeat(64), kind: 30023, pubkey: AUTHOR, created_at: 1_780_000_000, sig: "", content: "White Noise is back on iOS and Android after a full rebuild.", tags: [["d", "were-back"], ["title", "We're back"], ["summary", "White Noise is back on iOS and Android after a full rebuild."], ["image", "https://img/wn.jpg"]] };
+    const article = {
+      id: "c".repeat(64),
+      kind: 30023,
+      pubkey: AUTHOR,
+      created_at: 1_780_000_000,
+      sig: "",
+      content: "White Noise is back on iOS and Android after a full rebuild.",
+      tags: [
+        ["d", "were-back"],
+        ["title", "We're back"],
+        ["summary", "White Noise is back on iOS and Android after a full rebuild."],
+        ["image", "https://img/wn.jpg"],
+      ],
+    };
     clientLink.resolve.mockResolvedValue({ kind: "article", event: article, author: { name: "White Noise" } });
     render(<SerpRow event={note("https://primal.net/whitenoise/were-back")} author={author} score={0.7} query="" />);
     const card = await screen.findByTestId("embedded-article");
@@ -206,9 +299,21 @@ describe("SerpRow — link metadata", () => {
   });
 
   it("turns a plain link into a metadata card when the proxy knows it", async () => {
-    unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Professional football club based in Liverpool.", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
+    unfurlMock.mockResolvedValue({
+      title: "Liverpool F.C.",
+      description: "Professional football club based in Liverpool.",
+      image: "https://img/lfc.jpg",
+      siteName: "Wikipedia",
+    });
     // A short lead — a long one plus a link IS the news shape, which has its own card.
-    render(<SerpRow event={note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.")} author={author} score={0.7} query="liverpool" />);
+    render(
+      <SerpRow
+        event={note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.")}
+        author={author}
+        score={0.7}
+        query="liverpool"
+      />,
+    );
     const card = await screen.findByTestId("link-card");
     expect(card).toHaveTextContent("Liverpool F.C.");
     expect(card).toHaveTextContent("Professional football club");
@@ -220,39 +325,79 @@ describe("SerpRow — link metadata", () => {
 
   it("a markdown image in the body leaves no brackets in the snippet", async () => {
     unfurlMock.mockResolvedValue(null);
-    render(<SerpRow event={note("Stacker post ![](https://m.stacker.news/19886) end")} author={author} score={0.7} query="liverpool" />);
+    render(
+      <SerpRow
+        event={note("Stacker post ![](https://m.stacker.news/19886) end")}
+        author={author}
+        score={0.7}
+        query="liverpool"
+      />,
+    );
     await screen.findAllByTestId("link-chip");
     expect(screen.queryByText(/!\[\]\(/)).toBeNull();
   });
 
   it("cards the same link a feed would — the last one", async () => {
     unfurlMock.mockResolvedValue({ title: "Second", description: null, image: null, siteName: null });
-    render(<SerpRow event={note("One https://a.example/first two https://b.example/second")} author={author} score={0.7} query="liverpool" />);
+    render(
+      <SerpRow
+        event={note("One https://a.example/first two https://b.example/second")}
+        author={author}
+        score={0.7}
+        query="liverpool"
+      />,
+    );
     await screen.findByTestId("link-card");
     expect(unfurlMock).toHaveBeenCalledWith("https://b.example/second");
     expect(unfurlMock).not.toHaveBeenCalledWith("https://a.example/first");
   });
 
   it("a post's picture is the thumbnail, not also a chip; its echoed headline is not carded twice", async () => {
-    unfurlMock.mockResolvedValue({ kind: "page", title: "Serra: homem solto | G1", description: null, image: null, siteName: "G1" });
-    render(<SerpRow event={note("Serra: homem solto https://s2-g1.glbimg.com/a.jpg https://g1.globo.com/es/noticia.ghtml")} author={author} score={0.7} query="" />);
+    unfurlMock.mockResolvedValue({
+      kind: "page",
+      title: "Serra: homem solto | G1",
+      description: null,
+      image: null,
+      siteName: "G1",
+    });
+    render(
+      <SerpRow
+        event={note("Serra: homem solto https://s2-g1.glbimg.com/a.jpg https://g1.globo.com/es/noticia.ghtml")}
+        author={author}
+        score={0.7}
+        query=""
+      />,
+    );
     // Nothing new to say: no card, the chip alone names the link.
     await screen.findByTestId("link-card-echoed");
     expect(screen.getByTestId("serp-thumb")).toHaveAttribute("src", "https://s2-g1.glbimg.com/a.jpg");
-    expect(screen.getAllByTestId("link-chip").map((c) => c.getAttribute("href"))).toEqual(["https://g1.globo.com/es/noticia.ghtml"]);
+    expect(screen.getAllByTestId("link-chip").map((c) => c.getAttribute("href"))).toEqual([
+      "https://g1.globo.com/es/noticia.ghtml",
+    ]);
     expect(screen.queryByTestId("link-card")).toBeNull();
   });
 
   it("a dead thumbnail gives its picture's chip back to the text", async () => {
-    render(<SerpRow event={note("Serra: homem solto https://s2-g1.glbimg.com/a.jpg")} author={author} score={0.7} query="" />);
+    render(
+      <SerpRow
+        event={note("Serra: homem solto https://s2-g1.glbimg.com/a.jpg")}
+        author={author}
+        score={0.7}
+        query=""
+      />,
+    );
     expect(screen.queryAllByTestId("link-chip")).toHaveLength(0);
     fireEvent.error(screen.getByTestId("serp-thumb"));
-    expect(screen.getAllByTestId("link-chip").map((c) => c.getAttribute("href"))).toEqual(["https://s2-g1.glbimg.com/a.jpg"]);
+    expect(screen.getAllByTestId("link-chip").map((c) => c.getAttribute("href"))).toEqual([
+      "https://s2-g1.glbimg.com/a.jpg",
+    ]);
   });
 
   it("no answer, no card — the domain chip stands alone", async () => {
     unfurlMock.mockResolvedValue(null);
-    render(<SerpRow event={note("Great read https://example.org/post")} author={author} score={0.7} query="liverpool" />);
+    render(
+      <SerpRow event={note("Great read https://example.org/post")} author={author} score={0.7} query="liverpool" />,
+    );
     await screen.findByTestId("link-chip");
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.queryByTestId("link-card")).toBeNull();
@@ -264,13 +409,19 @@ describe("SerpRow — media taps", () => {
   // opens the picture (or plays the video) in full view; the rest of the row
   // still opens the post.
   it("tapping the thumbnail opens the media in the lightbox, not the post", () => {
-    const photo = { ...note("Anfield tonight", [["imeta", "url https://cdn.example/anfield.jpg", "m image/jpeg"]]), kind: 20 };
+    const photo = {
+      ...note("Anfield tonight", [["imeta", "url https://cdn.example/anfield.jpg", "m image/jpeg"]]),
+      kind: 20,
+    };
     render(<SerpRow event={photo} author={author} score={0.7} query="anfield" />);
     fireEvent.click(screen.getByTestId("serp-thumb"));
     expect(openLightboxMock).toHaveBeenLastCalledWith(
       [{ url: "https://cdn.example/anfield.jpg", kind: "image" }],
       0,
-      expect.objectContaining({ author: expect.objectContaining({ name: "Liverpool Echo Sport", npub: "npub1echo", score01: 0.7 }), postHref: expect.stringMatching(/^\/e\//) }),
+      expect.objectContaining({
+        author: expect.objectContaining({ name: "Liverpool Echo Sport", npub: "npub1echo", score01: 0.7 }),
+        postHref: expect.stringMatching(/^\/e\//),
+      }),
     );
     expect(window.location.pathname).toBe("/");
   });
@@ -342,7 +493,14 @@ describe("SerpRow", () => {
   });
 
   it("a spec's row says Spec", () => {
-    const spec = { ...note("# Scheduler DVM\n\nSchedule signed events…", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "5905"]]), kind: 30817 } as NostrEvent;
+    const spec = {
+      ...note("# Scheduler DVM\n\nSchedule signed events…", [
+        ["d", "scheduler-dvm"],
+        ["title", "Scheduler DVM"],
+        ["k", "5905"],
+      ]),
+      kind: 30817,
+    } as NostrEvent;
     render(<SerpRow event={spec} author={author} score={0.7} query="dvm" />);
     expect(screen.getByTestId("kind-pill")).toHaveTextContent("Spec");
   });
@@ -356,7 +514,14 @@ describe("SerpRow", () => {
   // A recipe on zap.cooking is a kind-30023 with a tag; the row says Recipe, not Article.
   it("a recipe's row says Recipe, not Article", () => {
     setTechnicalView(true); // labels on every row are the switched-on view
-    const recipe = { ...note("# Gırık\n\nHandmade dough, chicken and rice.", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]), kind: 30023 } as NostrEvent;
+    const recipe = {
+      ...note("# Gırık\n\nHandmade dough, chicken and rice.", [
+        ["d", "girik"],
+        ["title", "Gırık"],
+        ["t", "zapcooking"],
+      ]),
+      kind: 30023,
+    } as NostrEvent;
     render(<SerpRow event={recipe} author={author} score={0.7} query="girik" />);
     expect(screen.getByTestId("kind-pill")).toHaveTextContent("Recipe");
     expect(screen.getByTestId("kind-pill")).not.toHaveTextContent("Article");
@@ -368,9 +533,19 @@ describe("SerpRow", () => {
   // drops the picture's address — the picture is already the thumbnail.
   it("a news headline names a mentioned person and drops raw URLs", () => {
     const carol = "c".repeat(64);
-    knownProfiles.set(carol, { id: "f".repeat(64), kind: 0, pubkey: carol, tags: [], content: JSON.stringify({ name: "TheGrinder" }), created_at: 1, sig: "s" } as NostrEvent);
+    knownProfiles.set(carol, {
+      id: "f".repeat(64),
+      kind: 0,
+      pubkey: carol,
+      tags: [],
+      content: JSON.stringify({ name: "TheGrinder" }),
+      created_at: 1,
+      sig: "s",
+    } as NostrEvent);
     const npub = nip19.npubEncode(carol);
-    const shosho = note(`GTAing 🔞 with nostr:${npub} is Live! https://i.nostr.build/Vb6byoSaEEJbqqbs.png\nhttps://shosho.live/thegrinder`);
+    const shosho = note(
+      `GTAing 🔞 with nostr:${npub} is Live! https://i.nostr.build/Vb6byoSaEEJbqqbs.png\nhttps://shosho.live/thegrinder`,
+    );
     render(<SerpRow event={shosho} author={author} score={0.7} query="thegrinder" />);
     const headline = screen.getByTestId("news-headline");
     expect(headline).toHaveTextContent("GTAing 🔞 with @TheGrinder is Live!");
@@ -409,7 +584,7 @@ describe("SerpRow", () => {
     expect(screen.queryByText(/nostr:npub/)).toBeNull();
   });
 
-it("a video-only result gets a first-frame thumb, not a blank", () => {
+  it("a video-only result gets a first-frame thumb, not a blank", () => {
     const vid = {
       ...note("match highlights", [["imeta", "url https://cdn.example/highlights.mp4", "m video/mp4"]]),
       kind: 21,
@@ -429,7 +604,6 @@ it("a video-only result gets a first-frame thumb, not a blank", () => {
   });
 
   it("clicking the row body opens the in-app event page", () => {
-
     render(<SerpRow event={note("plain words about liverpool")} author={author} score={0.7} query="liverpool" />);
     fireEvent.click(screen.getByTestId(`serp-row-${"e".repeat(64)}`));
     expect(window.location.pathname).toMatch(/^\/e\//);
@@ -440,7 +614,13 @@ it("a video-only result gets a first-frame thumb, not a blank", () => {
   it("a wiki page's row reads its words, not its markup", () => {
     setTechnicalView(true); // the Wiki word is the switched-on view
     const wiki = {
-      ...note("A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)", [["d", "list-of-comedians"], ["title", "List of comedians"]]),
+      ...note(
+        "A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)",
+        [
+          ["d", "list-of-comedians"],
+          ["title", "List of comedians"],
+        ],
+      ),
       kind: 30818,
     } as NostrEvent;
     render(<SerpRow event={wiki} author={author} score={0.7} query="comedians" />);
@@ -456,10 +636,33 @@ it("a video-only result gets a first-frame thumb, not a blank", () => {
   // the way the first web link earns its card.
   it("a quoted note shows as the post beneath the row, its token gone from the text", async () => {
     const quoter = "b".repeat(64);
-    knownProfiles.set(quoter, { id: "9".repeat(64), kind: 0, pubkey: quoter, tags: [], content: JSON.stringify({ name: "quoter" }), created_at: 1, sig: "s" } as NostrEvent);
+    knownProfiles.set(quoter, {
+      id: "9".repeat(64),
+      kind: 0,
+      pubkey: quoter,
+      tags: [],
+      content: JSON.stringify({ name: "quoter" }),
+      created_at: 1,
+      sig: "s",
+    } as NostrEvent);
     const quotedId = "e".repeat(64);
-    quotedEvents.set(quotedId, { id: quotedId, kind: 1, pubkey: quoter, tags: [], content: "the quoted words, worth reading", created_at: 1, sig: "s" } as NostrEvent);
-    render(<SerpRow event={note(`Yo quiero nostr:${nip19.neventEncode({ id: quotedId })}`)} author={author} score={0.7} query="quiero" />);
+    quotedEvents.set(quotedId, {
+      id: quotedId,
+      kind: 1,
+      pubkey: quoter,
+      tags: [],
+      content: "the quoted words, worth reading",
+      created_at: 1,
+      sig: "s",
+    } as NostrEvent);
+    render(
+      <SerpRow
+        event={note(`Yo quiero nostr:${nip19.neventEncode({ id: quotedId })}`)}
+        author={author}
+        score={0.7}
+        query="quiero"
+      />,
+    );
     const row = screen.getByTestId(`serp-row-${"e".repeat(64)}`);
     expect(row).toHaveTextContent("Yo quiero");
     expect(row).not.toHaveTextContent("nostr:nevent");
@@ -473,9 +676,26 @@ it("a video-only result gets a first-frame thumb, not a blank", () => {
   // (megistus's rows, 2026-09-07). The clip stops before a token it would cut.
   it("a mention on the clip boundary is kept whole or dropped, never sliced into raw text", () => {
     const carol = "c".repeat(64);
-    knownProfiles.set(carol, { id: "f".repeat(64), kind: 0, pubkey: carol, tags: [], content: JSON.stringify({ name: "carol" }), created_at: 1, sig: "s" } as NostrEvent);
-    const words = Array.from({ length: 60 }, (_, i) => `word${i}`).join(" ").slice(0, 285);
-    render(<SerpRow event={note(`${words} cc nostr:${nip19.npubEncode(carol)} and more after`)} author={author} score={0.7} query="word1" />);
+    knownProfiles.set(carol, {
+      id: "f".repeat(64),
+      kind: 0,
+      pubkey: carol,
+      tags: [],
+      content: JSON.stringify({ name: "carol" }),
+      created_at: 1,
+      sig: "s",
+    } as NostrEvent);
+    const words = Array.from({ length: 60 }, (_, i) => `word${i}`)
+      .join(" ")
+      .slice(0, 285);
+    render(
+      <SerpRow
+        event={note(`${words} cc nostr:${nip19.npubEncode(carol)} and more after`)}
+        author={author}
+        score={0.7}
+        query="word1"
+      />,
+    );
     const row = screen.getByTestId(`serp-row-${"e".repeat(64)}`);
     expect(row).not.toHaveTextContent(/nostr:n/);
     expect(row).toHaveTextContent("word0");
@@ -487,7 +707,9 @@ it("a video-only result gets a first-frame thumb, not a blank", () => {
   // so the second render ran one hook fewer and React threw.
   it("a row that becomes a news card once its feed author loads still renders", () => {
     const lede = "The long lede that follows the picture and runs on well past what a headline may hold, ".repeat(3);
-    const ev = note(`A podcast headline long enough to count https://cdn.example/cover.jpg ${lede} https://news.example/episode-1`);
+    const ev = note(
+      `A podcast headline long enough to count https://cdn.example/cover.jpg ${lede} https://news.example/episode-1`,
+    );
     const { rerender } = render(<SerpRow event={ev} author={null} score={0.7} query="podcast" />);
     expect(screen.queryByTestId("news-headline")).toBeNull();
     const feed = { ...author, name: "Podcast Feed", bot: true };

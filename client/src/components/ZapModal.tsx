@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Copy, Check, ExternalLink, Loader2, AlertTriangle, ArrowRight, Wallet, ShieldCheck, ShieldAlert } from "lucide-react";
+  Copy,
+  Check,
+  ExternalLink,
+  Loader2,
+  AlertTriangle,
+  ArrowRight,
+  Wallet,
+  ShieldCheck,
+  ShieldAlert,
+} from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { FlashIcon } from "@/components/FlashIcon";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -95,16 +99,24 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
       // address served by a relay.
       const v = await getVerifiedProfileLud16(recipientPubkey);
       if (cancelled) return;
-      if (!v.verified || !v.lud16) { setStep("unverified"); return; }
+      if (!v.verified || !v.lud16) {
+        setStep("unverified");
+        return;
+      }
       setVerifiedLud16(v.lud16);
       try {
         const p = await lnurlpFromAddress(v.lud16);
-        if (!cancelled) { setParams(p); setStep("compose"); }
+        if (!cancelled) {
+          setParams(p);
+          setStep("compose");
+        }
       } catch {
         if (!cancelled) setStep("fallback");
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [open, recipientPubkey]);
 
   const minSats = params ? Math.max(1, msatToSats(params.minSendable)) : 1;
@@ -113,7 +125,10 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
   const amountValid = Number.isFinite(amountNum) && amountNum >= minSats && amountNum <= maxSats;
 
   const copyInvoice = async (val: string) => {
-    if (await copyToClipboard(val)) { setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    if (await copyToClipboard(val)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
   };
 
   const handleContinue = async () => {
@@ -135,7 +150,15 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
       const commentText = comment.trim() || undefined;
       const anonZap = () =>
         signEventWithEphemeralKey(
-          buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, anon: true, relayHint: recipientHint }),
+          buildZapRequest({
+            recipientPubkey,
+            amountMsat,
+            lnurl: params.lnurlUrl,
+            relays,
+            comment: commentText,
+            anon: true,
+            relayHint: recipientHint,
+          }),
         );
       let signedZapRequest: Record<string, unknown> | undefined;
       if (recipientSupportsZaps) {
@@ -143,12 +166,22 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
           try {
             signedZapRequest = await signAs(
               account,
-              buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, relayHint: recipientHint }),
+              buildZapRequest({
+                recipientPubkey,
+                amountMsat,
+                lnurl: params.lnurlUrl,
+                relays,
+                comment: commentText,
+                relayHint: recipientHint,
+              }),
             );
           } catch (e) {
             // They declined to unlock: abandon the zap rather than quietly sending
             // an anonymous one they didn't ask for.
-            if (isUnlockCancelled(e)) { setStep("compose"); return; }
+            if (isUnlockCancelled(e)) {
+              setStep("compose");
+              return;
+            }
             // Signer rejected → still send it, anonymously, so it appears on nostr.
             signedZapRequest = anonZap();
           }
@@ -167,7 +200,10 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
       setInvoice(pr);
       setStep("invoice");
     } catch (e) {
-      if (e instanceof LnurlError) { setStep("fallback"); return; }
+      if (e instanceof LnurlError) {
+        setStep("fallback");
+        return;
+      }
       setErrorMsg(e instanceof Error ? e.message : "Something went wrong");
       setStep("error");
     }
@@ -188,46 +224,57 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[420px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/5 overflow-hidden p-0 [&>button]:text-slate-400 [&>button]:dark:text-slate-500 [&>button]:hover:text-slate-700 [&>button]:hover:dark:text-slate-200 [&>button]:opacity-100 [&>button]:hover:bg-slate-100 [&>button]:hover:dark:bg-slate-800 [&>button]:rounded-md [&>button]:p-1 [&>button]:transition-colors"
+        className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-xl shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900 sm:max-w-[420px] [&>button]:rounded-md [&>button]:p-1 [&>button]:text-slate-400 [&>button]:opacity-100 [&>button]:transition-colors [&>button]:hover:bg-slate-100 [&>button]:hover:text-slate-700 [&>button]:dark:text-slate-500 [&>button]:hover:dark:bg-slate-800 [&>button]:hover:dark:text-slate-200"
         data-testid="modal-zap"
       >
-        <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
+        <div className="px-5 pb-2 pt-5 sm:px-6 sm:pt-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+            <DialogTitle
+              className="flex items-center gap-2 text-base font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-lg"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
               <FlashIcon className="h-4 w-4 text-yellow-400" /> {recipientSupportsZaps ? "Send a Zap" : "Send sats"}
             </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+            <DialogDescription className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400 sm:text-sm">
               Pay {displayName} over the Lightning Network.
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <div className="min-w-0 px-5 sm:px-6 pb-5 sm:pb-6">
+        <div className="min-w-0 px-5 pb-5 sm:px-6 sm:pb-6">
           {/* Recipient */}
-          <div className="flex items-center gap-2.5 mb-4">
-            <Avatar className="h-9 w-9 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+          <div className="mb-4 flex items-center gap-2.5">
+            <Avatar className="h-9 w-9 shrink-0 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
               {picture ? <AvatarImage src={picture} alt={displayName} className="object-cover" /> : null}
-              <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-xs font-bold">{initialsFor(displayName)}</AvatarFallback>
+              <AvatarFallback className="rounded-full bg-brand-primary/15 text-xs font-bold text-brand-primary">
+                {initialsFor(displayName)}
+              </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{displayName}</p>
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{displayName}</p>
               {/* Condensed, with the whole address on the title and in the copy.
                   `min-w-0` on the truncating span: an unbreakable 63-character
                   address otherwise widens the dialog's grid column and pushes
                   the inputs past its border. */}
               <p className="flex w-full min-w-0 items-center gap-1 font-mono text-xs text-slate-400 dark:text-slate-500">
-                {isVerified && <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />}
-                <span className="min-w-0 truncate" title={displayAddr} data-testid="zap-recipient-address">{condenseLightning(displayAddr)}</span>
+                {isVerified && <ShieldCheck className="h-3 w-3 shrink-0 text-emerald-500" />}
+                <span className="min-w-0 truncate" title={displayAddr} data-testid="zap-recipient-address">
+                  {condenseLightning(displayAddr)}
+                </span>
                 {isVerified && (
                   <button
                     type="button"
                     onClick={() => void recipientCopy.copy(displayAddr)}
                     title={recipientCopy.copied ? "Copied" : "Copy lightning address"}
                     aria-label="Copy lightning address"
-                    className="shrink-0 p-0.5 rounded text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                    className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:text-brand-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500"
                     data-testid="zap-copy-recipient"
                   >
-                    {recipientCopy.copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                    {recipientCopy.copied ? (
+                      <Check className="h-3 w-3 text-emerald-500" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
                   </button>
                 )}
               </p>
@@ -235,7 +282,10 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
           </div>
 
           {step === "loading" && (
-            <div className="flex flex-col items-center justify-center py-10 text-slate-400 dark:text-slate-500" data-testid="zap-loading">
+            <div
+              className="flex flex-col items-center justify-center py-10 text-slate-400 dark:text-slate-500"
+              data-testid="zap-loading"
+            >
               <Loader2 className="h-6 w-6 animate-spin" />
               <p className="mt-2 text-xs">Connecting…</p>
             </div>
@@ -244,14 +294,16 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
           {step === "compose" && (
             <div className="space-y-3" data-testid="zap-compose">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Amount (sats)</label>
+                <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  Amount (sats)
+                </label>
                 <input
                   type="number"
                   inputMode="numeric"
                   min={minSats}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full h-11 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 text-sm font-semibold text-slate-900 dark:text-slate-100 tabular-nums outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold tabular-nums text-slate-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                   data-testid="zap-amount"
                 />
                 {Number.isFinite(maxSats) && (minSats > 1 || maxSats < 1_000_000) && (
@@ -262,14 +314,16 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               </div>
               {(recipientSupportsZaps || params!.commentAllowed > 0) && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Message <span className="font-normal text-slate-400 dark:text-slate-500">(optional)</span></label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    Message <span className="font-normal text-slate-400 dark:text-slate-500">(optional)</span>
+                  </label>
                   <textarea
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     rows={2}
                     maxLength={recipientSupportsZaps ? 280 : params!.commentAllowed || 280}
                     placeholder="Say something nice…"
-                    className="w-full rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none resize-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                    className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                     data-testid="zap-comment"
                   />
                 </div>
@@ -278,18 +332,18 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                 type="button"
                 onClick={handleContinue}
                 disabled={!amountValid}
-                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                 data-testid="zap-continue"
               >
                 <FlashIcon className="h-4 w-4" /> {verb} {amountValid ? `${amountNum.toLocaleString()} sats` : noun}
               </button>
               {recipientSupportsZaps && !isAttributed && (
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center leading-relaxed">
+                <p className="text-center text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
                   Sending anonymously — sign in to zap as yourself.
                 </p>
               )}
               {!recipientSupportsZaps && (
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center leading-relaxed">
+                <p className="text-center text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
                   This wallet doesn't support zaps — it'll be a private Lightning payment.
                 </p>
               )}
@@ -300,10 +354,12 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
             <div className="space-y-3" data-testid="zap-invoice">
               {paid ? (
                 <div className="flex flex-col items-center justify-center py-6 text-center" data-testid="zap-paid">
-                  <div className="h-12 w-12 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-400">
                     <Check className="h-6 w-6" />
                   </div>
-                  <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{recipientSupportsZaps ? "Zap sent!" : "Payment sent!"}</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    {recipientSupportsZaps ? "Zap sent!" : "Payment sent!"}
+                  </p>
                 </div>
               ) : (
                 <>
@@ -312,30 +368,34 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                       <LazyQRCode value={invoice} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
                     </div>
                   </div>
-                  <p className="text-center text-xs text-slate-500 dark:text-slate-400">Scan with a Lightning wallet to pay.</p>
+                  <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+                    Scan with a Lightning wallet to pay.
+                  </p>
                   {isWebLNAvailable() && (
                     <button
                       type="button"
                       onClick={handleWebLN}
                       disabled={paying}
-                      className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-60 text-white text-sm font-semibold transition-colors"
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-60"
                       data-testid="zap-webln"
                     >
-                      {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Pay with wallet
+                      {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Pay with
+                      wallet
                     </button>
                   )}
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => copyInvoice(invoice)}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                      className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       data-testid="zap-copy-invoice"
                     >
-                      {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />} {copied ? "Copied" : "Copy invoice"}
+                      {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}{" "}
+                      {copied ? "Copied" : "Copy invoice"}
                     </button>
                     <a
                       href={lightningUriForInvoice(invoice)}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                      className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       data-testid="zap-open-wallet"
                     >
                       <ExternalLink className="h-4 w-4" /> Open wallet
@@ -344,7 +404,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                   <button
                     type="button"
                     onClick={() => onOpenChange(false)}
-                    className="w-full text-center text-xs font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors pt-1"
+                    className="w-full pt-1 text-center text-xs font-medium text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
                     data-testid="zap-done"
                   >
                     Scanned &amp; paid? Done
@@ -358,24 +418,31 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
             <div className="space-y-3" data-testid="zap-fallback">
               <div className="flex justify-center">
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <LazyQRCode value={lightningUriForAddress(displayAddr)} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
+                  <LazyQRCode
+                    value={lightningUriForAddress(displayAddr)}
+                    size={188}
+                    bgColor="#ffffff"
+                    fgColor="#0A0E18"
+                    level="M"
+                  />
                 </div>
               </div>
-              <p className="text-center text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              <p className="text-center text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                 Scan this with any Lightning wallet to pay {displayName} — it'll ask you for the amount.
               </p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => copyInvoice(displayAddr)}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   data-testid="zap-copy-address"
                 >
-                  {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />} {copied ? "Copied" : "Copy address"}
+                  {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}{" "}
+                  {copied ? "Copied" : "Copy address"}
                 </button>
                 <a
                   href={lightningUriForAddress(displayAddr)}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors"
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   <ExternalLink className="h-4 w-4" /> Open wallet
                 </a>
@@ -385,12 +452,15 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
 
           {step === "unverified" && (
             <div className="flex flex-col items-center justify-center py-8 text-center" data-testid="zap-unverified">
-              <div className="h-11 w-11 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 flex items-center justify-center text-amber-600 dark:text-amber-400">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-400">
                 <ShieldAlert className="h-5 w-5" />
               </div>
-              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Couldn't verify this recipient</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-[290px] leading-relaxed">
-                We couldn't confirm a lightning address signed by {displayName}'s key. For your safety we won't send a payment to an unverified address.
+              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Couldn't verify this recipient
+              </p>
+              <p className="mt-1 max-w-[290px] text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                We couldn't confirm a lightning address signed by {displayName}'s key. For your safety we won't send a
+                payment to an unverified address.
               </p>
               <button
                 type="button"
@@ -404,11 +474,13 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
 
           {step === "error" && (
             <div className="flex flex-col items-center justify-center py-8 text-center" data-testid="zap-error">
-              <div className="h-10 w-10 rounded-full bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 flex items-center justify-center text-red-600 dark:text-red-400">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400">
                 <AlertTriangle className="h-5 w-5" />
               </div>
-              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Couldn't create the payment</p>
-              {errorMsg && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-[280px]">{errorMsg}</p>}
+              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Couldn't create the payment
+              </p>
+              {errorMsg && <p className="mt-1 max-w-[280px] text-xs text-slate-500 dark:text-slate-400">{errorMsg}</p>}
               <button
                 type="button"
                 onClick={() => setStep("compose")}

@@ -21,7 +21,11 @@ const MAX = 6;
 
 function storageKey(): string {
   let who = "anon";
-  try { who = activePubkey() || "anon"; } catch { /* SSR / no storage */ }
+  try {
+    who = activePubkey() || "anon";
+  } catch {
+    /* SSR / no storage */
+  }
   return `${KEY_PREFIX}:${who}`;
 }
 
@@ -59,7 +63,7 @@ export function recentKey(item: RecentItem): string {
 }
 
 // Tolerate old records: pre-profile entries were bare { q, t } with no `type`.
-function normalize(e: any): RecentItem | null {
+function normalize(e: Record<string, unknown> | null): RecentItem | null {
   if (!e || typeof e.t !== "number") return null;
   if (e.type === "profile") {
     if (typeof e.pubkey !== "string" || typeof e.npub !== "string" || typeof e.label !== "string") return null;
@@ -74,7 +78,13 @@ function normalize(e: any): RecentItem | null {
     };
   }
   if (e.type === "scoped") {
-    if (typeof e.pubkey !== "string" || typeof e.npub !== "string" || typeof e.label !== "string" || typeof e.tab !== "string") return null;
+    if (
+      typeof e.pubkey !== "string" ||
+      typeof e.npub !== "string" ||
+      typeof e.label !== "string" ||
+      typeof e.tab !== "string"
+    )
+      return null;
     return {
       type: "scoped",
       pubkey: e.pubkey,
@@ -96,14 +106,19 @@ export function getRecentItems(): RecentItem[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalize).filter((x): x is RecentItem => x !== null).slice(0, MAX);
+    return parsed
+      .map(normalize)
+      .filter((x): x is RecentItem => x !== null)
+      .slice(0, MAX);
   } catch {
     return [];
   }
 }
 
 function write(list: RecentItem[]): RecentItem[] {
-  try { localStorage.setItem(storageKey(), JSON.stringify(list)); } catch {}
+  try {
+    localStorage.setItem(storageKey(), JSON.stringify(list));
+  } catch {}
   return list;
 }
 
