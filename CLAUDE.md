@@ -44,6 +44,17 @@ New UI **must** use the shared primitives instead of hand-rolling styles — thi
 
 Anchored to the designer's brand-guidelines p17 "UI Foundations" sheet. Full guide + what stays bespoke: `docs/design-system.md`. Interface icons are lucide today (guidelines spec Phosphor — migration deferred, not a bug).
 
+## E2E smoke (`e2e/`)
+
+Playwright happy-path checks against **live staging**, not local — CI runs them on PRs into `main` and manual dispatch (`.github/workflows/e2e.yml`).
+
+- Run: `E2E_TEST_NSEC=nsec1… npm run e2e` (`-- --ui` to watch). Signed-in specs skip without the key.
+- Locally, any staging account with follows and calculated scores works — the shared CI key isn't handed out. Use a throwaway, never your real nsec.
+- Specs select by `data-testid`; renaming one used under `e2e/` means updating the spec in the same change.
+- Scope is happy paths only: no onboarding, payments, admin, or flows that publish to relays.
+- The test account is an ordinary non-admin user; its nsec lives only in the `staging-e2e` GitHub environment — never in files or logs.
+- A failure can be staging (mid-deploy, relay/backend down) rather than the UI — check the trace before changing code.
+
 ## Deploying to staging
 
 - `staging` is the default branch and what the staging env runs; `main` is prod.
