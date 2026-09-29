@@ -64,6 +64,9 @@ import {
   appAddress,
   fetchAppReviews,
   fetchAppZaps,
+  fetchGoalProgress,
+  bolt11Msats,
+  parseZapReceipt,
   fetchAppEndorsementCounts,
   fetchNoteEngagement,
   fetchAppsByAddress,
@@ -89,6 +92,7 @@ import {
   suggestProfiles,
   suggestListings,
   kindsForTab,
+  bandKindsForTab,
   TAB_KINDS,
   type SearchSnapshot,
   type SearchHit,
@@ -1058,7 +1062,7 @@ describe("suggestListings", () => {
     const { subject } = controllable();
     const pending = suggestListings("satoshi smiley", { pov: "nosfabrica" }, { limit: 3 });
     await tick();
-    expect(askedFilters(0)[0].kinds).toEqual([30402]);
+    expect(askedFilters(0)[0].kinds).toEqual(TAB_KINDS.shop);
     subject.next(frame(listing("t1", "Satoshi Smiley T-shirt")));
     subject.next(frame(listing("t2", "Satoshi Mug")));
     subject.next(frame(listing("t3", "Smiley Satoshi Hoodie", [["status", "sold"]])));
@@ -1816,6 +1820,96 @@ describe("fetchVouchReplies", () => {
   });
 });
 
+describe("bolt11Msats — an invoice's amount from its human-readable part", () => {
+  it("reads each multiplier, and no amount as none", () => {
+    expect(bolt11Msats("lnbc2500u1pvjluez")).toBe(250_000_000); // 2500 µBTC = 250k sats
+    expect(bolt11Msats("lnbc10n1pjx")).toBe(1_000); // 1 sat
+    expect(bolt11Msats("lnbc1m1pjx")).toBe(100_000_000);
+    expect(bolt11Msats("lnbc1pvjluez")).toBeNull(); // no amount
+    expect(bolt11Msats("not an invoice")).toBeNull();
+    expect(bolt11Msats(undefined)).toBeNull();
+  });
+});
+
+describe("parseZapReceipt", () => {
+  const receipt = (tags: string[][], content = "") =>
+    ({ id: "r", kind: 9735, pubkey: "e".repeat(64), created_at: 1, sig: "s", content, tags }) as NostrEvent;
+  const request = (amount?: string, pubkey = "c".repeat(64)) =>
+    JSON.stringify({ kind: 9734, pubkey, content: "gm", tags: amount ? [["amount", amount]] : [] });
+
+  it("counts what the invoice was for, not what the request asked", () => {
+    expect(
+      parseZapReceipt(
+        receipt([
+          ["bolt11", "lnbc10n1pjx"],
+          ["description", request("1000")],
+        ]),
+      ).msats,
+    ).toBe(1_000);
+    // Asked for 100M sats, invoiced 1 sat: the two must match, so it counts nothing.
+    expect(
+      parseZapReceipt(
+        receipt([
+          ["bolt11", "lnbc10n1pjx"],
+          ["description", request("100000000000")],
+        ]),
+      ).msats,
+    ).toBeNull();
+    // A request amount with no invoice is only a claim.
+    expect(parseZapReceipt(receipt([["description", request("5000")]])).msats).toBeNull();
+  });
+
+  it("names the zapper only by a 64-hex key", () => {
+    expect(parseZapReceipt(receipt([["P", "abc"]])).pubkey).toBeNull();
+    expect(parseZapReceipt(receipt([["description", request(undefined, "C".repeat(64))]])).pubkey).toBe("c".repeat(64));
+  });
+});
+
+describe("fetchGoalProgress", () => {
+  const goal = "9".repeat(64);
+  const receipt = (id: string, zapper: string, invoice: string) =>
+    ({
+      id,
+      kind: 9735,
+      pubkey: "e".repeat(64),
+      created_at: 1,
+      sig: "s",
+      content: "",
+      tags: [
+        ["e", goal],
+        ["P", zapper],
+        ["bolt11", invoice],
+      ],
+    }) as NostrEvent;
+
+  it("sums each goal's receipts, and a finished answer is complete", async () => {
+    const { subject } = controllable();
+    const pending = fetchGoalProgress([goal, "8".repeat(64)]);
+    await tick();
+    expect((reqMock.mock.calls[0][0] as Record<string, unknown>)["#e"]).toEqual([goal, "8".repeat(64)]);
+    subject.next(frame(receipt("r1", "a".repeat(64), "lnbc10u1pjx")));
+    subject.next(frame(receipt("r2", "b".repeat(64), "lnbc20u1pjx")));
+    subject.next(frame(receipt("r2", "b".repeat(64), "lnbc20u1pjx"))); // the same receipt twice counts once
+    subject.next(EOSE);
+    const { byGoal, complete } = await pending;
+    expect(complete).toBe(true);
+    expect(byGoal.get(goal)).toEqual({ sats: 3_000, zappers: ["a".repeat(64), "b".repeat(64)] });
+    expect(byGoal.has("8".repeat(64))).toBe(false);
+  });
+
+  it("an answer cut short by the deadline is not complete", async () => {
+    vi.useFakeTimers();
+    try {
+      controllable();
+      const pending = fetchGoalProgress([goal], 100);
+      await vi.advanceTimersByTimeAsync(150);
+      expect((await pending).complete).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("fetchAppZaps", () => {
   // Zaps to an app (kind 9735, #a = listing address; Amethyst has 101). The
   // zapper is the receipt's `P` tag — older receipts only carry it inside the
@@ -2492,7 +2586,8 @@ describe("kindsForTab", () => {
   // snippet kind was ~90% JSON junk). Apps = Zap Store listings; Repos = the
   // genuinely git-shaped kinds. Kind 1337 leaves the tabs entirely.
   it("splits the old code tab into Apps, Repos, Issues and PRs, junk kind dropped", () => {
-    expect(kindsForTab("apps")).toEqual([32267]);
+    // Zap Store listings lead Apps; NIP-89 handlers, Nostr sites and mini apps sit beside them.
+    expect(kindsForTab("apps")).toEqual([32267, 31990, 35128, 15128, 35129]);
     expect(kindsForTab("repos")).toEqual([30617]);
     expect(kindsForTab("issues")).toEqual([1621]);
     expect(kindsForTab("prs")).toEqual([1617, 1618]);
@@ -2502,10 +2597,51 @@ describe("kindsForTab", () => {
 
   // Benjamin: "we should be able to filter by events also". NIP-52 calendar
   // events get their own vertical; Live keeps the NIP-53 streams. Kind 31924
-  // (a calendar — a container of events) leaves the tabs; Everything still
-  // reaches it.
+  // (a calendar — a container of events) rides along in Events, below the
+  // dated events.
   it("splits calendar events out of Live into their own Events vertical", () => {
-    expect(kindsForTab("events")).toEqual([31922, 31923]);
+    expect(kindsForTab("events")).toEqual([31922, 31923, 31924]);
     expect(kindsForTab("live")).toEqual([30311, 30312, 30313]);
+  });
+});
+
+// A band (an Everything section, a home-feed band, a panel rail) has a few
+// slots and drops what it cannot show — so it never asks for it.
+describe("bandKindsForTab", () => {
+  const settle = async () => {
+    await tick();
+    await new Promise((r) => setTimeout(r, 1));
+    await tick();
+  };
+
+  it("leaves out the kinds only the tab itself shows", () => {
+    expect(bandKindsForTab("events")).toEqual([31922, 31923]); // no undated calendars
+    expect(bandKindsForTab("shop")).toEqual([30402, 30018, 30020]); // no priceless stalls or marketplaces
+    expect(bandKindsForTab("media")).not.toContain(2003); // nothing to see in a torrent
+    expect(bandKindsForTab("apps")).toEqual([32267]); // the rail draws Zap Store listings
+  });
+
+  it("is the tab's own kinds everywhere else", () => {
+    for (const tab of ["people", "notes", "articles", "live", "music", "lists"] as const) {
+      expect(bandKindsForTab(tab)).toEqual(TAB_KINDS[tab]);
+    }
+  });
+
+  it("is what a band stream asks, while the tab still asks for everything", async () => {
+    controllable();
+    searchStream("meetup", { tab: "events", pov: "nosfabrica", limit: 12, band: true }, () => {});
+    searchStream("meetup", { tab: "events", pov: "nosfabrica", limit: 12 }, () => {});
+    await settle();
+    expect(askedFilters(0)[0].kinds).toEqual([31922, 31923]);
+    expect(askedFilters(1)[0].kinds).toEqual([31922, 31923, 31924]);
+  });
+
+  it("a typed kind the band does not show asks nothing of it", async () => {
+    controllable();
+    let snap: SearchSnapshot | null = null;
+    searchStream("kind:31924", { tab: "events", pov: "nosfabrica", limit: 12, band: true }, (s) => (snap = s));
+    await settle();
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(snap).toMatchObject({ hits: [], eose: true });
   });
 });
