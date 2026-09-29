@@ -387,12 +387,12 @@ describe("SearchResults", () => {
   // Benjamin (2026-09-24): ten flat rows mixing Recipes with PRs read like a
   // settings list. The menu is grouped by what a person is doing, consumer
   // things first and developer things last.
-  it("groups More by what you're doing: Read & listen, Happening, Build, then Lists", () => {
+  it("groups More by what you're doing: Read & listen, Happening, Build, Community, then Lists", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     fireEvent.click(screen.getByTestId("search-tab-more"));
     const menu = screen.getByRole("menu");
     const groups = [...menu.querySelectorAll('[data-testid^="search-tab-group-"]')].map((el) => el.textContent);
-    expect(groups).toEqual(["Read & listen", "Happening", "Build"]);
+    expect(groups).toEqual(["Read & listen", "Happening", "Build", "Community"]);
     // Doors only: a "Soon" row names where we're going and opens nothing.
     const items = [
       ...menu.querySelectorAll(
@@ -410,6 +410,9 @@ describe("SearchResults", () => {
       "search-tab-issues",
       "search-tab-prs",
       "search-tab-nips",
+      "search-tab-communities",
+      "search-tab-fundraisers",
+      "search-tab-reviews",
       "search-tab-lists",
     ]);
   });
@@ -4121,5 +4124,150 @@ describe("the Music tab's V4V lists from Podcast Index", () => {
     emit({ hits: [], eose: true, timeMs: 150 });
     await screen.findByTestId(/^podcastindex-song-/);
     expect(within(screen.getByTestId("music-artists")).getByTestId(/^music-artist-podcastindex-/)).toBeInTheDocument();
+  });
+});
+
+// The kinds with no card of their own (lib/thing), each where a searcher
+// looks for it — shapes as staging holds them, 2026-09-29.
+describe("SearchResults — the kinds lib/thing reads", () => {
+  const who = "7".repeat(64);
+  const hitOf = (event: NostrEvent) => ({ event, author: author(event.pubkey, "Someone"), rank: null });
+
+  it("Communities shows one card per channel (the newest of its 40 and 41s), groups and communities, and drops the unnamed", async () => {
+    setUrlTab("communities");
+    render(<SearchResults query="chess" pov="nosfabrica" />);
+    expect([...allStreams].reverse()[0].params.tab).toBe("communities");
+    const channel = ev("ch40", 40, who, '{"name":"Chess chat","about":"Old about"}');
+    const update = {
+      ...ev("ch41", 41, who, '{"name":"Chess chat","about":"The global chat of Chess."}', [["e", "ch40"]]),
+      created_at: 1_700_000_500,
+    };
+    const group = ev("g1", 39000, who, "", [["d", "x"], ["name", "nutshell"], ["public"], ["closed"]]);
+    const community = ev("c1", 34550, who, "", [
+      ["d", "k"],
+      ["name", "Kiteh Kawasaki"],
+      ["description", "Hi fans"],
+    ]);
+    const unnamed = ev("ch-junk", 40, who, '{"about":"no name"}');
+    emit({ hits: [channel, update, group, community, unnamed].map(hitOf), eose: true, timeMs: 100 });
+
+    const card = await screen.findByTestId("thing-card-ch41");
+    expect(card).toHaveTextContent("Chess chat");
+    expect(card).toHaveTextContent("The global chat of Chess.");
+    expect(screen.queryByTestId("thing-card-ch40")).toBeNull();
+    expect(screen.getByTestId("thing-card-g1")).toHaveTextContent("Closed");
+    expect(screen.getByTestId("thing-card-c1")).toHaveTextContent("Hi fans");
+    expect(screen.queryByTestId("thing-card-ch-junk")).toBeNull();
+  });
+
+  it("Reviews shows a relay review's stars and a mint review's door to the mint", async () => {
+    setUrlTab("reviews");
+    render(<SearchResults query="reliable" pov="nosfabrica" />);
+    const relay = ev("r1", 31987, who, "maybe a bit slow", [
+      ["d", "wss://relay.nostrcheck.me/"],
+      ["rating", "0.8"],
+    ]);
+    const mint = ev("m1", 38000, who, "Stable and reliable", [
+      ["d", "https://mint.lnpay.cz"],
+      ["u", "https://mint.lnpay.cz"],
+      ["rating", "5"],
+    ]);
+    emit({ hits: [relay, mint].map(hitOf), eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("thing-stars-r1")).toHaveAttribute("aria-label", "4 out of 5 stars");
+    expect(screen.getByTestId("thing-title-r1")).toHaveTextContent("relay.nostrcheck.me");
+    expect(screen.getByTestId("thing-link-m1")).toHaveAttribute("href", "https://mint.lnpay.cz");
+    expect(screen.getByTestId("thing-card-m1")).toHaveTextContent("Reviewed by");
+  });
+
+  it("the Shop sells a NIP-15 product as a priced card and shows a named stall, never the typing game that shares its kind", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="art" pov="nosfabrica" />);
+    const product = ev(
+      "p1",
+      30018,
+      who,
+      JSON.stringify({
+        name: "Riding Peas",
+        description: "Livingroom art",
+        images: ["https://img/peas.jpg"],
+        currency: "sat",
+        price: 21000,
+      }),
+      [["d", "p1"]],
+    );
+    const stall = ev(
+      "s1",
+      30017,
+      who,
+      JSON.stringify({ name: "BKBoom Paper Art", description: "handcrafted", currency: "sat" }),
+      [["d", "s1"]],
+    );
+    const game = ev("s2", 30017, who, '{"wpm":63,"accuracy":99}', [
+      ["d", "s2"],
+      ["t", "typing-test"],
+    ]);
+    emit({ hits: [product, stall, game].map(hitOf), eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("listing-card-p1")).toHaveTextContent("Riding Peas");
+    expect(screen.getByTestId("thing-card-s1")).toHaveTextContent("BKBoom Paper Art");
+    expect(screen.queryByTestId("thing-card-s2")).toBeNull();
+    expect(screen.queryByTestId("listing-card-s2")).toBeNull();
+  });
+
+  it("Events keeps calendars below the dated events, under their own heading", async () => {
+    setUrlTab("events");
+    render(<SearchResults query="meetup" pov="nosfabrica" />);
+    const soon = Math.floor(Date.now() / 1000) + 86_400 * 2;
+    const meetup = ev("e1", 31923, who, "", [
+      ["d", "e1"],
+      ["title", "Bitcoin meetup"],
+      ["start", String(soon)],
+    ]);
+    const calendar = ev("cal1", 31924, who, "", [
+      ["d", "meetup-370"],
+      ["title", "Jednadvacet"],
+      ["a", "31923:x:1"],
+    ]);
+    emit({ hits: [calendar, meetup].map(hitOf), eose: true, timeMs: 100 });
+
+    const cal = await screen.findByTestId("thing-card-cal1");
+    expect(cal).toHaveTextContent("Jednadvacet");
+    expect(screen.getByTestId("event-day-calendars")).toHaveTextContent("Calendars");
+    const results = screen.getByTestId("container-search-results");
+    expect(results.textContent!.indexOf("Bitcoin meetup")).toBeLessThan(results.textContent!.indexOf("Jednadvacet"));
+  });
+
+  it("Lists keeps a badge and an emoji pack, which hold no p/e/a/r items", async () => {
+    setUrlTab("lists");
+    render(<SearchResults query="cool" pov="nosfabrica" />);
+    const badge = ev("b1", 30009, who, "", [
+      ["d", "ice"],
+      ["name", "Ice Cool Builder"],
+      ["description", "Only the coolest"],
+    ]);
+    const pack = ev("ep1", 30030, who, "", [
+      ["d", "p"],
+      ["title", "Legends"],
+      ["emoji", "a", "https://x.test/a.png"],
+    ]);
+    emit({ hits: [badge, pack].map(hitOf), eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("thing-card-b1")).toHaveTextContent("Ice Cool Builder");
+    expect(screen.getByTestId("thing-previews-ep1")).toBeInTheDocument();
+  });
+
+  it("Music plays a kind-36787 track", async () => {
+    setUrlTab("music");
+    render(<SearchResults query="acapella" pov="nosfabrica" />);
+    const track = ev("t36787", 36787, who, "", [
+      ["d", "6704f12b"],
+      ["title", "Acapella Random Song"],
+      ["artist", "Beatbox Serenade"],
+      ["url", "https://blossom.ditto.pub/ef316b48.mp3"],
+    ]);
+    emit({ hits: [hitOf(track)], eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("track-card-t36787")).toHaveTextContent("Acapella Random Song");
   });
 });

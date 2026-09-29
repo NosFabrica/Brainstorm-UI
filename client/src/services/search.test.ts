@@ -1058,7 +1058,7 @@ describe("suggestListings", () => {
     const { subject } = controllable();
     const pending = suggestListings("satoshi smiley", { pov: "nosfabrica" }, { limit: 3 });
     await tick();
-    expect(askedFilters(0)[0].kinds).toEqual([30402]);
+    expect(askedFilters(0)[0].kinds).toEqual(TAB_KINDS.shop);
     subject.next(frame(listing("t1", "Satoshi Smiley T-shirt")));
     subject.next(frame(listing("t2", "Satoshi Mug")));
     subject.next(frame(listing("t3", "Smiley Satoshi Hoodie", [["status", "sold"]])));
@@ -2492,7 +2492,8 @@ describe("kindsForTab", () => {
   // snippet kind was ~90% JSON junk). Apps = Zap Store listings; Repos = the
   // genuinely git-shaped kinds. Kind 1337 leaves the tabs entirely.
   it("splits the old code tab into Apps, Repos, Issues and PRs, junk kind dropped", () => {
-    expect(kindsForTab("apps")).toEqual([32267]);
+    // Zap Store listings lead Apps; NIP-89 handlers, Nostr sites and mini apps sit beside them.
+    expect(kindsForTab("apps")).toEqual([32267, 31990, 35128, 15128, 35129]);
     expect(kindsForTab("repos")).toEqual([30617]);
     expect(kindsForTab("issues")).toEqual([1621]);
     expect(kindsForTab("prs")).toEqual([1617, 1618]);
@@ -2502,10 +2503,10 @@ describe("kindsForTab", () => {
 
   // Benjamin: "we should be able to filter by events also". NIP-52 calendar
   // events get their own vertical; Live keeps the NIP-53 streams. Kind 31924
-  // (a calendar — a container of events) leaves the tabs; Everything still
-  // reaches it.
+  // (a calendar — a container of events) rides along in Events, below the
+  // dated events.
   it("splits calendar events out of Live into their own Events vertical", () => {
-    expect(kindsForTab("events")).toEqual([31922, 31923]);
+    expect(kindsForTab("events")).toEqual([31922, 31923, 31924]);
     expect(kindsForTab("live")).toEqual([30311, 30312, 30313]);
   });
 });

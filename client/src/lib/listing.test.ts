@@ -206,3 +206,73 @@ describe("listingCardLine — one quiet line: where it is, what shipping costs",
     expect(listingCardLine({ ...base, summary: null })).toBeNull();
   });
 });
+
+describe("parseListing — NIP-15 products and auctions sell beside NIP-99", () => {
+  it("reads a kind-30018 product from its JSON content (staging, 2026-09-29)", () => {
+    const l = parseListing(
+      ev(
+        [["d", "8pGXtKyBCp4em8XEEq6uvL"]],
+        JSON.stringify({
+          id: "8pGXtKyBCp4em8XEEq6uvL",
+          stall_id: "B2Ho2LPPWoqUthAc5XAqpW",
+          name: "Riding Peas",
+          description: "Livingroom art by BKBoom",
+          images: ["https://img/peas.jpg", 7],
+          currency: "sat",
+          price: 21000,
+          quantity: 1,
+          shipping: [{ id: "online", cost: 0 }],
+        }),
+        30018,
+      ),
+    );
+    expect(l).toMatchObject({
+      title: "Riding Peas",
+      description: "Livingroom art by BKBoom",
+      price: { amount: 21000, currency: "SAT" },
+      images: ["https://img/peas.jpg"],
+      status: "active",
+      shipping: [{ name: "online", amount: 0, currency: "SAT" }],
+    });
+    expect(isSellable(l!)).toBe(true);
+    expect(listingCardLine(l!)).toBe("Free shipping");
+  });
+
+  it("marks a product with no stock left as sold", () => {
+    const l = parseListing(
+      ev([], JSON.stringify({ name: "Funny Tukan", currency: "sat", price: 5000, quantity: 0 }), 30018),
+    );
+    expect(l?.status).toBe("sold");
+    expect(isSellable(l!)).toBe(false);
+  });
+
+  it("refuses a 30018 whose content is not a named product", () => {
+    expect(parseListing(ev([], "not json", 30018))).toBeNull();
+    expect(parseListing(ev([], JSON.stringify({ price: 1 }), 30018))).toBeNull();
+  });
+
+  it("reads a kind-30020 auction at its opening price, sellable until it ends", () => {
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    const tags = [
+      ["d", "roatan-2"],
+      ["title", "Roatan 2"],
+      ["summary", "Digital Art"],
+      ["image", "https://img/roatan.jpg"],
+      ["start_price", "1000"],
+      ["currency", "sats"],
+      ["end_time", String(future)],
+    ];
+    const open = parseListing(ev(tags, "Digital Art", 30020));
+    expect(open).toMatchObject({ title: "Roatan 2", price: { amount: 1000, currency: "SATS" }, status: "active" });
+    expect(isSellable(open!)).toBe(true);
+    const ended = parseListing(
+      ev(
+        tags.map((t) => (t[0] === "end_time" ? ["end_time", "1777240053"] : t)),
+        "",
+        30020,
+      ),
+    );
+    expect(ended?.status).toBe("ended");
+    expect(isSellable(ended!)).toBe(false);
+  });
+});

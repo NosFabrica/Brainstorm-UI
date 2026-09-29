@@ -168,3 +168,63 @@ describe("parseTrack — a category tag is a genre, never the artist", () => {
     expect(t?.genre).toBe("Rock");
   });
 });
+
+describe("parseTrack — the other kinds the Music tab plays", () => {
+  const at = (kind: number, tags: string[][], content = "") => ({ ...ev(tags, content), kind });
+
+  it("reads a kind-36787 track as Amethyst and Ditto publish it (staging, 2026-09-29)", () => {
+    const t = parseTrack(
+      at(36787, [
+        ["d", "6704f12b-4c76-4698-a4fe-7f166cf95160"],
+        ["title", "Acapella Random Song"],
+        ["artist", "Beatbox Serenade"],
+        ["url", "https://blossom.ditto.pub/ef316b48.mp3"],
+        ["t", "music"],
+        ["image", "https://blossom.ditto.pub/4f4003a5.jpg"],
+        ["duration", "34"],
+      ]),
+    );
+    expect(t).toMatchObject({
+      title: "Acapella Random Song",
+      artist: "Beatbox Serenade",
+      audio: "https://blossom.ditto.pub/ef316b48.mp3",
+      cover: "https://blossom.ditto.pub/4f4003a5.jpg",
+      durationSec: 34,
+    });
+  });
+
+  it("reads a kind-54 podcast episode by its audio tag", () => {
+    const t = parseTrack(
+      at(54, [
+        ["title", "#24 Game-life balance"],
+        ["audio", "https://anchor.fm/s/10e3c37f0/podcast/play/1262377", "audio/mpeg"],
+        ["duration", "1820"],
+      ]),
+    );
+    expect(t).toMatchObject({ title: "#24 Game-life balance", durationSec: 1820 });
+  });
+
+  it("drops a 30054 that is someone's reading progress, not an episode", () => {
+    expect(
+      parseTrack(
+        at(30054, [
+          ["d", "28a4d7cf"],
+          ["a", "30023:8f4281f8:article"],
+          ["position", "1122"],
+          ["duration", "3587"],
+        ]),
+      ),
+    ).toBeNull();
+  });
+
+  it("still refuses a kind it does not play", () => {
+    expect(
+      parseTrack(
+        at(1, [
+          ["title", "x"],
+          ["url", "https://x.test/a.mp3"],
+        ]),
+      ),
+    ).toBeNull();
+  });
+});
