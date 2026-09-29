@@ -815,6 +815,61 @@ export async function fetchProfileTags(
   const candidates = await fetchTagEvents(
     filterTagsAppliedToPubkey({ targetPubkey, zHandlePubkeys: Z_HANDLE_PUBKEYS }),
   );
+  return profileTagsFromCandidates(candidates, viewerPubkey, observer);
+}
+
+/** The `p` tag an assertion is about — the person it tags. */
+function targetPubkeyOf(ev: NostrEvent): string | undefined {
+  return ev.tags.find((t) => t[0] === "p")?.[1];
+}
+
+/**
+ * The tags on many people at once — the rows of a search page. One REQ per
+ * chunk, never per person: a page of thirty rows as thirty subscriptions is
+ * more than a relay keeps open, and the late ones simply never answer. The
+ * SDK owns the filter's shape; we only widen `#p` from one pubkey to the
+ * chunk. Each person's answer is then exactly what `fetchProfileTags` says.
+ */
+export async function fetchProfileTagsBatch(
+  pubkeys: readonly string[],
+  viewerPubkey?: string,
+  observer: TrustObserver = "house",
+): Promise<Map<string, ProfileTagsResult>> {
+  const out = new Map<string, ProfileTagsResult>();
+  const targets = Array.from(new Set(pubkeys.filter(Boolean)));
+  if (!targets.length) return out;
+  const candidates: NostrEvent[] = [];
+  for (let i = 0; i < targets.length; i += 50) {
+    const chunk = targets.slice(i, i + 50);
+    const filter = filterTagsAppliedToPubkey({ targetPubkey: chunk[0], zHandlePubkeys: Z_HANDLE_PUBKEYS }) as Record<
+      string,
+      unknown
+    >;
+    try {
+      candidates.push(...(await fetchTagEvents({ ...filter, "#p": chunk })));
+    } catch {
+      // Partial results beat none; the people we couldn't ask about show no
+      // chips, which is what an untagged person looks like anyway.
+    }
+  }
+  const byTarget = new Map<string, NostrEvent[]>();
+  for (const ev of candidates) {
+    const target = targetPubkeyOf(ev);
+    if (!target) continue;
+    if (!byTarget.has(target)) byTarget.set(target, []);
+    byTarget.get(target)!.push(ev);
+  }
+  for (const target of targets) {
+    out.set(target, await profileTagsFromCandidates(byTarget.get(target) ?? [], viewerPubkey, observer));
+  }
+  return out;
+}
+
+async function profileTagsFromCandidates(
+  candidates: NostrEvent[],
+  viewerPubkey: string | undefined,
+  observer: TrustObserver,
+): Promise<ProfileTagsResult> {
   if (!candidates.length) return { tags: [], mine: [], trustUnverified: false, viewerUnscored: false };
 
   const assertions = await normalizeAssertions(candidates);
@@ -1455,6 +1510,37 @@ export async function fetchPickerTags(viewerPubkey?: string, observer: TrustObse
  * starts-with, then contains — inside each band the catalogue's own
  * usage ordering carries through.
  */
+/**
+ * One typo apart: an insertion, a deletion, a substitution or two swapped
+ * neighbours ("humna" → "human"). Anything more is a different word.
+ */
+function withinOneEdit(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  if (a.length === b.length) {
+    const diff: number[] = [];
+    for (let i = 0; i < a.length && diff.length <= 2; i++) if (a[i] !== b[i]) diff.push(i);
+    if (diff.length === 1) return true;
+    return diff.length === 2 && diff[1] === diff[0] + 1 && a[diff[0]] === b[diff[1]] && a[diff[1]] === b[diff[0]];
+  }
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  let i = 0;
+  while (i < short.length && short[i] === long[i]) i++;
+  return short.slice(i) === long.slice(i + 1);
+}
+
+/**
+ * Every typed word finds a word of the name: as a prefix ("ven" → "vendor"),
+ * or, for a word long enough to carry a typo, one edit away ("verfied").
+ */
+function wordsNearlyMatch(query: string, name: string): boolean {
+  const nameWords = name.split(/\s+/).filter(Boolean);
+  return query
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((w) => nameWords.some((n) => n.startsWith(w) || (w.length >= 4 && withinOneEdit(w, n))));
+}
+
 export function matchTags(index: TagSummary[], query: string, max = 5): TagSummary[] {
   const q = query.trim().toLowerCase();
   if (q.length < 2) return [];
@@ -1463,12 +1549,15 @@ export function matchTags(index: TagSummary[], query: string, max = 5): TagSumma
     if (n === q) return 0;
     if (n.startsWith(q)) return 1;
     if (n.includes(q)) return 2;
-    return 3;
+    // A typo must not hide a tag the person plainly meant (Benjamin, 2026-09-29:
+    // "verfied human" showed nothing).
+    if (wordsNearlyMatch(q, n)) return 3;
+    return 4;
   };
   return (
     index
       .map((t) => ({ t, b: band(t) }))
-      .filter((x) => x.b < 3)
+      .filter((x) => x.b < 4)
       // How well the name matches outranks who made the tag — an exact hit on an
       // unverified tag is still what the person typed, and burying it under
       // loose contains-matches is how `lfo` became unfindable. Creator standing

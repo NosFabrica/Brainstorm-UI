@@ -52,7 +52,7 @@ One map, light + dark per tone. `tone(t)` → `{ bg, text, border, icon, dot }`.
 
 Tinted pill for tags, status badges, counts (p17 "Tags & Badges").
 
-Tag chips on people rows in search (`components/search/PersonTagChips.tsx`): `brand` for a tag the network applied, `slate` when its creator is unknown; right-aligned so a list scans; always a link to the tag page, never a filter. Only people who carry a matched tag wear one.
+Tag chips on people rows in search (`components/search/PersonTagChips.tsx`): every person wears their own tags quietly in `slate`; the tag the words matched is the one loud chip in `brand` (an unknown-creator tag stays `slate` with the plain-words tooltip). Right-aligned so a list scans, at most two in the typeahead and three on a card, one on a phone; always a link to the tag page, never a filter.
 
 ```tsx
 <Chip tone="emerald" icon={Check}>Verified</Chip>

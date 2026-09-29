@@ -75,6 +75,17 @@ describe("PersonTagChips", () => {
     expect(chip).toHaveAttribute("title", expect.stringContaining("don't know anything about whoever made this tag"));
   });
 
+  it("says the matched tag loudly and the person's other tags quietly, matched first", () => {
+    render(<PersonTagChips tags={[author, human]} emphasis={new Set([`${AUTHOR}:verified-human`])} />);
+    const links = screen.getAllByRole("link");
+    expect(links.map((l) => l.getAttribute("data-testid"))).toEqual([
+      "person-tag-chip-verified-human",
+      "person-tag-chip-author",
+    ]);
+    expect(screen.getByTestId("person-tag-chip-verified-human")).toHaveAttribute("data-emphasis", "loud");
+    expect(screen.getByTestId("person-tag-chip-author")).toHaveAttribute("data-emphasis", "quiet");
+  });
+
   it("shows at most three", () => {
     render(<PersonTagChips tags={[human, author, tag("dev", "Dev"), tag("four", "Four")]} />);
     expect(screen.getAllByRole("link")).toHaveLength(3);

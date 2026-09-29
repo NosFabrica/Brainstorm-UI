@@ -102,7 +102,14 @@ import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
 import { useTaggedMusicians } from "@/hooks/useTaggedMusicians";
 import { useTagMatches } from "@/hooks/useTags";
 import { useTagCarriers } from "@/hooks/useTagCarriers";
-import { leadCarriersByScore, mergeCarrierHits, tagsCarriedBy } from "@/lib/tagCarrierPeople";
+import {
+  leadCarriersByRank,
+  mergeCarrierHits,
+  personTagChips,
+  rankCarriers,
+  tagsCarriedBy,
+} from "@/lib/tagCarrierPeople";
+import { usePersonTags } from "@/hooks/usePersonTags";
 import { usePersonFountain } from "@/hooks/usePersonFountain";
 import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
@@ -912,7 +919,7 @@ export function SearchResults({
 
   // Words that name a tag find the people on it (the team, 2026-09-29): they
   // lead the People tab wearing the tag; the relay's name matches follow.
-  const tagMatches = useTagMatches(tab === "people" && !scopeOf(query) ? query : "");
+  const tagMatches = useTagMatches(tab === "people" && !scopeOf(query) ? query : "", 3, { fetch: false });
   const carriers = useTagCarriers(tagMatches, { pov, viewerPubkey: userPubkey });
   const carrierSets = useMemo(() => {
     const sets = new Map<string, Set<string>>();
@@ -925,7 +932,6 @@ export function SearchResults({
     }
     return sets;
   }, [carriers.byPubkey]);
-  const carrierByPubkey = useMemo(() => new Map(carriers.people.map((c) => [c.pubkey, c])), [carriers.people]);
   // Keep a ref so the render below sees a stable list even mid-stream. On the
   // Media tab the notes that carry media join the media-kind hits.
   const rawHits = useMemo(() => {
@@ -976,6 +982,15 @@ export function SearchResults({
     [rawHits],
   );
   const scoreOf = useAuthorScores(allAuthors);
+  const scoreOfRef = useRef(scoreOf);
+  scoreOfRef.current = scoreOf;
+  // Their order, taken once when they land and held for the query — a late
+  // score must not reorder a list the reader is already scanning.
+  const carrierRank = useMemo(
+    () => (carriers.settled ? rankCarriers(carriers.people, scoreOfRef.current) : new Map<string, number>()),
+
+    [carriers.settled, carriers.people],
+  );
   // The filters the relay can't do, done here (probed: filter:rank ignored,
   // no hops): Verified only via those scores, reach via the viewer's graph.
   const clientState = readFilters(safeQuery);
@@ -1076,7 +1091,9 @@ export function SearchResults({
   const searching =
     personMedia.length === 0 &&
     (!snapshot ||
-      (tab === "people" && !carriers.settled && hits.length === 0) ||
+      // Words that name a tag wait for the tag hub, so its people and the
+      // relay's paint together — no chips popping in, nothing jumping.
+      (tab === "people" && tagMatches.length > 0 && !carriers.settled) ||
       (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading)) ||
       (tab === "media" && !mediaSettled && hits.length === 0));
   const noResults =
@@ -1100,6 +1117,14 @@ export function SearchResults({
   const extraCount =
     (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) +
     (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
+  // Each person's own tags — quiet chips on every People card; the matched tag is the loud one.
+  const personTags = usePersonTags(
+    useMemo(
+      () => (tab === "people" ? hits.flatMap((h) => (h.event.kind === 0 ? [h.event.pubkey] : [])) : []),
+      [tab, hits],
+    ),
+    { pov, viewerPubkey: userPubkey },
+  );
   const peopleIdx = useRef(0);
   peopleIdx.current = 0;
 
@@ -1360,7 +1385,7 @@ export function SearchResults({
   const displayHits = useMemo<DisplayRow[]>(() => {
     let shown = hits;
     // The tag's people, best first; scores land after the merge, so the order does too.
-    if (tab === "people" && carrierByPubkey.size > 0) shown = leadCarriersByScore(shown, carrierByPubkey, scoreOf);
+    if (tab === "people" && carrierRank.size > 0) shown = leadCarriersByRank(shown, carrierRank);
     if (tab === "events") shown = filterEventsByWhen(shown, effectiveWhen);
     // A 31337 without a title and audio is not a song (the kind is abused).
     if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
@@ -1539,7 +1564,7 @@ export function SearchResults({
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    carrierByPubkey,
+    carrierRank,
     scoreOf,
     hits,
     tab,
@@ -2283,6 +2308,12 @@ export function SearchResults({
                         );
                         if (event.kind === 0 && hit.author) {
                           const idx = peopleIdx.current++;
+                          const cardTags = personTagChips(
+                            personTags.get(event.pubkey),
+                            tagMatches.length > 0 && carriers.settled
+                              ? tagsCarriedBy(event.pubkey, carrierSets, tagMatches)
+                              : [],
+                          );
                           const scored =
                             hit.author.wotRank == null
                               ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
@@ -2296,11 +2327,8 @@ export function SearchResults({
                               onPrefetchEnter={onPrefetchEnter}
                               onPrefetchLeave={onPrefetchLeave}
                               showFollowedBy={idx < 3}
-                              tags={
-                                tagMatches.length > 0 && carriers.settled
-                                  ? tagsCarriedBy(event.pubkey, carrierSets, tagMatches)
-                                  : undefined
-                              }
+                              tags={cardTags?.chips}
+                              tagEmphasis={cardTags?.emphasis}
                             />,
                           );
                         }

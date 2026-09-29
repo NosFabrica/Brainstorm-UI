@@ -34,8 +34,16 @@ export function useTagCarriers(
   const [version, setVersion] = useState(0);
   const answers = useRef(new Map<string, CarrierPerson[]>());
   const askedRef = useRef(new Set<string>());
+  // Answers are wanted for as long as this component lives, not just until
+  // the matched tags change again (see usePersonTags).
+  const mounted = useRef(true);
   useEffect(() => {
-    let alive = true;
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
     for (const tag of tags) {
       const id = `${observer}|${tag.key}`;
       if (askedRef.current.has(id)) continue;
@@ -43,16 +51,13 @@ export function useTagCarriers(
       fetchTagCarrierPeople(tag, observer).then(
         (people) => {
           answers.current.set(id, people);
-          if (alive) setVersion((v) => v + 1);
+          if (mounted.current) setVersion((v) => v + 1);
         },
         () => {
           askedRef.current.delete(id);
         },
       );
     }
-    return () => {
-      alive = false;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return useMemo(() => {

@@ -54,7 +54,10 @@ export function TagSuggestionRow({
 }
 
 /** Where a tag suggestion goes. Returns "" when the author pubkey won't encode. */
-export function tagSuggestionPath(tag: TagSummary, npubFor: (pk: string) => string): string {
+export function tagSuggestionPath(
+  tag: { authorPubkey: string; slug: string },
+  npubFor: (pk: string) => string,
+): string {
   try {
     return `/tags/${npubFor(tag.authorPubkey)}/${tag.slug}`;
   } catch {

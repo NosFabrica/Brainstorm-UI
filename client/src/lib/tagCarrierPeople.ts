@@ -12,7 +12,7 @@
  */
 import type { NostrEvent } from "nostr-tools";
 import type { SearchResult } from "./profileSearch";
-import type { TagSummary } from "@/services/tags";
+import type { ProfileTag, TagSummary } from "@/services/tags";
 
 /** A tag's carrier as a person, with what the tag page knows about the tag on them. */
 export type CarrierPerson = SearchResult & {
@@ -103,22 +103,67 @@ export function mergeCarrierHits<H extends HitLike>(base: readonly H[], carriers
   return [...lead, ...base.filter((h) => !(h.event.kind === 0 && carried.has(h.event.pubkey)))];
 }
 
-/** Sorts the leading carrier block by score (unknown last), leaving the relay's order alone. */
-export function leadCarriersByScore<H extends HitLike>(
-  rows: readonly H[],
-  carriers: ReadonlyMap<string, CarrierPerson>,
+/**
+ * The carriers' order, best-scored first (unknown last, then most applied),
+ * as a rank per pubkey. Taken once when the carriers land and held for the
+ * query: a score that arrives a moment later must not reorder a list the
+ * reader is already scanning.
+ */
+export function rankCarriers(
+  carriers: readonly CarrierPerson[],
   scoreOf: (pubkey: string) => number | null | undefined,
-): H[] {
+): Map<string, number> {
+  return new Map([...carriers].sort(byScore(scoreOf)).map((c, i) => [c.pubkey, i]));
+}
+
+/** Orders the leading carrier block by a held rank, leaving the relay's order alone. */
+export function leadCarriersByRank<H extends HitLike>(rows: readonly H[], rank: ReadonlyMap<string, number>): H[] {
   let end = 0;
   while (end < rows.length && rows[end].event.id.startsWith("tag-carrier:")) end++;
   if (end < 2) return [...rows];
-  const sorter = byScore(scoreOf);
-  const lead = [...rows.slice(0, end)].sort((a, b) =>
-    sorter(carriers.get(a.event.pubkey) ?? asCarrier(a), carriers.get(b.event.pubkey) ?? asCarrier(b)),
-  );
+  const at = (h: H) => rank.get(h.event.pubkey) ?? Number.MAX_SAFE_INTEGER;
+  const lead = [...rows.slice(0, end)].sort((a, b) => at(a) - at(b));
   return [...lead, ...rows.slice(end)];
 }
 
-function asCarrier(hit: HitLike): CarrierPerson {
-  return { pubkey: hit.event.pubkey, npub: "", applications: 0, addedAt: 0 };
+/** A tag as a chip on a person's row: enough to name it, link it and say how many. */
+export interface TagChip {
+  key: string;
+  authorPubkey: string;
+  slug: string;
+  name: string;
+  /** People carrying it (a catalogue tag) or asserters applying it to this person (their own). */
+  people?: number;
+  unverified?: boolean;
+}
+
+/** One identity for a tag whatever list it came from — the catalogue and a profile key it differently. */
+export const tagChipId = (t: { authorPubkey: string; slug: string }) => `${t.authorPubkey}:${t.slug}`;
+
+/**
+ * The chips for one person's row: the matched tags the row knows they carry
+ * lead, loud; their own counted tags follow, quiet, once each. Undefined
+ * while their own tags are still out and nothing matched — the slot waits.
+ */
+export function personTagChips(
+  own: readonly ProfileTag[] | undefined,
+  matchedCarried: readonly TagSummary[],
+): { chips: TagChip[]; emphasis: Set<string> } | undefined {
+  if (own === undefined && matchedCarried.length === 0) return undefined;
+  const emphasis = new Set(matchedCarried.map(tagChipId));
+  const chips: TagChip[] = matchedCarried.map((t) => ({
+    key: t.key,
+    authorPubkey: t.authorPubkey,
+    slug: t.slug,
+    name: t.name,
+    people: t.people,
+    unverified: t.unverified,
+  }));
+  const seen = new Set(chips.map(tagChipId));
+  for (const t of own ?? []) {
+    if (seen.has(tagChipId(t))) continue;
+    seen.add(tagChipId(t));
+    chips.push({ key: t.key, authorPubkey: t.authorPubkey, slug: t.slug, name: t.name, people: t.applications });
+  }
+  return { chips, emphasis };
 }
