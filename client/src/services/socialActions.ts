@@ -48,14 +48,6 @@ export interface NostrEvent {
   sig?: string;
 }
 
-/** This client's identifier, stamped on every list we publish for diagnosability. */
-const CLIENT_TAG = ["client", "Brainstorm"];
-
-/** Replace any existing client tag with ours (deduped). */
-function withClientTag(tags: string[][]): string[][] {
-  return [...tags.filter((t) => t[0] !== "client"), CLIENT_TAG];
-}
-
 /**
  * Pick the most-authoritative contact list among the candidates: the one with the
  * MOST `p` tags (ties broken by newest `created_at`). This stops us from merging
@@ -264,7 +256,7 @@ async function publishContactList(
     const draft = await build(base ? ContactsFactory.modify(base as never) : ContactsFactory.create());
     const signed = await signAs(account, {
       kind: 3,
-      tags: withClientTag(draft.tags),
+      tags: draft.tags,
       content: base?.content || "",
     });
     const res = await publishToRelays(signed);
@@ -459,7 +451,7 @@ async function publishMuteList(
     const draft = await build(MuteListFactory.modify(base as never));
     const signed = await signAs(account, {
       kind: 10000,
-      tags: withClientTag(draft.tags),
+      tags: draft.tags,
       content: base.content || "",
     });
     return await publishToRelays(signed);

@@ -14,8 +14,6 @@ import { relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { searchRelay } from "@/lib/searchRelay";
 
 export const RSVP_KIND = 31925;
-const CLIENT_TAG = ["client", "Brainstorm"];
-
 type CalendarLike = { id: string; kind: number; pubkey: string; tags: string[][] };
 
 export type RsvpStatus = "accepted" | "tentative" | "declined";
@@ -59,7 +57,6 @@ export async function publishRsvp(event: CalendarLike, status: RsvpStatus = "acc
         ["status", status],
         tagWithHint("p", event.pubkey, hint),
         ["alt", `RSVP: ${status}`],
-        CLIENT_TAG,
       ],
       content: "",
     });
@@ -87,7 +84,6 @@ export async function withdrawRsvp(rsvp: { id: string; d: string }, hostPubkey?:
         // Both `e` and `a` here point at the VIEWER's own events, so nothing in
         // the tags would otherwise name the person this actually concerns.
         ...(hostPubkey ? [tagWithHint("p", hostPubkey, relayHintFor(hostPubkey))] : []),
-        CLIENT_TAG,
       ],
       content: "RSVP withdrawn",
     });

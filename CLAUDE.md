@@ -30,6 +30,10 @@ Single-context layout — [`CONTEXT.md`](CONTEXT.md) + [`docs/adr/`](docs/adr/) 
 
 PR → merge into `staging` → deploy staging from brainstorm-k8s. By default create the PR and walk the user through the rest. See `docs/agents/staging-deploy.md`.
 
+## Signing events
+
+Sign through `signAs()` (`client/src/accounts/signing.ts`), never `account.signEvent`/`finalizeEvent` directly — it picks the Active Account and stamps the `["client", "Brainstorm"]` tag.
+
 ## Design system (use the primitives)
 
 New UI **must** use the shared primitives instead of hand-rolling styles — this is what keeps theming/spacing consistent and stops dark-mode drift. Do **not** write `bg-<color>-50 dark:bg-<color>-500/10 …` tinted pills or `rounded-2xl border bg-white dark:bg-slate-900 shadow-sm` cards by hand.
