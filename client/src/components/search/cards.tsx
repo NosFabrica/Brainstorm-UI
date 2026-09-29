@@ -30,7 +30,6 @@ import {
   Package,
   Radio,
   ShoppingBag,
-  Star,
 } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
@@ -61,7 +60,6 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
 import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
-import { describeThing, type Thing } from "@/lib/thing";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -86,7 +84,7 @@ function fmtWhen(created_at: number): string {
   }
 }
 
-function AuthorRow({
+export function AuthorRow({
   author,
   score,
   created_at,
@@ -122,7 +120,7 @@ function AuthorRow({
 
 /** The enterprise footer both people-facing cards close on: a hairline,
  *  a kicker, a small ringed face + name, and the date at the far right. */
-function CuratorFooter({
+export function CuratorFooter({
   kicker,
   author,
   score,
@@ -168,7 +166,7 @@ function CuratorFooter({
   );
 }
 
-function CardShell({
+export function CardShell({
   event,
   children,
   openInUrl,
@@ -521,7 +519,7 @@ const FORGE_LABELS: Record<string, string> = {
 /** Clone URLs on these hosts double as browsable repo pages. */
 const BROWSABLE_FORGES = new Set(["github.com", "gitlab.com", "codeberg.org", "bitbucket.org"]);
 
-function hostOf(url: string): string | null {
+export function hostOf(url: string): string | null {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
   } catch {
@@ -533,7 +531,7 @@ function hostOf(url: string): string | null {
  *  (npub1….nsite.lol, npub1….pages.gittr.space) collapse to the site people
  *  would recognize; anything still long gets bounded so it can't swamp the
  *  corner. */
-function hostLabel(host: string): string {
+export function hostLabel(host: string): string {
   if (FORGE_LABELS[host]) return FORGE_LABELS[host];
   const trimmed = host
     .split(".")
@@ -575,7 +573,7 @@ export function repoDestination(event: NostrEvent): { url: string; host: string;
   }
 }
 
-type MemberProfile = { name?: string; display_name?: string; picture?: string };
+export type MemberProfile = { name?: string; display_name?: string; picture?: string };
 
 export function RepoCard({
   event,
@@ -1045,7 +1043,7 @@ export function LiveTile({
  * or watch a past one's recording when there is one.
  */
 /** Profiles for a few faces: the store first, one fetch for the rest. */
-function useFaceProfiles(pubkeys: string[]): Map<string, MemberProfile> {
+export function useFaceProfiles(pubkeys: string[]): Map<string, MemberProfile> {
   const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
   const key = pubkeys.join(",");
   useEffect(() => {
@@ -1717,143 +1715,6 @@ export function ListingCard({
           />
         </div>
       )}
-    </CardShell>
-  );
-}
-
-/** Five stars, filled to the rating (rounded to the half) — a review's score at a glance. */
-function Stars({ stars, testId }: { stars: number; testId?: string }) {
-  const halves = Math.round(stars * 2);
-  return (
-    <span
-      className="inline-flex items-center gap-0.5"
-      role="img"
-      aria-label={`${(halves / 2).toString()} out of 5 stars`}
-      data-testid={testId}
-    >
-      {[0, 1, 2, 3, 4].map((i) => {
-        const fill = halves >= (i + 1) * 2 ? "full" : halves === i * 2 + 1 ? "half" : "none";
-        return (
-          <span key={i} className="relative h-3.5 w-3.5">
-            <Star className="absolute inset-0 h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />
-            {fill !== "none" && (
-              <span className={`absolute inset-0 overflow-hidden ${fill === "half" ? "w-1/2" : "w-full"}`}>
-                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-              </span>
-            )}
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-/**
- * The card for the kinds with no card of their own — communities, groups
- * and channels, fundraisers and zap goals, reviews, stalls and marketplaces,
- * app handlers and Nostr sites, calendars, badges, emoji packs, playlists,
- * torrents, learning resources (lib/thing reads each). One shape for all:
- * the name with its picture in the corner, two lines of description, a
- * review's stars, a line of quiet facts, and whose it is.
- * Returns nothing for an event lib/thing cannot name — the tabs gate on
- * the same read, so it never happens there.
- */
-export function ThingCard({
-  event,
-  author,
-  score,
-  thing: given,
-}: {
-  event: NostrEvent;
-  author: SearchResult | null;
-  score?: number | null;
-  /** Already read by the caller; read here when not. */
-  thing?: Thing | null;
-}) {
-  const thing = given ?? describeThing(event);
-  if (!thing) return null;
-  const review = thing.stars !== null || event.kind === 34259 || event.kind === 31987 || event.kind === 38000;
-  const linkHost = thing.link ? (hostOf(thing.link) ?? undefined) : undefined;
-  return (
-    <CardShell
-      event={event}
-      openInUrl={thing.link ?? undefined}
-      openInLabel={linkHost ? `Visit ${hostLabel(linkHost)}` : undefined}
-      openInHost={linkHost}
-      openInTestId={`thing-link-${event.id}`}
-      openInPlacement="footer"
-      fill
-      testId={`thing-card-${event.id}`}
-    >
-      <div className="flex h-full flex-col">
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <p
-                className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100"
-                data-testid={`thing-title-${event.id}`}
-              >
-                {thing.title}
-              </p>
-              <KindPill event={event} mixed={false} />
-            </div>
-            {thing.stars !== null && (
-              <div className="mt-1 flex items-center gap-1.5">
-                <Stars stars={thing.stars} testId={`thing-stars-${event.id}`} />
-              </div>
-            )}
-            {thing.description && (
-              <p
-                className={`mt-1 break-words text-xs leading-4 text-slate-500 dark:text-slate-400 ${review ? "line-clamp-4" : "line-clamp-2"}`}
-                data-testid={`thing-description-${event.id}`}
-              >
-                {thing.description}
-              </p>
-            )}
-            {thing.previews.length > 0 && (
-              <div
-                className="mt-2 flex items-center gap-1.5 overflow-hidden"
-                data-testid={`thing-previews-${event.id}`}
-              >
-                {thing.previews.map((src) => (
-                  <img key={src} src={src} alt="" loading="lazy" className="h-6 w-6 shrink-0 object-contain" />
-                ))}
-              </div>
-            )}
-            {thing.facts.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5" data-testid={`thing-facts-${event.id}`}>
-                {thing.facts.map((f) => (
-                  <Chip key={f} size="sm" tone="slate">
-                    {f}
-                  </Chip>
-                ))}
-              </div>
-            )}
-          </div>
-          {thing.image && (
-            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-800 dark:ring-white/10">
-              <img
-                src={thing.image}
-                alt=""
-                loading="lazy"
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  (e.currentTarget.parentElement as HTMLElement).style.display = "none";
-                }}
-                data-testid={`thing-image-${event.id}`}
-              />
-            </div>
-          )}
-        </div>
-        <div className={`mt-auto pt-2.5 ${thing.link ? "pr-24" : ""}`}>
-          <CuratorFooter
-            kicker={review ? "Reviewed by" : "By"}
-            author={author}
-            score={score}
-            created_at={event.created_at}
-          />
-        </div>
-      </div>
     </CardShell>
   );
 }

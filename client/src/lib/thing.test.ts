@@ -4,7 +4,15 @@
  * (probed 2026-09-29) — including the junk that shares their kind numbers.
  */
 import { describe, expect, it } from "vitest";
-import { describeThing, hostOfUrl, oneCardPerChannel, starsOf, THING_KINDS } from "./thing";
+import {
+  decodeEntities,
+  describeThing,
+  hostOfUrl,
+  licenseLabel,
+  oneCardPerChannel,
+  starsOf,
+  THING_KINDS,
+} from "./thing";
 
 const ev = (kind: number, tags: string[][], content = "") => ({ kind, tags, content, created_at: 1_790_000_000 });
 
@@ -421,5 +429,33 @@ describe("oneCardPerChannel — NIP-28 channels, once each", () => {
       at("s1", 41, stranger, 9, '{"name":"Scam giveaway"}', [["e", "ch40"]]),
     ];
     expect(oneCardPerChannel(hits).map((h) => h.event.id)).toEqual(["a2", "s1"]);
+  });
+});
+
+describe("decodeEntities — HTML entities publishers leave in plain text", () => {
+  it("decodes the named and numeric ones, leaves the rest", () => {
+    expect(decodeEntities("Kettle &amp; Pine")).toBe("Kettle & Pine");
+    expect(decodeEntities("&lt;b&gt; &#39;x&#39; &#x2764;")).toBe("<b> 'x' ❤");
+    expect(decodeEntities("&unknown; & alone")).toBe("&unknown; & alone");
+  });
+
+  it("is applied to every thing's title and description", () => {
+    expect(
+      describeThing(
+        ev(35128, [
+          ["d", "k"],
+          ["title", "Kettle &amp; Pine"],
+        ]),
+      )?.title,
+    ).toBe("Kettle & Pine");
+  });
+});
+
+describe("licenseLabel", () => {
+  it("names Creative Commons licences the way people write them", () => {
+    expect(licenseLabel("https://creativecommons.org/licenses/by-nc-sa/4.0/")).toBe("CC BY-NC-SA 4.0");
+    expect(licenseLabel("https://creativecommons.org/publicdomain/zero/1.0/")).toBe("CC0");
+    expect(licenseLabel("MIT")).toBe("MIT");
+    expect(licenseLabel(undefined)).toBeNull();
   });
 });

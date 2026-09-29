@@ -52,7 +52,14 @@ import { MoreResults } from "./MoreResults";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
-import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsvps } from "@/services/search";
+import {
+  fetchEventRsvps,
+  fetchGitCommentCounts,
+  fetchGitStatuses,
+  fetchGoalProgress,
+  type EventRsvps,
+  type GoalProgress,
+} from "@/services/search";
 import {
   GIT_STATE_LABEL,
   foldForks,
@@ -75,9 +82,9 @@ import {
   platformWords,
   mediaUrlOf,
   ListingCard,
-  ThingCard,
   type ListGroupView,
 } from "@/components/search/cards";
+import { ThingCard } from "@/components/search/thingCards";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
 import {
@@ -1196,6 +1203,29 @@ export function SearchResults({
   const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
   // Events tab: who is going — one request per page, keyed by event coordinate.
   const [eventRsvps, setEventRsvps] = useState<Map<string, EventRsvps>>(new Map());
+  // Fundraisers tab: what each zap goal has raised — one request per page.
+  // Keyed by the goals it answered for: a goal on that page with no receipt raised nothing yet.
+  const [goalProgress, setGoalProgress] = useState<{ key: string; byGoal: Map<string, GoalProgress> }>({
+    key: "",
+    byGoal: new Map(),
+  });
+  const goalIdsKey = useMemo(
+    () => (tab === "fundraisers" ? hits.filter((h) => h.event.kind === 9041).map((h) => h.event.id) : []).join(","),
+    [hits, tab],
+  );
+  useEffect(() => {
+    if (!goalIdsKey) {
+      setGoalProgress({ key: "", byGoal: new Map() });
+      return;
+    }
+    let alive = true;
+    void fetchGoalProgress(goalIdsKey.split(",")).then((byGoal) => {
+      if (alive) setGoalProgress({ key: goalIdsKey, byGoal });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [goalIdsKey]);
   const eventAddresses = useMemo(
     () =>
       tab === "events"
@@ -2333,6 +2363,11 @@ export function SearchResults({
                                 author={hit.author}
                                 score={scoreOf(event.pubkey)}
                                 thing={thing}
+                                progress={
+                                  event.kind !== 9041 || goalProgress.key !== goalIdsKey
+                                    ? undefined
+                                    : (goalProgress.byGoal.get(event.id) ?? { sats: 0, zappers: [] })
+                                }
                               />,
                             );
                         }

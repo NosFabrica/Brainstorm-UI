@@ -27,7 +27,81 @@ export interface Thing {
   link: string | null;
   /** Small pictures that ARE the thing — an emoji pack's first few emoji. */
   previews: string[];
+  /** What this kind's own card draws beyond the common shape (components/search/thingCards). */
+  detail: ThingDetail;
 }
+
+export type TorrentCategory = "audio" | "video" | "image" | "software" | "archive" | "other";
+
+/** The per-kind part of a [Thing], one shape per card. */
+export type ThingDetail =
+  | {
+      type: "community";
+      /** NIP-72 moderated community, NIP-29 relay group, or NIP-28 public chat channel. */
+      variant: "moderated" | "group" | "channel";
+      moderators: string[];
+      rules: string | null;
+      isPublic: boolean;
+      isOpen: boolean;
+    }
+  | {
+      type: "fundraiser";
+      /** A NIP-75 zap goal (raised by zaps, so progress can be counted) vs an Agora campaign (on-chain). */
+      zapGoal: boolean;
+      goalSats: number | null;
+      /** Unix seconds. */
+      deadline: number | null;
+      ended: boolean;
+      topics: string[];
+    }
+  | {
+      type: "review";
+      subject: "relay" | "mint" | "entity";
+      /** What sort of thing is reviewed, in words: "Relay", "Ecash mint", "Book". */
+      subjectLabel: string;
+      /** A relay review's per-aspect scores (speed, uptime…), out of five. */
+      aspects: { name: string; stars: number }[];
+    }
+  | { type: "shop"; variant: "stall" | "marketplace"; currency: string | null; zones: string[]; merchants: number }
+  | {
+      type: "app";
+      variant: "handler" | "site" | "napplet";
+      /** The kinds a NIP-89 handler opens. */
+      handles: number[];
+      files: number;
+      /** A napplet's required host capabilities. */
+      requires: string[];
+      topics: string[];
+    }
+  | { type: "calendar"; events: number; location: string | null; topics: string[] }
+  | { type: "badge" }
+  | { type: "emoji"; emoji: { code: string; url: string }[] }
+  | {
+      type: "playlist";
+      variant: "album" | "ep" | "playlist";
+      tracks: number;
+      artist: string | null;
+      trackLines: string[];
+    }
+  | {
+      type: "learning";
+      language: string | null;
+      license: string | null;
+      free: boolean;
+      creator: string | null;
+      audience: string[];
+      topics: string[];
+    }
+  | {
+      type: "torrent";
+      files: { name: string; bytes: number }[];
+      totalBytes: number;
+      /** The BitTorrent v1 info hash, when the `x` tag holds one. */
+      infoHash: string | null;
+      trackers: string[];
+      category: TorrentCategory;
+      topics: string[];
+    };
 
 /** Every kind [describeThing] reads. */
 export const THING_KINDS = new Set([
@@ -112,7 +186,7 @@ const MARK_NOUNS: Record<string, string> = {
   profile: "a person",
 };
 
-function thing(partial: Partial<Thing> & { title: string }): Thing {
+function thing(partial: Partial<Thing> & { title: string; detail: ThingDetail }): Thing {
   return {
     description: null,
     image: null,
@@ -135,7 +209,12 @@ export function describeThing(ev: EventLike): Thing | null {
   if (!THING_KINDS.has(ev.kind)) return null;
   const known = read.get(ev);
   if (known !== undefined) return known;
-  const thing = readThing(ev);
+  const raw = readThing(ev);
+  const thing = raw && {
+    ...raw,
+    title: decodeEntities(raw.title),
+    description: raw.description && decodeEntities(raw.description),
+  };
   read.set(ev, thing);
   return thing;
 }
@@ -154,19 +233,35 @@ function readThing(ev: EventLike): Thing | null {
         description: str(json?.about) ?? null,
         image: isHttp(picture) ? picture : null,
         facts: ["Public chat"],
+        detail: { type: "community", variant: "channel", moderators: [], rules: null, isPublic: true, isOpen: true },
       });
     }
-    // NIP-72 moderated community.
+    // NIP-72 moderated community: its moderators are `p` tags with the role
+    // (or no role at all, as Amethyst and chorus publish them).
     case 34550: {
       const title = tag(ev, "name") ?? tag(ev, "d");
       if (!title) return null;
-      const mods = ev.tags.filter((t) => t[0] === "p" && t[1] && (!t[3] || t[3] === "moderator")).length;
+      const moderators = [
+        ...new Set(
+          ev.tags
+            .filter((t) => t[0] === "p" && /^[0-9a-f]{64}$/i.test(t[1] ?? "") && (!t[3] || t[3] === "moderator"))
+            .map((t) => t[1].toLowerCase()),
+        ),
+      ];
       const image = tag(ev, "image");
       return thing({
         title,
         description: tag(ev, "description") ?? null,
         image: isHttp(image) ? image : null,
-        facts: mods > 0 ? [plural(mods, "moderator")] : [],
+        facts: moderators.length > 0 ? [plural(moderators.length, "moderator")] : [],
+        detail: {
+          type: "community",
+          variant: "moderated",
+          moderators,
+          rules: rulesOf(ev),
+          isPublic: true,
+          isOpen: true,
+        },
       });
     }
     // NIP-29 relay-based group: its name, about, and whether anyone may join.
@@ -175,25 +270,40 @@ function readThing(ev: EventLike): Thing | null {
       if (!title) return null;
       const has = (k: string) => ev.tags.some((t) => t[0] === k);
       const picture = tag(ev, "picture");
-      const about = tag(ev, "about");
+      const isPublic = !has("private");
+      const isOpen = !has("closed");
       return thing({
         title,
-        description: about ?? null,
+        description: tag(ev, "about") ?? null,
         image: isHttp(picture) ? picture : null,
-        facts: [has("private") ? "Private" : "Public", has("closed") ? "Closed" : "Open to join"],
+        facts: [isPublic ? "Public" : "Private", isOpen ? "Open to join" : "Closed"],
+        detail: { type: "community", variant: "group", moderators: [], rules: null, isPublic, isOpen },
       });
     }
-    // NIP-15 stall: a merchant's shop, JSON in content. The kind number is
-    // also a typing game's score sheet — no name, not a stall.
+    // NIP-15 stall: a merchant's shop, JSON in content — its currency and
+    // where it ships. The kind number is also a typing game's score sheet:
+    // no name, not a stall.
     case 30017: {
       const json = jsonContent(ev);
       const title = str(json?.name);
       if (!title) return null;
-      const currency = str(json?.currency);
+      const currency = str(json?.currency)?.toUpperCase() ?? null;
+      const zones = Array.isArray(json?.shipping)
+        ? [
+            ...new Set(
+              json.shipping.flatMap((z) => {
+                const zone = z as Record<string, unknown> | null;
+                const regions = Array.isArray(zone?.regions) ? zone.regions.map(str).filter(Boolean) : [];
+                return regions.length ? (regions as string[]) : [str(zone?.name)].filter((n): n is string => !!n);
+              }),
+            ),
+          ]
+        : [];
       return thing({
         title,
         description: str(json?.description) ?? null,
-        facts: ["Shop", ...(currency ? [`Prices in ${currency.toUpperCase()}`] : [])],
+        facts: ["Shop", ...(currency ? [`Prices in ${currency}`] : [])],
+        detail: { type: "shop", variant: "stall", currency, zones, merchants: 0 },
       });
     }
     // NIP-15 marketplace: a curated set of merchants, JSON in content.
@@ -209,6 +319,7 @@ function readThing(ev: EventLike): Thing | null {
         description: str(json?.about) ?? null,
         image: isHttp(picture) ? picture : null,
         facts: ["Marketplace", ...(merchants > 0 ? [plural(merchants, "merchant")] : [])],
+        detail: { type: "shop", variant: "marketplace", currency: null, zones: [], merchants },
       });
     }
     // NIP-89 handler: an app's profile (kind-0 shaped JSON) and the kinds it opens.
@@ -218,13 +329,16 @@ function readThing(ev: EventLike): Thing | null {
       if (!title) return null;
       const picture = str(json?.picture) ?? str(json?.image);
       const website = str(json?.website);
-      const kinds = count(ev, "k");
+      const handles = [
+        ...new Set(ev.tags.filter((t) => t[0] === "k" && /^\d+$/.test(t[1] ?? "")).map((t) => Number(t[1]))),
+      ];
       return thing({
         title,
         description: str(json?.about) ?? str(json?.description) ?? null,
         image: isHttp(picture) ? picture : null,
         link: isHttp(website) ? website : null,
-        facts: kinds > 0 ? [`Opens ${plural(kinds, "kind")}`] : [],
+        facts: handles.length > 0 ? [`Opens ${plural(handles.length, "kind")}`] : [],
+        detail: { type: "app", variant: "handler", handles, files: 0, requires: [], topics: topicsOf(ev) },
       });
     }
     // NIP-5A static sites (root 15128, named 35128) and NIP-5D napplets
@@ -241,6 +355,14 @@ function readThing(ev: EventLike): Thing | null {
         title,
         description: tag(ev, "description") ?? (ev.content.trim() || null),
         facts: [napplet ? "Mini app" : "Nostr site", ...(files > 1 ? [plural(files, "file")] : [])],
+        detail: {
+          type: "app",
+          variant: napplet ? "napplet" : "site",
+          handles: [],
+          files,
+          requires: [...new Set(ev.tags.filter((t) => t[0] === "requires" && t[1]).map((t) => t[1]))],
+          topics: topicsOf(ev),
+        },
       });
     }
     // NIP-58 badge definition.
@@ -253,36 +375,49 @@ function readThing(ev: EventLike): Thing | null {
         description: tag(ev, "description") ?? null,
         image: isHttp(image) ? image : null,
         facts: ["Badge"],
+        detail: { type: "badge" },
       });
     }
     // NIP-51 emoji set: the emoji are the thing, so a few of them show.
     case 30030: {
       const title = tag(ev, "title") ?? tag(ev, "name") ?? tag(ev, "d");
       if (!title) return null;
-      const emoji = ev.tags.filter((t) => t[0] === "emoji" && isHttp(t[2])).map((t) => t[2]);
+      const emoji = ev.tags
+        .filter((t) => t[0] === "emoji" && t[1] && isHttp(t[2]))
+        .map((t) => ({ code: t[1], url: t[2] }));
       if (emoji.length === 0) return null;
       return thing({
         title,
         description: tag(ev, "description") ?? null,
         facts: [plural(emoji.length, "emoji", "emoji")],
-        previews: emoji.slice(0, 8),
+        previews: emoji.slice(0, 8).map((e) => e.url),
+        detail: { type: "emoji", emoji },
       });
     }
-    // A music playlist or album: its title, notes and cover, and how many tracks.
+    // A music playlist or album: its title, notes and cover, how many tracks,
+    // and the first few by name — Yakihonne and wavlake-style publishers list
+    // them in content, one "artist - title" per line under a `#` heading.
     case 34139: {
       const title = tag(ev, "title") ?? tag(ev, "d");
       if (!title) return null;
       const image = tag(ev, "image");
       const tracks = count(ev, "a") + count(ev, "e");
       const type = tag(ev, "type");
+      const variant = type === "album" ? "album" : type === "ep" ? "ep" : "playlist";
+      const trackLines = ev.content
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => / [-–—] /.test(l) && !l.startsWith("#") && !/https?:\/\//i.test(l))
+        .slice(0, 3);
       return thing({
         title,
         description: tag(ev, "description") ?? null,
         image: isHttp(image) ? image : null,
         facts: [
-          type === "album" ? "Album" : type === "ep" ? "EP" : "Playlist",
+          variant === "album" ? "Album" : variant === "ep" ? "EP" : "Playlist",
           ...(tracks > 0 ? [plural(tracks, "track")] : []),
         ],
+        detail: { type: "playlist", variant, tracks, artist: tag(ev, "artist") ?? null, trackLines },
       });
     }
     // NIP-75 zap goal: the content is the goal; `amount` is millisats.
@@ -290,13 +425,24 @@ function readThing(ev: EventLike): Thing | null {
       const title = ev.content.trim().split("\n")[0]?.trim();
       if (!title) return null;
       const msats = Number(tag(ev, "amount"));
+      const goalSats = Number.isFinite(msats) && msats > 0 ? Math.round(msats / 1000) : null;
+      const closes = Number(tag(ev, "closed_at"));
+      const deadline = Number.isFinite(closes) && closes > 0 ? closes : null;
       const image = tag(ev, "image");
       return thing({
         title,
         description: tag(ev, "summary") ?? null,
         image: isHttp(image) ? image : null,
         link: isHttp(tag(ev, "link")) ? tag(ev, "link")! : null,
-        facts: Number.isFinite(msats) && msats > 0 ? [`Goal ${plural(Math.round(msats / 1000), "sat")}`] : [],
+        facts: goalSats ? [`Goal ${plural(goalSats, "sat")}`] : [],
+        detail: {
+          type: "fundraiser",
+          zapGoal: true,
+          goalSats,
+          deadline,
+          ended: deadline !== null && deadline * 1000 < Date.now(),
+          topics: topicsOf(ev),
+        },
       });
     }
     // Agora fundraiser: a campaign with a story, a banner and a goal in sats.
@@ -309,16 +455,16 @@ function readThing(ev: EventLike): Thing | null {
         ?.slice(4);
       const image = tag(ev, "banner") ?? tag(ev, "image") ?? imetaUrl;
       const goal = Number(tag(ev, "goal"));
-      const deadline = Number(tag(ev, "deadline"));
-      const over = Number.isFinite(deadline) && deadline > 0 && deadline * 1000 < Date.now();
+      const goalSats = Number.isFinite(goal) && goal > 0 ? goal : null;
+      const due = Number(tag(ev, "deadline"));
+      const deadline = Number.isFinite(due) && due > 0 ? due : null;
+      const ended = deadline !== null && deadline * 1000 < Date.now();
       return thing({
         title,
         description: ev.content.trim() || tag(ev, "summary") || null,
         image: isHttp(image) ? image : null,
-        facts: [
-          ...(Number.isFinite(goal) && goal > 0 ? [`Goal ${plural(goal, "sat")}`] : []),
-          ...(over ? ["Ended"] : []),
-        ],
+        facts: [...(goalSats ? [`Goal ${plural(goalSats, "sat")}`] : []), ...(ended ? ["Ended"] : [])],
+        detail: { type: "fundraiser", zapGoal: false, goalSats, deadline, ended, topics: topicsOf(ev) },
       });
     }
     // A rating of anything (kind 34259): the mark says what sort of thing.
@@ -331,18 +477,31 @@ function readThing(ev: EventLike): Thing | null {
         title: `Rating of ${about}`,
         description: review || null,
         stars: starsOf(ev),
+        detail: {
+          type: "review",
+          subject: "entity",
+          subjectLabel: capitalize(about.replace(/^an? /, "")),
+          aspects: [],
+        },
       });
     }
-    // A review of a relay (kind 31987): `d` is the relay's URL.
+    // A review of a relay (kind 31987): `d` is the relay's URL; a `rating`
+    // with a third element scores one aspect of it (speed, uptime…).
     case 31987: {
       const relay = tag(ev, "d") ?? tag(ev, "relay");
       if (!relay) return null;
       const host = hostOfUrl(relay);
+      const aspects = ev.tags
+        .filter((t) => t[0] === "rating" && t[2])
+        .map((t) => ({ name: capitalize(t[2]), fraction: Number(t[1]) }))
+        .filter((a) => Number.isFinite(a.fraction) && a.fraction >= 0 && a.fraction <= 1)
+        .map((a) => ({ name: a.name, stars: a.fraction * 5 }));
       return thing({
         title: host,
         description: ev.content.trim() || null,
         stars: starsOf(ev, "fraction"),
         facts: ["Relay review"],
+        detail: { type: "review", subject: "relay", subjectLabel: "Relay", aspects },
       });
     }
     // NIP-87 mint recommendation: `u` is the mint.
@@ -356,6 +515,7 @@ function readThing(ev: EventLike): Thing | null {
         stars: starsOf(ev, "stars"),
         link: isHttp(mint) ? mint : null,
         facts: ["Ecash mint"],
+        detail: { type: "review", subject: "mint", subjectLabel: "Ecash mint", aspects: [] },
       });
     }
     // NIP-52 calendar: a named collection of events.
@@ -363,46 +523,142 @@ function readThing(ev: EventLike): Thing | null {
       const title = tag(ev, "title") ?? tag(ev, "d");
       if (!title) return null;
       const events = count(ev, "a");
-      const location = tag(ev, "location");
+      const location = tag(ev, "location") ?? null;
       return thing({
         title,
         description: ev.content.trim() || tag(ev, "summary") || null,
         image: isHttp(tag(ev, "image")) ? tag(ev, "image")! : null,
         facts: ["Calendar", ...(events > 0 ? [plural(events, "event")] : []), ...(location ? [location] : [])],
+        detail: { type: "calendar", events, location, topics: topicsOf(ev) },
       });
     }
-    // A learning resource (kind 30142): name, description, language.
+    // A learning resource (kind 30142, the edufeed/AMB shape): name,
+    // description, language, licence, audience, and the resource itself —
+    // its `d` is the resource's own URL.
     case 30142: {
       const title = tag(ev, "name") ?? tag(ev, "title");
       if (!title) return null;
       const image = tag(ev, "image");
-      const lang = tag(ev, "inLanguage");
+      const lang = tag(ev, "inLanguage") ?? null;
+      const url = [tag(ev, "d"), tag(ev, "url"), tag(ev, "r")].find(isHttp) ?? null;
+      const audience = [
+        ...new Set(
+          ev.tags
+            // A bare number ("3") is a grade or level with its context lost; it says nothing on its own.
+            .filter((t) => /:prefLabel(:[a-z-]+)?$/i.test(t[0] ?? "") && t[1]?.trim() && !/^\d+$/.test(t[1].trim()))
+            .map((t) => t[1].trim()),
+        ),
+      ].slice(0, 3);
       return thing({
         title,
         description: tag(ev, "description") ?? (ev.content.trim() || null),
         image: isHttp(image) ? image : null,
+        link: url,
         facts: ["Learning resource", ...(lang ? [lang.toUpperCase()] : [])],
+        detail: {
+          type: "learning",
+          language: lang,
+          license: licenseLabel(tag(ev, "license:id") ?? tag(ev, "license")),
+          free: tag(ev, "isAccessibleForFree") === "true",
+          creator: tag(ev, "creator:name") ?? null,
+          audience,
+          topics: topicsOf(ev),
+        },
       });
     }
-    // NIP-35 torrent: the title, what the uploader said, and the files' size.
+    // NIP-35 torrent: the title, what the uploader said, the files and their
+    // size, and the info hash a magnet link is made of.
     case 2003: {
       const title = tag(ev, "title");
       if (!title) return null;
-      const files = ev.tags.filter((t) => t[0] === "file");
-      const bytes = files.reduce((n, t) => n + (Number(t[2]) || 0), 0);
+      const files = ev.tags
+        .filter((t) => t[0] === "file" && t[1])
+        .map((t) => ({ name: t[1], bytes: Number(t[2]) || 0 }));
+      const totalBytes = files.reduce((n, f) => n + f.bytes, 0);
+      const infoHash = tag(ev, "x");
       return thing({
         title,
         description: ev.content.trim() || null,
         facts: [
           "Torrent",
           ...(files.length > 1 ? [plural(files.length, "file")] : []),
-          ...(bytes > 0 ? [formatBytes(bytes)] : []),
+          ...(totalBytes > 0 ? [formatBytes(totalBytes)] : []),
         ],
+        detail: {
+          type: "torrent",
+          files,
+          totalBytes,
+          infoHash: infoHash && /^[0-9a-f]{40}$/i.test(infoHash) ? infoHash.toLowerCase() : null,
+          trackers: ev.tags.filter((t) => t[0] === "tracker" && t[1]).map((t) => t[1]),
+          category: torrentCategory(ev, files),
+          topics: topicsOf(ev),
+        },
       });
     }
     default:
       return null;
   }
+}
+
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+/**
+ * Publishers that write from HTML leave its entities in plain-text fields —
+ * "Kettle &amp; Pine" on staging. The common named ones and numeric ones are
+ * decoded; anything else is left as written.
+ */
+export function decodeEntities(text: string): string {
+  if (!text.includes("&")) return text;
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, code: string) => {
+    if (code[0] === "#") {
+      const n = code[1] === "x" || code[1] === "X" ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+      return Number.isFinite(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : whole;
+    }
+    return ENTITIES[code.toLowerCase()] ?? whole;
+  });
+}
+
+/** A community's rules, unless they only repeat its description. */
+function rulesOf(ev: EventLike): string | null {
+  const rules = tag(ev, "rules") ?? tag(ev, "guidelines");
+  return rules && rules !== tag(ev, "description") ? rules : null;
+}
+
+/** An event's `t` topics, lower-cased and de-duplicated. */
+function topicsOf(ev: EventLike): string[] {
+  return [...new Set(ev.tags.filter((t) => t[0] === "t" && t[1]?.trim()).map((t) => t[1].trim().toLowerCase()))];
+}
+
+const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/** "CC BY 4.0" from a Creative Commons URL; any other licence as written. */
+export function licenseLabel(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const cc = raw.match(/creativecommons\.org\/(?:licenses|publicdomain)\/([a-z-]+)\/(\d(?:\.\d)?)/i);
+  if (cc) return cc[1].toLowerCase() === "zero" ? "CC0" : `CC ${cc[1].toUpperCase()} ${cc[2]}`;
+  return raw.length <= 24 ? raw : null;
+}
+
+const AUDIO_EXT = /\.(flac|mp3|m4a|aac|ogg|opus|wav|alac)$/i;
+const VIDEO_EXT = /\.(mkv|mp4|avi|mov|webm|m4v|wmv|ts)$/i;
+const IMAGE_EXT = /\.(jpe?g|png|gif|webp|tiff?|raw)$/i;
+const SOFTWARE_EXT = /\.(exe|dmg|iso|apk|deb|rpm|appimage|msi|pkg)$/i;
+const ARCHIVE_EXT = /\.(zip|rar|7z|tar|gz|bz2|xz)$/i;
+
+/** What a torrent holds, for its icon: its `t` topics first, else its files' extensions. */
+function torrentCategory(ev: EventLike, files: { name: string }[]): TorrentCategory {
+  const topics = new Set(topicsOf(ev));
+  if (["audio", "music", "flac", "mp3", "album", "podcast"].some((t) => topics.has(t))) return "audio";
+  if (["video", "movie", "movies", "film", "tv", "series", "anime"].some((t) => topics.has(t))) return "video";
+  if (["software", "game", "games", "app", "apps"].some((t) => topics.has(t))) return "software";
+  if (["image", "images", "photo", "photos"].some((t) => topics.has(t))) return "image";
+  const names = [ev.tags.find((t) => t[0] === "title")?.[1] ?? "", ...files.map((f) => f.name)];
+  if (names.some((n) => VIDEO_EXT.test(n))) return "video";
+  if (names.some((n) => AUDIO_EXT.test(n))) return "audio";
+  if (names.some((n) => SOFTWARE_EXT.test(n))) return "software";
+  if (names.some((n) => IMAGE_EXT.test(n))) return "image";
+  if (names.some((n) => ARCHIVE_EXT.test(n))) return "archive";
+  return "other";
 }
 
 type ChannelEvent = EventLike & { id: string; pubkey: string; created_at: number };

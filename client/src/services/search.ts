@@ -1730,6 +1730,74 @@ export function fetchEventRsvps(addresses: string[], timeoutMs = 5000): Promise<
   });
 }
 
+/** What a NIP-75 zap goal has raised so far, and from whom. */
+export interface GoalProgress {
+  sats: number;
+  /** Zappers, most recent first, once each. */
+  zappers: string[];
+}
+
+/**
+ * Progress for NIP-75 zap goals: the zap receipts (9735) that `e`-tag each
+ * goal, one REQ on the search relay for a page of goals. A receipt's amount
+ * is its embedded zap request's `amount` tag (millisats) — the one number a
+ * receipt carries without decoding its invoice; a receipt without one still
+ * counts its zapper. The page is capped, so a heavily zapped goal reads as
+ * at least this much. EOSE or timeout resolves; never rejects.
+ */
+export function fetchGoalProgress(goalIds: string[], timeoutMs = 5000): Promise<Map<string, GoalProgress>> {
+  return new Promise((resolve) => {
+    const out = new Map<string, GoalProgress>();
+    const relay = searchRelay();
+    if (!relay || goalIds.length === 0) return resolve(out);
+    const wanted = new Set(goalIds);
+    const seen = new Set<string>();
+    const tally = new Map<string, { msats: number; zappers: { pk: string; at: number }[] }>();
+    const sub = relay
+      .req({ kinds: [9735], "#e": goalIds, search: "include:spam", limit: Math.min(2000, goalIds.length * 200) })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const e = msg.event;
+          if (seen.has(e.id)) return;
+          seen.add(e.id);
+          const goal = e.tags.find((t) => t[0] === "e" && wanted.has(t[1]))?.[1];
+          if (!goal) return;
+          let request: { pubkey?: unknown; tags?: unknown } | null = null;
+          try {
+            const raw = e.tags.find((t) => t[0] === "description")?.[1];
+            if (raw) request = JSON.parse(raw);
+          } catch {
+            request = null;
+          }
+          const tags = Array.isArray(request?.tags) ? (request.tags as unknown[]) : [];
+          const amountTag = tags.find((t): t is string[] => Array.isArray(t) && t[0] === "amount");
+          const msats = Number(amountTag?.[1]);
+          const P = e.tags.find((t) => t[0] === "P")?.[1];
+          const pk = P ?? (typeof request?.pubkey === "string" ? request.pubkey : null);
+          const row = tally.get(goal) ?? { msats: 0, zappers: [] };
+          if (Number.isFinite(msats) && msats > 0) row.msats += msats;
+          if (pk) row.zappers.push({ pk, at: e.created_at });
+          tally.set(goal, row);
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      sub.unsubscribe();
+      for (const [goal, row] of tally) {
+        const zappers = [...new Set(row.zappers.sort((a, b) => b.at - a.at).map((z) => z.pk))];
+        out.set(goal, { sats: Math.floor(row.msats / 1000), zappers });
+      }
+      resolve(out);
+    }
+  });
+}
+
 /**
  * Cheap kind-0 typeahead: resolves at EOSE or the deadline with whatever
  * arrived — never rejects (a silent suggest beats a broken one).
