@@ -64,6 +64,9 @@ import {
   appAddress,
   fetchAppReviews,
   fetchAppZaps,
+  fetchGoalProgress,
+  bolt11Msats,
+  parseZapReceipt,
   fetchAppEndorsementCounts,
   fetchNoteEngagement,
   fetchAppsByAddress,
@@ -1814,6 +1817,96 @@ describe("fetchVouchReplies", () => {
   it("asks nothing for no vouches", async () => {
     expect((await fetchVouchReplies([])).size).toBe(0);
     expect(reqMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("bolt11Msats — an invoice's amount from its human-readable part", () => {
+  it("reads each multiplier, and no amount as none", () => {
+    expect(bolt11Msats("lnbc2500u1pvjluez")).toBe(250_000_000); // 2500 µBTC = 250k sats
+    expect(bolt11Msats("lnbc10n1pjx")).toBe(1_000); // 1 sat
+    expect(bolt11Msats("lnbc1m1pjx")).toBe(100_000_000);
+    expect(bolt11Msats("lnbc1pvjluez")).toBeNull(); // no amount
+    expect(bolt11Msats("not an invoice")).toBeNull();
+    expect(bolt11Msats(undefined)).toBeNull();
+  });
+});
+
+describe("parseZapReceipt", () => {
+  const receipt = (tags: string[][], content = "") =>
+    ({ id: "r", kind: 9735, pubkey: "e".repeat(64), created_at: 1, sig: "s", content, tags }) as NostrEvent;
+  const request = (amount?: string, pubkey = "c".repeat(64)) =>
+    JSON.stringify({ kind: 9734, pubkey, content: "gm", tags: amount ? [["amount", amount]] : [] });
+
+  it("counts what the invoice was for, not what the request asked", () => {
+    expect(
+      parseZapReceipt(
+        receipt([
+          ["bolt11", "lnbc10n1pjx"],
+          ["description", request("1000")],
+        ]),
+      ).msats,
+    ).toBe(1_000);
+    // Asked for 100M sats, invoiced 1 sat: the two must match, so it counts nothing.
+    expect(
+      parseZapReceipt(
+        receipt([
+          ["bolt11", "lnbc10n1pjx"],
+          ["description", request("100000000000")],
+        ]),
+      ).msats,
+    ).toBeNull();
+    // A request amount with no invoice is only a claim.
+    expect(parseZapReceipt(receipt([["description", request("5000")]])).msats).toBeNull();
+  });
+
+  it("names the zapper only by a 64-hex key", () => {
+    expect(parseZapReceipt(receipt([["P", "abc"]])).pubkey).toBeNull();
+    expect(parseZapReceipt(receipt([["description", request(undefined, "C".repeat(64))]])).pubkey).toBe("c".repeat(64));
+  });
+});
+
+describe("fetchGoalProgress", () => {
+  const goal = "9".repeat(64);
+  const receipt = (id: string, zapper: string, invoice: string) =>
+    ({
+      id,
+      kind: 9735,
+      pubkey: "e".repeat(64),
+      created_at: 1,
+      sig: "s",
+      content: "",
+      tags: [
+        ["e", goal],
+        ["P", zapper],
+        ["bolt11", invoice],
+      ],
+    }) as NostrEvent;
+
+  it("sums each goal's receipts, and a finished answer is complete", async () => {
+    const { subject } = controllable();
+    const pending = fetchGoalProgress([goal, "8".repeat(64)]);
+    await tick();
+    expect((reqMock.mock.calls[0][0] as Record<string, unknown>)["#e"]).toEqual([goal, "8".repeat(64)]);
+    subject.next(frame(receipt("r1", "a".repeat(64), "lnbc10u1pjx")));
+    subject.next(frame(receipt("r2", "b".repeat(64), "lnbc20u1pjx")));
+    subject.next(frame(receipt("r2", "b".repeat(64), "lnbc20u1pjx"))); // the same receipt twice counts once
+    subject.next(EOSE);
+    const { byGoal, complete } = await pending;
+    expect(complete).toBe(true);
+    expect(byGoal.get(goal)).toEqual({ sats: 3_000, zappers: ["a".repeat(64), "b".repeat(64)] });
+    expect(byGoal.has("8".repeat(64))).toBe(false);
+  });
+
+  it("an answer cut short by the deadline is not complete", async () => {
+    vi.useFakeTimers();
+    try {
+      controllable();
+      const pending = fetchGoalProgress([goal], 100);
+      await vi.advanceTimersByTimeAsync(150);
+      expect((await pending).complete).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

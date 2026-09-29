@@ -57,6 +57,7 @@ import { AuthorRow, CardShell, CuratorFooter, hostLabel, hostOf, useFaceProfiles
 import { describeThing, hostOfUrl, type Thing, type ThingDetail, type TorrentCategory } from "@/lib/thing";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { formatBytes } from "@/lib/formatBytes";
+import { languageName } from "@/lib/translate";
 import type { GoalProgress } from "@/services/search";
 import type { SearchResult } from "@/lib/profileSearch";
 
@@ -166,24 +167,27 @@ function Picture({
   fit?: "cover" | "contain";
   testId?: string;
 }) {
+  // The icon only stands in for a missing picture: under a transparent PNG
+  // (badge art, app icons) it would show through.
+  const [failed, setFailed] = useState<string | null>(null);
+  const showImage = !!src && failed !== src;
   const box = size === "lg" ? "h-20 w-20" : size === "sm" ? "h-10 w-10" : "h-12 w-12";
   const iconBox = size === "lg" ? "h-7 w-7" : "h-5 w-5";
   return (
     <span
       className={`relative flex ${box} shrink-0 items-center justify-center overflow-hidden bg-slate-100 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-800 dark:ring-white/10 ${shape === "round" ? "rounded-full" : "rounded-xl"}`}
     >
-      <Icon className={`${iconBox} text-slate-400 dark:text-slate-500`} aria-hidden="true" />
-      {src && (
+      {showImage ? (
         <img
           src={src}
           alt=""
           loading="lazy"
           className={`absolute inset-0 h-full w-full ${fit === "contain" ? "object-contain p-1" : "object-cover"}`}
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-          }}
+          onError={() => setFailed(src)}
           data-testid={testId}
         />
+      ) : (
+        <Icon className={`${iconBox} text-slate-400 dark:text-slate-500`} aria-hidden="true" />
       )}
     </span>
   );
@@ -400,9 +404,11 @@ export function FundraiserCard(props: CardProps<"fundraiser"> & { progress?: Goa
     >
       <div className="flex h-full flex-col">
         <div className="relative -mx-1 -mt-1 aspect-[2/1] overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-          <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
-            <HandHeart className="h-8 w-8" aria-hidden="true" />
-          </span>
+          {!thing.image && (
+            <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
+              <HandHeart className="h-8 w-8" aria-hidden="true" />
+            </span>
+          )}
           {thing.image && (
             <MediaImg
               src={thing.image}
@@ -439,7 +445,7 @@ export function FundraiserCard(props: CardProps<"fundraiser"> & { progress?: Goa
               >
                 <div
                   className="h-full rounded-full bg-brand-primary"
-                  style={{ width: `${Math.min(100, Math.max(pct, 2))}%` }}
+                  style={{ width: pct > 0 ? `${Math.min(100, Math.max(pct, 2))}%` : "0%" }}
                 />
               </div>
             )}
@@ -550,8 +556,8 @@ export function ReviewCard(props: CardProps<"review">) {
         )}
         {detail.aspects.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {detail.aspects.slice(0, 4).map((a) => (
-              <Chip key={a.name} size="sm" tone="slate">
+            {detail.aspects.slice(0, 4).map((a, i) => (
+              <Chip key={`${a.name}-${i}`} size="sm" tone="slate">
                 {a.name} {(Math.round(a.stars * 2) / 2).toString()}/5
               </Chip>
             ))}
@@ -585,9 +591,11 @@ export function ShopPlaceCard(props: CardProps<"shop">) {
   return (
     <CardShell event={event} fill testId={`thing-card-${event.id}`}>
       <div className="relative -mx-1 -mt-1 aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-        <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-slate-400 dark:text-slate-500">
-          <Store className="h-8 w-8" aria-hidden="true" />
-        </span>
+        {!thing.image && (
+          <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
+            <Store className="h-8 w-8" aria-hidden="true" />
+          </span>
+        )}
         {thing.image && (
           <MediaImg
             src={thing.image}
@@ -816,8 +824,8 @@ export function EmojiPackCard(props: CardProps<"emoji">) {
         className="mt-2.5 flex flex-wrap items-center gap-1.5 rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800/60"
         data-testid={`thing-previews-${event.id}`}
       >
-        {shown.map((e) => (
-          <Emoji key={e.code} code={e.code} url={e.url} />
+        {shown.map((e, i) => (
+          <Emoji key={`${e.code}-${i}`} code={e.code} url={e.url} />
         ))}
         {detail.emoji.length > shown.length && (
           <span className="flex h-7 items-center px-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
@@ -874,15 +882,6 @@ export function PlaylistCard(props: CardProps<"playlist">) {
 }
 
 // ——— Learning resources ———
-
-/** "German" from "de" in the reader's words; the code itself where the browser cannot say. */
-function languageName(code: string): string {
-  try {
-    return new Intl.DisplayNames(undefined, { type: "language" }).of(code) ?? code.toUpperCase();
-  } catch {
-    return code.toUpperCase();
-  }
-}
 
 /**
  * A lesson, course or worksheet, read like an article: what it is for and

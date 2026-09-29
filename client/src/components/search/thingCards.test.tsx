@@ -50,6 +50,8 @@ describe("FundraiserCard", () => {
     const e = goal();
     const { unmount } = card(e, { sats: 0, zappers: [] });
     expect(screen.getByTestId(`thing-goal-${e.id}`)).toHaveTextContent("0 sats of 10k");
+    // Nothing raised draws no sliver of progress.
+    expect((screen.getByRole("progressbar").firstElementChild as HTMLElement).style.width).toBe("0%");
     unmount();
     const over = ev(9041, [["amount", "69000"]], "Chinese Girlfriend");
     card(over, { sats: 210, zappers: [] });
@@ -189,6 +191,23 @@ describe("AppThingCard", () => {
     ]);
     card(named);
     expect(screen.queryByTestId(`thing-link-${named.id}`)).toBeNull();
+  });
+});
+
+describe("BadgeCard", () => {
+  it("shows the artwork alone — the stand-in icon is only for a missing or broken picture", () => {
+    const e = ev(30009, [
+      ["d", "ice"],
+      ["name", "Ice Cool Builder"],
+      ["image", "https://x.test/badge.png"],
+    ]);
+    card(e);
+    const img = screen.getByTestId(`thing-image-${e.id}`);
+    const tile = img.parentElement as HTMLElement;
+    expect(tile.querySelector("svg")).toBeNull();
+    fireEvent.error(img);
+    expect(tile.querySelector("img")).toBeNull();
+    expect(tile.querySelector("svg")).not.toBeNull();
   });
 });
 

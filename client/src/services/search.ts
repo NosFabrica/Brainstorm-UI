@@ -903,6 +903,56 @@ export function fetchAppReviews(
 }
 
 /** One zap to an app — a micro-endorsement, sometimes with a memo. */
+/** What a NIP-57 zap receipt (kind 9735) says, read once for every caller. */
+export interface ZapReceipt {
+  /** The zapper: the receipt's `P` tag, else the embedded zap request's pubkey — only a 64-hex key. */
+  pubkey: string | null;
+  /** The receipt's content, else the zap request's message, trimmed. */
+  memo: string;
+  /**
+   * What the invoice was for, in millisats — the amount the payer paid for,
+   * read from the bolt11's human-readable part. Null when the receipt names
+   * no invoice amount, or when its zap request asked for a different amount
+   * (NIP-57: the two must match; a receipt where they don't is not counted).
+   */
+  msats: number | null;
+}
+
+const HEX_KEY = /^[0-9a-f]{64}$/i;
+
+/** Millisats per unit of a bolt11 amount's multiplier (1 BTC = 1e11 msat). */
+const BOLT11_MSATS: Record<string, number> = { "": 1e11, m: 1e8, u: 1e5, n: 100, p: 0.1 };
+
+/** A bolt11 invoice's amount in millisats, from its human-readable part ("lnbc2500u1…"); null when it names none. */
+export function bolt11Msats(invoice: string | undefined): number | null {
+  const m = invoice?.trim().match(/^ln(?:bcrt|bc|tbs|tb|sb)(\d+)([munp]?)1/i);
+  if (!m) return null;
+  const msats = Number(m[1]) * BOLT11_MSATS[m[2].toLowerCase()];
+  return Number.isFinite(msats) && msats > 0 ? Math.floor(msats) : null;
+}
+
+export function parseZapReceipt(e: NostrEvent): ZapReceipt {
+  let request: { pubkey?: unknown; content?: unknown; tags?: unknown } | null = null;
+  try {
+    const raw = e.tags.find((t) => t[0] === "description")?.[1];
+    if (raw) request = JSON.parse(raw);
+  } catch {
+    request = null;
+  }
+  const P = e.tags.find((t) => t[0] === "P")?.[1];
+  const candidate = P ?? (typeof request?.pubkey === "string" ? request.pubkey : null);
+  const memo = (e.content.trim() || (typeof request?.content === "string" ? request.content : "")).trim();
+  const invoice = bolt11Msats(e.tags.find((t) => t[0] === "bolt11")?.[1]);
+  const tags = Array.isArray(request?.tags) ? (request.tags as unknown[]) : [];
+  const asked = Number(tags.find((t): t is string[] => Array.isArray(t) && t[0] === "amount")?.[1]);
+  const mismatched = invoice !== null && Number.isFinite(asked) && asked > 0 && asked !== invoice;
+  return {
+    pubkey: candidate && HEX_KEY.test(candidate) ? candidate.toLowerCase() : null,
+    memo,
+    msats: mismatched ? null : invoice,
+  };
+}
+
 export interface AppZap {
   id: string;
   /** The zapper (receipt `P` tag, else the embedded zap request's pubkey). */
@@ -929,16 +979,7 @@ export function fetchAppZaps(address: string, opts: { limit?: number; timeoutMs?
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
           const e = msg.event;
-          let request: { pubkey?: unknown; content?: unknown } | null = null;
-          try {
-            const raw = e.tags.find((t) => t[0] === "description")?.[1];
-            if (raw) request = JSON.parse(raw);
-          } catch {
-            request = null;
-          }
-          const P = e.tags.find((t) => t[0] === "P")?.[1];
-          const pubkey = P ?? (typeof request?.pubkey === "string" ? request.pubkey : null);
-          const memo = (e.content.trim() || (typeof request?.content === "string" ? request.content : "")).trim();
+          const { pubkey, memo } = parseZapReceipt(e);
           zaps.push({ id: e.id, pubkey, memo, at: e.created_at });
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();
@@ -1739,22 +1780,31 @@ export interface GoalProgress {
 
 /**
  * Progress for NIP-75 zap goals: the zap receipts (9735) that `e`-tag each
- * goal, one REQ on the search relay for a page of goals. A receipt's amount
- * is its embedded zap request's `amount` tag (millisats) — the one number a
- * receipt carries without decoding its invoice; a receipt without one still
- * counts its zapper. The page is capped, so a heavily zapped goal reads as
- * at least this much. EOSE or timeout resolves; never rejects.
+ * goal, one REQ on the search relay for a page of goals. A receipt counts
+ * its invoice's amount (parseZapReceipt), never the amount its zap request
+ * merely asked for; receipt signers are not checked against the goal
+ * owner's LNURL server, so this is what the network reports, not an audit.
+ *
+ * `complete` says whether the answer is the whole answer: the relay reached
+ * EOSE before the deadline without filling the page. Only then does a goal
+ * with no receipt mean "raised nothing"; otherwise its progress is unknown.
+ * Never rejects.
  */
-export function fetchGoalProgress(goalIds: string[], timeoutMs = 5000): Promise<Map<string, GoalProgress>> {
+export function fetchGoalProgress(
+  goalIds: string[],
+  timeoutMs = 5000,
+): Promise<{ byGoal: Map<string, GoalProgress>; complete: boolean }> {
   return new Promise((resolve) => {
-    const out = new Map<string, GoalProgress>();
+    const byGoal = new Map<string, GoalProgress>();
     const relay = searchRelay();
-    if (!relay || goalIds.length === 0) return resolve(out);
+    if (!relay || goalIds.length === 0) return resolve({ byGoal, complete: false });
     const wanted = new Set(goalIds);
     const seen = new Set<string>();
+    const limit = Math.min(2000, goalIds.length * 200);
+    let complete = false;
     const tally = new Map<string, { msats: number; zappers: { pk: string; at: number }[] }>();
     const sub = relay
-      .req({ kinds: [9735], "#e": goalIds, search: "include:spam", limit: Math.min(2000, goalIds.length * 200) })
+      .req({ kinds: [9735], "#e": goalIds, search: "include:spam", limit })
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
           const e = msg.event;
@@ -1762,23 +1812,15 @@ export function fetchGoalProgress(goalIds: string[], timeoutMs = 5000): Promise<
           seen.add(e.id);
           const goal = e.tags.find((t) => t[0] === "e" && wanted.has(t[1]))?.[1];
           if (!goal) return;
-          let request: { pubkey?: unknown; tags?: unknown } | null = null;
-          try {
-            const raw = e.tags.find((t) => t[0] === "description")?.[1];
-            if (raw) request = JSON.parse(raw);
-          } catch {
-            request = null;
-          }
-          const tags = Array.isArray(request?.tags) ? (request.tags as unknown[]) : [];
-          const amountTag = tags.find((t): t is string[] => Array.isArray(t) && t[0] === "amount");
-          const msats = Number(amountTag?.[1]);
-          const P = e.tags.find((t) => t[0] === "P")?.[1];
-          const pk = P ?? (typeof request?.pubkey === "string" ? request.pubkey : null);
+          const receipt = parseZapReceipt(e);
           const row = tally.get(goal) ?? { msats: 0, zappers: [] };
-          if (Number.isFinite(msats) && msats > 0) row.msats += msats;
-          if (pk) row.zappers.push({ pk, at: e.created_at });
+          if (receipt.msats) row.msats += receipt.msats;
+          if (receipt.pubkey) row.zappers.push({ pk: receipt.pubkey, at: e.created_at });
           tally.set(goal, row);
-        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+        } else if (msg.type === "EOSE") {
+          complete = seen.size < limit;
+          finish();
+        } else if (msg.type === "CLOSED") {
           finish();
         }
       });
@@ -1791,9 +1833,9 @@ export function fetchGoalProgress(goalIds: string[], timeoutMs = 5000): Promise<
       sub.unsubscribe();
       for (const [goal, row] of tally) {
         const zappers = [...new Set(row.zappers.sort((a, b) => b.at - a.at).map((z) => z.pk))];
-        out.set(goal, { sats: Math.floor(row.msats / 1000), zappers });
+        byGoal.set(goal, { sats: Math.floor(row.msats / 1000), zappers });
       }
-      resolve(out);
+      resolve({ byGoal, complete });
     }
   });
 }

@@ -62,8 +62,12 @@ vi.mock("@/services/search", async (importOriginal) => {
     fetchGitStatuses: (ids: string[]) => gitStatusesMock(ids),
     fetchGitCommentCounts: (ids: string[]) => gitCommentsMock(ids),
     fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
+    fetchGoalProgress: (ids: string[]) => goalProgressMock(ids),
   };
 });
+const goalProgressMock = vi.fn<
+  (ids: string[]) => Promise<{ byGoal: Map<string, { sats: number; zappers: string[] }>; complete: boolean }>
+>(() => Promise.resolve({ byGoal: new Map(), complete: false }));
 // Who is going, per event address — nobody unless a test says otherwise.
 const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() =>
   Promise.resolve(new Map()),
@@ -4272,6 +4276,29 @@ describe("SearchResults — the kinds lib/thing reads", () => {
     const results = screen.getByTestId("container-search-results");
     expect(results.textContent!.indexOf("Calendars")).toBeGreaterThan(0);
     expect(cal).toHaveTextContent("Jednadvacet Brno");
+  });
+
+  it("Fundraisers shows a zap goal's progress, and 0 only once a complete answer found no receipt", async () => {
+    setUrlTab("fundraisers");
+    const funded = ev("g1", 9041, who, "Fiatjaf Protection Fees", [["amount", "10000000"]]);
+    const quiet = ev("g2", 9041, who, "combine upkeep", [["amount", "60000000"]]);
+    goalProgressMock.mockResolvedValueOnce({ byGoal: new Map([["g1", { sats: 1056, zappers: [] }]]), complete: true });
+    render(<SearchResults query="fees" pov="nosfabrica" />);
+    emit({ hits: [funded, quiet].map(hitOf), eose: true, timeMs: 100 });
+    expect(await screen.findByText(/1,056 sats/)).toBeInTheDocument();
+    expect(screen.getByTestId("thing-goal-g2")).toHaveTextContent("0 sats of 60k");
+    expect(goalProgressMock).toHaveBeenCalledWith(["g1", "g2"]);
+  });
+
+  it("an incomplete answer leaves a goal's progress unknown, not zero", async () => {
+    setUrlTab("fundraisers");
+    goalProgressMock.mockResolvedValueOnce({ byGoal: new Map(), complete: false });
+    render(<SearchResults query="upkeep" pov="nosfabrica" />);
+    emit({ hits: [hitOf(ev("g3", 9041, who, "combine upkeep", [["amount", "60000000"]]))], eose: true, timeMs: 100 });
+    await waitFor(() => expect(goalProgressMock).toHaveBeenCalled());
+    await Promise.resolve();
+    expect(screen.getByTestId("thing-goal-g3")).toHaveTextContent("Goal 60,000 sats");
+    expect(screen.queryByRole("progressbar")).toBeNull();
   });
 
   it("Lists keeps a badge and an emoji pack, which hold no p/e/a/r items", async () => {
