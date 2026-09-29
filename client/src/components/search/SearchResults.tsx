@@ -91,7 +91,7 @@ import { EventDateTile } from "@/components/share/EventDateTile";
 import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
 import { isSellable, parseListing } from "@/lib/listing";
-import { describeThing, THING_KINDS } from "@/lib/thing";
+import { describeThing, oneCardPerChannel, THING_KINDS } from "@/lib/thing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { priceBands, priceInCurrency, toSats, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
@@ -142,17 +142,6 @@ const SHOP_PLACE_KINDS = new Set([30017, 30019]);
 const CALENDAR_KIND = 31924;
 /** The tabs made only of kinds lib/thing reads — one ThingCard each, in a grid. */
 const isThingTab = (tab: SearchTab) => tab === "communities" || tab === "fundraisers" || tab === "reviews";
-
-/**
- * A NIP-28 channel's identity: a kind 40 is its own, a kind 41 names the 40
- * it updates. Staging holds a 40 and several 41s for one channel, which read
- * as the same result over and over.
- */
-function channelKey(e: NostrEvent): string | null {
-  if (e.kind === 40) return e.id;
-  if (e.kind === 41) return e.tags.find((t) => t[0] === "e" && t[1])?.[1] ?? e.id;
-  return null;
-}
 
 /** What kind of article a hit is — the Articles tab's type chips narrow by this. */
 type ArticleType = "article" | "spec" | "wiki";
@@ -956,6 +945,11 @@ export function SearchResults({
     // articles wear the recipe tag too. One source of truth says which is
     // which, here, so the count line, the chips and the cards agree.
     if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
+    // Only what lib/thing can name is a result — decided here, like the Shop,
+    // so "Nothing found" and the counts agree with the cards — and one card
+    // per NIP-28 channel.
+    if (isThingTab(tab)) return oneCardPerChannel(base.filter((h) => describeThing(h.event) !== null));
+    if (tab === "events") return base.filter((h) => h.event.kind !== CALENDAR_KIND || describeThing(h.event) !== null);
     // A named person's own tracks join the Music tab's hits, once each.
     if (tab === "music") {
       const seen = new Set(base.map((h) => h.event.id));
@@ -1378,23 +1372,8 @@ export function SearchResults({
           shown.filter((h) => h.event.kind !== CALENDAR_KIND),
           effectiveWhen,
         ),
-        ...shown.filter((h) => h.event.kind === CALENDAR_KIND && describeThing(h.event) !== null),
+        ...shown.filter((h) => h.event.kind === CALENDAR_KIND),
       ];
-    if (isThingTab(tab)) {
-      // Only what lib/thing can name, and one row per NIP-28 channel — the
-      // newest of its 40 and 41s (the relay's order within one is not ours).
-      const newestOfChannel = new Map<string, NostrEvent>();
-      for (const h of shown) {
-        const key = channelKey(h.event);
-        const held = key ? newestOfChannel.get(key) : undefined;
-        if (key && (!held || h.event.created_at > held.created_at)) newestOfChannel.set(key, h.event);
-      }
-      shown = shown.filter((h) => {
-        if (describeThing(h.event) === null) return false;
-        const key = channelKey(h.event);
-        return !key || newestOfChannel.get(key)?.id === h.event.id;
-      });
-    }
     // A 31337 without a title and audio is not a song (the kind is abused).
     if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
     if (tab === "apps" && appPlatform) {
@@ -1564,13 +1543,19 @@ export function SearchResults({
       return folded;
     }
     if (!clustered) return shown.map((h) => ({ hit: h, collapsedCount: 0, clusterId: "" }));
+    // A calendar is not one of its events: it never folds into (or leads) an
+    // event's cluster, and stays below the dated events, unclustered.
+    const calendars = tab === "events" ? shown.filter((h) => h.event.kind === CALENDAR_KIND) : [];
     const out: DisplayRow[] = [];
-    for (const cluster of collapseHits(shown)) {
+    for (const cluster of collapseHits(
+      calendars.length ? shown.filter((h) => h.event.kind !== CALENDAR_KIND) : shown,
+    )) {
       const id = cluster.primary.event.id;
       const open = expandedClusters.has(id);
       out.push({ hit: cluster.primary, collapsedCount: open ? 0 : cluster.others.length, clusterId: id });
       if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
     }
+    for (const h of calendars) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [

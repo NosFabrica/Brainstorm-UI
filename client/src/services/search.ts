@@ -149,6 +149,26 @@ export function kindsForTab(tab: SearchTab): number[] | undefined {
   return tab === "everything" ? undefined : TAB_KINDS[tab];
 }
 
+/**
+ * What a preview band asks of a tab — an Everything section, a home-feed
+ * band, a panel rail — where it differs from the tab: the kinds only the
+ * tab itself can show are left out, since a band would ask for them, fill
+ * its few slots with them, and then drop them. Calendars have no date for
+ * Happening's upcoming window; stalls and marketplaces have no price for
+ * the Shop row; a torrent has nothing to see in a media tile; the panel's
+ * app rail draws Zap Store listings.
+ */
+const BAND_KINDS: Partial<Record<SearchTab, number[]>> = {
+  events: [31922, 31923],
+  shop: [30402, 30018, 30020],
+  media: [20, 21, 22, 1063, 1222, 34235, 34236],
+  apps: [32267],
+};
+
+export function bandKindsForTab(tab: SearchTab): number[] | undefined {
+  return BAND_KINDS[tab] ?? kindsForTab(tab);
+}
+
 /** The `#t` a vertical is defined by, if any — a typed `#tag` in the query wins over it. */
 export function tagsForTab(tab: SearchTab): string[] | undefined {
   const tags = TAB_TAGS[tab];
@@ -225,6 +245,11 @@ export interface SearchParams {
    * query's own `kind:` tokens; it IS them.
    */
   kinds?: number[];
+  /**
+   * A preview band rather than the tab itself: asks the tab's band kinds
+   * (bandKindsForTab), still narrowed by a typed `kind:`.
+   */
+  band?: boolean;
 }
 
 const DEFAULT_LIMIT = 100;
@@ -445,7 +470,7 @@ export function searchStream(
     // On the NIPs tab a kind is what a spec COVERS (its `k` tags), not what
     // it is — `kind:5905` is the specs that define kind 5905. The relay
     // narrows by `#k` (probed 2026-09-23).
-    const tabKinds = params.kinds ?? kindsForTab(params.tab);
+    const tabKinds = params.kinds ?? (params.band ? bandKindsForTab(params.tab) : kindsForTab(params.tab));
     const coveredKinds = params.tab === "nips" ? lifted.kinds : undefined;
     const kinds =
       lifted.kinds && !coveredKinds && !params.kinds

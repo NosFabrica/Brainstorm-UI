@@ -89,6 +89,7 @@ import {
   suggestProfiles,
   suggestListings,
   kindsForTab,
+  bandKindsForTab,
   TAB_KINDS,
   type SearchSnapshot,
   type SearchHit,
@@ -2508,5 +2509,46 @@ describe("kindsForTab", () => {
   it("splits calendar events out of Live into their own Events vertical", () => {
     expect(kindsForTab("events")).toEqual([31922, 31923, 31924]);
     expect(kindsForTab("live")).toEqual([30311, 30312, 30313]);
+  });
+});
+
+// A band (an Everything section, a home-feed band, a panel rail) has a few
+// slots and drops what it cannot show — so it never asks for it.
+describe("bandKindsForTab", () => {
+  const settle = async () => {
+    await tick();
+    await new Promise((r) => setTimeout(r, 1));
+    await tick();
+  };
+
+  it("leaves out the kinds only the tab itself shows", () => {
+    expect(bandKindsForTab("events")).toEqual([31922, 31923]); // no undated calendars
+    expect(bandKindsForTab("shop")).toEqual([30402, 30018, 30020]); // no priceless stalls or marketplaces
+    expect(bandKindsForTab("media")).not.toContain(2003); // nothing to see in a torrent
+    expect(bandKindsForTab("apps")).toEqual([32267]); // the rail draws Zap Store listings
+  });
+
+  it("is the tab's own kinds everywhere else", () => {
+    for (const tab of ["people", "notes", "articles", "live", "music", "lists"] as const) {
+      expect(bandKindsForTab(tab)).toEqual(TAB_KINDS[tab]);
+    }
+  });
+
+  it("is what a band stream asks, while the tab still asks for everything", async () => {
+    controllable();
+    searchStream("meetup", { tab: "events", pov: "nosfabrica", limit: 12, band: true }, () => {});
+    searchStream("meetup", { tab: "events", pov: "nosfabrica", limit: 12 }, () => {});
+    await settle();
+    expect(askedFilters(0)[0].kinds).toEqual([31922, 31923]);
+    expect(askedFilters(1)[0].kinds).toEqual([31922, 31923, 31924]);
+  });
+
+  it("a typed kind the band does not show asks nothing of it", async () => {
+    controllable();
+    let snap: SearchSnapshot | null = null;
+    searchStream("kind:31924", { tab: "events", pov: "nosfabrica", limit: 12, band: true }, (s) => (snap = s));
+    await settle();
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(snap).toMatchObject({ hits: [], eose: true });
   });
 });

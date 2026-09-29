@@ -64,24 +64,36 @@ export function hostOfUrl(url: string): string {
 }
 
 /**
+ * Which scale a kind's `rating` is on. Relay reviews (31987) are always the
+ * 0..1 fraction (Quartz's `RelayReviewEvent`); NIP-87 mint reviews (38000)
+ * are published as raw stars — `["rating","1"]` there is one star, not five.
+ * Ratings of anything (34259) are published both ways ("either").
+ */
+export type RatingScale = "fraction" | "stars" | "either";
+
+/**
  * A rating as stars out of five, the way Quartz's `EntityRatingEvent.stars()`
- * reads it — two scales are published and the `rating` tag alone cannot
- * always tell them apart:
+ * reads it where both scales are published and the `rating` tag alone
+ * cannot always tell them apart:
  *
  * 1. an `s` tag in 1..5 is the author's own star count and wins;
  * 2. else a `rating` in 0..1 is the spec's fraction (a full score is `1.000`);
- * 3. else a `rating` in 1..5 is a raw star count (NIP-87 mints publish `5`);
+ * 3. else a `rating` in 1..5 is a raw star count;
  * 4. else null — a review we cannot score shows no stars, never zero.
+ *
+ * A kind whose scale is known reads only that scale; anything outside it is
+ * malformed, and shows no stars.
  */
-export function starsOf(ev: EventLike): number | null {
+export function starsOf(ev: EventLike, scale: RatingScale = "either"): number | null {
   const s = Number(tag(ev, "s"));
   if (Number.isInteger(s) && s >= 1 && s <= 5) return s;
   // The overall score is the `rating` with no aspect (a third element names one: speed, uptime…).
   const overall = ev.tags.find((t) => t[0] === "rating" && t[1] && !t[2]) ?? ev.tags.find((t) => t[0] === "rating");
   const raw = Number(overall?.[1]);
   if (!overall?.[1] || !Number.isFinite(raw) || raw < 0) return null;
+  if (scale === "stars") return raw >= 1 && raw <= 5 ? raw : null;
   if (raw <= 1) return raw * 5;
-  if (raw <= 5) return raw;
+  if (scale === "either" && raw <= 5) return raw;
   return null;
 }
 
@@ -112,7 +124,23 @@ function thing(partial: Partial<Thing> & { title: string }): Thing {
   };
 }
 
+/**
+ * One read per event object: the tabs gate on it, the card and SerpRow draw
+ * from it, and a results page recomputes its rows on every streamed author
+ * score — several of these kinds parse JSON content to answer.
+ */
+const read = new WeakMap<EventLike, Thing | null>();
+
 export function describeThing(ev: EventLike): Thing | null {
+  if (!THING_KINDS.has(ev.kind)) return null;
+  const known = read.get(ev);
+  if (known !== undefined) return known;
+  const thing = readThing(ev);
+  read.set(ev, thing);
+  return thing;
+}
+
+function readThing(ev: EventLike): Thing | null {
   switch (ev.kind) {
     // NIP-28 public chat: the channel's name, about and picture are JSON in content.
     case 40:
@@ -313,7 +341,7 @@ export function describeThing(ev: EventLike): Thing | null {
       return thing({
         title: host,
         description: ev.content.trim() || null,
-        stars: starsOf(ev),
+        stars: starsOf(ev, "fraction"),
         facts: ["Relay review"],
       });
     }
@@ -325,7 +353,7 @@ export function describeThing(ev: EventLike): Thing | null {
       return thing({
         title: host,
         description: ev.content.trim() || tag(ev, "comment") || null,
-        stars: starsOf(ev),
+        stars: starsOf(ev, "stars"),
         link: isHttp(mint) ? mint : null,
         facts: ["Ecash mint"],
       });
@@ -375,4 +403,47 @@ export function describeThing(ev: EventLike): Thing | null {
     default:
       return null;
   }
+}
+
+type ChannelEvent = EventLike & { id: string; pubkey: string; created_at: number };
+
+/**
+ * One result per NIP-28 channel. A kind 40 creates the channel; a kind 41
+ * updates it, naming the 40 in its `e` tag — staging holds a 40 and several
+ * 41s for one channel, which would read as the same result over and over.
+ *
+ * - Only what [describeThing] can name competes, so an unnamed update never
+ *   wins the slot and takes the channel's named card down with it.
+ * - NIP-28: a 41 counts only from the channel's creator. When the 40 is on
+ *   the page, anyone else's 41 for it is dropped rather than shown in its
+ *   place; when it is not, each author's 41s stand apart, so a stranger's
+ *   update can never replace the creator's.
+ * - The newest of a channel's events is its card, at the position the
+ *   channel first appeared (the relay's order between channels is kept).
+ *
+ * Everything else passes through, in order.
+ */
+export function oneCardPerChannel<H extends { event: ChannelEvent }>(hits: H[]): H[] {
+  const creatorOf = new Map<string, string>();
+  for (const h of hits) if (h.event.kind === 40) creatorOf.set(h.event.id, h.event.pubkey);
+  const out: H[] = [];
+  const slot = new Map<string, number>();
+  for (const h of hits) {
+    const e = h.event;
+    if (e.kind !== 40 && e.kind !== 41) {
+      out.push(h);
+      continue;
+    }
+    if (describeThing(e) === null) continue;
+    const channel = e.kind === 40 ? e.id : (e.tags.find((t) => t[0] === "e" && t[1])?.[1] ?? e.id);
+    const creator = creatorOf.get(channel);
+    if (e.kind === 41 && creator !== undefined && creator !== e.pubkey) continue;
+    const key = creator !== undefined ? channel : `${channel}|${e.pubkey}`;
+    const at = slot.get(key);
+    if (at === undefined) {
+      slot.set(key, out.length);
+      out.push(h);
+    } else if (e.created_at > out[at].event.created_at) out[at] = h;
+  }
+  return out;
 }

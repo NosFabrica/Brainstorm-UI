@@ -58,9 +58,10 @@ export function useSectionStream(
     setSnapshot(null);
     // A section that has nothing to ask for this query stays silent (null).
     if (!enabled) return;
+    // Every section stream is a band: it asks what it can show (bandKindsForTab).
     return searchStream(
       query,
-      { tab, pov, userPubkey, limit, since, group, seed, provisionalSeed, kinds },
+      { tab, pov, userPubkey, limit, since, group, seed, provisionalSeed, kinds, band: true },
       setSnapshot,
     );
     // `seed` is taken once per query (lib/headStart) — re-running on its

@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { NostrEvent } from "nostr-tools";
 import { takeHeadStart, __resetHeadStart } from "./headStart";
-import { TAB_KINDS } from "@/services/search";
+import { bandKindsForTab } from "@/services/search";
 import { EVERYTHING_SECTIONS } from "@/components/search/ComposedResults";
 
 const added: NostrEvent[] = [];
@@ -80,7 +80,7 @@ describe("the inline script in index.html", () => {
     const tabs = ["people", "notes", "articles", "events", "live", "media", "music", "shop"] as const;
     expect(asked).toEqual(
       tabs.map((tab) => ({
-        kinds: [...TAB_KINDS[tab]],
+        kinds: [...(bandKindsForTab(tab) ?? [])],
         recent: EVERYTHING_SECTIONS[tab].recent,
         limit: EVERYTHING_SECTIONS[tab].limit,
       })),

@@ -62,6 +62,20 @@ const categoriesOf = (ev: EventLike): string[] =>
     (c) => c && !APP_TAGS.has(c),
   );
 
+/**
+ * A number the seller actually wrote — a JSON number or a numeric string.
+ * `Number(null)` and `Number("")` are 0, which would make a product with no
+ * price a free one and a product with no stock count sold out.
+ */
+function numberOf(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 /** NIP-15's product (JSON in content) and auction (tags) — sold in the Shop beside NIP-99 listings. */
 export const PRODUCT_KIND = 30018;
 export const AUCTION_KIND = 30020;
@@ -122,9 +136,9 @@ function parseProduct(ev: EventLike): Listing | null {
   const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
   const title = text(json.name);
   if (!title) return null;
-  const amount = Number(json.price);
+  const amount = numberOf(json.price);
   const currency = text(json.currency)?.toUpperCase();
-  const quantity = json.quantity === null || json.quantity === undefined ? null : Number(json.quantity);
+  const quantity = numberOf(json.quantity);
   const images = Array.isArray(json.images)
     ? json.images.filter((u): u is string => typeof u === "string" && isHttp(u))
     : [];
@@ -143,10 +157,10 @@ function parseProduct(ev: EventLike): Listing | null {
     title,
     summary: null,
     description: text(json.description) ?? "",
-    price: Number.isFinite(amount) && amount >= 0 && currency ? { amount, currency } : null,
+    price: amount !== null && amount >= 0 && currency ? { amount, currency } : null,
     images,
     location: null,
-    status: quantity !== null && Number.isFinite(quantity) && quantity <= 0 ? "sold" : "active",
+    status: quantity !== null && quantity <= 0 ? "sold" : "active",
     hidden: false,
     categories: categoriesOf(ev),
     shopUrl: null,

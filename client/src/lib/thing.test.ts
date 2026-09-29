@@ -4,7 +4,7 @@
  * (probed 2026-09-29) — including the junk that shares their kind numbers.
  */
 import { describe, expect, it } from "vitest";
-import { describeThing, hostOfUrl, starsOf, THING_KINDS } from "./thing";
+import { describeThing, hostOfUrl, oneCardPerChannel, starsOf, THING_KINDS } from "./thing";
 
 const ev = (kind: number, tags: string[][], content = "") => ({ kind, tags, content, created_at: 1_790_000_000 });
 
@@ -338,5 +338,88 @@ describe("describeThing — the rest", () => {
   it("names a host from a URL, and leaves a non-URL as written", () => {
     expect(hostOfUrl("wss://relay.damus.io/")).toBe("relay.damus.io");
     expect(hostOfUrl("not a url")).toBe("not a url");
+  });
+});
+
+describe("starsOf — a kind whose scale is known reads only that scale", () => {
+  it("a mint review's rating 1 is one star, not five", () => {
+    expect(starsOf(ev(38000, [["rating", "1"]]), "stars")).toBe(1);
+    expect(
+      describeThing(
+        ev(38000, [
+          ["u", "https://mint.test"],
+          ["rating", "1"],
+        ]),
+      )?.stars,
+    ).toBe(1);
+    expect(starsOf(ev(38000, [["rating", "0.5"]]), "stars")).toBeNull();
+  });
+
+  it("a relay review above 1 is malformed, not a raw star count", () => {
+    expect(starsOf(ev(31987, [["rating", "4"]]), "fraction")).toBeNull();
+    expect(
+      describeThing(
+        ev(31987, [
+          ["d", "wss://r.test"],
+          ["rating", "4"],
+        ]),
+      )?.stars,
+    ).toBeNull();
+  });
+});
+
+describe("describeThing — one read per event", () => {
+  it("answers the same object for the same event", () => {
+    const e = ev(40, [], '{"name":"Chess chat"}');
+    expect(describeThing(e)).toBe(describeThing(e));
+  });
+});
+
+describe("oneCardPerChannel — NIP-28 channels, once each", () => {
+  const creator = "c".repeat(64);
+  const stranger = "5".repeat(64);
+  const at = (
+    id: string,
+    kind: number,
+    pubkey: string,
+    created_at: number,
+    content: string,
+    tags: string[][] = [],
+  ) => ({
+    event: { id, kind, pubkey, created_at, content, tags },
+  });
+
+  it("the newest named event is the channel's card, where the channel first appeared", () => {
+    const hits = [
+      at("ch40", 40, creator, 1, '{"name":"Chess chat"}'),
+      at("other", 34550, creator, 1, "", [["name", "x"]]),
+      at("ch41", 41, creator, 5, '{"name":"Chess chat","about":"new"}', [["e", "ch40"]]),
+    ];
+    expect(oneCardPerChannel(hits).map((h) => h.event.id)).toEqual(["ch41", "other"]);
+  });
+
+  it("an unnamed newer update never takes the named card down with it", () => {
+    const hits = [
+      at("ch40", 40, creator, 1, '{"name":"Chess chat"}'),
+      at("ch41", 41, creator, 9, '{"about":"no name"}', [["e", "ch40"]]),
+    ];
+    expect(oneCardPerChannel(hits).map((h) => h.event.id)).toEqual(["ch40"]);
+  });
+
+  it("a stranger's update to someone else's channel is dropped", () => {
+    const hits = [
+      at("ch40", 40, creator, 1, '{"name":"Chess chat"}'),
+      at("scam", 41, stranger, 9, '{"name":"Scam giveaway"}', [["e", "ch40"]]),
+    ];
+    expect(oneCardPerChannel(hits).map((h) => h.event.id)).toEqual(["ch40"]);
+  });
+
+  it("with the 40 off the page, each author's updates stand apart", () => {
+    const hits = [
+      at("a1", 41, creator, 1, '{"name":"Chess chat"}', [["e", "ch40"]]),
+      at("a2", 41, creator, 4, '{"name":"Chess chat 2"}', [["e", "ch40"]]),
+      at("s1", 41, stranger, 9, '{"name":"Scam giveaway"}', [["e", "ch40"]]),
+    ];
+    expect(oneCardPerChannel(hits).map((h) => h.event.id)).toEqual(["a2", "s1"]);
   });
 });

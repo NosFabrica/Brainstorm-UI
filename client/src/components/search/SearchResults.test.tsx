@@ -4238,6 +4238,42 @@ describe("SearchResults — the kinds lib/thing reads", () => {
     expect(results.textContent!.indexOf("Bitcoin meetup")).toBeLessThan(results.textContent!.indexOf("Jednadvacet"));
   });
 
+  it("Communities with nothing lib/thing can name says Nothing found, not a blank grid", async () => {
+    setUrlTab("communities");
+    render(<SearchResults query="chess" pov="nosfabrica" />);
+    const unnamed = ev("ch-junk", 40, who, '{"about":"no name"}');
+    emit({ hits: [hitOf(unnamed)], eose: true, timeMs: 100 });
+    expect(await screen.findByTestId("container-no-results")).toBeInTheDocument();
+  });
+
+  it("a calendar never folds into its events' cluster", async () => {
+    setUrlTab("events");
+    render(<SearchResults query="jednadvacet" pov="nosfabrica" />);
+    const past = Math.floor(Date.now() / 1000) - 86_400 * 3;
+    const meetup = ev("e1", 31923, who, "", [
+      ["d", "e1"],
+      ["title", "Jednadvacet Brno"],
+      ["start", String(past)],
+    ]);
+    const calendar = {
+      ...ev("cal1", 31924, who, "", [
+        ["d", "brno"],
+        ["title", "Jednadvacet Brno"],
+        ["a", "31923:x:e1"],
+      ]),
+      created_at: Math.floor(Date.now() / 1000),
+    };
+    emit({ hits: [calendar, meetup].map(hitOf), eose: true, timeMs: 100 });
+
+    // Nothing upcoming: the tab shows the past, and the calendar still sits below it on its own.
+    const cal = await screen.findByTestId("thing-card-cal1");
+    expect(screen.queryByTestId("cluster-expand-cal1")).toBeNull();
+    expect(screen.queryByTestId("cluster-expand-e1")).toBeNull();
+    const results = screen.getByTestId("container-search-results");
+    expect(results.textContent!.indexOf("Calendars")).toBeGreaterThan(0);
+    expect(cal).toHaveTextContent("Jednadvacet Brno");
+  });
+
   it("Lists keeps a badge and an emoji pack, which hold no p/e/a/r items", async () => {
     setUrlTab("lists");
     render(<SearchResults query="cool" pov="nosfabrica" />);

@@ -246,6 +246,23 @@ describe("parseListing — NIP-15 products and auctions sell beside NIP-99", () 
     expect(isSellable(l!)).toBe(false);
   });
 
+  it("a product with no price, or an empty one, is not a free product", () => {
+    for (const price of [null, "", "  "]) {
+      const l = parseListing(ev([], JSON.stringify({ name: "Mug", currency: "sat", price }), 30018));
+      expect(l?.price).toBeNull();
+      expect(isSellable(l!)).toBe(false);
+    }
+    // An empty stock count is not "none left".
+    expect(
+      parseListing(ev([], JSON.stringify({ name: "Mug", currency: "sat", price: 5, quantity: "" }), 30018))?.status,
+    ).toBe("active");
+    // A numeric string is a price the seller wrote.
+    expect(parseListing(ev([], JSON.stringify({ name: "Mug", currency: "sat", price: "21" }), 30018))?.price).toEqual({
+      amount: 21,
+      currency: "SAT",
+    });
+  });
+
   it("refuses a 30018 whose content is not a named product", () => {
     expect(parseListing(ev([], "not json", 30018))).toBeNull();
     expect(parseListing(ev([], JSON.stringify({ price: 1 }), 30018))).toBeNull();
