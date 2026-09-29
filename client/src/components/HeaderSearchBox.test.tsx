@@ -373,7 +373,7 @@ describe("a query that matches a tag", () => {
     authorPubkey: TAG_AUTHOR,
     slug: "verified-human",
     name: "Verified Human",
-    people: 2,
+    people: 5,
     vouches: 2,
     sharesName: 0,
     unverified: false,
@@ -411,6 +411,42 @@ describe("a query that matches a tag", () => {
       within(screen.getByTestId("home-suggestion-1")).getByTestId("person-tag-chip-verified-human"),
     ).toBeInTheDocument();
     expect(within(screen.getByTestId("home-suggestion-2")).queryByTestId("person-tag-chip-verified-human")).toBeNull();
+  });
+
+  it("a prefix of the tag's name marks its people but leaves the relay's order alone", async () => {
+    const aos = {
+      ...human,
+      key: `39999:${TAG_AUTHOR}:aos-2026`,
+      slug: "aos-2026",
+      name: "AOS 2026 Participant",
+      people: 99,
+    };
+    tagMatchesMock.mockReturnValue([aos]);
+    carriersMock.mockReturnValue({
+      byPubkey: new Map([[pk("a"), [aos]]]),
+      people: [carrier("a", "Alice")],
+      settled: true,
+    });
+    suggestMock.mockResolvedValue([person("c", "Aos Lopez"), person("a", "Alice")]);
+    await open("aos");
+    expect([0, 1].map((i) => screen.getByTestId(`home-suggestion-name-${i}`).textContent)).toEqual([
+      "Aos Lopez",
+      "Alice",
+    ]);
+    expect(within(screen.getByTestId("home-suggestion-1")).getByTestId("person-tag-chip-aos-2026")).toHaveAttribute(
+      "data-emphasis",
+      "loud",
+    );
+    expect(within(screen.getByTestId("home-suggestion-0")).queryByTestId("person-tag-chip-aos-2026")).toBeNull();
+  });
+
+  it("a tag two people are on is an offer, not a ranking", async () => {
+    tagMatchesMock.mockReturnValue([{ ...human, people: 2 }]);
+    carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    suggestMock.mockResolvedValue([person("c", "Human Verifier")]);
+    await open("verified human");
+    expect(screen.getByTestId("home-suggestion-name-0")).toHaveTextContent("Human Verifier");
+    expect(screen.queryByTestId("home-suggestion-1")).toBeNull();
   });
 
   it("caps the tag's people at four so the names the relay found still make the list", async () => {
@@ -460,7 +496,7 @@ describe("a person's own tags on their row", () => {
     authorPubkey: AUTHOR,
     slug: "verified-human",
     name: "Verified Human",
-    people: 2,
+    people: 5,
     vouches: 2,
     sharesName: 0,
     unverified: false,

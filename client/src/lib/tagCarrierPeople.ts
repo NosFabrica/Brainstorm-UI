@@ -167,3 +167,14 @@ export function personTagChips(
   }
   return { chips, emphasis };
 }
+
+/** The people on the tags that may lead the list, once each, in the carriers' order. */
+export function leadingCarriers(
+  people: readonly CarrierPerson[],
+  byPubkey: ReadonlyMap<string, readonly TagSummary[]>,
+  lead: readonly TagSummary[],
+): CarrierPerson[] {
+  if (lead.length === 0) return [];
+  const keys = new Set(lead.map((t) => t.key));
+  return people.filter((p) => byPubkey.get(p.pubkey)?.some((t) => keys.has(t.key)));
+}

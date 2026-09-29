@@ -4149,7 +4149,7 @@ describe("a People search whose words match a tag", () => {
     authorPubkey: TAG_AUTHOR,
     slug: "verified-human",
     name: "Verified Human",
-    people: 2,
+    people: 5,
     vouches: 2,
     sharesName: 0,
     unverified: false,
@@ -4186,6 +4186,38 @@ describe("a People search whose words match a tag", () => {
       within(screen.getByTestId("result-profile-1")).getByTestId("person-tag-chip-verified-human"),
     ).toBeInTheDocument();
     expect(within(screen.getByTestId("result-profile-2")).queryByTestId("person-tag-chip-verified-human")).toBeNull();
+  });
+
+  it("a prefix of the tag's name marks its people but leaves the relay's order alone", async () => {
+    const aos = {
+      ...human,
+      key: `39999:${TAG_AUTHOR}:aos-2026`,
+      slug: "aos-2026",
+      name: "AOS 2026 Participant",
+      people: 99,
+    };
+    tagMatchesMock.mockReturnValue([aos]);
+    carriersMock.mockReturnValue({
+      byPubkey: new Map([[pk("a"), [aos]]]),
+      people: [carrier("a", "Alice")],
+      settled: true,
+    });
+    window.history.replaceState({}, "", "/?q=aos&t=people");
+    render(<SearchResults query="aos" pov="nosfabrica" />);
+    emit({
+      hits: [
+        { event: person("p1", pk("c"), "Aos Lopez"), author: author(pk("c"), "Aos Lopez"), rank: null },
+        { event: person("p2", pk("a"), "Alice"), author: author(pk("a"), "Alice"), rank: null },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("result-profile-1");
+    expect([0, 1].map(nameOf)).toEqual(["Aos Lopez", "Alice"]);
+    expect(within(screen.getByTestId("result-profile-1")).getByTestId("person-tag-chip-aos-2026")).toHaveAttribute(
+      "data-emphasis",
+      "loud",
+    );
   });
 
   it("shows a person the relay also found once, in the tag's place, with the relay's fuller profile", async () => {

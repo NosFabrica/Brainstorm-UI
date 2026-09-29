@@ -71,13 +71,13 @@ import { useTagMatches } from "@/hooks/useTags";
 import { useTagCarriers } from "@/hooks/useTagCarriers";
 import {
   leadCarriersByRank,
+  leadingCarriers,
   mergeCarrierHits,
-  personTagChips,
   rankCarriers,
   tagsCarriedBy,
   type TagChip,
 } from "@/lib/tagCarrierPeople";
-import { usePersonTags } from "@/hooks/usePersonTags";
+import { leadingTags } from "@/lib/tagMatch";
 import { scopeOf } from "@/lib/searchSyntax";
 
 /** Compact person chip for the People strip. */
@@ -434,6 +434,11 @@ function ComposedResultsBody({
   // lead the strip wearing the tag; the relay's matches follow.
   const tagMatches = useTagMatches(scopeOf(query) ? "" : query, 3, { fetch: false });
   const carriers = useTagCarriers(tagMatches, { pov, viewerPubkey: userPubkey });
+  // Only a tag the words name outright, with weight behind it, leads (lib/tagMatch).
+  const leadPeople = useMemo(
+    () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, query)),
+    [carriers.people, carriers.byPubkey, tagMatches, query],
+  );
   const carrierSets = useMemo(() => {
     const sets = new Map<string, Set<string>>();
     for (const [pubkey, tags] of carriers.byPubkey) {
@@ -457,9 +462,9 @@ function ComposedResultsBody({
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
   // Their order, taken once when they land and held for the query.
   const carrierRank = useMemo(
-    () => (carriers.settled ? rankCarriers(carriers.people, scoreOf) : new Map<string, number>()),
+    () => (carriers.settled ? rankCarriers(leadPeople, scoreOf) : new Map<string, number>()),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [carriers.settled, carriers.people],
+    [carriers.settled, leadPeople],
   );
   // The client-side filters (Verified only, reach) apply here too, so the
   // composed page and the tabs agree on what the box says.
@@ -551,7 +556,7 @@ function ComposedResultsBody({
   const stripRef = useWheelScrollX();
   const peopleOrdered = useMemo(() => {
     const hits = peopleF?.hits.filter((h) => h.author) ?? [];
-    const merged = leadCarriersByRank(mergeCarrierHits(hits, carriers.people), carrierRank);
+    const merged = leadCarriersByRank(mergeCarrierHits(hits, leadPeople), carrierRank);
     let end = 0;
     while (end < merged.length && merged[end].event.id.startsWith("tag-carrier:")) end++;
     // Transparent on-device personalization: faces you've opened lead the relay's part.
@@ -559,13 +564,9 @@ function ComposedResultsBody({
       .slice(end)
       .sort((a, b) => Number(visited.has(b.event.pubkey)) - Number(visited.has(a.event.pubkey)));
     return [...merged.slice(0, end), ...tail];
-  }, [peopleF, visited, carriers.people, carrierRank]);
+  }, [peopleF, visited, leadPeople, carrierRank]);
 
   // Each person's own tags — a quiet one under the name; the matched tag is the loud one.
-  const personTags = usePersonTags(
-    useMemo(() => peopleOrdered.map((h) => h.event.pubkey), [peopleOrdered]),
-    { pov, viewerPubkey: userPubkey },
-  );
   const articleClusters = useMemo(
     () => (articlesF ? peopleFirst(collapseHits(articlesF.hits, undefined, { maxPerAuthor: 2 })) : []),
     [articlesF],
@@ -704,12 +705,19 @@ function ComposedResultsBody({
                   score={h.author!.wotRank ?? scoreOf(h.event.pubkey) ?? null}
                   visited={visited.has(h.event.pubkey)}
                   tag={(() => {
-                    const list = personTagChips(
-                      personTags.get(h.event.pubkey),
-                      tagMatches.length > 0 ? tagsCarriedBy(h.event.pubkey, carrierSets, tagMatches) : [],
-                    );
-                    const chip = list?.chips[0];
-                    return chip ? { chip, loud: list!.emphasis.has(`${chip.authorPubkey}:${chip.slug}`) } : undefined;
+                    // A face card wears a tag only when it is the one searched: no room for a truncated own tag.
+                    const t =
+                      tagMatches.length > 0 ? tagsCarriedBy(h.event.pubkey, carrierSets, tagMatches)[0] : undefined;
+                    if (!t) return undefined;
+                    const chip: TagChip = {
+                      key: t.key,
+                      authorPubkey: t.authorPubkey,
+                      slug: t.slug,
+                      name: t.name,
+                      people: t.people,
+                      unverified: t.unverified,
+                    };
+                    return { chip, loud: true };
                   })()}
                   onOpen={(p) => onOpenProfile?.(p)}
                 />

@@ -104,11 +104,13 @@ import { useTagMatches } from "@/hooks/useTags";
 import { useTagCarriers } from "@/hooks/useTagCarriers";
 import {
   leadCarriersByRank,
+  leadingCarriers,
   mergeCarrierHits,
   personTagChips,
   rankCarriers,
   tagsCarriedBy,
 } from "@/lib/tagCarrierPeople";
+import { leadingTags } from "@/lib/tagMatch";
 import { usePersonTags } from "@/hooks/usePersonTags";
 import { usePersonFountain } from "@/hooks/usePersonFountain";
 import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
@@ -921,6 +923,11 @@ export function SearchResults({
   // lead the People tab wearing the tag; the relay's name matches follow.
   const tagMatches = useTagMatches(tab === "people" && !scopeOf(query) ? query : "", 3, { fetch: false });
   const carriers = useTagCarriers(tagMatches, { pov, viewerPubkey: userPubkey });
+  // Only a tag the words name outright, with weight behind it, leads (lib/tagMatch).
+  const leadPeople = useMemo(
+    () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, query)),
+    [carriers.people, carriers.byPubkey, tagMatches, query],
+  );
   const carrierSets = useMemo(() => {
     const sets = new Map<string, Set<string>>();
     for (const [pubkey, tags] of carriers.byPubkey) {
@@ -952,7 +959,7 @@ export function SearchResults({
     // which, here, so the count line, the chips and the cards agree.
     if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
     // The people on a matched tag lead the People tab, once each.
-    if (tab === "people") return mergeCarrierHits(base, carriers.people);
+    if (tab === "people") return mergeCarrierHits(base, leadPeople);
     // A named person's own tracks join the Music tab's hits, once each.
     if (tab === "music") {
       const seen = new Set(base.map((h) => h.event.id));
@@ -962,7 +969,7 @@ export function SearchResults({
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
     return [...base, ...visual];
-  }, [snapshot, mediaNotes, tab, personMedia, carriers.people]);
+  }, [snapshot, mediaNotes, tab, personMedia, leadPeople]);
   // The person's own media is its own group above the list; the list drops its duplicates.
   const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -987,9 +994,9 @@ export function SearchResults({
   // Their order, taken once when they land and held for the query — a late
   // score must not reorder a list the reader is already scanning.
   const carrierRank = useMemo(
-    () => (carriers.settled ? rankCarriers(carriers.people, scoreOfRef.current) : new Map<string, number>()),
+    () => (carriers.settled ? rankCarriers(leadPeople, scoreOfRef.current) : new Map<string, number>()),
 
-    [carriers.settled, carriers.people],
+    [carriers.settled, leadPeople],
   );
   // The filters the relay can't do, done here (probed: filter:rank ignored,
   // no hops): Verified only via those scores, reach via the viewer's graph.

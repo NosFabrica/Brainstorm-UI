@@ -1507,7 +1507,7 @@ describe("ComposedResults — a query that matches a tag", () => {
     authorPubkey: TAG_AUTHOR,
     slug: "verified-human",
     name: "Verified Human",
-    people: 2,
+    people: 5,
     vouches: 2,
     sharesName: 0,
     unverified: false,
@@ -1532,7 +1532,7 @@ describe("ComposedResults — a query that matches a tag", () => {
     personTagsMock.mockImplementation((pks) => new Map(pks.map((pk) => [pk, []])));
   });
 
-  it("a name search shows a person's most-applied tag quietly under their name", async () => {
+  it("a face card wears a tag only when it is the one searched — no room for a truncated own tag", async () => {
     personTagsMock.mockImplementation(
       (pks) =>
         new Map(
@@ -1548,7 +1548,6 @@ describe("ComposedResults — a query that matches a tag", () => {
                     applications: 2,
                     counted: true,
                   },
-                  { key: "k|dev", authorPubkey: TAG_AUTHOR, slug: "dev", name: "Dev", applications: 1, counted: true },
                 ]
               : [],
           ]),
@@ -1560,9 +1559,8 @@ describe("ComposedResults — a query that matches a tag", () => {
       eose: true,
       timeMs: 100,
     });
-    const chip = await screen.findByTestId(`strip-person-tag-${FRESH.slice(0, 8)}`);
-    expect(chip).toHaveTextContent("Author");
-    expect(chip).toHaveAttribute("data-emphasis", "quiet");
+    await screen.findByTestId(`serp-person-${FRESH.slice(0, 8)}`);
+    expect(screen.queryByTestId(`strip-person-tag-${FRESH.slice(0, 8)}`)).toBeNull();
   });
 
   it("the People strip leads with the tag's people, best first, each wearing the tag; the relay's match follows bare", async () => {

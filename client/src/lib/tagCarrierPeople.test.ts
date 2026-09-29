@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  leadingCarriers,
   mergeCarrierPeople,
   personTagChips,
   tagsCarriedBy,
@@ -155,5 +156,20 @@ describe("personTagChips", () => {
 
   it("is nothing yet while their own tags are out and nothing matched", () => {
     expect(personTagChips(undefined, [])).toBeUndefined();
+  });
+});
+
+describe("leadingCarriers", () => {
+  it("is the people on the tags that may lead, once each", () => {
+    const human = tag("verified-human"),
+      aos = tag("aos");
+    const people = [carrier("a"), carrier("b"), carrier("c")];
+    const byPubkey = new Map([
+      [pk("a"), [human, aos]],
+      [pk("b"), [aos]],
+      [pk("c"), [human]],
+    ]);
+    expect(leadingCarriers(people, byPubkey, [human]).map((p) => p.name)).toEqual(["a", "c"]);
+    expect(leadingCarriers(people, byPubkey, [])).toEqual([]);
   });
 });

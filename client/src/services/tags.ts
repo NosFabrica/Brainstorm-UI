@@ -13,6 +13,7 @@
  * `services/api.ts`: `/p/:id` is anon-viewable and `authenticatedFetch` wipes
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
+import { wordsNearlyMatch } from "@/lib/tagMatch";
 import { pool, fetchEventsByFilter, publishToRelays } from "./nostr";
 import { dedupeRelays, outboxRelays, readRelaysFor, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -1510,37 +1511,6 @@ export async function fetchPickerTags(viewerPubkey?: string, observer: TrustObse
  * starts-with, then contains — inside each band the catalogue's own
  * usage ordering carries through.
  */
-/**
- * One typo apart: an insertion, a deletion, a substitution or two swapped
- * neighbours ("humna" → "human"). Anything more is a different word.
- */
-function withinOneEdit(a: string, b: string): boolean {
-  if (a === b) return true;
-  if (Math.abs(a.length - b.length) > 1) return false;
-  if (a.length === b.length) {
-    const diff: number[] = [];
-    for (let i = 0; i < a.length && diff.length <= 2; i++) if (a[i] !== b[i]) diff.push(i);
-    if (diff.length === 1) return true;
-    return diff.length === 2 && diff[1] === diff[0] + 1 && a[diff[0]] === b[diff[1]] && a[diff[1]] === b[diff[0]];
-  }
-  const [short, long] = a.length < b.length ? [a, b] : [b, a];
-  let i = 0;
-  while (i < short.length && short[i] === long[i]) i++;
-  return short.slice(i) === long.slice(i + 1);
-}
-
-/**
- * Every typed word finds a word of the name: as a prefix ("ven" → "vendor"),
- * or, for a word long enough to carry a typo, one edit away ("verfied").
- */
-function wordsNearlyMatch(query: string, name: string): boolean {
-  const nameWords = name.split(/\s+/).filter(Boolean);
-  return query
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((w) => nameWords.some((n) => n.startsWith(w) || (w.length >= 4 && withinOneEdit(w, n))));
-}
-
 export function matchTags(index: TagSummary[], query: string, max = 5): TagSummary[] {
   const q = query.trim().toLowerCase();
   if (q.length < 2) return [];

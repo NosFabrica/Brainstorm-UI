@@ -69,7 +69,8 @@ import { useProfileMap } from "@/hooks/useProfileMap";
 import { usePersonContent } from "@/hooks/usePersonContent";
 import { useTagMatches } from "@/hooks/useTags";
 import { useTagCarriers } from "@/hooks/useTagCarriers";
-import { mergeCarrierPeople, personTagChips, tagsCarriedBy } from "@/lib/tagCarrierPeople";
+import { leadingCarriers, mergeCarrierPeople, personTagChips, tagsCarriedBy } from "@/lib/tagCarrierPeople";
+import { leadingTags } from "@/lib/tagMatch";
 import { usePersonTags } from "@/hooks/usePersonTags";
 import { PersonTagChips } from "@/components/search/PersonTagChips";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
@@ -245,8 +246,14 @@ export function SearchBox({
   // already routed at the hashtag feed and shouldn't offer a second answer.
   // Only while suggestions show — a query restored from the URL mustn't pull the whole catalogue.
   const tagMatches = useTagMatches(topicMatch.isTopic || !showSuggestions ? "" : value);
-  // The people those tags are on — they join the list, wearing the tag (the team, 2026-09-29).
+  // The people those tags are on — they wear the tag (the team, 2026-09-29),
+  // and lead the list only when the words ARE a tag's name and the tag carries
+  // weight (lib/tagMatch): a prefix is an offer, not a ranking.
   const carriers = useTagCarriers(tagMatches, { pov: effectivePov, viewerPubkey: user?.pubkey });
+  const leadPeople = useMemo(
+    () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, value)),
+    [carriers.people, carriers.byPubkey, tagMatches, value],
+  );
   // Relay hits carry no rank numbers (order-only wire) — the dropdown's rings
   // and coins feed from the shared author-score cache, like every card.
   const suggestScoreOf = useAuthorScores(
@@ -273,12 +280,12 @@ export function SearchBox({
     () =>
       mergeCarrierPeople({
         relay: suggestions,
-        carriers: carriers.people,
+        carriers: leadPeople,
         scoreOf: suggestScoreOf,
         leadCap: 4,
         limit: 7,
       }),
-    [suggestions, carriers.people, suggestScoreOf],
+    [suggestions, leadPeople, suggestScoreOf],
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
