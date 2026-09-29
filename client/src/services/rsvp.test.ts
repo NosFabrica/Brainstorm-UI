@@ -81,7 +81,6 @@ describe("publishRsvp", () => {
     expect(tag("status")).toEqual(["status", "accepted"]);
     expect(tag("p")).toEqual(["p", HOST]);
     expect(tag("d")?.[1]).toMatch(/^[\w-]{8,}$/);
-    expect(template.tags).toEqual(expect.arrayContaining([["client", "Brainstorm"]]));
     expect(publishMock).toHaveBeenCalledTimes(1);
     expect(res.event).toMatchObject({ id: "signed-id", kind: 31925 });
   });

@@ -14,8 +14,6 @@ import { relayHintFor, tagWithHint } from "@/lib/relayRouting";
 export const VOUCH_KIND = 31871;
 export type VouchType = "vouch" | "identity";
 
-const CLIENT_TAG = ["client", "Brainstorm"];
-
 export type VouchOutcome = PublishOutcome & { event?: NostrEvent };
 
 /** Publish (or, for the same subject, update) the viewer's trust review. */
@@ -37,7 +35,6 @@ export async function publishVouch(
         ["t", opts.type],
         ["s", "vouched"],
         ["alt", "Trust vouch"],
-        CLIENT_TAG,
       ],
       content: opts.content.trim(),
     });
@@ -68,7 +65,6 @@ export async function revokeVouch(subjectPubkey: string, eventId: string): Promi
         tagWithHint("a", `${VOUCH_KIND}:${account.pubkey}:${subjectPubkey}`, relayHintFor(account.pubkey)),
         ["k", String(VOUCH_KIND)],
         tagWithHint("p", subjectPubkey, relayHintFor(subjectPubkey)),
-        CLIENT_TAG,
       ],
       content: "Vouch removed",
     });

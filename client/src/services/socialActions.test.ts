@@ -190,13 +190,6 @@ describe("following", () => {
     expect(signedPubkeys()).toEqual([OTHER, THEM]);
   });
 
-  it("stamps the client tag exactly once", async () => {
-    await social.followUser(THEM, listEvent(3, [OTHER]) as never);
-
-    const client = signedTags().filter((t) => t[0] === "client");
-    expect(client).toEqual([["client", "Brainstorm"]]);
-  });
-
   it("is a no-op when they are already followed", async () => {
     const res = await social.followUser(THEM, listEvent(3, [THEM]) as never);
 

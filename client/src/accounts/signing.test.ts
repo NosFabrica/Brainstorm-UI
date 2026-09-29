@@ -55,6 +55,33 @@ describe("signing as an account", () => {
     expect(verifyEvent(event)).toBe(true);
   });
 
+  it("stamps our client tag exactly once, replacing any other", async () => {
+    const account = signableAccount();
+
+    const event = await signAs(account, {
+      kind: 3,
+      tags: [
+        ["p", "x"],
+        ["client", "Other"],
+      ],
+      content: "",
+    });
+
+    expect(event.tags).toEqual([
+      ["p", "x"],
+      ["client", "Brainstorm"],
+    ]);
+  });
+
+  it("leaves auth proofs untagged: they are never published", async () => {
+    const account = signableAccount();
+
+    for (const kind of [22242, 24242, 27235]) {
+      const event = await signAs(account, { kind, tags: [["u", "https://x"]], content: "" });
+      expect(event.tags).toEqual([["u", "https://x"]]);
+    }
+  });
+
   it("defaults created_at to now, and lets a caller pin it", async () => {
     const account = signableAccount();
 

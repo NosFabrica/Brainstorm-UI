@@ -53,7 +53,6 @@ describe("publishVouch", () => {
       ["t", "identity"],
       ["s", "vouched"],
       ["alt", "Trust vouch"],
-      ["client", "Brainstorm"],
     ]);
     expect(publishMock).toHaveBeenCalledTimes(1);
     // The caller gets the signed event back so the page can show it at once.
@@ -82,7 +81,6 @@ describe("revokeVouch", () => {
       ["a", `31871:${ME}:${THEM}`],
       ["k", "31871"],
       ["p", THEM],
-      ["client", "Brainstorm"],
     ]);
   });
 });
