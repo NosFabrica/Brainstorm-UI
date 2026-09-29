@@ -35,12 +35,20 @@ vi.mock("@/services/searchFaces", () => ({ fetchPillProfiles: async () => new Ma
 vi.mock("@/services/api", () => ({ apiClient: new Proxy({}, { get: () => async () => null }) }));
 const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
 vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
-vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
+const scoreMock = vi.fn((_pk: string): number | null => null);
+vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => (pk: string) => scoreMock(pk) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
 vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ isSearchObserver: false }) }));
-vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
+const tagMatchesMock = vi.fn((_q: string): unknown[] => []);
+vi.mock("@/hooks/useTags", () => ({ useTagMatches: (q: string) => tagMatchesMock(q) }));
+const carriersMock = vi.fn((_tags: unknown[]) => ({
+  byPubkey: new Map<string, unknown[]>(),
+  people: [] as unknown[],
+  settled: true,
+}));
+vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
 
 import { HeaderSearchBox } from "./HeaderSearchBox";
 import { nip19 } from "nostr-tools";
@@ -73,6 +81,12 @@ beforeEach(() => {
   listingsMock.mockReset();
   listingsMock.mockResolvedValue([]);
   contentMock.mockReset();
+  scoreMock.mockReset();
+  scoreMock.mockReturnValue(null);
+  tagMatchesMock.mockReset();
+  tagMatchesMock.mockReturnValue([]);
+  carriersMock.mockReset();
+  carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: true });
   contentMock.mockImplementation(() => new Map());
   clearRecentSearches();
   window.history.replaceState({}, "", "/p/somebody");
@@ -344,5 +358,77 @@ describe("what a suggested person publishes", () => {
     fireEvent.click(screen.getByTestId("person-content-chip-shop"));
     expect(dropdown()).toBeNull();
     expect(window.location.search).toMatch(/&t=shop$/);
+  });
+});
+
+describe("a query that matches a tag", () => {
+  const TAG_AUTHOR = "9".repeat(64);
+  const human = {
+    key: `39999:${TAG_AUTHOR}:verified-human`,
+    authorPubkey: TAG_AUTHOR,
+    slug: "verified-human",
+    name: "Verified Human",
+    people: 2,
+    vouches: 2,
+    sharesName: 0,
+    unverified: false,
+  };
+  const pk = (c: string) => c.repeat(64);
+  const person = (c: string, name: string) => ({ pubkey: pk(c), npub: nip19.npubEncode(pk(c)), name });
+  const carrier = (c: string, name: string) => ({ ...person(c, name), applications: 1, addedAt: 0 });
+  const carriersOf = (people: ReturnType<typeof carrier>[]) => ({
+    byPubkey: new Map(people.map((p) => [p.pubkey, [human]])),
+    people,
+    settled: true,
+  });
+
+  async function open(query: string) {
+    render(<HeaderSearchBox />);
+    type(query);
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    await act(async () => {});
+  }
+
+  it("leads with the tag's people, best first, each wearing the tag; a name match follows without one", async () => {
+    tagMatchesMock.mockReturnValue([human]);
+    carriersMock.mockReturnValue(carriersOf([carrier("b", "Bill"), carrier("a", "Avi")]));
+    scoreMock.mockImplementation((p) => (p === pk("a") ? 0.9 : p === pk("b") ? 0.5 : null));
+    suggestMock.mockResolvedValue([person("c", "Human Verifier"), person("a", "Avi")]);
+    await open("verified human");
+    const names = [0, 1, 2].map((i) => screen.getByTestId(`home-suggestion-name-${i}`).textContent);
+    expect(names).toEqual(["Avi", "Bill", "Human Verifier"]);
+    expect(screen.queryByTestId("home-suggestion-3")).toBeNull();
+    const chip = within(screen.getByTestId("home-suggestion-0")).getByTestId("person-tag-chip-verified-human");
+    expect(chip.getAttribute("href")).toBe(`/tags/${nip19.npubEncode(TAG_AUTHOR)}/verified-human`);
+    expect(
+      within(screen.getByTestId("home-suggestion-1")).getByTestId("person-tag-chip-verified-human"),
+    ).toBeInTheDocument();
+    expect(within(screen.getByTestId("home-suggestion-2")).queryByTestId("person-tag-chip-verified-human")).toBeNull();
+  });
+
+  it("caps the tag's people at four so the names the relay found still make the list", async () => {
+    tagMatchesMock.mockReturnValue([human]);
+    carriersMock.mockReturnValue(carriersOf(["1", "2", "3", "4", "5", "6"].map((x) => carrier(x, `T${x}`))));
+    suggestMock.mockResolvedValue(["a", "b", "c", "d", "e"].map((x) => person(x, `R${x}`)));
+    await open("verified human");
+    const names = [0, 1, 2, 3, 4, 5, 6].map((i) => screen.getByTestId(`home-suggestion-name-${i}`).textContent);
+    expect(names.slice(0, 4).every((n) => n?.startsWith("T"))).toBe(true);
+    expect(names.slice(4)).toEqual(["Ra", "Rb", "Rc"]);
+    expect(screen.queryByTestId("home-suggestion-7")).toBeNull();
+  });
+
+  it("a chip tap keeps the field's focus, closes the list and opens the tag page", async () => {
+    tagMatchesMock.mockReturnValue([human]);
+    carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    suggestMock.mockResolvedValue([]);
+    await open("verified human");
+    input().focus();
+    const chip = screen.getByTestId("person-tag-chip-verified-human");
+    expect(fireEvent.mouseDown(chip)).toBe(false);
+    fireEvent.click(chip);
+    expect(dropdown()).toBeNull();
+    expect(window.location.pathname).toBe(`/tags/${nip19.npubEncode(TAG_AUTHOR)}/verified-human`);
   });
 });

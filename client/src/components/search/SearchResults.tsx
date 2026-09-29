@@ -100,6 +100,9 @@ import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
 import { useTaggedMusicians } from "@/hooks/useTaggedMusicians";
+import { useTagMatches } from "@/hooks/useTags";
+import { useTagCarriers } from "@/hooks/useTagCarriers";
+import { leadCarriersByScore, mergeCarrierHits, tagsCarriedBy } from "@/lib/tagCarrierPeople";
 import { usePersonFountain } from "@/hooks/usePersonFountain";
 import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
@@ -907,6 +910,22 @@ export function SearchResults({
     [onOpenProfile, setLocation],
   );
 
+  // Words that name a tag find the people on it (the team, 2026-09-29): they
+  // lead the People tab wearing the tag; the relay's name matches follow.
+  const tagMatches = useTagMatches(tab === "people" && !scopeOf(query) ? query : "");
+  const carriers = useTagCarriers(tagMatches, { pov, viewerPubkey: userPubkey });
+  const carrierSets = useMemo(() => {
+    const sets = new Map<string, Set<string>>();
+    for (const [pubkey, tags] of carriers.byPubkey) {
+      for (const t of tags) {
+        const set = sets.get(t.key) ?? new Set<string>();
+        set.add(pubkey);
+        sets.set(t.key, set);
+      }
+    }
+    return sets;
+  }, [carriers.byPubkey]);
+  const carrierByPubkey = useMemo(() => new Map(carriers.people.map((c) => [c.pubkey, c])), [carriers.people]);
   // Keep a ref so the render below sees a stable list even mid-stream. On the
   // Media tab the notes that carry media join the media-kind hits.
   const rawHits = useMemo(() => {
@@ -926,6 +945,8 @@ export function SearchResults({
     // articles wear the recipe tag too. One source of truth says which is
     // which, here, so the count line, the chips and the cards agree.
     if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
+    // The people on a matched tag lead the People tab, once each.
+    if (tab === "people") return mergeCarrierHits(base, carriers.people);
     // A named person's own tracks join the Music tab's hits, once each.
     if (tab === "music") {
       const seen = new Set(base.map((h) => h.event.id));
@@ -935,7 +956,7 @@ export function SearchResults({
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
     return [...base, ...visual];
-  }, [snapshot, mediaNotes, tab, personMedia]);
+  }, [snapshot, mediaNotes, tab, personMedia, carriers.people]);
   // The person's own media is its own group above the list; the list drops its duplicates.
   const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -1055,11 +1076,13 @@ export function SearchResults({
   const searching =
     personMedia.length === 0 &&
     (!snapshot ||
+      (tab === "people" && !carriers.settled && hits.length === 0) ||
       (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading)) ||
       (tab === "media" && !mediaSettled && hits.length === 0));
   const noResults =
     !!snapshot?.eose &&
     mediaSettled &&
+    (tab !== "people" || carriers.settled) &&
     hits.length === 0 &&
     personMedia.length === 0 &&
     (tab !== "music" ||
@@ -1336,6 +1359,8 @@ export function SearchResults({
   }, [tab, hits, appCategoryTags]);
   const displayHits = useMemo<DisplayRow[]>(() => {
     let shown = hits;
+    // The tag's people, best first; scores land after the merge, so the order does too.
+    if (tab === "people" && carrierByPubkey.size > 0) shown = leadCarriersByScore(shown, carrierByPubkey, scoreOf);
     if (tab === "events") shown = filterEventsByWhen(shown, effectiveWhen);
     // A 31337 without a title and audio is not a song (the kind is abused).
     if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
@@ -1514,6 +1539,8 @@ export function SearchResults({
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    carrierByPubkey,
+    scoreOf,
     hits,
     tab,
     appPlatform,
@@ -2269,6 +2296,11 @@ export function SearchResults({
                               onPrefetchEnter={onPrefetchEnter}
                               onPrefetchLeave={onPrefetchLeave}
                               showFollowedBy={idx < 3}
+                              tags={
+                                tagMatches.length > 0 && carriers.settled
+                                  ? tagsCarriedBy(event.pubkey, carrierSets, tagMatches)
+                                  : undefined
+                              }
                             />,
                           );
                         }
