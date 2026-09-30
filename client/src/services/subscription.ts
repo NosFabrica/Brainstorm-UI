@@ -135,14 +135,7 @@ export const DEFAULT_SUBSCRIPTION: Subscription = {
 
 // A closed set the SERVER controls and translates into — unlike a tier, this
 // one is ours end to end, so recognising it is safe.
-const STATUSES: readonly SubscriptionStatus[] = [
-  "none",
-  "pending",
-  "active",
-  "past_due",
-  "grace",
-  "canceled",
-];
+const STATUSES: readonly SubscriptionStatus[] = ["none", "pending", "active", "past_due", "grace", "canceled"];
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v ? v : null;
@@ -188,9 +181,7 @@ function normalizePlanRecord(raw: unknown): SubscriptionPlanRecord | null {
  */
 function normalize(raw: unknown): Subscription {
   const r = (raw ?? {}) as Record<string, unknown>;
-  const status = STATUSES.includes(r.status as SubscriptionStatus)
-    ? (r.status as SubscriptionStatus)
-    : "none";
+  const status = STATUSES.includes(r.status as SubscriptionStatus) ? (r.status as SubscriptionStatus) : "none";
   return {
     policy: normalizePolicy(r.policy),
     plan: normalizePlanRecord(r.plan),
@@ -228,9 +219,7 @@ const VERIFICATIONS: SubscriptionVerification[] = ["verified", "mismatch", "unkn
 
 export type RefreshedSubscription = Subscription & { verification: SubscriptionVerification | null };
 
-export async function refreshSubscription(
-  subscriptionId?: string,
-): Promise<RefreshedSubscription> {
+export async function refreshSubscription(subscriptionId?: string): Promise<RefreshedSubscription> {
   const raw = await apiClient.refreshSubscription(subscriptionId);
   const v = (raw as { verification?: unknown } | null)?.verification;
   return {

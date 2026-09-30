@@ -17,7 +17,15 @@ vi.mock("@/services/search", async (importOriginal) => ({
   suggestProfiles: (...args: unknown[]) => suggestMock(...args),
   suggestProfileHits: async (...args: unknown[]) =>
     ((await suggestMock(...args)) as { pubkey: string }[]).map((author) => ({
-      event: { id: `k0-${author.pubkey}`, kind: 0, pubkey: author.pubkey, tags: [], content: "{}", created_at: 1, sig: "s" },
+      event: {
+        id: `k0-${author.pubkey}`,
+        kind: 0,
+        pubkey: author.pubkey,
+        tags: [],
+        content: "{}",
+        created_at: 1,
+        sig: "s",
+      },
       author,
       rank: null,
     })),
@@ -51,10 +59,13 @@ function type(value: string) {
 function typeSlowly(word: string) {
   for (let i = 1; i <= word.length; i++) {
     type(word.slice(0, i));
-    act(() => { vi.advanceTimersByTime(200); });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
   }
 }
-const enter = () => fireEvent(input(), new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }));
+const enter = () =>
+  fireEvent(input(), new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }));
 
 beforeEach(() => {
   suggestMock.mockReset();
@@ -75,7 +86,9 @@ describe("typing in the header search", () => {
   it("asks for suggestions once, for the whole word, when typing pauses", () => {
     render(<HeaderSearchBox />);
     typeSlowly("vitor");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(suggestMock).toHaveBeenCalledTimes(1);
     expect(suggestMock.mock.calls[0][0]).toBe("vitor");
   });
@@ -84,7 +97,9 @@ describe("typing in the header search", () => {
     render(<HeaderSearchBox />);
     typeSlowly("doi:10.1000");
     typeSlowly("sort:rec");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(suggestMock).not.toHaveBeenCalled();
     expect(dropdown()).toBeNull();
   });
@@ -94,7 +109,9 @@ describe("typing in the header search", () => {
     suggestMock.mockResolvedValue([{ pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe" }]);
     render(<HeaderSearchBox />);
     type("from:jo");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     await act(async () => {});
     expect(suggestMock.mock.calls.at(-1)?.[0]).toBe("jo");
     fireEvent.click(screen.getByTestId("home-suggestion-0"));
@@ -105,7 +122,9 @@ describe("typing in the header search", () => {
   it("cancels a request that's under way when the next key lands", () => {
     render(<HeaderSearchBox />);
     type("vito");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(signalOf(0)?.aborted).toBe(false);
     type("vitor");
     expect(signalOf(0)?.aborted).toBe(true);
@@ -114,7 +133,9 @@ describe("typing in the header search", () => {
   it("cancels it when the box goes away", () => {
     const { unmount } = render(<HeaderSearchBox />);
     type("vitor");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     unmount();
     expect(signalOf(0)?.aborted).toBe(true);
   });
@@ -123,7 +144,9 @@ describe("typing in the header search", () => {
     render(<HeaderSearchBox />);
     type("vitor");
     fireEvent.keyDown(input(), { key: "Escape" });
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     expect(suggestMock).not.toHaveBeenCalled();
     expect(dropdown()).toBeNull();
   });
@@ -131,7 +154,9 @@ describe("typing in the header search", () => {
   it("cancels a request when the box closes, and it stays closed", async () => {
     render(<HeaderSearchBox />);
     type("vitor");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     fireEvent.keyDown(input(), { key: "Escape" });
     await act(async () => {});
     expect(signalOf(0)?.aborted).toBe(true);
@@ -140,14 +165,30 @@ describe("typing in the header search", () => {
 
   it("a product title under the people opens the listing itself", async () => {
     suggestMock.mockResolvedValue([]);
-    listingsMock.mockResolvedValue([{
-      event: { id: "t".repeat(64), kind: 30402, pubkey: "e".repeat(64), tags: [["d", "smiley"], ["title", "Satoshi Smiley T-shirt"], ["price", "21", "USD"]], content: "", created_at: 1, sig: "s" },
-      author: null,
-      rank: null,
-    }]);
+    listingsMock.mockResolvedValue([
+      {
+        event: {
+          id: "t".repeat(64),
+          kind: 30402,
+          pubkey: "e".repeat(64),
+          tags: [
+            ["d", "smiley"],
+            ["title", "Satoshi Smiley T-shirt"],
+            ["price", "21", "USD"],
+          ],
+          content: "",
+          created_at: 1,
+          sig: "s",
+        },
+        author: null,
+        rank: null,
+      },
+    ]);
     render(<HeaderSearchBox />);
     type("satoshi");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     await act(async () => {});
     const row = screen.getByTestId("home-product-suggestion-0");
     expect(row).toHaveTextContent("Satoshi Smiley T-shirt");
@@ -245,14 +286,18 @@ describe("what a suggested person publishes", () => {
   const STACI_NPUB = nip19.npubEncode(STACI);
   const shop = { key: "shop", label: "Shop", tab: "shop", liveNow: false };
   beforeEach(() => {
-    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])));
+    contentMock.mockImplementation(
+      (pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])),
+    );
     suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci" }]);
   });
 
   it("a suggested person wears chips linking to their scoped search, on a row that is not a button", async () => {
     render(<HeaderSearchBox />);
     type("staci");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     await act(async () => {});
     const row = screen.getByTestId("home-suggestion-0");
     expect(row.tagName).toBe("DIV");
@@ -266,16 +311,20 @@ describe("what a suggested person publishes", () => {
   it("picking the person opens their profile", async () => {
     render(<HeaderSearchBox />);
     type("staci");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     await act(async () => {});
     fireEvent.click(screen.getByTestId("home-suggestion-0"));
     expect(window.location.pathname).toBe(`/p/${STACI_NPUB}`);
   });
 
-  it("\"staci shop\" looks Staci up and offers her shop first", async () => {
+  it('"staci shop" looks Staci up and offers her shop first', async () => {
     render(<HeaderSearchBox />);
     type("staci shop");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     await act(async () => {});
     expect(suggestMock.mock.calls.at(-1)?.[0]).toBe("staci");
     const row = screen.getByTestId("home-intent-row");
@@ -288,7 +337,9 @@ describe("what a suggested person publishes", () => {
   it("a chip tap closes the list and lands on the scoped tab", async () => {
     render(<HeaderSearchBox />);
     type("staci");
-    act(() => { vi.advanceTimersByTime(400); });
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
     await act(async () => {});
     fireEvent.click(screen.getByTestId("person-content-chip-shop"));
     expect(dropdown()).toBeNull();

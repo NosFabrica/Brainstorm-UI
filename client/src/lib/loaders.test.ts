@@ -12,7 +12,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable } from "rxjs";
-import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import "fake-indexeddb/auto";
 

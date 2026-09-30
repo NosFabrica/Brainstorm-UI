@@ -13,10 +13,14 @@ export interface Coordinate {
 /** `kind:pubkey:d`, the key `fetchAddressableEvents` hands its results back under. */
 export const coordKey = (c: Coordinate) => `${c.kind}:${c.pubkey}:${c.identifier ?? ""}`;
 
-const coordOf = (event: NostrEvent) => `${event.kind}:${event.pubkey}:${event.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
+const coordOf = (event: NostrEvent) =>
+  `${event.kind}:${event.pubkey}:${event.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
 
 /** NIP-01: newer wins, and on a tie the lexicographically lower id wins. */
-export function newerEvent<E extends { id: string; created_at: number }>(a: E | undefined, b: E | undefined): E | undefined {
+export function newerEvent<E extends { id: string; created_at: number }>(
+  a: E | undefined,
+  b: E | undefined,
+): E | undefined {
   if (!a || !b) return a ?? b;
   if (a.created_at !== b.created_at) return a.created_at > b.created_at ? a : b;
   return a.id < b.id ? a : b;
@@ -96,7 +100,11 @@ export function useHeldReplaceables(coords: Coordinate[]): Map<string, NostrEven
 }
 
 /** One coordinate's newest held copy, kept current — see `useHeldReplaceables`. */
-export function useHeldReplaceable(kind: number, pubkey: string | undefined, identifier?: string): NostrEvent | undefined {
+export function useHeldReplaceable(
+  kind: number,
+  pubkey: string | undefined,
+  identifier?: string,
+): NostrEvent | undefined {
   const coords = useMemo(() => (pubkey ? [{ kind, pubkey, identifier }] : []), [kind, pubkey, identifier]);
   return useHeldReplaceables(coords).get(coordKey({ kind, pubkey: pubkey ?? "", identifier }));
 }

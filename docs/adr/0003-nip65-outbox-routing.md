@@ -6,7 +6,7 @@ paths called it. What it did was read a kind-10002 **out of the local event
 store** and union its `write` relays with a hardcoded fallback.
 
 Nothing filled that store. The signed-in user's relay list was fetched only on
-the *failure* path of the login-time contact-list read, or on the dashboard when
+the _failure_ path of the login-time contact-list read, or on the dashboard when
 the account had no cached name or picture. A stranger's was never fetched at all
 before reading their notes. So `loadOutboxRelayListFromDb` returned the fallback
 in almost every session, and in practice every read and every publish this app
@@ -23,7 +23,7 @@ Three further gaps sat behind that one:
   and none of them reached that recipient's read relays — the half of NIP-65
   that makes a mention arrive. NIP-57 zap requests had the same bug in a form
   that loses money's worth of signal: the `relays` tag told the wallet to publish
-  the receipt to *our* relays, not to where the person being zapped reads.
+  the receipt to _our_ relays, not to where the person being zapped reads.
 - **A profile save overwrote the user's relay list.** `publishProfile` finished
   by signing a fresh kind-10002 whose tags were literally `PROFILE_RELAYS`.
   Kind 10002 is replaceable, so a user who had curated their relays in another
@@ -35,9 +35,9 @@ Three further gaps sat behind that one:
 `lib/relayRouting.ts` is the one place that answers "which relays". It holds the
 whole rule:
 
-- **To read an author**, ask the relays *they write to* — `outboxRelays()`,
+- **To read an author**, ask the relays _they write to_ — `outboxRelays()`,
   which **loads** the kind-10002 if the store hasn't got it.
-- **To send an event that names someone**, add the relays *they read from* —
+- **To send an event that names someone**, add the relays _they read from_ —
   `inboxRelays()`. `publishRelaysFor()` composes the two: author outbox, every
   addressee's inbox, the caller's extras, our defaults as a floor.
 - **Emit relay hints.** `tagWithHint()` puts the target's write relay in the
@@ -79,7 +79,7 @@ arbitrary ones.
 Two traps that make this fail silently, both covered by tests:
 
 - **Key the map the way the pool keys connections.** `RelayPool` normalizes with
-  `normalizeURL`, which *keeps* a trailing slash; our `dedupeRelays` drops it. A
+  `normalizeURL`, which _keeps_ a trailing slash; our `dedupeRelays` drops it. A
   plan keyed our way matches nothing — every relay gets an empty author list and
   the read returns empty with no error.
 - **Never drop an uncovered author.** A tight budget can leave someone with none
@@ -113,8 +113,8 @@ events — so nothing in the tags named the host or the subject, and the
 retraction never reached the inbox the original had. Both now carry a `p`.
 
 **Not everything a `p` tag names is an addressee.** Alongside the membership
-lists, we exclude the kinds that are a claim *about* a person rather than a
-message *to* them — NIP-56 reports and tag assertions/disputes. A vouch or an
+lists, we exclude the kinds that are a claim _about_ a person rather than a
+message _to_ them — NIP-56 reports and tag assertions/disputes. A vouch or an
 RSVP is something its subject wants; an accusation delivered into the inbox they
 publish for replies is not a notification they asked for, and an inbox anyone
 can write an accusation to is a harassment vector. Those stay on the author's
@@ -158,7 +158,7 @@ an `https://` string as a relay. Our marker reading stays the forgiving one for
 the same instinct: `["r", url, "wrtie"]` keeps the relay rather than dropping it.
 
 **A relay hint never waits on the network.** `relayHintFor` is store-only. It is
-read while *building* an event, so an awaited lookup there is dead time between
+read while _building_ an event, so an awaited lookup there is dead time between
 the user's click and the signer prompt — up to the routing deadline, for a field
 that is optional by design. Anything that reads a profile warms the list first,
 and the publish that follows loads it anyway.
@@ -168,11 +168,11 @@ and the publish that follows loads it anyway.
 A hint says "the thing this tag points at can be found here", so which relay is
 correct depends on the TAG, not on the event:
 
-| Tag | Points at | Hint is |
-| --- | --- | --- |
-| `p` | a person | where THEY write |
-| `a` | `kind:pubkey:d` | where that pubkey writes |
-| `e` / `q` | somebody's event | where ITS AUTHOR writes |
+| Tag       | Points at        | Hint is                  |
+| --------- | ---------------- | ------------------------ |
+| `p`       | a person         | where THEY write         |
+| `a`       | `kind:pubkey:d`  | where that pubkey writes |
+| `e` / `q` | somebody's event | where ITS AUTHOR writes  |
 
 The mistake this invites is computing one hint per event and stamping it on
 every tag. That is right for an RSVP, where the `a`, the `e` and the `p` all
@@ -216,11 +216,11 @@ The wiring sits at the points where the app resolves a profile, because that is
 what every surface showing a person OR a note already does — a feed resolves its
 authors, a thread resolves its repliers, a profile page resolves its subject:
 
-| Where | Covers |
-| --- | --- |
-| `fetchProfileMap` | a page of people, and the authors of a page of notes |
-| `fetchProfiles` | streamed avatar lists |
-| `fetchProfileEvent` | the subject of a profile or share page |
+| Where               | Covers                                               |
+| ------------------- | ---------------------------------------------------- |
+| `fetchProfileMap`   | a page of people, and the authors of a page of notes |
+| `fetchProfiles`     | streamed avatar lists                                |
+| `fetchProfileEvent` | the subject of a profile or share page               |
 
 A new surface that renders people some other way needs the call adding. The test
 that states the whole point is in `nostr.publishRouting.test.ts`: "needs no
@@ -244,7 +244,7 @@ contact list is present on the first render with no new storage at all.
 Three properties this cannot be built without:
 
 - **Verified on hydrate.** IndexedDB is writable by anything that can run
-  script on this origin, and a forged kind-10002 steers where we *publish*.
+  script on this origin, and a forged kind-10002 steers where we _publish_.
 - **Revalidated after hydrate.** `addressPointerLoadingSequence` stops at its
   first hit and `loadReplaceable` returns a held event without asking anyone,
   so a cache without a refresh pins the user to whatever relay list they had

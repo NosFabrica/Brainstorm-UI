@@ -17,7 +17,28 @@ export type BtcRates = Partial<Record<Fiat, number>>;
 const FIATS: readonly Fiat[] = ["USD", "EUR", "GBP", "CAD", "CHF", "AUD", "JPY"];
 const isFiat = (c: string): c is Fiat => (FIATS as readonly string[]).includes(c);
 
-const EURO_AREA = new Set(["AT", "BE", "CY", "DE", "EE", "ES", "FI", "FR", "GR", "HR", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PT", "SI", "SK"]);
+const EURO_AREA = new Set([
+  "AT",
+  "BE",
+  "CY",
+  "DE",
+  "EE",
+  "ES",
+  "FI",
+  "FR",
+  "GR",
+  "HR",
+  "IE",
+  "IT",
+  "LT",
+  "LU",
+  "LV",
+  "MT",
+  "NL",
+  "PT",
+  "SI",
+  "SK",
+]);
 const BY_REGION: Record<string, Fiat> = { US: "USD", GB: "GBP", CA: "CAD", CH: "CHF", AU: "AUD", JP: "JPY" };
 
 /** The buyer's money, from a BCP-47 locale's region; dollars when there is none we price in. */
@@ -59,7 +80,11 @@ export function toSats(price: Pick<ListingPrice, "amount" | "currency">, rates: 
 }
 
 /** Any price in the viewer's money, or null when we cannot get there. */
-export function priceInCurrency(price: Pick<ListingPrice, "amount" | "currency">, rates: BtcRates | null, target: Fiat): number | null {
+export function priceInCurrency(
+  price: Pick<ListingPrice, "amount" | "currency">,
+  rates: BtcRates | null,
+  target: Fiat,
+): number | null {
   const rate = rates?.[target];
   if (!rate) return null;
   const sats = toSats(price, rates);
@@ -70,7 +95,12 @@ export function priceInCurrency(price: Pick<ListingPrice, "amount" | "currency">
 const formatFiat = (amount: number, fiat: Fiat): string => {
   // Whole money reads whole ("€189"); cents show only when there are some.
   const digits = fiat === "JPY" || Number.isInteger(Math.round(amount * 100) / 100) ? 0 : 2;
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: fiat, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(amount);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: fiat,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(amount);
 };
 /** A few sats round to "$0", which reads as free. Under the smallest coin, say so. */
 const formatFiatApprox = (amount: number, fiat: Fiat): string => {

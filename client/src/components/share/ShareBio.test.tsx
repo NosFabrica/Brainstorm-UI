@@ -19,9 +19,16 @@ describe("ShareBio — email addresses", () => {
   });
 
   it("the other ways people say it — mail, e-mail, contact — and a written mailto: count too", () => {
-    render(<ShareBio text={"Mail - jvantol@gmail.com · E-mail: a@b.co · Contact hello@relay.tools · mailto:me@x.org"} />);
+    render(
+      <ShareBio text={"Mail - jvantol@gmail.com · E-mail: a@b.co · Contact hello@relay.tools · mailto:me@x.org"} />,
+    );
     const links = screen.getAllByTestId("bio-email");
-    expect(links.map((l) => l.getAttribute("href"))).toEqual(["mailto:jvantol@gmail.com", "mailto:a@b.co", "mailto:hello@relay.tools", "mailto:me@x.org"]);
+    expect(links.map((l) => l.getAttribute("href"))).toEqual([
+      "mailto:jvantol@gmail.com",
+      "mailto:a@b.co",
+      "mailto:hello@relay.tools",
+      "mailto:me@x.org",
+    ]);
     // The mailto: prefix is the author's markup, not something to read.
     expect(links[3]).toHaveTextContent("me@x.org");
     expect(links[3]).not.toHaveTextContent("mailto:");

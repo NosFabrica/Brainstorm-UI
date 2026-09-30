@@ -26,7 +26,13 @@ import { relayAuthAllowed, relayAuthChanged$ } from "@/lib/relayAuthPref";
 type AuthPool = Pick<RelayPool, "relays" | "add$" | "remove$" | "remove">;
 type ActiveAccount = Pick<IAccount, "pubkey" | "signEvent">;
 
-export function startRelayAuth({ pool, active$ }: { pool: AuthPool; active$: Observable<ActiveAccount | undefined> }): () => void {
+export function startRelayAuth({
+  pool,
+  active$,
+}: {
+  pool: AuthPool;
+  active$: Observable<ActiveAccount | undefined>;
+}): () => void {
   // Who may answer a challenge right now: the active account, if it said yes on this device.
   const signer$ = combineLatest([active$, relayAuthChanged$.pipe(startWith(undefined))]).pipe(
     map(([account]) => (account && relayAuthAllowed(account.pubkey) ? account : undefined)),

@@ -21,10 +21,7 @@ export function stopCheckoutPoll(): void {
   stopFlag = true;
 }
 
-export function startCheckoutPoll(
-  qc: QueryClient,
-  opts?: { checkoutWindow?: Window | null },
-): void {
+export function startCheckoutPoll(qc: QueryClient, opts?: { checkoutWindow?: Window | null }): void {
   if (running) return; // one poll, however many surfaces ask
   running = true;
   stopFlag = false;
@@ -39,8 +36,7 @@ export function startCheckoutPoll(
   const done = (sub: Subscription | null) =>
     stopFlag ||
     Date.now() - startedAt > CAP_MS ||
-    (sub !== null &&
-      ((sub.policy !== null && !sub.policy.isDefault) || sub.status === "canceled"));
+    (sub !== null && ((sub.policy !== null && !sub.policy.isDefault) || sub.status === "canceled"));
 
   const tick = async (): Promise<void> => {
     let sub: Subscription | null = null;

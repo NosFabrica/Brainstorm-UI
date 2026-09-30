@@ -40,16 +40,13 @@ export function DeferredSessionCard({ onDismiss }: { onDismiss: () => void }) {
   if (!account) return null;
 
   return (
-    <Card
-      className="w-full max-w-3xl mx-auto mt-4 flex items-center gap-3 px-4 py-3"
-      data-testid="card-unlock-session"
-    >
-      <span className="h-9 w-9 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
+    <Card className="mx-auto mt-4 flex w-full max-w-3xl items-center gap-3 px-4 py-3" data-testid="card-unlock-session">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/10 text-brand-deep">
         <KeyRound className="h-5 w-5" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-foreground">Your account is locked</p>
-        <p className="text-[13px] text-muted-foreground leading-snug">
+        <p className="text-[13px] leading-snug text-muted-foreground">
           Unlock it to load your own data and publish again. Reading works without it.
         </p>
       </div>
@@ -81,7 +78,11 @@ export function DeferredSessionNotice({ className }: { className?: string }) {
   if (!account) return null;
 
   return (
-    <Alert variant="info" className={cn("flex flex-wrap items-center gap-3", className)} data-testid="notice-unlock-session">
+    <Alert
+      variant="info"
+      className={cn("flex flex-wrap items-center gap-3", className)}
+      data-testid="notice-unlock-session"
+    >
       <div className="min-w-0 flex-1">
         <AlertTitle>Sign in again to see this</AlertTitle>
         <AlertDescription>

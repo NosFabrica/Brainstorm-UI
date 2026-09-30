@@ -21,7 +21,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountManager } from "applesauce-accounts";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
-import { nip19 } from "nostr-tools";
+import { nip19, type NostrEvent } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
 import { setTechnicalView } from "@/lib/technicalView";
@@ -51,11 +51,18 @@ vi.mock("@/components/PublicPageHeader", () => ({ PublicPageHeader: () => <heade
 vi.mock("@/components/share/EventThread", () => ({ EventThread: () => null }));
 vi.mock("@/components/share/MoreFromAuthor", () => ({ MoreFromAuthor: () => null }));
 vi.mock("@/components/share/ShareButton", () => ({ ShareButton: () => null }));
-vi.mock("@/components/share/EntityMenu", () => ({ EntityMenu: () => <button type="button" data-testid="article-menu">⋯</button> }));
+vi.mock("@/components/share/EntityMenu", () => ({
+  EntityMenu: () => (
+    <button type="button" data-testid="article-menu">
+      ⋯
+    </button>
+  ),
+}));
 
 import EventPage, { AddressRedirect } from "./EventPage";
 
-const NIP21 = "# NIP-21\n\n## `nostr:` URI scheme\n\n`draft` `optional`\n\nThis NIP standardizes a URI scheme.\n\n- `nostr:npub1sn0wdenkukak0d9dfczzeacvhkrgz92ak56egt7vdgzn8pv2wfqqhrjdv9`";
+const NIP21 =
+  "# NIP-21\n\n## `nostr:` URI scheme\n\n`draft` `optional`\n\nThis NIP standardizes a URI scheme.\n\n- `nostr:npub1sn0wdenkukak0d9dfczzeacvhkrgz92ak56egt7vdgzn8pv2wfqqhrjdv9`";
 
 /** An addressable event as the relay would hand it back. */
 const event = (kind: number, identifier: string, title: string, tags: string[][], content: string) => ({
@@ -67,15 +74,17 @@ const event = (kind: number, identifier: string, title: string, tags: string[][]
   sig: "s".repeat(128),
   tags: [["d", identifier], ["title", title], ...tags],
 });
-const article = (tags: string[][]) => event(30023, "girik", "Gırık", tags, "# Gırık\n\nHandmade dough, chicken and rice.");
-const spec = (kind: number, tags: string[][]) => event(kind, "nip-21", "NIP-21", [["summary", "Nostr - URI scheme"], ...tags], NIP21);
+const article = (tags: string[][]) =>
+  event(30023, "girik", "Gırık", tags, "# Gırık\n\nHandmade dough, chicken and rice.");
+const spec = (kind: number, tags: string[][]) =>
+  event(kind, "nip-21", "NIP-21", [["summary", "Nostr - URI scheme"], ...tags], NIP21);
 
 /** The page's providers, with nobody signed in: the store the app mounts, an empty account manager, a query client. */
 const renderPage = () =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}>
       <EventStoreProvider eventStore={eventStore}>
-        <AccountsProvider manager={new AccountManager<AccountMetadata>() as any}>
+        <AccountsProvider manager={new AccountManager<AccountMetadata>()}>
           <EventPage />
         </AccountsProvider>
       </EventStoreProvider>
@@ -100,7 +109,14 @@ describe("the article reader", () => {
   // title, which read as an article called "[Deleted]". The page says what
   // happened instead.
   it("a link to an article deleted by overwriting says so, and shows no article", async () => {
-    const husk = { ...event(30023, "cheese-foam-tea", "[Deleted]", [["deleted", "true"]], ""), tags: [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]] };
+    const husk = {
+      ...event(30023, "cheese-foam-tea", "[Deleted]", [["deleted", "true"]], ""),
+      tags: [
+        ["d", "cheese-foam-tea"],
+        ["deleted", "true"],
+        ["title", "[Deleted]"],
+      ],
+    };
     served.mockReturnValue(husk);
     const naddr = nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "cheese-foam-tea" });
     window.history.pushState({}, "", `/e/${naddr}`);
@@ -112,7 +128,12 @@ describe("the article reader", () => {
   });
 
   it("offers a recipe's own home — Open in Zap.cooking — beside the menu", async () => {
-    const naddr = await open(article([["t", "zapcooking"], ["t", "zapcooking-girik"]]));
+    const naddr = await open(
+      article([
+        ["t", "zapcooking"],
+        ["t", "zapcooking-girik"],
+      ]),
+    );
 
     const link = screen.getByTestId("article-source-app");
     expect(link).toHaveTextContent(/^Open in Zap\.cooking$/);
@@ -181,7 +202,13 @@ describe("reading a spec", () => {
   // kind" landed on an empty page; the specs always answer, this one among
   // them. Kinds read in order, however the author tagged them.
   it("names the kinds a spec covers, in order, and each one opens the specs that cover it", async () => {
-    await open(spec(30817, [["k", "7000"], ["k", "5905", "DVM Job Request"], ["k", "nip"]])); // "nip" is not a kind
+    await open(
+      spec(30817, [
+        ["k", "7000"],
+        ["k", "5905", "DVM Job Request"],
+        ["k", "nip"],
+      ]),
+    ); // "nip" is not a kind
 
     const kinds = screen.getByTestId("article-kinds");
     const job = within(kinds).getByTestId("article-kind-5905");
@@ -193,7 +220,8 @@ describe("reading a spec", () => {
   });
 
   it("reads a spec's front matter as its details: id gone, status, kinds named, tags listed", async () => {
-    const TSM = "Trust Service Machines (TSM)\n===\n\n`tsm`\n\n`draft`\n\n`kind` `37570` \"TSM Service Announcement\"\n\n`tag` `B` \"price in millisats\"\n\n---\n\nNostr needs a standard.";
+    const TSM =
+      'Trust Service Machines (TSM)\n===\n\n`tsm`\n\n`draft`\n\n`kind` `37570` "TSM Service Announcement"\n\n`tag` `B` "price in millisats"\n\n---\n\nNostr needs a standard.';
     await open(event(30817, "tsm", "Trust Service Machines (TSM )", [["k", "37570"]], TSM));
 
     const body = screen.getByTestId("article-body");
@@ -202,7 +230,9 @@ describe("reading a spec", () => {
     expect(body.textContent).not.toContain("kind");
     expect(body.textContent).toContain("Nostr needs a standard.");
     expect(screen.getByTestId("article-status")).toHaveTextContent("draft");
-    expect(within(screen.getByTestId("article-kinds")).getByTestId("article-kind-37570")).toHaveTextContent("TSM Service Announcement");
+    expect(within(screen.getByTestId("article-kinds")).getByTestId("article-kind-37570")).toHaveTextContent(
+      "TSM Service Announcement",
+    );
     expect(screen.getByTestId("article-tags")).toHaveTextContent("B");
     expect(screen.getByTestId("article-tags")).toHaveTextContent("price in millisats");
   });
@@ -236,18 +266,47 @@ describe("the kind and the content decide, not the route", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("a plain-text article keeps its single-line-break paragraphs", async () => {
-    await open(event(30023, "plain", "Plain", [], [1, 2, 3].map((n) => `Paragraph ${n} runs on the way an article's paragraphs do, past a hundred characters, with no blank line after it.`).join("\n")));
+    await open(
+      event(
+        30023,
+        "plain",
+        "Plain",
+        [],
+        [1, 2, 3]
+          .map(
+            (n) =>
+              `Paragraph ${n} runs on the way an article's paragraphs do, past a hundred characters, with no blank line after it.`,
+          )
+          .join("\n"),
+      ),
+    );
     const body = screen.getByTestId("article-body");
     expect(body.querySelectorAll(".note-reading > div")).toHaveLength(3);
   });
 
   it("a plain-text article still plays its YouTube link in place", async () => {
-    await open(event(30023, "yt", "Plain", [], "Watch this first, it explains the whole thing better than I can.\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\nThen come back and read the rest of the post."));
+    await open(
+      event(
+        30023,
+        "yt",
+        "Plain",
+        [],
+        "Watch this first, it explains the whole thing better than I can.\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\nThen come back and read the rest of the post.",
+      ),
+    );
     expect(screen.getByTestId("article-body").querySelector('[data-testid="video-embed"]')).not.toBeNull();
   });
 
   it("an HTML article reads as text instead of disappearing", async () => {
-    await open(event(30023, "html", "HTML", [], "<div style='text-align: justify;'>\n<p>Sudoroso, no sabía si dar cuenta.</p><p>Second <b>part</b>.</p></div>"));
+    await open(
+      event(
+        30023,
+        "html",
+        "HTML",
+        [],
+        "<div style='text-align: justify;'>\n<p>Sudoroso, no sabía si dar cuenta.</p><p>Second <b>part</b>.</p></div>",
+      ),
+    );
     const body = screen.getByTestId("article-body");
     expect(body).toHaveTextContent("Sudoroso, no sabía si dar cuenta.");
     expect(body.querySelector("strong")).toHaveTextContent("part");
@@ -255,7 +314,9 @@ describe("the kind and the content decide, not the route", () => {
   });
 
   it("an address that is not an article renders on its kind's layout", async () => {
-    served.mockReturnValue(event(30402, "vpn", "Obscura VPN", [["image", "https://img/vpn.png"]], "A VPN that cannot log you."));
+    served.mockReturnValue(
+      event(30402, "vpn", "Obscura VPN", [["image", "https://img/vpn.png"]], "A VPN that cannot log you."),
+    );
     const naddr = nip19.naddrEncode({ kind: 30402, pubkey: AUTHOR, identifier: "vpn" });
     window.history.pushState({}, "", `/e/${naddr}`);
     renderPage();
@@ -268,7 +329,9 @@ describe("audit of #97 (articles)", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("an HTML article's decoded <div> and 2*3*4 stay as written", async () => {
-    await open(event(30023, "html2", "HTML", [], "<h2>Intro</h2><h2>Usage</h2><p>Wrap it in &lt;div&gt; tags, 2*3*4.</p>"));
+    await open(
+      event(30023, "html2", "HTML", [], "<h2>Intro</h2><h2>Usage</h2><p>Wrap it in &lt;div&gt; tags, 2*3*4.</p>"),
+    );
     expect(screen.getByTestId("article-body")).toHaveTextContent("Wrap it in <div> tags, 2*3*4.");
   });
 });
@@ -313,27 +376,36 @@ describe("one route for every event: the id decides", () => {
 // its place when it lands.
 describe("a copy the device already holds", () => {
   const realVerify = eventStore.verifyEvent;
-  beforeAll(() => { eventStore.verifyEvent = undefined; });
-  afterAll(() => { eventStore.verifyEvent = realVerify; });
+  beforeAll(() => {
+    eventStore.verifyEvent = undefined;
+  });
+  afterAll(() => {
+    eventStore.verifyEvent = realVerify;
+  });
   beforeEach(() => vi.clearAllMocks());
 
-  const version = (id: string, created_at: number, content: string) =>
-    ({ ...event(30023, "held", "Held", [], content), id: id.repeat(64), created_at });
+  const version = (id: string, created_at: number, content: string) => ({
+    ...event(30023, "held", "Held", [], content),
+    id: id.repeat(64),
+    created_at,
+  });
 
   it("shows at once, and gives way to a newer version when one arrives", async () => {
-    eventStore.add(version("a", 1_700_000_000, "The version on the device.") as any);
+    eventStore.add(version("a", 1_700_000_000, "The version on the device.") as NostrEvent);
     served.mockReturnValue(new Promise(() => {})); // the relays never finish
     window.history.pushState({}, "", `/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "held" })}`);
     renderPage();
 
     expect(await screen.findByTestId("article-body")).toHaveTextContent("The version on the device.");
 
-    act(() => { eventStore.add(version("b", 1_700_000_100, "The author's edit, just in.") as any); });
+    act(() => {
+      eventStore.add(version("b", 1_700_000_100, "The author's edit, just in.") as NostrEvent);
+    });
     await waitFor(() => expect(screen.getByTestId("article-body")).toHaveTextContent("The author's edit, just in."));
   });
 
   it("does not fall back to an older version the relays hand back", async () => {
-    eventStore.add(version("c", 1_800_000_000, "Newest, already here.") as any);
+    eventStore.add(version("c", 1_800_000_000, "Newest, already here.") as NostrEvent);
     served.mockReturnValue(version("d", 1_600_000_000, "An old copy from a stale relay."));
     window.history.pushState({}, "", `/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "held" })}`);
     renderPage();
@@ -346,12 +418,24 @@ describe("a copy the device already holds", () => {
 
 describe("an event by id the device already holds", () => {
   const realVerify = eventStore.verifyEvent;
-  beforeAll(() => { eventStore.verifyEvent = undefined; });
-  afterAll(() => { eventStore.verifyEvent = realVerify; });
+  beforeAll(() => {
+    eventStore.verifyEvent = undefined;
+  });
+  afterAll(() => {
+    eventStore.verifyEvent = realVerify;
+  });
 
   it("renders from the store without asking the relays", async () => {
-    const note = { id: "4".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_700_000_000, content: "A note the device already has.", sig: "s".repeat(128), tags: [] };
-    eventStore.add(note as any);
+    const note = {
+      id: "4".repeat(64),
+      kind: 1,
+      pubkey: AUTHOR,
+      created_at: 1_700_000_000,
+      content: "A note the device already has.",
+      sig: "s".repeat(128),
+      tags: [],
+    };
+    eventStore.add(note);
     eventsByIds.mockClear();
     window.history.pushState({}, "", `/e/${nip19.noteEncode(note.id)}`);
     renderPage();
@@ -359,4 +443,3 @@ describe("an event by id the device already holds", () => {
     expect(eventsByIds.mock.calls.some((call) => (call[0] as string[]).includes(note.id))).toBe(false);
   });
 });
-

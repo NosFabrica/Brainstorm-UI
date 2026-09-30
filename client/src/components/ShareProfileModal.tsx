@@ -33,14 +33,27 @@ interface ShareProfileModalProps {
  * is the `/p/` one, and that is a different thing from the link people share.
  * `useShareUrl` is the one place that decides.
  */
-export function ShareProfileModal({ open, onOpenChange, npub, displayName, picture, nip05, shareUrl, score01, invite = false, onOwnPage = false }: ShareProfileModalProps) {
+export function ShareProfileModal({
+  open,
+  onOpenChange,
+  npub,
+  displayName,
+  picture,
+  nip05,
+  shareUrl,
+  score01,
+  invite = false,
+  onOwnPage = false,
+}: ShareProfileModalProps) {
   const [, navigate] = useLocation();
   // The OG card only checks the handle against this key (lib/nip05).
   let pubkey: string | undefined;
   try {
     const d = nip19.decode(npub);
     if (d.type === "npub") pubkey = d.data;
-  } catch { /* no key, no check */ }
+  } catch {
+    /* no key, no check */
+  }
   return (
     <ShareModal
       open={open}
@@ -50,7 +63,11 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
       testId="modal-share-profile"
       kicker={invite ? "Grow your network" : "Verification Score"}
       heading={invite ? "Invite to Brainstorm" : "Share this profile"}
-      description={invite ? "Share your link — when someone joins through it, they start connected to you." : "Reputation scored by real connections — not an algorithm."}
+      description={
+        invite
+          ? "Share your link — when someone joins through it, they start connected to you."
+          : "Reputation scored by real connections — not an algorithm."
+      }
       openLink={!onOwnPage}
       preview={
         // The OG preview — clickable: opens the live share page in a new tab.
@@ -58,7 +75,7 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
           href={shareUrl}
           target="_blank"
           rel="noopener"
-          className="block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:border-brand-primary/25 hover:shadow-md transition-all"
+          className="block overflow-hidden rounded-xl border border-slate-200 shadow-sm transition-all hover:border-brand-primary/25 hover:shadow-md dark:border-slate-800"
           data-testid="share-open-page-card"
         >
           <ShareOgCard displayName={displayName} picture={picture} nip05={nip05} pubkey={pubkey} score01={score01} />
@@ -72,17 +89,21 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
               onOpenChange(false);
               navigate("/settings?tab=profile");
             }}
-            className="w-full flex items-center gap-2.5 rounded-xl border border-brand-accent/30 bg-brand-accent/[0.06] px-3.5 py-2.5 text-left hover:border-brand-accent/50 transition-colors"
+            className="flex w-full items-center gap-2.5 rounded-xl border border-brand-accent/30 bg-brand-accent/[0.06] px-3.5 py-2.5 text-left transition-colors hover:border-brand-accent/50"
             data-testid="share-add-photo-nudge"
           >
-            <span className="h-8 w-8 rounded-lg bg-white dark:bg-slate-900 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-accent/20 bg-white text-brand-deep dark:bg-slate-900">
               <ImagePlus className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-semibold text-slate-900 dark:text-slate-100">Add a photo first</span>
-              <span className="block text-[12px] text-slate-500 dark:text-slate-400">Your shared profile looks more complete with one.</span>
+              <span className="block text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+                Add a photo first
+              </span>
+              <span className="block text-[12px] text-slate-500 dark:text-slate-400">
+                Your shared profile looks more complete with one.
+              </span>
             </span>
-            <ArrowRight className="h-4 w-4 text-brand-link shrink-0" />
+            <ArrowRight className="h-4 w-4 shrink-0 text-brand-link" />
           </button>
         ) : undefined
       }

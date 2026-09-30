@@ -116,9 +116,7 @@ describe("a migrated account with no backup yet", () => {
 
     fireEvent.click(screen.getByTestId("backup-prompt-set"));
 
-    await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })),
-    );
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })));
     expect(deliverBackup).not.toHaveBeenCalled();
     expect(onDelivered).not.toHaveBeenCalled();
   });

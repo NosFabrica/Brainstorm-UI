@@ -8,10 +8,21 @@ import { describe, expect, it } from "vitest";
 import { groupPeoplePacks, normaliseListTitle } from "./listGroups";
 
 const pack = (id: string, pubkey: string, title: string, members: string[], score: number | null = null) => ({
-  event: { id, pubkey, kind: 30000, created_at: 1, tags: [["d", id], ["title", title], ...members.map((m) => ["p", m])], content: "" },
+  event: {
+    id,
+    pubkey,
+    kind: 30000,
+    created_at: 1,
+    tags: [["d", id], ["title", title], ...members.map((m) => ["p", m])],
+    content: "",
+  },
   score,
 });
-const A = "a".repeat(64), B = "b".repeat(64), C = "c".repeat(64), D = "d".repeat(64), E = "e".repeat(64);
+const A = "a".repeat(64),
+  B = "b".repeat(64),
+  C = "c".repeat(64),
+  D = "d".repeat(64),
+  E = "e".repeat(64);
 
 describe("normaliseListTitle — the same tag however it was typed", () => {
   it("ignores case, a leading #, punctuation and a plural s", () => {
@@ -46,17 +57,38 @@ describe("groupPeoplePacks — one row per title", () => {
   });
 
   it("leaves a lone pack and any non-people list alone", () => {
-    const bookmarks = { event: { id: "bm", pubkey: "9".repeat(64), kind: 30003, created_at: 1, tags: [["title", "Reading"], ["e", "x".repeat(64)]], content: "" }, score: null };
+    const bookmarks = {
+      event: {
+        id: "bm",
+        pubkey: "9".repeat(64),
+        kind: 30003,
+        created_at: 1,
+        tags: [
+          ["title", "Reading"],
+          ["e", "x".repeat(64)],
+        ],
+        content: "",
+      },
+      score: null,
+    };
     const groups = groupPeoplePacks([pack("l1", "1".repeat(64), "Art", [A]), bookmarks], (x) => x);
-    expect(groups.map((g) => [g.primary.event.id, g.lists])).toEqual([["l1", 1], ["bm", 1]]);
+    expect(groups.map((g) => [g.primary.event.id, g.lists])).toEqual([
+      ["l1", 1],
+      ["bm", 1],
+    ]);
   });
 
   // Opening a fold shows all its people with how many of the lists agree on
   // each (Benjamin, 2026-09-09: "78 people, but the list I clicked has 5").
   it("says how many of the lists each person is on", () => {
-    const pack = (id: string, pubkey: string, members: string[]) =>
-      ({ event: { id, pubkey, kind: 30000, created_at: 1, tags: [["title", "Podcasts"], ...members.map((m) => ["p", m])] }, score: 0.5 });
-    const [group] = groupPeoplePacks([pack("a", "1".repeat(64), ["x", "y"]), pack("b", "2".repeat(64), ["x", "z"]), pack("c", "3".repeat(64), ["x"])], (i) => i);
+    const pack = (id: string, pubkey: string, members: string[]) => ({
+      event: { id, pubkey, kind: 30000, created_at: 1, tags: [["title", "Podcasts"], ...members.map((m) => ["p", m])] },
+      score: 0.5,
+    });
+    const [group] = groupPeoplePacks(
+      [pack("a", "1".repeat(64), ["x", "y"]), pack("b", "2".repeat(64), ["x", "z"]), pack("c", "3".repeat(64), ["x"])],
+      (i) => i,
+    );
     expect(group.lists).toBe(3);
     expect(group.members).toBe(3);
     expect(group.agreement).toEqual({ x: 3, y: 1, z: 1 });

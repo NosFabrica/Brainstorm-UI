@@ -11,6 +11,7 @@ import { useNearViewport } from "@/hooks/useNearViewport";
 import { MediaImg } from "@/components/ui/media-img";
 import { useConnectionSpeed } from "@/lib/connection";
 import { echoContext, isEchoed } from "@/lib/echoedText";
+import { isRefusedLocalHost } from "@/lib/localNetwork";
 
 /**
  * Link previews for a note's links. A browser can't read another site's Open
@@ -29,11 +30,20 @@ function parse(raw: string): URL | null {
   }
 }
 
+/** A `host` (maybe with a port, maybe a bracketed IPv6) down to the name `URL` would give. */
+function hostnameOf(host: string): string {
+  return parse(`https://${host}`)?.hostname ?? host;
+}
+
 /** `/favicon.ico` on the host, then its apex when the link said www. No
  *  third-party icon service. `/favicon.png` was dropped: across a sample of
  *  real hosts it never rescued one whose `.ico` failed, and each miss is a
  *  failed request in every reader's network log. */
 function faviconCandidates(host: string): string[] {
+  // A link to someone's router or home server names the READER's network, and
+  // requesting it raises Chrome's "access other apps and services on this
+  // device" prompt. The globe does fine.
+  if (isRefusedLocalHost(hostnameOf(host))) return [];
   const hosts = [host];
   const apex = host.replace(/^www\./i, "");
   if (apex !== host) hosts.push(apex);
@@ -82,10 +92,10 @@ export function LinkChip({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noopener"
-      className="not-prose inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+      className="not-prose inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-sm font-medium text-brand-link no-underline transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
       data-testid="link-chip"
     >
-      <Favicon host={u?.hostname || ""} className="h-3.5 w-3.5 rounded-sm shrink-0 object-contain" />
+      <Favicon host={u?.hostname || ""} className="h-3.5 w-3.5 shrink-0 rounded-sm object-contain" />
       <span className="truncate">{host}</span>
     </a>
   );
@@ -105,7 +115,15 @@ function youtubeId(u: URL): string | null {
  * screen: a title or description it already says is dropped, so a feed bot's
  * headline + link doesn't render the headline twice.
  */
-export function LinkPreviewCard({ url, showImage = true, context }: { url: string; showImage?: boolean; context?: string }) {
+export function LinkPreviewCard({
+  url,
+  showImage = true,
+  context,
+}: {
+  url: string;
+  showImage?: boolean;
+  context?: string;
+}) {
   const u = parse(url);
   if (!u) return null;
   const host = u.hostname.replace(/^www\./, "");
@@ -129,7 +147,7 @@ export function LinkPreviewCard({ url, showImage = true, context }: { url: strin
           href={url}
           target="_blank"
           rel="noopener"
-          className="flex items-center gap-1 rounded-b-xl border border-t-0 border-slate-200 dark:border-slate-800 bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white/80 no-underline hover:text-white"
+          className="flex items-center gap-1 rounded-b-xl border border-t-0 border-slate-200 bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white/80 no-underline hover:text-white dark:border-slate-800"
           data-testid="link-card-youtube-source"
         >
           YouTube · {host} <ExternalLink className="h-3 w-3" />
@@ -159,7 +177,17 @@ function isJustTheSiteName(title: string, host: string): boolean {
  * inline chip already names the link, and an empty box repeating it is worse
  * than the card popping in when a real answer lands.
  */
-function UnfurledCard({ url, host, showImage, context }: { url: string; host: string; showImage: boolean; context?: string }) {
+function UnfurledCard({
+  url,
+  host,
+  showImage,
+  context,
+}: {
+  url: string;
+  host: string;
+  showImage: boolean;
+  context?: string;
+}) {
   const openLightbox = useLightbox();
   const [fetched, setMeta] = useState<Unfurled | null>(null);
   // The note's text, tokenized once rather than per check per render.
@@ -216,7 +244,7 @@ function UnfurledCard({ url, host, showImage, context }: { url: string; host: st
           loading="lazy"
           referrerPolicy="no-referrer"
           onError={() => setImgFailed(true)}
-          className="max-h-64 max-w-full object-contain bg-slate-100 dark:bg-slate-800"
+          className="max-h-64 max-w-full bg-slate-100 object-contain dark:bg-slate-800"
         />
       </button>
     );
@@ -253,7 +281,7 @@ function UnfurledCard({ url, host, showImage, context }: { url: string; host: st
           target="_blank"
           rel="noopener"
           onClick={(e) => e.stopPropagation()}
-          className="mt-2 block max-w-md overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+          className="mt-2 block max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white no-underline transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
           data-testid="link-card-media"
         >
           <img
@@ -262,7 +290,7 @@ function UnfurledCard({ url, host, showImage, context }: { url: string; host: st
             loading="lazy"
             referrerPolicy="no-referrer"
             onError={() => setImgFailed(true)}
-            className="aspect-[1.91/1] w-full object-cover bg-slate-100 dark:bg-slate-800"
+            className="aspect-[1.91/1] w-full bg-slate-100 object-cover dark:bg-slate-800"
             data-testid="link-card-image"
           />
           <span className="flex items-center gap-1 px-3 py-1.5">
@@ -281,7 +309,7 @@ function UnfurledCard({ url, host, showImage, context }: { url: string; host: st
       target="_blank"
       rel="noopener"
       onClick={(e) => e.stopPropagation()}
-      className={`mt-2 flex items-stretch gap-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all ${image ? "h-24" : ""}`}
+      className={`mt-2 flex items-stretch gap-3 overflow-hidden rounded-xl border border-slate-200 bg-white no-underline transition-all hover:border-slate-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 ${image ? "h-24" : ""}`}
       data-testid="link-card"
       // h-24 = 96px holds py-2 16 + meta 16 + title 2x20 + desc 1x16 + gaps 4 = 92. Clamps and leadings are the budget.
     >
@@ -295,7 +323,7 @@ function UnfurledCard({ url, host, showImage, context }: { url: string; host: st
           loading="lazy"
           referrerPolicy="no-referrer"
           onError={() => setImgFailed(true)}
-          className="h-full w-32 shrink-0 object-cover bg-slate-100 dark:bg-slate-800"
+          className="h-full w-32 shrink-0 bg-slate-100 object-cover dark:bg-slate-800"
           data-testid="link-card-image"
         />
       )}
@@ -308,7 +336,9 @@ function UnfurledCard({ url, host, showImage, context }: { url: string; host: st
         )}
         {newDescription && (
           // Without a title the lede gets the title's two lines.
-          <span className={`mt-0.5 text-xs leading-4 text-slate-600 dark:text-slate-300 ${newTitle ? "line-clamp-1" : "line-clamp-2"}`}>
+          <span
+            className={`mt-0.5 text-xs leading-4 text-slate-600 dark:text-slate-300 ${newTitle ? "line-clamp-1" : "line-clamp-2"}`}
+          >
             {newDescription}
           </span>
         )}

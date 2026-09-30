@@ -19,7 +19,9 @@ export function profileHrefOf(key: string | undefined | null): string | undefine
   try {
     if (/^npub1[02-9ac-hj-np-z]+$/i.test(key)) return `/p/${key.toLowerCase()}`;
     if (/^[0-9a-f]{64}$/i.test(key)) return `/p/${nip19.npubEncode(key.toLowerCase())}`;
-  } catch { /* not a key */ }
+  } catch {
+    /* not a key */
+  }
   return undefined;
 }
 
@@ -48,7 +50,15 @@ export async function moreFromArtist(current: TrackMeta & { id: string }, limit 
       return songs
         .filter((s) => s.id !== current.id && normalise(s.artist) === want)
         .slice(0, limit)
-        .map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: wavlakeSongHref(s), artistHref: profileHrefOf(s.artistNpub) }));
+        .map((s) => ({
+          id: s.id,
+          src: s.audio,
+          title: s.title,
+          artist: s.artist,
+          cover: s.cover,
+          href: wavlakeSongHref(s),
+          artistHref: profileHrefOf(s.artistNpub),
+        }));
     }
     if (current.artistPubkey) {
       const events = await fetchRecentByKinds(current.artistPubkey, [31337], limit + 1);
@@ -57,11 +67,22 @@ export async function moreFromArtist(current: TrackMeta & { id: string }, limit 
         if (e.id === current.id) continue;
         const t = parseTrack(e);
         if (!t) continue;
-        out.push({ id: t.id, src: t.audio, title: t.title, artist: t.artist ?? current.artist, cover: t.cover, href: eventPath({ id: e.id, pubkey: e.pubkey }), artistHref: profileHrefOf(e.pubkey), artistPubkey: e.pubkey });
+        out.push({
+          id: t.id,
+          src: t.audio,
+          title: t.title,
+          artist: t.artist ?? current.artist,
+          cover: t.cover,
+          href: eventPath({ id: e.id, pubkey: e.pubkey }),
+          artistHref: profileHrefOf(e.pubkey),
+          artistPubkey: e.pubkey,
+        });
         if (out.length >= limit) break;
       }
       return out;
     }
-  } catch { /* a source that is down is an empty list */ }
+  } catch {
+    /* a source that is down is an empty list */
+  }
   return [];
 }

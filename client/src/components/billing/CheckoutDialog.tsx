@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
 import { productName } from "@/lib/plans";
 import { Loader2, ExternalLink } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useQueryClient } from "@tanstack/react-query";
@@ -119,27 +113,39 @@ export function CheckoutDialog({
             {!canBuy && (
               <Alert variant="warning" className="mt-4" data-testid="checkout-unconfigured">
                 <AlertDescription className="text-sm">
-                  Payments aren't set up in this environment, so there's nothing
-                  to open. The rest of the flow still works.
+                  Payments aren't set up in this environment, so there's nothing to open. The rest of the flow still
+                  works.
                 </AlertDescription>
               </Alert>
             )}
 
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-              Opens in a new tab. Pay by card, or by Lightning — you'll connect
-              your wallet there, so have it handy. Payment is handled by Flash —
-              your card details never reach Brainstorm.
+              Opens in a new tab. Pay by card, or by Lightning — you'll connect your wallet there, so have it handy.
+              Payment is handled by Flash — your card details never reach Brainstorm.
             </p>
             {/* The last screen before Flash, so agreeing here means something.
                 The documents open beside the dialog, not over it, so reading
                 them doesn't cost the buyer their place. */}
-            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500" data-testid="checkout-legal">
+            <p
+              className="mt-1.5 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500"
+              data-testid="checkout-legal"
+            >
               By continuing, you agree to our{" "}
-              <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link hover:underline">
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-brand-link hover:underline"
+              >
                 Terms of Use
               </a>{" "}
               and{" "}
-              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link hover:underline">
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-brand-link hover:underline"
+              >
                 Privacy Notice
               </a>
               .
@@ -150,8 +156,7 @@ export function CheckoutDialog({
             <DialogHeader>
               <DialogTitle>Finishing up in the other tab</DialogTitle>
               <DialogDescription>
-                Complete the payment there, then come back — this page updates on
-                its own.
+                Complete the payment there, then come back — this page updates on its own.
               </DialogDescription>
             </DialogHeader>
 
@@ -177,9 +182,8 @@ export function CheckoutDialog({
             </div>
 
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-              {productName(sent)} starts as soon as the payment clears — usually a
-              minute or two, though Lightning can take about ten minutes. If it
-              still hasn't shown up after that, get in touch and we'll sort it out.
+              {productName(sent)} starts as soon as the payment clears — usually a minute or two, though Lightning can
+              take about ten minutes. If it still hasn't shown up after that, get in touch and we'll sort it out.
             </p>
           </>
         )}

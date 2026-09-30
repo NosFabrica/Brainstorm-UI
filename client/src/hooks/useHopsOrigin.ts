@@ -48,7 +48,9 @@ export function useHopsOrigin(): HopsOrigin {
     retry: 1,
   });
   let calcDone = false;
-  try { calcDone = localStorage.getItem("brainstorm_calc_completed") === "true"; } catch {}
+  try {
+    calcDone = localStorage.getItem("brainstorm_calc_completed") === "true";
+  } catch {}
   const resolved = resolveHopsOrigin({
     pov,
     viewerPubkey: me?.pubkey ?? null,

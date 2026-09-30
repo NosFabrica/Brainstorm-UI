@@ -34,7 +34,7 @@ identical to the copy circulated).
 
 - [x] Wallets connected: NosFabrica Wallet (Lightning) + Maverick (card)
 - [x] Service stays "Brainstorm" ("Running your web of trust scores on
-      Nostr") — it's LIVE with subscribers, so the *plan* carries the
+      Nostr") — it's LIVE with subscribers, so the _plan_ carries the
       Priority identity instead of renaming the service
 - [x] **Real Priority plan = `019ef08a-3c5f-7228-a15b-4838937045f5`**
       (renamed from "Brainstorm Monthly"): "Priority", $2.00 USD/month,
@@ -85,11 +85,11 @@ identical to the copy circulated).
   with real description/features — the checkout page renders that copy
   verbatim.
 - **Resolved incident** (Flash team, 2026-08-26): the two `pending`
-  Lightning checkouts weren't stuck — the wallet returned an *ambiguous*
+  Lightning checkouts weren't stuck — the wallet returned an _ambiguous_
   NWC error, so Flash couldn't fail the checkout immediately and let the
   invoice expire instead. Pending signups with no charge behind them are
   auto-cleaned after ~30 minutes. Usual client-side causes: NWC budget
   exhausted, missing `pay_invoice` permission, or insufficient balance —
-  and Alby reports budget-exhausted and insufficient-balance as the *same*
+  and Alby reports budget-exhausted and insufficient-balance as the _same_
   error, so check both. Retest with a fresh connection with a sufficient
   budget; if it still lands pending, Flash can pull logs for the attempt.

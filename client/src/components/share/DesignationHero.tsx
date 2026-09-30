@@ -32,9 +32,11 @@ export function DesignationHero({ event }: { event: DesignationEvent }) {
     setFootprint(null);
     if (!lead?.relay) return;
     let alive = true;
-    void fetchAssertionFootprint(lead.pubkey, lead.relay).then((f) => {
-      if (alive) setFootprint(f);
-    }).catch(() => {});
+    void fetchAssertionFootprint(lead.pubkey, lead.relay)
+      .then((f) => {
+        if (alive) setFootprint(f);
+      })
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -44,7 +46,10 @@ export function DesignationHero({ event }: { event: DesignationEvent }) {
     <div data-testid="designation-hero">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+          <h1
+            className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
             Trust designation
           </h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
@@ -52,7 +57,11 @@ export function DesignationHero({ event }: { event: DesignationEvent }) {
             {ours ? (
               <>
                 Activated{" "}
-                <Link href="/how-search-works" className="font-medium text-brand-primary hover:underline dark:text-brand-link" data-testid="designation-signals-link">
+                <Link
+                  href="/how-search-works"
+                  className="font-medium text-brand-primary hover:underline dark:text-brand-link"
+                  data-testid="designation-signals-link"
+                >
                   Brainstorm trust signals
                 </Link>
                 {d.summary.slice("Activated Brainstorm trust signals".length)}
@@ -63,7 +72,10 @@ export function DesignationHero({ event }: { event: DesignationEvent }) {
           </p>
         </div>
         {ours && (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800" data-testid="designation-mark">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800"
+            data-testid="designation-mark"
+          >
             <BrainLogo size={22} className="dark:hidden" />
             <BrainLogo size={22} mono className="hidden text-white dark:block" />
           </div>
@@ -72,9 +84,13 @@ export function DesignationHero({ event }: { event: DesignationEvent }) {
 
       {named.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="designation-signals">
-          <span className="mr-1 font-mono text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Signals</span>
+          <span className="mr-1 font-mono text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Signals
+          </span>
           {named.map((s) => (
-            <Chip key={s} size="sm" tone={ours ? "brand" : "slate"}>{s}</Chip>
+            <Chip key={s} size="sm" tone={ours ? "brand" : "slate"}>
+              {s}
+            </Chip>
           ))}
         </div>
       )}
@@ -83,21 +99,35 @@ export function DesignationHero({ event }: { event: DesignationEvent }) {
           Served from <span className="font-mono">{relays.join(", ")}</span>
           {footprint && (
             <span data-testid="designation-footprint">
-              {" · "}Scoring {footprint.people}{footprint.capped ? "+" : ""} {footprint.people === 1 && !footprint.capped ? "person" : "people"} · updated {relativeTime(footprint.updatedAt)}
+              {" · "}Scoring {footprint.people}
+              {footprint.capped ? "+" : ""} {footprint.people === 1 && !footprint.capped ? "person" : "people"} ·
+              updated {relativeTime(footprint.updatedAt)}
             </span>
           )}
         </p>
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        <Link href="/activate" className="inline-flex items-center gap-1 font-medium text-brand-primary hover:underline dark:text-brand-link" data-testid="designation-activate">
+        <Link
+          href="/activate"
+          className="inline-flex items-center gap-1 font-medium text-brand-primary hover:underline dark:text-brand-link"
+          data-testid="designation-activate"
+        >
           Activate yours <ArrowRight className="h-3.5 w-3.5" />
         </Link>
-        <Link href={specPath(CANONICAL_SPECS.assertions)} className="text-slate-500 hover:text-brand-link hover:underline dark:text-slate-400" data-testid="designation-spec">
+        <Link
+          href={specPath(CANONICAL_SPECS.assertions)}
+          className="text-slate-500 hover:text-brand-link hover:underline dark:text-slate-400"
+          data-testid="designation-spec"
+        >
           Read the spec · {CANONICAL_SPECS.assertions.title}
         </Link>
         {d.lists && (
-          <Link href={specPath(CANONICAL_SPECS.lists)} className="text-slate-500 hover:text-brand-link hover:underline dark:text-slate-400" data-testid="designation-lists-spec">
+          <Link
+            href={specPath(CANONICAL_SPECS.lists)}
+            className="text-slate-500 hover:text-brand-link hover:underline dark:text-slate-400"
+            data-testid="designation-lists-spec"
+          >
             {CANONICAL_SPECS.lists.title}
           </Link>
         )}

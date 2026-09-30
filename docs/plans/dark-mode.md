@@ -29,13 +29,13 @@ The **foundation is already complete** and needs no work:
 **But adoption is ~10–15%.** The app is painted with **~2,700 hardcoded
 light-mode colors** across 166 files:
 
-| Pattern | Count |
-| --- | --- |
-| `text-slate-*` | ~1,524 |
-| `border-slate-*` | ~505 |
-| `bg-white` | ~437 |
-| `bg-slate-*` | ~406 |
-| arbitrary brand hex (`bg-[#…]`, `text-[#…]`) | ~661 |
+| Pattern                                      | Count  |
+| -------------------------------------------- | ------ |
+| `text-slate-*`                               | ~1,524 |
+| `border-slate-*`                             | ~505   |
+| `bg-white`                                   | ~437   |
+| `bg-slate-*`                                 | ~406   |
+| arbitrary brand hex (`bg-[#…]`, `text-[#…]`) | ~661   |
 
 In dark mode today, every one of those stays light → a naive toggle yields a
 **broken half-dark app**. So the work is a **careful, mostly-scripted
@@ -97,23 +97,26 @@ One source of truth, applied by the sweep. (Values chosen so dark mirrors the
 light hierarchy; tuned during implementation against real screens.)
 
 **Surfaces**
-| Light | Dark (`dark:`) | Role |
-| --- | --- | --- |
-| `bg-white` | `bg-slate-900` | cards / raised surfaces |
-| `bg-slate-50` | `bg-slate-900` | subtle fills / page wells |
+
+| Light          | Dark (`dark:`) | Role                      |
+| -------------- | -------------- | ------------------------- |
+| `bg-white`     | `bg-slate-900` | cards / raised surfaces   |
+| `bg-slate-50`  | `bg-slate-900` | subtle fills / page wells |
 | `bg-slate-100` | `bg-slate-800` | hover / chips / skeletons |
-| `bg-slate-200` | `bg-slate-700` | stronger fills |
+| `bg-slate-200` | `bg-slate-700` | stronger fills            |
 
 **Borders**
-| Light | Dark |
-| --- | --- |
+
+| Light              | Dark                  |
+| ------------------ | --------------------- |
 | `border-slate-100` | `border-slate-800/60` |
-| `border-slate-200` | `border-slate-800` |
-| `border-slate-300` | `border-slate-700` |
+| `border-slate-200` | `border-slate-800`    |
+| `border-slate-300` | `border-slate-700`    |
 
 **Text (preserve the ramp)**
-| Light | Dark |
-| --- | --- |
+
+| Light            | Dark             |
+| ---------------- | ---------------- |
 | `text-slate-900` | `text-slate-100` |
 | `text-slate-800` | `text-slate-200` |
 | `text-slate-700` | `text-slate-200` |
@@ -122,13 +125,14 @@ light hierarchy; tuned during implementation against real screens.)
 | `text-slate-400` | `text-slate-500` |
 
 **Brand accents**
-| Light | Dark |
-| --- | --- |
-| `bg-[#6366f1]` / `hover:bg-[#4f46e5]` | *(unchanged — pops on dark)* |
-| `text-[#7c86ff]` / `bg-[#7c86ff]/*` | *(unchanged, or `dark:text-indigo-300` for cohesion)* |
-| `text-[#3730a3]` (links, secondary text/border) | `dark:text-indigo-300` |
-| `text-[#333286]` (deep accent) | `dark:text-indigo-300` |
-| tier ring inner `#fff` | card color (`hsl(var(--card))`) |
+
+| Light                                           | Dark                                                  |
+| ----------------------------------------------- | ----------------------------------------------------- |
+| `bg-[#6366f1]` / `hover:bg-[#4f46e5]`           | _(unchanged — pops on dark)_                          |
+| `text-[#7c86ff]` / `bg-[#7c86ff]/*`             | _(unchanged, or `dark:text-indigo-300` for cohesion)_ |
+| `text-[#3730a3]` (links, secondary text/border) | `dark:text-indigo-300`                                |
+| `text-[#333286]` (deep accent)                  | `dark:text-indigo-300`                                |
+| tier ring inner `#fff`                          | card color (`hsl(var(--card))`)                       |
 
 Semantic (`emerald/amber/red/*`) and trust-tier hues: **no change** — same in
 both modes; only verify contrast against the dark card.
@@ -142,6 +146,7 @@ usages are semantic). Every product file gets eyes + a dark-preview check.
 ## Implementation sequence (gated; toggle exposed last)
 
 ### Phase 1 — Theme infrastructure (no visible change yet)
+
 - **`client/src/lib/theme.ts`** (or `ThemeProvider.tsx`): a small provider +
   `useTheme()` hook. State = `"system" | "light" | "dark"`, persisted to
   `localStorage.brainstorm_theme`. Applies/removes `class="dark"` on
@@ -153,18 +158,21 @@ usages are semantic). Every product file gets eyes + a dark-preview check.
 - Wrap the app once (in `App.tsx` / `main.tsx`) with the provider.
 - **Fix shared primitives** to token/`dark:` so descendants theme free:
   `components/ui/card.tsx` (`bg-white border-gray-200` → `bg-card
-  border-border` / `dark:` pair), `components/ui/button.tsx` (add `dark:`
+border-border` / `dark:` pair), `components/ui/button.tsx` (add `dark:`
   variants where needed; keep `#6366f1` primary), inputs/select/dialog surfaces.
 
 ### Phase 2 — Dark product background
+
 - Give **`GlossBackground.tsx`** a dark treatment gated by the `dark` class
   (dark base ~`slate-950`/`#0b0b12`, toned-down dark aurora washes, no white
   fade-to-bottom). Product pages use `PageBackground → GlossBackground`, so this
-  is the *one* dark background needed. Marketing renders it on light-only pages,
+  is the _one_ dark background needed. Marketing renders it on light-only pages,
   unaffected. `PageHeader.tsx` gets dark text/accent variants.
 
 ### Phase 3 — Sweep the product surfaces (verify each in dark preview)
+
 App shell first, then page by page:
+
 - `components/AppHeader.tsx`, account menu, `Footer.tsx`, `AppsLauncher.tsx`
 - `pages/DashboardPage.tsx` (incl. the WoT card), `pages/NetworkPage.tsx`,
   `pages/SettingsPage.tsx`, `pages/ProfilePage.tsx`
@@ -175,6 +183,7 @@ App shell first, then page by page:
   (`AppHeader`, `ComputingBackground`, `AppsLauncher`) to the real theme class.
 
 ### Phase 4 — Expose the controls
+
 - Add the **Settings → Appearance** segmented control and the **account-menu**
   control (both drive `useTheme`). This is the step that makes dark mode
   reachable — done only after Phases 1–3 pass dark review.
@@ -197,6 +206,7 @@ App shell first, then page by page:
   semantic status colors all meet legibility.
 
 ## Edge cases / guards
+
 - Explicit choice must survive reload and win over OS until reset to System.
 - SSR/no-`window` guards in the provider (matches existing `typeof window`
   patterns).
@@ -204,6 +214,7 @@ App shell first, then page by page:
 - Charts (`ui/chart.tsx`) already have a `.dark` hook — verify.
 
 ## Out of scope (fast-follows)
+
 - **Dark marketing surfaces** (landing hero/aurora, share pages, OG cards) —
   extend once the product is solid.
 - A richer set of semantic text tokens (if we later want token-based text vs the
@@ -211,6 +222,7 @@ App shell first, then page by page:
 - Per-org / branded themes.
 
 ## Effort note
+
 Much of the ~2,700 refs are mechanical (the map above), but every product file
 still needs review + a dark-preview pass. Realistically a **multi-session
 effort**, sequenced so nothing ships broken. Marketing exclusion (decision 1)

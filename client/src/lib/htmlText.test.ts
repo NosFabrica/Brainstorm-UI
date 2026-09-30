@@ -9,7 +9,11 @@ describe("htmlToText", () => {
   it("detects HTML, not prose that mentions a tag", () => {
     expect(looksLikeHtml(html)).toBe(true);
     // Markdown about tags, in code spans: not HTML.
-    expect(looksLikeHtml("Fix layout\n\n- wrap the list in a `<div>`\n- close the `</div>` properly\n- use `<span>` for icons")).toBe(false);
+    expect(
+      looksLikeHtml(
+        "Fix layout\n\n- wrap the list in a `<div>`\n- close the `</div>` properly\n- use `<span>` for icons",
+      ),
+    ).toBe(false);
     expect(looksLikeHtml("Use a <p> tag for paragraphs.")).toBe(false);
   });
 
@@ -20,9 +24,11 @@ describe("htmlToText", () => {
   });
 
   it("numbers ordered lists, quotes blockquotes, indents nested lists", () => {
-    expect(htmlToText("<ol><li>Install</li><li>Enable<ul><li>on boot</li></ul></li></ol><blockquote><p>Works.</p></blockquote>")).toBe(
-      "1. Install\n2. Enable\n  - on boot\n\n> Works.",
-    );
+    expect(
+      htmlToText(
+        "<ol><li>Install</li><li>Enable<ul><li>on boot</li></ul></li></ol><blockquote><p>Works.</p></blockquote>",
+      ),
+    ).toBe("1. Install\n2. Enable\n  - on boot\n\n> Works.");
   });
 
   it("drops scripts and non-web links", () => {
@@ -32,14 +38,18 @@ describe("htmlToText", () => {
 
 describe("HTML tables become markdown tables", () => {
   it("keeps rows and header, drops footnote marks and broken citations", () => {
-    const md = "Intro.\n\n<table>\n<caption>Sample albedos</caption>\n<thead><tr><th><p>Surface</p></th><th><p>Typical<br />albedo</p></th></tr></thead>\n<tbody>\n<tr><td><p>Fresh asphalt</p></td><td><p>0.04<ref name=\"x\">{{cite web</p></td></tr>\n<tr><td><p>Open ocean</p></td><td><p>0.06<a href=\"#fn1\" class=\"footnote-ref\"><sup>1</sup></a></p></td></tr>\n</tbody></table>\n\n## Next";
-    expect(normalizeMarkup(md)).toContain("**Sample albedos**\n\n| Surface | Typical albedo |\n| --- | --- |\n| Fresh asphalt | 0.04 |\n| Open ocean | 0.06 |");
+    const md =
+      'Intro.\n\n<table>\n<caption>Sample albedos</caption>\n<thead><tr><th><p>Surface</p></th><th><p>Typical<br />albedo</p></th></tr></thead>\n<tbody>\n<tr><td><p>Fresh asphalt</p></td><td><p>0.04<ref name="x">{{cite web</p></td></tr>\n<tr><td><p>Open ocean</p></td><td><p>0.06<a href="#fn1" class="footnote-ref"><sup>1</sup></a></p></td></tr>\n</tbody></table>\n\n## Next';
+    expect(normalizeMarkup(md)).toContain(
+      "**Sample albedos**\n\n| Surface | Typical albedo |\n| --- | --- |\n| Fresh asphalt | 0.04 |\n| Open ocean | 0.06 |",
+    );
   });
 });
 
 describe("HTML that opens with a block element", () => {
   it("is HTML even when escaped code makes most of its lines", () => {
-    const d = "<p>Here is an example:</p><pre><code> &lt;node id=\"A\"&gt;\n  &lt;x/&gt;\n  &lt;y/&gt;\n  &lt;z/&gt;\n &lt;/node&gt;</code></pre><p>Finally, thanks.</p>";
+    const d =
+      '<p>Here is an example:</p><pre><code> &lt;node id="A"&gt;\n  &lt;x/&gt;\n  &lt;y/&gt;\n  &lt;z/&gt;\n &lt;/node&gt;</code></pre><p>Finally, thanks.</p>';
     expect(looksLikeHtml(d)).toBe(true);
     expect(normalizeMarkup(d)).toContain('```\n <node id="A">');
   });
@@ -47,7 +57,8 @@ describe("HTML that opens with a block element", () => {
 
 describe("markdown with a few tags is markdown", () => {
   it("an article with a centered image and a heading keeps its paragraphs", () => {
-    const md = 'Intro one.\n\nSecond.\n\n## Heading\n\n<p align="center"><img src="https://a/1.png"></p>\n\n<img src="https://a/2.png">\n\n```\ncode  line\n```';
+    const md =
+      'Intro one.\n\nSecond.\n\n## Heading\n\n<p align="center"><img src="https://a/1.png"></p>\n\n<img src="https://a/2.png">\n\n```\ncode  line\n```';
     expect(looksLikeHtml(md)).toBe(false);
     const out = normalizeMarkup(md);
     expect(out).toContain("Intro one.\n\nSecond.\n\n## Heading");
@@ -56,7 +67,9 @@ describe("markdown with a few tags is markdown", () => {
   });
 
   it("cleans the stray tags GitHub comments use", () => {
-    const out = stripStrayHtml('<p align="center">Hi</p><h3>Title</h3> press <kbd>Ctrl</kbd>, <strong class="x">bold</strong>, <a href=https://x.y>link</a>, <img src="/local.png"> <table><tr><td>a</td><td>b</td></tr></table>');
+    const out = stripStrayHtml(
+      '<p align="center">Hi</p><h3>Title</h3> press <kbd>Ctrl</kbd>, <strong class="x">bold</strong>, <a href=https://x.y>link</a>, <img src="/local.png"> <table><tr><td>a</td><td>b</td></tr></table>',
+    );
     expect(out).not.toMatch(/<[a-z/]/i);
     expect(out).toContain("## Title");
     expect(out).toContain("`Ctrl`");
@@ -66,7 +79,8 @@ describe("markdown with a few tags is markdown", () => {
 });
 
 describe("markdown with stray HTML (a bridged GitHub comment)", () => {
-  const comment = "**@bot** (2026-03-26):\n\n<!-- auto-generated comment -->\n\n> [!WARNING]\n> ## Rate limit exceeded\n\n<details>\n<summary>⏳ How to resolve this issue?</summary>\n\n- wait\n- then push `<details>` again\n\n</details>";
+  const comment =
+    "**@bot** (2026-03-26):\n\n<!-- auto-generated comment -->\n\n> [!WARNING]\n> ## Rate limit exceeded\n\n<details>\n<summary>⏳ How to resolve this issue?</summary>\n\n- wait\n- then push `<details>` again\n\n</details>";
 
   it("stays markdown: comments go, wrappers unwrap, a summary is a bold line, code is untouched", () => {
     expect(looksLikeHtml(comment)).toBe(false);
@@ -77,7 +91,9 @@ describe("markdown with stray HTML (a bridged GitHub comment)", () => {
   });
 
   it("keeps pictures as their URLs and links as markdown links", () => {
-    expect(stripStrayHtml('See <a href="https://x.y/a">docs</a><br><img src="https://i.x/p.png" width=40>')).toBe("See [docs](https://x.y/a)\n\nhttps://i.x/p.png\n");
+    expect(stripStrayHtml('See <a href="https://x.y/a">docs</a><br><img src="https://i.x/p.png" width=40>')).toBe(
+      "See [docs](https://x.y/a)\n\nhttps://i.x/p.png\n",
+    );
   });
 
   it("leaves text with no tags exactly as it is", () => {
@@ -88,18 +104,26 @@ describe("markdown with stray HTML (a bridged GitHub comment)", () => {
 
 describe("audit of #97 (stray HTML)", () => {
   it("a <br> or picture in a markdown table row stays in its cell", () => {
-    expect(normalizeMarkup("| a | line1<br>line2 |\n|---|---|\n| b | <img src=\"https://i.x/a.png\"> |")).toBe(
+    expect(normalizeMarkup('| a | line1<br>line2 |\n|---|---|\n| b | <img src="https://i.x/a.png"> |')).toBe(
       "| a | line1 line2 |\n|---|---|\n| b |  https://i.x/a.png  |",
     );
   });
 
   it("HTML with markdown-looking lines inside <pre>, or starting with text, is still HTML", () => {
-    expect(looksLikeHtml("<p>Setup:</p>\n<pre><code># install\nx\n# configure\ny\n# run</code></pre><ul><li>one</li><li>two</li></ul>")).toBe(true);
-    expect(looksLikeHtml("Brand new!<br>\nShips worldwide.<br>\n<ul>\n<li>Fast</li>\n<li>Cheap</li>\n</ul>")).toBe(true);
+    expect(
+      looksLikeHtml(
+        "<p>Setup:</p>\n<pre><code># install\nx\n# configure\ny\n# run</code></pre><ul><li>one</li><li>two</li></ul>",
+      ),
+    ).toBe(true);
+    expect(looksLikeHtml("Brand new!<br>\nShips worldwide.<br>\n<ul>\n<li>Fast</li>\n<li>Cheap</li>\n</ul>")).toBe(
+      true,
+    );
   });
 
   it("lists, code, quotes and rules in markdown become markdown, not tags", () => {
-    const out = normalizeMarkup("## Notes\n\n- a\n- b\n\n<ul>\n<li>Fast</li>\n<li>Cheap</li>\n</ul>\n\nDone <code>x</code>.<hr><blockquote>quoted</blockquote>");
+    const out = normalizeMarkup(
+      "## Notes\n\n- a\n- b\n\n<ul>\n<li>Fast</li>\n<li>Cheap</li>\n</ul>\n\nDone <code>x</code>.<hr><blockquote>quoted</blockquote>",
+    );
     expect(out.replace(/`[^`]*`/g, "")).not.toMatch(/<\/?[a-z]/i);
     expect(out).toContain("- Fast\n- Cheap");
     expect(out).toContain("Done `x`.");
@@ -108,7 +132,9 @@ describe("audit of #97 (stray HTML)", () => {
 
   it("a backtick inside a comment or a table doesn't break them", () => {
     expect(stripStrayHtml("a <!-- run `npm test` before merging --> b")).toBe("a  b");
-    expect(stripStrayHtml("x\n\n<table><tr><th>A</th><th>B</th></tr><tr><td>`x`</td><td>y</td></tr></table>")).toContain("| A | B |\n| --- | --- |\n| `x` | y |");
+    expect(
+      stripStrayHtml("x\n\n<table><tr><th>A</th><th>B</th></tr><tr><td>`x`</td><td>y</td></tr></table>"),
+    ).toContain("| A | B |\n| --- | --- |\n| `x` | y |");
   });
 
   it("indented and ~~~ code blocks are left exactly as written", () => {
@@ -120,7 +146,8 @@ describe("audit of #97 (stray HTML)", () => {
   });
 
   it("prose that names a tag is left alone", () => {
-    for (const t of ["Use the <br> tag and <p> tag.", "the <b> element", "the <details> element"]) expect(normalizeMarkup(t)).toBe(t);
+    for (const t of ["Use the <br> tag and <p> tag.", "the <b> element", "the <details> element"])
+      expect(normalizeMarkup(t)).toBe(t);
   });
 
   it("nested tables: the outer table's rows, inner table as its cell's text", () => {
@@ -143,7 +170,9 @@ describe("audit of #97 (linear on hostile input)", () => {
   });
 
   it("still pairs a heading, a link and a comment", () => {
-    const out = normalizeMarkup('Intro text\n\n<h2>Title</h2>\n\nSee <a href="https://x.y/z">the docs</a>.<!-- hidden -->\n\nMore text');
+    const out = normalizeMarkup(
+      'Intro text\n\n<h2>Title</h2>\n\nSee <a href="https://x.y/z">the docs</a>.<!-- hidden -->\n\nMore text',
+    );
     expect(out).toContain("## Title");
     expect(out).toContain("[the docs](https://x.y/z)");
     expect(out).not.toContain("hidden");
@@ -155,7 +184,9 @@ describe("final audit of #97", () => {
     const text = "Comments start with `<!--` in HTML.\nThis line should survive.\n\nAnd so should **this** one </b>.";
     expect(normalizeMarkup(text)).toContain("This line should survive.");
     expect(normalizeMarkup(text)).toContain("`<!--`");
-    expect(normalizeMarkup("Use `<ul>` to open and `</ul>` to close, <b>really</b>.")).toBe("Use `<ul>` to open and `</ul>` to close, **really**.");
+    expect(normalizeMarkup("Use `<ul>` to open and `</ul>` to close, <b>really</b>.")).toBe(
+      "Use `<ul>` to open and `</ul>` to close, **really**.",
+    );
   });
 
   it("a backtick inside a comment is still comment", () => {
@@ -167,14 +198,22 @@ describe("final audit of #97", () => {
   });
 
   it("a link around other tags converts, and a badge link is its picture", () => {
-    expect(normalizeMarkup('See <a href="https://x.com/y"><code>abc</code></a>.')).toBe("See [`abc`](https://x.com/y).");
-    expect(normalizeMarkup('Go <a href="https://x.com/y"><b>here</b></a> now')).toBe("Go [**here**](https://x.com/y) now");
-    expect(normalizeMarkup('<a href="https://ci.io"><img src="https://ci.io/badge.svg"></a> ok')).toContain("https://ci.io/badge.svg");
+    expect(normalizeMarkup('See <a href="https://x.com/y"><code>abc</code></a>.')).toBe(
+      "See [`abc`](https://x.com/y).",
+    );
+    expect(normalizeMarkup('Go <a href="https://x.com/y"><b>here</b></a> now')).toBe(
+      "Go [**here**](https://x.com/y) now",
+    );
+    expect(normalizeMarkup('<a href="https://ci.io"><img src="https://ci.io/badge.svg"></a> ok')).toContain(
+      "https://ci.io/badge.svg",
+    );
     expect(normalizeMarkup('<a href="https://ci.io"><img src="https://ci.io/badge.svg"></a> ok')).not.toContain("<a");
   });
 
   it("a table keeps its cells' pictures, links and superscripts", () => {
-    const md = normalizeMarkup('<table><tr><th>Before</th><th>Link</th><th>Area</th></tr><tr><td><img src="https://i.com/a.png"></td><td><a href="https://l.com">link</a></td><td>10<sup>6</sup> m<sup>2</sup><sup class="reference"><a href="#n1">[1]</a></sup></td></tr></table>');
+    const md = normalizeMarkup(
+      '<table><tr><th>Before</th><th>Link</th><th>Area</th></tr><tr><td><img src="https://i.com/a.png"></td><td><a href="https://l.com">link</a></td><td>10<sup>6</sup> m<sup>2</sup><sup class="reference"><a href="#n1">[1]</a></sup></td></tr></table>',
+    );
     expect(md).toContain("https://i.com/a.png");
     expect(md).toContain("[link](https://l.com)");
     expect(md).toContain("10^6 m^2");
@@ -182,7 +221,9 @@ describe("final audit of #97", () => {
   });
 
   it("only a broken wiki template is cut from a cell", () => {
-    const md = normalizeMarkup("<table><tr><th>A</th></tr><tr><td>Use {{name}} as placeholder</td></tr><tr><td>Snow<ref>{{cite web |url=x</ref></td></tr></table>");
+    const md = normalizeMarkup(
+      "<table><tr><th>A</th></tr><tr><td>Use {{name}} as placeholder</td></tr><tr><td>Snow<ref>{{cite web |url=x</ref></td></tr></table>",
+    );
     expect(md).toContain("Use {{name}} as placeholder");
     expect(md).toMatch(/\| Snow \|/);
   });

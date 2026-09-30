@@ -14,12 +14,13 @@ import { relayHintFor, tagWithHint } from "@/lib/relayRouting";
 export const VOUCH_KIND = 31871;
 export type VouchType = "vouch" | "identity";
 
-const CLIENT_TAG = ["client", "Brainstorm"];
-
 export type VouchOutcome = PublishOutcome & { event?: NostrEvent };
 
 /** Publish (or, for the same subject, update) the viewer's trust review. */
-export async function publishVouch(subjectPubkey: string, opts: { type: VouchType; content: string }): Promise<VouchOutcome> {
+export async function publishVouch(
+  subjectPubkey: string,
+  opts: { type: VouchType; content: string },
+): Promise<VouchOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   // A vouch for yourself says nothing; readers skip it too.
@@ -28,7 +29,13 @@ export async function publishVouch(subjectPubkey: string, opts: { type: VouchTyp
   try {
     const signed = await signAs(account, {
       kind: VOUCH_KIND,
-      tags: [["d", subjectPubkey], tagWithHint("p", subjectPubkey, hint), ["t", opts.type], ["s", "vouched"], ["alt", "Trust vouch"], CLIENT_TAG],
+      tags: [
+        ["d", subjectPubkey],
+        tagWithHint("p", subjectPubkey, hint),
+        ["t", opts.type],
+        ["s", "vouched"],
+        ["alt", "Trust vouch"],
+      ],
       content: opts.content.trim(),
     });
     const res = await publishToRelays(signed);
@@ -58,7 +65,6 @@ export async function revokeVouch(subjectPubkey: string, eventId: string): Promi
         tagWithHint("a", `${VOUCH_KIND}:${account.pubkey}:${subjectPubkey}`, relayHintFor(account.pubkey)),
         ["k", String(VOUCH_KIND)],
         tagWithHint("p", subjectPubkey, relayHintFor(subjectPubkey)),
-        CLIENT_TAG,
       ],
       content: "Vouch removed",
     });

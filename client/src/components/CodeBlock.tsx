@@ -21,11 +21,11 @@ export function CodeBlock({ code, testId }: { code: string; testId: string }) {
   };
 
   return (
-    <div className="relative group/code rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+    <div className="group/code relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <button
         type="button"
         onClick={onCopy}
-        className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors"
+        className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
         data-testid={`button-copy-${testId}`}
         aria-label="Copy code"
       >
@@ -33,7 +33,7 @@ export function CodeBlock({ code, testId }: { code: string; testId: string }) {
         {copied ? "Copied" : "Copy"}
       </button>
       <pre className="overflow-x-auto p-4 pr-20 text-[13px] leading-relaxed" data-testid={`code-${testId}`}>
-        <code className="font-mono text-slate-800 dark:text-slate-200 whitespace-pre">{code}</code>
+        <code className="whitespace-pre font-mono text-slate-800 dark:text-slate-200">{code}</code>
       </pre>
     </div>
   );

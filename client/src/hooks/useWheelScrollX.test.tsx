@@ -38,7 +38,9 @@ function LateStrip() {
   const [ready, setReady] = useState(false);
   return (
     <>
-      <button type="button" onClick={() => setReady(true)}>load</button>
+      <button type="button" onClick={() => setReady(true)}>
+        load
+      </button>
       {ready && <div ref={ref} data-testid="strip" />}
     </>
   );

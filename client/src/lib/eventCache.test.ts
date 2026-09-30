@@ -46,7 +46,7 @@ beforeEach(async () => {
   vi.resetModules();
   delete snapshot.event;
   // A fresh device each time — no connection to close, no delete to be blocked.
-  indexedDB = new IDBFactory();
+  globalThis.indexedDB = new IDBFactory();
   cache = await import("./eventCache");
   cache.__useCacheStore(undefined);
 });
@@ -102,11 +102,7 @@ describe("hydrating the store at boot", () => {
     await cache.hydrateEventStore(ME);
     await vi.waitFor(() => expect(loadReplaceableMock).toHaveBeenCalled());
 
-    expect(loadReplaceableMock).toHaveBeenCalledWith(
-      3,
-      ME,
-      expect.objectContaining({ fromRelays: true }),
-    );
+    expect(loadReplaceableMock).toHaveBeenCalledWith(3, ME, expect.objectContaining({ fromRelays: true }));
   });
 
   /**
@@ -122,9 +118,7 @@ describe("hydrating the store at boot", () => {
     ]);
 
     await cache.hydrateEventStore(ME);
-    await vi.waitFor(() =>
-      expect(loadReplaceableMock.mock.calls.filter((c) => c[0] === 10040)).toHaveLength(1),
-    );
+    await vi.waitFor(() => expect(loadReplaceableMock.mock.calls.filter((c) => c[0] === 10040)).toHaveLength(1));
 
     // Every refresh this hydration started names the cached list's write
     // relays. Counted by kind rather than in total: a previous case's
@@ -163,7 +157,9 @@ describe("waiting on the cache", () => {
   it("resolves only once hydration has finished", async () => {
     snapshot.event = signed(3);
     let done = false;
-    void cache.hydrateEventStore(ME).then(() => { done = true; });
+    void cache.hydrateEventStore(ME).then(() => {
+      done = true;
+    });
 
     await cache.whenHydrated();
 
@@ -247,7 +243,10 @@ describe("what goes to disk", () => {
     cache.__resetEventCache();
     await new Promise<void>((resolve) => {
       const request = indexedDB.open("brainstorm-events"); // versionless, no store
-      request.onsuccess = () => { request.result.close(); resolve(); };
+      request.onsuccess = () => {
+        request.result.close();
+        resolve();
+      };
       request.onerror = () => resolve();
     });
 

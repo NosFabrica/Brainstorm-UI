@@ -11,7 +11,8 @@ import { decodeNaddr, type AddressPointer } from "@/components/share/ArticleScre
  * author last published there. The event's kind then picks the layout
  * (EventScreen). A profile's id goes to `/p/`.
  */
-type Target = { type: "address"; ptr: AddressPointer } | { type: "profile" } | { type: "event"; ptr: EventPointer | null };
+type Target =
+  { type: "address"; ptr: AddressPointer } | { type: "profile" } | { type: "event"; ptr: EventPointer | null };
 
 export default function EventPage() {
   const [, params] = useRoute("/e/:id");

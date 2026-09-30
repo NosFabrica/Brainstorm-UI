@@ -52,7 +52,7 @@ export function HeaderBar({
     <header
       className={`sticky top-0 z-40 transition-[background-color,box-shadow,border-color] duration-300 ${
         scrolled
-          ? "border-b border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-sm dark:shadow-none"
+          ? "border-b border-slate-200/70 bg-white/80 shadow-sm backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-950/80 dark:shadow-none"
           : "border-b border-transparent bg-transparent"
       }`}
       data-testid={testId}
@@ -64,13 +64,18 @@ export function HeaderBar({
             onClick={back.onClick}
             aria-label={back.label}
             title={back.label}
-            className="-ml-2 shrink-0 rounded-full p-2 text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+            className="-ml-2 shrink-0 rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
             data-testid="header-back"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
         )}
-        <Link href="/" className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50" aria-label="Brainstorm home" data-testid="header-brand">
+        <Link
+          href="/"
+          className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+          aria-label="Brainstorm home"
+          data-testid="header-brand"
+        >
           {/* Gradient mark on light, white on dark. */}
           <BrainLogo size={26} className="dark:hidden" />
           <BrainLogo size={26} mono className="hidden text-white dark:block" />
@@ -85,7 +90,7 @@ export function HeaderBar({
               type="button"
               onClick={openMobileSearch}
               aria-label="Search"
-              className="rounded-full p-2 text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-deep"
+              className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-deep dark:text-slate-400 dark:hover:bg-slate-800"
               data-testid="header-search-mobile"
             >
               <Search className="h-5 w-5" />

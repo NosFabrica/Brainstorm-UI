@@ -1,13 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import {
-  AlertCircle,
-  Loader2,
-  ChevronDown,
-  KeyRound,
-  ArrowRight,
-  Radio,
-} from "lucide-react";
+import { AlertCircle, Loader2, ChevronDown, KeyRound, ArrowRight, Radio } from "lucide-react";
 import { handleLogin, LoginError, type LoginErrorCode } from "@/accounts/login-flow";
 import { RemoteSignerModal } from "@/components/RemoteSignerModal";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -27,8 +20,7 @@ function getNextPath(): string {
   try {
     const params = new URLSearchParams(window.location.search);
     const next = params.get("next");
-    if (next && next.startsWith("/") && !next.startsWith("//") && next !== "/login")
-      return next;
+    if (next && next.startsWith("/") && !next.startsWith("//") && next !== "/login") return next;
   } catch {}
   return "/";
 }
@@ -100,7 +92,6 @@ export default function LoginPage() {
       return;
     }
     if (signedInOnArrival.current && !addRequested.current) navigate(nextPath, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, nextPath]);
 
   // Returning users (extension/nsec) land where they intended (home, or ?next=) —
@@ -131,7 +122,6 @@ export default function LoginPage() {
     }
   };
 
-
   const openNsec = () => {
     setFailureCode("NO_EXTENSION");
     setFailureMessage("Paste your key to sign in.");
@@ -149,9 +139,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-background text-foreground font-sans lg:overflow-hidden" data-testid="page-login">
+    <div
+      className="flex min-h-screen w-full bg-background font-sans text-foreground lg:overflow-hidden"
+      data-testid="page-login"
+    >
       {/* Left column — editorial value panel */}
-      <div className="hidden lg:flex w-[45%] flex-col relative bg-gradient-to-br from-brand-deep via-slate-950 to-slate-950 text-white overflow-hidden p-12 justify-between">
+      <div className="relative hidden w-[45%] flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-deep via-slate-950 to-slate-950 p-12 text-white lg:flex">
         <div className="absolute inset-0 z-0" aria-hidden="true">
           {/* The panel is always dark editorial (violet→ink), so force the DARK
               (lit-constellation) scene variant regardless of app theme. The
@@ -171,13 +164,13 @@ export default function LoginPage() {
         </div>
 
         <div className="relative z-10 max-w-md">
-          <h1 className="text-4xl font-semibold mb-6 leading-tight text-white/95">
+          <h1 className="mb-6 text-4xl font-semibold leading-tight text-white/95">
             Trust is earned. <br />
             <span className="text-white">Now it's visible.</span>
           </h1>
-          <p className="text-lg text-slate-300 leading-relaxed">
-            Brainstorm maps the relationships that matter. See who your friends trust,
-            build your reputation, and navigate your network with confidence.
+          <p className="text-lg leading-relaxed text-slate-300">
+            Brainstorm maps the relationships that matter. See who your friends trust, build your reputation, and
+            navigate your network with confidence.
           </p>
         </div>
       </div>
@@ -185,113 +178,115 @@ export default function LoginPage() {
       {/* Right column — sign-in focus */}
       {/* min-w-0: a flex item won't shrink below its content by default, and a saved
           account's npub is one unbreakable line — it pushed the page past a phone's width. */}
-      <main className="flex-1 min-w-0 flex flex-col px-5 py-8 sm:p-8">
-        <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0">
-        <div className="w-full max-w-[420px] flex flex-col animate-fade-up">
-          {/* Mobile brand header (hidden on desktop) — the handwritten wordmark
+      <main className="flex min-w-0 flex-1 flex-col px-5 py-8 sm:p-8">
+        <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center">
+          <div className="flex w-full max-w-[420px] animate-fade-up flex-col">
+            {/* Mobile brand header (hidden on desktop) — the handwritten wordmark
               (gradient on light, white on dark), no B mark or text lockup. */}
-          <div className="flex lg:hidden items-center justify-center mb-8">
-            <Wordmark height={34} className="dark:hidden" />
-            <Wordmark height={34} variant="white" className="hidden dark:block" />
-          </div>
-
-          <div className="mb-10 text-center lg:text-left">
-            <div className="flex items-center justify-center lg:justify-start gap-2.5 mb-4">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
-                Welcome back
-              </span>
-              <div className="h-px w-12 bg-brand-accent/40" />
+            <div className="mb-8 flex items-center justify-center lg:hidden">
+              <Wordmark height={34} className="dark:hidden" />
+              <Wordmark height={34} variant="white" className="hidden dark:block" />
             </div>
-            <h2
-              className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight leading-[1.1] mb-3"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Sign in to your <span className="text-brand-link">Brainstorm</span> account
-            </h2>
-            <p className="text-base text-muted-foreground leading-relaxed">
-              Pick up where you left off and keep building your network.
-            </p>
-          </div>
 
-          {/* Sent here from a payment that belongs to another account on this
+            <div className="mb-10 text-center lg:text-left">
+              <div className="mb-4 flex items-center justify-center gap-2.5 lg:justify-start">
+                <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-accent">
+                  Welcome back
+                </span>
+                <div className="h-px w-12 bg-brand-accent/40" />
+              </div>
+              <h2
+                className="mb-3 text-3xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-4xl"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Sign in to your <span className="text-brand-link">Brainstorm</span> account
+              </h2>
+              <p className="text-base leading-relaxed text-muted-foreground">
+                Pick up where you left off and keep building your network.
+              </p>
+            </div>
+
+            {/* Sent here from a payment that belongs to another account on this
               device: say which account to pick before they pick one. */}
-          {switchHint && (
-            <Alert className="mb-4" data-testid="login-switch-hint">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>Sign in with the account that made the payment — it's waiting there.</AlertDescription>
-            </Alert>
-          )}
-          {error && (
-            <Alert variant="destructive" className="mb-4" data-testid="text-login-error">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+            {switchHint && (
+              <Alert className="mb-4" data-testid="login-switch-hint">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Sign in with the account that made the payment — it's waiting there.
+                </AlertDescription>
+              </Alert>
+            )}
+            {error && (
+              <Alert variant="destructive" className="mb-4" data-testid="text-login-error">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          <LoginPicker
-            identities={identities}
-            onSignedIn={routeAfterLogin}
-            onUseKey={openNsec}
-            onRecheckExtension={recheckExtension}
-          />
+            <LoginPicker
+              identities={identities}
+              onSignedIn={routeAfterLogin}
+              onUseKey={openNsec}
+              onRecheckExtension={recheckExtension}
+            />
 
-          {/* With accounts on the device the sign-in options stop being the way in
+            {/* With accounts on the device the sign-in options stop being the way in
               and become the way to add one more. */}
-          {hasAccounts && (
-            <div className="my-8 flex items-center gap-4" aria-hidden="true">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Add another account
-              </span>
-              <div className="h-px flex-1 bg-border" />
-            </div>
-          )}
+            {hasAccounts && (
+              <div className="my-8 flex items-center gap-4" aria-hidden="true">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Add another account
+                </span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+            )}
 
-          <div className={hasAccounts ? "space-y-3" : "mt-6 space-y-3"}>
-            <Button
-              onClick={onLogin}
-              disabled={loading}
-              variant="neutral"
-              size="lg"
-              className="w-full"
-              data-testid="button-signin-extension"
-            >
-              {loading ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="square"
-                  aria-hidden="true"
-                >
-                  <path d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108" />
-                  <path d="M2 11.1914H14.88" />
-                  <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
-                </svg>
-              )}
-              <span>{loading ? "Connecting…" : "Sign in with your extension"}</span>
-              <ArrowRight />
-            </Button>
+            <div className={hasAccounts ? "space-y-3" : "mt-6 space-y-3"}>
+              <Button
+                onClick={onLogin}
+                disabled={loading}
+                variant="neutral"
+                size="lg"
+                className="w-full"
+                data-testid="button-signin-extension"
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="square"
+                    aria-hidden="true"
+                  >
+                    <path d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108" />
+                    <path d="M2 11.1914H14.88" />
+                    <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
+                  </svg>
+                )}
+                <span>{loading ? "Connecting…" : "Sign in with your extension"}</span>
+                <ArrowRight />
+              </Button>
 
-            {/* One row for every remote signer — nsec.app, Amber's bunker mode,
+              {/* One row for every remote signer — nsec.app, Amber's bunker mode,
                 Keycast, anything self-hosted. Their differences are absorbed at
                 transport; giving each its own row would be a lie about how many
                 choices there are. */}
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => setRemoteOpen(true)}
-              className="w-full"
-              data-testid="button-signin-remote"
-            >
-              <Radio /> Sign in with a signer app
-            </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={() => setRemoteOpen(true)}
+                className="w-full"
+                data-testid="button-signin-remote"
+              >
+                <Radio /> Sign in with a signer app
+              </Button>
 
-            {/* No NIP-55 row. It used to sit here, as the one option for Amber's
+              {/* No NIP-55 row. It used to sit here, as the one option for Amber's
                 offline build — networking removed, so NIP-46 is impossible and the
                 alternative is a raw key. It came out because it does not work:
                 applesauce returns Amber's answer through the clipboard, read on the
@@ -311,77 +306,96 @@ export default function LoginPage() {
                 `AmberAccount` stays registered in `accounts/manager.ts`: rows
                 created before this still deserialise, restore and sign. */}
 
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={openNsec}
-              className="w-full text-brand-link hover:text-brand-link hover:bg-brand-primary/10"
-              data-testid="link-use-nsec"
-            >
-              {/* Don't reword: every backup file ever downloaded tells its holder
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={openNsec}
+                className="w-full text-brand-link hover:bg-brand-primary/10 hover:text-brand-link"
+                data-testid="link-use-nsec"
+              >
+                {/* Don't reword: every backup file ever downloaded tells its holder
                   to look for "Use your key". See buildAccountBackupFileContent. */}
-              <KeyRound /> Use your key?
-            </Button>
+                <KeyRound /> Use your key?
+              </Button>
+            </div>
+
+            <div className="my-8 flex items-center gap-4" aria-hidden="true">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                New to Brainstorm?
+              </span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+
+            <div className="flex flex-col items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={() => setCreateOpen(true)}
+                className="w-full"
+                data-testid="link-create-identity"
+              >
+                Create your account
+                <ArrowRight />
+              </Button>
+              <p className="text-xs font-medium text-muted-foreground">Free, takes a minute — no email required</p>
+            </div>
+
+            <Card className="mt-8 p-5 text-center text-sm leading-relaxed text-muted-foreground">
+              <p className="mb-2" data-testid="text-anon-note">
+                <span className="font-semibold text-foreground">Not your device?</span> Keep your identity private — you
+                can browse Brainstorm anonymously without signing in.
+              </p>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={() => navigate("/personalization")}
+                className="h-auto p-0"
+                data-testid="link-learn-anon"
+              >
+                Learn about anonymous browsing
+                <ArrowRight />
+              </Button>
+            </Card>
           </div>
-
-          <div className="my-8 flex items-center gap-4" aria-hidden="true">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              New to Brainstorm?
-            </span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
-          <div className="flex flex-col items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => setCreateOpen(true)}
-              className="w-full"
-              data-testid="link-create-identity"
-            >
-              Create your account
-              <ArrowRight />
-            </Button>
-            <p className="text-xs text-muted-foreground font-medium">
-              Free, takes a minute — no email required
-            </p>
-          </div>
-
-          <Card className="mt-8 p-5 text-sm text-muted-foreground text-center leading-relaxed">
-            <p className="mb-2" data-testid="text-anon-note">
-              <span className="font-semibold text-foreground">Not your device?</span> Keep your identity private — you can browse Brainstorm anonymously without signing in.
-            </p>
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              onClick={() => navigate("/personalization")}
-              className="h-auto p-0"
-              data-testid="link-learn-anon"
-            >
-              Learn about anonymous browsing
-              <ArrowRight />
-            </Button>
-          </Card>
-
-        </div>
         </div>
 
         {/* Footer */}
-        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 text-xs font-medium text-muted-foreground">
+        <div className="flex w-full flex-col items-center justify-between gap-4 pt-6 text-xs font-medium text-muted-foreground sm:flex-row">
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors hover:bg-muted hover:text-foreground"
             data-testid="button-login-language"
           >
             English (United States) <ChevronDown className="h-3.5 w-3.5" />
           </button>
           <div className="flex items-center gap-6">
-            <button type="button" onClick={() => navigate("/faq")} className="hover:text-foreground transition-colors" data-testid="link-login-help">Help</button>
-            <button type="button" onClick={() => navigate("/privacy")} className="hover:text-foreground transition-colors" data-testid="link-login-privacy">Privacy</button>
-            <button type="button" onClick={() => navigate("/terms")} className="hover:text-foreground transition-colors" data-testid="link-login-terms">Terms</button>
+            <button
+              type="button"
+              onClick={() => navigate("/faq")}
+              className="transition-colors hover:text-foreground"
+              data-testid="link-login-help"
+            >
+              Help
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/privacy")}
+              className="transition-colors hover:text-foreground"
+              data-testid="link-login-privacy"
+            >
+              Privacy
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/terms")}
+              className="transition-colors hover:text-foreground"
+              data-testid="link-login-terms"
+            >
+              Terms
+            </button>
           </div>
         </div>
       </main>

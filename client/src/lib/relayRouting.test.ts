@@ -80,7 +80,11 @@ describe("reading a relay list", () => {
 
   it("ignores anything that isn't a relay URL", () => {
     const list = parseRelayList(
-      relayList(ALICE, [["r", "https://not-a-relay.example"], ["r", ""], ["p", "wss://wrong.tag"]]),
+      relayList(ALICE, [
+        ["r", "https://not-a-relay.example"],
+        ["r", ""],
+        ["p", "wss://wrong.tag"],
+      ]),
     );
 
     expect(list).toEqual({ write: [], read: [] });
@@ -131,7 +135,12 @@ describe("one relay, spelled two ways", () => {
 
 describe("where to read an author's events", () => {
   it("puts their write relays ahead of our defaults", async () => {
-    seed(relayList(ALICE, [["r", "wss://alice.example", "write"], ["r", "wss://alice-in.example", "read"]]));
+    seed(
+      relayList(ALICE, [
+        ["r", "wss://alice.example", "write"],
+        ["r", "wss://alice-in.example", "read"],
+      ]),
+    );
 
     const relays = await outboxRelays(ALICE);
 
@@ -159,7 +168,12 @@ describe("where to read an author's events", () => {
   });
 
   it("keeps a long list from turning one read into a dozen sockets", async () => {
-    seed(relayList(ALICE, Array.from({ length: 12 }, (_, i) => ["r", `wss://r${i}.example`])));
+    seed(
+      relayList(
+        ALICE,
+        Array.from({ length: 12 }, (_, i) => ["r", `wss://r${i}.example`]),
+      ),
+    );
 
     const relays = await outboxRelays(ALICE, []);
 
@@ -186,9 +200,7 @@ describe("where to read an author's events", () => {
    * one bad moment — including the follow-list wipe guard's evidence read.
    */
   it("retries sooner after a lookup that ran out of time", async () => {
-    loadReplaceableMock.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(undefined), 60)),
-    );
+    loadReplaceableMock.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(undefined), 60)));
 
     __ttls.inconclusive = 40;
     await loadRelayList(ALICE, { timeoutMs: 50 });
@@ -202,11 +214,25 @@ describe("where to read an author's events", () => {
 
     expect(loadReplaceableMock.mock.calls.length).toBeGreaterThan(1);
   });
+
+  // A list naming only its author's own-network relays parses to nothing on a
+  // public page; one with no usable tags at all is the same shape here.
+  it("answers from a held list that names nothing usable, without asking the relays again", async () => {
+    seed(relayList(ALICE, [["r", "not a relay"]]));
+    expect(await loadRelayList(ALICE)).toBeNull();
+    expect(await loadRelayList(ALICE)).toBeNull();
+    expect(loadReplaceableMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("where to send an event that names someone", () => {
   it("uses their READ relays — the half that makes a mention arrive", async () => {
-    seed(relayList(BOB, [["r", "wss://bob-out.example", "write"], ["r", "wss://bob-in.example", "read"]]));
+    seed(
+      relayList(BOB, [
+        ["r", "wss://bob-out.example", "write"],
+        ["r", "wss://bob-in.example", "read"],
+      ]),
+    );
 
     const relays = await inboxRelays([BOB]);
 
@@ -253,7 +279,9 @@ describe("relay hints", () => {
 describe("routing while the cache is still loading", () => {
   it("waits for hydration before deciding the store has nothing", async () => {
     let release = () => {};
-    hydrated.promise = new Promise<void>((r) => { release = r; });
+    hydrated.promise = new Promise<void>((r) => {
+      release = r;
+    });
 
     const pending = outboxRelays(ALICE, []);
     // Arrives late, exactly as a hydrated event would.

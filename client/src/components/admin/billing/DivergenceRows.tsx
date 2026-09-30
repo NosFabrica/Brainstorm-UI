@@ -46,16 +46,27 @@ function shortNpub(pubkey: string): { short: string; full: string } {
 export function PersonCell({ pubkey, profile }: { pubkey: string; profile?: ProfileBits }) {
   const who = shortNpub(pubkey);
   return (
-    <span className="flex min-w-0 items-center gap-2" title={profile?.name ? `${profile.name} — ${who.full}` : who.full}>
+    <span
+      className="flex min-w-0 items-center gap-2"
+      title={profile?.name ? `${profile.name} — ${who.full}` : who.full}
+    >
       <Avatar className="h-6 w-6 shrink-0">
-        {profile?.picture ? <AvatarImage src={profile.picture} alt={profile?.name || "Subscriber"} className="object-cover" /> : null}
+        {profile?.picture ? (
+          <AvatarImage src={profile.picture} alt={profile?.name || "Subscriber"} className="object-cover" />
+        ) : null}
         <AvatarFallback className="border border-slate-200 bg-slate-100 text-[10px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
           {profile?.name?.charAt(0)?.toUpperCase() || <User className="h-3 w-3 text-slate-300 dark:text-slate-600" />}
         </AvatarFallback>
       </Avatar>
       <span className="flex min-w-0 flex-col leading-tight">
-        <span className="max-w-[180px] truncate text-sm font-medium text-slate-800 dark:text-slate-100">{profile?.name || who.short}</span>
-        {profile?.name && <span className="max-w-[180px] truncate font-mono text-[10px] text-slate-400 dark:text-slate-500">{who.short}</span>}
+        <span className="max-w-[180px] truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+          {profile?.name || who.short}
+        </span>
+        {profile?.name && (
+          <span className="max-w-[180px] truncate font-mono text-[10px] text-slate-400 dark:text-slate-500">
+            {who.short}
+          </span>
+        )}
       </span>
     </span>
   );
@@ -64,7 +75,19 @@ export function PersonCell({ pubkey, profile }: { pubkey: string; profile?: Prof
 const rowActionClass =
   "inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-brand-accent/40 hover:text-brand-deep disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white";
 
-export function ResyncButton({ kind, pubkey, busy, onResync, className = "" }: { kind: string; pubkey: string; busy: boolean; onResync: (pubkey: string) => void; className?: string }) {
+export function ResyncButton({
+  kind,
+  pubkey,
+  busy,
+  onResync,
+  className = "",
+}: {
+  kind: string;
+  pubkey: string;
+  busy: boolean;
+  onResync: (pubkey: string) => void;
+  className?: string;
+}) {
   return (
     <button
       type="button"
@@ -81,7 +104,15 @@ export function ResyncButton({ kind, pubkey, busy, onResync, className = "" }: {
 
 /** Lets go of an admin's override so billing decides the tier again — never a
  *  PUT of the default policy, which would itself be an override. */
-function ResetOverrideButton({ pubkey, busy, onReset }: { pubkey: string; busy: boolean; onReset: (pubkey: string) => void }) {
+function ResetOverrideButton({
+  pubkey,
+  busy,
+  onReset,
+}: {
+  pubkey: string;
+  busy: boolean;
+  onReset: (pubkey: string) => void;
+}) {
   return (
     <button
       type="button"
@@ -96,7 +127,8 @@ function ResetOverrideButton({ pubkey, busy, onReset }: { pubkey: string; busy: 
   );
 }
 
-const rowClass = "flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-white/60 px-2.5 py-2 dark:bg-slate-900/40";
+const rowClass =
+  "flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-white/60 px-2.5 py-2 dark:bg-slate-900/40";
 const meta = "text-xs text-slate-500 dark:text-slate-400";
 
 export function PolicyMismatchRowView({
@@ -122,13 +154,22 @@ export function PolicyMismatchRowView({
     <li className={rowClass} data-testid={`billing-${kind === "policy_mismatch" ? "mismatch" : "override"}-${pk8}`}>
       <PersonCell pubkey={row.pubkey ?? ""} profile={profile} />
       <span className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 ${meta}`}>
-        {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{statusLabel(row.flash_status)}</Chip>}
+        {row.flash_status && (
+          <Chip tone={statusTone(row.flash_status)} size="sm">
+            {statusLabel(row.flash_status)}
+          </Chip>
+        )}
         <span>
-          Pays for <span className="font-medium text-slate-700 dark:text-slate-200">{policyName(row.granted_scheduling_id)}</span>
+          Pays for{" "}
+          <span className="font-medium text-slate-700 dark:text-slate-200">
+            {policyName(row.granted_scheduling_id)}
+          </span>
           {" · on "}
           <span className="font-medium text-slate-700 dark:text-slate-200">{policyName(row.scheduling_id)}</span>
         </span>
-        {row.scheduling_source && <span className="text-slate-400 dark:text-slate-500">{sourceLabel(row.scheduling_source)}</span>}
+        {row.scheduling_source && (
+          <span className="text-slate-400 dark:text-slate-500">{sourceLabel(row.scheduling_source)}</span>
+        )}
       </span>
       {onResync && row.pubkey && <ResyncButton kind={kind} pubkey={row.pubkey} busy={busy} onResync={onResync} />}
       {onReset && row.pubkey && <ResetOverrideButton pubkey={row.pubkey} busy={busy} onReset={onReset} />}
@@ -136,35 +177,94 @@ export function PolicyMismatchRowView({
   );
 }
 
-export function StaleSyncRowView({ row, profile, busy, onResync }: { row: StaleSyncRow; profile?: ProfileBits; busy: boolean; onResync: (pubkey: string) => void }) {
+export function StaleSyncRowView({
+  row,
+  profile,
+  busy,
+  onResync,
+}: {
+  row: StaleSyncRow;
+  profile?: ProfileBits;
+  busy: boolean;
+  onResync: (pubkey: string) => void;
+}) {
   const pk8 = row.pubkey?.slice(0, 8) ?? "";
   return (
     // Three parts: the person, the facts, Resync. On a desk they share one
     // line; on a phone Resync stays beside the person and the facts take a
     // full line beneath, inset to the name.
     <li className={rowClass} data-testid={`billing-stale-${pk8}`}>
-      <span className="order-1 min-w-0"><PersonCell pubkey={row.pubkey ?? ""} profile={profile} /></span>
-      <span className={`order-3 flex basis-full flex-wrap items-center gap-2 pl-[34px] sm:order-2 sm:basis-auto sm:flex-1 sm:pl-0 ${meta}`} data-testid={`billing-stale-meta-${pk8}`}>
-        {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{statusLabel(row.flash_status)}</Chip>}
+      <span className="order-1 min-w-0">
+        <PersonCell pubkey={row.pubkey ?? ""} profile={profile} />
+      </span>
+      <span
+        className={`order-3 flex basis-full flex-wrap items-center gap-2 pl-[34px] sm:order-2 sm:flex-1 sm:basis-auto sm:pl-0 ${meta}`}
+        data-testid={`billing-stale-meta-${pk8}`}
+      >
+        {row.flash_status && (
+          <Chip tone={statusTone(row.flash_status)} size="sm">
+            {statusLabel(row.flash_status)}
+          </Chip>
+        )}
         <span>Last read {row.last_synced_at ? formatBillingDate(row.last_synced_at) : "never"}</span>
       </span>
-      {row.pubkey && <ResyncButton kind="stale_syncs" pubkey={row.pubkey} busy={busy} onResync={onResync} className="order-2 sm:order-3" />}
+      {row.pubkey && (
+        <ResyncButton
+          kind="stale_syncs"
+          pubkey={row.pubkey}
+          busy={busy}
+          onResync={onResync}
+          className="order-2 sm:order-3"
+        />
+      )}
     </li>
   );
 }
 
-export function FailingSyncRowView({ row, profile, busy, onResync }: { row: FailingSyncRow; profile?: ProfileBits; busy: boolean; onResync: (pubkey: string) => void }) {
+export function FailingSyncRowView({
+  row,
+  profile,
+  busy,
+  onResync,
+}: {
+  row: FailingSyncRow;
+  profile?: ProfileBits;
+  busy: boolean;
+  onResync: (pubkey: string) => void;
+}) {
   const pk8 = row.pubkey?.slice(0, 8) ?? "";
   return (
     // Same three parts as a stale row: at 390px the message used to wrap one
     // word, then one letter, per line in the sliver left beside Resync.
     <li className={rowClass} data-testid={`billing-failing-${pk8}`}>
-      <span className="order-1 min-w-0"><PersonCell pubkey={row.pubkey ?? ""} profile={profile} /></span>
-      <span className={`order-3 min-w-0 basis-full pl-[34px] sm:order-2 sm:basis-auto sm:flex-1 sm:pl-0 ${meta}`} data-testid={`billing-failing-meta-${pk8}`}>
-        <span className="text-[12px] text-red-600 dark:text-red-400 break-words" title={row.last_sync_error ?? undefined}>{failureLabel(row.last_sync_error) ?? "read failed"}</span>
-        {row.last_synced_at && <span className="ml-2 text-slate-400 dark:text-slate-500">last good read {formatBillingDate(row.last_synced_at)}</span>}
+      <span className="order-1 min-w-0">
+        <PersonCell pubkey={row.pubkey ?? ""} profile={profile} />
       </span>
-      {row.pubkey && <ResyncButton kind="failing_syncs" pubkey={row.pubkey} busy={busy} onResync={onResync} className="order-2 sm:order-3" />}
+      <span
+        className={`order-3 min-w-0 basis-full pl-[34px] sm:order-2 sm:flex-1 sm:basis-auto sm:pl-0 ${meta}`}
+        data-testid={`billing-failing-meta-${pk8}`}
+      >
+        <span
+          className="break-words text-[12px] text-red-600 dark:text-red-400"
+          title={row.last_sync_error ?? undefined}
+        >
+          {failureLabel(row.last_sync_error) ?? "read failed"}
+        </span>
+        {row.last_synced_at && (
+          <span className="ml-2 text-slate-400 dark:text-slate-500">
+            last good read {formatBillingDate(row.last_synced_at)}
+          </span>
+        )}
+      </span>
+      {row.pubkey && (
+        <ResyncButton
+          kind="failing_syncs"
+          pubkey={row.pubkey}
+          busy={busy}
+          onResync={onResync}
+          className="order-2 sm:order-3"
+        />
+      )}
     </li>
   );
 }
@@ -173,7 +273,9 @@ export function UnrecognisedStatusRowView({ row }: { row: UnrecognisedStatusRow 
   return (
     <li className={rowClass} data-testid={`billing-unrecognised-${row.flash_status}`}>
       <span className="flex items-center gap-2">
-        <Chip tone="warning" size="sm">{row.flash_status ?? "?"}</Chip>
+        <Chip tone="warning" size="sm">
+          {row.flash_status ?? "?"}
+        </Chip>
         <span className="text-sm text-slate-700 dark:text-slate-200">
           {row.subscribers ?? 0} {row.subscribers === 1 ? "subscriber" : "subscribers"} held on their current tier
         </span>
@@ -182,7 +284,15 @@ export function UnrecognisedStatusRowView({ row }: { row: UnrecognisedStatusRow 
   );
 }
 
-export function AbandonedCheckoutRowView({ row, profile, flashUrl }: { row: AbandonedCheckoutRow; profile?: ProfileBits; flashUrl: (id: string) => string }) {
+export function AbandonedCheckoutRowView({
+  row,
+  profile,
+  flashUrl,
+}: {
+  row: AbandonedCheckoutRow;
+  profile?: ProfileBits;
+  flashUrl: (id: string) => string;
+}) {
   const pk8 = row.pubkey?.slice(0, 8) ?? "";
   return (
     <li className={rowClass} data-testid={`billing-abandoned-${pk8}`}>
@@ -190,7 +300,12 @@ export function AbandonedCheckoutRowView({ row, profile, flashUrl }: { row: Aban
       <span className={`flex items-center gap-2 ${meta}`}>
         <span>Started {row.sync_error_since ? formatBillingDate(row.sync_error_since) : "—"}, never paid</span>
         {row.flash_subscription_id && (
-          <a href={flashUrl(row.flash_subscription_id)} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-brand-link hover:underline">
+          <a
+            href={flashUrl(row.flash_subscription_id)}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1 text-brand-link hover:underline"
+          >
             Flash <ExternalLink className="h-3 w-3" />
           </a>
         )}
@@ -199,7 +314,17 @@ export function AbandonedCheckoutRowView({ row, profile, flashUrl }: { row: Aban
   );
 }
 
-export function RetiredPlanRowView({ row, profile, flashUrl, policyName }: { row: RetiredPlanSubscriberRow; profile?: ProfileBits; flashUrl: (id: string) => string; policyName: (id: number | null | undefined) => string }) {
+export function RetiredPlanRowView({
+  row,
+  profile,
+  flashUrl,
+  policyName,
+}: {
+  row: RetiredPlanSubscriberRow;
+  profile?: ProfileBits;
+  flashUrl: (id: string) => string;
+  policyName: (id: number | null | undefined) => string;
+}) {
   const pk8 = row.pubkey?.slice(0, 8) ?? "";
   return (
     <li className={rowClass} data-testid={`billing-retired-${pk8}`}>
@@ -207,8 +332,14 @@ export function RetiredPlanRowView({ row, profile, flashUrl, policyName }: { row
       {/* The heading already says they renew on a retired plan; the row says
           what that grants, and links out the way the abandoned row does. */}
       <span className={`flex flex-wrap items-center gap-2 ${meta}`}>
-        {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{statusLabel(row.flash_status)}</Chip>}
-        <span>{row.granted_scheduling_id != null ? `Grants ${policyName(row.granted_scheduling_id)}` : "Grants nothing yet"}</span>
+        {row.flash_status && (
+          <Chip tone={statusTone(row.flash_status)} size="sm">
+            {statusLabel(row.flash_status)}
+          </Chip>
+        )}
+        <span>
+          {row.granted_scheduling_id != null ? `Grants ${policyName(row.granted_scheduling_id)}` : "Grants nothing yet"}
+        </span>
         {row.flash_subscription_id && (
           <a
             href={flashUrl(row.flash_subscription_id)}
@@ -227,11 +358,23 @@ export function RetiredPlanRowView({ row, profile, flashUrl, policyName }: { row
 
 /** An event replay gave up on: what happened, how many tries, why it's stuck —
  *  and whether it's the same signup already listed above. */
-export function ExhaustedEventRowView({ row, listedAbove = false, children }: { row: ExhaustedEventRow; listedAbove?: boolean; children?: React.ReactNode }) {
+export function ExhaustedEventRowView({
+  row,
+  listedAbove = false,
+  children,
+}: {
+  row: ExhaustedEventRow;
+  listedAbove?: boolean;
+  children?: React.ReactNode;
+}) {
   const why = failureLabel(row.process_error);
   return (
     <li className={rowClass} data-testid={`billing-exhausted-${row.id}`}>
-      <EventLead event={row.event} title={eventLabel(row.event)} sub={`gave up after ${row.attempts ?? "?"} tries${why ? ` · ${why}` : ""}`} />
+      <EventLead
+        event={row.event}
+        title={eventLabel(row.event)}
+        sub={`gave up after ${row.attempts ?? "?"} tries${why ? ` · ${why}` : ""}`}
+      />
       <span className="flex items-center gap-2">
         {listedAbove && <span className="text-[11px] text-slate-400 dark:text-slate-500">listed above</span>}
         {children}
@@ -258,17 +401,27 @@ export function UnmappedPlanRowView({
         {row.external_ref && row.external_ref.length === 64 ? (
           <PersonCell pubkey={row.external_ref} profile={profile} />
         ) : (
-          <span className="text-sm text-slate-700 dark:text-slate-200">{row.event ?? "event"} #{row.id}</span>
+          <span className="text-sm text-slate-700 dark:text-slate-200">
+            {row.event ?? "event"} #{row.id}
+          </span>
         )}
         <span className={`flex flex-wrap items-center gap-x-2 ${meta}`}>
           <span>
-            service <span className="font-mono text-[11px] text-slate-700 dark:text-slate-200">{row.flash_service_id ?? "?"}</span>
+            service{" "}
+            <span className="font-mono text-[11px] text-slate-700 dark:text-slate-200">
+              {row.flash_service_id ?? "?"}
+            </span>
             {" · plan "}
             <span className="font-mono text-[11px] text-slate-700 dark:text-slate-200">{row.flash_plan_id ?? "?"}</span>
           </span>
           {row.created_at && <span>{formatBillingDate(row.created_at)}</span>}
           {row.flash_subscription_id && (
-            <a href={flashUrl(row.flash_subscription_id)} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-brand-link hover:underline">
+            <a
+              href={flashUrl(row.flash_subscription_id)}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-1 text-brand-link hover:underline"
+            >
               Flash <ExternalLink className="h-3 w-3" />
             </a>
           )}
@@ -310,30 +463,30 @@ export function UnresolvedSignupRowView({
     // line and the facts take the full width beneath, left-aligned.
     <li className={rowClass} data-testid={`billing-unresolved-${id ?? row.id}`}>
       <span className="order-1 min-w-0 flex-1 basis-0">
-      <EventLead
-        event={row.event}
-        title={eventLabel(row.event)}
-        date={row.created_at}
-        sub={
-          <>
-            {why}
-            {row.flash_subscription_id && (
-              <>
-                {why ? " · " : ""}
-                <a
-                  href={flashUrl(row.flash_subscription_id)}
-                  target="_blank"
-                  rel="noopener"
-                  className="inline-flex items-center gap-1 font-mono text-[11px] text-brand-link hover:underline"
-                  title={row.flash_subscription_id}
-                >
-                  {row.flash_subscription_id.slice(0, 8)}… <ExternalLink className="h-3 w-3" />
-                </a>
-              </>
-            )}
-          </>
-        }
-      />
+        <EventLead
+          event={row.event}
+          title={eventLabel(row.event)}
+          date={row.created_at}
+          sub={
+            <>
+              {why}
+              {row.flash_subscription_id && (
+                <>
+                  {why ? " · " : ""}
+                  <a
+                    href={flashUrl(row.flash_subscription_id)}
+                    target="_blank"
+                    rel="noopener"
+                    className="inline-flex items-center gap-1 font-mono text-[11px] text-brand-link hover:underline"
+                    title={row.flash_subscription_id}
+                  >
+                    {row.flash_subscription_id.slice(0, 8)}… <ExternalLink className="h-3 w-3" />
+                  </a>
+                </>
+              )}
+            </>
+          }
+        />
       </span>
       {id && readFlashRecord && (
         // Inset to the lead's text column on a phone (past the tone dot).
@@ -398,7 +551,12 @@ export function SignupGroupView({
           const tries = d.attempts != null ? `gave up after ${d.attempts} ${d.attempts === 1 ? "try" : "tries"}` : null;
           return (
             <li key={d.id} data-testid={`billing-unresolved-delivery-${d.id}`}>
-              <EventLead event={d.event} title={eventLabel(d.event)} date={d.created_at} sub={[why, tries].filter(Boolean).join(" · ") || undefined} />
+              <EventLead
+                event={d.event}
+                title={eventLabel(d.event)}
+                date={d.created_at}
+                sub={[why, tries].filter(Boolean).join(" · ") || undefined}
+              />
             </li>
           );
         })}
@@ -409,7 +567,17 @@ export function SignupGroupView({
 
 /** The two-line lead of an event row: a tone dot, what happened (and when),
  *  then why it's stuck in smaller type. */
-function EventLead({ event, title, date, sub }: { event: string | null | undefined; title: string; date?: string | null; sub?: React.ReactNode }) {
+function EventLead({
+  event,
+  title,
+  date,
+  sub,
+}: {
+  event: string | null | undefined;
+  title: string;
+  date?: string | null;
+  sub?: React.ReactNode;
+}) {
   const tone = eventTone(event);
   const dot = tone === "success" ? "bg-emerald-500" : tone === "warning" ? "bg-amber-500" : "bg-slate-400";
   return (

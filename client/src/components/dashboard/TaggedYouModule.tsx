@@ -79,10 +79,7 @@ export function TaggedYouModule() {
     );
   }, [data, watermark, viewerPubkey]);
 
-  const taggers = useMemo(
-    () => Array.from(new Set(fresh.flatMap((t) => t.others))),
-    [fresh],
-  );
+  const taggers = useMemo(() => Array.from(new Set(fresh.flatMap((t) => t.others))), [fresh]);
   const profilesQuery = useQuery({
     queryKey: ["tagged-you-profiles", taggers.join(",")],
     queryFn: () => fetchProfileMap(taggers),
@@ -138,14 +135,14 @@ export function TaggedYouModule() {
           } catch {
             /* unlinkable */
           }
-          const chip = <Chip tone="brand" size="sm">{tag.name}</Chip>;
+          const chip = (
+            <Chip tone="brand" size="sm">
+              {tag.name}
+            </Chip>
+          );
 
           return (
-            <li
-              key={tag.key}
-              className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
-              data-testid="tagged-you-row"
-            >
+            <li key={tag.key} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0" data-testid="tagged-you-row">
               <FacePile pubkeys={tag.others} profiles={profiles} />
 
               <div className="min-w-0 flex-1">

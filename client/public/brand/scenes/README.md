@@ -18,14 +18,14 @@ the manifest. To add a scene, drop a `-light`/`-dark` pair and add a row to
 
 Scenes seen in the drop (rename to these, or drop as-is and tell me the names):
 
-| base       | scene                                   |
-|------------|-----------------------------------------|
-| `festival` | forest festival / string-lit tents      |
-| `jam`      | home jam session (guitar + keys)        |
-| `podcast`  | two-mic podcast at a table              |
-| `library`  | students studying at a long table       |
-| `party`    | backyard party, friends with drinks     |
-| `mixer`    | outdoor networking / beer-garden        |
+| base       | scene                               |
+| ---------- | ----------------------------------- |
+| `festival` | forest festival / string-lit tents  |
+| `jam`      | home jam session (guitar + keys)    |
+| `podcast`  | two-mic podcast at a table          |
+| `library`  | students studying at a long table   |
+| `party`    | backyard party, friends with drinks |
+| `mixer`    | outdoor networking / beer-garden    |
 
 So: `festival-light.webp`, `festival-dark.webp`, `jam-light.webp`, … etc.
 

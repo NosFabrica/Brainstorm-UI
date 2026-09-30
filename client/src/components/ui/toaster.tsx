@@ -1,16 +1,9 @@
-import { useToast } from "@/hooks/use-toast"
-import { BrainLogo } from "@/components/BrainLogo"
-import {
-  Toast,
-  ToastClose,
-  ToastDescription,
-  ToastProvider,
-  ToastTitle,
-  ToastViewport,
-} from "@/components/ui/toast"
+import { useToast } from "@/hooks/use-toast";
+import { BrainLogo } from "@/components/BrainLogo";
+import { Toast, ToastClose, ToastDescription, ToastProvider, ToastTitle, ToastViewport } from "@/components/ui/toast";
 
 export function Toaster() {
-  const { toasts } = useToast()
+  const { toasts } = useToast();
 
   return (
     <ToastProvider>
@@ -22,17 +15,15 @@ export function Toaster() {
               {props.variant === "brand" && <BrainLogo size={22} className="mt-0.5 shrink-0" />}
               <div className="grid gap-1">
                 {title && <ToastTitle>{title}</ToastTitle>}
-                {description && (
-                  <ToastDescription>{description}</ToastDescription>
-                )}
+                {description && <ToastDescription>{description}</ToastDescription>}
               </div>
             </div>
             {action}
             <ToastClose />
           </Toast>
-        )
+        );
       })}
       <ToastViewport />
     </ToastProvider>
-  )
+  );
 }

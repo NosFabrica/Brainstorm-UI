@@ -13,7 +13,15 @@ import { fetchMyRsvp, forgetMyRsvp, publishRsvp, withdrawRsvp, type MyRsvp } fro
 
 type CalendarLike = { id: string; kind: number; pubkey: string; tags: string[][] };
 
-export function RsvpButton({ event, size = "sm", className = "" }: { event: CalendarLike; size?: "sm" | "md"; className?: string }) {
+export function RsvpButton({
+  event,
+  size = "sm",
+  className = "",
+}: {
+  event: CalendarLike;
+  size?: "sm" | "md";
+  className?: string;
+}) {
   const viewer = useActiveAccountDisplay();
   const [, setLocation] = useLocation();
   const [mine, setMine] = useState<MyRsvp | null>(null);

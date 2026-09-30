@@ -24,7 +24,9 @@ vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
 vi.mock("@/components/ListsUpdate", () => ({ ListsUpdateLine: () => <div data-testid="line-lists-update" /> }));
 vi.mock("@/accounts/login-flow", () => ({ logout: () => {} }));
 vi.mock("@/services/trustAnchor", () => ({ publishBrainstormTrustAnchor: (...a: unknown[]) => publish(...a) }));
-vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: "a".repeat(64), displayName: "Lira" }) }));
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({
+  useActiveAccountDisplay: () => ({ pubkey: "a".repeat(64), displayName: "Lira" }),
+}));
 vi.mock("@/hooks/useFinishSetup", () => ({
   useFinishSetup: () => ({ followDone: true, activateDone: page.activateDone, listsPending: page.listsPending }),
 }));

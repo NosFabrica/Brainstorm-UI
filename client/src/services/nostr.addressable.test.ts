@@ -51,7 +51,18 @@ import { PROFILE_RELAYS } from "@/lib/relays";
 
 const GITCITADEL = "3e1ad0f3a5d3c12245db7788546c43ade3d97c6e046c594f6017cd6cd4164690";
 const isis = (): NostrEvent =>
-  ({ id: "1".repeat(64), kind: 30818, pubkey: GITCITADEL, tags: [["d", "isis"], ["title", "Isis"]], content: "*Isis* was a major goddess", created_at: 1, sig: "s" }) as NostrEvent;
+  ({
+    id: "1".repeat(64),
+    kind: 30818,
+    pubkey: GITCITADEL,
+    tags: [
+      ["d", "isis"],
+      ["title", "Isis"],
+    ],
+    content: "*Isis* was a major goddess",
+    created_at: 1,
+    sig: "s",
+  }) as NostrEvent;
 const ptr = { kind: 30818, pubkey: GITCITADEL, identifier: "isis", relays: [] as string[] };
 
 beforeEach(() => {
@@ -80,14 +91,26 @@ describe("fetchAddressableEvents", () => {
     expect(opts?.enough).toBeTypeOf("function");
     const other = { ...isis(), id: "2".repeat(64), tags: [["d", "osiris"]] } as NostrEvent;
     expect(opts.enough!(new Map([[other.id, other]]))).toBe(false);
-    expect(opts.enough!(new Map([[other.id, other], [isis().id, isis()]]))).toBe(true);
+    expect(
+      opts.enough!(
+        new Map([
+          [other.id, other],
+          [isis().id, isis()],
+        ]),
+      ),
+    ).toBe(true);
   });
 
   it("falls back to the search relay (with a lens) for an address the content relays lack", async () => {
     requestAllMock.mockResolvedValueOnce([]);
     const pending = fetchAddressableEvents([ptr], ptr.relays);
     await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalled());
-    const filter = searchReqMock.mock.calls[0][0] as { kinds: number[]; authors: string[]; "#d": string[]; search: string };
+    const filter = searchReqMock.mock.calls[0][0] as {
+      kinds: number[];
+      authors: string[];
+      "#d": string[];
+      search: string;
+    };
     expect(filter.kinds).toEqual([30818]);
     expect(filter.authors).toEqual([GITCITADEL]);
     expect(filter["#d"]).toEqual(["isis"]);
@@ -100,7 +123,13 @@ describe("fetchAddressableEvents", () => {
 
   it("asks the search relay only for what is still missing, keyed as requested", async () => {
     const other = { kind: 30023, pubkey: "a".repeat(64), identifier: "post", relays: [] as string[] };
-    const post = { ...isis(), id: "2".repeat(64), kind: 30023, pubkey: other.pubkey, tags: [["d", "post"]] } as NostrEvent;
+    const post = {
+      ...isis(),
+      id: "2".repeat(64),
+      kind: 30023,
+      pubkey: other.pubkey,
+      tags: [["d", "post"]],
+    } as NostrEvent;
     requestAllMock.mockResolvedValueOnce([post]);
     const pending = fetchAddressableEvents([ptr, other], []);
     await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalled());

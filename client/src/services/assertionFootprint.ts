@@ -21,7 +21,11 @@ export interface AssertionFootprint {
   updatedAt: number;
 }
 
-export function fetchAssertionFootprint(providerPubkey: string, relayUrl: string, timeoutMs = 6000): Promise<AssertionFootprint | null> {
+export function fetchAssertionFootprint(
+  providerPubkey: string,
+  relayUrl: string,
+  timeoutMs = 6000,
+): Promise<AssertionFootprint | null> {
   return new Promise((resolve) => {
     let people = 0;
     let updatedAt = 0;

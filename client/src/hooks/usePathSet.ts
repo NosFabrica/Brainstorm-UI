@@ -12,7 +12,6 @@ import { apiClient } from "@/services/api";
 import type { ShortestPath } from "@/services/api/users";
 import { dedupePaths, samplePaths } from "@/lib/hopsPaths";
 
-
 export interface PathSet {
   head: ShortestPath | undefined;
   /** De-duplicated; `[head.path]` until sampling lands. */

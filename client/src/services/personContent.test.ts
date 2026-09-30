@@ -8,7 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable, Subject } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 
-interface ReqFrame { type: "OPEN" | "EVENT" | "EOSE" | "CLOSED"; from: string; id: string; event?: NostrEvent; reason?: string }
+interface ReqFrame {
+  type: "OPEN" | "EVENT" | "EOSE" | "CLOSED";
+  from: string;
+  id: string;
+  event?: NostrEvent;
+  reason?: string;
+}
 
 const reqMock = vi.fn();
 let relayOn = true;
@@ -20,7 +26,16 @@ import { __resetPersonContent, fetchPersonContent, peekPersonContent } from "./p
 
 const STACI = "5".repeat(64);
 const NOW = Math.floor(Date.now() / 1000);
-const ev = (kind: number, tags: string[][] = []): NostrEvent => ({ id: `${kind}-${tags.length}`, kind, pubkey: STACI, tags, content: "", created_at: NOW - 60, sig: "s" }) as NostrEvent;
+const ev = (kind: number, tags: string[][] = []): NostrEvent =>
+  ({
+    id: `${kind}-${tags.length}`,
+    kind,
+    pubkey: STACI,
+    tags,
+    content: "",
+    created_at: NOW - 60,
+    sig: "s",
+  }) as NostrEvent;
 const frame = (event: NostrEvent): ReqFrame => ({ type: "EVENT", from: "wss://x", id: "s", event });
 const EOSE: ReqFrame = { type: "EOSE", from: "wss://x", id: "s" };
 const CLOSED: ReqFrame = { type: "CLOSED", from: "wss://x", id: "s", reason: "auth-required" };
@@ -56,16 +71,29 @@ describe("fetchPersonContent", () => {
     expect(reqMock).toHaveBeenCalledTimes(1);
     const filters = reqMock.mock.calls[0][0] as Record<string, unknown>[];
     expect(filters).toHaveLength(7);
-    for (const f of filters) expect(f).toEqual(expect.objectContaining({ authors: [STACI], limit: 1, search: "include:spam" }));
+    for (const f of filters)
+      expect(f).toEqual(expect.objectContaining({ authors: [STACI], limit: 1, search: "include:spam" }));
   });
 
   it("settles on EOSE with what arrived, and lets the subscription go", async () => {
     const { subject, torndown } = controllable();
     const p = fetchPersonContent(STACI);
     subject.next(frame(ev(30402)));
-    subject.next(frame(ev(30311, [["title", "Show"], ["status", "live"]])));
+    subject.next(
+      frame(
+        ev(30311, [
+          ["title", "Show"],
+          ["status", "live"],
+        ]),
+      ),
+    );
     subject.next(EOSE);
-    expect(await p).toEqual({ chips: [{ key: "shop", label: "Shop", tab: "shop", liveNow: false }, { key: "live", label: "Live", tab: "live", liveNow: true }] });
+    expect(await p).toEqual({
+      chips: [
+        { key: "shop", label: "Shop", tab: "shop", liveNow: false },
+        { key: "live", label: "Live", tab: "live", liveNow: true },
+      ],
+    });
     expect(torndown.count).toBe(1);
   });
 
@@ -133,7 +161,9 @@ describe("fetchPersonContent — remembered across visits", () => {
     await p;
     __resetPersonContent({ keepStored: true });
     expect(peekPersonContent(STACI)).toEqual({ chips: [{ key: "shop", label: "Shop", tab: "shop", liveNow: false }] });
-    expect(await fetchPersonContent(STACI)).toEqual({ chips: [{ key: "shop", label: "Shop", tab: "shop", liveNow: false }] });
+    expect(await fetchPersonContent(STACI)).toEqual({
+      chips: [{ key: "shop", label: "Shop", tab: "shop", liveNow: false }],
+    });
     expect(reqMock).toHaveBeenCalledTimes(1);
   });
 

@@ -5,7 +5,13 @@
  * two letters never claim an artist), 0 = no.
  */
 export function nameMatchScore(name: string, query: string): 0 | 1 | 2 {
-  const words = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const words = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean);
   const n = words(name);
   const q = words(query);
   if (n.length === 0 || q.length === 0) return 0;

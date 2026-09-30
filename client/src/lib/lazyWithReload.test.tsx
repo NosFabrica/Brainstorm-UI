@@ -91,7 +91,13 @@ describe("lazyWithReload", () => {
   });
 
   it("shows the error, without reloading, when session storage is unusable", async () => {
-    const storage = { getItem: () => null, setItem: () => { throw new Error("quota"); }, removeItem: () => {} };
+    const storage = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error("quota");
+      },
+      removeItem: () => {},
+    };
     const reload = vi.fn();
     vi.spyOn(console, "error").mockImplementation(() => {});
     const Lazy = lazyWithReload(failingLoad, { storage, reload });

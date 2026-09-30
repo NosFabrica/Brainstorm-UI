@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { BadgeCheck, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
-import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useNip05 } from "@/hooks/useNip05";
 import { npubFromPubkey } from "@/lib/shareId";
@@ -78,14 +78,16 @@ export function EmbeddedNoteCard({
   // Likewise a note it quotes: the quoted note, with its author, one level deep.
   const quoted = useQuotedNotes(nested ? [] : analyzeNote(event).quoteIds);
   let npub = "";
-  try { npub = npubFromPubkey(event.pubkey); } catch { /* ignore */ }
+  try {
+    npub = npubFromPubkey(event.pubkey);
+  } catch {
+    /* ignore */
+  }
 
   // Reply context (opt-in): names are plain text, not links, so the whole card
   // stays a single click target to open the thread.
   const analysis = showReplyContext ? analyzeNote(event) : null;
-  const replyTargets = analysis?.isReply
-    ? analysis.replyToPubkeys.filter((pk) => pk !== event.pubkey)
-    : [];
+  const replyTargets = analysis?.isReply ? analysis.replyToPubkeys.filter((pk) => pk !== event.pubkey) : [];
 
   const onClick = href
     ? (e: MouseEvent) => {
@@ -95,50 +97,86 @@ export function EmbeddedNoteCard({
       }
     : undefined;
 
-  if (blank) return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
+  if (blank)
+    return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
   return (
     <div
-      className={`not-prose mt-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 p-3 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
+      className={`not-prose mt-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/70 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
       data-testid="embedded-note"
       onClick={onClick}
     >
-      <div className="flex items-center gap-2 mb-1.5">
-        <a href={npub ? `/p/${npub}` : undefined} className="flex items-center gap-2 min-w-0 hover:opacity-80">
-          <Avatar className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${ring ?? ""}`}>
+      <div className="mb-1.5 flex items-center gap-2">
+        <a href={npub ? `/p/${npub}` : undefined} className="flex min-w-0 items-center gap-2 hover:opacity-80">
+          <Avatar
+            className={`h-6 w-6 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${ring ?? ""}`}
+          >
             {author?.picture ? <AvatarImage src={author.picture} alt={name} className="object-cover" /> : null}
-            <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+            <AvatarFallback className="overflow-hidden rounded-full">
+              <DefaultAvatarImg />
+            </AvatarFallback>
           </Avatar>
-          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{name}</span>
-          {nip05Verified && <BadgeCheck className="h-3.5 w-3.5 text-sky-500 shrink-0" />}
+          <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+          {nip05Verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
         </a>
-        <div className="ml-auto flex items-center gap-2 shrink-0">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           {typeof effectiveScore01 === "number" && Number.isFinite(effectiveScore01) && (
-            <VerificationCoin score01={effectiveScore01} pov="global" size={22} className={ring && coinReplaced ? "sr-only" : ""} />
+            <VerificationCoin
+              score01={effectiveScore01}
+              pov="global"
+              size={22}
+              className={ring && coinReplaced ? "sr-only" : ""}
+            />
           )}
           <span className="text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>
       </div>
       {replyTargets.length > 0 && (
-        <p className="flex items-center flex-wrap gap-x-1 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400 mb-1" data-testid="embedded-reply-context">
+        <p
+          className="mb-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400"
+          data-testid="embedded-reply-context"
+        >
           <MessageSquare className="h-3 w-3 shrink-0 text-slate-400 dark:text-slate-500" />
           <span>Replying to</span>
           {replyTargets.slice(0, 2).map((pk) => {
             const p = profiles?.get(pk);
-            return <span key={pk} className="font-medium text-brand-link">@{p?.display_name || p?.name || "someone"}</span>;
+            return (
+              <span key={pk} className="font-medium text-brand-link">
+                @{p?.display_name || p?.name || "someone"}
+              </span>
+            );
           })}
           {replyTargets.length > 2 && <span>+{replyTargets.length - 2}</span>}
         </p>
       )}
       <div className="line-clamp-5 text-[14px]">
-        <NoteContent content={event.content} compact profiles={profiles} imageOpensThread={!!href} tags={event.tags} authorName={author?.display_name || author?.name} embeddedCoords={linked.coords} embeddedIds={quoted.ids} />
+        <NoteContent
+          content={event.content}
+          compact
+          profiles={profiles}
+          imageOpensThread={!!href}
+          tags={event.tags}
+          authorName={author?.display_name || author?.name}
+          embeddedCoords={linked.coords}
+          embeddedIds={quoted.ids}
+        />
       </div>
       {quoted.notes.map((q) => (
         <div key={q.event.id} data-testid="embedded-quote">
-          <EmbeddedNoteCard event={q.event} author={q.author} profiles={q.profiles} href={`/e/${nip19.neventEncode({ id: q.event.id, author: q.event.pubkey })}`} nested />
+          <EmbeddedNoteCard
+            event={q.event}
+            author={q.author}
+            profiles={q.profiles}
+            href={`/e/${nip19.neventEncode({ id: q.event.id, author: q.event.pubkey })}`}
+            nested
+          />
         </div>
       ))}
       {linked.articles.map((ae) => (
-        <EmbeddedArticleCard key={ae.id} event={ae} author={profiles?.get(ae.pubkey) ?? (ae.pubkey === event.pubkey ? author : undefined)} />
+        <EmbeddedArticleCard
+          key={ae.id}
+          event={ae}
+          author={profiles?.get(ae.pubkey) ?? (ae.pubkey === event.pubkey ? author : undefined)}
+        />
       ))}
     </div>
   );

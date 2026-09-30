@@ -66,7 +66,14 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
   if (reduce && !started) {
     return (
       <div className={shell}>
-        <video ref={ref} src={src} poster={poster} playsInline preload={videoPreload(speed)} className="w-full max-h-[34rem] object-contain" />
+        <video
+          ref={ref}
+          src={src}
+          poster={poster}
+          playsInline
+          preload={videoPreload(speed)}
+          className="max-h-[34rem] w-full object-contain"
+        />
         <button
           type="button"
           onClick={startReduced}
@@ -91,8 +98,10 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
         playsInline
         preload={videoPreload(speed)}
         controls={controls}
-        onClick={() => { if (muted) unmute(); }}
-        className="w-full max-h-[34rem] cursor-pointer object-contain"
+        onClick={() => {
+          if (muted) unmute();
+        }}
+        className="max-h-[34rem] w-full cursor-pointer object-contain"
         data-testid="feed-video-el"
       />
       {!controls && (

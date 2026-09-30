@@ -23,29 +23,39 @@ export function PersonRow({
   const name = person.name || (person.pubkey ? nip19.npubEncode(person.pubkey).slice(0, 12) + "…" : "Unknown");
   return (
     <div className="flex items-center gap-3 py-2">
-      <Avatar className="h-10 w-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shrink-0">
+      <Avatar className="h-10 w-10 shrink-0 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         {person.picture ? <AvatarImage src={person.picture} alt={name} className="object-cover" /> : null}
-        <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(name)}</AvatarFallback>
+        <AvatarFallback className="rounded-full bg-brand-primary/15 text-sm font-bold text-brand-primary">
+          {initialsFor(name)}
+        </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{name}</span>
-          {nip05Status === "verified" && <BadgeCheck className="h-3.5 w-3.5 text-sky-500 shrink-0" />}
+          <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+          {nip05Status === "verified" && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
         </div>
-        {person.nip05 && nip05Status !== "invalid" && <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{person.nip05}</p>}
+        {person.nip05 && nip05Status !== "invalid" && (
+          <p className="truncate text-xs text-slate-400 dark:text-slate-500">{person.nip05}</p>
+        )}
       </div>
       <button
         type="button"
         onClick={onToggle}
         aria-pressed={selected}
-        className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3.5 h-9 text-sm font-semibold transition-colors ${
+        className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors ${
           selected
             ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
-            : "border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand-primary hover:text-brand-primary"
+            : "border border-slate-300 text-slate-700 hover:border-brand-primary hover:text-brand-primary dark:border-slate-700 dark:text-slate-200"
         }`}
         data-testid={`person-toggle-${person.pubkey.slice(0, 8)}`}
       >
-        {selected ? <><Check className="h-4 w-4" /> Following</> : "Follow"}
+        {selected ? (
+          <>
+            <Check className="h-4 w-4" /> Following
+          </>
+        ) : (
+          "Follow"
+        )}
       </button>
     </div>
   );

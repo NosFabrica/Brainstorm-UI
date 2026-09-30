@@ -78,9 +78,7 @@ function splitLines(tokens: NoteToken[]): Line[] {
 /** A line's text rebuilt from tokens — the fallback when the caller has no
  *  source text (the tokens lose `[label](url)` and wrapped-entity URLs). */
 function rawText(line: Line): string {
-  return line
-    .map((t) => (t.type === "mention" ? `nostr:${t.bech32}` : t.value))
-    .join("");
+  return line.map((t) => (t.type === "mention" ? `nostr:${t.bech32}` : t.value)).join("");
 }
 
 function lineText(line: Line): string | null {
@@ -133,7 +131,13 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
   let para: Line[] = [];
   let quote: Line[] = [];
   // `indent`: the list's own indent, so only lines indented past it nest.
-  let list: { type: "ul" | "ol"; items: Line[]; start?: number; nested?: (NestedList | undefined)[]; indent: number } | null = null;
+  let list: {
+    type: "ul" | "ol";
+    items: Line[];
+    start?: number;
+    nested?: (NestedList | undefined)[];
+    indent: number;
+  } | null = null;
   const indentOf = (s: string) => s.length - s.replace(/^[ \t]+/, "").length;
 
   const flush = () => {
@@ -163,7 +167,12 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
     }
     if (list) {
       const { type, items, start, nested } = list; // indent is parse-only
-      blocks.push({ type, items, ...(type === "ol" && start !== undefined && start !== 1 ? { start } : {}), ...(nested ? { nested } : {}) });
+      blocks.push({
+        type,
+        items,
+        ...(type === "ol" && start !== undefined && start !== 1 ? { start } : {}),
+        ...(nested ? { nested } : {}),
+      });
     }
     para = [];
     quote = [];
@@ -197,10 +206,20 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
       // One column counts when the row is written as one (| a |).
       if (head.length >= 2 || (head.length === 1 && raw(i).trimStart().startsWith("|"))) {
         flush();
-        const align = raw(i + 1).trim().replace(/^\||\|$/g, "").split("|").map((c): TableAlign => {
-          const t = c.trim();
-          return t.startsWith(":") && t.endsWith(":") ? "center" : t.endsWith(":") ? "right" : t.startsWith(":") ? "left" : undefined;
-        });
+        const align = raw(i + 1)
+          .trim()
+          .replace(/^\||\|$/g, "")
+          .split("|")
+          .map((c): TableAlign => {
+            const t = c.trim();
+            return t.startsWith(":") && t.endsWith(":")
+              ? "center"
+              : t.endsWith(":")
+                ? "right"
+                : t.startsWith(":")
+                  ? "left"
+                  : undefined;
+          });
         const rows: NoteToken[][][] = [];
         let j = i + 2;
         while (j < lines.length && !isBlank(lines[j]) && raw(j).includes("|")) rows.push(tableCells(lines[j++]));
@@ -212,8 +231,17 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
 
     // "Title" over "=====": a heading, as markdown writes one without a #.
     if (
-      text !== null && i + 1 < lines.length && SETEXT.test(raw(i + 1)) && text.trim() &&
-      !para.length && !list && !quote.length && !HEADING.test(text) && !BULLET.test(text) && !ORDERED.test(text) && !QUOTE.test(text)
+      text !== null &&
+      i + 1 < lines.length &&
+      SETEXT.test(raw(i + 1)) &&
+      text.trim() &&
+      !para.length &&
+      !list &&
+      !quote.length &&
+      !HEADING.test(text) &&
+      !BULLET.test(text) &&
+      !ORDERED.test(text) &&
+      !QUOTE.test(text)
     ) {
       flush();
       blocks.push({ type: "h", level: 1, tokens: tidy(line) });
@@ -225,7 +253,8 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
     // keeps its layout: monospaced, unwrapped, nothing read as markdown.
     if (i === 0 || isBlank(lines[i - 1])) {
       const group: string[] = [];
-      for (let j = i; j < lines.length && !isBlank(lines[j]) && !FENCE.test(lineText(lines[j]) ?? ""); j++) group.push(raw(j));
+      for (let j = i; j < lines.length && !isBlank(lines[j]) && !FENCE.test(lineText(lines[j]) ?? ""); j++)
+        group.push(raw(j));
       const pre = preformatted(group);
       if (pre) {
         flush();
@@ -236,7 +265,9 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
           const k = group.findIndex((l) => DIFF_START.test(l));
           end = Math.max(end, diffEnd(i + k, lines.length, raw));
         }
-        const text = Array.from({ length: end - i }, (_, k) => raw(i + k)).join("\n").replace(/\s+$/, "");
+        const text = Array.from({ length: end - i }, (_, k) => raw(i + k))
+          .join("\n")
+          .replace(/\s+$/, "");
         blocks.push(pre === "art" ? { type: "code", text, art: true } : { type: "code", text });
         i = end - 1;
         continue;
@@ -270,7 +301,11 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
       const at = list.items.length - 1;
       const nested = (list.nested ??= []);
       const kind = b ? "ul" : "ol";
-      const sub = (nested[at] ??= { type: kind, items: [], ...(o && Number(o[1]) !== 1 ? { start: Number(o[1]) } : {}) });
+      const sub = (nested[at] ??= {
+        type: kind,
+        items: [],
+        ...(o && Number(o[1]) !== 1 ? { start: Number(o[1]) } : {}),
+      });
       sub.items.push(stripLead(line, (b ?? o)![0].length));
       continue;
     }
@@ -304,7 +339,8 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
 // `commit <sha>` line (a sentence that begins "commit 1a2b3c broke…" is prose).
 const DIFF_START = /^(?:diff --git |@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@|commit [0-9a-f]{7,40}$)/;
 /** Header lines of a git log or diff, and a log's indented message. */
-const DIFF_HEADER = /^(?:diff --git |index |--- |\+\+\+ |new file|deleted file|similarity |rename |old mode|new mode|Binary files|commit [0-9a-f]{7,40}$|Author:|AuthorDate:|Commit:|CommitDate:|Date:|Merge:| {4})/;
+const DIFF_HEADER =
+  /^(?:diff --git |index |--- |\+\+\+ |new file|deleted file|similarity |rename |old mode|new mode|Binary files|commit [0-9a-f]{7,40}$|Author:|AuthorDate:|Commit:|CommitDate:|Date:|Merge:| {4})/;
 const HUNK = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
 
 /**
@@ -323,9 +359,19 @@ function diffEnd(from: number, n: number, raw: (i: number) => string): number {
     const l = raw(j);
     if (oldLeft > 0 || newLeft > 0) {
       const c = l[0];
-      if (!l.trim() || c === " ") { oldLeft--; newLeft--; continue; }
-      if (c === "-") { oldLeft--; continue; }
-      if (c === "+") { newLeft--; continue; }
+      if (!l.trim() || c === " ") {
+        oldLeft--;
+        newLeft--;
+        continue;
+      }
+      if (c === "-") {
+        oldLeft--;
+        continue;
+      }
+      if (c === "+") {
+        newLeft--;
+        continue;
+      }
       if (c === "\\") continue;
     }
     const h = HUNK.exec(l);
@@ -339,7 +385,10 @@ function diffEnd(from: number, n: number, raw: (i: number) => string): number {
     if (!l.trim()) {
       let k = j + 1;
       while (k < n && !raw(k).trim()) k++;
-      if (k < n && belongs(raw(k))) { j = k - 1; continue; }
+      if (k < n && belongs(raw(k))) {
+        j = k - 1;
+        continue;
+      }
     }
     break;
   }
@@ -358,7 +407,7 @@ function preformatted(group: string[]): "diff" | "art" | null {
   // Mostly punctuation: box drawing, ASCII shapes.
   const symbolic = (l: string) => {
     // Emoji are words here, not drawing: a line of 🎉🔥 is a reaction.
-    const t = l.replace(/[\s\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u200d\ufe0f]/gu, "");
+    const t = l.replace(/[\s\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\ufe0f]|\u200d/gu, "");
     // Combining marks belong to their letters (vocalized Arabic, Hebrew, Devanagari).
     return t.length > 4 && t.replace(/[\p{L}\p{M}\p{N}]/gu, "").length / t.length > 0.5;
   };
@@ -405,20 +454,32 @@ function tidy(line: Line): Line {
 /** The block's text when it is one line of nothing but text. */
 function soleLine(b: NoteBlock | undefined): string | null {
   if (!b || b.type !== "p" || !b.tokens.every((t) => t.type === "text")) return null;
-  const s = b.tokens.map((t) => (t as { value: string }).value).join("").trim();
+  const s = b.tokens
+    .map((t) => (t as { value: string }).value)
+    .join("")
+    .trim();
   return s && !s.includes("\n") ? s : null;
 }
 
 /** Up to two short unpunctuated lines — a caption and its credit. */
 function captionLines(b: NoteBlock | undefined): boolean {
   if (!b || b.type !== "p" || !b.tokens.every((t) => t.type === "text")) return false;
-  const lines = b.tokens.map((t) => (t as { value: string }).value).join("").trim().split("\n").map((l) => l.trim());
+  const lines = b.tokens
+    .map((t) => (t as { value: string }).value)
+    .join("")
+    .trim()
+    .split("\n")
+    .map((l) => l.trim());
   return lines.length <= 2 && lines.every((l) => l && l.length <= 220 && !ENDS_SENTENCE.test(l));
 }
 
 function isImageOnly(b: NoteBlock | undefined): boolean {
-  return !!b && b.type === "p" && b.tokens.some((t) => t.type === "image") &&
-    b.tokens.every((t) => t.type === "image" || (t.type === "text" && !t.value.trim()));
+  return (
+    !!b &&
+    b.type === "p" &&
+    b.tokens.some((t) => t.type === "image") &&
+    b.tokens.every((t) => t.type === "image" || (t.type === "text" && !t.value.trim()))
+  );
 }
 
 /**
@@ -439,7 +500,9 @@ export function refineProse(blocks: NoteBlock[], totalLength: number, headline =
     const afterPicture = isImageOnly(prev) || (prev?.type === "caption" && captions < 2);
     if (afterPicture && captionLines(b)) {
       captions++;
-      const trimmed = tokens.map((t) => (t.type === "text" ? { ...t, value: t.value.replace(/^[ \t]+|[ \t]+$/gm, "").replace(/[ \t]{2,}/g, " ") } : t));
+      const trimmed = tokens.map((t) =>
+        t.type === "text" ? { ...t, value: t.value.replace(/^[ \t]+|[ \t]+$/gm, "").replace(/[ \t]{2,}/g, " ") } : t,
+      );
       out.push({ type: "caption", tokens: trimmed });
       return;
     }
@@ -453,10 +516,15 @@ export function refineProse(blocks: NoteBlock[], totalLength: number, headline =
       // in a long text.
       // Heads start like titles: a capital (or a caseless script), an opening
       // quote, or an emoji marker — "lol anyway" between paragraphs is chat.
-      const starts = /^['"“‘]?[\p{Lu}\p{Lt}\p{Lo}]/u.test(s) || (s.length <= 50 && /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})/u.test(s));
+      const starts =
+        /^['"“‘]?[\p{Lu}\p{Lt}\p{Lo}]/u.test(s) ||
+        (s.length <= 50 && /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})/u.test(s));
       if (
-        long && s.length <= 70 && starts &&
-        (prev?.type === "p" || prev?.type === "ul" || prev?.type === "ol" || prev?.type === "quote") && !isImageOnly(prev) &&
+        long &&
+        s.length <= 70 &&
+        starts &&
+        (prev?.type === "p" || prev?.type === "ul" || prev?.type === "ol" || prev?.type === "quote") &&
+        !isImageOnly(prev) &&
         ((next?.type === "p" && textLength(next.tokens) >= 60) || next?.type === "ul" || next?.type === "ol")
       ) {
         out.push({ type: "h", level: 3, tokens });
@@ -470,9 +538,7 @@ export function refineProse(blocks: NoteBlock[], totalLength: number, headline =
 }
 
 export type InlineSpan =
-  | { type: "text"; value: string }
-  | { type: "strong" | "em"; children: InlineSpan[] }
-  | { type: "code"; value: string };
+  { type: "text"; value: string } | { type: "strong" | "em"; children: InlineSpan[] } | { type: "code"; value: string };
 
 // `code`, **strong** / __strong__, *em* / _em_. Emphasis must hug its text
 // and not sit inside a word, so `snake_case`, `2 * 3` and `**` alone stay text.
@@ -490,7 +556,46 @@ const INLINE_RE = new RegExp(
 );
 
 /** Python's special names — written with double underscores, never bold. */
-const DUNDERS = new Set(["init", "main", "name", "proto", "dict", "str", "repr", "call", "len", "class", "file", "doc", "all", "eq", "ne", "lt", "gt", "hash", "iter", "next", "enter", "exit", "getattr", "setattr", "getitem", "setitem", "new", "del", "slots", "module", "package", "builtins", "future", "version", "author", "annotations", "dirname", "filename"]);
+const DUNDERS = new Set([
+  "init",
+  "main",
+  "name",
+  "proto",
+  "dict",
+  "str",
+  "repr",
+  "call",
+  "len",
+  "class",
+  "file",
+  "doc",
+  "all",
+  "eq",
+  "ne",
+  "lt",
+  "gt",
+  "hash",
+  "iter",
+  "next",
+  "enter",
+  "exit",
+  "getattr",
+  "setattr",
+  "getitem",
+  "setitem",
+  "new",
+  "del",
+  "slots",
+  "module",
+  "package",
+  "builtins",
+  "future",
+  "version",
+  "author",
+  "annotations",
+  "dirname",
+  "filename",
+]);
 
 /** Inline emphasis in one text run. Unmatched markers stay literal. */
 export function parseInlineMarkdown(text: string): InlineSpan[] {

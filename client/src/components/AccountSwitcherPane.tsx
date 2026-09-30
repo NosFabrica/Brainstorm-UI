@@ -39,13 +39,7 @@ export function AccountSwitcher(props: AccountSwitcherProps) {
   // they cannot get back to without pasting the key again.
   const { identities } = useLoginPicker({ includeSessionOnly: true });
   const account = useActiveAccount() as BrainstormAccount | undefined;
-  return (
-    <AccountSwitcherPane
-      identities={withActiveAccount(identities, account)}
-      activeId={account?.id}
-      {...props}
-    />
-  );
+  return <AccountSwitcherPane identities={withActiveAccount(identities, account)} activeId={account?.id} {...props} />;
 }
 
 export type AccountSwitcherPaneProps = {
@@ -104,7 +98,7 @@ export function AccountSwitcherPane({
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors hover:bg-white/70 dark:hover:bg-white/[0.08] outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-slate-700 outline-none transition-colors hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-200 dark:hover:bg-white/[0.08]"
           data-testid="switcher-back"
         >
           <ArrowLeft className="h-4 w-4 shrink-0" /> Your accounts
@@ -115,7 +109,7 @@ export function AccountSwitcherPane({
           onClick={() => setManaging((on) => !on)}
           aria-pressed={managing}
           className={cn(
-            "rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
+            "rounded-lg px-2 py-1.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-accent/40",
             managing
               ? "bg-white/70 text-brand-deep dark:bg-white/[0.12] dark:text-brand-link"
               : "text-slate-500 hover:bg-white/70 dark:text-slate-400 dark:hover:bg-white/[0.08]",
@@ -141,7 +135,7 @@ export function AccountSwitcherPane({
         {identities.map((identity) => (
           <div key={identity.pubkey} className="py-0.5">
             {identity.rows.length > 1 && (
-              <div className="flex items-center gap-2.5 px-2.5 pt-1.5 pb-1">
+              <div className="flex items-center gap-2.5 px-2.5 pb-1 pt-1.5">
                 <AccountFace identity={identity} className="h-7 w-7" />
                 <AccountNames identity={identity} />
               </div>
@@ -168,7 +162,7 @@ export function AccountSwitcherPane({
         <button
           type="button"
           onClick={onAddAccount}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors hover:bg-white/70 dark:hover:bg-white/[0.08] outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-700 outline-none transition-colors hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-200 dark:hover:bg-white/[0.08]"
           data-testid="switcher-add-account"
         >
           <Plus className="h-4 w-4 shrink-0" />
@@ -217,7 +211,7 @@ function Row({ identity, row, grouped, active, managing, busy, disabled, onSwitc
             type="button"
             onClick={onRemove}
             aria-label={`Remove ${identity.name || identity.npub} from this device`}
-            className="shrink-0 rounded-lg p-1.5 text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/15 outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
+            className="shrink-0 rounded-lg p-1.5 text-red-600 outline-none transition-colors hover:bg-red-500/10 focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-red-400 dark:hover:bg-red-500/15"
             data-testid={`switcher-remove-${row.account.id}`}
           >
             <Trash2 className="h-4 w-4" />
@@ -238,7 +232,7 @@ function Row({ identity, row, grouped, active, managing, busy, disabled, onSwitc
       onClick={onSwitch}
       disabled={disabled}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-lg text-left transition-colors hover:bg-white/70 dark:hover:bg-white/[0.08] disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
+        "flex w-full items-center gap-2.5 rounded-lg text-left outline-none transition-colors hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:opacity-60 dark:hover:bg-white/[0.08]",
         padding,
       )}
       data-testid={`switcher-pick-${row.account.id}`}

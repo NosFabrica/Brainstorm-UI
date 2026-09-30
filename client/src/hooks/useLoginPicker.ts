@@ -27,9 +27,9 @@ export type LoginPickerState = {
  * its rows say nothing — an extension judged before the wait is over reads as
  * missing when it was only late.
  */
-export function useLoginPicker(
-  { includeSessionOnly = false }: { includeSessionOnly?: boolean } = {},
-): LoginPickerState {
+export function useLoginPicker({
+  includeSessionOnly = false,
+}: { includeSessionOnly?: boolean } = {}): LoginPickerState {
   const accounts = useAccounts() as BrainstormAccount[];
   const [extension, setExtension] = useState<ExtensionPresence>("checking");
   const [keys, setKeys] = useState<Record<string, RowHealth>>({});
@@ -51,10 +51,7 @@ export function useLoginPicker(
     let live = true;
     void Promise.all(
       accounts
-        .filter(
-          (account) =>
-            (isRemembered(account) || includeSessionOnly) && account instanceof LocalAccount,
-        )
+        .filter((account) => (isRemembered(account) || includeSessionOnly) && account instanceof LocalAccount)
         .map(async (account) => [account.id, await localKeyHealth(account as LocalAccount)] as const),
     ).then((entries) => {
       if (live) setKeys(Object.fromEntries(entries));
@@ -70,7 +67,7 @@ export function useLoginPicker(
         accounts,
         (account) =>
           account instanceof LocalAccount
-            ? keys[account.id] ?? "checking"
+            ? (keys[account.id] ?? "checking")
             : signerPresence(signerKindOf(account), extension),
         { includeSessionOnly },
       ),

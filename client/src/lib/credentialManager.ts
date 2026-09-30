@@ -38,7 +38,11 @@ export function isPasswordCredentialSupported(): boolean {
 export async function storePasswordCredential(id: string, password: string, name?: string): Promise<boolean> {
   if (!isPasswordCredentialSupported() || !id || !password) return false;
   try {
-    const Ctor = (window as unknown as { PasswordCredential: new (data: { id: string; password: string; name?: string }) => Credential }).PasswordCredential;
+    const Ctor = (
+      window as unknown as {
+        PasswordCredential: new (data: { id: string; password: string; name?: string }) => Credential;
+      }
+    ).PasswordCredential;
     const cred = new Ctor({ id, password, name: name ?? id });
     await navigator.credentials.store(cred);
     return true;

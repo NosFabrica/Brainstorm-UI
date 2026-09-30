@@ -45,15 +45,13 @@ function fromSearchRelay(pubkeys: string[], timeoutMs: number): Promise<NostrEve
       sub?.unsubscribe();
       resolve(found);
     };
-    sub = relay
-      .req({ kinds: [0], authors: pubkeys, search: "include:spam", limit: pubkeys.length })
-      .subscribe({
-        error: finish,
-        next: (msg: { type: string; event?: NostrEvent }) => {
-          if (msg.type === "EVENT" && msg.event?.kind === 0) found.push(msg.event);
-          else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
-        },
-      });
+    sub = relay.req({ kinds: [0], authors: pubkeys, search: "include:spam", limit: pubkeys.length }).subscribe({
+      error: finish,
+      next: (msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event?.kind === 0) found.push(msg.event);
+        else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+      },
+    });
     timer = setTimeout(finish, timeoutMs);
     if (done) clearTimeout(timer);
   });
@@ -82,10 +80,7 @@ async function fromTheirRelays(pubkey: string, timeoutMs: number): Promise<Nostr
  * The profiles for a set of keys, best available. Resolves with whatever arrived — a key nobody
  * has a kind-0 for is simply absent from the map.
  */
-export async function fetchPillProfiles(
-  pubkeys: string[],
-  timeoutMs = TIMEOUT_MS,
-): Promise<Map<string, SearchResult>> {
+export async function fetchPillProfiles(pubkeys: string[], timeoutMs = TIMEOUT_MS): Promise<Map<string, SearchResult>> {
   const want = [...new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk)))];
   const out = new Map<string, SearchResult>();
   if (!want.length) return out;
@@ -115,15 +110,26 @@ export async function fetchPillProfiles(
     await Promise.race([
       Promise.all(asked),
       new Promise<void>((resolve) => {
-        for (const one of asked) void one.then(() => { if (newest.size >= want.length) resolve(); });
+        for (const one of asked)
+          void one.then(() => {
+            if (newest.size >= want.length) resolve();
+          });
       }),
     ]);
   }
 
   for (const [pubkey, event] of newest) {
     // Into the store, so the next pill drawing this person needs no round trip at all.
-    try { eventStore.add(event); } catch { /* a malformed event is not a face */ }
-    try { out.set(pubkey, kind0ToSearchResult(event)); } catch { /* nor is an unparseable one */ }
+    try {
+      eventStore.add(event);
+    } catch {
+      /* a malformed event is not a face */
+    }
+    try {
+      out.set(pubkey, kind0ToSearchResult(event));
+    } catch {
+      /* nor is an unparseable one */
+    }
   }
   return out;
 }

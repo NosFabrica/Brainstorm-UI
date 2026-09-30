@@ -1,13 +1,5 @@
 import { Link } from "wouter";
-import {
-  Eye,
-  Globe,
-  MessageSquareOff,
-  Search,
-  ThumbsDown,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { Eye, Globe, MessageSquareOff, Search, ThumbsDown, Users, type LucideIcon } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -50,7 +42,11 @@ export default function HowTagsWorkPage() {
           <PageHeader
             size="hero"
             kicker="Tags"
-            title={<>What people say <span className="text-brand-link">about each other</span>.</>}
+            title={
+              <>
+                What people say <span className="text-brand-link">about each other</span>.
+              </>
+            }
             subtitle="A tag is a short label like Musician, Photographer or Vendor that someone puts on a person or a post. Anyone can add one, and nobody is in charge of the list."
             testId="section-htw-header"
           />
@@ -59,36 +55,28 @@ export default function HowTagsWorkPage() {
           <Card className="p-6 sm:p-8" data-testid="section-htw-simple">
             <p className="text-lg leading-relaxed text-slate-700 dark:text-slate-200">
               Think of a tag like a friend saying{" "}
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
-                "oh, she's a great photographer"
-              </span>
-              . It's their opinion, said out loud, with their name on it. Other
-              people can agree, disagree, or say nothing. What you see is
-              everyone's opinions added up.
+              <span className="font-semibold text-slate-900 dark:text-slate-100">"oh, she's a great photographer"</span>
+              . It's their opinion, said out loud, with their name on it. Other people can agree, disagree, or say
+              nothing. What you see is everyone's opinions added up.
             </p>
             <p className="mt-4 text-lg leading-relaxed text-slate-700 dark:text-slate-200">
-              The difference is that here it's written down in public, and it
-              stays there.
+              The difference is that here it's written down in public, and it stays there.
             </p>
           </Card>
 
           {/* ── The number on a tag ───────────────────────────────────── */}
-          <Section
-            icon={Users}
-            title="The number is how many people said it"
-            testId="section-htw-counts"
-          >
+          <Section icon={Users} title="The number is how many people said it" testId="section-htw-counts">
             <p>
-              A tag showing <Chip tone="brand" size="sm">Musician 3</Chip> means
-              three <em>other</em> people said it. If there's no number, one
-              person did.
+              A tag showing{" "}
+              <Chip tone="brand" size="sm">
+                Musician 3
+              </Chip>{" "}
+              means three <em>other</em> people said it. If there's no number, one person did.
             </p>
             <p>
-              People can also tag themselves. When someone has only said it
-              about their own profile we show it in grey and label it, because
-              "I'm a musician" and "three other people say she's a musician"
-              are different claims and it wouldn't be fair to show them the
-              same way.
+              People can also tag themselves. When someone has only said it about their own profile we show it in grey
+              and label it, because "I'm a musician" and "three other people say she's a musician" are different claims
+              and it wouldn't be fair to show them the same way.
             </p>
           </Section>
 
@@ -103,65 +91,48 @@ export default function HowTagsWorkPage() {
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 This is the part worth understanding before you tag anyone.
               </span>{" "}
-              When someone puts a tag on you, there is no button that takes it
-              away. Not for you, not for us, not for anyone. Once something is
-              published it stays published.
+              When someone puts a tag on you, there is no button that takes it away. Not for you, not for us, not for
+              anyone. Once something is published it stays published.
             </p>
             <p>
-              What you <em>can</em> do is disagree. Your disagreement is public
-              and has your name on it too, and it counts against the tag. Once
-              more people disagree than agree, the tag stops counting. The
-              original is still out there either way; it just stops adding up
-              to anything.
+              What you <em>can</em> do is disagree. Your disagreement is public and has your name on it too, and it
+              counts against the tag. Once more people disagree than agree, the tag stops counting. The original is
+              still out there either way; it just stops adding up to anything.
             </p>
             <p>
               So we never say "remove". We say{" "}
-              <span className="font-semibold text-slate-900 dark:text-slate-100">disagree</span>.
-              Promising to delete something would be a lie.
+              <span className="font-semibold text-slate-900 dark:text-slate-100">disagree</span>. Promising to delete
+              something would be a lie.
             </p>
           </Section>
 
           {/* ── POV, honestly ─────────────────────────────────────────── */}
-          <Section
-            icon={Eye}
-            title="Numbers are a guide, not a verdict"
-            testId="section-htw-pov"
-          >
+          <Section icon={Eye} title="Numbers are a guide, not a verdict" testId="section-htw-pov">
             <p>
-              Anyone can tag anyone, so if every opinion counted equally tags
-              would be easy to fake. We lean on how much standing someone has
-              built up in the network, worked out from your point of view. Two
-              people can see slightly different numbers on the same tag, and
-              that's normal. There's no single official answer.
+              Anyone can tag anyone, so if every opinion counted equally tags would be easy to fake. We lean on how much
+              standing someone has built up in the network, worked out from your point of view. Two people can see
+              slightly different numbers on the same tag, and that's normal. There's no single official answer.
             </p>
             <p>
-              All of that standing is still being built up, so read the numbers
-              as a rough guide rather than the last word. If we can't work it
-              out at all, we say so on the page instead of guessing.
+              All of that standing is still being built up, so read the numbers as a rough guide rather than the last
+              word. If we can't work it out at all, we say so on the page instead of guessing.
             </p>
           </Section>
 
           {/* ── Discovery gate ────────────────────────────────────────── */}
-          <Section
-            icon={Search}
-            title="The browse list is shorter than the real list"
-            testId="section-htw-discovery"
-          >
+          <Section icon={Search} title="The browse list is shorter than the real list" testId="section-htw-discovery">
             <p>
-              Making a tag is free, so anyone can make thousands, and plenty
-              have. The list only shows tags whose creator has built up some
-              standing. Without that rule it would be mostly junk.
+              Making a tag is free, so anyone can make thousands, and plenty have. The list only shows tags whose
+              creator has built up some standing. Without that rule it would be mostly junk.
             </p>
             <p>
-              It's a blunt rule and it catches real people too. Someone new
-              looks the same as someone throwaway. So it applies to the{" "}
-              <em>list</em> and nothing else.{" "}
+              It's a blunt rule and it catches real people too. Someone new looks the same as someone throwaway. So it
+              applies to the <em>list</em> and nothing else.{" "}
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 Search finds every tag, including those.
               </span>{" "}
-              If you know the name, type it anywhere you can search and you'll
-              get it, marked "Unknown creator" so you know what we can and
-              can't tell you.
+              If you know the name, type it anywhere you can search and you'll get it, marked "Unknown creator" so you
+              know what we can and can't tell you.
             </p>
             <p>Tags left off the list still work in every other way:</p>
             <ul className="ml-1 space-y-1.5">
@@ -171,47 +142,34 @@ export default function HowTagsWorkPage() {
               <Bullet>your own tags are always visible to you</Bullet>
             </ul>
             <p>
-              Nothing needs redoing either. Once the creator earns some
-              standing, their tags start showing in the list again.
+              Nothing needs redoing either. Once the creator earns some standing, their tags start showing in the list
+              again.
             </p>
           </Section>
 
           {/* ── Disputed ──────────────────────────────────────────────── */}
-          <Section
-            icon={ThumbsDown}
-            title="Disagreed-with doesn't mean disappeared"
-            testId="section-htw-disputed"
-          >
+          <Section icon={ThumbsDown} title="Disagreed-with doesn't mean disappeared" testId="section-htw-disputed">
             <p>
-              When more people disagree than agree, that person drops off the
-              tag's main list. You'll still see a{" "}
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
-                "Show disputed"
-              </span>{" "}
-              link that brings them back into view.
+              When more people disagree than agree, that person drops off the tag's main list. You'll still see a{" "}
+              <span className="font-semibold text-slate-900 dark:text-slate-100">"Show disputed"</span> link that brings
+              them back into view.
             </p>
             <p>
-              Hiding it altogether would make the page look tidier than things
-              really are, and you can't judge a disagreement you aren't allowed
-              to see.
+              Hiding it altogether would make the page look tidier than things really are, and you can't judge a
+              disagreement you aren't allowed to see.
             </p>
           </Section>
 
           {/* ── Where it lives ────────────────────────────────────────── */}
-          <Section
-            icon={Globe}
-            title="You choose where tags come from"
-            testId="section-htw-where"
-          >
+          <Section icon={Globe} title="You choose where tags come from" testId="section-htw-where">
             <p>
-              Tags aren't kept in a Brainstorm database. They sit on open
-              servers that anyone can read, and we add up what's there. Other
-              apps read the same tags and may add them up a little differently.
-              That's normal, and it's the point.
+              Tags aren't kept in a Brainstorm database. They sit on open servers that anyone can read, and we add up
+              what's there. Other apps read the same tags and may add them up a little differently. That's normal, and
+              it's the point.
             </p>
             <p>
-              It also means you aren't locked in. You can pick which servers we
-              read your tags from, and send yours to, in{" "}
+              It also means you aren't locked in. You can pick which servers we read your tags from, and send yours to,
+              in{" "}
               <Link
                 href="/settings?tab=trust&focus=tag-relays"
                 className="font-semibold text-brand-link hover:underline"
@@ -255,10 +213,7 @@ function Section({
   tone?: "normal" | "warn";
   testId: string;
 }) {
-  const accent =
-    tone === "warn"
-      ? "border-amber-200/70 dark:border-amber-500/25"
-      : "border-border";
+  const accent = tone === "warn" ? "border-amber-200/70 dark:border-amber-500/25" : "border-border";
   const iconWrap =
     tone === "warn"
       ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
@@ -277,7 +232,9 @@ function Section({
           {title}
         </h2>
       </div>
-      <div className={`space-y-3 border-l-2 ${accent} pl-5 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300`}>
+      <div
+        className={`space-y-3 border-l-2 ${accent} pl-5 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300`}
+      >
         {children}
       </div>
     </section>

@@ -66,7 +66,12 @@ const WEB_KINDS: Record<"ditto" | "primal", ReadonlySet<number>> = {
 };
 
 export type AppLinkId = "ditto" | "nostria" | "primal" | "nostrband" | "amethyst" | "default" | "origin";
-export type AppLink = { id: AppLinkId; label: string; href: string; /** Opens in a new tab (a web app), not a scheme the OS handles. */ external: boolean };
+export type AppLink = {
+  id: AppLinkId;
+  label: string;
+  href: string;
+  /** Opens in a new tab (a web app), not a scheme the OS handles. */ external: boolean;
+};
 
 const AMETHYST_PACKAGE = "com.vitorpamplona.amethyst";
 
@@ -96,7 +101,11 @@ const ORIGIN_CLIENTS: Record<string, { label: string; url: (e: EventEntity) => s
   iris: { label: "Iris", url: (e) => `https://iris.to/${e.bech32}` },
   nostter: { label: "Nostter", url: (e) => `https://nostter.app/${e.bech32}` },
   jumble: { label: "Jumble", url: (e) => `https://jumble.social/notes/${e.bech32}` },
-  yakihonne: { label: "YakiHonne", url: (e) => (e.kind === "article" ? `https://yakihonne.com/article/${e.bech32}` : `https://yakihonne.com/notes/${e.bech32}`) },
+  yakihonne: {
+    label: "YakiHonne",
+    url: (e) =>
+      e.kind === "article" ? `https://yakihonne.com/article/${e.bech32}` : `https://yakihonne.com/notes/${e.bech32}`,
+  },
   habla: { label: "Habla", url: (e) => `https://habla.news/a/${e.bech32}` },
   "habla.news": { label: "Habla", url: (e) => `https://habla.news/a/${e.bech32}` },
   highlighter: { label: "Highlighter", url: (e) => `https://highlighter.com/a/${e.bech32}` },
@@ -126,16 +135,20 @@ export function appLinksFor(entity: OpenEntity, ua?: string): AppLink[] {
     ];
   }
   const links: AppLink[] = [];
-  const renders = (client: keyof typeof WEB_KINDS) => entity.kind === "profile" || WEB_KINDS[client].has(entity.eventKind);
-  if (renders("ditto")) links.push({ id: "ditto", label: "Ditto", href: `https://ditto.pub/${entity.bech32}`, external: true });
+  const renders = (client: keyof typeof WEB_KINDS) =>
+    entity.kind === "profile" || WEB_KINDS[client].has(entity.eventKind);
+  if (renders("ditto"))
+    links.push({ id: "ditto", label: "Ditto", href: `https://ditto.pub/${entity.bech32}`, external: true });
   // Nostria has clean profile URLs; no known web route for notes or articles.
-  if (entity.kind === "profile") links.push({ id: "nostria", label: "Nostria", href: `https://nostria.app/p/${entity.bech32}`, external: true });
+  if (entity.kind === "profile")
+    links.push({ id: "nostria", label: "Nostria", href: `https://nostria.app/p/${entity.bech32}`, external: true });
   if (renders("primal")) links.push({ id: "primal", label: "Primal", href: primalUrl(entity), external: true });
   // Nothing native can open a thing with no nostr: URI. The native handoffs
   // are not gated by kind: the OS opens the app the user chose, and Amethyst
   // renders far more kinds than any web client.
   const native = entity.uri !== "";
-  if (native && isAndroid(ua)) links.push({ id: "amethyst", label: "Amethyst", href: amethystIntentUrl(entity.bech32), external: false });
+  if (native && isAndroid(ua))
+    links.push({ id: "amethyst", label: "Amethyst", href: amethystIntentUrl(entity.bech32), external: false });
   if (native && isPhoneOS(ua)) links.push({ id: "default", label: "Default app", href: entity.uri, external: false });
   // Last: the client that published it, when it is one we can link to and
   // not one already on the list — the way back to the original.

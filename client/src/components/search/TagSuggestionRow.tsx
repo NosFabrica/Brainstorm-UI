@@ -24,8 +24,7 @@ export function TagSuggestionRow({
   onSelect?: () => void;
   testId?: string;
 }) {
-  const people =
-    tag.people === 1 ? "1 person" : `${tag.people} people`;
+  const people = tag.people === 1 ? "1 person" : `${tag.people} people`;
 
   return (
     <button

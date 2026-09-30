@@ -111,7 +111,11 @@ describe("planning a multi-author read", () => {
       maxConnections: 1,
     });
 
-    const covered = new Set(Object.values(plan.outboxes).flat().map((u) => u.pubkey));
+    const covered = new Set(
+      Object.values(plan.outboxes)
+        .flat()
+        .map((u) => u.pubkey),
+    );
     expect(covered).toEqual(new Set([ALICE, BOB, CAROL]));
   });
 

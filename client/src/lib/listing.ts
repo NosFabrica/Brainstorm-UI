@@ -43,11 +43,46 @@ type EventLike = { id: string; pubkey: string; kind: number; created_at: number;
 export const LISTING_KIND = 30402;
 
 /** Marketplace apps tag every listing with their own name; that is provenance, not a category. */
-export const APP_TAGS = new Set(["shopstr", "bitpopart", "barattolo", "conduit", "plebeian", "plebeian market", "nostrmarket", "nostr market", "2140"]);
+export const APP_TAGS = new Set([
+  "shopstr",
+  "bitpopart",
+  "barattolo",
+  "conduit",
+  "plebeian",
+  "plebeian market",
+  "nostrmarket",
+  "nostr market",
+  "2140",
+]);
 
 const isHttp = (s: string | undefined): s is string => !!s && /^https?:\/\//i.test(s);
 
+const categoriesOf = (ev: EventLike): string[] =>
+  [...new Set(ev.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].trim().toLowerCase()))].filter(
+    (c) => c && !APP_TAGS.has(c),
+  );
+
+/**
+ * A number the seller actually wrote — a JSON number or a numeric string.
+ * `Number(null)` and `Number("")` are 0, which would make a product with no
+ * price a free one and a product with no stock count sold out.
+ */
+function numberOf(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** NIP-15's product (JSON in content) and auction (tags) — sold in the Shop beside NIP-99 listings. */
+export const PRODUCT_KIND = 30018;
+export const AUCTION_KIND = 30020;
+
 export function parseListing(ev: EventLike): Listing | null {
+  if (ev.kind === PRODUCT_KIND) return parseProduct(ev);
+  if (ev.kind === AUCTION_KIND) return parseAuction(ev);
   if (ev.kind !== LISTING_KIND) return null;
   const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
   const title = tag("title");
@@ -73,7 +108,7 @@ export function parseListing(ev: EventLike): Listing | null {
     location: tag("location") ?? null,
     status: (tag("status") || "active").toLowerCase(),
     hidden: (tag("visibility") || "").toLowerCase() === "hidden",
-    categories: [...new Set(ev.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].trim().toLowerCase()))].filter((c) => c && !APP_TAGS.has(c)),
+    categories: categoriesOf(ev),
     shopUrl,
     shipping: ev.tags
       .filter((t) => t[0] === "shipping_option" || t[0] === "shipping")
@@ -83,9 +118,99 @@ export function parseListing(ev: EventLike): Listing | null {
   };
 }
 
+/**
+ * A NIP-15 product: everything a buyer reads is JSON in content — name,
+ * description, images, price and currency, stock, shipping costs by zone.
+ * Stock of zero is sold out. The stall's own shipping zones are not fetched,
+ * so a product's `shipping` costs are shown as the extra they are.
+ */
+function parseProduct(ev: EventLike): Listing | null {
+  let json: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(ev.content);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    json = parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const title = text(json.name);
+  if (!title) return null;
+  const amount = numberOf(json.price);
+  const currency = text(json.currency)?.toUpperCase();
+  const quantity = numberOf(json.quantity);
+  const images = Array.isArray(json.images)
+    ? json.images.filter((u): u is string => typeof u === "string" && isHttp(u))
+    : [];
+  const shipping = Array.isArray(json.shipping)
+    ? json.shipping.flatMap((z) => {
+        const zone = z as Record<string, unknown>;
+        const cost = Number(zone?.cost);
+        const name = text(zone?.name) ?? text(zone?.id) ?? "";
+        return name && Number.isFinite(cost) ? [{ name, amount: cost, currency: currency ?? "" }] : [];
+      })
+    : [];
+  return {
+    id: ev.id,
+    pubkey: ev.pubkey,
+    d: ev.tags.find((t) => t[0] === "d")?.[1] ?? "",
+    title,
+    summary: null,
+    description: text(json.description) ?? "",
+    price: amount !== null && amount >= 0 && currency ? { amount, currency } : null,
+    images,
+    location: null,
+    status: quantity !== null && quantity <= 0 ? "sold" : "active",
+    hidden: false,
+    categories: categoriesOf(ev),
+    shopUrl: null,
+    shipping,
+    createdAt: ev.created_at,
+  };
+}
+
+/**
+ * A NIP-15 auction, in the tag form bitpopart and hash21 publish: title,
+ * summary, image, a starting price, and an end time. The price shown is the
+ * opening bid; once the end time passes it is no longer for sale.
+ */
+function parseAuction(ev: EventLike): Listing | null {
+  const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
+  const title = tag("title") ?? tag("name");
+  if (!title) return null;
+  const amount = Number(tag("start_price") ?? tag("starting_bid"));
+  const currency = tag("currency")?.toUpperCase();
+  const endsAt = Number(tag("end_time"));
+  const ended = Number.isFinite(endsAt) && endsAt > 0 && endsAt * 1000 < Date.now();
+  return {
+    id: ev.id,
+    pubkey: ev.pubkey,
+    d: tag("d") ?? "",
+    title,
+    summary: tag("summary") ?? null,
+    description: (ev.content || "").trim(),
+    price: Number.isFinite(amount) && amount >= 0 && currency ? { amount, currency } : null,
+    images: ev.tags.filter((t) => t[0] === "image" && isHttp(t[1])).map((t) => t[1]),
+    location: tag("location") ?? null,
+    status: ended ? "ended" : "active",
+    hidden: false,
+    categories: categoriesOf(ev),
+    shopUrl: null,
+    shipping: [],
+    createdAt: ev.created_at,
+  };
+}
+
 /** For sale now: not sold, not hidden, and any status the seller left open. */
 export function isSellable(l: Listing): boolean {
-  return !!l.price && !l.hidden && l.status !== "sold" && l.status !== "deleted" && l.status !== "inactive";
+  return (
+    !!l.price &&
+    !l.hidden &&
+    l.status !== "sold" &&
+    l.status !== "deleted" &&
+    l.status !== "inactive" &&
+    l.status !== "ended"
+  );
 }
 
 const SYMBOL: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", JPY: "¥", BRL: "R$", CHF: "CHF " };
@@ -96,7 +221,8 @@ export function formatListingPrice(p: ListingPrice): string {
   if (p.amount === 0) return "Free";
   const c = p.currency.toUpperCase();
   let text: string;
-  if (c === "SAT" || c === "SATS") text = `${new Intl.NumberFormat("en-US").format(p.amount)} ${p.amount === 1 ? "sat" : "sats"}`;
+  if (c === "SAT" || c === "SATS")
+    text = `${new Intl.NumberFormat("en-US").format(p.amount)} ${p.amount === 1 ? "sat" : "sats"}`;
   else if (c === "BTC") text = `${p.amount} BTC`;
   else if (SYMBOL[c]) {
     const whole = Number.isInteger(p.amount);
@@ -105,7 +231,6 @@ export function formatListingPrice(p: ListingPrice): string {
   return (p.frequency ? `${text} / ${p.frequency}` : text).trim();
 }
 
-
 /**
  * The one quiet line under a card's title: where it is, what shipping
  * costs — "Gubbio (PG) · 500 sats shipping", "United States · Free
@@ -113,7 +238,8 @@ export function formatListingPrice(p: ListingPrice): string {
  * own borrows the listing's. Neither known: the seller's summary, or nothing.
  */
 export function listingCardLine(l: Listing): string | null {
-  const money = (amount: number, currency: string) => formatListingPrice({ amount, currency: currency || l.price?.currency || "" });
+  const money = (amount: number, currency: string) =>
+    formatListingPrice({ amount, currency: currency || l.price?.currency || "" });
   let shipping: string | null = null;
   if (l.shipping.some((s) => s.amount === 0)) shipping = "Free shipping";
   else if (l.shipping.length === 1) shipping = `${money(l.shipping[0].amount, l.shipping[0].currency)} shipping`;

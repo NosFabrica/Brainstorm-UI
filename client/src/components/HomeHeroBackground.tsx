@@ -10,7 +10,7 @@ import { HERO_SOLO } from "@/lib/heroScenes";
 export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
   return (
     <div
-      className={`absolute inset-x-0 top-0 pointer-events-none overflow-hidden transition-[height] duration-500 ease-out ${dimmed ? "h-[420px]" : "h-screen"}`}
+      className={`pointer-events-none absolute inset-x-0 top-0 overflow-hidden transition-[height] duration-500 ease-out ${dimmed ? "h-[420px]" : "h-screen"}`}
       aria-hidden="true"
       data-testid="bg-home-hero"
     >
@@ -26,17 +26,23 @@ export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
           "wake up" moment — sharp, no blur. Smooth opacity cross-fade; two layers
           toggled by the .dark class. */}
       <div
-        className={`absolute inset-0 dark:hidden transition-opacity duration-500 ease-out ${dimmed ? "opacity-[0.76]" : "opacity-100"}`}
-        style={{ background: "radial-gradient(125% 95% at 50% 42%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 45%, rgba(255,255,255,0.72) 100%)" }}
+        className={`absolute inset-0 transition-opacity duration-500 ease-out dark:hidden ${dimmed ? "opacity-[0.76]" : "opacity-100"}`}
+        style={{
+          background:
+            "radial-gradient(125% 95% at 50% 42%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 45%, rgba(255,255,255,0.72) 100%)",
+        }}
       />
       <div
-        className={`absolute inset-0 hidden dark:block transition-opacity duration-500 ease-out ${dimmed ? "opacity-[0.62]" : "opacity-100"}`}
-        style={{ background: "radial-gradient(130% 100% at 50% 42%, rgba(2,6,23,0.82) 0%, rgba(2,6,23,0.70) 55%, rgba(2,6,23,0.58) 100%)" }}
+        className={`absolute inset-0 hidden transition-opacity duration-500 ease-out dark:block ${dimmed ? "opacity-[0.62]" : "opacity-100"}`}
+        style={{
+          background:
+            "radial-gradient(130% 100% at 50% 42%, rgba(2,6,23,0.82) 0%, rgba(2,6,23,0.70) 55%, rgba(2,6,23,0.58) 100%)",
+        }}
       />
 
       {/* Clean fades so the header + footer dissolve into the page background. */}
-      <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white dark:from-slate-950 to-transparent" />
-      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white dark:from-slate-950 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white to-transparent dark:from-slate-950" />
+      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white to-transparent dark:from-slate-950" />
     </div>
   );
 }

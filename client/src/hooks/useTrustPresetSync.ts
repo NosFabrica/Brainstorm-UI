@@ -1,18 +1,8 @@
 import { useEffect } from "react";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/services/api";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import {
-  presetFromBackend,
-  presetToBackend,
-  setActivePreset,
-  type TrustPreset,
-} from "@/services/trustThreshold";
+import { presetFromBackend, presetToBackend, setActivePreset, type TrustPreset } from "@/services/trustThreshold";
 
 export const TRUST_PRESET_QUERY_BASE = "/user/graperank/preset";
 
@@ -54,8 +44,7 @@ export function useSetTrustPreset(opts?: {
 }) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (preset: TrustPreset) =>
-      apiClient.setGrapeRankPreset(presetToBackend(preset)),
+    mutationFn: (preset: TrustPreset) => apiClient.setGrapeRankPreset(presetToBackend(preset)),
     onMutate: opts?.onMutate,
     onSuccess: (_data, preset) => {
       setActivePreset(preset);

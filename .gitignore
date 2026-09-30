@@ -14,3 +14,5 @@ vite.config.ts.*
 * 2.png
 * 2.jpg
 * 2.json
+test-results
+playwright-report

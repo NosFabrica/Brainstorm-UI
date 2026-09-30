@@ -71,7 +71,7 @@ export function FlashPlanPicker({
         <p className="text-xs text-amber-600 dark:text-amber-400" data-testid="plan-picker-fallback">
           Flash's plan list couldn't be read{reason ? ` (${reason})` : ""}, so paste the ids from the Flash dashboard.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <Label htmlFor="plan-service-id">Flash service id</Label>
             <Input
@@ -110,7 +110,7 @@ export function FlashPlanPicker({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor="plan-service">Flash service</Label>
           <select
@@ -177,7 +177,12 @@ export function FlashPlanPicker({
             {chosen.signup_url && (
               <>
                 {" · "}
-                <a href={chosen.signup_url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-brand-link hover:underline">
+                <a
+                  href={chosen.signup_url}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-1 text-brand-link hover:underline"
+                >
                   signup page <ExternalLink className="h-3 w-3" />
                 </a>
               </>

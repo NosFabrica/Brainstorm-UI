@@ -28,13 +28,7 @@ export type ExtensionPresence = "checking" | "present" | "missing";
  * - `key-unavailable` / `extension-missing` / `signer-unusable` — the row can't
  *   sign, and is a marked dead end with its own actions rather than a way in.
  */
-export type RowHealth =
-  | "checking"
-  | "ok"
-  | "no-backup"
-  | "key-unavailable"
-  | "extension-missing"
-  | "signer-unusable";
+export type RowHealth = "checking" | "ok" | "no-backup" | "key-unavailable" | "extension-missing" | "signer-unusable";
 
 export type PickerRow = {
   account: BrainstormAccount;
@@ -117,13 +111,8 @@ export async function localKeyHealth(account: LocalAccount): Promise<RowHealth> 
 }
 
 /** How this Account's Signer looks from here, right now. */
-export async function healthOf(
-  account: BrainstormAccount,
-  extension: ExtensionPresence,
-): Promise<RowHealth> {
-  return account instanceof LocalAccount
-    ? localKeyHealth(account)
-    : signerPresence(signerKindOf(account), extension);
+export async function healthOf(account: BrainstormAccount, extension: ExtensionPresence): Promise<RowHealth> {
+  return account instanceof LocalAccount ? localKeyHealth(account) : signerPresence(signerKindOf(account), extension);
 }
 
 /**

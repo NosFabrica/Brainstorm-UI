@@ -86,8 +86,20 @@ export const DIVERGENCE_META: Record<DivergenceKind, DivergenceMeta> = {
   },
 };
 
-const FAULT_ORDER: DivergenceKind[] = ["policy_mismatch", "failing_syncs", "unmapped_plans", "unresolved_signups", "exhausted_events", "unrecognised_statuses"];
-const RECORD_ORDER: DivergenceKind[] = ["admin_overrides", "stale_syncs", "abandoned_checkouts", "retired_plan_subscribers"];
+const FAULT_ORDER: DivergenceKind[] = [
+  "policy_mismatch",
+  "failing_syncs",
+  "unmapped_plans",
+  "unresolved_signups",
+  "exhausted_events",
+  "unrecognised_statuses",
+];
+const RECORD_ORDER: DivergenceKind[] = [
+  "admin_overrides",
+  "stale_syncs",
+  "abandoned_checkouts",
+  "retired_plan_subscribers",
+];
 
 export interface OrderedSection {
   kind: string;
@@ -103,7 +115,8 @@ export function orderedSections(report: Record<string, AdminBillingDivergenceSec
   const known = new Set<string>([...FAULT_ORDER, ...RECORD_ORDER]);
   const take = (kind: DivergenceKind) => {
     const section = report[kind];
-    if (section && section.count > 0) out.push({ kind, tier: DIVERGENCE_META[kind].tier, meta: DIVERGENCE_META[kind], section });
+    if (section && section.count > 0)
+      out.push({ kind, tier: DIVERGENCE_META[kind].tier, meta: DIVERGENCE_META[kind], section });
   };
   FAULT_ORDER.forEach(take);
   RECORD_ORDER.forEach(take);
@@ -125,12 +138,19 @@ export interface SignupHandle {
 
 /** Webhook event id → the Flash subscription id a signup section carries for
  *  it, and which section. A signup that named nobody wins over a plan not mapped. */
-export function subscriptionIdsByEventId(report: Record<string, AdminBillingDivergenceSection | undefined>): Map<number, SignupHandle> {
+export function subscriptionIdsByEventId(
+  report: Record<string, AdminBillingDivergenceSection | undefined>,
+): Map<number, SignupHandle> {
   const map = new Map<number, SignupHandle>();
   for (const kind of ["unresolved_signups", "unmapped_plans"] as SignupSectionKind[]) {
     for (const row of report[kind]?.rows ?? []) {
       const r = row as { id?: unknown; flash_subscription_id?: unknown };
-      if (typeof r.id === "number" && typeof r.flash_subscription_id === "string" && r.flash_subscription_id && !map.has(r.id)) {
+      if (
+        typeof r.id === "number" &&
+        typeof r.flash_subscription_id === "string" &&
+        r.flash_subscription_id &&
+        !map.has(r.id)
+      ) {
         map.set(r.id, { subscriptionId: r.flash_subscription_id, from: kind });
       }
     }
@@ -171,7 +191,13 @@ export function groupSignups(rows: ReadonlyArray<unknown>, exhausted: ReadonlyAr
   const groups: SignupGroup[] = [];
   const byId = new Map<string, SignupGroup>();
   for (const row of rows) {
-    const r = row as { id?: unknown; event?: unknown; created_at?: unknown; process_error?: unknown; flash_subscription_id?: unknown };
+    const r = row as {
+      id?: unknown;
+      event?: unknown;
+      created_at?: unknown;
+      process_error?: unknown;
+      flash_subscription_id?: unknown;
+    };
     const id = typeof r.id === "number" ? r.id : -1;
     const delivery: SignupDelivery = {
       id,
@@ -201,7 +227,10 @@ export function groupSignups(rows: ReadonlyArray<unknown>, exhausted: ReadonlyAr
  * shows adds only its attempts, which the group carries, so it folds. An event
  * with no handle, or one borrowed from Plans not mapped, still stands alone.
  */
-export function splitExhausted<R extends { id?: unknown }>(rows: R[], handles: Map<number, SignupHandle>): { standalone: R[]; folded: number } {
+export function splitExhausted<R extends { id?: unknown }>(
+  rows: R[],
+  handles: Map<number, SignupHandle>,
+): { standalone: R[]; folded: number } {
   const standalone: R[] = [];
   let folded = 0;
   for (const row of rows) {

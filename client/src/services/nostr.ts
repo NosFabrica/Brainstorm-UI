@@ -1,4 +1,4 @@
-import { nip19, finalizeEvent, generateSecretKey, verifyEvent } from "nostr-tools";
+import { nip19, finalizeEvent, generateSecretKey, verifyEvent, type EventTemplate } from "nostr-tools";
 import { env } from "@/lib/runtimeEnv";
 import { declaresTrustProvider, listRows, mergeDesignation, type ListDesignation } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
@@ -9,7 +9,7 @@ import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { publishUntilEnough } from "@/lib/publishQuorum";
-import { addressLoader, loadReplaceable } from "@/lib/loaders";
+import { loadReplaceable } from "@/lib/loaders";
 import { profileContentOf } from "@/lib/profileContent";
 import {
   dedupeRelays,
@@ -25,7 +25,6 @@ const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
 const NIP85_RELAY_URL = RAW_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
 
 if (!NIP85_RELAY_URL) {
-  // eslint-disable-next-line no-console
   console.error(
     "[nostr] VITE_NIP85_RELAY_URL is not set. NIP-85 publish/read flows will fail. " +
       "Set VITE_NIP85_RELAY_URL at build time (see README and Dockerfile).",
@@ -42,17 +41,8 @@ export function getNip85RelayUrl(): string {
   return NIP85_RELAY_URL;
 }
 
-import {
-  getProfileContent,
-  getDisplayName,
-  getProfilePicture,
-  isValidProfile,
-} from "applesauce-core/helpers/profile";
+import { getProfileContent, getDisplayName, getProfilePicture, isValidProfile } from "applesauce-core/helpers/profile";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
-import { ExtensionMissingError } from "applesauce-signers";
-import { apiClient } from "./api";
-import { sessions, SessionTransportError } from "@/accounts/session";
-import { LocalAccount } from "@/accounts/local-account";
 import {
   activeAccount,
   canSignSilently,
@@ -63,30 +53,9 @@ import {
   signingFailure,
   type PublishOutcome,
 } from "@/accounts/signing";
-import {
-  accountFor,
-  accountsFor,
-  activateAccount,
-  adoptAccount,
-  extensionAccount,
-  forgetAccount,
-  localAccount,
-  signOutActiveAccount,
-} from "@/accounts/login";
-import { updateMetadata, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
-import { activePubkey, identityHas, rememberProfile } from "@/accounts/display";
-import {
-  openPastedKey,
-  UNUSABLE_BACKUP_MESSAGE,
-  type RestoreFailure,
-} from "@/accounts/restore";
-import { queryClient } from "@/lib/queryClient";
-import { extractAdminFlag } from "@/lib/jwt";
-import { recordFollowList } from "@/lib/followStore";
-import { accountKey, clearAccountStorage, clearSessionScopedStorage } from "@/lib/accountStorage";
-import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
+import { type BrainstormAccount } from "@/accounts/metadata";
+import { rememberProfile } from "@/accounts/display";
 import { NostrEvent } from "applesauce-core/helpers";
-
 
 /**
  * Sign an event with a freshly-generated THROWAWAY key. Used for anonymous
@@ -97,10 +66,8 @@ import { NostrEvent } from "applesauce-core/helpers";
  */
 export function signEventWithEphemeralKey(event: Record<string, unknown>): Record<string, unknown> {
   const sk = generateSecretKey();
-  return finalizeEvent(event as any, sk) as unknown as Record<string, unknown>;
+  return finalizeEvent(event as unknown as EventTemplate, sk) as unknown as Record<string, unknown>;
 }
-
-
 
 // One-time cleanup of pre-Task-#85 unscoped Brainstorm Assistant keys.
 // These were stored globally so that one account's assistant identity bled
@@ -118,7 +85,9 @@ export function signEventWithEphemeralKey(event: Record<string, unknown>): Recor
       "brainstorm_assistant_dismissed",
     ];
     for (const k of legacy) {
-      try { localStorage.removeItem(k); } catch {}
+      try {
+        localStorage.removeItem(k);
+      } catch {}
     }
     const toRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -126,13 +95,12 @@ export function signEventWithEphemeralKey(event: Record<string, unknown>): Recor
       if (k && k.startsWith("brainstorm_assistant_picture_set:")) toRemove.push(k);
     }
     for (const k of toRemove) {
-      try { localStorage.removeItem(k); } catch {}
+      try {
+        localStorage.removeItem(k);
+      } catch {}
     }
   } catch {}
 })();
-
-
-
 
 /**
  * Unlike its neighbours this one streams: `onProfile` fires per profile as each
@@ -146,7 +114,7 @@ export function signEventWithEphemeralKey(event: Record<string, unknown>): Recor
  */
 export function fetchProfiles(
   pubkeys: string[],
-  onProfile?: (pubkey: string, profile: ProfileContent) => void
+  onProfile?: (pubkey: string, profile: ProfileContent) => void,
 ): Promise<void> {
   const unique = Array.from(new Set(pubkeys));
   // Resolving someone's profile is the app saying "this person is on screen",
@@ -206,7 +174,6 @@ export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000):
 
   return held;
 }
-
 
 export interface Nip85TagCheck {
   present: boolean;
@@ -280,9 +247,7 @@ export async function checkNip85Health(
   const tagNameFor = { rankTag: "30382:rank", followersTag: "30382:followers" } as const;
 
   for (const slot of slots) {
-    const matching = event.tags.filter(
-      (t) => Array.isArray(t) && t.length > 0 && t[0] === tagNameFor[slot],
-    );
+    const matching = event.tags.filter((t) => Array.isArray(t) && t.length > 0 && t[0] === tagNameFor[slot]);
     if (matching.length === 0) continue;
 
     let anyPubkeyMatches = false;
@@ -345,8 +310,8 @@ export async function checkNip85Health(
 }
 
 export async function isUsingBrainstorm(pubkey: string, innerPubkey: string, timeoutMs = 10000): Promise<boolean> {
-  const event = await fetchTrustProviderList(pubkey, timeoutMs)
-  return !!event && declaresTrustProvider(event, innerPubkey, NIP85_RELAY_URL)
+  const event = await fetchTrustProviderList(pubkey, timeoutMs);
+  return !!event && declaresTrustProvider(event, innerPubkey, NIP85_RELAY_URL);
 }
 
 // NIP-78 application-specific data: stores the user's Brainstorm Assistant
@@ -360,10 +325,7 @@ export interface AssistantPointer {
   publishedAt: number;
 }
 
-export async function fetchAssistantPointer(
-  userPubkey: string,
-  timeoutMs = 10000,
-): Promise<AssistantPointer | null> {
+export async function fetchAssistantPointer(userPubkey: string, timeoutMs = 10000): Promise<AssistantPointer | null> {
   try {
     // Awaited, not read from the store: app data lives wherever its author
     // publishes and the default set carries almost none of it, so guessing here
@@ -381,13 +343,16 @@ export async function fetchAssistantPointer(
 
     if (!newest) return null;
 
-    let parsed: any = null;
-    try { parsed = JSON.parse((newest as any).content || "{}"); } catch { return null; }
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      parsed = JSON.parse(newest.content || "{}");
+    } catch {
+      return null;
+    }
     const pubkey = typeof parsed?.pubkey === "string" ? parsed.pubkey : null;
     const eventId = typeof parsed?.event_id === "string" ? parsed.event_id : null;
     if (!pubkey || !eventId) return null;
-    const publishedAt = Number(parsed.published_at) ||
-      ((newest as any).created_at ? (newest as any).created_at * 1000 : Date.now());
+    const publishedAt = Number(parsed?.published_at) || (newest.created_at ? newest.created_at * 1000 : Date.now());
     return { pubkey, eventId, publishedAt };
   } catch {
     return null;
@@ -428,10 +393,7 @@ export const PROFILE_PREFS_D_TAG = "brainstorm.world/profile-prefs";
 /** Fetch the latest published profile-prefs JSON for a pubkey (or null). The
  *  caller coerces it via `parseProfilePrefs`. Readable by anyone — drives what
  *  every visitor sees on the owner's /p page. */
-export async function fetchProfilePrefs(
-  pubkey: string,
-  timeoutMs = 8000,
-): Promise<Record<string, unknown> | null> {
+export async function fetchProfilePrefs(pubkey: string, timeoutMs = 8000): Promise<Record<string, unknown> | null> {
   try {
     const relays = await outboxRelays(pubkey, PROFILE_RELAYS);
     const newest = await loadReplaceable(30078, pubkey, {
@@ -440,7 +402,11 @@ export async function fetchProfilePrefs(
       timeoutMs,
     });
     if (!newest) return null;
-    try { return JSON.parse((newest as any).content || "{}"); } catch { return null; }
+    try {
+      return JSON.parse(newest.content || "{}");
+    } catch {
+      return null;
+    }
   } catch {
     return null;
   }
@@ -475,7 +441,10 @@ export const ALERT_PREFS_D_TAG = "brainstorm.world/alert-prefs";
 export const SCORE_JOURNAL_D_TAG = "brainstorm.world/score-journal";
 
 /** Fetch + decrypt one of the user's private app-data blobs (or null). */
-export async function fetchAlertPrefs(timeoutMs = 6000, dTag: string = ALERT_PREFS_D_TAG): Promise<Record<string, unknown> | null> {
+export async function fetchAlertPrefs(
+  timeoutMs = 6000,
+  dTag: string = ALERT_PREFS_D_TAG,
+): Promise<Record<string, unknown> | null> {
   const account = activeAccount();
   if (!account) return null;
   // These hydrate on page load, so decrypting must never raise the unlock modal:
@@ -621,7 +590,7 @@ export async function getVerifiedProfileLud16(
   const event = await fetchProfileEvent(pubkey, timeoutMs);
   if (!event) return { lud16: null, verified: false };
   try {
-    if (event.pubkey !== pubkey || !verifyEvent(event as any)) {
+    if (event.pubkey !== pubkey || !verifyEvent(event)) {
       return { lud16: null, verified: false };
     }
   } catch {
@@ -703,7 +672,10 @@ const personBatches = new Map<string, PersonBatch>();
 function joinPersonBatch(pubkey: string, relays: string[], timeoutMs: number, ask: PersonAsk): void {
   // Sorted and lowercased: two callers naming the same relays in a different
   // order are asking the same question, and should share the request.
-  const key = `${pubkey}|${timeoutMs}|${[...relays].map((r) => r.toLowerCase()).sort().join(",")}`;
+  const key = `${pubkey}|${timeoutMs}|${[...relays]
+    .map((r) => r.toLowerCase())
+    .sort()
+    .join(",")}`;
   let batch = personBatches.get(key);
   if (!batch) {
     batch = {
@@ -740,9 +712,7 @@ async function runPersonBatch(pubkey: string, batch: PersonBatch): Promise<void>
     const wanted = new Set(ask.kinds);
     const byId = new Map<string, NostrEvent>();
     for (const event of all) if (wanted.has(event.kind)) byId.set(event.id, event);
-    ask.resolve(
-      [...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, ask.limit),
-    );
+    ask.resolve([...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, ask.limit));
   }
 }
 
@@ -996,8 +966,7 @@ export async function fetchAddressableEvents(
   const result = new Map<string, NostrEvent>();
   const valid = coords.filter((c) => c && Number.isFinite(c.kind) && /^[0-9a-f]{64}$/i.test(c.pubkey));
   if (!valid.length) return result;
-  const coordKey = (c: { kind: number; pubkey: string; identifier: string }) =>
-    `${c.kind}:${c.pubkey}:${c.identifier}`;
+  const coordKey = (c: { kind: number; pubkey: string; identifier: string }) => `${c.kind}:${c.pubkey}:${c.identifier}`;
   const wanted = new Set(valid.map(coordKey));
   // The filter is a cross-product of the requested kinds, authors and d-tags, so
   // it matches coordinates nobody asked for; `wanted` is what narrows it back.
@@ -1035,8 +1004,15 @@ export async function fetchAddressableEvents(
   // for the remaining relays to say "nothing else" (an article took 5.5s
   // behind an author's dead relay, 2026-09-24). A newer version on a slower
   // relay reaches the store on later reads; the reader has the article now.
-  const wantedKey = (event: NostrEvent) => `${event.kind}:${event.pubkey}:${event.tags.find((tag) => tag[0] === "d")?.[1] ?? ""}`;
-  const enough = { enough: (collected: Map<string, NostrEvent>) => { const seen = new Set<string>(); for (const e of collected.values()) seen.add(wantedKey(e)); return [...wanted].every((k) => seen.has(k)); } };
+  const wantedKey = (event: NostrEvent) =>
+    `${event.kind}:${event.pubkey}:${event.tags.find((tag) => tag[0] === "d")?.[1] ?? ""}`;
+  const enough = {
+    enough: (collected: Map<string, NostrEvent>) => {
+      const seen = new Set<string>();
+      for (const e of collected.values()) seen.add(wantedKey(e));
+      return [...wanted].every((k) => seen.has(k));
+    },
+  };
   const [events, routed] = await Promise.all([
     requestAll(asked, filter, timeoutMs, enough),
     planOutboxReads(authors, [])
@@ -1076,10 +1052,7 @@ export async function fetchAddressableEvents(
  * it cannot place falls back to the profile relays, which is where a person the
  * search relay has never indexed still lives.
  */
-export async function fetchProfileMap(
-  pubkeys: string[],
-  timeoutMs = 6000,
-): Promise<Map<string, ProfileContent>> {
+export async function fetchProfileMap(pubkeys: string[], timeoutMs = 6000): Promise<Map<string, ProfileContent>> {
   const unique = Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk))));
   const map = new Map<string, ProfileContent>();
   if (!unique.length) return map;
@@ -1089,8 +1062,8 @@ export async function fetchProfileMap(
 
   const keep = (event: NostrEvent | null | undefined) => {
     try {
-      if (!event || !isValidProfile(event as any)) return false;
-      const content = getProfileContent(event as any);
+      if (!event || !isValidProfile(event)) return false;
+      const content = getProfileContent(event);
       if (!content) return false;
       map.set(event.pubkey, content);
       return true;
@@ -1125,9 +1098,7 @@ export async function fetchProfileMap(
   // whatever batch is forming rather than opening a request of their own.
   const missing = unique.filter((pubkey) => !map.has(pubkey));
   if (missing.length > 0) {
-    const events = await Promise.all(
-      missing.map((pubkey) => loadReplaceable(0, pubkey, { timeoutMs })),
-    );
+    const events = await Promise.all(missing.map((pubkey) => loadReplaceable(0, pubkey, { timeoutMs })));
     events.forEach(keep);
   }
   return map;
@@ -1149,7 +1120,6 @@ export function cacheProfile(content: ProfileContent, pubkey?: string): void {
   });
 }
 
-
 /**
  * Kinds we do NOT deliver to the inboxes of the people they name.
  *
@@ -1166,11 +1136,11 @@ export function cacheProfile(content: ProfileContent, pubkey?: string): void {
  * will find them.
  */
 const NOT_ADDRESSED_TO_P_TAGS = new Set([
-  0,     // profile metadata
-  3,     // follows
-  1984,  // NIP-56 report — a claim about them, not a message to them
-  9998,  // tagging: dispute
-  9999,  // tagging: assertion
+  0, // profile metadata
+  3, // follows
+  1984, // NIP-56 report — a claim about them, not a message to them
+  9998, // tagging: dispute
+  9999, // tagging: assertion
   10000, // mute list — its `p` tags are people you are muting
   10002, // relay list
   10040, // NIP-85 provider declaration
@@ -1268,10 +1238,7 @@ function nip85RelaySeed(): string[] {
  * hang because a stranger's kind-10002 is slow, and losing the inbox half is a
  * missed notification, not a lost event.
  */
-export async function publishRelaysFor(
-  signedEvent: NostrEvent,
-  extraRelays: string[] = [],
-): Promise<string[]> {
+export async function publishRelaysFor(signedEvent: NostrEvent, extraRelays: string[] = []): Promise<string[]> {
   const [own, inboxes] = await Promise.all([
     outboxRelays(signedEvent.pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS),
     inboxRelays(addressees(signedEvent), []).catch(() => [] as string[]),
@@ -1308,7 +1275,7 @@ export async function publishToRelays(
       (url) =>
         pool
           .relay(url)
-          .publish(signedEvent as any, { timeout: timeoutMs })
+          .publish(signedEvent, { timeout: timeoutMs })
           .then((r) => ({ ok: r.ok, from: url, message: r.message })),
       { need: opts.need, timeoutMs },
     );
@@ -1317,12 +1284,12 @@ export async function publishToRelays(
   }
 
   try {
-    const responses = await pool.publish(writeRelays, signedEvent as any);
+    const responses = await pool.publish(writeRelays, signedEvent);
     // `accepted` lets callers judge how broadly the event propagated, rather than
     // treating a single relay's "ok" as fully published.
-    const accepted = responses.filter(r => r.ok).length;
+    const accepted = responses.filter((r) => r.ok).length;
     const total = responses.length || writeRelays.length;
-    const succeeded = responses.find(r => r.ok);
+    const succeeded = responses.find((r) => r.ok);
     if (succeeded) return { success: true, relay: succeeded.from, accepted, total };
     return { success: false, error: responses[0]?.message || "All relays failed", accepted: 0, total };
   } catch {
@@ -1336,34 +1303,12 @@ export async function publishToRelays(
 // to it; instead it's offered as a (preselected, removable) suggestion in the
 // /welcome "Build your network" step so their trust calc has something to anchor
 // on if they choose to keep it.
-export const SEED_FOLLOW_NPUB =
-  "npub1healthsx3swcgtknff7zwpg8aj2q7h49zecul5rz490f6z2zp59qnfvp8p";
+export const SEED_FOLLOW_NPUB = "npub1healthsx3swcgtknff7zwpg8aj2q7h49zecul5rz490f6z2zp59qnfvp8p";
 export let SEED_FOLLOW_HEX = "";
 try {
   const decoded = nip19.decode(SEED_FOLLOW_NPUB);
   if (decoded.type === "npub") SEED_FOLLOW_HEX = decoded.data as string;
 } catch {}
-
-/**
- * Build → sign as the Active Account → publish, verifying the signer didn't
- * mutate the kind before broadcasting. Returns the publish result.
- */
-async function signAndPublish(
-  template: { kind: number; tags: string[][]; content: string },
-  expectedKind: number,
-): Promise<PublishOutcome> {
-  const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
-  try {
-    const signed = await signAs(account, template);
-    if (signed.kind !== expectedKind) {
-      return { success: false, error: "Signer returned an unexpected event kind" };
-    }
-    return await publishToRelays(signed);
-  } catch (e) {
-    return signingFailure(e);
-  }
-}
 
 /**
  * Publish the user's profile metadata (kind 0) and reflect it in the header.
@@ -1374,10 +1319,7 @@ async function signAndPublish(
  * of the local cache masking a publish that never landed.
  */
 const PROFILE_PUBLISH_BACKOFF_MS = [800, 2000];
-export async function publishProfile(
-  content: Record<string, unknown>,
-  tags: string[][] = [],
-): Promise<PublishOutcome> {
+export async function publishProfile(content: Record<string, unknown>, tags: string[][] = []): Promise<PublishOutcome> {
   // Pinned. The backoff below runs for seconds, which is long enough for an
   // account switch, and re-reading the Active Account per attempt would sign and
   // cache A's profile as B — the same reason `runInitialSetup` pins.
@@ -1408,7 +1350,9 @@ export async function publishProfile(
     // store-first, so without this the edit reverts on the next render and the old
     // kind-0 is written back over the cache. Reload was the only way out.
     eventStore.add(signed);
-    try { cacheProfile(content as unknown as ProfileContent, account.pubkey); } catch {}
+    try {
+      cacheProfile(content as unknown as ProfileContent, account.pubkey);
+    } catch {}
     // Pinned to the same Account, for the reason the profile publish above is:
     // this fires after the backoff, and `announceRelayListAs` would otherwise
     // re-read the Active one and stamp A's outbox list with B's key.
@@ -1433,10 +1377,7 @@ export async function publishRelayList(relays: string[]): Promise<PublishOutcome
 }
 
 /** The same, for a caller that has already pinned which Account is publishing. */
-async function publishRelayListAs(
-  account: BrainstormAccount,
-  relays: string[],
-): Promise<PublishOutcome> {
+async function publishRelayListAs(account: BrainstormAccount, relays: string[]): Promise<PublishOutcome> {
   const tags = relays.filter(Boolean).map((r) => ["r", r]);
   try {
     const signed = await signAs(account, { kind: 10002, tags, content: "" });
@@ -1477,7 +1418,7 @@ async function announceRelayListAs(account: BrainstormAccount): Promise<PublishO
   if (existing) {
     const relays = dedupeRelays([...parseRelayList(existing).write, ...PROFILE_RELAYS]);
     try {
-      const responses = await pool.publish(relays, existing as any);
+      const responses = await pool.publish(relays, existing);
       const accepted = responses.filter((r) => r.ok).length;
       return accepted
         ? { success: true, relay: responses.find((r) => r.ok)?.from }
@@ -1496,7 +1437,6 @@ export async function announceRelayList(): Promise<PublishOutcome> {
   if (!account) return { success: false, error: "Not logged in" };
   return announceRelayListAs(account);
 }
-
 
 /**
  * The user's kind-10040 naming Brainstorm: rank and followers, plus every
@@ -1538,10 +1478,7 @@ export interface MuteMetadata {
   timestamp: number;
 }
 
-export async function fetchReportsForPubkey(
-  targetPubkey: string,
-  timeoutMs = 12000
-): Promise<ReportMetadata[]> {
+export async function fetchReportsForPubkey(targetPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {
   const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], "#p": [targetPubkey] }, timeoutMs);
   return events.map((event) => ({
     reporterPubkey: event.pubkey,
@@ -1553,10 +1490,7 @@ export async function fetchReportsForPubkey(
   }));
 }
 
-export async function fetchReportsByPubkey(
-  reporterPubkey: string,
-  timeoutMs = 12000
-): Promise<ReportMetadata[]> {
+export async function fetchReportsByPubkey(reporterPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {
   const relays = await outboxRelays(reporterPubkey, PROFILE_RELAYS);
   const events = await requestAll(relays, { kinds: [1984], authors: [reporterPubkey] }, timeoutMs);
   return events.flatMap((event) =>
@@ -1574,7 +1508,7 @@ export async function fetchReportsByPubkey(
 
 export async function fetchMuteListTimestamp(
   muterPubkey: string,
-  timeoutMs = 10000
+  timeoutMs = 10000,
 ): Promise<MuteMetadata | undefined> {
   try {
     const relays = await outboxRelays(muterPubkey, PROFILE_RELAYS);
@@ -1604,11 +1538,10 @@ export interface NostrSearchResult {
 
 export function searchNostrProfiles(
   query: string,
-  options: { limit?: number; timeoutMs?: number } = {}
+  options: { limit?: number; timeoutMs?: number } = {},
 ): Promise<NostrSearchResult[]> {
   const { limit = 10, timeoutMs = 5000 } = options;
   if (!WOT_SEARCH_RELAY) {
-    // eslint-disable-next-line no-console
     console.error(
       "[nostr] VITE_WOT_SEARCH_RELAY is not set — Nostr profile search is disabled. " +
         "Set VITE_WOT_SEARCH_RELAY at build/deploy time (see README and Dockerfile).",
@@ -1624,7 +1557,9 @@ export function searchNostrProfiles(
     const finish = () => {
       if (settled) return;
       settled = true;
-      try { ws?.close(); } catch {}
+      try {
+        ws?.close();
+      } catch {}
       resolve(results);
     };
 
@@ -1634,11 +1569,15 @@ export function searchNostrProfiles(
       ws = new WebSocket(WOT_SEARCH_RELAY);
 
       ws.onopen = () => {
-        const req = JSON.stringify(["REQ", "search-1", {
-          kinds: [0],
-          search: query,
-          limit,
-        }]);
+        const req = JSON.stringify([
+          "REQ",
+          "search-1",
+          {
+            kinds: [0],
+            search: query,
+            limit,
+          },
+        ]);
         ws!.send(req);
       };
 

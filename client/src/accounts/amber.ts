@@ -66,9 +66,7 @@ export class TimedAmberSigner extends AmberClipboardSigner {
  * the library's own, exactly as `RemoteAccount` keeps `"nostr-connect"`.
  */
 export class AmberAccount<Metadata = AccountMetadata> extends AmberClipboardAccount<Metadata> {
-  static fromJSON<Metadata = AccountMetadata>(
-    json: SerializedAccount<void, Metadata>,
-  ): AmberAccount<Metadata> {
+  static fromJSON<Metadata = AccountMetadata>(json: SerializedAccount<void, Metadata>): AmberAccount<Metadata> {
     const account = new AmberAccount<Metadata>(json.pubkey, new TimedAmberSigner());
     return super.loadCommonFields(account, json) as AmberAccount<Metadata>;
   }

@@ -18,7 +18,9 @@ describe("avatarSrc", () => {
     runtimeEnv.env.VITE_IMG_PROXY = "/img";
     const url = "https://img.example/a b.jpg?v=2&x=@1";
     expect(avatarSrc(url, "sm")).toBe(`/img/insecure/avatar_sm/plain/${encodeURIComponent(url)}`);
-    expect(avatarSrc("http://img.example/a.png", "lg")).toBe(`/img/insecure/avatar_lg/plain/${encodeURIComponent("http://img.example/a.png")}`);
+    expect(avatarSrc("http://img.example/a.png", "lg")).toBe(
+      `/img/insecure/avatar_lg/plain/${encodeURIComponent("http://img.example/a.png")}`,
+    );
   });
 
   it("tolerates a trailing slash on the prefix", () => {

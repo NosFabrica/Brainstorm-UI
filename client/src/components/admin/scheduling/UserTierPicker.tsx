@@ -112,22 +112,33 @@ export function UserTierPicker({
         }}
       >
         {policies.map((p) => (
-          <option key={p.id} value={p.id}>{p.name}</option>
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
         ))}
       </select>
       {busy && <Loader2 className="h-3 w-3 animate-spin text-slate-400 dark:text-slate-500" />}
 
-      <Dialog open={pendingId !== null} onOpenChange={(open) => { if (!open) setPendingId(null); }}>
+      <Dialog
+        open={pendingId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingId(null);
+        }}
+      >
         <DialogContent className="sm:max-w-sm" data-testid="tier-confirm">
           <DialogHeader>
             <DialogTitle>Change this user's tier?</DialogTitle>
             <DialogDescription asChild>
               <div>
-                <span className="flex items-center gap-2 mb-2" data-testid="tier-confirm-who">
+                <span className="mb-2 flex items-center gap-2" data-testid="tier-confirm-who">
                   <Avatar className="h-7 w-7 shrink-0">
-                    {picture ? <AvatarImage src={picture} alt={displayName || "User"} className="object-cover" /> : null}
-                    <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">
-                      {displayName?.charAt(0)?.toUpperCase() || <User className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />}
+                    {picture ? (
+                      <AvatarImage src={picture} alt={displayName || "User"} className="object-cover" />
+                    ) : null}
+                    <AvatarFallback className="border border-slate-200 bg-slate-100 text-[10px] text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500">
+                      {displayName?.charAt(0)?.toUpperCase() || (
+                        <User className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />
+                      )}
                     </AvatarFallback>
                   </Avatar>
                   <span className="font-semibold text-slate-900 dark:text-slate-100">
@@ -135,8 +146,7 @@ export function UserTierPicker({
                   </span>
                 </span>
                 Moves from <span className="font-semibold">{currentName}</span> to{" "}
-                <span className="font-semibold">{pendingName}</span>. Their recalculation
-                schedule changes immediately.
+                <span className="font-semibold">{pendingName}</span>. Their recalculation schedule changes immediately.
               </div>
             </DialogDescription>
           </DialogHeader>

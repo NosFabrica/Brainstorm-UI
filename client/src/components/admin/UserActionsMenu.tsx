@@ -46,16 +46,22 @@ export function UserActionsMenu({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
             aria-label="User actions"
             onClick={(e) => e.stopPropagation()}
             data-testid={`user-actions-${testIdSuffix}`}
           >
-            {triggering ? <Loader2 className="h-4 w-4 animate-spin text-amber-500" /> : <MoreHorizontal className="h-4 w-4" />}
+            {triggering ? (
+              <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+            ) : (
+              <MoreHorizontal className="h-4 w-4" />
+            )}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Actions</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            Actions
+          </DropdownMenuLabel>
           <DropdownMenuItem
             disabled={triggering || triggerDisabled}
             onSelect={onTrigger}

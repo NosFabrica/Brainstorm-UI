@@ -29,7 +29,10 @@ const list = (tags: string[][] = [["d", "tl-tag-x"]]) => ({ kind: 30392, tags })
 describe("checkUserLists", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getSetupRows.mockResolvedValue([["30382:rank", TA, "wss://nip85.example"], ["30392", LIST_KEY, LIST_RELAY]]);
+    getSetupRows.mockResolvedValue([
+      ["30382:rank", TA, "wss://nip85.example"],
+      ["30392", LIST_KEY, LIST_RELAY],
+    ]);
     fetchTrustProviderList.mockResolvedValue({ tags: [["30382:rank", TA, "wss://nip85.example"]] });
     requestAll.mockResolvedValue([]);
   });
@@ -52,12 +55,19 @@ describe("checkUserLists", () => {
   });
 
   it("lists that were all retracted don't count", async () => {
-    requestAll.mockResolvedValue([list([["d", "tl-tag-x"], ["status", "retracted"]])]);
+    requestAll.mockResolvedValue([
+      list([
+        ["d", "tl-tag-x"],
+        ["status", "retracted"],
+      ]),
+    ]);
     expect((await checkUserLists(ME, TA)).status).toBe("none");
   });
 
   it("a 10040 that already names them is declared", async () => {
-    fetchTrustProviderList.mockResolvedValue({ tags: [["30382:rank", TA, "wss://nip85.example"], ...listRows({ key: LIST_KEY, relay: LIST_RELAY })] });
+    fetchTrustProviderList.mockResolvedValue({
+      tags: [["30382:rank", TA, "wss://nip85.example"], ...listRows({ key: LIST_KEY, relay: LIST_RELAY })],
+    });
     expect((await checkUserLists(ME, TA)).status).toBe("declared");
   });
 
@@ -83,7 +93,10 @@ describe("listsToName", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     queryClient.clear();
-    getSetupRows.mockResolvedValue([["30382:rank", TA, "wss://nip85.example"], ["30392", LIST_KEY, LIST_RELAY]]);
+    getSetupRows.mockResolvedValue([
+      ["30382:rank", TA, "wss://nip85.example"],
+      ["30392", LIST_KEY, LIST_RELAY],
+    ]);
     fetchTrustProviderList.mockResolvedValue({ tags: [["30382:rank", TA, "wss://nip85.example"]] });
     requestAll.mockResolvedValue([list()]);
   });

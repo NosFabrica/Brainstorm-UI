@@ -83,7 +83,8 @@ export function embedSounding(frame: HTMLIFrameElement): Sounding {
         const win = frame.contentWindow;
         if (!win) return;
         try {
-          if (/youtube(-nocookie)?\.com\/embed\//.test(src)) win.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: "" }), "*");
+          if (/youtube(-nocookie)?\.com\/embed\//.test(src))
+            win.postMessage(JSON.stringify({ event: "command", func: "pauseVideo", args: "" }), "*");
           else if (/player\.vimeo\.com\//.test(src)) win.postMessage(JSON.stringify({ method: "pause" }), "*");
         } catch {
           /* a frame that is already gone */

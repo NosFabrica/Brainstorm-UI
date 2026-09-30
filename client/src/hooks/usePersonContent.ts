@@ -16,7 +16,9 @@ export function usePersonContent(pubkeys: readonly string[]): Map<string, Person
   const askedRef = useRef(new Set<string>());
   useEffect(() => {
     let alive = true;
-    const wanted = [...new Set(pubkeys.filter(Boolean))].filter((pk) => peekPersonContent(pk) === undefined && !askedRef.current.has(pk));
+    const wanted = [...new Set(pubkeys.filter(Boolean))].filter(
+      (pk) => peekPersonContent(pk) === undefined && !askedRef.current.has(pk),
+    );
     for (const pk of wanted) {
       askedRef.current.add(pk);
       fetchPersonContent(pk).then(

@@ -4,7 +4,6 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { shareTierFor } from "@/components/share/TrustScoreBadge";
 import { TrustScoreModal, PovTag, povChrome, useScorePov } from "@/components/score/TrustScorePov";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
-import { tierForScore01 } from "@/components/score/VerificationCoin";
 import { rungFraction } from "@/lib/trustLadder";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 
@@ -44,84 +43,119 @@ export function WotStrengthCard({
 
   return (
     <div
-      className={`rounded-2xl border p-3 shadow-sm cursor-pointer transition-colors ${povChrome(pov)} ${className}`}
+      className={`cursor-pointer rounded-2xl border p-3 shadow-sm transition-colors ${povChrome(pov)} ${className}`}
       data-testid="wot-strength-card"
       role="button"
       tabIndex={0}
       onClick={() => setExplainOpen(true)}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExplainOpen(true); } }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setExplainOpen(true);
+        }
+      }}
       title="What does this score mean?"
     >
-      <div className="flex items-center justify-between gap-1.5 mb-2">
+      <div className="mb-2 flex items-center justify-between gap-1.5">
         <span className="inline-flex items-center gap-1.5">
           <BrainLogo size={15} className="text-brand-primary" />
-          <span className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Verification Score</span>
+          <span
+            className="text-sm font-bold text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Verification Score
+          </span>
         </span>
         <PovTag pov={pov} />
       </div>
-      {score01 != null ? (() => {
-        const tier = shareTierFor(score01, granularity);
-        const pct = Math.round(score01 * 100);
-        // Mode-aware: number → exact bar + digits; level → bar quantized to the
-        // 5-step ladder, no digits; tier → full tier-colored band, word only.
-        const showDigits = displayMode === "number";
-        const modeFrac =
-          displayMode === "number" ? null :
-          displayMode === "level" ? rungFraction(score01, false, granularity) * 100 : 100;
-        // Continuous bar filled to the actual score (dashboard-style) so the bar
-        // agrees with the number — 27 fills 27%, not "4 of 5". A small floor keeps
-        // very low scores visible as a tier-colored nub rather than nothing.
-        const fillPct = modeFrac ?? Math.min(100, Math.max(4, pct));
-        // Secondary (other-POV) score — shown only when it differs from primary.
-        const secPct = secondaryScore01 != null ? Math.round(secondaryScore01 * 100) : null;
-        const showSecondary = secPct != null && secPct !== pct && secondaryScore01 != null;
-        // Only disambiguate the primary POV when a second POV is on screen too.
-        const showPrimaryLabel = showSecondary && !!primaryLabel;
-        return (
-          <>
-            <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden mb-2">
-              <div className="h-full rounded-full" style={{ width: `${fillPct}%`, backgroundColor: tier.color }} />
-            </div>
-            {showPrimaryLabel ? (
-              <div className="flex items-center justify-between gap-2" data-testid="wot-primary">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{primaryLabel}</span>
-                <span className="inline-flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
-                  <span className="text-sm font-bold" style={{ color: tier.color }}>{tier.name}</span>
-                  {showDigits && <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{pct}</span>}
-                </span>
+      {score01 != null ? (
+        (() => {
+          const tier = shareTierFor(score01, granularity);
+          const pct = Math.round(score01 * 100);
+          // Mode-aware: number → exact bar + digits; level → bar quantized to the
+          // 5-step ladder, no digits; tier → full tier-colored band, word only.
+          const showDigits = displayMode === "number";
+          const modeFrac =
+            displayMode === "number"
+              ? null
+              : displayMode === "level"
+                ? rungFraction(score01, false, granularity) * 100
+                : 100;
+          // Continuous bar filled to the actual score (dashboard-style) so the bar
+          // agrees with the number — 27 fills 27%, not "4 of 5". A small floor keeps
+          // very low scores visible as a tier-colored nub rather than nothing.
+          const fillPct = modeFrac ?? Math.min(100, Math.max(4, pct));
+          // Secondary (other-POV) score — shown only when it differs from primary.
+          const secPct = secondaryScore01 != null ? Math.round(secondaryScore01 * 100) : null;
+          const showSecondary = secPct != null && secPct !== pct && secondaryScore01 != null;
+          // Only disambiguate the primary POV when a second POV is on screen too.
+          const showPrimaryLabel = showSecondary && !!primaryLabel;
+          return (
+            <>
+              <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                <div className="h-full rounded-full" style={{ width: `${fillPct}%`, backgroundColor: tier.color }} />
               </div>
-            ) : (
-              <div className="inline-flex items-center gap-1.5" data-testid="wot-primary">
-                <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
-                <span className="text-sm font-bold" style={{ color: tier.color }}>{tier.name}</span>
-                {showDigits && <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{pct}</span>}
-              </div>
-            )}
-            {showSecondary && (() => {
-              const secTier = shareTierFor(secondaryScore01!, granularity);
-              return (
-                <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs" data-testid="wot-secondary">
-                  <span className="text-slate-500 dark:text-slate-400 font-medium">{secondaryLabel}</span>
+              {showPrimaryLabel ? (
+                <div className="flex items-center justify-between gap-2" data-testid="wot-primary">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{primaryLabel}</span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="font-semibold" style={{ color: secTier.color }}>{secTier.name}</span>
-                    {showDigits && <span className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">{secPct}</span>}
+                    <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
+                    <span className="text-sm font-bold" style={{ color: tier.color }}>
+                      {tier.name}
+                    </span>
+                    {showDigits && (
+                      <span className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100">{pct}</span>
+                    )}
                   </span>
                 </div>
-              );
-            })()}
-          </>
-        );
-      })() : (
+              ) : (
+                <div className="inline-flex items-center gap-1.5" data-testid="wot-primary">
+                  <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
+                  <span className="text-sm font-bold" style={{ color: tier.color }}>
+                    {tier.name}
+                  </span>
+                  {showDigits && (
+                    <span className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100">{pct}</span>
+                  )}
+                </div>
+              )}
+              {showSecondary &&
+                (() => {
+                  const secTier = shareTierFor(secondaryScore01!, granularity);
+                  return (
+                    <div
+                      className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2 text-xs dark:border-slate-800/60"
+                      data-testid="wot-secondary"
+                    >
+                      <span className="font-medium text-slate-500 dark:text-slate-400">{secondaryLabel}</span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="font-semibold" style={{ color: secTier.color }}>
+                          {secTier.name}
+                        </span>
+                        {showDigits && (
+                          <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200">{secPct}</span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })()}
+            </>
+          );
+        })()
+      ) : (
         <>
-          <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 mb-2.5" />
+          <div className="mb-2.5 h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800" />
           <p className="text-xs text-slate-400 dark:text-slate-500">Not yet scored by the network.</p>
         </>
       )}
       {footer && (
         /* Actions manage their own clicks — don't let them bubble into the
            card's "open explainer" handler. */
-        <div className={`mt-3 pt-3 border-t ${pov === "personalized" ? "border-brand-primary/15 dark:border-brand-primary/20" : "border-slate-100 dark:border-slate-800/60"}`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <div
+          className={`mt-3 border-t pt-3 ${pov === "personalized" ? "border-brand-primary/15 dark:border-brand-primary/20" : "border-slate-100 dark:border-slate-800/60"}`}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
           {footer}
         </div>
       )}

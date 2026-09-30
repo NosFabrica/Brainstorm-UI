@@ -7,8 +7,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrustSignals } from "@/services/api";
 
-const getTrustSignals = vi.fn<(pubkeys: string[]) => Promise<Map<string, TrustSignals>>>(
-  () => Promise.resolve(new Map()),
+const getTrustSignals = vi.fn<(pubkeys: string[]) => Promise<Map<string, TrustSignals>>>(() =>
+  Promise.resolve(new Map()),
 );
 vi.mock("@/services/api", () => ({ apiClient: { getTrustSignals: (pks: string[]) => getTrustSignals(pks) } }));
 

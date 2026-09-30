@@ -33,7 +33,7 @@ export function AppHeader({ user, onLogout, active, actions, search }: AppHeader
       {/* The nudge's words only once there is room for them beside the search box;
           narrower, it is the "Finish setup" chip alone. */}
       <FinishSetupBanner labelFrom="xl" />
-      {actions && <div className="hidden lg:flex items-center mr-1">{actions}</div>}
+      {actions && <div className="mr-1 hidden items-center lg:flex">{actions}</div>}
       {user.isAdmin && <AdminBadge />}
       <AccountMenu user={user} onLogout={onLogout} active={active} />
     </HeaderBar>

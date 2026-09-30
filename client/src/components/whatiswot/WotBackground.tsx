@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion';
-import { floatingNodes, connectionPairs, calculations } from './data';
+import { motion } from "framer-motion";
+import { floatingNodes, connectionPairs, calculations } from "./data";
 
 export function WotBackground() {
   return (
@@ -7,7 +7,7 @@ export function WotBackground() {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-primary/20 via-slate-950 to-slate-950" />
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:32px_32px]" />
       <motion.div
-        className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full bg-brand-primary/5 blur-3xl"
+        className="absolute left-[15%] top-[10%] h-64 w-64 rounded-full bg-brand-primary/5 blur-3xl"
         animate={{
           opacity: [0.3, 0.6, 0.3],
           scale: [1, 1.2, 1],
@@ -16,7 +16,7 @@ export function WotBackground() {
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute bottom-[20%] right-[10%] w-48 h-48 rounded-full bg-brand-accent/5 blur-3xl"
+        className="absolute bottom-[20%] right-[10%] h-48 w-48 rounded-full bg-brand-accent/5 blur-3xl"
         animate={{
           opacity: [0.2, 0.5, 0.2],
           scale: [1, 1.3, 1],
@@ -25,14 +25,14 @@ export function WotBackground() {
         transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 3 }}
       />
       <motion.div
-        className="absolute top-[50%] right-[25%] w-32 h-32 rounded-full bg-brand-accent/[0.05] blur-2xl"
+        className="absolute right-[25%] top-[50%] h-32 w-32 rounded-full bg-brand-accent/[0.05] blur-2xl"
         animate={{
           opacity: [0.1, 0.4, 0.1],
           scale: [1, 1.4, 1],
         }}
         transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 5 }}
       />
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+      <svg className="pointer-events-none absolute inset-0 h-full w-full">
         {connectionPairs.map(([a, b], i) => (
           <motion.line
             key={i}
@@ -85,7 +85,7 @@ export function WotBackground() {
       {calculations.map((calc, i) => (
         <motion.div
           key={i}
-          className="absolute text-xs font-mono text-brand-primary/60 pointer-events-none select-none hidden md:block"
+          className="pointer-events-none absolute hidden select-none font-mono text-xs text-brand-primary/60 md:block"
           style={{
             left: `${5 + (i % 4) * 25}%`,
             top: `${15 + Math.floor(i / 4) * 70}%`,

@@ -12,10 +12,7 @@ export interface ReadinessRow {
  * ("no_qualifying_asserters"). Reads the row the way the Users tab does.
  */
 export type Readiness =
-  | { kind: "ready"; calculatedAt: string | null }
-  | { kind: "never" }
-  | { kind: "failed" }
-  | { kind: "pending" };
+  { kind: "ready"; calculatedAt: string | null } | { kind: "never" } | { kind: "failed" } | { kind: "pending" };
 
 export function readinessOf(row: ReadinessRow | null | undefined): Readiness {
   if (!row || !row.times_calculated) return { kind: "never" };

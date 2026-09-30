@@ -29,19 +29,29 @@ export function VideoHero({ event }: { event: MinimalEvent }) {
         data-testid="video-hero-frame"
       >
         {url ? (
-          <video src={url} poster={poster} controls playsInline preload={videoPreload(speed)} className="h-full w-full object-contain" data-testid="video-hero-player" />
+          <video
+            src={url}
+            poster={poster}
+            controls
+            playsInline
+            preload={videoPreload(speed)}
+            className="h-full w-full object-contain"
+            data-testid="video-hero-player"
+          />
         ) : poster ? (
           <img src={poster} alt="" className="h-full w-full object-contain" />
         ) : null}
       </div>
       {title && (
-        <h1 className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="video-hero-title">
+        <h1
+          className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
+          style={{ fontFamily: "var(--font-display)" }}
+          data-testid="video-hero-title"
+        >
           {title}
         </h1>
       )}
-      {summary && summary !== title && (
-        <ReadingText text={summary} className="mt-3" />
-      )}
+      {summary && summary !== title && <ReadingText text={summary} className="mt-3" />}
     </div>
   );
 }

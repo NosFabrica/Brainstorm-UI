@@ -181,14 +181,16 @@ describe("PlanCard — the quiet upsell", () => {
   it("names the one thing on sale and its real cadence", () => {
     sub = FREE_SUB;
     renderWithProviders(<PlanCard lastCalculatedMs={null} />);
-    expect(screen.getByTestId("insights-plan-link")).toHaveTextContent(
-      "Priority recalculates every 7 days",
-    );
+    expect(screen.getByTestId("insights-plan-link")).toHaveTextContent("Priority recalculates every 7 days");
   });
 
   it("stays generic when several plans are on sale", () => {
     sub = FREE_SUB;
-    plans = [FREE_ROW, PAID_ROW, { ...PAID_ROW, policyId: 3, policyName: "Pro policy", planId: "pro", planName: "Pro" }];
+    plans = [
+      FREE_ROW,
+      PAID_ROW,
+      { ...PAID_ROW, policyId: 3, policyName: "Pro policy", planId: "pro", planName: "Pro" },
+    ];
     renderWithProviders(<PlanCard lastCalculatedMs={null} />);
     expect(screen.getByTestId("insights-plan-link")).toHaveTextContent("See what's on offer");
   });

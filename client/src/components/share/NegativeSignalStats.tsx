@@ -8,8 +8,7 @@ export type NegativeSignalSections = {
   reported_by?: SectionCounts;
 };
 
-const num = (v: unknown): number | null =>
-  typeof v === "number" && Number.isFinite(v) ? v : null;
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /**
  * Verified muters and verified reporters, beside verified followers under the

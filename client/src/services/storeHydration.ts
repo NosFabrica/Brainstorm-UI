@@ -11,12 +11,7 @@
  * runs and nothing else would warm the store at all.
  */
 import { accountManager } from "@/accounts";
-import {
-  clearEventCache,
-  dropLegacyProfileDb,
-  hydrateEventStore,
-  startEventCacheSync,
-} from "@/lib/eventCache";
+import { clearEventCache, dropLegacyProfileDb, hydrateEventStore, startEventCacheSync } from "@/lib/eventCache";
 
 let hydratedFor: string | null = null;
 

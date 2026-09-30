@@ -13,9 +13,11 @@ export function useSpecsForKind(kind: number | null): NostrEvent[] {
     setSpecs([]);
     if (kind === null) return;
     let alive = true;
-    void fetchSpecsForKind(kind).then((found) => {
-      if (alive) setSpecs(found);
-    }).catch(() => {});
+    void fetchSpecsForKind(kind)
+      .then((found) => {
+        if (alive) setSpecs(found);
+      })
+      .catch(() => {});
     return () => {
       alive = false;
     };

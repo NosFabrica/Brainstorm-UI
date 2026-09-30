@@ -19,7 +19,9 @@ describe("streamEmbedUrl", () => {
   });
 
   it("turns a Kick channel page into the Kick player", () => {
-    expect(streamEmbedUrl("https://kick.com/xqc", "brainstorm.world")).toBe("https://player.kick.com/xqc?autoplay=true&muted=false");
+    expect(streamEmbedUrl("https://kick.com/xqc", "brainstorm.world")).toBe(
+      "https://player.kick.com/xqc?autoplay=true&muted=false",
+    );
   });
 
   it("turns YouTube watch / live / short links into the embed player", () => {

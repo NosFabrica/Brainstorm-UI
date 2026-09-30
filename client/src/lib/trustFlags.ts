@@ -12,10 +12,7 @@
 // The profile's DISPLAYED counts follow the perspective toggle since the
 // stats-PoV fix, but this verdict (and the flag banner's evidence count) keep
 // reading the house ledger — a verdict and its evidence come from one ledger.
-export function isFlaggedByReporters(
-  verifiedReporters: number,
-  verifiedFollowers: number,
-): boolean {
+export function isFlaggedByReporters(verifiedReporters: number, verifiedFollowers: number): boolean {
   if (!Number.isFinite(verifiedReporters) || verifiedReporters <= 0) return false;
   const allowance = 5 + Math.floor(Math.max(0, verifiedFollowers) / 750);
   return verifiedReporters > allowance;

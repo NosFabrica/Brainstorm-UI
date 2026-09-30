@@ -51,7 +51,13 @@ function ago(ts?: number): string {
 /** How many of a spec's kinds a card shows; the spec page has them all. */
 const KIND_CHIPS_SHOWN = 6;
 
-export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [], mixed = true }: {
+export function EmbeddedArticleCard({
+  event,
+  author,
+  trustScore01,
+  leadKinds = [],
+  mixed = true,
+}: {
   trustScore01?: number | null;
   event: MinimalEvent;
   author?: ProfileLite;
@@ -74,7 +80,8 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
   const [imgBroken, setImgBroken] = useState(false);
   const nip05Verified = useNip05(blank ? undefined : author?.nip05, event.pubkey) === "verified";
   const [, navigate] = useLocation();
-  if (blank) return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
+  if (blank)
+    return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
 
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   const title = tagVal(event, "title") || "Untitled article";
@@ -114,7 +121,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
 
   return (
     <div
-      className={`not-prose mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 @container ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors" : ""}`}
+      className={`not-prose mt-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/70 @container dark:border-slate-800 dark:bg-slate-900/70 ${href ? "cursor-pointer transition-colors hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
       data-testid="embedded-article"
       onClick={onCardClick}
     >
@@ -133,15 +140,18 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
           loading="lazy"
           decoding="async"
           onError={() => setImgBroken(true)}
-          className="aspect-video w-full object-cover shrink-0 bg-slate-100 dark:bg-slate-800 @[26rem]:m-3 @[26rem]:w-44 @[26rem]:self-start @[26rem]:rounded-lg"
+          className="aspect-video w-full shrink-0 bg-slate-100 object-cover @[26rem]:m-3 @[26rem]:w-44 @[26rem]:self-start @[26rem]:rounded-lg dark:bg-slate-800"
         />
 
         <div className="min-w-0 flex-1 p-3">
           <KindPill event={event} mixed={mixed} />
-          <p className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 mt-0.5">{title}</p>
-          {summary && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{summary}</p>}
+          <p className="mt-0.5 line-clamp-2 text-sm font-bold text-slate-900 dark:text-slate-100">{title}</p>
+          {summary && <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{summary}</p>}
           {coveredKinds.length > 0 && (
-            <p className="mt-1 flex flex-wrap gap-1 font-mono text-[10px] text-slate-400 dark:text-slate-500" data-testid="article-kinds">
+            <p
+              className="mt-1 flex flex-wrap gap-1 font-mono text-[10px] text-slate-400 dark:text-slate-500"
+              data-testid="article-kinds"
+            >
               {coveredKinds.map(({ kind, label }) => (
                 <Link
                   key={kind}
@@ -150,7 +160,9 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
                   className="inline-flex max-w-full items-center rounded bg-slate-100 px-1 py-0.5 transition-colors hover:text-brand-deep dark:bg-slate-800 dark:hover:text-brand-link"
                 >
                   {kind}
-                  {label && <span className="truncate max-w-[10rem] text-slate-500 dark:text-slate-400"> · {label}</span>}
+                  {label && (
+                    <span className="max-w-[10rem] truncate text-slate-500 dark:text-slate-400"> · {label}</span>
+                  )}
                 </Link>
               ))}
               {moreKinds > 0 && (
@@ -162,13 +174,19 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
           )}
 
           <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-            <Avatar className={`h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(effectiveScore01, false, "sm", true) ?? ""}`}>
+            <Avatar
+              className={`h-4 w-4 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${tierRing(effectiveScore01, false, "sm", true) ?? ""}`}
+            >
               {author?.picture ? <AvatarImage src={author.picture} alt={name} className="object-cover" /> : null}
-              <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+              <AvatarFallback className="overflow-hidden rounded-full">
+                <DefaultAvatarImg />
+              </AvatarFallback>
             </Avatar>
-            <span className="font-medium text-slate-600 dark:text-slate-300 truncate">{name}</span>
-            {nip05Verified && <BadgeCheck className="h-3 w-3 text-sky-500 shrink-0" />}
-            {event.created_at ? <span className="text-slate-400 dark:text-slate-500 ml-auto shrink-0">{ago(event.created_at)}</span> : null}
+            <span className="truncate font-medium text-slate-600 dark:text-slate-300">{name}</span>
+            {nip05Verified && <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />}
+            {event.created_at ? (
+              <span className="ml-auto shrink-0 text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
+            ) : null}
             <ViaRelay event={event} />
           </div>
 
@@ -177,10 +195,11 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
             <div className="mt-2.5">
               <Link
                 href={`/e/${naddr}`}
-                className="inline-flex items-center gap-1 rounded-lg bg-brand-primary hover:bg-brand-primary-hover px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+                className="inline-flex items-center gap-1 rounded-lg bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover"
                 data-testid="article-read"
               >
-                Read {isSpec ? "spec" : isWiki ? "wiki" : (sourceAppFor(event)?.noun ?? "article").toLowerCase()} <ArrowRight className="h-3.5 w-3.5" />
+                Read {isSpec ? "spec" : isWiki ? "wiki" : (sourceAppFor(event)?.noun ?? "article").toLowerCase()}{" "}
+                <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
           )}

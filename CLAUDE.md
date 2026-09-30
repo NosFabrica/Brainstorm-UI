@@ -30,6 +30,10 @@ Single-context layout — [`CONTEXT.md`](CONTEXT.md) + [`docs/adr/`](docs/adr/) 
 
 PR → merge into `staging` → deploy staging from brainstorm-k8s. By default create the PR and walk the user through the rest. See `docs/agents/staging-deploy.md`.
 
+## Signing events
+
+Sign through `signAs()` (`client/src/accounts/signing.ts`), never `account.signEvent`/`finalizeEvent` directly — it picks the Active Account and stamps the `["client", "Brainstorm"]` tag.
+
 ## Design system (use the primitives)
 
 New UI **must** use the shared primitives instead of hand-rolling styles — this is what keeps theming/spacing consistent and stops dark-mode drift. Do **not** write `bg-<color>-50 dark:bg-<color>-500/10 …` tinted pills or `rounded-2xl border bg-white dark:bg-slate-900 shadow-sm` cards by hand.
@@ -43,6 +47,17 @@ New UI **must** use the shared primitives instead of hand-rolling styles — thi
 - Search box → `<SearchBox>` (`components/search/SearchBox.tsx`) — the one box behind home, every header (PublicPageHeader, AppHeader), the phone sheet and /what-is-wot; never a second typeahead
 
 Anchored to the designer's brand-guidelines p17 "UI Foundations" sheet. Full guide + what stays bespoke: `docs/design-system.md`. Interface icons are lucide today (guidelines spec Phosphor — migration deferred, not a bug).
+
+## E2E smoke (`e2e/`)
+
+Playwright happy-path checks against **live staging**, not local — CI runs them on PRs into `main` and manual dispatch (`.github/workflows/e2e.yml`).
+
+- Run: `E2E_TEST_NSEC=nsec1… npm run e2e` (`-- --ui` to watch). Signed-in specs skip without the key.
+- Locally, any staging account with follows and calculated scores works — the shared CI key isn't handed out. Use a throwaway, never your real nsec.
+- Specs select by `data-testid`; renaming one used under `e2e/` means updating the spec in the same change.
+- Scope is happy paths only: no onboarding, payments, admin, or flows that publish to relays.
+- The test account is an ordinary non-admin user; its nsec lives only in the `staging-e2e` GitHub environment — never in files or logs.
+- A failure can be staging (mid-deploy, relay/backend down) rather than the UI — check the trace before changing code.
 
 ## Deploying to staging
 

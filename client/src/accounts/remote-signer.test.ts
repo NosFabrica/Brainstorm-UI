@@ -97,9 +97,7 @@ describe("relays", () => {
   });
 
   it("leaves a well-formed value alone", async () => {
-    expect(await withConfiguredRelay("wss://nip85.nosfabrica.com")).toEqual([
-      "wss://nip85.nosfabrica.com/",
-    ]);
+    expect(await withConfiguredRelay("wss://nip85.nosfabrica.com")).toEqual(["wss://nip85.nosfabrica.com/"]);
   });
 
   it("falls back rather than advertising something unparseable", async () => {
@@ -357,9 +355,9 @@ describe("a restored account", () => {
     // that identity is gone for the life of the browser. Hence the ordering.
     NostrConnectSigner.pool = undefined;
     NostrConnectSigner.subscriptionMethod = undefined;
-    expect(
-      () => new RemoteSigner({ relays: ["wss://fake.relay"], remote: "ab".repeat(32) }),
-    ).toThrow(/subscriptionMethod/);
+    expect(() => new RemoteSigner({ relays: ["wss://fake.relay"], remote: "ab".repeat(32) })).toThrow(
+      /subscriptionMethod/,
+    );
   });
 });
 

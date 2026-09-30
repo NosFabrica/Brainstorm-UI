@@ -17,7 +17,10 @@ interface LanguageDetectorApi {
 }
 interface TranslatorApi {
   availability(opts: { sourceLanguage: string; targetLanguage: string }): Promise<string>;
-  create(opts: { sourceLanguage: string; targetLanguage: string }): Promise<{ translate(text: string): Promise<string> }>;
+  create(opts: {
+    sourceLanguage: string;
+    targetLanguage: string;
+  }): Promise<{ translate(text: string): Promise<string> }>;
 }
 const apis = () => {
   const g = globalThis as unknown as { LanguageDetector?: LanguageDetectorApi; Translator?: TranslatorApi };
@@ -84,7 +87,12 @@ export function scriptLanguage(text: string): string | null {
   for (const [re, lang] of SCRIPTS) {
     const hits = letters.filter((ch) => re.test(ch)).length;
     // Japanese: kana decides even when kanji (Han) outnumber them.
-    if (lang === "ja" && hits > 0 && letters.filter((ch) => /[\u3040-\u30ff\u4e00-\u9fff]/u.test(ch)).length / letters.length >= 0.5) return "ja";
+    if (
+      lang === "ja" &&
+      hits > 0 &&
+      letters.filter((ch) => /[\u3040-\u30ff\u4e00-\u9fff]/u.test(ch)).length / letters.length >= 0.5
+    )
+      return "ja";
     if (lang !== "ja" && hits / letters.length >= 0.5) return lang;
   }
   return null;
@@ -107,7 +115,10 @@ export async function detectLanguage(text: string): Promise<string | null> {
     detectorPromise ??= detector.create();
     const results = await (await detectorPromise).detect(t);
     const top = results[0];
-    const lang = top && top.confidence >= MIN_CONFIDENCE && top.detectedLanguage !== "und" ? top.detectedLanguage.toLowerCase().split("-")[0] : null;
+    const lang =
+      top && top.confidence >= MIN_CONFIDENCE && top.detectedLanguage !== "und"
+        ? top.detectedLanguage.toLowerCase().split("-")[0]
+        : null;
     detected.set(t, lang);
     return lang;
   } catch {

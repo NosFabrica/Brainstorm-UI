@@ -39,14 +39,14 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
             className="group shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
             data-testid="button-user-menu"
           >
-            <span className="block rounded-full p-[2px] bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep shadow-[0_0_0_1px_rgb(var(--brand-primary)/0.15)] transition-all duration-300 group-hover:from-brand-link group-hover:via-brand-accent group-hover:to-brand-link group-hover:shadow-[0_0_16px_2px_rgb(var(--brand-accent)/0.5)]">
+            <span className="block rounded-full bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep p-[2px] shadow-[0_0_0_1px_rgb(var(--brand-primary)/0.15)] transition-all duration-300 group-hover:from-brand-link group-hover:via-brand-accent group-hover:to-brand-link group-hover:shadow-[0_0_16px_2px_rgb(var(--brand-accent)/0.5)]">
               <Avatar className="h-9 w-9" data-testid="img-user-avatar">
                 {/* Mounted even with no picture: Radix keeps the loaded status on
                     the Root, so unmounting the image after it loaded suppresses the
                     fallback and leaves an empty circle. A falsy src reads as an
                     error, which is what lets the letter come back. */}
                 <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" />
-                <AvatarFallback className="bg-white text-[#0A0E18] font-bold">
+                <AvatarFallback className="bg-white font-bold text-[#0A0E18]">
                   {user.displayName?.charAt(0)?.toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
@@ -56,7 +56,7 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
         <PopoverContent
           align="end"
           sideOffset={10}
-          className="relative w-[360px] p-0 overflow-hidden rounded-2xl border border-brand-accent/25 dark:border-white/10 bg-white/[0.82] dark:bg-slate-950/[0.85] backdrop-blur-xl backdrop-saturate-150 shadow-[0_16px_50px_rgba(20,18,45,0.22)] dark:shadow-[0_16px_50px_rgba(0,0,0,0.55)]"
+          className="relative w-[360px] overflow-hidden rounded-2xl border border-brand-accent/25 bg-white/[0.82] p-0 shadow-[0_16px_50px_rgba(20,18,45,0.22)] backdrop-blur-xl backdrop-saturate-150 dark:border-white/10 dark:bg-slate-950/[0.85] dark:shadow-[0_16px_50px_rgba(0,0,0,0.55)]"
           data-testid="menu-user"
         >
           {/* Soft brand-tint wash over the frosted surface (deep → cyan). */}

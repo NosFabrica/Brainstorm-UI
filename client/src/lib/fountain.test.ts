@@ -19,10 +19,19 @@ const TRACK_HTML = `<html><head>
 
 describe("fountainRef", () => {
   it("recognises episodes, tracks, shows and live rooms by id", () => {
-    expect(fountainRef("https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3")).toEqual({ kind: "episode", id: "T0iRUdk8nBSfUEPLLcJ3" });
-    expect(fountainRef("https://fountain.fm/track/q6N8QzTSTDjL2L98FL2R?t=12")).toEqual({ kind: "track", id: "q6N8QzTSTDjL2L98FL2R" });
+    expect(fountainRef("https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3")).toEqual({
+      kind: "episode",
+      id: "T0iRUdk8nBSfUEPLLcJ3",
+    });
+    expect(fountainRef("https://fountain.fm/track/q6N8QzTSTDjL2L98FL2R?t=12")).toEqual({
+      kind: "track",
+      id: "q6N8QzTSTDjL2L98FL2R",
+    });
     expect(fountainRef("https://fountain.fm/show/abc")).toEqual({ kind: "show", id: "abc" });
-    expect(fountainRef("https://fountain.fm/live/JGjRiczl3CEWDJUr1jb7")).toEqual({ kind: "live", id: "JGjRiczl3CEWDJUr1jb7" });
+    expect(fountainRef("https://fountain.fm/live/JGjRiczl3CEWDJUr1jb7")).toEqual({
+      kind: "live",
+      id: "JGjRiczl3CEWDJUr1jb7",
+    });
     expect(fountainRef("https://wavlake.com/track/x")).toBeNull();
   });
 });
@@ -34,7 +43,8 @@ describe("parseFountainPage — the card's facts from Open Graph", () => {
       kind: "episode",
       show: "Radio Detox",
       title: "Right Said Fred & Friends",
-      description: "The conversation between Host Heather Larson and Right Said Fred covers the journey of independent artists.",
+      description:
+        "The conversation between Host Heather Larson and Right Said Fred covers the journey of independent artists.",
       image: "https://hosting-media.riverside.com/media/podcasts/ba9f/logos/b64d.jpeg",
       audio: "https://api.riverside.com/hosting-analytics/media/0abf/eyJlc.mp3",
       url: "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3",
@@ -43,11 +53,21 @@ describe("parseFountainPage — the card's facts from Open Graph", () => {
 
   it("reads a track as artist and title, and drops Fountain's boilerplate description", () => {
     const item = parseFountainPage(TRACK_HTML, "https://fountain.fm/track/q6N8QzTSTDjL2L98FL2R");
-    expect(item).toMatchObject({ kind: "track", show: "Joe Martin", title: "Alone In Valentine - single", description: null });
+    expect(item).toMatchObject({
+      kind: "track",
+      show: "Joe Martin",
+      title: "Alone In Valentine - single",
+      description: null,
+    });
   });
 
   it("is not an item without something to play", () => {
-    expect(parseFountainPage('<html><head><meta property="og:title" content="x"/></head></html>', "https://fountain.fm/episode/x")).toBeNull();
+    expect(
+      parseFountainPage(
+        '<html><head><meta property="og:title" content="x"/></head></html>',
+        "https://fountain.fm/episode/x",
+      ),
+    ).toBeNull();
   });
 });
 
@@ -55,7 +75,9 @@ describe("fetchFountainItem", () => {
   beforeEach(() => __resetFountainCache());
 
   it("reads the page once and remembers it", async () => {
-    const fetchMock = vi.fn(async () => new Response(EPISODE_HTML, { status: 200, headers: { "content-type": "text/html" } }));
+    const fetchMock = vi.fn(
+      async () => new Response(EPISODE_HTML, { status: 200, headers: { "content-type": "text/html" } }),
+    );
     vi.stubGlobal("fetch", fetchMock);
     const a = await fetchFountainItem("https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3");
     const b = await fetchFountainItem("https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3");
@@ -65,13 +87,21 @@ describe("fetchFountainItem", () => {
   });
 
   it("answers null, quietly, when Fountain cannot be read", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("blocked"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("blocked");
+      }),
+    );
     expect(await fetchFountainItem("https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3")).toBeNull();
   });
 
   it("decodes numeric entities too — Fountain writes an apostrophe as &#x27;", () => {
     // Live (2026-09-24): "A Skeptic&#x27;s Journey" showed with the entity in it.
-    const html = EPISODE_HTML.replace(/og:title" content="[^"]*"/, 'og:title" content="DJ Valerie B LOVE Podcast • NEVER in a Trillion Years - A Skeptic&#x27;s Journey &#8211; part 1"');
+    const html = EPISODE_HTML.replace(
+      /og:title" content="[^"]*"/,
+      'og:title" content="DJ Valerie B LOVE Podcast • NEVER in a Trillion Years - A Skeptic&#x27;s Journey &#8211; part 1"',
+    );
     const item = parseFountainPage(html, "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3");
     expect(item?.title).toBe("NEVER in a Trillion Years - A Skeptic's Journey – part 1");
   });

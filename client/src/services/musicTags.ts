@@ -25,7 +25,15 @@ async function lookup(): Promise<SearchResult[]> {
   const profiles = (await fetchProfileMap(pubkeys).catch(() => new Map())) as Map<string, ProfileLite>;
   return pubkeys.map((pubkey) => {
     const p = profiles.get(pubkey);
-    return { pubkey, npub: nip19.npubEncode(pubkey), name: p?.name, displayName: p?.display_name, picture: p?.picture, nip05: p?.nip05, about: p?.about };
+    return {
+      pubkey,
+      npub: nip19.npubEncode(pubkey),
+      name: p?.name,
+      displayName: p?.display_name,
+      picture: p?.picture,
+      nip05: p?.nip05,
+      about: p?.about,
+    };
   });
 }
 

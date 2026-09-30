@@ -16,14 +16,7 @@ const ReportedByIcon = NodeReportedByIcon;
 const ReportingIcon = NodeReportingIcon;
 export const FlaggedIcon = NodeFlaggedIcon;
 
-export type GroupKey =
-  | "followed_by"
-  | "following"
-  | "muted_by"
-  | "muting"
-  | "reported_by"
-  | "reporting"
-  | "flagged";
+export type GroupKey = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting" | "flagged";
 
 export const getVerificationGuidance = (pct: number, name: string) => {
   if (pct >= 50)

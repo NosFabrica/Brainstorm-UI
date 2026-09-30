@@ -32,9 +32,16 @@ export function collapseDuplicateListings<H extends { event: EventLike }>(hits: 
   const out: H[] = [];
   for (const h of hits) {
     const key = keyOf(h.event);
-    if (key === null) { out.push(h); continue; }
+    if (key === null) {
+      out.push(h);
+      continue;
+    }
     const at = slot.get(key);
-    if (at === undefined) { slot.set(key, out.length); out.push(h); continue; }
+    if (at === undefined) {
+      slot.set(key, out.length);
+      out.push(h);
+      continue;
+    }
     if (pageRank(h.event) > pageRank(out[at].event)) out[at] = h;
   }
   return out;

@@ -7,6 +7,7 @@
  * backup triggered straight after a page load threw "no key available".
  */
 import type { AccountManager, BaseAccount } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 import { distinctUntilChanged, map, merge, of, startWith, switchMap, type Observable } from "rxjs";
 
 import { LocalAccount } from "./local-account";
@@ -64,9 +65,7 @@ export function canBackUp(account?: BrainstormAccount): boolean {
  * memory, or openable from the Unlock cache. What a forgotten password can be
  * *replaced* depends on: everywhere else, forgetting it is terminal.
  */
-export async function keyReachableWithoutPassword(
-  account?: BrainstormAccount,
-): Promise<boolean> {
+export async function keyReachableWithoutPassword(account?: BrainstormAccount): Promise<boolean> {
   const holder = targetAccount(account);
   if (!(holder instanceof LocalAccount)) return false;
   return !holder.locked || holder.unlockSilently();
@@ -123,14 +122,12 @@ export function backupNeed(account?: BrainstormAccount): BackupNeed | null {
  * `changed$` the minting of a Backup, so a card rendered from this puts itself
  * away the moment either happens — neither of which touches the other's stream.
  */
-export function backupNeedStream(
-  manager: AccountManager<AccountMetadata>,
-): Observable<BackupNeed | null> {
+export function backupNeedStream(manager: AccountManager<AccountMetadata>): Observable<BackupNeed | null> {
   return manager.active$.pipe(
     switchMap((account) => {
       if (!account) return of(null);
       const changed$ = (account.signer as { changed$?: Observable<unknown> })?.changed$;
-      const metadata$ = (account as BaseAccount<any, any, AccountMetadata>).metadata$;
+      const metadata$ = (account as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$;
       return merge(metadata$, ...(changed$ ? [changed$] : [])).pipe(
         startWith(null),
         map(() => backupNeed(account as BrainstormAccount)),

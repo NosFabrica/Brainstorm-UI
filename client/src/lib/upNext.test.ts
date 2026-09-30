@@ -8,24 +8,58 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const recentMock = vi.fn<(pk: string, kinds: number[], limit: number) => Promise<unknown[]>>(async () => []);
-vi.mock("@/services/nostr", () => ({ fetchRecentByKinds: (pk: string, kinds: number[], limit: number) => recentMock(pk, kinds, limit) }));
+vi.mock("@/services/nostr", () => ({
+  fetchRecentByKinds: (pk: string, kinds: number[], limit: number) => recentMock(pk, kinds, limit),
+}));
 const catalogueMock = vi.fn(async () => ({ artists: [], albums: [], songs: [] as unknown[] }));
-vi.mock("@/lib/wavlake", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/wavlake")>()), searchWavlake: (term: string) => catalogueMock(term) }));
+vi.mock("@/lib/wavlake", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/wavlake")>()),
+  searchWavlake: (term: string) => catalogueMock(term),
+}));
 
 import { moreFromArtist, wavlakeArtistHref, wavlakeSongHref } from "./upNext";
 
 const NOVA = "d".repeat(64);
-const track = (id: string, title: string) => ({ id, kind: 31337, pubkey: NOVA, created_at: 1, tags: [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://x/${id}.mp3`], ["image", `https://x/${id}.jpg`]], content: "" });
+const track = (id: string, title: string) => ({
+  id,
+  kind: 31337,
+  pubkey: NOVA,
+  created_at: 1,
+  tags: [
+    ["d", id],
+    ["title", title],
+    ["artist", "NOVA"],
+    ["media", `https://x/${id}.mp3`],
+    ["image", `https://x/${id}.jpg`],
+  ],
+  content: "",
+});
 
 describe("moreFromArtist", () => {
-  beforeEach(() => { recentMock.mockReset(); recentMock.mockResolvedValue([]); catalogueMock.mockReset(); catalogueMock.mockResolvedValue({ artists: [], albums: [], songs: [] }); });
+  beforeEach(() => {
+    recentMock.mockReset();
+    recentMock.mockResolvedValue([]);
+    catalogueMock.mockReset();
+    catalogueMock.mockResolvedValue({ artists: [], albums: [], songs: [] });
+  });
 
   it("a native track: the author's other tracks, newest first, the current one left out", async () => {
-    recentMock.mockResolvedValue([track("cur", "Old Carbon"), track("t2", "Duende"), { id: "junk", kind: 31337, pubkey: NOVA, created_at: 1, tags: [["d", "x"]], content: "{}" }, track("t3", "Easting")]);
+    recentMock.mockResolvedValue([
+      track("cur", "Old Carbon"),
+      track("t2", "Duende"),
+      { id: "junk", kind: 31337, pubkey: NOVA, created_at: 1, tags: [["d", "x"]], content: "{}" },
+      track("t3", "Easting"),
+    ]);
     const next = await moreFromArtist({ id: "cur", artist: "NOVA", artistPubkey: NOVA });
     expect(recentMock).toHaveBeenCalledWith(NOVA, [31337], expect.any(Number));
     expect(next.map((t) => t.title)).toEqual(["Duende", "Easting"]);
-    expect(next[0]).toMatchObject({ id: "t2", src: "https://x/t2.mp3", artist: "NOVA", cover: "https://x/t2.jpg", artistPubkey: NOVA });
+    expect(next[0]).toMatchObject({
+      id: "t2",
+      src: "https://x/t2.mp3",
+      artist: "NOVA",
+      cover: "https://x/t2.jpg",
+      artistPubkey: NOVA,
+    });
     expect(next[0].href).toMatch(/^\/e\//);
     expect(next[0].artistHref).toMatch(/^\/p\/npub1/);
   });
@@ -35,16 +69,45 @@ describe("moreFromArtist", () => {
       artists: [],
       albums: [],
       songs: [
-        { id: "wavlake:cur", title: "Two Ships", artist: "Ainsley Costello", audio: "https://cdn/2.mp3", url: "https://wavlake.com/track/cur", source: "wavlake", artistNpub: "" },
-        { id: "wavlake:o1", title: "Old Song", artist: "Ainsley Costello", audio: "https://cdn/o.mp3", cover: "https://img/o.jpg", url: "https://wavlake.com/track/o1", source: "wavlake", artistNpub: "" },
-        { id: "wavlake:x1", title: "Someone Else", artist: "Another Artist", audio: "https://cdn/x.mp3", url: "https://wavlake.com/track/x1", source: "wavlake", artistNpub: "" },
+        {
+          id: "wavlake:cur",
+          title: "Two Ships",
+          artist: "Ainsley Costello",
+          audio: "https://cdn/2.mp3",
+          url: "https://wavlake.com/track/cur",
+          source: "wavlake",
+          artistNpub: "",
+        },
+        {
+          id: "wavlake:o1",
+          title: "Old Song",
+          artist: "Ainsley Costello",
+          audio: "https://cdn/o.mp3",
+          cover: "https://img/o.jpg",
+          url: "https://wavlake.com/track/o1",
+          source: "wavlake",
+          artistNpub: "",
+        },
+        {
+          id: "wavlake:x1",
+          title: "Someone Else",
+          artist: "Another Artist",
+          audio: "https://cdn/x.mp3",
+          url: "https://wavlake.com/track/x1",
+          source: "wavlake",
+          artistNpub: "",
+        },
       ],
     });
     const next = await moreFromArtist({ id: "wavlake:cur", artist: "Ainsley Costello" });
     expect(catalogueMock).toHaveBeenCalledWith("Ainsley Costello");
     expect(next.map((t) => t.title)).toEqual(["Old Song"]);
     // The bar's title link stays in Brainstorm: the artist's music here, never the Wavlake site.
-    expect(next[0]).toMatchObject({ id: "wavlake:o1", src: "https://cdn/o.mp3", href: "/?q=Ainsley%20Costello&t=music" });
+    expect(next[0]).toMatchObject({
+      id: "wavlake:o1",
+      src: "https://cdn/o.mp3",
+      href: "/?q=Ainsley%20Costello&t=music",
+    });
   });
 
   it("nothing to go on, or a source that is down, is an empty list", async () => {
@@ -59,7 +122,15 @@ describe("moreFromArtist", () => {
 // artist opens the artist here: their profile when they linked a Nostr key,
 // else their music on the Music tab.
 describe("in-app destinations for Wavlake", () => {
-  const song = (artistNpub: string) => ({ id: "wavlake:1", title: "Two Ships", artist: "Ainsley Costello", audio: "https://cdn/1.mp3", url: "https://wavlake.com/track/1", source: "wavlake" as const, artistNpub });
+  const song = (artistNpub: string) => ({
+    id: "wavlake:1",
+    title: "Two Ships",
+    artist: "Ainsley Costello",
+    audio: "https://cdn/1.mp3",
+    url: "https://wavlake.com/track/1",
+    source: "wavlake" as const,
+    artistNpub,
+  });
   it("a song by an artist with a linked key opens their Brainstorm profile", () => {
     const npub = "npub13qrrw2h4z52m7jh0spefrwtysl4psfkfv6j4j672se5hkhvtyw7qu0almy";
     expect(wavlakeSongHref(song(npub))).toBe(`/p/${npub}`);
@@ -68,7 +139,21 @@ describe("in-app destinations for Wavlake", () => {
     expect(wavlakeSongHref(song(""))).toBe("/?q=Ainsley%20Costello&t=music");
   });
   it("an artist likewise — never the Wavlake site", () => {
-    expect(wavlakeArtistHref({ id: "a1", name: "NOVA Sound System", url: "https://wavlake.com/nova-sound-system", artistNpub: "" })).toBe("/?q=NOVA%20Sound%20System&t=music");
-    expect(wavlakeArtistHref({ id: "a2", name: "X", url: "https://wavlake.com/x", artistNpub: "npub13qrrw2h4z52m7jh0spefrwtysl4psfkfv6j4j672se5hkhvtyw7qu0almy" })).toMatch(/^\/p\/npub1/);
+    expect(
+      wavlakeArtistHref({
+        id: "a1",
+        name: "NOVA Sound System",
+        url: "https://wavlake.com/nova-sound-system",
+        artistNpub: "",
+      }),
+    ).toBe("/?q=NOVA%20Sound%20System&t=music");
+    expect(
+      wavlakeArtistHref({
+        id: "a2",
+        name: "X",
+        url: "https://wavlake.com/x",
+        artistNpub: "npub13qrrw2h4z52m7jh0spefrwtysl4psfkfv6j4j672se5hkhvtyw7qu0almy",
+      }),
+    ).toMatch(/^\/p\/npub1/);
   });
 });

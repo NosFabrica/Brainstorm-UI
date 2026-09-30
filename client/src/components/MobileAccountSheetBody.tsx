@@ -7,12 +7,16 @@ import type { AccountDisplay } from "@/accounts/display";
 export function MobileAccountSheetBody({ user, onLogout }: { user: AccountDisplay; onLogout: () => void }) {
   const open = useAccountSheetOpen();
   const isAdmin = user.isAdmin;
-  const { onNavigate, onInvite, onRequestLogout, onRequestRemove, modals } = useAccountMenu(user, onLogout, closeAccountSheet);
+  const { onNavigate, onInvite, onRequestLogout, onRequestRemove, modals } = useAccountMenu(
+    user,
+    onLogout,
+    closeAccountSheet,
+  );
 
   return (
     <>
       <Drawer open={open} onOpenChange={setAccountSheet}>
-        <DrawerContent className="border-brand-accent/20 dark:border-white/10 bg-white/90 dark:bg-slate-950/95 backdrop-blur-xl">
+        <DrawerContent className="border-brand-accent/20 bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95">
           <DrawerTitle className="sr-only">Your account</DrawerTitle>
           {/* Brand-tint wash to match the desktop menu's frosted surface. */}
           <div className="pointer-events-none absolute inset-0 rounded-t-[10px] bg-gradient-to-br from-brand-deep/[0.05] to-brand-accent/[0.07]" />

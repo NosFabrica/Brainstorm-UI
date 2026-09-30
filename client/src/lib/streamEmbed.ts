@@ -17,7 +17,8 @@ export function streamEmbedUrl(streaming: string, parentHost: string): string | 
 
   if (host === "twitch.tv") {
     // Only a channel page has a live player: twitch.tv/<channel>.
-    if (segments.length !== 1 || ["videos", "directory", "p", "settings"].includes(segments[0].toLowerCase())) return null;
+    if (segments.length !== 1 || ["videos", "directory", "p", "settings"].includes(segments[0].toLowerCase()))
+      return null;
     return `https://player.twitch.tv/?channel=${encodeURIComponent(segments[0])}&parent=${encodeURIComponent(parentHost)}&autoplay=true&muted=false`;
   }
   if (host === "kick.com") {
@@ -59,6 +60,7 @@ export function replayEmbedUrl(recording: string): string | null {
     if (segments[0] === "watch") id = u.searchParams.get("v");
     else if (["live", "embed", "shorts", "v"].includes(segments[0] ?? "")) id = segments[1] ?? null;
   }
-  if (id && /^[\w-]{6,}$/.test(id)) return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+  if (id && /^[\w-]{6,}$/.test(id))
+    return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
   return null;
 }

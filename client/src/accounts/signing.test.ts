@@ -5,7 +5,7 @@ import { PrivateKeySigner } from "applesauce-signers";
 import { generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
 
 import { LocalAccount } from "./local-account";
-import type { BrainstormAccount } from "./metadata";
+import type { AccountMetadata, BrainstormAccount } from "./metadata";
 import { isUnlockCancelled, UnlockCancelled } from "./local-signer";
 import {
   activeAccount,
@@ -21,16 +21,13 @@ import { RemoteSignerTimeoutError } from "./remote-signer";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 /** An Account that signs without asking — an extension or a bunker. */
-class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, any> {
+class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
   static readonly type = "test-always-signable";
 }
 
 function signableAccount(): BrainstormAccount {
   const secretKey = generateSecretKey();
-  const account = new AlwaysSignableAccount(
-    getPublicKey(secretKey),
-    new PrivateKeySigner(secretKey),
-  );
+  const account = new AlwaysSignableAccount(getPublicKey(secretKey), new PrivateKeySigner(secretKey));
   account.metadata = { remembered: true };
   return account as unknown as BrainstormAccount;
 }
@@ -56,6 +53,33 @@ describe("signing as an account", () => {
 
     expect(event.pubkey).toBe(account.pubkey);
     expect(verifyEvent(event)).toBe(true);
+  });
+
+  it("stamps our client tag exactly once, replacing any other", async () => {
+    const account = signableAccount();
+
+    const event = await signAs(account, {
+      kind: 3,
+      tags: [
+        ["p", "x"],
+        ["client", "Other"],
+      ],
+      content: "",
+    });
+
+    expect(event.tags).toEqual([
+      ["p", "x"],
+      ["client", "Brainstorm"],
+    ]);
+  });
+
+  it("leaves auth proofs untagged: they are never published", async () => {
+    const account = signableAccount();
+
+    for (const kind of [22242, 24242, 27235]) {
+      const event = await signAs(account, { kind, tags: [["u", "https://x"]], content: "" });
+      expect(event.tags).toEqual([["u", "https://x"]]);
+    }
   });
 
   it("defaults created_at to now, and lets a caller pin it", async () => {
@@ -91,7 +115,7 @@ describe("signing as an account", () => {
   // were signed by whatever extension happened to be installed.
   it("never reaches for window.nostr when the account holds its own key", async () => {
     const extensionKey = generateSecretKey();
-    (globalThis as any).window = {
+    (globalThis as { window?: unknown }).window = {
       nostr: {
         getPublicKey: async () => getPublicKey(extensionKey),
         signEvent: async () => {
@@ -107,7 +131,7 @@ describe("signing as an account", () => {
       expect(event.pubkey).toBe(account.pubkey);
       expect(event.pubkey).not.toBe(getPublicKey(extensionKey));
     } finally {
-      delete (globalThis as any).window;
+      delete (globalThis as { window?: unknown }).window;
     }
   });
 });

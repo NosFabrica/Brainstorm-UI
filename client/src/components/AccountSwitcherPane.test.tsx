@@ -37,8 +37,7 @@ function identity(overrides: Partial<PickerIdentity> = {}): PickerIdentity {
   };
 }
 
-const bob = () =>
-  identity({ pubkey: "b".repeat(64), npub: "npub1bob4t7z", name: "Bob", rows: [row("bob-key")] });
+const bob = () => identity({ pubkey: "b".repeat(64), npub: "npub1bob4t7z", name: "Bob", rows: [row("bob-key")] });
 
 function renderPane(identities: PickerIdentity[], props: Record<string, unknown> = {}) {
   return renderWithProviders(

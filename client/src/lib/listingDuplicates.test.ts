@@ -7,7 +7,14 @@ import { collapseDuplicateListings } from "./listingDuplicates";
 const seller = "6".repeat(64);
 const other = "7".repeat(64);
 const ev = (id: string, pubkey: string, title: string, extra: string[][] = [], created_at = 1_700_000_000) => ({
-  event: { id, pubkey, kind: 30402, created_at, tags: [["d", id], ["title", title], ["price", "12000", "sats"], ...extra], content: "" },
+  event: {
+    id,
+    pubkey,
+    kind: 30402,
+    created_at,
+    tags: [["d", id], ["title", title], ["price", "12000", "sats"], ...extra],
+    content: "",
+  },
 });
 const conduit = ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"];
 

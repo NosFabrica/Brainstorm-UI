@@ -30,8 +30,8 @@ export const DEFAULT_VERIFIED_LINE = 0.02;
 // `app/core/tier_thresholds.py` on the backend. Fixed, not preset-driven —
 // the preset moves the verified line under them, which is the server's call.
 export const TIER_THRESHOLDS = {
-  high: 0.50,
-  medium_high: 0.20,
+  high: 0.5,
+  medium_high: 0.2,
   medium: 0.07,
 } as const;
 
@@ -103,7 +103,9 @@ export function presetToBackend(preset: TrustPreset): "PERMISSIVE" | "DEFAULT" |
 // one's filter setting.
 function scopedKey(): string {
   let who = "anon";
-  try { who = activePubkey() || "anon"; } catch {}
+  try {
+    who = activePubkey() || "anon";
+  } catch {}
   return `${STORAGE_KEY}:${who}`;
 }
 

@@ -49,10 +49,10 @@ export function UserResultRow({
 
   return (
     <div
-      className={`flex items-center gap-2.5 p-2 rounded-lg border transition-all ${
+      className={`flex items-center gap-2.5 rounded-lg border p-2 transition-all ${
         active
           ? "border-brand-accent/40 bg-brand-primary/10 dark:bg-brand-primary/10"
-          : "border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80"
+          : "border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/80"
       } ${clickable ? "cursor-pointer hover:border-brand-accent/30 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10" : ""}`}
       onClick={onClick}
       role={clickable ? "button" : undefined}
@@ -73,29 +73,22 @@ export function UserResultRow({
         <img
           src={picture}
           alt=""
-          className="h-8 w-8 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-800"
+          className="h-8 w-8 shrink-0 rounded-full border border-slate-200 object-cover dark:border-slate-800"
           onError={() => setImgOk(false)}
         />
       ) : (
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-accent/20 to-brand-deep/20 flex items-center justify-center shrink-0">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-accent/20 to-brand-deep/20">
           <User className="h-4 w-4 text-brand-deep/60" />
         </div>
       )}
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
-          {name || "Unknown"}
-        </p>
-        <p
-          className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate"
-          title={resolvedNpub}
-        >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{name || "Unknown"}</p>
+        <p className="truncate font-mono text-[10px] text-slate-400 dark:text-slate-500" title={resolvedNpub}>
           {shortNpub(resolvedNpub)}
         </p>
-        {subtitle && (
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{subtitle}</p>
-        )}
+        {subtitle && <p className="truncate text-[10px] text-slate-400 dark:text-slate-500">{subtitle}</p>}
       </div>
-      {trailing && <div className="shrink-0 flex items-center gap-1">{trailing}</div>}
+      {trailing && <div className="flex shrink-0 items-center gap-1">{trailing}</div>}
     </div>
   );
 }

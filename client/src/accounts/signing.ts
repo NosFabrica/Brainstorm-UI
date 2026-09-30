@@ -84,9 +84,21 @@ export function requireActiveAccount(): BrainstormAccount {
   return account;
 }
 
-/** Sign as `account`. A Locked local key unlocks on the way through. */
+/** NIP-89: which app published an event. */
+const CLIENT_TAG = ["client", "Brainstorm"];
+
+/** Auth proofs (NIP-98, Blossom, NIP-42) are never published, so they carry no client tag. */
+const UNTAGGED_KINDS = new Set([22242, 24242, 27235]);
+
+/** Replace any existing client tag with ours. */
+function withClientTag(tags: string[][]): string[][] {
+  return [...tags.filter((t) => t[0] !== "client"), CLIENT_TAG];
+}
+
+/** Sign as `account`, stamped with our client tag. A Locked local key unlocks on the way through. */
 export function signAs(account: BrainstormAccount, template: UnsignedTemplate): Promise<NostrEvent> {
-  return account.signEvent({ created_at: Math.floor(Date.now() / 1000), ...template });
+  const tags = UNTAGGED_KINDS.has(template.kind) ? template.tags : withClientTag(template.tags);
+  return account.signEvent({ created_at: Math.floor(Date.now() / 1000), ...template, tags });
 }
 
 /**
@@ -94,10 +106,7 @@ export function signAs(account: BrainstormAccount, template: UnsignedTemplate): 
  * `window.nostr` — reaching for the extension directly silently fails for a
  * remote signer, and signs as the wrong identity when both are present.
  */
-export async function encryptToSelf(
-  account: BrainstormAccount,
-  plaintext: string,
-): Promise<string | null> {
+export async function encryptToSelf(account: BrainstormAccount, plaintext: string): Promise<string | null> {
   try {
     return (await account.nip44?.encrypt(account.pubkey, plaintext)) ?? null;
   } catch (error) {
@@ -109,10 +118,7 @@ export async function encryptToSelf(
 }
 
 /** Inverse of `encryptToSelf`. Null when this Account can't read it. */
-export async function decryptFromSelf(
-  account: BrainstormAccount,
-  ciphertext: string,
-): Promise<string | null> {
+export async function decryptFromSelf(account: BrainstormAccount, ciphertext: string): Promise<string | null> {
   try {
     return (await account.nip44?.decrypt(account.pubkey, ciphertext)) ?? null;
   } catch (error) {

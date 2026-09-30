@@ -108,8 +108,7 @@ export function unlockFailureOf(error: unknown): UnlockFailure {
 export type RestoreFailure = "empty" | "unreadable" | "no-password" | UnlockFailure;
 
 export type RestoreResult =
-  | { ok: true; secretKey: Uint8Array; ncryptsec?: string }
-  | { ok: false; reason: RestoreFailure };
+  { ok: true; secretKey: Uint8Array; ncryptsec?: string } | { ok: false; reason: RestoreFailure };
 
 /**
  * Open whatever someone pasted to get back in: a raw nsec, or an encrypted

@@ -15,7 +15,19 @@ import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
 import { findWavlakeArtist, wavlakeArtistTracks, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { Link, useLocation } from "wouter";
-import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, Search, ShoppingBag, Users, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  Hash,
+  Package,
+  Search,
+  ShoppingBag,
+  Users,
+  Zap,
+} from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { readFilters, scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
 import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
@@ -24,18 +36,30 @@ import { usePersonContent } from "@/hooks/usePersonContent";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin, useTierRing, TierWordChip, useQuietTrustChrome, QuietTrustChrome } from "@/components/score/VerificationCoin";
+import {
+  VerificationCoin,
+  useTierRing,
+  TierWordChip,
+  useQuietTrustChrome,
+  QuietTrustChrome,
+} from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { FlaggedChip, FollowedByLine, PanelIdentityChip, PanelVouches } from "@/components/search/EndorsementLine";
 import { ZapModal } from "@/components/ZapModal";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
-import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
-import { EventDateTile } from "@/components/share/EventDateTile";
+import { parseCalendarEvent } from "@/lib/calendarEvent";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EventRow } from "@/components/search/EventRow";
-import { fetchNipPage, searchStream, suggestProfiles, type SearchHit, type SearchPov, type SearchSnapshot } from "@/services/search";
+import {
+  fetchNipPage,
+  searchStream,
+  suggestProfiles,
+  type SearchHit,
+  type SearchPov,
+  type SearchSnapshot,
+} from "@/services/search";
 import { useConnectionSpeed } from "@/lib/connection";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
@@ -48,11 +72,15 @@ function AppRailRow({ event }: { event: NostrEvent }) {
     <li>
       <Link
         href={eventPath(event)}
-        className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+        className="-mx-1.5 flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
         data-testid={`apps-panel-app-${event.id}`}
       >
         <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-          {icon ? <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Package className="h-4 w-4 text-slate-400" />}
+          {icon ? (
+            <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" />
+          ) : (
+            <Package className="h-4 w-4 text-slate-400" />
+          )}
         </span>
         <span className="min-w-0">
           <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{name}</span>
@@ -232,7 +260,11 @@ function KnowledgePanelBody({
       .then((events) => {
         if (cancelled) return;
         // Products, not listings: a shirt in five sizes is one row.
-        setPersonListings(productsFromEvents(events as NostrEvent[]).slice(0, 3).map((p) => p.group));
+        setPersonListings(
+          productsFromEvents(events as NostrEvent[])
+            .slice(0, 3)
+            .map((p) => p.group),
+        );
       })
       .catch(() => {
         if (!cancelled) setPersonListings([]);
@@ -240,6 +272,7 @@ function KnowledgePanelBody({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
   }, [person?.pubkey]);
   useEffect(() => {
     if (!person) {
@@ -257,6 +290,7 @@ function KnowledgePanelBody({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
   }, [person?.pubkey]);
   useEffect(() => {
     if (!person) {
@@ -277,6 +311,7 @@ function KnowledgePanelBody({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
   }, [person?.pubkey]);
 
   useEffect(() => {
@@ -295,7 +330,10 @@ function KnowledgePanelBody({
     fetchRecentByKinds(person.pubkey, [TRACK_KIND], 6)
       .then((events) => {
         if (cancelled) return;
-        const native = events.map(parseTrack).filter((tr): tr is Track => tr !== null).slice(0, 3);
+        const native = events
+          .map(parseTrack)
+          .filter((tr): tr is Track => tr !== null)
+          .slice(0, 3);
         setPersonTracks(native);
         if (native.length === 0) return wavlakeFallback();
       })
@@ -309,6 +347,7 @@ function KnowledgePanelBody({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
   }, [person?.pubkey]);
 
   // Everything the panel knows is about THIS query: a new one starts blank.
@@ -391,16 +430,14 @@ function KnowledgePanelBody({
     const cancelTopic = tag
       ? searchStream(`#${tag}`, { tab: "notes", pov, userPubkey, limit: 24 }, (snapshot) => {
           if (!alive || !snapshot.eose) return;
-          const fresh = snapshot.hits.some(
-            (h) => h.event.created_at >= Date.now() / 1000 - TOPIC_FRESH_SECONDS,
-          );
+          const fresh = snapshot.hits.some((h) => h.event.created_at >= Date.now() / 1000 - TOPIC_FRESH_SECONDS);
           if (snapshot.hits.length >= TOPIC_MIN_NOTES && fresh) setTopicHits(snapshot.hits);
         })
       : null;
     // Apps whose NAME matches the words ride the rail too (Google's app
     // sidebar) — fuzzy strays with unrelated names are filtered out.
     const q = norm(query);
-    const cancelApps = searchStream(query, { tab: "apps", pov, userPubkey, limit: 6 }, (snapshot) => {
+    const cancelApps = searchStream(query, { tab: "apps", pov, userPubkey, limit: 6, band: true }, (snapshot) => {
       if (!alive || !snapshot.eose) return;
       const matched = snapshot.hits.filter((h) => {
         const name = norm(h.event.tags.find((t) => t[0] === "name")?.[1] ?? "");
@@ -425,11 +462,15 @@ function KnowledgePanelBody({
     if ((topicEvents?.length ?? 0) >= EVENTS_SHOWN) return;
     if (hasSections && (sectionRow.length >= EVENTS_SHOWN || !eventsSettled)) return;
     let alive = true;
-    const cancel = searchStream(`${query} sort:recent`, { tab: "events", pov, userPubkey, limit: 60 }, (snapshot) => {
-      if (!alive || !snapshot.eose) return;
-      const upcoming = eventsRow(snapshot.hits, query);
-      if (upcoming.length > 0) setTopicEvents(upcoming);
-    });
+    const cancel = searchStream(
+      `${query} sort:recent`,
+      { tab: "events", pov, userPubkey, limit: 60, band: true },
+      (snapshot) => {
+        if (!alive || !snapshot.eose) return;
+        const upcoming = eventsRow(snapshot.hits, query);
+        if (upcoming.length > 0) setTopicEvents(upcoming);
+      },
+    );
     return () => {
       alive = false;
       cancel();
@@ -453,7 +494,11 @@ function KnowledgePanelBody({
   // a live stream or replay first, then whichever of Latest, Music or Selling
   // has the newest item — and the rest behind one quiet "More from" row.
   const hasLive = !!(personStreams.live || personStreams.upcoming || personStreams.replay);
-  const mediaAt = Math.max(0, ...latestVideos(personRecent).map((v) => v.at), ...fountainLinksOf(personRecent).map((f) => f.event.created_at));
+  const mediaAt = Math.max(
+    0,
+    ...latestVideos(personRecent).map((v) => v.at),
+    ...fountainLinksOf(personRecent).map((f) => f.event.created_at),
+  );
   const sellingAt = Math.max(0, ...personListings.map((g) => g.primary.createdAt ?? 0));
   const musicAt = Math.max(0, ...personTracks.map((t) => t.createdAt), personWavlake ? 1 : 0);
   const blockCandidates = [
@@ -484,109 +529,138 @@ function KnowledgePanelBody({
   const renderBlock = (key: string) => {
     if (!person) return null;
     if (key === "live")
-      return <PanelLive {...personStreams} author={{ name: getDisplayLabel(person), npub: person.npub, picture: person.picture ?? null, score01: person.wotRank ?? scoreOf(person.pubkey) ?? null }} />;
+      return (
+        <PanelLive
+          {...personStreams}
+          author={{
+            name: getDisplayLabel(person),
+            npub: person.npub,
+            picture: person.picture ?? null,
+            score01: person.wotRank ?? scoreOf(person.pubkey) ?? null,
+          }}
+        />
+      );
     if (key === "media") return <PanelLatestMedia person={person} events={personRecent} />;
     if (key === "selling")
       return (
         <>
-    {personListings.length > 0 && (
-      <div className="mt-3" data-testid="person-selling">
-        <div className="mb-1 flex items-center justify-between">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Selling</span>
-          <Link href={`/p/${person.npub}/selling`} onClick={() => onOpen?.(person)} className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline" data-testid="person-selling-more">
-            All →
-          </Link>
-        </div>
-        <div className="space-y-1">
-          {personListings.map((g) => {
-            const l = g.primary;
-            return (
-            <Link
-              key={l.id}
-              href={eventPath({ id: l.id, pubkey: l.pubkey })}
-              className="flex items-center gap-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 hover:border-brand-accent/40 transition-colors"
-              data-testid={`person-selling-item-${l.id}`}
-            >
-              <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-md bg-slate-100 dark:bg-slate-800">
-                {l.images[0] ? <img src={l.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" /> : <ShoppingBag className="absolute inset-0 m-auto h-4 w-4 text-slate-400" />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{g.title}</span>
-                <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                  {l.price ? formatListingPrice(l.price) : "Price on request"}
-                  {g.options.length > 1 ? ` · ${g.options.length} options` : l.location ? ` · ${l.location}` : ""}
+          {personListings.length > 0 && (
+            <div className="mt-3" data-testid="person-selling">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  Selling
                 </span>
-              </span>
-            </Link>
-            );
-          })}
-        </div>
-      </div>
-    )}
+                <Link
+                  href={`/p/${person.npub}/selling`}
+                  onClick={() => onOpen?.(person)}
+                  className="text-[11px] font-medium text-brand-deep hover:underline dark:text-brand-link"
+                  data-testid="person-selling-more"
+                >
+                  All →
+                </Link>
+              </div>
+              <div className="space-y-1">
+                {personListings.map((g) => {
+                  const l = g.primary;
+                  return (
+                    <Link
+                      key={l.id}
+                      href={eventPath({ id: l.id, pubkey: l.pubkey })}
+                      className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-1.5 transition-colors hover:border-brand-accent/40 dark:border-slate-800 dark:bg-slate-900"
+                      data-testid={`person-selling-item-${l.id}`}
+                    >
+                      <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-md bg-slate-100 dark:bg-slate-800">
+                        {l.images[0] ? (
+                          <img src={l.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" />
+                        ) : (
+                          <ShoppingBag className="absolute inset-0 m-auto h-4 w-4 text-slate-400" />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">
+                          {g.title}
+                        </span>
+                        <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                          {l.price ? formatListingPrice(l.price) : "Price on request"}
+                          {g.options.length > 1
+                            ? ` · ${g.options.length} options`
+                            : l.location
+                              ? ` · ${l.location}`
+                              : ""}
+                        </span>
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </>
       );
     if (key === "music")
       return (
         <>
-    {(personTracks.length > 0 || personWavlake) && (
-      <div className="mt-3" data-testid="person-music">
-        <div className="mb-1 flex items-center justify-between">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Music</span>
-          {personTracks.length > 0 ? (
-            <Link
-              href={`/p/${person.npub}`}
-              onClick={() => onOpen?.(person)}
-              className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
-              data-testid="person-music-more"
-            >
-              All music →
-            </Link>
-          ) : (
-            <Link
-              href={scopedSearchHref(person.pubkey, "music")}
-              className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
-              data-testid="person-music-more"
-            >
-              All music →
-            </Link>
+          {(personTracks.length > 0 || personWavlake) && (
+            <div className="mt-3" data-testid="person-music">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  Music
+                </span>
+                {personTracks.length > 0 ? (
+                  <Link
+                    href={`/p/${person.npub}`}
+                    onClick={() => onOpen?.(person)}
+                    className="text-[11px] font-medium text-brand-deep hover:underline dark:text-brand-link"
+                    data-testid="person-music-more"
+                  >
+                    All music →
+                  </Link>
+                ) : (
+                  <Link
+                    href={scopedSearchHref(person.pubkey, "music")}
+                    className="text-[11px] font-medium text-brand-deep hover:underline dark:text-brand-link"
+                    data-testid="person-music-more"
+                  >
+                    All music →
+                  </Link>
+                )}
+              </div>
+              <div className="space-y-1">
+                {personTracks.map((tr) => (
+                  <EmbeddedTrackCard
+                    key={tr.id}
+                    id={tr.id}
+                    title={tr.title}
+                    artist={tr.artist ?? person.displayName ?? person.name}
+                    cover={tr.cover}
+                    audio={tr.audio}
+                    genre={tr.genre}
+                    durationSec={tr.durationSec}
+                    href={eventPath({ id: tr.id, pubkey: tr.pubkey })}
+                    artistHref={`/p/${person.npub}`}
+                    artistPubkey={tr.pubkey}
+                  />
+                ))}
+                {personTracks.length === 0 &&
+                  personWavlake?.songs.map((song) => (
+                    <EmbeddedTrackCard
+                      key={song.id}
+                      id={song.id}
+                      title={song.title}
+                      artist={song.artist}
+                      cover={song.cover}
+                      audio={song.audio}
+                      durationSec={song.durationSec}
+                      sourceLabel="Wavlake"
+                      sourceHost="wavlake.com"
+                      onOpen={() => navigate(`/p/${person.npub}`)}
+                      pageUrl={`/p/${person.npub}`}
+                      artistHref={`/p/${person.npub}`}
+                    />
+                  ))}
+              </div>
+            </div>
           )}
-        </div>
-        <div className="space-y-1">
-          {personTracks.map((tr) => (
-            <EmbeddedTrackCard
-              key={tr.id}
-              id={tr.id}
-              title={tr.title}
-              artist={tr.artist ?? person.displayName ?? person.name}
-              cover={tr.cover}
-              audio={tr.audio}
-              genre={tr.genre}
-              durationSec={tr.durationSec}
-              href={eventPath({ id: tr.id, pubkey: tr.pubkey })}
-              artistHref={`/p/${person.npub}`}
-              artistPubkey={tr.pubkey}
-            />
-          ))}
-          {personTracks.length === 0 &&
-            personWavlake?.songs.map((song) => (
-              <EmbeddedTrackCard
-                key={song.id}
-                id={song.id}
-                title={song.title}
-                artist={song.artist}
-                cover={song.cover}
-                audio={song.audio}
-                durationSec={song.durationSec}
-                sourceLabel="Wavlake"
-                sourceHost="wavlake.com"
-                onOpen={() => navigate(`/p/${person.npub}`)}
-                pageUrl={`/p/${person.npub}`}
-                artistHref={`/p/${person.npub}`}
-              />
-            ))}
-        </div>
-      </div>
-    )}
         </>
       );
     return null;
@@ -603,9 +677,7 @@ function KnowledgePanelBody({
     navigate(`/p/${person.npub}`);
   };
   // Topic voices wear the same rings as every avatar in the app.
-  const voiceScoreOf = useAuthorScores(
-    topicHits ? [...new Set(topicHits.map((h) => h.event.pubkey))].slice(0, 8) : [],
-  );
+  const voiceScoreOf = useAuthorScores(topicHits ? [...new Set(topicHits.map((h) => h.event.pubkey))].slice(0, 8) : []);
 
   let main: JSX.Element | null = null;
   if (nipPage) {
@@ -615,7 +687,7 @@ function KnowledgePanelBody({
     const excerpt = specExcerpt(nipPage.content);
     main = (
       <aside
-        className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5`}
+        className={`w-full rounded-2xl border border-slate-100 bg-white/80 p-4 dark:border-slate-800/60 dark:bg-slate-900/80 sm:p-5`}
         data-testid="search-nip-panel"
       >
         <div className="flex items-center gap-2.5">
@@ -623,7 +695,10 @@ function KnowledgePanelBody({
             <BookOpen className="h-5 w-5 text-brand-primary" />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+            <p
+              className="truncate text-base font-bold text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
               {heading}
             </p>
             <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
@@ -632,13 +707,13 @@ function KnowledgePanelBody({
           </div>
         </div>
         {excerpt && (
-          <p className="mt-2.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300 break-words line-clamp-5">
+          <p className="mt-2.5 line-clamp-5 break-words text-xs leading-relaxed text-slate-600 dark:text-slate-300">
             {excerpt}
           </p>
         )}
         <Link
           href={eventPath(nipPage)}
-          className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+          className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
           data-testid="nip-panel-read"
         >
           Read the spec <ArrowRight className="h-3 w-3" />
@@ -689,16 +764,25 @@ function KnowledgePanelBody({
     const gutter = "mt-1 h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500";
     main = (
       <aside
-        className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5`}
+        className={`w-full rounded-2xl border border-slate-100 bg-white/80 p-4 dark:border-slate-800/60 dark:bg-slate-900/80 sm:p-5`}
         data-testid="search-topic-panel"
       >
-        <Link href={`/t/${encodeURIComponent(tag)}`} className="group flex items-center gap-2.5 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" data-testid="topic-panel-feed" title={`Open the #${tag} feed`}>
+        <Link
+          href={`/t/${encodeURIComponent(tag)}`}
+          className="group flex items-center gap-2.5 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          data-testid="topic-panel-feed"
+          title={`Open the #${tag} feed`}
+        >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary/10">
             <Hash className="h-5 w-5 text-brand-primary" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-1 truncate text-base font-bold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors" style={{ fontFamily: "var(--font-display)" }}>
-              #{tag} <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400 group-hover:text-brand-primary transition-colors" />
+            <span
+              className="flex items-center gap-1 truncate text-base font-bold text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              #{tag}{" "}
+              <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-colors group-hover:text-brand-primary" />
             </span>
             <span className="block text-[11px] text-slate-500 dark:text-slate-400">
               {daysAgo <= 1 ? "Active today" : daysAgo <= 7 ? "Active this week" : "Topic on Nostr"}
@@ -708,10 +792,10 @@ function KnowledgePanelBody({
         {/* What "active" means, in numbers the probe already paid for. */}
         <p className="mt-3 text-xs text-slate-600 dark:text-slate-300" data-testid="topic-activity">
           <span className="font-semibold text-slate-900 dark:text-slate-100">
-            {topicHits.length}{topicHits.length >= 24 ? "+" : ""}
+            {topicHits.length}
+            {topicHits.length >= 24 ? "+" : ""}
           </span>{" "}
-          recent notes ·{" "}
-          <span className="font-semibold text-slate-900 dark:text-slate-100">{voiceCount}</span>{" "}
+          recent notes · <span className="font-semibold text-slate-900 dark:text-slate-100">{voiceCount}</span>{" "}
           {voiceCount === 1 ? "voice" : "voices"}
         </p>
         {voices.length > 0 && (
@@ -723,7 +807,7 @@ function KnowledgePanelBody({
                 <li key={v.pubkey}>
                   <Link
                     href={`/p/${v.npub}`}
-                    className="flex items-center gap-2 rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                    className="-mx-1.5 flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
                     data-testid={`topic-voice-${v.pubkey}`}
                   >
                     <Avatar
@@ -756,7 +840,7 @@ function KnowledgePanelBody({
               <li>
                 <Link
                   href={`/?q=${encodeURIComponent(query)}&t=events`}
-                  className="flex items-center gap-1 rounded-lg px-1.5 py-1 -mx-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors"
+                  className="-mx-1.5 flex items-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
                   data-testid="topic-events-more"
                 >
                   More events <ArrowRight className="h-3 w-3" />
@@ -773,7 +857,7 @@ function KnowledgePanelBody({
                 <Link
                   key={r}
                   href={`/?q=${encodeURIComponent(`#${r}`)}`}
-                  className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-deep dark:hover:text-white transition-colors"
+                  className="inline-flex items-center rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600 transition-colors hover:border-brand-accent/40 hover:text-brand-deep dark:border-slate-700 dark:text-slate-300 dark:hover:text-white"
                   data-testid={`topic-related-${r}`}
                 >
                   #{r}
@@ -789,7 +873,9 @@ function KnowledgePanelBody({
     const followers = person.wotFollowers;
     strip = {
       icon: (
-        <Avatar className={`h-8 w-8 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}>
+        <Avatar
+          className={`h-8 w-8 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}
+        >
           {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
           <AvatarFallback className="overflow-hidden">
             <DefaultAvatarImg />
@@ -797,155 +883,172 @@ function KnowledgePanelBody({
         </Avatar>
       ),
       title: getDisplayLabel(person),
-      line: [nip05Status === "invalid" ? undefined : person.nip05?.replace(/^_@/, ""), followers != null ? `${followers.toLocaleString()} followers` : null].filter(Boolean).join(" · ") || "Profile",
+      line:
+        [
+          nip05Status === "invalid" ? undefined : person.nip05?.replace(/^_@/, ""),
+          followers != null ? `${followers.toLocaleString()} followers` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || "Profile",
     };
     main = (
-    <aside
-      role="link"
-      tabIndex={0}
-      aria-label={`Open ${getDisplayLabel(person)}'s profile`}
-      onClick={openProfile}
-      onKeyDown={(ev) => {
-        if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) {
-          ev.preventDefault();
-          openProfile(ev);
-        }
-      }}
-      className="w-full cursor-pointer rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 transition-colors hover:border-slate-200 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-      data-testid="search-knowledge-panel"
-    >
-      <div className="flex items-center gap-3">
-        <div className="relative shrink-0">
-          <Avatar className={`h-14 w-14 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}>
-            {person.picture ? <AvatarImage size="lg" src={person.picture} alt="" className="object-cover" /> : null}
-            <AvatarFallback className="overflow-hidden">
-              <DefaultAvatarImg />
-            </AvatarFallback>
-          </Avatar>
-          {effectiveRank != null && (
-            <VerificationCoin
-              score01={effectiveRank}
-              pov={pov === "mywot" ? "personalized" : "global"}
-              size={22}
-              className={quietChrome ? "sr-only" : "absolute -bottom-1 -right-1"}
-            />
-          )}
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
-            {getDisplayLabel(person)}
-          </p>
-          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-            <TierWordChip score01={effectiveRank} />
-            {followers != null && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 dark:text-slate-400">
-                <Users className="h-2.5 w-2.5" /> {followers.toLocaleString()}
-              </span>
+      <aside
+        role="link"
+        tabIndex={0}
+        aria-label={`Open ${getDisplayLabel(person)}'s profile`}
+        onClick={openProfile}
+        onKeyDown={(ev) => {
+          if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) {
+            ev.preventDefault();
+            openProfile(ev);
+          }
+        }}
+        className="w-full cursor-pointer rounded-2xl border border-slate-100 bg-white/80 p-4 transition-colors hover:border-slate-200 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800/60 dark:bg-slate-900/80 dark:hover:border-slate-700 dark:hover:bg-slate-900 sm:p-5"
+        data-testid="search-knowledge-panel"
+      >
+        <div className="flex items-center gap-3">
+          <div className="relative shrink-0">
+            <Avatar
+              className={`h-14 w-14 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}
+            >
+              {person.picture ? <AvatarImage size="lg" src={person.picture} alt="" className="object-cover" /> : null}
+              <AvatarFallback className="overflow-hidden">
+                <DefaultAvatarImg />
+              </AvatarFallback>
+            </Avatar>
+            {effectiveRank != null && (
+              <VerificationCoin
+                score01={effectiveRank}
+                pov={pov === "mywot" ? "personalized" : "global"}
+                size={22}
+                className={quietChrome ? "sr-only" : "absolute -bottom-1 -right-1"}
+              />
             )}
-            <FlaggedChip pubkey={person.pubkey} testId="person-flagged" />
-            <PanelIdentityChip pubkey={person.pubkey} personal={pov === "mywot"} />
+          </div>
+          <div className="min-w-0">
+            <p
+              className="truncate text-base font-bold text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {getDisplayLabel(person)}
+            </p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+              <TierWordChip score01={effectiveRank} />
+              {followers != null && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                  <Users className="h-2.5 w-2.5" /> {followers.toLocaleString()}
+                </span>
+              )}
+              <FlaggedChip pubkey={person.pubkey} testId="person-flagged" />
+              <PanelIdentityChip pubkey={person.pubkey} personal={pov === "mywot"} />
+            </div>
           </div>
         </div>
-      </div>
-      {/* Identity rows first, right under the name — who this is and how to
+        {/* Identity rows first, right under the name — who this is and how to
           pay them — then the social proof. The person card's order. */}
-      {((person.nip05 && nip05Status !== "invalid") || person.lud16) && (
-        <div className="mt-2.5 space-y-1">
-          {person.nip05 && nip05Status !== "invalid" && (
-            <p
-              className={`flex items-center gap-1 truncate text-xs ${nip05Status === "verified" ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-400"}`}
-              data-testid="person-nip05"
-              data-nip05-status={nip05Status}
-            >
-              {nip05Status === "verified" && <Check className="h-3 w-3 shrink-0" />} {person.nip05.replace(/^_@/, "")}
-            </p>
-          )}
-          {person.lud16 && (
-            // Tap to zap — the public profile's flow, from the panel.
-            <button
-              type="button"
-              onClick={() => setZapOpen(true)}
-              title={`Send a zap to ${person.lud16}`}
-              className="flex max-w-full items-center gap-1 truncate rounded-md text-left text-xs text-slate-500 dark:text-slate-400 hover:text-[#e07f12] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-              data-testid="person-lightning"
-            >
-              <Zap className="h-3 w-3 shrink-0 text-[#F7931A]" /> <span className="truncate">{person.lud16}</span>
-            </button>
-          )}
-        </div>
-      )}
-      {/* Nostr's oldest review: who follows them — the most trusted faces, and
+        {((person.nip05 && nip05Status !== "invalid") || person.lud16) && (
+          <div className="mt-2.5 space-y-1">
+            {person.nip05 && nip05Status !== "invalid" && (
+              <p
+                className={`flex items-center gap-1 truncate text-xs ${nip05Status === "verified" ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-400"}`}
+                data-testid="person-nip05"
+                data-nip05-status={nip05Status}
+              >
+                {nip05Status === "verified" && <Check className="h-3 w-3 shrink-0" />} {person.nip05.replace(/^_@/, "")}
+              </p>
+            )}
+            {person.lud16 && (
+              // Tap to zap — the public profile's flow, from the panel.
+              <button
+                type="button"
+                onClick={() => setZapOpen(true)}
+                title={`Send a zap to ${person.lud16}`}
+                className="flex max-w-full items-center gap-1 truncate rounded-md text-left text-xs text-slate-500 transition-colors hover:text-[#e07f12] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400"
+                data-testid="person-lightning"
+              >
+                <Zap className="h-3 w-3 shrink-0 text-[#F7931A]" /> <span className="truncate">{person.lud16}</span>
+              </button>
+            )}
+          </div>
+        )}
+        {/* Nostr's oldest review: who follows them — the most trusted faces, and
           how many verified accounts in all. Then the trust reviews proper. */}
-      <FollowedByLine pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} testId="person-followed-by" className="mt-2.5" />
-      {/* What they publish, one tap to each — the tab switches in place under a scope. */}
-      <PersonContentChips
-        pubkey={person.pubkey}
-        name={getDisplayLabel(person)}
-        content={personContent.get(person.pubkey)}
-        onPick={onTab ? (c) => onTab(c.tab) : undefined}
-        className="mt-2.5"
-        testId="panel-content-chips"
-      />
-      <PanelVouches pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} />
-      {/* The two freshest blocks — a live stream or replay first — then one
+        <FollowedByLine
+          pubkey={person.pubkey}
+          npub={person.npub}
+          personal={pov === "mywot"}
+          testId="person-followed-by"
+          className="mt-2.5"
+        />
+        {/* What they publish, one tap to each — the tab switches in place under a scope. */}
+        <PersonContentChips
+          pubkey={person.pubkey}
+          name={getDisplayLabel(person)}
+          content={personContent.get(person.pubkey)}
+          onPick={onTab ? (c) => onTab(c.tab) : undefined}
+          className="mt-2.5"
+          testId="panel-content-chips"
+        />
+        <PanelVouches pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} />
+        {/* The two freshest blocks — a live stream or replay first — then one
           quiet row for the rest. Benjamin, after keeping every block: "I think
           that is too much"; the team: "all very busy now". */}
-      {chosen.map((key) => (
-        <div key={key}>{renderBlock(key)}</div>
-      ))}
-      {foldedKeys.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setMoreOpen((v) => !v)}
-          aria-expanded={moreOpen}
-          className="mt-3 flex w-full items-center justify-between rounded-lg px-1 py-1.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-          data-testid="panel-more-toggle"
-        >
-          <span>More from {getDisplayLabel(person)}</span>
-          <span className="flex items-center gap-1 text-[11px]">
-            {foldedKeys.length}
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
-          </span>
-        </button>
-      )}
-      {moreOpen &&
-        foldedKeys.map((key) => (
-          <div key={key} data-testid="panel-more">
-            {renderBlock(key)}
-          </div>
+        {chosen.map((key) => (
+          <div key={key}>{renderBlock(key)}</div>
         ))}
-      {person.about && (
-        <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300 break-words line-clamp-4">
-          {person.about}
-        </p>
-      )}
-      <Link
-        href={`/p/${person.npub}`}
-        onClick={() => onOpen?.(person)}
-        className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
-        data-testid="knowledge-panel-profile"
-      >
-        Full profile & trust deep-dive <ArrowRight className="h-3 w-3" />
-      </Link>
-      {/* Everything they published, searchable — the door X and YouTube put
+        {foldedKeys.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setMoreOpen((v) => !v)}
+            aria-expanded={moreOpen}
+            className="mt-3 flex w-full items-center justify-between rounded-lg px-1 py-1.5 text-left text-xs font-medium text-slate-500 transition-colors hover:text-brand-link focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400"
+            data-testid="panel-more-toggle"
+          >
+            <span>More from {getDisplayLabel(person)}</span>
+            <span className="flex items-center gap-1 text-[11px]">
+              {foldedKeys.length}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
+            </span>
+          </button>
+        )}
+        {moreOpen &&
+          foldedKeys.map((key) => (
+            <div key={key} data-testid="panel-more">
+              {renderBlock(key)}
+            </div>
+          ))}
+        {person.about && (
+          <p className="mt-2 line-clamp-4 break-words text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+            {person.about}
+          </p>
+        )}
+        <Link
+          href={`/p/${person.npub}`}
+          onClick={() => onOpen?.(person)}
+          className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+          data-testid="knowledge-panel-profile"
+        >
+          Full profile & trust deep-dive <ArrowRight className="h-3 w-3" />
+        </Link>
+        {/* Everything they published, searchable — the door X and YouTube put
           on a profile, here where the search already is. Once the search IS
           scoped to them, the box is that door. */}
-      {scopeOf(query)?.pubkey !== person.pubkey && (
-        <Link
-          href={scopedSearchHref(person.pubkey, "everything")}
-          className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors"
-          data-testid="knowledge-panel-search"
-        >
-          <Search className="h-3.5 w-3.5" /> Search their posts
-        </Link>
-      )}
-    </aside>
+        {scopeOf(query)?.pubkey !== person.pubkey && (
+          <Link
+            href={scopedSearchHref(person.pubkey, "everything")}
+            className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
+            data-testid="knowledge-panel-search"
+          >
+            <Search className="h-3.5 w-3.5" /> Search their posts
+          </Link>
+        )}
+      </aside>
     );
   }
 
   const apps = appHits && (
     <aside
-      className="w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5"
+      className="w-full rounded-2xl border border-slate-100 bg-white/80 p-4 dark:border-slate-800/60 dark:bg-slate-900/80 sm:p-5"
       data-testid="search-apps-panel"
     >
       <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Apps</p>
@@ -976,12 +1079,17 @@ function KnowledgePanelBody({
           type="button"
           onClick={() => setExpanded(true)}
           aria-expanded={false}
-          className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 px-3.5 py-2.5 text-left transition-colors hover:border-slate-200 dark:hover:border-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white/80 px-3.5 py-2.5 text-left transition-colors hover:border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800/60 dark:bg-slate-900/80 dark:hover:border-slate-700"
           data-testid="panel-strip"
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-primary/10">{strip!.icon}</span>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-primary/10">
+            {strip!.icon}
+          </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+            <span
+              className="block truncate text-sm font-bold text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
               {strip!.title}
             </span>
             <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">{strip!.line}</span>

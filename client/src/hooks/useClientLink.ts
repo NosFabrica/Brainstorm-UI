@@ -24,7 +24,10 @@ export function useClientLink(ref: ClientRef | null): ClientLinkState {
   // The answer is kept with the key it answers. When the ref changes, the render
   // that sees the new key must not show the old link's entity for a frame while
   // the effect catches up (the useNip05 pattern).
-  const [held, setHeld] = useState<{ key: string | null; state: ClientLinkState }>(() => ({ key, state: initial(ref) }));
+  const [held, setHeld] = useState<{ key: string | null; state: ClientLinkState }>(() => ({
+    key,
+    state: initial(ref),
+  }));
   useEffect(() => {
     const start = initial(ref);
     setHeld({ key, state: start });

@@ -157,7 +157,7 @@ function VouchComposer({
       className={`flex-1 rounded-xl border px-3 py-2 text-left transition-colors ${
         type === t
           ? "border-brand-primary/50 bg-brand-primary/5 dark:bg-brand-primary/15"
-          : "border-slate-200 dark:border-slate-700 hover:border-brand-accent/40"
+          : "border-slate-200 hover:border-brand-accent/40 dark:border-slate-700"
       }`}
       data-testid={`vouch-type-${t}`}
     >
@@ -169,7 +169,10 @@ function VouchComposer({
   );
 
   return (
-    <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 p-3" data-testid="vouch-composer">
+    <div
+      className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-800 dark:bg-slate-900/40"
+      data-testid="vouch-composer"
+    >
       {/* Phones stack the two types; the side-by-side pair needs the sm width. */}
       <div className="flex flex-col gap-2 sm:flex-row">
         {typeButton("vouch", "Recommend", "I know this person and recommend them", Heart)}
@@ -191,7 +194,14 @@ function VouchComposer({
           Cancel
         </Button>
         {existing && (
-          <Button size="sm" variant="ghost" onClick={remove} disabled={busy} className="ml-auto text-red-600 dark:text-red-400" data-testid="vouch-remove">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={remove}
+            disabled={busy}
+            className="ml-auto text-red-600 dark:text-red-400"
+            data-testid="vouch-remove"
+          >
             {confirmRemove ? "Confirm remove" : "Remove"}
           </Button>
         )}
@@ -268,7 +278,7 @@ export function TrustReviews({
   if (!e) return null;
   if (vouches.length === 0 && !canWrite) return null;
 
-  const mine = viewer ? vouches.find((v) => v.pubkey === viewer) ?? null : null;
+  const mine = viewer ? (vouches.find((v) => v.pubkey === viewer) ?? null) : null;
   const grouped: Record<EndorserGroup, typeof ranked> = { followed: [], verified: [], other: [] };
   for (const v of ranked) grouped[v.group].push(v);
   const trustedCount = grouped.followed.length + grouped.verified.length;
@@ -306,10 +316,12 @@ export function TrustReviews({
             className="group inline-flex items-center gap-1.5 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
             data-testid="trust-reviews-toggle-open"
           >
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               <MessageSquareText className="h-3 w-3" aria-hidden />
             </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">{summaryLabel}</span>
+            <span className="text-xs text-slate-500 transition-colors group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200">
+              {summaryLabel}
+            </span>
             {open ? (
               <ChevronUp className="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
             ) : (
@@ -323,7 +335,7 @@ export function TrustReviews({
             <button
               type="button"
               onClick={() => setComposing(true)}
-              className="text-left text-xs text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-brand-link hover:underline"
+              className="text-left text-xs text-slate-500 hover:text-brand-deep hover:underline dark:text-slate-400 dark:hover:text-brand-link"
               data-testid="trust-reviews-invite"
             >
               Be the first to review {subjectName}
@@ -332,12 +344,21 @@ export function TrustReviews({
         )}
       </div>
       {composing && (
-        <VouchComposer subject={pubkey} existing={mine} onPublished={onPublished} onRemoved={onRemoved} onCancel={() => setComposing(false)} />
+        <VouchComposer
+          subject={pubkey}
+          existing={mine}
+          onPublished={onPublished}
+          onRemoved={onRemoved}
+          onCancel={() => setComposing(false)}
+        />
       )}
       {open && vouches.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/60 pt-3">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800/60">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Reviews <span className="font-normal normal-case tracking-normal text-slate-400 dark:text-slate-500">· {vouches.length}</span>
+            Reviews{" "}
+            <span className="font-normal normal-case tracking-normal text-slate-400 dark:text-slate-500">
+              · {vouches.length}
+            </span>
           </h2>
           {/* The secondary door lives in the area that unfolds — the summary
               line above stays a quiet social-proof row. */}
@@ -345,7 +366,7 @@ export function TrustReviews({
             <button
               type="button"
               onClick={() => setComposing(true)}
-              className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors"
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
               data-testid="trust-reviews-write"
             >
               <PenLine className="h-3 w-3" /> {mine ? "Edit your review" : "Write a review"}
@@ -353,94 +374,108 @@ export function TrustReviews({
           )}
         </div>
       )}
-      {open && (["followed", "verified", "other"] as EndorserGroup[]).map((group) => {
-        const rows = grouped[group];
-        if (rows.length === 0) return null;
-        if (group === "followed" && !signedIn) return null;
-        const folded = group === "other" && trustedCount > 0 && !othersOpen;
-        return (
-          <div key={group} className="mt-3" data-testid={`trust-reviews-${group}`}>
-            {(group !== "other" || trustedCount > 0) && (
-              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                {GROUP_HEADERS[group]} <span className="text-slate-400 dark:text-slate-500">· {rows.length}</span>
-              </div>
-            )}
-            {folded ? (
-              <button
-                type="button"
-                onClick={() => setOthersOpen(true)}
-                className="mt-1 text-xs font-medium text-brand-primary hover:underline"
-                data-testid="trust-reviews-toggle"
-              >
-                Show {rows.length} more
-              </button>
-            ) : (
-              <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800/60 border-y border-slate-100 dark:border-slate-800/60">
-                {/* Each review is its own enclosed item: hairlines above, between
+      {open &&
+        (["followed", "verified", "other"] as EndorserGroup[]).map((group) => {
+          const rows = grouped[group];
+          if (rows.length === 0) return null;
+          if (group === "followed" && !signedIn) return null;
+          const folded = group === "other" && trustedCount > 0 && !othersOpen;
+          return (
+            <div key={group} className="mt-3" data-testid={`trust-reviews-${group}`}>
+              {(group !== "other" || trustedCount > 0) && (
+                <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  {GROUP_HEADERS[group]} <span className="text-slate-400 dark:text-slate-500">· {rows.length}</span>
+                </div>
+              )}
+              {folded ? (
+                <button
+                  type="button"
+                  onClick={() => setOthersOpen(true)}
+                  className="mt-1 text-xs font-medium text-brand-primary hover:underline"
+                  data-testid="trust-reviews-toggle"
+                >
+                  Show {rows.length} more
+                </button>
+              ) : (
+                <ul className="mt-2 divide-y divide-slate-100 border-y border-slate-100 dark:divide-slate-800/60 dark:border-slate-800/60">
+                  {/* Each review is its own enclosed item: hairlines above, between
                     and below, breathing room inside — the LinkedIn recommendation
                     list, not a chat log. */}
-                {rows.map((v) => {
-                  let npub = "";
-                  try {
-                    npub = nip19.npubEncode(v.pubkey);
-                  } catch {
-                    /* malformed pubkey — row renders without a link */
-                  }
-                  const reply = replies.get(v.id);
-                  const isMine = v.pubkey === viewer;
-                  return (
-                    <li key={v.id} className="flex items-start gap-3 py-3 first:pt-2.5 last:pb-2.5" data-testid={`trust-review-${v.id}`}>
-                      <Link href={npub ? `/p/${npub}` : "#"} className="shrink-0">
-                        <Avatar className={`h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(v.score, false, "sm", true) ?? ""}`}>
-                          {pictureOf(v.pubkey) ? <AvatarImage src={pictureOf(v.pubkey)} alt="" className="object-cover" /> : null}
-                          <AvatarFallback className="overflow-hidden">
-                            <DefaultAvatarImg />
-                          </AvatarFallback>
-                        </Avatar>
-                      </Link>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                          <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
-                            {isMine ? "You" : nameOf(v.pubkey) ?? (npub ? `${npub.slice(0, 12)}…` : "Someone")}
-                          </span>
-                          <TierWordChip score01={v.score} />
-                          <VouchBadge type={v.type} />
-                          <span className="text-[11px] text-slate-400 dark:text-slate-500">{ago(v.at)}</span>
-                        </div>
-                        {v.text ? (
-                          // A comment, not a paragraph: the words sit in a speech
-                          // bubble off the reviewer's avatar — the shape people
-                          // read as "someone said this".
-                          <div className="mt-1.5 inline-block max-w-full rounded-2xl rounded-tl-md bg-slate-50 dark:bg-slate-800/60 px-3.5 py-2 text-[13px] leading-relaxed text-slate-800 dark:text-slate-100 break-words">
-                            <NotesInline text={v.text} />
-                          </div>
-                        ) : (
-                          <p className="mt-0.5 text-xs italic text-slate-400 dark:text-slate-500">No note — a review by name alone</p>
-                        )}
-                        {reply && (
-                          // The subject's answer: a second bubble, tinted the
-                          // brand's interaction colour, indented under the review.
-                          <div
-                            className="ml-3 mt-1.5 inline-block max-w-full rounded-2xl rounded-tl-md bg-brand-primary/5 dark:bg-brand-primary/15 px-3.5 py-2 text-[13px] leading-relaxed text-slate-800 dark:text-slate-100 break-words"
-                            data-testid={`trust-review-reply-${v.id}`}
+                  {rows.map((v) => {
+                    let npub = "";
+                    try {
+                      npub = nip19.npubEncode(v.pubkey);
+                    } catch {
+                      /* malformed pubkey — row renders without a link */
+                    }
+                    const reply = replies.get(v.id);
+                    const isMine = v.pubkey === viewer;
+                    return (
+                      <li
+                        key={v.id}
+                        className="flex items-start gap-3 py-3 first:pt-2.5 last:pb-2.5"
+                        data-testid={`trust-review-${v.id}`}
+                      >
+                        <Link href={npub ? `/p/${npub}` : "#"} className="shrink-0">
+                          <Avatar
+                            className={`h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(v.score, false, "sm", true) ?? ""}`}
                           >
-                            <div className="text-[11px] font-medium text-brand-deep dark:text-brand-link">
-                              {subjectName} replied <span className="font-normal text-slate-400 dark:text-slate-500">· {ago(reply.at)}</span>
-                            </div>
-                            <div className="mt-0.5">
-                              <NotesInline text={reply.text} />
-                            </div>
+                            {pictureOf(v.pubkey) ? (
+                              <AvatarImage src={pictureOf(v.pubkey)} alt="" className="object-cover" />
+                            ) : null}
+                            <AvatarFallback className="overflow-hidden">
+                              <DefaultAvatarImg />
+                            </AvatarFallback>
+                          </Avatar>
+                        </Link>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                            <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
+                              {isMine ? "You" : (nameOf(v.pubkey) ?? (npub ? `${npub.slice(0, 12)}…` : "Someone"))}
+                            </span>
+                            <TierWordChip score01={v.score} />
+                            <VouchBadge type={v.type} />
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500">{ago(v.at)}</span>
                           </div>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        );
-      })}
+                          {v.text ? (
+                            // A comment, not a paragraph: the words sit in a speech
+                            // bubble off the reviewer's avatar — the shape people
+                            // read as "someone said this".
+                            <div className="mt-1.5 inline-block max-w-full break-words rounded-2xl rounded-tl-md bg-slate-50 px-3.5 py-2 text-[13px] leading-relaxed text-slate-800 dark:bg-slate-800/60 dark:text-slate-100">
+                              <NotesInline text={v.text} />
+                            </div>
+                          ) : (
+                            <p className="mt-0.5 text-xs italic text-slate-400 dark:text-slate-500">
+                              No note — a review by name alone
+                            </p>
+                          )}
+                          {reply && (
+                            // The subject's answer: a second bubble, tinted the
+                            // brand's interaction colour, indented under the review.
+                            <div
+                              className="ml-3 mt-1.5 inline-block max-w-full break-words rounded-2xl rounded-tl-md bg-brand-primary/5 px-3.5 py-2 text-[13px] leading-relaxed text-slate-800 dark:bg-brand-primary/15 dark:text-slate-100"
+                              data-testid={`trust-review-reply-${v.id}`}
+                            >
+                              <div className="text-[11px] font-medium text-brand-deep dark:text-brand-link">
+                                {subjectName} replied{" "}
+                                <span className="font-normal text-slate-400 dark:text-slate-500">
+                                  · {ago(reply.at)}
+                                </span>
+                              </div>
+                              <div className="mt-0.5">
+                                <NotesInline text={reply.text} />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
     </section>
   );
 }

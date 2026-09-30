@@ -12,7 +12,14 @@ import type { SearchHit } from "@/services/search";
 
 const NOW = 1_760_000_000;
 
-function hit(id: string, kind: number, pubkey: string, title: string, created_at: number, extraTags: string[][] = []): SearchHit {
+function hit(
+  id: string,
+  kind: number,
+  pubkey: string,
+  title: string,
+  created_at: number,
+  extraTags: string[][] = [],
+): SearchHit {
   return {
     event: {
       id,
@@ -55,10 +62,7 @@ describe("collapseHits", () => {
   });
 
   it("picks the newest as primary for non-event kinds", () => {
-    const notes = [
-      hit("n1", 1, ORANGE, "gm liverpool", NOW - 500),
-      hit("n2", 1, ORANGE, "gm liverpool", NOW - 100),
-    ];
+    const notes = [hit("n1", 1, ORANGE, "gm liverpool", NOW - 500), hit("n2", 1, ORANGE, "gm liverpool", NOW - 100)];
     expect(collapseHits(notes, NOW)[0].primary.event.id).toBe("n2");
   });
 

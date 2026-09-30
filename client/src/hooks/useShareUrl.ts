@@ -27,17 +27,15 @@ interface UseShareUrlOptions {
  * say) and pin the long URL for the rest of the session.
  */
 export function useShareUrl({ npub, relays = [], enabled = true }: UseShareUrlOptions): string {
-  const canonicalUrl =
-    typeof window !== "undefined" && npub ? `${window.location.origin}/p/${npub}` : "";
+  const canonicalUrl = typeof window !== "undefined" && npub ? `${window.location.origin}/p/${npub}` : "";
 
   // The API takes hex; callers hold an npub because that's what they display.
-  const pubkey = npub ? decodeShareId(npub)?.pubkey ?? "" : "";
+  const pubkey = npub ? (decodeShareId(npub)?.pubkey ?? "") : "";
   const hints = relays.slice(0, MAX_SHARE_RELAYS);
 
   const { data } = useQuery({
     queryKey: ["share-url", pubkey, hints],
-    queryFn: async () =>
-      shortLinkUrl(window.location.origin, await apiClient.createShortUrl(pubkey, hints)),
+    queryFn: async () => shortLinkUrl(window.location.origin, await apiClient.createShortUrl(pubkey, hints)),
     enabled: enabled && !!pubkey && !!canonicalUrl,
     staleTime: Infinity,
     retry: 1,

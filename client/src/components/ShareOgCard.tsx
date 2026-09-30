@@ -33,12 +33,12 @@ export function ShareOgCard({
 
   return (
     <div
-      className="relative w-full aspect-[1200/630] rounded-xl overflow-hidden bg-white border border-brand-accent/20"
+      className="relative aspect-[1200/630] w-full overflow-hidden rounded-xl border border-brand-accent/20 bg-white"
       style={{ containerType: "inline-size" }}
     >
       {/* Clean surface — a faint brand wash in one corner, no decorative shapes. */}
       <div className="absolute inset-0 bg-gradient-to-br from-white via-white to-brand-accent/[0.08]" />
-      <div className="relative h-full w-full flex flex-col justify-between p-[5%]">
+      <div className="relative flex h-full w-full flex-col justify-between p-[5%]">
         {/* Eyebrow: wordmark + context label */}
         <div className="flex items-center justify-between">
           <img src="/brand/wordmark.svg" alt="Brainstorm" draggable={false} className="h-[5cqw] w-auto select-none" />
@@ -47,29 +47,41 @@ export function ShareOgCard({
 
         {/* Identity + the trust standing */}
         <div className="flex items-center gap-[4%]">
-          <Avatar className="h-[26cqw] w-[26cqw] rounded-2xl border-2 border-white shadow-lg bg-white">
+          <Avatar className="h-[26cqw] w-[26cqw] rounded-2xl border-2 border-white bg-white shadow-lg">
             {picture ? <AvatarImage size="lg" src={picture} alt={displayName} className="object-cover" /> : null}
-            <AvatarFallback className="rounded-2xl bg-brand-primary/15 text-brand-primary font-bold text-[8cqw]" style={{ fontFamily: "var(--font-display)" }}>
+            <AvatarFallback
+              className="rounded-2xl bg-brand-primary/15 text-[8cqw] font-bold text-brand-primary"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
               {initialsFor(displayName)}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <div className="text-[6.5cqw] font-bold leading-tight truncate text-slate-900" style={{ fontFamily: "var(--font-display)" }}>{displayName}</div>
+            <div
+              className="truncate text-[6.5cqw] font-bold leading-tight text-slate-900"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {displayName}
+            </div>
             <Nip05Handle
               nip05={nip05}
               pubkey={pubkey}
-              className="flex items-center gap-1 text-[3.4cqw] text-brand-link font-medium mt-[0.6cqw]"
+              className="mt-[0.6cqw] flex items-center gap-1 text-[3.4cqw] font-medium text-brand-link"
               iconClassName="h-[3.4cqw] w-[3.4cqw]"
             />
             {tier && (
               <div
-                className="inline-flex items-center gap-[1.6cqw] rounded-full px-[3cqw] py-[1.1cqw] mt-[2.2cqw]"
+                className="mt-[2.2cqw] inline-flex items-center gap-[1.6cqw] rounded-full px-[3cqw] py-[1.1cqw]"
                 style={{ backgroundColor: `${tier.color}14` }}
               >
-                <span className="rounded-full h-[1.8cqw] w-[1.8cqw]" style={{ backgroundColor: tier.color }} />
-                <span className="text-[3cqw] font-bold uppercase tracking-[0.1em]" style={{ color: tier.color }}>{tier.name}</span>
+                <span className="h-[1.8cqw] w-[1.8cqw] rounded-full" style={{ backgroundColor: tier.color }} />
+                <span className="text-[3cqw] font-bold uppercase tracking-[0.1em]" style={{ color: tier.color }}>
+                  {tier.name}
+                </span>
                 {getScoreDisplayMode() === "number" && (
-                  <span className="text-[3cqw] font-bold tabular-nums" style={{ color: tier.color }}>· {pct}</span>
+                  <span className="text-[3cqw] font-bold tabular-nums" style={{ color: tier.color }}>
+                    · {pct}
+                  </span>
                 )}
               </div>
             )}
@@ -77,7 +89,7 @@ export function ShareOgCard({
         </div>
 
         {/* What the score means — credibility for a first-time recipient. */}
-        <div className="text-[3cqw] text-slate-500 font-medium leading-snug">
+        <div className="text-[3cqw] font-medium leading-snug text-slate-500">
           {hasScore
             ? "Scored by real human connections, not an algorithm."
             : "Reputation from real human connections — not an algorithm."}

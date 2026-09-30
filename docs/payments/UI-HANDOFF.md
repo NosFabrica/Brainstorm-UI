@@ -31,18 +31,18 @@ account.** If you go looking for answers there you'll get confident, plausible, 
 
 ## What changed
 
-| | Built on the branch | Actual |
-|---|---|---|
-| Passing user identity | impossible — page reads no query string | **`ref` param** carries our hex pubkey, echoed back on the redirect |
-| Return from checkout | none; `refetchOnWindowFocus` was *"the entire mechanism"* | **`redirect_uri`** returns `status`, `subscriptionId`, `ref` |
-| Rails | two Flash plans, a rail chooser in our UI | **one plan takes both**; the subscriber picks on Flash's page |
-| Cancelling | our own `DELETE` endpoint | **`manage_url`** on the subscription — follow it; no longer blocked (A6) |
+|                       | Built on the branch                                       | Actual                                                                   |
+| --------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Passing user identity | impossible — page reads no query string                   | **`ref` param** carries our hex pubkey, echoed back on the redirect      |
+| Return from checkout  | none; `refetchOnWindowFocus` was _"the entire mechanism"_ | **`redirect_uri`** returns `status`, `subscriptionId`, `ref`             |
+| Rails                 | two Flash plans, a rail chooser in our UI                 | **one plan takes both**; the subscriber picks on Flash's page            |
+| Cancelling            | our own `DELETE` endpoint                                 | **`manage_url`** on the subscription — follow it; no longer blocked (A6) |
 
 The identity change is the big one. The old design needed a pending-checkout record, a 30-minute
 email-correlation window, a hold-and-alert path for ambiguous matches, an admin queue for unmatched
 payments, and a user-facing "was this you?" confirmation. **All of that is gone**, replaced by putting the
-pubkey in a query parameter. The branch's own doc predicted it: *"the moment it exists, the join key
-becomes the hex pubkey and this whole section collapses to one line."*
+pubkey in a query parameter. The branch's own doc predicted it: _"the moment it exists, the join key
+becomes the hex pubkey and this whole section collapses to one line."_
 
 ---
 
@@ -93,7 +93,7 @@ POST /user/subscription/refresh      (no body)
 
 No body: the caller is authenticated, so the server syncs whoever is signed in, reading Flash directly.
 The `subscriptionId` and `ref` in the redirect are informational — do not send them as authority, and
-don't be surprised that the server ignores them. (Reasoning under *Why one endpoint, not two*.)
+don't be surprised that the server ignores them. (Reasoning under _Why one endpoint, not two_.)
 
 The `status` here is a **checkout outcome**, not a subscription status. Only three values ever appear:
 
@@ -111,7 +111,7 @@ has only `/pricing` and `/insights`, so any receipt or support link pointing at 
 
 `useSubscription` sets `refetchOnWindowFocus: true` **and** `staleTime: 60_000`.
 
-Focus-refetch only fires on a query that is *stale*. Checkout usually takes well under a minute, so
+Focus-refetch only fires on a query that is _stale_. Checkout usually takes well under a minute, so
 someone who pays and comes straight back hits a fresh cache and **nothing happens**. The waiting screen
 promises "this page updates on its own", and in the common case it doesn't.
 
@@ -123,11 +123,11 @@ Fix: drop `staleTime` to `0` while a checkout is in flight, or mark the query st
 ### A4. Poll while a checkout is in flight
 
 Even with A3 fixed, focus is a single shot at the wrong moment. The webhook confirming the payment may
-land *after* the user is back in our tab — they can return within seconds of paying. One refetch reads
+land _after_ the user is back in our tab — they can return within seconds of paying. One refetch reads
 "free" and stops.
 
 While `sent` is true, refetch every ~2s for up to ~90s, stopping when `tier` flips, then show a terminal
-state: *"we haven't seen your payment yet — this can take a minute."* Lightning `pending` can persist up
+state: _"we haven't seen your payment yet — this can take a minute."_ Lightning `pending` can persist up
 to ~10 minutes, so the poll should survive the dialog closing.
 
 Use `POST /user/subscription/refresh` for the poll — the same call as A2, and the same one the landing
@@ -157,7 +157,7 @@ Without it, a genuinely-paying user reads as **free** for up to ten minutes whil
 if (subscription.manage_url) window.location.href = subscription.manage_url;
 ```
 
-Today that resolves to Flash's hosted portal. Flash *does* now document a cancel API
+Today that resolves to Flash's hosted portal. Flash _does_ now document a cancel API
 (`POST /subscriptions/{id}/cancel`), and the **admin** billing tab uses it — but the subscriber path
 deliberately stays on the portal, because owning cancellation would mean owning identity and
 payment-method changes with it. If that decision is revisited, the server starts returning a URL into
@@ -169,7 +169,7 @@ boolean: the open question stops being yours.
 Two copy notes for the portal path, which is where we'll start:
 
 - **Say the magic-link email is coming**, so the sign-in step isn't a surprise. Say it generically —
-  *"check the email you subscribed with"*. We deliberately do not store the subscriber's email, so we
+  _"check the email you subscribed with"_. We deliberately do not store the subscriber's email, so we
   cannot name or mask the address, and the login identity may not be the same one.
 - It is more friction than subscribing, which the branch rightly flagged as close to a legal requirement
   in several jurisdictions. Link straight to the portal — no interstitial.
@@ -195,7 +195,7 @@ drives the real verify → dedupe → translate → entitlement path.
 Locally these go in **`client/.env`**, not the repo root — Vite's `root` is `client/`, so a root-level
 `.env` is silently ignored.
 
-**Nothing Flash-secret ever gets a `VITE_` prefix.** Anything `VITE_*` is compiled into the bundle *and*
+**Nothing Flash-secret ever gets a `VITE_` prefix.** Anything `VITE_*` is compiled into the bundle _and_
 substituted into `config.js`, which nginx serves publicly. The API key and webhook secret are server-only.
 
 ### A8. Hide the billing entry points when payments aren't configured
@@ -223,8 +223,8 @@ page logs an error on a self-hosted instance.
 
 Decided: the paid tier does get queue priority, but **we're not advertising it**.
 
-`liveFeatures("priority")` currently includes `queue-priority` — *"Ahead of the free queue when Brainstorm
-is busy"* — on the pricing card and in the checkout dialog. Take it out.
+`liveFeatures("priority")` currently includes `queue-priority` — _"Ahead of the free queue when Brainstorm
+is busy"_ — on the pricing card and in the checkout dialog. Take it out.
 
 The tier keeps the name Priority. That's a deliberate position, not an oversight: an evocative name
 without an explicit claim.
@@ -245,7 +245,7 @@ to roughly 200/week as a backstop rather than a governor; what users actually fe
 
 This has a consequence worth knowing when writing copy: **a motivated free user can already keep their
 scores exactly as fresh as a subscriber, for nothing, by clicking.** So Priority can't honestly be pitched
-as *access to fresher data* — it isn't. What it sells is **automation**: freshness without having to think
+as _access to fresher data_ — it isn't. What it sells is **automation**: freshness without having to think
 about it. Its buyer wants it handled, not a capability they otherwise lack.
 
 ---
@@ -281,17 +281,17 @@ deploy.
 
 That makes the current build-time constants a **silent drift bug**: retune a policy and the pricing page
 keeps advertising the old figure, on the one page where being wrong is most expensive. The comment already
-on `PricingPage.tsx:52` says exactly this — *"the intervals are the configured numbers — and if either
-changes, this changes with it or becomes a lie."*
+on `PricingPage.tsx:52` says exactly this — _"the intervals are the configured numbers — and if either
+changes, this changes with it or becomes a lie."_
 
 Four places bake them in, and one is nastier than the rest:
 
-| Site | Current |
-|---|---|
-| `recalcIntervalDays` | `60` (free), `7` (priority) — also feeds `nextScheduledLabel()` on Insights |
-| Feature labels | *"New follows show up within 60 days"*, *"New follows show up within 7 days, not 60"* |
-| Feature **keys** | `recalc-60d`, `weekly-recalc` — the numbers are inside the identifiers, so changing them is a rename |
-| `PricingPage.tsx:52` | *"every 60 days on Free, every 7 on Priority"* |
+| Site                 | Current                                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------------------------- |
+| `recalcIntervalDays` | `60` (free), `7` (priority) — also feeds `nextScheduledLabel()` on Insights                          |
+| Feature labels       | _"New follows show up within 60 days"_, _"New follows show up within 7 days, not 60"_                |
+| Feature **keys**     | `recalc-60d`, `weekly-recalc` — the numbers are inside the identifiers, so changing them is a rename |
+| `PricingPage.tsx:52` | _"every 60 days on Free, every 7 on Priority"_                                                       |
 
 **Settled: `GET /billing/plans` serves them,** as `schedule_interval_seconds` straight off the live
 `scheduling` row. Format client-side. Both cadence features already carry an `interval: true` flag, so
@@ -331,13 +331,13 @@ GET  /billing/plans          → { data: { plans: [...] } }        public, no au
 Authenticated. **Always mounted**, even on an instance with no Flash account, where it answers the free
 default. `useSubscription` therefore works everywhere instead of failing a query on every page load.
 
-| Field | Values |
-|---|---|
-| `tier` | `"free" \| "priority"` |
-| `status` | `"none" \| "pending" \| "active" \| "past_due" \| "grace" \| "canceled"` (one `l`) |
-| `current_period_end` | ISO 8601 string, or `null` on free |
-| `rail` | `"card" \| "flash-lightning"` or `null` |
-| `manage_url` | Where the user goes to cancel, or `null` — see A6 |
+| Field                | Values                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| `tier`               | `"free" \| "priority"`                                                             |
+| `status`             | `"none" \| "pending" \| "active" \| "past_due" \| "grace" \| "canceled"` (one `l`) |
+| `current_period_end` | ISO 8601 string, or `null` on free                                                 |
+| `rail`               | `"card" \| "flash-lightning"` or `null`                                            |
+| `manage_url`         | Where the user goes to cancel, or `null` — see A6                                  |
 
 ### `POST /user/subscription/refresh` — "did my payment land?"
 
@@ -355,7 +355,7 @@ Authenticated, rate-limited, **empty body**. Re-reads Flash directly and applies
 waiting for the webhook. Returns the same shape as the GET, so the UI can replace state with the response.
 
 This is both the redirect landing call and the poll. It replaces the `POST …/verify` that earlier drafts
-of this document described — see *Why one endpoint, not two* below.
+of this document described — see _Why one endpoint, not two_ below.
 
 ### `GET /billing/plans` — what's on offer
 
@@ -363,13 +363,28 @@ Public and unauthenticated: the pricing page's audience is logged-out visitors. 
 here already appears in the checkout URL the browser visits anyway.
 
 ```json
-{ "data": { "plans": [
-  { "tier": "free",     "name": "Free",     "amount_minor": 0,   "currency": "USD",
-    "schedule_interval_seconds": 604800, "checkout_url": null },
-  { "tier": "priority", "name": "Priority", "amount_minor": 200, "currency": "USD",
-    "schedule_interval_seconds": 86400,
-    "checkout_url": "https://<flash>/subscriptions/signup/<service>/<plan>?redirect_uri=<encoded>" }
-] } }
+{
+  "data": {
+    "plans": [
+      {
+        "tier": "free",
+        "name": "Free",
+        "amount_minor": 0,
+        "currency": "USD",
+        "schedule_interval_seconds": 604800,
+        "checkout_url": null
+      },
+      {
+        "tier": "priority",
+        "name": "Priority",
+        "amount_minor": 200,
+        "currency": "USD",
+        "schedule_interval_seconds": 86400,
+        "checkout_url": "https://<flash>/subscriptions/signup/<service>/<plan>?redirect_uri=<encoded>"
+      }
+    ]
+  }
+}
 ```
 
 - `schedule_interval_seconds` comes from the live `scheduling` row, so the pricing page stops being able
@@ -414,7 +429,7 @@ assignment failed, this reports `free` — visible and complainable, rather than
 that isn't being delivered.
 
 **Flash's statuses are translated server-side, never passed through.** Flash uses
-`pending | trial | active | past_due | paused | canceled | expired` and documents that set as *open*.
+`pending | trial | active | past_due | paused | canceled | expired` and documents that set as _open_.
 Since `normalize()` maps anything unrecognised to `active`, a raw `expired` would render as paid. The
 server maps explicitly and treats unknown values as "change nothing".
 
@@ -444,7 +459,7 @@ methods.
 
 ## Two stale things on the branch
 
-- `docs/payments/FLASH-INTEGRATION.md` §"The shape of the integration" still opens with *"Brainstorm
-  collects their email"*. That field was deliberately removed, and the rest of the same document says so.
+- `docs/payments/FLASH-INTEGRATION.md` §"The shape of the integration" still opens with _"Brainstorm
+  collects their email"_. That field was deliberately removed, and the rest of the same document says so.
   Don't build to that diagram — the whole identity section it describes is superseded by `ref`.
 - The same doc refers to `BillingPanel`; the component is `BillingCard`.

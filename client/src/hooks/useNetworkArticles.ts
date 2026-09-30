@@ -81,7 +81,7 @@ function looksLikeArticle(title: string, summary: string, content: string): bool
   // A single word with no spaces is nearly always a slug/handle, not a headline.
   if (!/\s/.test(t) && t.length < 25) return false;
   // Require enough body to be worth opening.
-  return (summary.trim().length + content.trim().length) >= 400;
+  return summary.trim().length + content.trim().length >= 400;
 }
 
 /** An extended-network author, with the trust context for "why am I seeing this". */
@@ -155,10 +155,7 @@ function rankArticle(e: NostrEvent, author: ArticleAuthor, nowSec: number, fresh
  */
 export type ArticleSort = "trending" | "new";
 
-export function useNetworkArticles(
-  observer: string,
-  opts?: { enabled?: boolean; sort?: ArticleSort },
-) {
+export function useNetworkArticles(observer: string, opts?: { enabled?: boolean; sort?: ArticleSort }) {
   const enabled = opts?.enabled !== false && !!observer;
   const sort = opts?.sort ?? "trending";
 
@@ -176,10 +173,14 @@ export function useNetworkArticles(
       // Routed per author rather than blasted at a fixed set — see
       // `fetchEventsByAuthors`. The candidate pool is only as wide as the
       // contact lists we actually reach.
-      const lists = await fetchEventsByAuthors(sample, { kinds: [3] }, {
-        fallback: CONTENT_RELAYS,
-        timeoutMs: 8000,
-      });
+      const lists = await fetchEventsByAuthors(
+        sample,
+        { kinds: [3] },
+        {
+          fallback: CONTENT_RELAYS,
+          timeoutMs: 8000,
+        },
+      );
 
       // Co-follow tally across my follows' follows.
       const co = new Map<string, number>();
@@ -197,7 +198,7 @@ export function useNetworkArticles(
     },
   });
 
-  const authors = authorsQuery.data ?? [];
+  const authors = useMemo(() => authorsQuery.data ?? [], [authorsQuery.data]);
   const authorKeys = useMemo(() => authors.map((a) => a.pubkey), [authors]);
   const byPubkey = useMemo(() => new Map(authors.map((a) => [a.pubkey, a])), [authors]);
 
@@ -265,11 +266,7 @@ export function useNetworkArticles(
         const author = byPubkey.get(event.pubkey);
         return author ? [{ event, author, rank: rankArticle(event, author, nowSec, freshSince) }] : [];
       })
-      .sort((a, b) =>
-        sort === "new"
-          ? (b.event.created_at ?? 0) - (a.event.created_at ?? 0)
-          : b.rank - a.rank,
-      );
+      .sort((a, b) => (sort === "new" ? (b.event.created_at ?? 0) - (a.event.created_at ?? 0) : b.rank - a.rank));
     for (const { event, author } of ranked) {
       const used = perAuthor.get(event.pubkey) ?? 0;
       if (used >= MAX_PER_AUTHOR) continue;

@@ -11,10 +11,9 @@ export const searchApi = {
    * Returns the boolean `data` field from `/user/isSearchObserver`.
    */
   async getIsSearchObserver(timeoutMs: number = 15000): Promise<boolean> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/isSearchObserver`,
-      { signal: AbortSignal.timeout(timeoutMs) },
-    );
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/isSearchObserver`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     if (!response.ok) {
       throw new Error(`Failed to check search observer status (${response.status})`);
     }

@@ -117,12 +117,7 @@ type Built = {
   usedEnvelope?: boolean;
 };
 
-function fromPlaintext(
-  key: Uint8Array,
-  remembered: boolean,
-  row: Row,
-  signerOptions: LocalSignerOptions,
-): Built {
+function fromPlaintext(key: Uint8Array, remembered: boolean, row: Row, signerOptions: LocalSignerOptions): Built {
   const signer = LocalSigner.fromKey(key, signerOptions);
   return { account: new LocalAccount(signer.pubkey, signer), remembered, rewrap: { signer, row } };
 }
@@ -133,11 +128,7 @@ function fromPlaintext(
  * that order rather than a tidier one guarantees we migrate the key the old build
  * was actually signing with.
  */
-function buildAccount(
-  storage: StorageSeam,
-  user: V1User | null,
-  signerOptions: LocalSignerOptions,
-): Built | null {
+function buildAccount(storage: StorageSeam, user: V1User | null, signerOptions: LocalSignerOptions): Built | null {
   const sessionKey = readKey(storage.tab.getItem(V1_KEYS.sessionKey));
   if (sessionKey) {
     const row = { store: storage.tab, key: V1_KEYS.sessionKey };
@@ -231,11 +222,7 @@ function retire(
  * Read v1's storage and produce the Account it describes, or null when there is
  * nothing to migrate — a signed-out browser, or one v2 already owns.
  */
-export function migrateV1({
-  storage,
-  signerOptions = {},
-  retireV1Keys = true,
-}: MigrateOptions): Migration | null {
+export function migrateV1({ storage, signerOptions = {}, retireV1Keys = true }: MigrateOptions): Migration | null {
   if (hasStoredAccounts(storage)) return null;
 
   const user = readJSON<V1User>(storage.device, V1_KEYS.user);

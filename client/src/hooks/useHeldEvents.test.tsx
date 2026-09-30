@@ -16,9 +16,25 @@ import { useHeldReplaceable, useHeldReplaceables } from "./useHeldEvents";
 const AUTHOR = "7".repeat(64);
 let n = 0;
 const article = (d: string, created_at: number, content = `v${created_at}`) =>
-  ({ id: (++n).toString(16).padStart(64, "0"), kind: 30023, pubkey: AUTHOR, created_at, content, sig: "s", tags: [["d", d]] }) as NostrEvent;
+  ({
+    id: (++n).toString(16).padStart(64, "0"),
+    kind: 30023,
+    pubkey: AUTHOR,
+    created_at,
+    content,
+    sig: "s",
+    tags: [["d", d]],
+  }) as NostrEvent;
 const profile = (pubkey: string, created_at: number, name: string) =>
-  ({ id: (++n).toString(16).padStart(64, "0"), kind: 0, pubkey, created_at, content: JSON.stringify({ name }), sig: "s", tags: [] }) as NostrEvent;
+  ({
+    id: (++n).toString(16).padStart(64, "0"),
+    kind: 0,
+    pubkey,
+    created_at,
+    content: JSON.stringify({ name }),
+    sig: "s",
+    tags: [],
+  }) as NostrEvent;
 
 /** A device holding exactly these rows, learned at `at`. */
 const device = (rows: CachedRow[]): CacheStore => ({
@@ -81,7 +97,9 @@ describe("useHeldReplaceable", () => {
   it("shows a profile the device learned a year ago", async () => {
     const pk = "8".repeat(64);
     const old = profile(pk, 50, "held for a year");
-    __useCacheStore(device([{ addr: `0:${pk}:`, pubkey: pk, kind: 0, event: old, at: Date.now() - 365 * 24 * 3600_000 }]));
+    __useCacheStore(
+      device([{ addr: `0:${pk}:`, pubkey: pk, kind: 0, event: old, at: Date.now() - 365 * 24 * 3600_000 }]),
+    );
     const { result } = renderHook(() => useHeldReplaceable(0, pk));
     await waitFor(() => expect(result.current?.content).toContain("held for a year"));
   });

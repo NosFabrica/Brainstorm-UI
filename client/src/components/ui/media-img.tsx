@@ -1,7 +1,7 @@
-import * as React from "react"
+import * as React from "react";
 
-import { useProxiedSrc, type Preset } from "@/lib/imageProxy"
-import { useConnectionSpeed } from "@/lib/connection"
+import { useProxiedSrc, type Preset } from "@/lib/imageProxy";
+import { useConnectionSpeed } from "@/lib/connection";
 
 /**
  * A picture from a note or card, drawn at the size it is rendered.
@@ -18,24 +18,24 @@ export function MediaImg({
   fallback = null,
   ...props
 }: React.ImgHTMLAttributes<HTMLImageElement> & {
-  src: string
-  preset: Preset
+  src: string;
+  preset: Preset;
   /** From imeta's `m` part, where the event declares one. */
-  mime?: string
+  mime?: string;
   /** Shown once the picture is out of tries, in place of a broken image. */
-  fallback?: React.ReactNode
+  fallback?: React.ReactNode;
 }) {
-  const speed = useConnectionSpeed()
-  const { src, onError, spent } = useProxiedSrc(original, preset, speed, mime)
-  if (spent) return <>{fallback}</>
+  const speed = useConnectionSpeed();
+  const { src, onError, spent } = useProxiedSrc(original, preset, speed, mime);
+  if (spent) return <>{fallback}</>;
   return (
     <img
       {...props}
       src={src}
       onError={(e) => {
-        onError()
-        onErrorProp?.(e)
+        onError();
+        onErrorProp?.(e);
       }}
     />
-  )
+  );
 }

@@ -13,7 +13,12 @@ export function fileKindLabel(mime: string): string {
   if (mime.startsWith("video/")) return "Video";
   if (mime.startsWith("audio/")) return "Audio";
   const sub = mime.split("/")[1];
-  return sub ? sub.replace(/^x-/, "").replace(/^vnd\./, "").toUpperCase() : "File";
+  return sub
+    ? sub
+        .replace(/^x-/, "")
+        .replace(/^vnd\./, "")
+        .toUpperCase()
+    : "File";
 }
 
 /**
@@ -47,7 +52,12 @@ export function FileHero({ event }: { event: MinimalEvent }) {
         <Icon className="h-6 w-6" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="break-words text-base font-semibold text-slate-900 dark:text-slate-100" data-testid="file-hero-name">{name}</p>
+        <p
+          className="break-words text-base font-semibold text-slate-900 dark:text-slate-100"
+          data-testid="file-hero-name"
+        >
+          {name}
+        </p>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{facts.join(" · ")}</p>
         {url && (
           <a
@@ -56,7 +66,7 @@ export function FileHero({ event }: { event: MinimalEvent }) {
             target="_blank"
             rel="noopener"
             title={hash ? `SHA-256 ${hash}` : undefined}
-            className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors"
+            className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
             data-testid="file-hero-download"
           >
             <Download className="h-3 w-3" />

@@ -4,6 +4,7 @@ import { useActiveAccount } from "applesauce-react/hooks";
 import { accountManager } from "@/accounts";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
 import type { BaseAccount } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 
 export type ActivePerspective = "nosfabrica" | "mywot";
 
@@ -49,9 +50,15 @@ export function setActivePerspective(perspective: ActivePerspective): void {
   const account = accountManager.active as BrainstormAccount | undefined;
   if (account) updateMetadata(account, { perspective });
   else {
-    try { localStorage.setItem(ANON_KEY, perspective); } catch { /* private browsing */ }
+    try {
+      localStorage.setItem(ANON_KEY, perspective);
+    } catch {
+      /* private browsing */
+    }
   }
-  try { window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: perspective })); } catch {}
+  try {
+    window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: perspective }));
+  } catch {}
 }
 
 export function useActivePerspective(): [ActivePerspective, (p: ActivePerspective) => void] {
@@ -78,7 +85,7 @@ export function useActivePerspective(): [ActivePerspective, (p: ActivePerspectiv
     // arrives as: the mirror applies it with `updateMetadata`, and that fires no
     // `CustomEvent` — that one is same-tab only, dispatched by our own setter.
     const watching = account
-      ? (account as BaseAccount<any, any, AccountMetadata>).metadata$.subscribe(() =>
+      ? (account as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$.subscribe(() =>
           setPerspective(getActivePerspective()),
         )
       : null;
@@ -88,6 +95,7 @@ export function useActivePerspective(): [ActivePerspective, (p: ActivePerspectiv
       window.removeEventListener("storage", onStorage);
       watching?.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resubscribe only on account switch
   }, [account?.id]);
 
   const update = useCallback((p: ActivePerspective) => setActivePerspective(p), []);

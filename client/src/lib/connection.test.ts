@@ -3,7 +3,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { connectionSpeed, __resetConnectionSpeed } from "./connection";
 
-type FakeConnection = { saveData?: boolean; effectiveType?: string; addEventListener: (t: string, fn: () => void) => void; removeEventListener: (t: string, fn: () => void) => void };
+type FakeConnection = {
+  saveData?: boolean;
+  effectiveType?: string;
+  addEventListener: (t: string, fn: () => void) => void;
+  removeEventListener: (t: string, fn: () => void) => void;
+};
 
 function stubConnection(initial: { saveData?: boolean; effectiveType?: string } | null) {
   const listeners = new Set<() => void>();

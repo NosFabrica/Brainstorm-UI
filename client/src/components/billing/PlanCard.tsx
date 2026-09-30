@@ -39,8 +39,17 @@ import { useBillingPlans } from "@/hooks/useBillingPlans";
  * wrong into a page that sells at them.
  */
 export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null }) {
-  const { policy, plan, status, currentPeriodEnd, cancelEffectiveDate, isPaid: paid, isFree, isLoading, isError } =
-    useSubscription();
+  const {
+    policy,
+    plan,
+    status,
+    currentPeriodEnd,
+    cancelEffectiveDate,
+    isPaid: paid,
+    isFree,
+    isLoading,
+    isError,
+  } = useSubscription();
   const { plans, billingAvailable, solePurchasableName, recalcDaysFor } = useBillingPlans();
 
   const days = cadenceDays(policy?.scheduleIntervalSeconds);
@@ -48,9 +57,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
 
   // Null when the server could not reach Flash: no price rather than a wrong one.
   const price =
-    plan && plan.amountMinor !== null && plan.currency
-      ? formatAmount(plan.amountMinor, plan.currency)
-      : null;
+    plan && plan.amountMinor !== null && plan.currency ? formatAmount(plan.amountMinor, plan.currency) : null;
   const period = formatBillingInterval(plan?.billingInterval);
 
   // Flash reports a cancellation that has not taken effect yet as `active`, so
@@ -65,8 +72,8 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
   const upsell = plans?.find((p) => p.checkoutUrl && productName(p) === solePurchasableName);
 
   return (
-    <Card className="p-4 mb-4" data-testid="insights-plan-card">
-      <div className="flex items-center gap-2 mb-3">
+    <Card className="mb-4 p-4" data-testid="insights-plan-card">
+      <div className="mb-3 flex items-center gap-2">
         <CalendarClock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
         <span
           className="text-sm font-bold text-slate-800 dark:text-slate-200"
@@ -81,13 +88,15 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
         )}
       </div>
 
-      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
         <Row label="Plan">
           <span data-testid="insights-plan-name">
             {policy?.name ?? "—"}
             {price && (
               <span className="text-slate-500 dark:text-slate-400">
-                {" "}· {price}{period ? ` ${period}` : ""}
+                {" "}
+                · {price}
+                {period ? ` ${period}` : ""}
               </span>
             )}
           </span>
@@ -115,10 +124,15 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
       {/* Only to someone we KNOW is free — a read that's out or failed is not "no plan". */}
       {isFree && billingAvailable !== false && (
         <p className="mt-3.5 text-[13px] text-slate-500 dark:text-slate-400">
-          <Link href="/pricing" className="font-medium text-brand-link hover:underline" data-testid="insights-plan-link">
+          <Link
+            href="/pricing"
+            className="font-medium text-brand-link hover:underline"
+            data-testid="insights-plan-link"
+          >
             {upsell && solePurchasableName
               ? `${solePurchasableName} recalculates ${everyDays(recalcDaysFor(upsell))}`
-              : "See what's on offer"} →
+              : "See what's on offer"}{" "}
+            →
           </Link>
         </p>
       )}
@@ -130,7 +144,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   return (
     <div className="flex items-center justify-between gap-3">
       <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
-      <dd className="font-medium text-slate-900 dark:text-slate-100 text-right">{children}</dd>
+      <dd className="text-right font-medium text-slate-900 dark:text-slate-100">{children}</dd>
     </div>
   );
 }

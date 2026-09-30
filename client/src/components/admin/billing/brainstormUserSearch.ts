@@ -42,8 +42,7 @@ const MAX_CANDIDATES = 8;
 
 async function hasAccount(pubkey: string): Promise<boolean> {
   const page = (await apiClient.getAdminUsers({ search: pubkey, size: 1 })) as
-    | { items?: Array<{ pubkey?: string }> }
-    | undefined;
+    { items?: Array<{ pubkey?: string }> } | undefined;
   return (page?.items ?? []).some((i) => i.pubkey?.toLowerCase() === pubkey);
 }
 

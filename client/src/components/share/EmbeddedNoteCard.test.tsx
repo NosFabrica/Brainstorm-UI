@@ -13,20 +13,42 @@ import { renderWithProviders } from "@/test/utils";
 
 const AUTHOR = "3".repeat(64);
 const ARTICLE = {
-  id: "a".repeat(64), kind: 30023, pubkey: AUTHOR, created_at: 1_780_000_000, sig: "",
+  id: "a".repeat(64),
+  kind: 30023,
+  pubkey: AUTHOR,
+  created_at: 1_780_000_000,
+  sig: "",
   content: "**The 2nd edition** of our Back to School campaign is officially completed.",
-  tags: [["d", "back-to-school-2026"], ["title", "Back to School 2026 — Mission Accomplished ❤️"], ["summary", "Through this update, we are happy to share the results"], ["image", "https://img/cover.jpg"]],
+  tags: [
+    ["d", "back-to-school-2026"],
+    ["title", "Back to School 2026 — Mission Accomplished ❤️"],
+    ["summary", "Through this update, we are happy to share the results"],
+    ["image", "https://img/cover.jpg"],
+  ],
 };
 const addressable = vi.fn(async () => new Map([[`30023:${AUTHOR}:back-to-school-2026`, ARTICLE]]));
 const QUOTED_AUTHOR = "7".repeat(64);
 const MENTIONED = "8".repeat(64);
-const QUOTED = { id: "d".repeat(64), kind: 1, pubkey: QUOTED_AUTHOR, created_at: 1_779_000_000, sig: "", content: "Some days posting here feels like nobody's listening.", tags: [] };
+const QUOTED = {
+  id: "d".repeat(64),
+  kind: 1,
+  pubkey: QUOTED_AUTHOR,
+  created_at: 1_779_000_000,
+  sig: "",
+  content: "Some days posting here feels like nobody's listening.",
+  tags: [],
+};
 const byIds = vi.fn(async (ids: string[]) => (ids.includes(QUOTED.id) ? [QUOTED] : []));
 
 vi.mock("@/services/nostr", () => ({
   fetchAddressableEvents: (c: unknown) => addressable(c),
   fetchEventsByIds: (ids: string[]) => byIds(ids),
-  fetchProfileMap: async (pks: string[]) => new Map(pks.flatMap((pk) => (pk === QUOTED_AUTHOR ? [[pk, { name: "Derek Ross" }]] : pk === MENTIONED ? [[pk, { name: "Max" }]] : []))),
+  fetchProfileMap: async (pks: string[]) =>
+    new Map(
+      pks.flatMap((pk) =>
+        pk === QUOTED_AUTHOR ? [[pk, { name: "Derek Ross" }]] : pk === MENTIONED ? [[pk, { name: "Max" }]] : [],
+      ),
+    ),
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
 vi.mock("@/hooks/useNip05", () => ({ useNip05: () => "none" }));
@@ -45,17 +67,33 @@ beforeEach(() => {
 describe("EmbeddedNoteCard", () => {
   it("a note that links an article shows the article's card, not a bare '📄 article' link", async () => {
     const naddr = nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "back-to-school-2026" });
-    const note = { id: "b".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_780_000_100, content: `nostr:${naddr}`, tags: [["a", `30023:${AUTHOR}:back-to-school-2026`]] };
+    const note = {
+      id: "b".repeat(64),
+      kind: 1,
+      pubkey: AUTHOR,
+      created_at: 1_780_000_100,
+      content: `nostr:${naddr}`,
+      tags: [["a", `30023:${AUTHOR}:back-to-school-2026`]],
+    };
     renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
     const card = await screen.findByTestId("embedded-article");
     expect(card).toHaveTextContent("Back to School 2026 — Mission Accomplished ❤️");
     expect(card).toHaveTextContent("Through this update");
     await waitFor(() => expect(screen.queryByText("📄 article")).toBeNull());
-    expect(addressable).toHaveBeenCalledWith([expect.objectContaining({ kind: 30023, pubkey: AUTHOR, identifier: "back-to-school-2026" })]);
+    expect(addressable).toHaveBeenCalledWith([
+      expect.objectContaining({ kind: 30023, pubkey: AUTHOR, identifier: "back-to-school-2026" }),
+    ]);
   });
 
   it("a note with no article link asks the relays for nothing", () => {
-    const note = { id: "c".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_780_000_100, content: "Just words.", tags: [] };
+    const note = {
+      id: "c".repeat(64),
+      kind: 1,
+      pubkey: AUTHOR,
+      created_at: 1_780_000_100,
+      content: "Just words.",
+      tags: [],
+    };
     renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
     expect(screen.getByTestId("embedded-note")).toHaveTextContent("Just words.");
     expect(addressable).not.toHaveBeenCalled();
@@ -63,7 +101,14 @@ describe("EmbeddedNoteCard", () => {
 
   it("a note that quotes another shows the quoted note itself — its author and words — not a '↳ quoted note' link", async () => {
     const nevent = nip19.neventEncode({ id: QUOTED.id });
-    const note = { id: "e".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_780_000_200, content: `This. nostr:${nevent}`, tags: [["q", QUOTED.id]] };
+    const note = {
+      id: "e".repeat(64),
+      kind: 1,
+      pubkey: AUTHOR,
+      created_at: 1_780_000_200,
+      content: `This. nostr:${nevent}`,
+      tags: [["q", QUOTED.id]],
+    };
     renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
     const quoted = await screen.findByTestId("embedded-quote");
     expect(quoted).toHaveTextContent("Derek Ross");
@@ -73,10 +118,22 @@ describe("EmbeddedNoteCard", () => {
 
   it("a quoted note's own quotes stay links — one level deep, never a card inside a card inside a card", async () => {
     const inner = nip19.neventEncode({ id: "f".repeat(64) });
-    const quotedWithQuote = { ...QUOTED, id: "d".repeat(64), content: `Look: nostr:${inner}`, tags: [["q", "f".repeat(64)]] };
+    const quotedWithQuote = {
+      ...QUOTED,
+      id: "d".repeat(64),
+      content: `Look: nostr:${inner}`,
+      tags: [["q", "f".repeat(64)]],
+    };
     byIds.mockResolvedValueOnce([quotedWithQuote]);
     const nevent = nip19.neventEncode({ id: QUOTED.id });
-    const note = { id: "e".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_780_000_200, content: `nostr:${nevent}`, tags: [["q", QUOTED.id]] };
+    const note = {
+      id: "e".repeat(64),
+      kind: 1,
+      pubkey: AUTHOR,
+      created_at: 1_780_000_200,
+      content: `nostr:${nevent}`,
+      tags: [["q", QUOTED.id]],
+    };
     renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
     const quoted = await screen.findByTestId("embedded-quote");
     expect(quoted).toHaveTextContent("↳ quoted note");
@@ -88,12 +145,18 @@ describe("EmbeddedNoteCard", () => {
     const quotedWithMention = { ...QUOTED, content: `Write the code with nostr:${mentioned}` };
     byIds.mockResolvedValueOnce([quotedWithMention]);
     const nevent = nip19.neventEncode({ id: QUOTED.id });
-    const note = { id: "e".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_780_000_200, content: `nostr:${nevent}`, tags: [["q", QUOTED.id]] };
+    const note = {
+      id: "e".repeat(64),
+      kind: 1,
+      pubkey: AUTHOR,
+      created_at: 1_780_000_200,
+      content: `nostr:${nevent}`,
+      tags: [["q", QUOTED.id]],
+    };
     renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
     const quoted = await screen.findByTestId("embedded-quote");
     await waitFor(() => expect(quoted).toHaveTextContent("@Max"));
     expect(quoted).not.toHaveTextContent("npub1");
-
   });
 });
 
@@ -102,11 +165,20 @@ describe("EmbeddedNoteCard", () => {
 // about, and nothing asks to be clicked.
 const HUSK_PK = "a".repeat(64);
 const husk = (content: string, tags: string[][] = []) =>
-  ({ id: "e".repeat(64), kind: 1, pubkey: HUSK_PK, tags, content, created_at: 1_700_000_000 }) as import("@/lib/noteRefs").MinimalEvent;
+  ({
+    id: "e".repeat(64),
+    kind: 1,
+    pubkey: HUSK_PK,
+    tags,
+    content,
+    created_at: 1_700_000_000,
+  }) as import("@/lib/noteRefs").MinimalEvent;
 
 describe("EmbeddedNoteCard — deleted by overwriting", () => {
   it("a quoted note deleted by overwriting is a quiet stub — named when we know who, generic when we don't", () => {
-    const { rerender } = renderWithProviders(<EmbeddedNoteCard event={husk("")} author={{ display_name: "Zap Cooking" }} href="/e/x" />);
+    const { rerender } = renderWithProviders(
+      <EmbeddedNoteCard event={husk("")} author={{ display_name: "Zap Cooking" }} href="/e/x" />,
+    );
     const stub = screen.getByTestId("embedded-deleted");
     expect(stub).toHaveTextContent("Zap Cooking deleted this post.");
     expect(screen.queryByTestId("embedded-note")).toBeNull();

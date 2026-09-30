@@ -53,7 +53,7 @@ export function PerspectiveToggle({
       onClick={() => setLocation("/personalization")}
       aria-label="What is this?"
       title="What is this?"
-      className="hidden sm:inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-brand-deep dark:text-slate-500 dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      className="hidden h-6 w-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500 dark:hover:text-white sm:inline-flex"
       data-testid="link-home-learn-more"
     >
       <Info className="h-3.5 w-3.5" />
@@ -62,7 +62,7 @@ export function PerspectiveToggle({
     <button
       type="button"
       onClick={() => setLocation("/personalization")}
-      className="text-xs text-brand-link hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      className="rounded text-xs text-brand-link transition-colors hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
       data-testid="link-home-learn-more"
     >
       What is this?
@@ -70,7 +70,11 @@ export function PerspectiveToggle({
   );
 
   const pill = !user ? (
-    <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5">
+    <div
+      role="group"
+      aria-label="Trust perspective"
+      className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100/70 p-0.5 dark:border-slate-800 dark:bg-slate-800/50"
+    >
       <span className={segment(true)} data-testid="text-home-pov-label">
         <Globe className="h-3 w-3 text-brand-primary" /> {label("Brainstorm")}
       </span>
@@ -86,7 +90,12 @@ export function PerspectiveToggle({
       </button>
     </div>
   ) : (
-    <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5" data-testid="toggle-home-pov">
+    <div
+      role="group"
+      aria-label="Trust perspective"
+      className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100/70 p-0.5 dark:border-slate-800 dark:bg-slate-800/50"
+      data-testid="toggle-home-pov"
+    >
       <button
         type="button"
         onClick={() => onChange("nosfabrica")}
@@ -120,7 +129,9 @@ export function PerspectiveToggle({
       >
         <Avatar className="h-4 w-4 shrink-0">
           {user.picture ? <AvatarImage src={user.picture} alt="" className="object-cover" /> : null}
-          <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+          <AvatarFallback className="overflow-hidden">
+            <DefaultAvatarImg />
+          </AvatarFallback>
         </Avatar>{" "}
         {label("My perspective")}
       </button>
@@ -137,19 +148,26 @@ export function PerspectiveToggle({
   }
 
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
+    <div
+      className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-2xl text-xs backdrop-blur-[2px]"
+      data-testid="text-home-hint"
+    >
       {pill}
       {user && !hasMywot && (
         <button
           type="button"
           onClick={() => setLocation("/settings")}
-          className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400 hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          className="inline-flex items-center gap-1 rounded font-medium text-emerald-700 transition-colors hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-emerald-400"
           data-testid="link-home-calculate-yours"
         >
           Calculate yours <ArrowRight className="h-3 w-3" />
         </button>
       )}
-      {user && <span className="text-slate-400 dark:text-slate-500" aria-hidden="true">·</span>}
+      {user && (
+        <span className="text-slate-400 dark:text-slate-500" aria-hidden="true">
+          ·
+        </span>
+      )}
       {learnMore}
     </div>
   );

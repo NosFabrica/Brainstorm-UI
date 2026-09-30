@@ -17,11 +17,21 @@ import type { SearchSnapshot } from "@/services/search";
 
 const streamMock = vi.fn();
 const moreMock = vi.fn();
-const serverStatusMock = vi.fn(() => ({ api: "ok" as const, search: "ok" as const, recovery: 0, checking: false, nextProbeAt: null as number | null }));
+const serverStatusMock = vi.fn(() => ({
+  api: "ok" as const,
+  search: "ok" as const,
+  recovery: 0,
+  checking: false,
+  nextProbeAt: null as number | null,
+}));
 const retryNowMock = vi.fn();
 vi.mock("@/lib/serverStatus", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/serverStatus")>();
-  return { ...actual, useServerStatus: () => serverStatusMock(), retryNow: (scope: "api" | "search") => retryNowMock(scope) };
+  return {
+    ...actual,
+    useServerStatus: () => serverStatusMock(),
+    retryNow: (scope: "api" | "search") => retryNowMock(scope),
+  };
 });
 const cancelMock = Object.assign(vi.fn(), { more: moreMock });
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
@@ -52,13 +62,21 @@ vi.mock("@/services/search", async (importOriginal) => {
     fetchGitStatuses: (ids: string[]) => gitStatusesMock(ids),
     fetchGitCommentCounts: (ids: string[]) => gitCommentsMock(ids),
     fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
+    fetchGoalProgress: (ids: string[]) => goalProgressMock(ids),
   };
 });
+const goalProgressMock = vi.fn<
+  (ids: string[]) => Promise<{ byGoal: Map<string, { sats: number; zappers: string[] }>; complete: boolean }>
+>(() => Promise.resolve({ byGoal: new Map(), complete: false }));
 // Who is going, per event address — nobody unless a test says otherwise.
-const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() => Promise.resolve(new Map()));
+const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() =>
+  Promise.resolve(new Map()),
+);
 const gitCommentsMock = vi.fn<(ids: string[]) => Promise<Map<string, number>>>(() => Promise.resolve(new Map()));
 // Issue / patch states for the Repos tab — none unless a test says otherwise.
-const gitStatusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() => Promise.resolve(new Map()));
+const gitStatusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() =>
+  Promise.resolve(new Map()),
+);
 const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>(() =>
   Promise.resolve({ issues: 0, patches: 0 }),
 );
@@ -67,11 +85,15 @@ const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>
 // touches relays; tests seed profiles into this map per case.
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
 // The panel's person can have media of their own — notes with files attached.
-const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
+const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() =>
+  Promise.resolve([]),
+);
 // Events the notes on the page quote — a test that wants a quote resolved seeds one.
 const refEventsMock = vi.fn<(ids: string[]) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 // The tag hub's answer for the Music tab's V4V lists (kind-9999 items by `#z`); nothing unless a test says so.
-const dlistFetchMock = vi.fn((_filter: Record<string, unknown>, _relays?: string[]) => Promise.resolve([] as NostrEvent[]));
+const dlistFetchMock = vi.fn((_filter: Record<string, unknown>, _relays?: string[]) =>
+  Promise.resolve([] as NostrEvent[]),
+);
 vi.mock("@/services/musicTags", () => ({ fetchTaggedMusicians: async () => [] }));
 vi.mock("@/services/nostr", () => ({
   // The person panel asks for the person's tracks and streams; nobody here has any.
@@ -112,15 +134,28 @@ let followsMock = new Set<string>();
 type WavlakeSong = import("@/lib/wavlake").WavlakeSong;
 type WavlakeHits = import("@/lib/wavlake").WavlakeCatalogueHits;
 const wavlakeSearchMock = vi.fn<(term: string) => Promise<WavlakeSong[]>>(() => Promise.resolve([]));
-const wavlakeCatalogueMock = vi.fn<(term: string) => Promise<WavlakeHits>>(() => Promise.resolve({ artists: [], albums: [], songs: [] }));
+const wavlakeCatalogueMock = vi.fn<(term: string) => Promise<WavlakeHits>>(() =>
+  Promise.resolve({ artists: [], albums: [], songs: [] }),
+);
 const wavlakeTrendingMock = vi.fn<(opts?: { genre?: string }) => Promise<WavlakeSong[]>>(() => Promise.resolve([]));
 // A person's Wavlake catalogue (a search scoped to them): nothing unless a test says so.
 type Catalogue = import("@/hooks/useArtistCatalogue").ArtistCatalogue;
-const catalogueMock = vi.fn<(pubkey: string | null | undefined) => Catalogue>(() => ({ artist: null, songs: [], loading: false }));
-vi.mock("@/hooks/useArtistCatalogue", () => ({ useArtistCatalogue: (pk: string | null | undefined) => catalogueMock(pk) }));
+const catalogueMock = vi.fn<(pubkey: string | null | undefined) => Catalogue>(() => ({
+  artist: null,
+  songs: [],
+  loading: false,
+}));
+vi.mock("@/hooks/useArtistCatalogue", () => ({
+  useArtistCatalogue: (pk: string | null | undefined) => catalogueMock(pk),
+}));
 // Fountain's pages, asked for the item behind a link a note carries; nothing unless a test says so.
-const fountainItemMock = vi.fn<(url: string) => Promise<import("@/lib/fountain").FountainItem | null>>(async () => null);
-vi.mock("@/lib/fountain", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/fountain")>()), fetchFountainItem: (url: string) => fountainItemMock(url) }));
+const fountainItemMock = vi.fn<(url: string) => Promise<import("@/lib/fountain").FountainItem | null>>(
+  async () => null,
+);
+vi.mock("@/lib/fountain", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/fountain")>()),
+  fetchFountainItem: (url: string) => fountainItemMock(url),
+}));
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
@@ -150,7 +185,9 @@ vi.mock("@/hooks/useMyFollows", () => ({
   useMyFollows: () => ({ follows: followsMock, ready: true, signedIn: followsMock.size > 0 }),
 }));
 type PersonEndorsements = import("@/services/endorsements").PersonEndorsements;
-const personEndorsementsMock = vi.fn<(pubkey: string | null, personal: boolean) => PersonEndorsements | null>(() => null);
+const personEndorsementsMock = vi.fn<(pubkey: string | null, personal: boolean) => PersonEndorsements | null>(
+  () => null,
+);
 vi.mock("@/hooks/usePersonEndorsements", () => ({
   usePersonEndorsements: (pubkey: string | null, personal: boolean) => personEndorsementsMock(pubkey, personal),
 }));
@@ -160,7 +197,11 @@ vi.mock("@/hooks/useAuthorFlags", () => ({
 }));
 // The viewer's network reach (direct follows, friends of friends) — faked so
 // the reach filter can prove what it keeps.
-const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({ direct: new Set(), friends: new Set(), ready: true }));
+const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({
+  direct: new Set(),
+  friends: new Set(),
+  ready: true,
+}));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
@@ -212,15 +253,13 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/?q=jack");
 });
 
-
 /** The Filters panel keeps its rarer controls behind Advanced; open it if it isn't. */
 const openAdvanced = () => {
   const toggle = screen.getByTestId("filters-advanced-toggle");
   if (toggle.getAttribute("aria-expanded") !== "true") fireEvent.click(toggle);
 };
 
-const setUrlTab = (t: string | null) =>
-  window.history.replaceState({}, "", t ? `/?q=jack&t=${t}` : "/?q=jack");
+const setUrlTab = (t: string | null) => window.history.replaceState({}, "", t ? `/?q=jack&t=${t}` : "/?q=jack");
 
 describe("SearchResults", () => {
   // The team: Brainstorm is praised for being clean and the new search is
@@ -234,7 +273,14 @@ describe("SearchResults", () => {
     const inside = { ...author("1".repeat(64), "jack"), wotRank: 0.85 };
     // Below the network's line (0.02): no one has vouched for them.
     const outside = { ...author("2".repeat(64), "jack imposter"), wotRank: 0.01 };
-    emit({ hits: [{ event: person("p1", inside.pubkey, "jack"), author: inside, rank: null }, { event: person("p2", outside.pubkey, "jack imposter"), author: outside, rank: null }], eose: true, timeMs: 100 });
+    emit({
+      hits: [
+        { event: person("p1", inside.pubkey, "jack"), author: inside, rank: null },
+        { event: person("p2", outside.pubkey, "jack imposter"), author: outside, rank: null },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
     const first = await screen.findByTestId("result-profile-0");
     // (The coin keeps its own border for screen readers only; a visible ring is what must be gone.)
     const visibleRing = (root: HTMLElement) => root.querySelector('[class*="shadow-[0_0_0"]:not(.sr-only)');
@@ -327,7 +373,14 @@ describe("SearchResults", () => {
     expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "live" });
 
     // Published just now: a "live" nobody updated in a week is stale by design.
-    const live = { ...ev("l1", 30311, "e".repeat(64), "", [["d", "s"], ["title", "NoGood Radio"], ["status", "live"]]), created_at: Math.floor(Date.now() / 1000) };
+    const live = {
+      ...ev("l1", 30311, "e".repeat(64), "", [
+        ["d", "s"],
+        ["title", "NoGood Radio"],
+        ["status", "live"],
+      ]),
+      created_at: Math.floor(Date.now() / 1000),
+    };
     emit({ hits: [{ event: live, author: author(live.pubkey, "radio"), rank: null }], eose: true, timeMs: 400 });
     expect(await screen.findByText("NoGood Radio")).toBeInTheDocument();
   });
@@ -338,15 +391,34 @@ describe("SearchResults", () => {
   // Benjamin (2026-09-24): ten flat rows mixing Recipes with PRs read like a
   // settings list. The menu is grouped by what a person is doing, consumer
   // things first and developer things last.
-  it("groups More by what you're doing: Read & listen, Happening, Build, then Lists", () => {
+  it("groups More by what you're doing: Read & listen, Happening, Build, Community, then Lists", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     fireEvent.click(screen.getByTestId("search-tab-more"));
     const menu = screen.getByRole("menu");
     const groups = [...menu.querySelectorAll('[data-testid^="search-tab-group-"]')].map((el) => el.textContent);
-    expect(groups).toEqual(["Read & listen", "Happening", "Build"]);
+    expect(groups).toEqual(["Read & listen", "Happening", "Build", "Community"]);
     // Doors only: a "Soon" row names where we're going and opens nothing.
-    const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]:not([data-testid^="search-tab-group-"]):not([data-testid$="-soon"])')].map((el) => el.getAttribute("data-testid"));
-    expect(items).toEqual(["search-tab-articles", "search-tab-music", "search-tab-recipes", "search-tab-events", "search-tab-live", "search-tab-apps", "search-tab-repos", "search-tab-issues", "search-tab-prs", "search-tab-nips", "search-tab-lists"]);
+    const items = [
+      ...menu.querySelectorAll(
+        '[data-testid^="search-tab-"]:not([data-testid^="search-tab-group-"]):not([data-testid$="-soon"])',
+      ),
+    ].map((el) => el.getAttribute("data-testid"));
+    expect(items).toEqual([
+      "search-tab-articles",
+      "search-tab-music",
+      "search-tab-recipes",
+      "search-tab-events",
+      "search-tab-live",
+      "search-tab-apps",
+      "search-tab-repos",
+      "search-tab-issues",
+      "search-tab-prs",
+      "search-tab-nips",
+      "search-tab-communities",
+      "search-tab-fundraisers",
+      "search-tab-reviews",
+      "search-tab-lists",
+    ]);
   });
 
   // Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
@@ -373,7 +445,8 @@ describe("SearchResults", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     const row = ["everything", "people", "notes", "media", "shop"].map((t) => screen.getByTestId(`search-tab-${t}`));
     expect(row.map((el) => el.textContent)).toEqual(["Everything", "People", "Notes", "Media", "Shop"]);
-    for (const t of ["articles", "apps", "repos", "events", "live", "lists"]) expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
+    for (const t of ["articles", "apps", "repos", "events", "live", "lists"])
+      expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
     expect(screen.queryByTestId("search-tab-code")).toBeNull();
 
     const more = screen.getByTestId("search-tab-more");
@@ -384,7 +457,8 @@ describe("SearchResults", () => {
     const menu = screen.getByRole("menu");
     const items = [...menu.querySelectorAll('[role="menuitem"]')].map((el) => el.getAttribute("data-testid"));
     expect(items[0]).toBe("search-tab-articles");
-    for (const t of ["apps", "repos", "issues", "prs", "events", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
+    for (const t of ["apps", "repos", "issues", "prs", "events", "live", "lists"])
+      expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
 
     fireEvent.click(within(menu).getByTestId("search-tab-apps"));
     expect(screen.queryByRole("menu")).toBeNull();
@@ -424,7 +498,13 @@ describe("SearchResults", () => {
     render(<SearchResults query="" pov="nosfabrica" />);
     const cook = "9".repeat(64);
     const recipe = (id: string, title: string, topics: string[]) => ({
-      event: ev(id, 30023, cook, `# ${title}`, [["d", id], ["title", title], ["t", "zapcooking"], ["t", `zapcooking-${id}`], ...topics.map((t) => ["t", t])]),
+      event: ev(id, 30023, cook, `# ${title}`, [
+        ["d", id],
+        ["title", title],
+        ["t", "zapcooking"],
+        ["t", `zapcooking-${id}`],
+        ...topics.map((t) => ["t", t]),
+      ]),
       author: author(cook, "SkyLords"),
       rank: null,
     });
@@ -432,7 +512,15 @@ describe("SearchResults", () => {
     // newsletter wears the recipe tag, marked zapreads. The tab leaves it out.
     // zap.cooking writes each chosen category as `zapcooking-<word>` beside a
     // `zapcooking-<slug>` copy of the dish itself: the words are topics, the slug is not.
-    emit({ hits: [recipe("r1", "Chicken soup", ["chicken", "zapcooking-soup"]), recipe("r2", "Vanilla cake", ["zapcooking-dessert", "#fakeaway", "3"]), recipe("n1", "Zap Cooking Newsletter", ["zapreads", "newsletter"])], eose: true, timeMs: 120 });
+    emit({
+      hits: [
+        recipe("r1", "Chicken soup", ["chicken", "zapcooking-soup"]),
+        recipe("r2", "Vanilla cake", ["zapcooking-dessert", "#fakeaway", "3"]),
+        recipe("n1", "Zap Cooking Newsletter", ["zapreads", "newsletter"]),
+      ],
+      eose: true,
+      timeMs: 120,
+    });
 
     await screen.findByText("Chicken soup");
     expect(screen.queryByText("Zap Cooking Newsletter")).toBeNull();
@@ -490,7 +578,12 @@ describe("SearchResults", () => {
   // control; the row just gives it a seat beside Filters.
   it("seats the caller's perspective control in the tab row, before Filters", () => {
     render(
-      <SearchResults query="jack" pov="nosfabrica" onQueryRewrite={() => {}} perspective={<span data-testid="pov-slot">POV</span>} />,
+      <SearchResults
+        query="jack"
+        pov="nosfabrica"
+        onQueryRewrite={() => {}}
+        perspective={<span data-testid="pov-slot">POV</span>}
+      />,
     );
     const row = screen.getByTestId("search-toolbar");
     const slot = within(row).getByTestId("pov-slot");
@@ -552,10 +645,24 @@ describe("SearchResults", () => {
   it("app cards share one shape: icon in the corner, Get it in the footer, equal heights", async () => {
     setUrlTab("apps");
     render(<SearchResults query="poster" pov="nosfabrica" />);
-    const long = ev("app1", 32267, "9".repeat(64), "", [["d", "a"], ["name", "PosterChan"], ["summary", "A Nostr-powered personal cloud and self-hosted AI — notes, calendar, contacts, files, passwords"], ["icon", "https://cdn.zapstore.dev/icon.png"], ["f", "android-arm64-v8a"], ["license", "GPL-3.0-or-later"]]);
+    const long = ev("app1", 32267, "9".repeat(64), "", [
+      ["d", "a"],
+      ["name", "PosterChan"],
+      ["summary", "A Nostr-powered personal cloud and self-hosted AI — notes, calendar, contacts, files, passwords"],
+      ["icon", "https://cdn.zapstore.dev/icon.png"],
+      ["f", "android-arm64-v8a"],
+      ["license", "GPL-3.0-or-later"],
+    ]);
     // No d tag → no Zap Store page, no site, no repo: nowhere to "get it".
-    const short = ev("app2", 32267, "8".repeat(64), "", [["name", "Ditto"], ["summary", "Your content."]]);
-    emit({ hits: [long, short].map((e) => ({ event: e, author: author(e.pubkey, "pub"), rank: null })), eose: true, timeMs: 200 });
+    const short = ev("app2", 32267, "8".repeat(64), "", [
+      ["name", "Ditto"],
+      ["summary", "Your content."],
+    ]);
+    emit({
+      hits: [long, short].map((e) => ({ event: e, author: author(e.pubkey, "pub"), rank: null })),
+      eose: true,
+      timeMs: 200,
+    });
     const card = await screen.findByTestId("app-card-app1");
 
     // Reading order = tab order: name, summary, chips, publisher, then Get it.
@@ -591,15 +698,33 @@ describe("SearchResults", () => {
     const DAY = 86_400;
     const nowSec = Math.floor(Date.now() / 1000);
     const cal = (id: string, title: string, start: number, extra: string[][] = [], pubkey = "c".repeat(64)) =>
-      ev(id, 31923, pubkey, "", [["d", id], ["title", title], ["start", String(start)], ["location", "Liverpool, UK"], ...extra]);
+      ev(id, 31923, pubkey, "", [
+        ["d", id],
+        ["title", title],
+        ["start", String(start)],
+        ["location", "Liverpool, UK"],
+        ...extra,
+      ]);
     // (The conference has a different organiser — same-author near-identical
     // titles collapse behind a +N chip, which is its own test below.)
     const emitEvents = () =>
       emit({
         hits: [
-          { event: cal("e-next-month", "Bitcoin Liverpool Conference", nowSec + 20 * DAY, [], "d".repeat(64)), author: author("d".repeat(64), "conf"), rank: null },
-          { event: cal("e-tonight", "Bitcoin Liverpool Meetup", nowSec + 5 * 3600), author: author("c".repeat(64), "club"), rank: null },
-          { event: cal("e-last-week", "Bitcoin Liverpool Meetup (Aug)", nowSec - 7 * DAY), author: author("c".repeat(64), "club"), rank: null },
+          {
+            event: cal("e-next-month", "Bitcoin Liverpool Conference", nowSec + 20 * DAY, [], "d".repeat(64)),
+            author: author("d".repeat(64), "conf"),
+            rank: null,
+          },
+          {
+            event: cal("e-tonight", "Bitcoin Liverpool Meetup", nowSec + 5 * 3600),
+            author: author("c".repeat(64), "club"),
+            rank: null,
+          },
+          {
+            event: cal("e-last-week", "Bitcoin Liverpool Meetup (Aug)", nowSec - 7 * DAY),
+            author: author("c".repeat(64), "club"),
+            rank: null,
+          },
         ],
         eose: true,
         timeMs: 300,
@@ -619,7 +744,10 @@ describe("SearchResults", () => {
       render(<SearchResults query="liverpool" pov="nosfabrica" />);
       emitEvents();
       const cards = await screen.findAllByTestId(/^event-card-/);
-      expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual(["event-card-e-tonight", "event-card-e-next-month"]);
+      expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual([
+        "event-card-e-tonight",
+        "event-card-e-next-month",
+      ]);
       expect(screen.queryByTestId("event-card-e-last-week")).toBeNull();
       const facets = screen.getByTestId("event-facets");
       expect(within(facets).getByTestId("event-facet-upcoming")).toHaveTextContent("Upcoming 2");
@@ -640,21 +768,27 @@ describe("SearchResults", () => {
     it("is a timeline: a header per day with the date said once, cards led by their time, and who is going", async () => {
       setUrlTab("events");
       const addr = "31923:" + "c".repeat(64) + ":e-tonight";
-      eventRsvpsMock.mockResolvedValue(new Map([[addr, { going: 3, faces: ["1".repeat(64), "2".repeat(64), "3".repeat(64)] }]]));
+      eventRsvpsMock.mockResolvedValue(
+        new Map([[addr, { going: 3, faces: ["1".repeat(64), "2".repeat(64), "3".repeat(64)] }]]),
+      );
       render(<SearchResults query="liverpool" pov="nosfabrica" />);
       emitEvents();
       await screen.findByTestId("event-card-e-tonight");
       const days = screen.getAllByTestId(/^event-day-/);
       expect(days).toHaveLength(2);
       expect(days[0]).toHaveTextContent(/Today|Tomorrow/);
-      expect(days[1]).toHaveTextContent(new Date((nowSec + 20 * DAY) * 1000).toLocaleDateString(undefined, { month: "short" }));
+      expect(days[1]).toHaveTextContent(
+        new Date((nowSec + 20 * DAY) * 1000).toLocaleDateString(undefined, { month: "short" }),
+      );
       // The date is in the header, not repeated on every card.
       expect(within(screen.getByTestId("event-card-e-tonight")).queryByTestId("event-date-tile")).toBeNull();
       expect(eventRsvpsMock).toHaveBeenCalledWith(expect.arrayContaining([addr]));
       const going = await within(screen.getByTestId("event-card-e-tonight")).findByTestId("event-going-e-tonight");
       expect(going).toHaveTextContent("3 going");
       expect(going.querySelectorAll('[data-testid^="event-going-face-"]')).toHaveLength(3);
-      expect(within(screen.getByTestId("event-card-e-next-month")).queryByTestId("event-going-e-next-month")).toBeNull();
+      expect(
+        within(screen.getByTestId("event-card-e-next-month")).queryByTestId("event-going-e-next-month"),
+      ).toBeNull();
     });
 
     // Benjamin, over the phone view: a header "Wed, Sep 2" led the Upcoming
@@ -663,13 +797,27 @@ describe("SearchResults", () => {
     // card's corner was squeezing titles to "Kansas City Sovereign…" on a
     // phone, where the event page has the real button: it hides below sm and
     // the title takes the width.
-    it("an event already running leads Upcoming under \"Ongoing\", and phones give the title its width", async () => {
+    it('an event already running leads Upcoming under "Ongoing", and phones give the title its width', async () => {
       setUrlTab("events");
       render(<SearchResults query="raystown" pov="nosfabrica" />);
       const pk = "c".repeat(64);
-      const running = ev("e-running", 31922, pk, "", [["d", "walks"], ["title", "Migration Morning Bird Walks"], ["start", new Date((nowSec - 3 * DAY) * 1000).toISOString().slice(0, 10)], ["end", new Date((nowSec + 10 * DAY) * 1000).toISOString().slice(0, 10)]]);
-      const later = ev("e-later", 31923, pk, "", [["d", "later"], ["title", "Juniata College Women's Soccer"], ["start", String(nowSec + 6 * DAY)], ["end", String(nowSec + 6 * DAY + 7200)]]);
-      emit({ hits: [running, later].map((event) => ({ event, author: author(pk, "Raystown Events"), rank: null })), eose: true, timeMs: 120 });
+      const running = ev("e-running", 31922, pk, "", [
+        ["d", "walks"],
+        ["title", "Migration Morning Bird Walks"],
+        ["start", new Date((nowSec - 3 * DAY) * 1000).toISOString().slice(0, 10)],
+        ["end", new Date((nowSec + 10 * DAY) * 1000).toISOString().slice(0, 10)],
+      ]);
+      const later = ev("e-later", 31923, pk, "", [
+        ["d", "later"],
+        ["title", "Juniata College Women's Soccer"],
+        ["start", String(nowSec + 6 * DAY)],
+        ["end", String(nowSec + 6 * DAY + 7200)],
+      ]);
+      emit({
+        hits: [running, later].map((event) => ({ event, author: author(pk, "Raystown Events"), rank: null })),
+        eose: true,
+        timeMs: 120,
+      });
       await screen.findByTestId("event-card-e-running");
       const days = screen.getAllByTestId(/^event-day-/);
       expect(days[0].getAttribute("data-testid")).toBe("event-day-ongoing");
@@ -698,7 +846,13 @@ describe("SearchResults", () => {
       setUrlTab("events");
       render(<SearchResults query="liverpool" pov="nosfabrica" />);
       emit({
-        hits: [{ event: cal("e-old", "Bitcoin Liverpool Meetup (Aug)", nowSec - 7 * DAY), author: author("c".repeat(64), "club"), rank: null }],
+        hits: [
+          {
+            event: cal("e-old", "Bitcoin Liverpool Meetup (Aug)", nowSec - 7 * DAY),
+            author: author("c".repeat(64), "club"),
+            rank: null,
+          },
+        ],
         eose: true,
         timeMs: 300,
       });
@@ -715,7 +869,11 @@ describe("SearchResults", () => {
       emit({
         hits: [
           { event: cal("e-up", "Meetup", nowSec + DAY), author: null, rank: null },
-          { event: cal("e-rec", "Talk", nowSec - DAY, [["recording", "https://youtu.be/abc12345"]]), author: null, rank: null },
+          {
+            event: cal("e-rec", "Talk", nowSec - DAY, [["recording", "https://youtu.be/abc12345"]]),
+            author: null,
+            rank: null,
+          },
         ],
         eose: true,
         timeMs: 300,
@@ -737,10 +895,17 @@ describe("SearchResults", () => {
     endorsementsMock.mockReturnValue({
       address: "32267:" + "9".repeat(64) + ":com.vitorpamplona.amethyst",
       reviews: [{ id: "r1", pubkey: "1".repeat(64), text: "love it", at: 1, version: null, k: "32267", kind: 1111 }],
-      reviewCount: 14, zaps: [], zapCount: 101, collectionCount: 46,
+      reviewCount: 14,
+      zaps: [],
+      zapCount: 101,
+      collectionCount: 46,
     });
     render(<SearchResults query="amethyst" pov="nosfabrica" />);
-    const app = ev("app1", 32267, "9".repeat(64), "", [["d", "com.vitorpamplona.amethyst"], ["name", "Amethyst"], ["summary", "The all-in-one Nostr client"]]);
+    const app = ev("app1", 32267, "9".repeat(64), "", [
+      ["d", "com.vitorpamplona.amethyst"],
+      ["name", "Amethyst"],
+      ["summary", "The all-in-one Nostr client"],
+    ]);
     emit({ hits: [{ event: app, author: author(app.pubkey, "Amethyst"), rank: null }], eose: true, timeMs: 200 });
     await screen.findByTestId("app-card-app1");
     expect(screen.queryByTestId("app-endorsements-app1")).toBeNull();
@@ -804,8 +969,19 @@ describe("SearchResults", () => {
     setUrlTab("articles");
     render(<SearchResults query="dvm" pov="nosfabrica" />);
     const pk = "d".repeat(64);
-    const hit = (id: string, kind: number, title: string) => ({ event: ev(id, kind, pk, "body", [["d", id], ["title", title]]), author: author(pk, "russell"), rank: null });
-    emit({ hits: [hit("a1", 30023, "Building a DVM"), hit("s1", 30817, "Scheduler DVM"), hit("a2", 30023, "DVMs explained")], eose: true, timeMs: 200 });
+    const hit = (id: string, kind: number, title: string) => ({
+      event: ev(id, kind, pk, "body", [
+        ["d", id],
+        ["title", title],
+      ]),
+      author: author(pk, "russell"),
+      rank: null,
+    });
+    emit({
+      hits: [hit("a1", 30023, "Building a DVM"), hit("s1", 30817, "Scheduler DVM"), hit("a2", 30023, "DVMs explained")],
+      eose: true,
+      timeMs: 200,
+    });
     await screen.findByText("Scheduler DVM");
 
     const facets = screen.getByTestId("article-facets");
@@ -824,7 +1000,20 @@ describe("SearchResults", () => {
     setUrlTab("articles");
     render(<SearchResults query="honey" pov="nosfabrica" />);
     const pk = "d".repeat(64);
-    emit({ hits: [{ event: ev("h1", 30023, pk, "body", [["d", "h1"], ["title", "Raw honey"]]), author: author(pk, "bee"), rank: null }], eose: true, timeMs: 200 });
+    emit({
+      hits: [
+        {
+          event: ev("h1", 30023, pk, "body", [
+            ["d", "h1"],
+            ["title", "Raw honey"],
+          ]),
+          author: author(pk, "bee"),
+          rank: null,
+        },
+      ],
+      eose: true,
+      timeMs: 200,
+    });
     await screen.findByText("Raw honey");
     expect(screen.queryByTestId("article-facets")).toBeNull();
   });
@@ -832,11 +1021,14 @@ describe("SearchResults", () => {
   it("renders a live event with its status pill and title", async () => {
     setUrlTab("live");
     render(<SearchResults query="conf" pov="nosfabrica" />);
-    const live = { ...ev("l1", 30311, "e".repeat(64), "", [
-      ["d", "stream-1"],
-      ["title", "Nostr Dev Call"],
-      ["status", "live"],
-    ]), created_at: Math.floor(Date.now() / 1000) };
+    const live = {
+      ...ev("l1", 30311, "e".repeat(64), "", [
+        ["d", "stream-1"],
+        ["title", "Nostr Dev Call"],
+        ["status", "live"],
+      ]),
+      created_at: Math.floor(Date.now() / 1000),
+    };
     emit({ hits: [{ event: live, author: author(live.pubkey, "erin"), rank: null }], eose: true, timeMs: 200 });
     expect(await screen.findByText("Nostr Dev Call")).toBeInTheDocument();
     expect(screen.getByTestId("live-status-l1")).toHaveTextContent(/live/i);
@@ -857,21 +1049,58 @@ describe("SearchResults", () => {
     setUrlTab("live");
     render(<SearchResults query="" pov="nosfabrica" />);
     // Every fixture is freshly published: a "live" nobody updated in a week is stale by design.
-    const mk = (id: string, kind: number, tags: string[][]) => ({ ...ev(id, kind, platform, "", [["d", id], ...tags]), created_at: now });
+    const mk = (id: string, kind: number, tags: string[][]) => ({
+      ...ev(id, kind, platform, "", [["d", id], ...tags]),
+      created_at: now,
+    });
     const hits = [
-      mk("l2", 30311, [["title", "Chill Radio"], ["status", "live"], ["current_participants", "5"], ["starts", String(now - 3 * 86_400)], ["t", "radio"]]),
-      mk("l1", 30311, [["title", "Nostr Dev Call"], ["status", "live"], ["image", "https://img/dev.jpg"], ["current_participants", "23"], ["starts", String(now - (2 * 3600 + 15 * 60))], ["t", "streaming"], ["t", "tech"], ["p", host, "wss://r", "host"]]),
-      mk("r1", 30311, [["title", "Yesterday's show"], ["status", "ended"], ["recording", "https://rec.ok/r1.m3u8"]]),
-      mk("r2", 30311, [["title", "Lost show"], ["status", "ended"], ["recording", "https://rec.dead/r2.m3u8"]]),
-      mk("e1", 30311, [["title", "Gone"], ["status", "ended"]]),
-      mk("m1", 30313, [["title", "Grounded Value"], ["status", "planned"], ["starts", String(now + 3 * 3600)]]),
-      mk("c1", 30312, [["status", "closed"], ["room", "x"]]),
+      mk("l2", 30311, [
+        ["title", "Chill Radio"],
+        ["status", "live"],
+        ["current_participants", "5"],
+        ["starts", String(now - 3 * 86_400)],
+        ["t", "radio"],
+      ]),
+      mk("l1", 30311, [
+        ["title", "Nostr Dev Call"],
+        ["status", "live"],
+        ["image", "https://img/dev.jpg"],
+        ["current_participants", "23"],
+        ["starts", String(now - (2 * 3600 + 15 * 60))],
+        ["t", "streaming"],
+        ["t", "tech"],
+        ["p", host, "wss://r", "host"],
+      ]),
+      mk("r1", 30311, [
+        ["title", "Yesterday's show"],
+        ["status", "ended"],
+        ["recording", "https://rec.ok/r1.m3u8"],
+      ]),
+      mk("r2", 30311, [
+        ["title", "Lost show"],
+        ["status", "ended"],
+        ["recording", "https://rec.dead/r2.m3u8"],
+      ]),
+      mk("e1", 30311, [
+        ["title", "Gone"],
+        ["status", "ended"],
+      ]),
+      mk("m1", 30313, [
+        ["title", "Grounded Value"],
+        ["status", "planned"],
+        ["starts", String(now + 3 * 3600)],
+      ]),
+      mk("c1", 30312, [
+        ["status", "closed"],
+        ["room", "x"],
+      ]),
     ].map((event) => ({ event, author: author(platform, "zap.stream"), rank: null }));
     emit({ hits, eose: true, timeMs: 300 });
 
     const grid = await screen.findByTestId("container-search-results");
     expect(grid.className).toMatch(/grid/);
-    const tiles = () => [...grid.querySelectorAll('[data-testid^="live-tile-"]')].map((n) => n.getAttribute("data-testid"));
+    const tiles = () =>
+      [...grid.querySelectorAll('[data-testid^="live-tile-"]')].map((n) => n.getAttribute("data-testid"));
     // Live first, most watched first.
     expect(tiles()).toEqual(["live-tile-l1", "live-tile-l2"]);
     const l1 = screen.getByTestId("live-tile-l1");
@@ -909,12 +1138,31 @@ describe("SearchResults", () => {
     const platform = "e".repeat(64);
     setUrlTab("live");
     render(<SearchResults query="" pov="nosfabrica" />);
-    const mk = (id: string, tags: string[][]) => ({ ...ev(id, 30311, platform, "", [["d", id], ...tags]), created_at: now });
+    const mk = (id: string, tags: string[][]) => ({
+      ...ev(id, 30311, platform, "", [["d", id], ...tags]),
+      created_at: now,
+    });
     const hits = [
       // Probed 2026-09-05: a QA event with a fake count and an ftp:// stream topped the grid.
-      mk("q1", [["title", "QA: non-web streaming scheme"], ["status", "live"], ["current_participants", "99999"], ["streaming", "ftp://example.com/not-a-web-url"]]),
-      mk("l3", [["title", "Big Show"], ["status", "live"], ["current_participants", "12345"], ["streaming", "https://cdn/x.m3u8"], ["t", "music"]]),
-      mk("l4", [["title", "Small Show"], ["status", "live"], ["current_participants", "7"], ["streaming", "https://cdn/y.m3u8"]]),
+      mk("q1", [
+        ["title", "QA: non-web streaming scheme"],
+        ["status", "live"],
+        ["current_participants", "99999"],
+        ["streaming", "ftp://example.com/not-a-web-url"],
+      ]),
+      mk("l3", [
+        ["title", "Big Show"],
+        ["status", "live"],
+        ["current_participants", "12345"],
+        ["streaming", "https://cdn/x.m3u8"],
+        ["t", "music"],
+      ]),
+      mk("l4", [
+        ["title", "Small Show"],
+        ["status", "live"],
+        ["current_participants", "7"],
+        ["streaming", "https://cdn/y.m3u8"],
+      ]),
     ].map((event) => ({ event, author: author(platform, "zap.stream"), rank: null }));
     emit({ hits, eose: true, timeMs: 300 });
 
@@ -941,13 +1189,23 @@ describe("SearchResults", () => {
     const now = Math.floor(Date.now() / 1000);
     setUrlTab("live");
     render(<SearchResults query="joe martin" pov="nosfabrica" />);
-    const mk = (id: string, ageSec: number, tags: string[][]) => ({ ...ev(id, 30311, "e".repeat(64), "", [["d", id], ["title", `Show ${id}`], ["status", "live"], ...tags]), created_at: now - ageSec });
+    const mk = (id: string, ageSec: number, tags: string[][]) => ({
+      ...ev(id, 30311, "e".repeat(64), "", [["d", id], ["title", `Show ${id}`], ["status", "live"], ...tags]),
+      created_at: now - ageSec,
+    });
     const hits = [
-      mk("fresh", 600, [["streaming", "https://rec.dead/fresh.m3u8"], ["image", "https://www.venue.example/joe-martin"]]),
+      mk("fresh", 600, [
+        ["streaming", "https://rec.dead/fresh.m3u8"],
+        ["image", "https://www.venue.example/joe-martin"],
+      ]),
       mk("stale", 78 * 86_400, [["streaming", "https://rec.ok/stale.m3u8"]]),
       mk("oldok", 2 * 86_400, [["streaming", "https://rec.ok/old.m3u8"]]),
       mk("olddead", 2 * 86_400, [["streaming", "https://rec.dead/old.m3u8"]]),
-    ].map((event) => ({ event, author: { ...author("e".repeat(64), "tunestr"), picture: "https://img/tunestr.jpg" }, rank: null }));
+    ].map((event) => ({
+      event,
+      author: { ...author("e".repeat(64), "tunestr"), picture: "https://img/tunestr.jpg" },
+      rank: null,
+    }));
     emit({ hits, eose: true, timeMs: 300 });
 
     const fresh = await screen.findByTestId("live-tile-fresh");
@@ -972,9 +1230,28 @@ describe("SearchResults", () => {
     const now = Math.floor(Date.now() / 1000);
     setUrlTab("live");
     render(<SearchResults query="joe martin" pov="nosfabrica" />);
-    const stale = { ...ev("stale", 30311, "e".repeat(64), "", [["d", "stale"], ["title", "Joe Martin - Live from Barnoldswick"], ["status", "live"], ["streaming", "https://rec.dead/x.m3u8"]]), created_at: now - 900 * 86_400 };
-    const gone = { ...ev("gone", 30311, "e".repeat(64), "", [["d", "gone"], ["title", "Nostrville"], ["status", "ended"]]), created_at: now - 300 * 86_400 };
-    emit({ hits: [stale, gone].map((event) => ({ event, author: author(event.pubkey, "tunestr"), rank: null })), eose: true, timeMs: 300 });
+    const stale = {
+      ...ev("stale", 30311, "e".repeat(64), "", [
+        ["d", "stale"],
+        ["title", "Joe Martin - Live from Barnoldswick"],
+        ["status", "live"],
+        ["streaming", "https://rec.dead/x.m3u8"],
+      ]),
+      created_at: now - 900 * 86_400,
+    };
+    const gone = {
+      ...ev("gone", 30311, "e".repeat(64), "", [
+        ["d", "gone"],
+        ["title", "Nostrville"],
+        ["status", "ended"],
+      ]),
+      created_at: now - 300 * 86_400,
+    };
+    emit({
+      hits: [stale, gone].map((event) => ({ event, author: author(event.pubkey, "tunestr"), rank: null })),
+      eose: true,
+      timeMs: 300,
+    });
     const empty = await screen.findByTestId("live-empty");
     expect(empty).toHaveTextContent(/nothing live/i);
     expect(empty).toHaveTextContent(/2 past streams/i);
@@ -1004,7 +1281,14 @@ describe("SearchResults", () => {
       ["t", "jazz"],
     ]);
     const junk = ev("t2", 31337, "e".repeat(64), '{"players":[{"id":"p1","name":"Dylan"}]}', [["d", "TOMB-7703"]]);
-    emit({ hits: [{ event: track, author: author(nova, "NOVA"), rank: null }, { event: junk, author: null, rank: null }], eose: true, timeMs: 150 });
+    emit({
+      hits: [
+        { event: track, author: author(nova, "NOVA"), rank: null },
+        { event: junk, author: null, rank: null },
+      ],
+      eose: true,
+      timeMs: 150,
+    });
 
     const card = await screen.findByTestId("track-card-t1");
     expect(within(card).queryByTestId("kind-pill")).toBeNull(); // the Music tab says it
@@ -1029,12 +1313,24 @@ describe("SearchResults", () => {
     const npub = nip19.npubEncode(joe);
     catalogueMock.mockImplementation((pk) =>
       pk === joe
-        ? { artist: { id: "art-1", name: "Joe Martin", url: "https://wavlake.com/joe-martin", artistNpub: npub }, songs: [wavlakeSong("w1", "Hand Me Down Heart", "Joe Martin"), wavlakeSong("w2", "Checkmate", "Joe Martin")], loading: false }
+        ? {
+            artist: { id: "art-1", name: "Joe Martin", url: "https://wavlake.com/joe-martin", artistNpub: npub },
+            songs: [
+              wavlakeSong("w1", "Hand Me Down Heart", "Joe Martin"),
+              wavlakeSong("w2", "Checkmate", "Joe Martin"),
+            ],
+            loading: false,
+          }
         : { artist: null, songs: [], loading: false },
     );
     setUrlTab("music");
     render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
-    const track = ev("j1", 31337, joe, "", [["d", "j1"], ["title", "High Gravity"], ["artist", "Joe Martin"], ["media", "https://cdn/hg.mp3"]]);
+    const track = ev("j1", 31337, joe, "", [
+      ["d", "j1"],
+      ["title", "High Gravity"],
+      ["artist", "Joe Martin"],
+      ["media", "https://cdn/hg.mp3"],
+    ]);
     emit({ hits: [{ event: track, author: author(joe, "Joe Martin"), rank: null }], eose: true, timeMs: 150 });
 
     const top = await screen.findByTestId("music-top-result");
@@ -1057,7 +1353,14 @@ describe("SearchResults", () => {
     const npub = nip19.npubEncode(joe);
     catalogueMock.mockImplementation((pk) =>
       pk === joe
-        ? { artist: { id: "art-1", name: "Joe Martin", url: "https://wavlake.com/joe-martin", artistNpub: npub }, songs: [wavlakeSong("w1", "Hand Me Down Heart", "Joe Martin"), wavlakeSong("w2", "Checkmate", "Joe Martin")], loading: false }
+        ? {
+            artist: { id: "art-1", name: "Joe Martin", url: "https://wavlake.com/joe-martin", artistNpub: npub },
+            songs: [
+              wavlakeSong("w1", "Hand Me Down Heart", "Joe Martin"),
+              wavlakeSong("w2", "Checkmate", "Joe Martin"),
+            ],
+            loading: false,
+          }
         : { artist: null, songs: [], loading: false },
     );
     setUrlTab("music");
@@ -1082,7 +1385,10 @@ describe("SearchResults", () => {
     const REAL = "5".repeat(64);
     const spamNote = () => ev("s1", 1, SPAM, "#STRANGE #OCCASION https://aepiot.com/?q=strange", []);
     const realNote = () => ev("r1", 1, REAL, "Share Your Bitcoin Journey Ep 15 is live.", []);
-    const both = () => [{ event: spamNote(), author: author(SPAM, "aéPiot"), rank: null }, { event: realNote(), author: author(REAL, "David"), rank: null }];
+    const both = () => [
+      { event: spamNote(), author: author(SPAM, "aéPiot"), rank: null },
+      { event: realNote(), author: author(REAL, "David"), rank: null },
+    ];
 
     it("an account below the verified line stays off the page; the page says so; Show everyone lifts the floor", async () => {
       scoreOfMock.mockImplementation((pk) => (pk === SPAM ? 0.0198 : 0.85));
@@ -1121,7 +1427,17 @@ describe("SearchResults", () => {
       const rewrite = vi.fn();
       setUrlTab("people");
       render(<SearchResults query="web 4.0 semantic layer" pov="nosfabrica" onQueryRewrite={rewrite} />);
-      emit({ hits: [{ event: ev("k0", 0, SPAM, JSON.stringify({ name: "Web 4.0 Semantic Layer" }), []), author: author(SPAM, "Web 4.0 Semantic Layer"), rank: null }], eose: true, timeMs: 150 });
+      emit({
+        hits: [
+          {
+            event: ev("k0", 0, SPAM, JSON.stringify({ name: "Web 4.0 Semantic Layer" }), []),
+            author: author(SPAM, "Web 4.0 Semantic Layer"),
+            rank: null,
+          },
+        ],
+        eose: true,
+        timeMs: 150,
+      });
       const notice = await screen.findByTestId("search-floor-notice");
       expect(notice).toHaveTextContent(/1 result hidden/);
       expect(screen.getByTestId("container-no-results")).toBeInTheDocument();
@@ -1144,9 +1460,25 @@ describe("SearchResults", () => {
   it("the Music tab drops QA and test publications", async () => {
     setUrlTab("music");
     render(<SearchResults query="" pov="nosfabrica" />);
-    const qa = ev("qa1", 31337, "5".repeat(64), "", [["d", "qa41"], ["title", "QA storage fixture qa41 #2"], ["artist", "ff-qa-creator"], ["t", "fanfares-qa"], ["media", "https://blossom.test/qa41.mp3"]]);
-    const song = ev("s1", 31337, "6".repeat(64), "", [["d", "ten"], ["title", "Ten Bottles"], ["artist", "NOVA"], ["t", "ambient-folk"], ["media", "https://renaissancemachine.ai/music/ten.mp3"]]);
-    emit({ hits: [qa, song].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })), eose: true, timeMs: 90 });
+    const qa = ev("qa1", 31337, "5".repeat(64), "", [
+      ["d", "qa41"],
+      ["title", "QA storage fixture qa41 #2"],
+      ["artist", "ff-qa-creator"],
+      ["t", "fanfares-qa"],
+      ["media", "https://blossom.test/qa41.mp3"],
+    ]);
+    const song = ev("s1", 31337, "6".repeat(64), "", [
+      ["d", "ten"],
+      ["title", "Ten Bottles"],
+      ["artist", "NOVA"],
+      ["t", "ambient-folk"],
+      ["media", "https://renaissancemachine.ai/music/ten.mp3"],
+    ]);
+    emit({
+      hits: [qa, song].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      eose: true,
+      timeMs: 90,
+    });
     await screen.findByTestId("track-card-s1");
     expect(screen.queryByTestId("track-card-qa1")).toBeNull();
   });
@@ -1162,7 +1494,13 @@ describe("SearchResults", () => {
     ]);
     setUrlTab("music");
     render(<SearchResults query="" pov="nosfabrica" />);
-    const song = ev("s1", 31337, "6".repeat(64), "", [["d", "ten"], ["title", "Ten Bottles"], ["artist", "NOVA"], ["t", "ambient-folk"], ["media", "https://renaissancemachine.ai/music/ten.mp3"]]);
+    const song = ev("s1", 31337, "6".repeat(64), "", [
+      ["d", "ten"],
+      ["title", "Ten Bottles"],
+      ["artist", "NOVA"],
+      ["t", "ambient-folk"],
+      ["media", "https://renaissancemachine.ai/music/ten.mp3"],
+    ]);
     emit({ hits: [{ event: song, author: author(song.pubkey, "NOVA"), rank: null }], eose: true, timeMs: 90 });
 
     const trending = await screen.findByTestId("music-trending");
@@ -1194,17 +1532,40 @@ describe("SearchResults", () => {
       // Live decoy: Wavlake led "nova" with Freddy Donovan — the letters inside a word.
       artists: [
         { id: "fr3d", name: "Freddy Donovan", url: "https://wavlake.com/freddy-donovan", artistNpub: "" },
-        { id: "a1", name: "NOVA Sound System", url: "https://wavlake.com/nova-sound-system", artworkUrl: "https://img/nova.jpg", artistNpub: "" },
+        {
+          id: "a1",
+          name: "NOVA Sound System",
+          url: "https://wavlake.com/nova-sound-system",
+          artworkUrl: "https://img/nova.jpg",
+          artistNpub: "",
+        },
       ],
-      albums: [{ id: "al1", title: "Deep Space", artist: "NOVA Sound System", artworkUrl: "https://img/deep.jpg", url: "https://wavlake.com/album/al1" }],
+      albums: [
+        {
+          id: "al1",
+          title: "Deep Space",
+          artist: "NOVA Sound System",
+          artworkUrl: "https://img/deep.jpg",
+          url: "https://wavlake.com/album/al1",
+        },
+      ],
       songs: [wavlakeSong("w1", "Orbit", "NOVA Sound System")],
     });
     setUrlTab("music");
     render(<SearchResults query="nova" pov="nosfabrica" />);
     const nova = "d".repeat(64);
     const mk = (id: string, title: string, genre: string) =>
-      ev(id, 31337, nova, "", [["d", id], ["title", title], ["artist", "NOVA"], ["t", genre], ["media", `https://renaissancemachine.ai/music/${id}.mp3`], ["image", `https://renaissancemachine.ai/music/${id}.jpg`]]);
-    const hits = [mk("g1", "Old Carbon", "jazz"), mk("g2", "Duende", "jazz"), mk("g3", "Fulgurite", "post-rock")].map((event) => ({ event, author: author(nova, "NOVA"), rank: null }));
+      ev(id, 31337, nova, "", [
+        ["d", id],
+        ["title", title],
+        ["artist", "NOVA"],
+        ["t", genre],
+        ["media", `https://renaissancemachine.ai/music/${id}.mp3`],
+        ["image", `https://renaissancemachine.ai/music/${id}.jpg`],
+      ]);
+    const hits = [mk("g1", "Old Carbon", "jazz"), mk("g2", "Duende", "jazz"), mk("g3", "Fulgurite", "post-rock")].map(
+      (event) => ({ event, author: author(nova, "NOVA"), rank: null }),
+    );
     emit({ hits, eose: true, timeMs: 150 });
 
     const top = await screen.findByTestId("music-top-result");
@@ -1250,11 +1611,30 @@ describe("SearchResults", () => {
   it("Play starts the queue and the now-playing bar follows it", async () => {
     setUrlTab("music");
     // The bar is mounted once at the app shell; here it sits beside the results.
-    render(<><SearchResults query="nova" pov="nosfabrica" /><NowPlayingBar /></>);
+    render(
+      <>
+        <SearchResults query="nova" pov="nosfabrica" />
+        <NowPlayingBar />
+      </>,
+    );
     const nova = "d".repeat(64);
     const mk = (id: string, title: string) =>
-      ev(id, 31337, nova, "", [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://renaissancemachine.ai/music/${id}.mp3`], ["image", `https://renaissancemachine.ai/music/${id}.jpg`]]);
-    emit({ hits: [mk("q1", "Old Carbon"), mk("q2", "Duende")].map((event) => ({ event, author: author(nova, "NOVA"), rank: null })), eose: true, timeMs: 150 });
+      ev(id, 31337, nova, "", [
+        ["d", id],
+        ["title", title],
+        ["artist", "NOVA"],
+        ["media", `https://renaissancemachine.ai/music/${id}.mp3`],
+        ["image", `https://renaissancemachine.ai/music/${id}.jpg`],
+      ]);
+    emit({
+      hits: [mk("q1", "Old Carbon"), mk("q2", "Duende")].map((event) => ({
+        event,
+        author: author(nova, "NOVA"),
+        rank: null,
+      })),
+      eose: true,
+      timeMs: 150,
+    });
     await screen.findByTestId("track-card-q1");
     expect(screen.queryByTestId("now-playing-bar")).toBeNull();
 
@@ -1262,7 +1642,9 @@ describe("SearchResults", () => {
     const bar = await screen.findByTestId("now-playing-bar");
     expect(within(bar).getByTestId("now-playing-title")).toHaveTextContent("Old Carbon");
     // The bar wears the artwork — a soft wash of the cover behind the words — and names what is next.
-    expect((within(bar).getByTestId("now-playing-backdrop") as HTMLImageElement).src).toBe("https://renaissancemachine.ai/music/q1.jpg");
+    expect((within(bar).getByTestId("now-playing-backdrop") as HTMLImageElement).src).toBe(
+      "https://renaissancemachine.ai/music/q1.jpg",
+    );
     expect(within(bar).getByTestId("now-playing-up-next")).toHaveTextContent("Duende");
     fireEvent.click(within(bar).getByTestId("now-playing-next"));
     await vi.waitFor(() => expect(within(bar).getByTestId("now-playing-title")).toHaveTextContent("Duende"));
@@ -1278,7 +1660,19 @@ describe("SearchResults", () => {
     wavlakeCatalogueMock.mockResolvedValue({
       artists: [],
       albums: [],
-      songs: [{ id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", cover: "https://img/two-ships.jpg", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" }],
+      songs: [
+        {
+          id: "wavlake:04cead49",
+          title: "Two Ships",
+          artist: "Ainsley Costello",
+          cover: "https://img/two-ships.jpg",
+          audio: "https://cdn/two-ships.mp3",
+          durationSec: 217,
+          url: "https://wavlake.com/track/04cead49",
+          source: "wavlake",
+          artistNpub: "",
+        },
+      ],
     });
     setUrlTab("music");
     render(<SearchResults query="Ainsley Costello" pov="nosfabrica" />);
@@ -1305,13 +1699,32 @@ describe("SearchResults", () => {
     expect([...allStreams].reverse()[0].params.tab).toBe("shop");
 
     const seller = "9".repeat(64);
-    const listing = (id: string, title: string, tags: string[][]) =>
-      ({ event: ev(id, 30402, seller, `${title} — come nuova`, [["d", id], ["title", title], ...tags]), author: author(seller, "Barattolo"), rank: null });
+    const listing = (id: string, title: string, tags: string[][]) => ({
+      event: ev(id, 30402, seller, `${title} — come nuova`, [["d", id], ["title", title], ...tags]),
+      author: author(seller, "Barattolo"),
+      rank: null,
+    });
     emit({
       hits: [
-        listing("l1", "Maglia in kashmir donna", [["price", "23550", "sats"], ["image", "https://img/1.jpg"], ["location", "Gubbio (PG)"], ["shipping_option", "Italia", "500", "sats"], ["t", "abbigliamento"], ["t", "kashmir"], ["r", "https://barattolo.app/l/l1"]]),
-        listing("l2", "Maglia mezza stagione", [["price", "14100", "sats"], ["image", "https://img/2.jpg"], ["t", "abbigliamento"]]),
-        listing("sold", "Maglia venduta", [["price", "9000", "sats"], ["status", "sold"], ["t", "abbigliamento"]]),
+        listing("l1", "Maglia in kashmir donna", [
+          ["price", "23550", "sats"],
+          ["image", "https://img/1.jpg"],
+          ["location", "Gubbio (PG)"],
+          ["shipping_option", "Italia", "500", "sats"],
+          ["t", "abbigliamento"],
+          ["t", "kashmir"],
+          ["r", "https://barattolo.app/l/l1"],
+        ]),
+        listing("l2", "Maglia mezza stagione", [
+          ["price", "14100", "sats"],
+          ["image", "https://img/2.jpg"],
+          ["t", "abbigliamento"],
+        ]),
+        listing("sold", "Maglia venduta", [
+          ["price", "9000", "sats"],
+          ["status", "sold"],
+          ["t", "abbigliamento"],
+        ]),
         listing("nop", "Regalo senza prezzo", [["image", "https://img/3.jpg"]]),
       ],
       eose: true,
@@ -1365,17 +1778,28 @@ describe("SearchResults", () => {
     render(<SearchResults query="beanie" pov="nosfabrica" />);
     const seller = "6".repeat(64);
     emit({
-      hits: [{
-        event: ev("c1", 30402, seller, "Spartan Beanie", [["d", "c1"], ["title", "Spartan Beanie"], ["price", "21000", "sats"], ["image", "https://img/4.jpg"], ["t", "hat"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]),
-        author: author(seller, "Black Sheep"),
-        rank: null,
-      }],
+      hits: [
+        {
+          event: ev("c1", 30402, seller, "Spartan Beanie", [
+            ["d", "c1"],
+            ["title", "Spartan Beanie"],
+            ["price", "21000", "sats"],
+            ["image", "https://img/4.jpg"],
+            ["t", "hat"],
+            ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"],
+          ]),
+          author: author(seller, "Black Sheep"),
+          rank: null,
+        },
+      ],
       eose: true,
       timeMs: 130,
     });
 
     const open = within(await screen.findByTestId("listing-card-c1")).getByTestId("listing-open-c1");
-    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
+    expect(open.getAttribute("href")).toMatch(
+      /^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/,
+    );
     expect(open.getAttribute("title")).toBe("Buy on Conduit");
     expect(open.getAttribute("aria-label")).toBe("Buy on Conduit");
     expect(open.textContent?.trim()).toBe("");
@@ -1390,14 +1814,35 @@ describe("SearchResults", () => {
     setUrlTab("shop");
     render(<SearchResults query="soap" pov="nosfabrica" />);
     const seller = "6".repeat(64);
-    const conduit = ev("c1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "sweet-almond-conduit"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]);
-    const elsewhere = ev("e1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "product_1788284895802_51fra"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["t", "Health & Beauty"]]);
-    emit({ hits: [{ event: elsewhere, author: author(seller, "Born To Be Free"), rank: null }, { event: conduit, author: author(seller, "Born To Be Free"), rank: null }], eose: true, timeMs: 130 });
+    const conduit = ev("c1", 30402, seller, "Sweet Almond Tallow Soap Bar", [
+      ["d", "sweet-almond-conduit"],
+      ["title", "Sweet Almond Tallow Soap Bar"],
+      ["price", "12000", "sats"],
+      ["image", "https://img/1.jpg"],
+      ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"],
+    ]);
+    const elsewhere = ev("e1", 30402, seller, "Sweet Almond Tallow Soap Bar", [
+      ["d", "product_1788284895802_51fra"],
+      ["title", "Sweet Almond Tallow Soap Bar"],
+      ["price", "12000", "sats"],
+      ["image", "https://img/1.jpg"],
+      ["t", "Health & Beauty"],
+    ]);
+    emit({
+      hits: [
+        { event: elsewhere, author: author(seller, "Born To Be Free"), rank: null },
+        { event: conduit, author: author(seller, "Born To Be Free"), rank: null },
+      ],
+      eose: true,
+      timeMs: 130,
+    });
     const card = await screen.findByTestId("listing-card-c1");
     expect(screen.queryByTestId("listing-card-e1")).toBeNull();
     expect(card).not.toHaveTextContent(/2 listings|also on/i);
     const open = within(card).getByTestId("listing-open-c1");
-    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
+    expect(open.getAttribute("href")).toMatch(
+      /^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/,
+    );
   });
 
   // A Conduit seller's listing with no twin still opens on Conduit, at their store.
@@ -1405,11 +1850,32 @@ describe("SearchResults", () => {
     setUrlTab("shop");
     render(<SearchResults query="soap" pov="nosfabrica" />);
     const seller = "6".repeat(64);
-    const conduit = ev("c1", 30402, seller, "Sweet Almond Tallow Soap Bar", [["d", "sweet-almond-conduit"], ["title", "Sweet Almond Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/1.jpg"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]);
-    const elsewhere = ev("e1", 30402, seller, "Lavender Tallow Soap Bar", [["d", "product_1788284895802_51frb"], ["title", "Lavender Tallow Soap Bar"], ["price", "12000", "sats"], ["image", "https://img/2.jpg"], ["t", "Health & Beauty"]]);
-    emit({ hits: [{ event: conduit, author: author(seller, "Born To Be Free"), rank: null }, { event: elsewhere, author: author(seller, "Born To Be Free"), rank: null }], eose: true, timeMs: 130 });
+    const conduit = ev("c1", 30402, seller, "Sweet Almond Tallow Soap Bar", [
+      ["d", "sweet-almond-conduit"],
+      ["title", "Sweet Almond Tallow Soap Bar"],
+      ["price", "12000", "sats"],
+      ["image", "https://img/1.jpg"],
+      ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"],
+    ]);
+    const elsewhere = ev("e1", 30402, seller, "Lavender Tallow Soap Bar", [
+      ["d", "product_1788284895802_51frb"],
+      ["title", "Lavender Tallow Soap Bar"],
+      ["price", "12000", "sats"],
+      ["image", "https://img/2.jpg"],
+      ["t", "Health & Beauty"],
+    ]);
+    emit({
+      hits: [
+        { event: conduit, author: author(seller, "Born To Be Free"), rank: null },
+        { event: elsewhere, author: author(seller, "Born To Be Free"), rank: null },
+      ],
+      eose: true,
+      timeMs: 130,
+    });
     const open = within(await screen.findByTestId("listing-card-e1")).getByTestId("listing-open-e1");
-    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/store\/npub1[a-z0-9]+\?ref=brainstorm$/);
+    expect(open.getAttribute("href")).toMatch(
+      /^https:\/\/shop\.conduit\.market\/store\/npub1[a-z0-9]+\?ref=brainstorm$/,
+    );
   });
 
   // Benjamin (2026-09-24), "as easy as finding what you want on Google": a
@@ -1421,10 +1887,42 @@ describe("SearchResults", () => {
     const seller = "6".repeat(64);
     emit({
       hits: [
-        { event: ev("s1", 30402, seller, "Soap", [["d", "s1"], ["title", "Soap"], ["price", "23550", "sats"]]), author: author(seller, "Staci"), rank: null },
-        { event: ev("s2", 30402, seller, "Balm", [["d", "s2"], ["title", "Balm"], ["price", "12", "USD"]]), author: author(seller, "Staci"), rank: null },
-        { event: ev("s3", 30402, seller, "Tallow", [["d", "s3"], ["title", "Tallow"], ["price", "9", "EUR"]]), author: author(seller, "Staci"), rank: null },
-        { event: ev("s4", 30402, seller, "Real", [["d", "s4"], ["title", "Real"], ["price", "50", "BRL"]]), author: author(seller, "Staci"), rank: null },
+        {
+          event: ev("s1", 30402, seller, "Soap", [
+            ["d", "s1"],
+            ["title", "Soap"],
+            ["price", "23550", "sats"],
+          ]),
+          author: author(seller, "Staci"),
+          rank: null,
+        },
+        {
+          event: ev("s2", 30402, seller, "Balm", [
+            ["d", "s2"],
+            ["title", "Balm"],
+            ["price", "12", "USD"],
+          ]),
+          author: author(seller, "Staci"),
+          rank: null,
+        },
+        {
+          event: ev("s3", 30402, seller, "Tallow", [
+            ["d", "s3"],
+            ["title", "Tallow"],
+            ["price", "9", "EUR"],
+          ]),
+          author: author(seller, "Staci"),
+          rank: null,
+        },
+        {
+          event: ev("s4", 30402, seller, "Real", [
+            ["d", "s4"],
+            ["title", "Real"],
+            ["price", "50", "BRL"],
+          ]),
+          author: author(seller, "Staci"),
+          rank: null,
+        },
       ],
       eose: true,
       timeMs: 130,
@@ -1442,9 +1940,33 @@ describe("SearchResults", () => {
     setUrlTab("shop");
     const seller = "6".repeat(64);
     const hits = [
-      { event: ev("p1", 30402, seller, "Soap", [["d", "p1"], ["title", "Soap"], ["price", "12000", "sats"]]), author: author(seller, "Staci"), rank: null },
-      { event: ev("p2", 30402, seller, "Kit", [["d", "p2"], ["title", "Kit"], ["price", "40", "USD"]]), author: author(seller, "Staci"), rank: null },
-      { event: ev("p3", 30402, seller, "Box", [["d", "p3"], ["title", "Box"], ["price", "0.002", "BTC"]]), author: author(seller, "Staci"), rank: null },
+      {
+        event: ev("p1", 30402, seller, "Soap", [
+          ["d", "p1"],
+          ["title", "Soap"],
+          ["price", "12000", "sats"],
+        ]),
+        author: author(seller, "Staci"),
+        rank: null,
+      },
+      {
+        event: ev("p2", 30402, seller, "Kit", [
+          ["d", "p2"],
+          ["title", "Kit"],
+          ["price", "40", "USD"],
+        ]),
+        author: author(seller, "Staci"),
+        rank: null,
+      },
+      {
+        event: ev("p3", 30402, seller, "Box", [
+          ["d", "p3"],
+          ["title", "Box"],
+          ["price", "0.002", "BTC"],
+        ]),
+        author: author(seller, "Staci"),
+        rank: null,
+      },
     ];
     const { unmount } = render(<SearchResults query="soap" pov="nosfabrica" />);
     emit({ hits, eose: true, timeMs: 130 });
@@ -1480,10 +2002,42 @@ describe("SearchResults", () => {
     const rewrite = vi.fn();
     const seller = "6".repeat(64);
     const hits = [
-      { event: ev("q1", 30402, seller, "Kit", [["d", "q1"], ["title", "Kit"], ["price", "40", "USD"]]), author: author(seller, "Staci"), rank: null },
-      { event: ev("q2", 30402, seller, "Soap", [["d", "q2"], ["title", "Soap"], ["price", "12000", "sats"]]), author: author(seller, "Staci"), rank: null },
-      { event: ev("q3", 30402, seller, "Real", [["d", "q3"], ["title", "Real"], ["price", "50", "BRL"]]), author: author(seller, "Staci"), rank: null },
-      { event: ev("q4", 30402, seller, "Box", [["d", "q4"], ["title", "Box"], ["price", "0.002", "BTC"]]), author: author(seller, "Staci"), rank: null },
+      {
+        event: ev("q1", 30402, seller, "Kit", [
+          ["d", "q1"],
+          ["title", "Kit"],
+          ["price", "40", "USD"],
+        ]),
+        author: author(seller, "Staci"),
+        rank: null,
+      },
+      {
+        event: ev("q2", 30402, seller, "Soap", [
+          ["d", "q2"],
+          ["title", "Soap"],
+          ["price", "12000", "sats"],
+        ]),
+        author: author(seller, "Staci"),
+        rank: null,
+      },
+      {
+        event: ev("q3", 30402, seller, "Real", [
+          ["d", "q3"],
+          ["title", "Real"],
+          ["price", "50", "BRL"],
+        ]),
+        author: author(seller, "Staci"),
+        rank: null,
+      },
+      {
+        event: ev("q4", 30402, seller, "Box", [
+          ["d", "q4"],
+          ["title", "Box"],
+          ["price", "0.002", "BTC"],
+        ]),
+        author: author(seller, "Staci"),
+        rank: null,
+      },
     ];
     const { unmount } = render(<SearchResults query="soap" pov="nosfabrica" onQueryRewrite={rewrite} />);
     emit({ hits, eose: true, timeMs: 130 });
@@ -1524,10 +2078,21 @@ describe("SearchResults", () => {
     render(<SearchResults query="liverpool" pov="nosfabrica" />);
     const orange = "b".repeat(64);
     const nowSec = Math.floor(Date.now() / 1000);
-    const mk = (id: string, title: string, days: number) =>
-      ({ event: ev(id, 31923, orange, "", [["d", id], ["title", title], ["start", String(nowSec + days * 86_400)]]), author: author(orange, "club"), rank: null });
+    const mk = (id: string, title: string, days: number) => ({
+      event: ev(id, 31923, orange, "", [
+        ["d", id],
+        ["title", title],
+        ["start", String(nowSec + days * 86_400)],
+      ]),
+      author: author(orange, "club"),
+      rank: null,
+    });
     emit({
-      hits: [mk("m1", "Bitcoin Liverpool Meet", 7), mk("m2", "Bitcoin Liverpool Meetup", 37), mk("m3", "Bitcoin Liverpool Meetup", 67)],
+      hits: [
+        mk("m1", "Bitcoin Liverpool Meet", 7),
+        mk("m2", "Bitcoin Liverpool Meetup", 37),
+        mk("m3", "Bitcoin Liverpool Meetup", 67),
+      ],
       eose: true,
       timeMs: 200,
     });
@@ -1543,7 +2108,12 @@ describe("SearchResults", () => {
     setTechnicalView(true);
     setUrlTab("shop");
     render(<SearchResults query="mug" pov="nosfabrica" />);
-    const listing = ev("kl1", 30402, "5".repeat(64), "A mug", [["d", "kl1"], ["title", "Handmade mug"], ["price", "20", "USD"], ["status", "active"]]);
+    const listing = ev("kl1", 30402, "5".repeat(64), "A mug", [
+      ["d", "kl1"],
+      ["title", "Handmade mug"],
+      ["price", "20", "USD"],
+      ["status", "active"],
+    ]);
     emit({ hits: [{ event: listing, author: author(listing.pubkey, "potter"), rank: null }], eose: true, timeMs: 100 });
     const card = await screen.findByTestId("listing-card-kl1");
     expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Listing · 30402$/);
@@ -1598,8 +2168,15 @@ describe("SearchResults", () => {
     // A repo announcement has an external "Open repo" link — the glyph steps
     // aside so the two never overlap. A patch has no external link — the
     // glyph keeps the corner.
-    const repo = ev("ov1", 30617, "f".repeat(64), "", [["d", "ngit"], ["name", "ngit"], ["web", "https://gitworkshop.dev/ngit"]]);
-    const patch = ev("ov2", 1617, "a".repeat(64), "", [["subject", "fix: thing"], ["a", "30617:" + "f".repeat(64) + ":ngit"]]);
+    const repo = ev("ov1", 30617, "f".repeat(64), "", [
+      ["d", "ngit"],
+      ["name", "ngit"],
+      ["web", "https://gitworkshop.dev/ngit"],
+    ]);
+    const patch = ev("ov2", 1617, "a".repeat(64), "", [
+      ["subject", "fix: thing"],
+      ["a", "30617:" + "f".repeat(64) + ":ngit"],
+    ]);
     emit({
       hits: [repo, patch].map((event) => ({ event, author: author(event.pubkey, "dan"), rank: null })),
       eose: true,
@@ -1621,17 +2198,20 @@ describe("SearchResults", () => {
     setUrlTab("repos");
     render(<SearchResults query="amethyst" pov="nosfabrica" />);
     const gh = ev("br1", 30617, "f".repeat(64), "", [
-      ["d", "amethyst"], ["name", "amethyst"],
+      ["d", "amethyst"],
+      ["name", "amethyst"],
       ["web", "https://github.com/vitorpamplona/amethyst"],
     ]);
     // Only a clone URL, but on a browsable forge — link there, not gitworkshop.
     const cb = ev("br2", 30617, "e".repeat(64), "", [
-      ["d", "forgejo-thing"], ["name", "forgejo-thing"],
+      ["d", "forgejo-thing"],
+      ["name", "forgejo-thing"],
       ["clone", "https://codeberg.org/someone/forgejo-thing.git"],
     ]);
     // A relay-only clone isn't a web page — gitworkshop renders the repo.
     const ngit = ev("br3", 30617, "d".repeat(64), "", [
-      ["d", "ngit"], ["name", "ngit"],
+      ["d", "ngit"],
+      ["name", "ngit"],
       ["clone", "https://relay.ngit.dev/npub1abc/ngit"],
     ]);
     emit({
@@ -1655,7 +2235,8 @@ describe("SearchResults", () => {
     render(<SearchResults query="site" pov="nosfabrica" />);
     const npub = "npub1wav4fae3gyfy3xj298kxj2mj8phavz7vavps34przq02j7w902qq902923";
     const site = ev("ns1", 30617, "f".repeat(64), "", [
-      ["d", "my-site"], ["name", "my-site"],
+      ["d", "my-site"],
+      ["name", "my-site"],
       ["web", `https://${npub}.nsite.lol/`],
     ]);
     emit({ hits: [{ event: site, author: author(site.pubkey, "x"), rank: null }], eose: true, timeMs: 200 });
@@ -1668,13 +2249,31 @@ describe("SearchResults", () => {
   // and a State strip to narrow the tab to open issues or merged patches.
   it("patches and PRs wear their state, and the State strip narrows to one", async () => {
     setUrlTab("prs");
-    const closed = ev("i1", 1618, "1".repeat(64), "rewrite everything", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "rewrite everything"]]);
-    const merged = ev("p1", 1617, "2".repeat(64), "fix: startup crash", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "fix: startup crash"]]);
-    const fresh = ev("p2", 1617, "3".repeat(64), "feat: dark mode", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "feat: dark mode"]]);
-    gitStatusesMock.mockResolvedValue(new Map([[closed.id, { kind: 1632, at: 200 }], [merged.id, { kind: 1631, at: 150 }]]));
+    const closed = ev("i1", 1618, "1".repeat(64), "rewrite everything", [
+      ["a", "30617:" + "9".repeat(64) + ":armada"],
+      ["subject", "rewrite everything"],
+    ]);
+    const merged = ev("p1", 1617, "2".repeat(64), "fix: startup crash", [
+      ["a", "30617:" + "9".repeat(64) + ":armada"],
+      ["subject", "fix: startup crash"],
+    ]);
+    const fresh = ev("p2", 1617, "3".repeat(64), "feat: dark mode", [
+      ["a", "30617:" + "9".repeat(64) + ":armada"],
+      ["subject", "feat: dark mode"],
+    ]);
+    gitStatusesMock.mockResolvedValue(
+      new Map([
+        [closed.id, { kind: 1632, at: 200 }],
+        [merged.id, { kind: 1631, at: 150 }],
+      ]),
+    );
     render(<SearchResults query="armada" pov="nosfabrica" />);
     expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "prs" });
-    emit({ hits: [closed, merged, fresh].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+    emit({
+      hits: [closed, merged, fresh].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })),
+      eose: true,
+      timeMs: 200,
+    });
 
     expect(await screen.findByTestId("git-state-i1")).toHaveTextContent("Closed");
     expect(screen.getByTestId("git-state-p1")).toHaveTextContent("Merged");
@@ -1695,7 +2294,10 @@ describe("SearchResults", () => {
 
   it("the Repos tab is repo announcements alone — no state strip, no status fetch", async () => {
     setUrlTab("repos");
-    const repo = ev("r1", 30617, "9".repeat(64), "", [["d", "armada"], ["name", "armada"]]);
+    const repo = ev("r1", 30617, "9".repeat(64), "", [
+      ["d", "armada"],
+      ["name", "armada"],
+    ]);
     render(<SearchResults query="armada" pov="nosfabrica" />);
     expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "repos" });
     emit({ hits: [{ event: repo, author: author(repo.pubkey, "dev"), rank: null }], eose: true, timeMs: 200 });
@@ -1710,12 +2312,34 @@ describe("SearchResults", () => {
     // Probed 2026-09-05: "qa", "conflict-pair", "nonlinear"… were one test
     // harness's private vocabulary — 15 items, one author — and led the strip.
     // A label is a shared convention when two authors reach for it.
-    const bug = ev("i1", 1621, "1".repeat(64), "crashes on start", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "crashes on start"], ["t", "bug"], ["t", "android"]]);
-    const wish = ev("i2", 1621, "2".repeat(64), "dark mode please", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "dark mode please"], ["t", "enhancement"], ["t", "bug"]]);
-    const plain = ev("i3", 1621, "3".repeat(64), "question", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "question"]]);
-    const harness = ev("i4", 1621, "4".repeat(64), "case 7", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "case 7"], ["t", "qa"], ["t", "conflict-pair"]]);
+    const bug = ev("i1", 1621, "1".repeat(64), "crashes on start", [
+      ["a", "30617:" + "9".repeat(64) + ":armada"],
+      ["subject", "crashes on start"],
+      ["t", "bug"],
+      ["t", "android"],
+    ]);
+    const wish = ev("i2", 1621, "2".repeat(64), "dark mode please", [
+      ["a", "30617:" + "9".repeat(64) + ":armada"],
+      ["subject", "dark mode please"],
+      ["t", "enhancement"],
+      ["t", "bug"],
+    ]);
+    const plain = ev("i3", 1621, "3".repeat(64), "question", [
+      ["a", "30617:" + "9".repeat(64) + ":armada"],
+      ["subject", "question"],
+    ]);
+    const harness = ev("i4", 1621, "4".repeat(64), "case 7", [
+      ["a", "30617:" + "9".repeat(64) + ":armada"],
+      ["subject", "case 7"],
+      ["t", "qa"],
+      ["t", "conflict-pair"],
+    ]);
     render(<SearchResults query="armada" pov="nosfabrica" />);
-    emit({ hits: [bug, wish, plain, harness].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+    emit({
+      hits: [bug, wish, plain, harness].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })),
+      eose: true,
+      timeMs: 200,
+    });
 
     const card = await screen.findByTestId("repo-card-i1");
     const labels = within(card).getByTestId("git-labels-i1");
@@ -1738,10 +2362,23 @@ describe("SearchResults", () => {
 
   it("when every item on the page is one maintainer's, their labels are the strip", async () => {
     setUrlTab("issues");
-    const a = ev("i1", 1621, "1".repeat(64), "groups: kick", [["a", "30617:" + "9".repeat(64) + ":relay29"], ["subject", "groups: kick"], ["t", "nip29"]]);
-    const b = ev("i2", 1621, "1".repeat(64), "groups: join", [["a", "30617:" + "9".repeat(64) + ":relay29"], ["subject", "groups: join"], ["t", "nip29"], ["t", "groups"]]);
+    const a = ev("i1", 1621, "1".repeat(64), "groups: kick", [
+      ["a", "30617:" + "9".repeat(64) + ":relay29"],
+      ["subject", "groups: kick"],
+      ["t", "nip29"],
+    ]);
+    const b = ev("i2", 1621, "1".repeat(64), "groups: join", [
+      ["a", "30617:" + "9".repeat(64) + ":relay29"],
+      ["subject", "groups: join"],
+      ["t", "nip29"],
+      ["t", "groups"],
+    ]);
     render(<SearchResults query="nip29" pov="nosfabrica" />);
-    emit({ hits: [a, b].map((e) => ({ event: e, author: author(e.pubkey, "fiatjaf"), rank: null })), eose: true, timeMs: 200 });
+    emit({
+      hits: [a, b].map((e) => ({ event: e, author: author(e.pubkey, "fiatjaf"), rank: null })),
+      eose: true,
+      timeMs: 200,
+    });
     await screen.findByTestId("repo-card-i1");
     const strip = screen.getByTestId("repo-state-facets");
     expect(within(strip).getByTestId("repo-label-nip29")).toBeInTheDocument();
@@ -1750,9 +2387,19 @@ describe("SearchResults", () => {
 
   it("issues show how much conversation they have, and people's issues come before agents' — marked", async () => {
     setUrlTab("issues");
-    const byAgent = ev("i1", 1621, "1".repeat(64), "add ngit pr edit API", [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", "add ngit pr edit API"], ["buzz-origin-agent", "PM"]]);
-    const byPerson = ev("i2", 1621, "2".repeat(64), "crash on start", [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", "crash on start"]]);
-    const byBot = ev("i3", 1621, "3".repeat(64), "add tests", [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", "add tests"]]);
+    const byAgent = ev("i1", 1621, "1".repeat(64), "add ngit pr edit API", [
+      ["a", "30617:" + "9".repeat(64) + ":ngit"],
+      ["subject", "add ngit pr edit API"],
+      ["buzz-origin-agent", "PM"],
+    ]);
+    const byPerson = ev("i2", 1621, "2".repeat(64), "crash on start", [
+      ["a", "30617:" + "9".repeat(64) + ":ngit"],
+      ["subject", "crash on start"],
+    ]);
+    const byBot = ev("i3", 1621, "3".repeat(64), "add tests", [
+      ["a", "30617:" + "9".repeat(64) + ":ngit"],
+      ["subject", "add tests"],
+    ]);
     gitCommentsMock.mockResolvedValue(new Map([[byPerson.id, 3]]));
     render(<SearchResults query="ngit" pov="nosfabrica" />);
     emit({
@@ -1768,9 +2415,13 @@ describe("SearchResults", () => {
     const person = await screen.findByTestId("repo-card-i2");
     expect(within(person).getByTestId("git-comments-i2")).toHaveTextContent("3 comments");
     expect(within(screen.getByTestId("repo-card-i1")).queryByTestId("git-comments-i1")).toBeNull();
-    const order = [...document.querySelectorAll('[data-testid^="repo-card-"]')].map((c) => c.getAttribute("data-testid"));
+    const order = [...document.querySelectorAll('[data-testid^="repo-card-"]')].map((c) =>
+      c.getAttribute("data-testid"),
+    );
     expect(order).toEqual(["repo-card-i2", "repo-card-i3", "repo-card-i1"]);
-    expect(within(screen.getByTestId("repo-card-i3")).getByTestId("git-agent-i3").getAttribute("title")).toMatch(/Yuki/);
+    expect(within(screen.getByTestId("repo-card-i3")).getByTestId("git-agent-i3").getAttribute("title")).toMatch(
+      /Yuki/,
+    );
     const mark = within(screen.getByTestId("repo-card-i1")).getByTestId("git-agent-i1");
     expect(mark).toHaveTextContent("agent");
     expect(mark.getAttribute("title")).toMatch(/PM/);
@@ -1781,7 +2432,10 @@ describe("SearchResults", () => {
   // it. It is a git item like a patch: typed, stated, counted.
   it("a pull request (kind 1618) is typed PR and carries its state", async () => {
     setUrlTab("prs");
-    const pr = ev("pr1", 1618, "1".repeat(64), "Prove warm coverage", [["a", "30617:" + "9".repeat(64) + ":gitworkshop"], ["subject", "Prove warm coverage"]]);
+    const pr = ev("pr1", 1618, "1".repeat(64), "Prove warm coverage", [
+      ["a", "30617:" + "9".repeat(64) + ":gitworkshop"],
+      ["subject", "Prove warm coverage"],
+    ]);
     gitStatusesMock.mockResolvedValue(new Map([[pr.id, { kind: 1631, at: 9 }]]));
     render(<SearchResults query="gitworkshop" pov="nosfabrica" />);
     emit({ hits: [{ event: pr, author: author(pr.pubkey, "dev"), rank: null }], eose: true, timeMs: 200 });
@@ -1797,14 +2451,30 @@ describe("SearchResults", () => {
   it("repos sharing an earliest commit fold under the most-trusted maintainer's card, forks one tap away and named", async () => {
     setUrlTab("repos");
     const euc = "e".repeat(40);
-    const orig = ev("r1", 30617, "1".repeat(64), "", [["d", "pyramid"], ["name", "pyramid"], ["r", euc, "euc"]]);
-    const fork = ev("r2", 30617, "2".repeat(64), "", [["d", "pyramid"], ["name", "gittr-pyramid"], ["r", euc, "euc"]]);
-    const other = ev("r3", 30617, "3".repeat(64), "", [["d", "ngit"], ["name", "ngit"], ["r", "f".repeat(40), "euc"]]);
+    const orig = ev("r1", 30617, "1".repeat(64), "", [
+      ["d", "pyramid"],
+      ["name", "pyramid"],
+      ["r", euc, "euc"],
+    ]);
+    const fork = ev("r2", 30617, "2".repeat(64), "", [
+      ["d", "pyramid"],
+      ["name", "gittr-pyramid"],
+      ["r", euc, "euc"],
+    ]);
+    const other = ev("r3", 30617, "3".repeat(64), "", [
+      ["d", "ngit"],
+      ["name", "ngit"],
+      ["r", "f".repeat(40), "euc"],
+    ]);
     scoreOfMock.mockImplementation((pk) => (pk.startsWith("1") ? 0.9 : 0.3));
     try {
       render(<SearchResults query="pyramid" pov="nosfabrica" />);
       // The fork arrives first from the relay; trust, not arrival, picks the lead.
-      emit({ hits: [fork, orig, other].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+      emit({
+        hits: [fork, orig, other].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })),
+        eose: true,
+        timeMs: 200,
+      });
       await screen.findByTestId("repo-card-r1");
       expect(screen.queryByTestId("repo-card-r2")).toBeNull();
       expect(screen.getByTestId("repo-card-r3")).toBeInTheDocument();
@@ -1821,8 +2491,21 @@ describe("SearchResults", () => {
 
   it("a patch without a subject tag is titled from its own text, never 'Untitled' or its d-tag", async () => {
     setUrlTab("repos");
-    const body = ["commit 000c2b0b9fdbc529e89ffbedb24ecaee04bcc0db", "Author: randymcmillan <r@x>", "Date:   Fri Sep 4 11:35:43 2026 -0400", "", "    chore: bump swiss for Go 1.27 support", "", "diff --git a/go.mod b/go.mod", "+x"].join("\n");
-    const patch = ev("pt1", 1617, "1".repeat(64), body, [["d", "."], ["a", "30617:" + "9".repeat(64) + ":kubo"], ["commit", "000c2b0b9fdbc529e89ffbedb24ecaee04bcc0db"]]);
+    const body = [
+      "commit 000c2b0b9fdbc529e89ffbedb24ecaee04bcc0db",
+      "Author: randymcmillan <r@x>",
+      "Date:   Fri Sep 4 11:35:43 2026 -0400",
+      "",
+      "    chore: bump swiss for Go 1.27 support",
+      "",
+      "diff --git a/go.mod b/go.mod",
+      "+x",
+    ].join("\n");
+    const patch = ev("pt1", 1617, "1".repeat(64), body, [
+      ["d", "."],
+      ["a", "30617:" + "9".repeat(64) + ":kubo"],
+      ["commit", "000c2b0b9fdbc529e89ffbedb24ecaee04bcc0db"],
+    ]);
     render(<SearchResults query="kubo" pov="nosfabrica" />);
     emit({ hits: [{ event: patch, author: author(patch.pubkey, "randy"), rank: null }], eose: true, timeMs: 200 });
     const card = await screen.findByTestId("repo-card-pt1");
@@ -1836,10 +2519,29 @@ describe("SearchResults", () => {
   it("a maintainer gets three cards on the Repos tab; the rest fold behind '+N more from them' and open on a tap", async () => {
     setUrlTab("repos");
     const sirius = "5".repeat(64);
-    const repo = (id: string, pk: string, name: string) => ev(id, 30617, pk, "", [["d", name], ["name", name]]);
-    const hits = [repo("s1", sirius, "iris-stack"), repo("o1", "6".repeat(64), "ngit"), repo("s2", sirius, "hashtree"), repo("s3", sirius, "fips-ts"), repo("s4", sirius, "iris-drive"), repo("s5", sirius, "iris-native")];
+    const repo = (id: string, pk: string, name: string) =>
+      ev(id, 30617, pk, "", [
+        ["d", name],
+        ["name", name],
+      ]);
+    const hits = [
+      repo("s1", sirius, "iris-stack"),
+      repo("o1", "6".repeat(64), "ngit"),
+      repo("s2", sirius, "hashtree"),
+      repo("s3", sirius, "fips-ts"),
+      repo("s4", sirius, "iris-drive"),
+      repo("s5", sirius, "iris-native"),
+    ];
     render(<SearchResults query="" pov="nosfabrica" />);
-    emit({ hits: hits.map((e) => ({ event: e, author: author(e.pubkey, e.pubkey === sirius ? "Sirius Business Ltd" : "Dan"), rank: null })), eose: true, timeMs: 200 });
+    emit({
+      hits: hits.map((e) => ({
+        event: e,
+        author: author(e.pubkey, e.pubkey === sirius ? "Sirius Business Ltd" : "Dan"),
+        rank: null,
+      })),
+      eose: true,
+      timeMs: 200,
+    });
     await screen.findByTestId("repo-card-s1");
     expect(screen.getByTestId("repo-card-o1")).toBeInTheDocument();
     expect(screen.getByTestId("repo-card-s3")).toBeInTheDocument();
@@ -1857,10 +2559,28 @@ describe("SearchResults", () => {
   it("one maintainer gets three cards on the Issues tab too; the rest fold behind '+N more from them'", async () => {
     setUrlTab("issues");
     const harness = "5".repeat(64);
-    const issue = (id: string, pk: string) => ev(id, 1621, pk, id, [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", id]]);
-    const hits = [issue("h1", harness), issue("o1", "6".repeat(64)), issue("h2", harness), issue("h3", harness), issue("h4", harness)];
+    const issue = (id: string, pk: string) =>
+      ev(id, 1621, pk, id, [
+        ["a", "30617:" + "9".repeat(64) + ":ngit"],
+        ["subject", id],
+      ]);
+    const hits = [
+      issue("h1", harness),
+      issue("o1", "6".repeat(64)),
+      issue("h2", harness),
+      issue("h3", harness),
+      issue("h4", harness),
+    ];
     render(<SearchResults query="ngit" pov="nosfabrica" />);
-    emit({ hits: hits.map((e) => ({ event: e, author: author(e.pubkey, e.pubkey === harness ? "Harness" : "Dan"), rank: null })), eose: true, timeMs: 200 });
+    emit({
+      hits: hits.map((e) => ({
+        event: e,
+        author: author(e.pubkey, e.pubkey === harness ? "Harness" : "Dan"),
+        rank: null,
+      })),
+      eose: true,
+      timeMs: 200,
+    });
     await screen.findByTestId("repo-card-h1");
     expect(screen.getByTestId("repo-card-o1")).toBeInTheDocument();
     expect(screen.queryByTestId("repo-card-h4")).toBeNull();
@@ -1869,13 +2589,21 @@ describe("SearchResults", () => {
 
   it("each streamed page asks for the statuses and comments of its new items only, and keeps the earlier answers", async () => {
     setUrlTab("prs");
-    const pr = (id: string) => ev(id, 1618, "1".repeat(64), id, [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", id]]);
+    const pr = (id: string) =>
+      ev(id, 1618, "1".repeat(64), id, [
+        ["a", "30617:" + "9".repeat(64) + ":ngit"],
+        ["subject", id],
+      ]);
     const [a, b] = [pr("pa"), pr("pb")];
     gitStatusesMock.mockImplementation((ids) => Promise.resolve(new Map(ids.map((id) => [id, { kind: 1631, at: 9 }]))));
     render(<SearchResults query="ngit" pov="nosfabrica" />);
     emit({ hits: [{ event: a, author: author(a.pubkey, "dev"), rank: null }], eose: false, timeMs: 100 });
     expect(await screen.findByTestId("git-state-pa")).toHaveTextContent("Merged");
-    emit({ hits: [a, b].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+    emit({
+      hits: [a, b].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })),
+      eose: true,
+      timeMs: 200,
+    });
     expect(await screen.findByTestId("git-state-pb")).toHaveTextContent("Merged");
     expect(screen.getByTestId("git-state-pa")).toHaveTextContent("Merged");
     expect(gitStatusesMock.mock.calls.map((c) => c[0])).toEqual([[a.id], [b.id]]);
@@ -1885,9 +2613,18 @@ describe("SearchResults", () => {
   it("a page that is all one maintainer's does not fold — there is no one else to make room for", async () => {
     setUrlTab("repos");
     const sirius = "5".repeat(64);
-    const hits = ["a", "b", "c", "d"].map((n) => ev(`s-${n}`, 30617, sirius, "", [["d", `iris-${n}`], ["name", `iris-${n}`]]));
+    const hits = ["a", "b", "c", "d"].map((n) =>
+      ev(`s-${n}`, 30617, sirius, "", [
+        ["d", `iris-${n}`],
+        ["name", `iris-${n}`],
+      ]),
+    );
     render(<SearchResults query="iris" pov="nosfabrica" />);
-    emit({ hits: hits.map((e) => ({ event: e, author: author(e.pubkey, "Sirius Business Ltd"), rank: null })), eose: true, timeMs: 200 });
+    emit({
+      hits: hits.map((e) => ({ event: e, author: author(e.pubkey, "Sirius Business Ltd"), rank: null })),
+      eose: true,
+      timeMs: 200,
+    });
     await screen.findByTestId("repo-card-s-a");
     expect(screen.getByTestId("repo-card-s-d")).toBeInTheDocument();
     expect(screen.queryByTestId("cluster-expand-s-c")).toBeNull();
@@ -1896,9 +2633,17 @@ describe("SearchResults", () => {
   it("a repo announcement shows its issue and patch counts, who contributed, and when it was last touched", async () => {
     setUrlTab("repos");
     const now = Math.floor(Date.now() / 1000);
-    repoCountsMock.mockResolvedValue({ issues: 12, patches: 3, contributors: ["1".repeat(64), "2".repeat(64), "3".repeat(64), "4".repeat(64)], lastAt: now - 3 * 3600 });
+    repoCountsMock.mockResolvedValue({
+      issues: 12,
+      patches: 3,
+      contributors: ["1".repeat(64), "2".repeat(64), "3".repeat(64), "4".repeat(64)],
+      lastAt: now - 3 * 3600,
+    });
     render(<SearchResults query="relay" pov="nosfabrica" />);
-    const repo = ev("rc1", 30617, "f".repeat(64), "", [["d", "ngit"], ["name", "ngit"]]);
+    const repo = ev("rc1", 30617, "f".repeat(64), "", [
+      ["d", "ngit"],
+      ["name", "ngit"],
+    ]);
     emit({ hits: [{ event: repo, author: author(repo.pubkey, "dan"), rank: null }], eose: true, timeMs: 200 });
     const card = await screen.findByTestId("repo-card-rc1");
     expect(repoCountsMock).toHaveBeenCalledWith("30617:" + "f".repeat(64) + ":ngit");
@@ -1985,7 +2730,8 @@ describe("SearchResults", () => {
     render(<SearchResults query="" pov="nosfabrica" />);
     const app = (id: string, name: string, fs: string[], ts: string[]) =>
       ev(id, 32267, id.repeat(32).slice(0, 64), "", [
-        ["d", id], ["name", name],
+        ["d", id],
+        ["name", name],
         ...fs.map((f) => ["f", f]),
         ...ts.map((t) => ["t", t]),
       ]);
@@ -2022,7 +2768,9 @@ describe("SearchResults", () => {
     render(<SearchResults query="" pov="nosfabrica" />);
     const app = (id: string, name: string, license?: string) =>
       ev(id, 32267, id.repeat(32).slice(0, 64), "", [
-        ["d", id], ["name", name], ["f", "android-arm64"],
+        ["d", id],
+        ["name", name],
+        ["f", "android-arm64"],
         ...(license ? [["license", license]] : []),
       ]);
     emit({
@@ -2048,7 +2796,11 @@ describe("SearchResults", () => {
   it("an app with no summary closes the gap", async () => {
     setUrlTab("apps");
     render(<SearchResults query="" pov="nosfabrica" />);
-    const bare = ev("bare", 32267, "7".repeat(64), "", [["d", "bare"], ["name", "PlayOnDlna"], ["f", "android-arm64-v8a"]]);
+    const bare = ev("bare", 32267, "7".repeat(64), "", [
+      ["d", "bare"],
+      ["name", "PlayOnDlna"],
+      ["f", "android-arm64-v8a"],
+    ]);
     emit({ hits: [{ event: bare, author: author(bare.pubkey, "Zapstore"), rank: null }], eose: true, timeMs: 90 });
     const card = await screen.findByTestId("app-card-bare");
     expect(within(card).queryByTestId("app-summary-bare")).toBeNull();
@@ -2063,9 +2815,18 @@ describe("SearchResults", () => {
     setUrlTab("apps");
     render(<SearchResults query="" pov="nosfabrica" />);
     const app = (id: string, name: string, fs: string[], cats: string[]) =>
-      ev(id, 32267, id.repeat(32).slice(0, 64), "", [["d", id], ["name", name], ...fs.map((f) => ["f", f]), ...cats.map((c) => ["t", c])]);
+      ev(id, 32267, id.repeat(32).slice(0, 64), "", [
+        ["d", id],
+        ["name", name],
+        ...fs.map((f) => ["f", f]),
+        ...cats.map((c) => ["t", c]),
+      ]);
     emit({
-      hits: [app("c1", "Amethyst", ["android-arm64-v8a"], ["nostr-client", "android"]), app("c2", "Damus", ["ios"], ["nostr-client"]), app("c3", "Nucube", ["web"], ["cube"])].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      hits: [
+        app("c1", "Amethyst", ["android-arm64-v8a"], ["nostr-client", "android"]),
+        app("c2", "Damus", ["ios"], ["nostr-client"]),
+        app("c3", "Nucube", ["web"], ["cube"]),
+      ].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
       eose: true,
       timeMs: 90,
     });
@@ -2075,7 +2836,9 @@ describe("SearchResults", () => {
     const cat = within(strip).getByTestId("app-cat-facet-nostr-client");
     expect(cat).not.toHaveTextContent(/\d/);
     // Platforms come first, categories after.
-    expect(within(strip).getByTestId("app-facet-android").compareDocumentPosition(cat) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      within(strip).getByTestId("app-facet-android").compareDocumentPosition(cat) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     fireEvent.click(cat);
     expect(screen.queryByText("Nucube")).toBeNull();
     expect(screen.getByTestId("text-search-stats")).toHaveTextContent("2 of 3 match");
@@ -2086,10 +2849,20 @@ describe("SearchResults", () => {
     render(<SearchResults query="" pov="nosfabrica" />);
     const untitled = ev("junk1", 30003, "a".repeat(64), "", [["e", "x".repeat(64)]]);
     const empty = ev("junk2", 30003, "b".repeat(64), "", [["title", "My bookmarks"]]);
-    const bookmarks = ev("bm1", 30003, "c".repeat(64), "", [["title", "Reading List"], ["e", "y".repeat(64)]]);
-    const pack = ev("fs1", 30000, "d".repeat(64), "", [["title", "Verified Human"], ["p", "1".repeat(64)]]);
+    const bookmarks = ev("bm1", 30003, "c".repeat(64), "", [
+      ["title", "Reading List"],
+      ["e", "y".repeat(64)],
+    ]);
+    const pack = ev("fs1", 30000, "d".repeat(64), "", [
+      ["title", "Verified Human"],
+      ["p", "1".repeat(64)],
+    ]);
     emit({
-      hits: [untitled, empty, bookmarks, pack].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      hits: [untitled, empty, bookmarks, pack].map((event) => ({
+        event,
+        author: author(event.pubkey, "x"),
+        rank: null,
+      })),
       eose: true,
       timeMs: 100,
     });
@@ -2114,14 +2887,35 @@ describe("SearchResults", () => {
   it("folds same-title follow packs into one row with the union, and a tap opens the group where it is", async () => {
     setUrlTab("lists");
     render(<SearchResults query="nostr devs" pov="nosfabrica" />);
-    const A = "1".repeat(64), B = "2".repeat(64), C = "3".repeat(64), D = "4".repeat(64), E = "5".repeat(64);
+    const A = "1".repeat(64),
+      B = "2".repeat(64),
+      C = "3".repeat(64),
+      D = "4".repeat(64),
+      E = "5".repeat(64);
     profileMapMock.set(A, { name: "alice" });
-    const pack = (id: string, pk: string, title: string, members: string[]) => ev(id, 30000, pk, "", [["d", id], ["title", title], ...members.map((m) => ["p", m])]);
+    const pack = (id: string, pk: string, title: string, members: string[]) =>
+      ev(id, 30000, pk, "", [["d", id], ["title", title], ...members.map((m) => ["p", m])]);
     const hits = [
-      { event: pack("g1", "a".repeat(64), "Nostr devs", [A, B, C]), author: { ...author("a".repeat(64), "curator one"), wotRank: 0.5 }, rank: null },
-      { event: pack("g2", "b".repeat(64), "#nostr-devs", [A, B, D]), author: { ...author("b".repeat(64), "curator two"), wotRank: 0.9 }, rank: null },
-      { event: pack("g3", "c".repeat(64), "Nostr Dev", [A, E]), author: { ...author("c".repeat(64), "curator three"), wotRank: 0.7 }, rank: null },
-      { event: pack("o1", "d".repeat(64), "Bitcoin news", [A, B]), author: { ...author("d".repeat(64), "someone"), wotRank: 0.8 }, rank: null },
+      {
+        event: pack("g1", "a".repeat(64), "Nostr devs", [A, B, C]),
+        author: { ...author("a".repeat(64), "curator one"), wotRank: 0.5 },
+        rank: null,
+      },
+      {
+        event: pack("g2", "b".repeat(64), "#nostr-devs", [A, B, D]),
+        author: { ...author("b".repeat(64), "curator two"), wotRank: 0.9 },
+        rank: null,
+      },
+      {
+        event: pack("g3", "c".repeat(64), "Nostr Dev", [A, E]),
+        author: { ...author("c".repeat(64), "curator three"), wotRank: 0.7 },
+        rank: null,
+      },
+      {
+        event: pack("o1", "d".repeat(64), "Bitcoin news", [A, B]),
+        author: { ...author("d".repeat(64), "someone"), wotRank: 0.8 },
+        rank: null,
+      },
     ];
     emit({ hits, eose: true, timeMs: 120 });
     const primary = await screen.findByTestId("list-card-g2");
@@ -2140,7 +2934,11 @@ describe("SearchResults", () => {
     fireEvent.click(within(primary).getByTestId("list-group-toggle-g2"));
     const group = screen.getByTestId("list-group-g2");
     const rows = within(group).getAllByTestId(/^list-group-list-/);
-    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual(["list-group-list-g2", "list-group-list-g3", "list-group-list-g1"]);
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
+      "list-group-list-g2",
+      "list-group-list-g3",
+      "list-group-list-g1",
+    ]);
     expect(rows[2]).toHaveTextContent("curator one");
     expect(rows[2]).toHaveTextContent("3 members");
     expect(within(rows[2]).getByRole("link", { name: /open/i }).getAttribute("href")).toMatch(/^\/e\//);
@@ -2157,14 +2955,24 @@ describe("SearchResults", () => {
     setUrlTab("lists");
     render(<SearchResults query="" pov="nosfabrica" />);
     const fresh = {
-      ...ev("fr1", 30000, "a".repeat(64), "", [["title", "Fresh Pack"], ["p", "1".repeat(64)]]),
+      ...ev("fr1", 30000, "a".repeat(64), "", [
+        ["title", "Fresh Pack"],
+        ["p", "1".repeat(64)],
+      ]),
       created_at: Math.floor(Date.now() / 1000) - 120,
     } as NostrEvent;
     const old = {
-      ...ev("old1", 30003, "b".repeat(64), "", [["title", "Old Bookmarks"], ["e", "x".repeat(64)]]),
+      ...ev("old1", 30003, "b".repeat(64), "", [
+        ["title", "Old Bookmarks"],
+        ["e", "x".repeat(64)],
+      ]),
       created_at: Math.floor(Date.now() / 1000) - 86400 * 90,
     } as NostrEvent;
-    emit({ hits: [fresh, old].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })), eose: true, timeMs: 90 });
+    emit({
+      hits: [fresh, old].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      eose: true,
+      timeMs: 90,
+    });
     await screen.findByText("Fresh Pack");
     expect(screen.getByTestId("list-card-fr1")).toHaveTextContent("2m ago");
     // Beyond a month, a date reads better than "90d ago".
@@ -2183,7 +2991,11 @@ describe("SearchResults", () => {
       ["p", "2".repeat(64)],
       ["p", "3".repeat(64)],
     ]);
-    emit({ hits: [{ event: followSet, author: author(followSet.pubkey, "exporter"), rank: null }], eose: true, timeMs: 150 });
+    emit({
+      hits: [{ event: followSet, author: author(followSet.pubkey, "exporter"), rank: null }],
+      eose: true,
+      timeMs: 150,
+    });
 
     expect(await screen.findByText("Verified Human")).toBeInTheDocument();
     // Members, not generic "items".
@@ -2215,9 +3027,29 @@ describe("SearchResults", () => {
   it("a Divine video's byline carries the Divine wordmark; an unbranded host gets no byline at all", async () => {
     setUrlTab("media");
     render(<SearchResults query="dance" pov="nosfabrica" />);
-    const divine = ev("dv1", 34236, "8".repeat(64), "late night dance", [["d", "dv1"], ["title", "late night dance"], ["imeta", "url https://media.divine.video/clips/abc.mp4", "m video/mp4", "image https://media.divine.video/clips/abc.jpg"]]);
-    const other = ev("bl1", 21, "9".repeat(64), "another clip", [["d", "bl1"], ["title", "another clip"], ["imeta", "url https://blossom.primal.net/xyz.mp4", "m video/mp4"]]);
-    emit({ hits: [{ event: divine, author: author(divine.pubkey, "dancer"), rank: null }, { event: other, author: author(other.pubkey, "someone"), rank: null }], eose: true, timeMs: 200 });
+    const divine = ev("dv1", 34236, "8".repeat(64), "late night dance", [
+      ["d", "dv1"],
+      ["title", "late night dance"],
+      [
+        "imeta",
+        "url https://media.divine.video/clips/abc.mp4",
+        "m video/mp4",
+        "image https://media.divine.video/clips/abc.jpg",
+      ],
+    ]);
+    const other = ev("bl1", 21, "9".repeat(64), "another clip", [
+      ["d", "bl1"],
+      ["title", "another clip"],
+      ["imeta", "url https://blossom.primal.net/xyz.mp4", "m video/mp4"],
+    ]);
+    emit({
+      hits: [
+        { event: divine, author: author(divine.pubkey, "dancer"), rank: null },
+        { event: other, author: author(other.pubkey, "someone"), rank: null },
+      ],
+      eose: true,
+      timeMs: 200,
+    });
     const card = await screen.findByTestId("media-card-dv1");
     expect(within(card).queryByTestId("kind-pill")).toBeNull(); // the picture says what it is
     const mark = within(card).getByRole("img", { name: "Divine" });
@@ -2238,7 +3070,11 @@ describe("SearchResults", () => {
     setUrlTab("media");
     render(<SearchResults query="oh no" pov="nosfabrica" />);
     const pk = "8".repeat(64);
-    const video = ev("dvid", 34236, pk, "Oh No!!", [["d", "e4d2"], ["title", "Oh No!!"], ["imeta", "url https://media.divine.video/clips/e4d2.mp4", "m video/mp4"]]);
+    const video = ev("dvid", 34236, pk, "Oh No!!", [
+      ["d", "e4d2"],
+      ["title", "Oh No!!"],
+      ["imeta", "url https://media.divine.video/clips/e4d2.mp4", "m video/mp4"],
+    ]);
     const sound = ev("dsnd", 1063, pk, "Oh No!!", [
       ["url", "https://media.divine.video/1bb23d.wav"],
       ["m", "audio/wav"],
@@ -2247,8 +3083,15 @@ describe("SearchResults", () => {
       ["allow_audio_reuse", "true"],
       ["a", `34236:${pk}:e4d2`, "wss://relay.divine.video"],
     ]);
-    const song = ev("indie", 1063, "9".repeat(64), "a whole song", [["url", "https://cdn.example/song.mp3"], ["m", "audio/mpeg"]]);
-    emit({ hits: [video, sound, song].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })), eose: true, timeMs: 90 });
+    const song = ev("indie", 1063, "9".repeat(64), "a whole song", [
+      ["url", "https://cdn.example/song.mp3"],
+      ["m", "audio/mpeg"],
+    ]);
+    emit({
+      hits: [video, sound, song].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      eose: true,
+      timeMs: 90,
+    });
     await screen.findByTestId("media-card-dvid");
     await screen.findByTestId("media-card-indie");
     expect(screen.queryByTestId("media-card-dsnd")).toBeNull();
@@ -2274,7 +3117,10 @@ describe("SearchResults", () => {
     ]);
     const plain = ev("reply1", 1, "8".repeat(64), "great episode as always");
     notesStream!.cb({
-      hits: [{ event: episode, author: author(rhr, "RABBIT HOLE RECAP"), rank: null }, { event: plain, author: author(plain.pubkey, "fan"), rank: null }],
+      hits: [
+        { event: episode, author: author(rhr, "RABBIT HOLE RECAP"), rank: null },
+        { event: plain, author: author(plain.pubkey, "fan"), rank: null },
+      ],
       eose: true,
       timeMs: 140,
     });
@@ -2292,17 +3138,30 @@ describe("SearchResults", () => {
   it("when the query is a person, the Media tab leads with that person's own media", async () => {
     const RHR = "b".repeat(64);
     suggestMock.mockResolvedValueOnce([
-      { pubkey: RHR, npub: "npub1rhr", name: "RABBIT HOLE RECAP", about: "a weekly news show", nip05: "rhr@primal.net", wotRank: 0.9, wotFollowers: 7400 },
+      {
+        pubkey: RHR,
+        npub: "npub1rhr",
+        name: "RABBIT HOLE RECAP",
+        about: "a weekly news show",
+        nip05: "rhr@primal.net",
+        wotRank: 0.9,
+        wotFollowers: 7400,
+      },
     ]);
     recentByKindsMock.mockResolvedValue([
-      ev("ep396", 1, RHR, "RHR 396 https://blossom.primal.net/396.mp4", [["imeta", "url https://blossom.primal.net/396.mp4", "m video/mp4"]]),
+      ev("ep396", 1, RHR, "RHR 396 https://blossom.primal.net/396.mp4", [
+        ["imeta", "url https://blossom.primal.net/396.mp4", "m video/mp4"],
+      ]),
       ev("plain", 1, RHR, "new episode drops Friday"),
     ]);
     setUrlTab("media");
     render(<SearchResults query="Rabbit Hole Recap" pov="nosfabrica" />);
     // Neither the media kinds nor the notes mention the show by name.
     emit({ hits: [], eose: true, timeMs: 100 });
-    [...allStreams].reverse().find((c) => c.params.tab === "notes")!.cb({ hits: [], eose: true, timeMs: 110, error: null });
+    [...allStreams]
+      .reverse()
+      .find((c) => c.params.tab === "notes")!
+      .cb({ hits: [], eose: true, timeMs: 110, error: null });
 
     const group = await screen.findByTestId("media-from-person");
     expect(group).toHaveTextContent(/From RABBIT HOLE RECAP/);
@@ -2357,16 +3216,26 @@ describe("SearchResults", () => {
     const pk = "5".repeat(64);
     const photo = ev("p1", 20, pk, "golden hour", [["imeta", "url https://cdn/sunset.jpg", "m image/jpeg"]]);
     const clip1 = ev("v1", 21, pk, "the drive", [["imeta", "url https://cdn/drive.mp4", "m video/mp4"]]);
-    const clip2 = ev("v2", 34236, pk, "", [["d", "v2"], ["imeta", "url https://cdn/short.mp4", "m video/mp4"]]);
+    const clip2 = ev("v2", 34236, pk, "", [
+      ["d", "v2"],
+      ["imeta", "url https://cdn/short.mp4", "m video/mp4"],
+    ]);
     const voice = ev("a1", 1222, pk, "", [["imeta", "url https://cdn/voice.ogg", "m audio/ogg"]]);
-    emit({ hits: [photo, clip1, clip2, voice].map((event) => ({ event, author: author(pk, "Sunset"), rank: null })), eose: true, timeMs: 120 });
+    emit({
+      hits: [photo, clip1, clip2, voice].map((event) => ({ event, author: author(pk, "Sunset"), rank: null })),
+      eose: true,
+      timeMs: 120,
+    });
     await screen.findByTestId("media-card-p1");
     const facets = screen.getByTestId("media-facets");
     expect(within(facets).getByTestId("media-facet-photo")).toHaveTextContent(/Photos\s*1/);
     expect(within(facets).getByTestId("media-facet-video")).toHaveTextContent(/Videos\s*2/);
     expect(within(facets).getByTestId("media-facet-audio")).toHaveTextContent(/Audio\s*1/);
     fireEvent.click(within(facets).getByTestId("media-facet-video"));
-    expect(screen.getAllByTestId(/^media-card-/).map((el) => el.getAttribute("data-testid"))).toEqual(["media-card-v1", "media-card-v2"]);
+    expect(screen.getAllByTestId(/^media-card-/).map((el) => el.getAttribute("data-testid"))).toEqual([
+      "media-card-v1",
+      "media-card-v2",
+    ]);
     expect(screen.getByTestId("text-search-stats")).toHaveTextContent("2 of 4 match");
     fireEvent.click(within(facets).getByTestId("media-facet-all"));
     expect(screen.getAllByTestId(/^media-card-/)).toHaveLength(4);
@@ -2376,7 +3245,14 @@ describe("SearchResults", () => {
     setUrlTab("media");
     render(<SearchResults query="sunset" pov="nosfabrica" />);
     const pk = "5".repeat(64);
-    emit({ hits: [ev("p1", 20, pk, "", [["imeta", "url https://cdn/a.jpg", "m image/jpeg"]]), ev("p2", 20, pk, "", [["imeta", "url https://cdn/b.jpg", "m image/jpeg"]])].map((event) => ({ event, author: author(pk, "Sunset"), rank: null })), eose: true, timeMs: 120 });
+    emit({
+      hits: [
+        ev("p1", 20, pk, "", [["imeta", "url https://cdn/a.jpg", "m image/jpeg"]]),
+        ev("p2", 20, pk, "", [["imeta", "url https://cdn/b.jpg", "m image/jpeg"]]),
+      ].map((event) => ({ event, author: author(pk, "Sunset"), rank: null })),
+      eose: true,
+      timeMs: 120,
+    });
     await screen.findByTestId("media-card-p1");
     expect(screen.queryByTestId("media-facets")).toBeNull();
   });
@@ -2392,7 +3268,11 @@ describe("SearchResults", () => {
       ["url", "https://cdn.example/sunset.jpg"],
       ["m", "image/jpeg"],
     ]);
-    emit({ hits: [apk, photo].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })), eose: true, timeMs: 90 });
+    emit({
+      hits: [apk, photo].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      eose: true,
+      timeMs: 90,
+    });
     await screen.findByTestId("media-card-ph1");
     expect(screen.queryByTestId("media-card-apk1")).toBeNull();
   });
@@ -2414,7 +3294,9 @@ describe("SearchResults", () => {
   it("an audio result from an unbranded host carries no source pill", async () => {
     setUrlTab("media");
     render(<SearchResults query="demo" pov="nosfabrica" />);
-    const track = ev("au2", 1222, "9".repeat(64), "demo take", [["imeta", "url https://blossom.band/take.mp3", "m audio/mpeg"]]);
+    const track = ev("au2", 1222, "9".repeat(64), "demo take", [
+      ["imeta", "url https://blossom.band/take.mp3", "m audio/mpeg"],
+    ]);
     emit({ hits: [{ event: track, author: author(track.pubkey, "someone"), rank: null }], eose: true, timeMs: 200 });
     const card = await screen.findByTestId("media-card-au2");
     expect(card.querySelector('[data-testid="embedded-track"]')).not.toBeNull();
@@ -2639,12 +3521,12 @@ describe("SearchResults", () => {
       const rewrite = vi.fn();
       render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
-    openAdvanced();
+      openAdvanced();
       expect(screen.queryByTestId("filter-reach")).toBeNull();
       cleanup();
       render(<SearchResults query="jack" pov="nosfabrica" userPubkey={"e".repeat(64)} onQueryRewrite={rewrite} />);
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
-    openAdvanced();
+      openAdvanced();
       const reach = screen.getByTestId("filter-reach");
       expect(reach).toHaveTextContent("People you follow");
       expect(reach).toHaveTextContent("Friends of friends");
@@ -2693,10 +3575,15 @@ describe("SearchResults", () => {
 
     it("the panel reads current filter state back from the query", () => {
       render(
-        <SearchResults query="btc sort:rank include:spam trust:verified reach:friends" pov="nosfabrica" userPubkey={"e".repeat(64)} onQueryRewrite={vi.fn()} />,
+        <SearchResults
+          query="btc sort:rank include:spam trust:verified reach:friends"
+          pov="nosfabrica"
+          userPubkey={"e".repeat(64)}
+          onQueryRewrite={vi.fn()}
+        />,
       );
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
-    openAdvanced();
+      openAdvanced();
       expect((screen.getByTestId("filter-sort") as HTMLSelectElement).value).toBe("rank");
       // Advanced opens itself when one of its controls is set.
       expect(screen.getByTestId("filters-advanced-toggle").getAttribute("aria-expanded")).toBe("true");
@@ -2741,7 +3628,21 @@ describe("SearchResults", () => {
     render(<SearchResults query="alice" pov="nosfabrica" />);
     const people = allStreams.find((s) => s.params.tab === "people")!;
     people.cb({
-      hits: [{ event: { id: "k0", kind: 0, pubkey: alice.pubkey, tags: [], content: "{}", created_at: 1, sig: "s" } as NostrEvent, author: alice, rank: null }],
+      hits: [
+        {
+          event: {
+            id: "k0",
+            kind: 0,
+            pubkey: alice.pubkey,
+            tags: [],
+            content: "{}",
+            created_at: 1,
+            sig: "s",
+          } as NostrEvent,
+          author: alice,
+          rank: null,
+        },
+      ],
       eose: true,
       timeMs: 10,
       error: null,
@@ -2760,14 +3661,44 @@ describe("SearchResults", () => {
   // the Music tab now leads with a named person's own music.
   it("on the Music tab, words that name a person find that person's music, as their profile does", async () => {
     setUrlTab("music");
-    const handled = { pubkey: "c".repeat(64), npub: nip19.npubEncode("c".repeat(64)), name: "Handled", picture: "https://img/handled.jpg", wotRank: 0.8, wotFollowers: 36 };
+    const handled = {
+      pubkey: "c".repeat(64),
+      npub: nip19.npubEncode("c".repeat(64)),
+      name: "Handled",
+      picture: "https://img/handled.jpg",
+      wotRank: 0.8,
+      wotFollowers: 36,
+    };
     catalogueMock.mockImplementation((pk) =>
       pk === handled.pubkey
         ? {
-            artist: { id: "wl-handled", name: "Handled", artworkUrl: "https://img/handled.jpg", artistNpub: handled.npub },
+            artist: {
+              id: "wl-handled",
+              name: "Handled",
+              artworkUrl: "https://img/handled.jpg",
+              artistNpub: handled.npub,
+            },
             songs: [
-              { id: "wavlake:paper-thin", title: "Paper Thin", artist: "Handled", audio: "https://cdn/paper-thin.mp3", durationSec: 297, url: "https://wavlake.com/track/paper-thin", source: "wavlake", artistNpub: handled.npub },
-              { id: "wavlake:need-you-whole", title: "Need You Whole", artist: "Handled", audio: "https://cdn/nyw.mp3", durationSec: 219, url: "https://wavlake.com/track/nyw", source: "wavlake", artistNpub: handled.npub },
+              {
+                id: "wavlake:paper-thin",
+                title: "Paper Thin",
+                artist: "Handled",
+                audio: "https://cdn/paper-thin.mp3",
+                durationSec: 297,
+                url: "https://wavlake.com/track/paper-thin",
+                source: "wavlake",
+                artistNpub: handled.npub,
+              },
+              {
+                id: "wavlake:need-you-whole",
+                title: "Need You Whole",
+                artist: "Handled",
+                audio: "https://cdn/nyw.mp3",
+                durationSec: 219,
+                url: "https://wavlake.com/track/nyw",
+                source: "wavlake",
+                artistNpub: handled.npub,
+              },
             ],
             loading: false,
           }
@@ -2807,13 +3738,34 @@ describe("SearchResults", () => {
     suggestMock.mockResolvedValue([{ pubkey: pk, npub, name: "Matt Finlay", wotRank: 0.5, wotFollowers: 10 }]);
     recentByKindsMock.mockImplementation(async (pubkey, kinds) =>
       pubkey === pk && kinds.includes(1)
-        ? [ev("f1", 1, pk, "New one out now https://fountain.fm/track/abc123"), ev("f2", 1, pk, "Homegrown ep 4 https://fountain.fm/episode/ep4")]
+        ? [
+            ev("f1", 1, pk, "New one out now https://fountain.fm/track/abc123"),
+            ev("f2", 1, pk, "Homegrown ep 4 https://fountain.fm/episode/ep4"),
+          ]
         : [],
     );
     fountainItemMock.mockImplementation(async (url: string) =>
       url.includes("abc123")
-        ? { kind: "track", id: "abc123", show: "Matt Finlay", title: "Homegrown Blues", description: null, image: "https://img/hb.jpg", audio: "https://cdn/hb.mp3", url }
-        : { kind: "episode", id: "ep4", show: "Homegrown", title: "Episode 4 • Listen on Fountain", description: null, image: null, audio: "https://cdn/ep4.mp3", url },
+        ? {
+            kind: "track",
+            id: "abc123",
+            show: "Matt Finlay",
+            title: "Homegrown Blues",
+            description: null,
+            image: "https://img/hb.jpg",
+            audio: "https://cdn/hb.mp3",
+            url,
+          }
+        : {
+            kind: "episode",
+            id: "ep4",
+            show: "Homegrown",
+            title: "Episode 4 • Listen on Fountain",
+            description: null,
+            image: null,
+            audio: "https://cdn/ep4.mp3",
+            url,
+          },
     );
     render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
     emit({ hits: [], eose: true, timeMs: 50 });
@@ -2861,7 +3813,22 @@ describe("SearchResults", () => {
   it("an empty tab under a scope names the person, offers what they do publish, and switches the tab in place", async () => {
     const joe = "e".repeat(64);
     const npub = nip19.npubEncode(joe);
-    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === joe ? { chips: [{ key: "shop", label: "Shop", tab: "shop", liveNow: false }, { key: "articles", label: "Articles", tab: "articles", liveNow: false }] } : undefined])));
+    contentMock.mockImplementation(
+      (pks: string[]) =>
+        new Map(
+          pks.map((pk) => [
+            pk,
+            pk === joe
+              ? {
+                  chips: [
+                    { key: "shop", label: "Shop", tab: "shop", liveNow: false },
+                    { key: "articles", label: "Articles", tab: "articles", liveNow: false },
+                  ],
+                }
+              : undefined,
+          ]),
+        ),
+    );
     suggestMock.mockResolvedValue([{ pubkey: joe, npub, name: "Joe Martin", wotRank: 0.9, wotFollowers: 3 }]);
     setUrlTab("articles");
     render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
@@ -2870,7 +3837,9 @@ describe("SearchResults", () => {
     await vi.waitFor(() => expect(empty).toHaveTextContent("Joe Martin hasn't published articles here yet"));
     const chips = within(empty).getByTestId("scoped-empty-chips");
     expect(within(chips).queryByTestId("person-content-chip-articles")).toBeNull();
-    expect(within(empty).getByTestId("scoped-empty-all").getAttribute("href")).toBe(scopedSearchHref(joe, "everything"));
+    expect(within(empty).getByTestId("scoped-empty-all").getAttribute("href")).toBe(
+      scopedSearchHref(joe, "everything"),
+    );
     fireEvent.click(within(chips).getByTestId("person-content-chip-shop"));
     await vi.waitFor(() => expect(screen.getByTestId("search-tab-shop")).toHaveAttribute("aria-selected", "true"));
     expect(new URLSearchParams(window.location.search).get("t")).toBe("shop");
@@ -2879,7 +3848,9 @@ describe("SearchResults", () => {
     emit({ hits: [], eose: true, timeMs: 100 });
     const all = await screen.findByTestId("scoped-empty-all");
     fireEvent.click(all);
-    await vi.waitFor(() => expect(screen.getByTestId("search-tab-everything")).toHaveAttribute("aria-selected", "true"));
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("search-tab-everything")).toHaveAttribute("aria-selected", "true"),
+    );
     expect(new URLSearchParams(window.location.search).get("t")).toBeNull();
     contentMock.mockImplementation(() => new Map());
   });
@@ -2898,12 +3869,28 @@ describe("notes on the search page name who they mention", () => {
     profileMapMock.set(CAROL, { name: "carol" });
     profileMapMock.set(DAVE, { name: "dave" });
     profileMapMock.set(QUOTER, { name: "quoter" });
-    refEventsMock.mockResolvedValue([{ id: QUOTED, kind: 1, pubkey: QUOTER, content: "the quoted words", tags: [], created_at: 1, sig: "s" } as NostrEvent]);
-    render(<SearchResults query="bitcoin" pov="nosfabrica" />);
-    const note = ev("n1", 1, "a".repeat(64), `Yo quiero nostr:${nip19.nprofileEncode({ pubkey: CAROL })} nostr:${nip19.neventEncode({ id: QUOTED })}`, [
-      ["e", "f".repeat(64), "", "reply"],
-      ["p", DAVE],
+    refEventsMock.mockResolvedValue([
+      {
+        id: QUOTED,
+        kind: 1,
+        pubkey: QUOTER,
+        content: "the quoted words",
+        tags: [],
+        created_at: 1,
+        sig: "s",
+      } as NostrEvent,
     ]);
+    render(<SearchResults query="bitcoin" pov="nosfabrica" />);
+    const note = ev(
+      "n1",
+      1,
+      "a".repeat(64),
+      `Yo quiero nostr:${nip19.nprofileEncode({ pubkey: CAROL })} nostr:${nip19.neventEncode({ id: QUOTED })}`,
+      [
+        ["e", "f".repeat(64), "", "reply"],
+        ["p", DAVE],
+      ],
+    );
     emit({ hits: [{ event: note, author: author(note.pubkey, "alice"), rank: null }], eose: true, timeMs: 300 });
     const card = await screen.findByTestId("note-card");
     await vi.waitFor(() => expect(card).toHaveTextContent("@carol"));
@@ -2923,7 +3910,6 @@ describe("notes on the search page name who they mention", () => {
     fireEvent.click(screen.getByTestId("search-tab-media"));
     expect(onTabChange).toHaveBeenLastCalledWith("media");
   });
-
 });
 
 // Recent-first buried the page named "List of comedians" at position 26
@@ -2931,40 +3917,39 @@ describe("notes on the search page name who they mention", () => {
 // Articles are evergreen: with words typed, relevance leads. A wordless
 // browse still asks newest — the relay cannot rank the whole index.
 describe("the Articles tab orders worded searches by best match", () => {
-    it("words on Articles go to the relay without a sort; a browse still asks newest first", async () => {
-      setUrlTab("articles");
-      render(<SearchResults query="list of comedians" pov="nosfabrica" />);
-      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
-      expect(String(mainStreamCalls().at(-1)![0])).toBe("list of comedians");
-      cleanup();
-      render(<SearchResults query="" pov="nosfabrica" />);
-      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
-      expect(String(mainStreamCalls().at(-1)![0])).toBe("sort:recent");
-    });
+  it("words on Articles go to the relay without a sort; a browse still asks newest first", async () => {
+    setUrlTab("articles");
+    render(<SearchResults query="list of comedians" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    expect(String(mainStreamCalls().at(-1)![0])).toBe("list of comedians");
+    cleanup();
+    render(<SearchResults query="" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
+    expect(String(mainStreamCalls().at(-1)![0])).toBe("sort:recent");
+  });
 
-    it("Recipes sort like Articles — best match with words, newest on a browse", async () => {
-      setUrlTab("recipes");
-      render(<SearchResults query="chili" pov="nosfabrica" />);
-      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
-      expect(String(mainStreamCalls().at(-1)![0])).toBe("chili");
-      cleanup();
-      render(<SearchResults query="" pov="nosfabrica" />);
-      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
-      expect(String(mainStreamCalls().at(-1)![0])).toBe("sort:recent");
-    });
+  it("Recipes sort like Articles — best match with words, newest on a browse", async () => {
+    setUrlTab("recipes");
+    render(<SearchResults query="chili" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    expect(String(mainStreamCalls().at(-1)![0])).toBe("chili");
+    cleanup();
+    render(<SearchResults query="" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
+    expect(String(mainStreamCalls().at(-1)![0])).toBe("sort:recent");
+  });
 
-    it("Notes keep fresh-first, and a typed sort on Articles is honoured verbatim", async () => {
-      setUrlTab("notes");
-      render(<SearchResults query="list of comedians" pov="nosfabrica" />);
-      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
-      expect(String(mainStreamCalls().at(-1)![0])).toBe("list of comedians sort:recent");
-      cleanup();
-      setUrlTab("articles");
-      render(<SearchResults query="comedians sort:recent" pov="nosfabrica" />);
-      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
-      expect(String(mainStreamCalls().at(-1)![0])).toBe("comedians sort:recent");
-    });
-  
+  it("Notes keep fresh-first, and a typed sort on Articles is honoured verbatim", async () => {
+    setUrlTab("notes");
+    render(<SearchResults query="list of comedians" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    expect(String(mainStreamCalls().at(-1)![0])).toBe("list of comedians sort:recent");
+    cleanup();
+    setUrlTab("articles");
+    render(<SearchResults query="comedians sort:recent" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
+    expect(String(mainStreamCalls().at(-1)![0])).toBe("comedians sort:recent");
+  });
 });
 
 describe("more results", () => {
@@ -2974,7 +3959,12 @@ describe("more results", () => {
   it("the end of a page offers more, choosing it turns the page, and the rows grow in place", async () => {
     setUrlTab("notes");
     render(<SearchResults query="nostr" pov="nosfabrica" />);
-    const hits = (n: number) => Array.from({ length: n }, (_, i) => ({ event: ev(`n${i}`, 1, "a".repeat(64), `note ${i}`), author: author("a".repeat(64), "alice"), rank: null }));
+    const hits = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        event: ev(`n${i}`, 1, "a".repeat(64), `note ${i}`),
+        author: author("a".repeat(64), "alice"),
+        rank: null,
+      }));
     emit({ hits: hits(3), eose: true, exhausted: false });
     await screen.findByText("note 2");
     const more = screen.getByTestId("search-more");
@@ -2997,7 +3987,11 @@ describe("more results", () => {
 describe("a stream's pill off the Live tab", () => {
   it("a stream that ended without a recording reads Ended, never LIVE", async () => {
     render(<SearchResults query="tunic sort:recent" pov="nosfabrica" />);
-    const over = ev("s-over", 30311, "d".repeat(64), "", [["d", "s-over"], ["title", "mar says.. tunic"], ["status", "ended"]]);
+    const over = ev("s-over", 30311, "d".repeat(64), "", [
+      ["d", "s-over"],
+      ["title", "mar says.. tunic"],
+      ["status", "ended"],
+    ]);
     emit({ hits: [{ event: over, author: author("d".repeat(64), "letsfo"), rank: null }], eose: true });
     const pill = await screen.findByTestId("live-status-s-over");
     expect(pill).toHaveTextContent(/ended/i);
@@ -3012,7 +4006,12 @@ describe("a stream's pill off the Live tab", () => {
 describe("coming back to a search", () => {
   it("shows the pages it had at once, seeds the stream with them, and returns to where the reader was", async () => {
     setUrlTab("notes");
-    const hits = (n: number) => Array.from({ length: n }, (_, i) => ({ event: ev(`n${i}`, 1, "a".repeat(64), `note ${i}`), author: author("a".repeat(64), "alice"), rank: null }));
+    const hits = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        event: ev(`n${i}`, 1, "a".repeat(64), `note ${i}`),
+        author: author("a".repeat(64), "alice"),
+        rank: null,
+      }));
     const first = render(<SearchResults query="nostr" pov="nosfabrica" />);
     emit({ hits: hits(5), eose: true });
     await screen.findByText("note 4");
@@ -3070,8 +4069,23 @@ describe("the Music tab's V4V lists from Podcast Index", () => {
   const AUTHOR = "77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3";
   const SONGS = `39998:${AUTHOR}:b504f5a8-949f-4d31-ad14-8afcebde2b34`;
   const MUSICIANS = `39998:${AUTHOR}:c7e2e5f1-2258-4d9d-92ed-d29b9837a82a`;
-  const songItem = ev("s1", 9999, AUTHOR, "", [["z", SONGS], ["t", "https://podcastindex.org/podcast/4148683#4"], ["title", "Step Into the Light"], ["artist", "Torcon 7"], ["url", "https://mp3s.podcastindex.org/Step_Into_The_Light.mp3"], ["duration", "316"], ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"]]);
-  const musicianItem = ev("m1", 9999, AUTHOR, "", [["z", MUSICIANS], ["t", "a94f5cc9"], ["name", "Torcon 7"], ["feedId", "4148683"], ["feedGuid", "a94f5cc9"], ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"]]);
+  const songItem = ev("s1", 9999, AUTHOR, "", [
+    ["z", SONGS],
+    ["t", "https://podcastindex.org/podcast/4148683#4"],
+    ["title", "Step Into the Light"],
+    ["artist", "Torcon 7"],
+    ["url", "https://mp3s.podcastindex.org/Step_Into_The_Light.mp3"],
+    ["duration", "316"],
+    ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"],
+  ]);
+  const musicianItem = ev("m1", 9999, AUTHOR, "", [
+    ["z", MUSICIANS],
+    ["t", "a94f5cc9"],
+    ["name", "Torcon 7"],
+    ["feedId", "4148683"],
+    ["feedGuid", "a94f5cc9"],
+    ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"],
+  ]);
 
   beforeEach(async () => {
     dlistFetchMock.mockReset();
@@ -3088,7 +4102,10 @@ describe("the Music tab's V4V lists from Podcast Index", () => {
     expect(songs).toHaveTextContent("Step Into the Light");
     expect(screen.getByTestId("music-podcastindex-musicians")).toHaveTextContent("Torcon 7");
     expect(screen.queryByTestId("container-no-results")).toBeNull();
-    expect(dlistFetchMock).toHaveBeenCalledWith(expect.objectContaining({ kinds: [9999], "#z": [SONGS, MUSICIANS] }), expect.anything());
+    expect(dlistFetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ kinds: [9999], "#z": [SONGS, MUSICIANS] }),
+      expect.anything(),
+    );
   });
 
   it("a search scoped to one person never asks the hub — the lists are not per person", async () => {
@@ -3111,5 +4128,209 @@ describe("the Music tab's V4V lists from Podcast Index", () => {
     emit({ hits: [], eose: true, timeMs: 150 });
     await screen.findByTestId(/^podcastindex-song-/);
     expect(within(screen.getByTestId("music-artists")).getByTestId(/^music-artist-podcastindex-/)).toBeInTheDocument();
+  });
+});
+
+// The kinds with no card of their own (lib/thing), each where a searcher
+// looks for it — shapes as staging holds them, 2026-09-29.
+describe("SearchResults — the kinds lib/thing reads", () => {
+  const who = "7".repeat(64);
+  const hitOf = (event: NostrEvent) => ({ event, author: author(event.pubkey, "Someone"), rank: null });
+
+  it("Communities shows one card per channel (the newest of its 40 and 41s), groups and communities, and drops the unnamed", async () => {
+    setUrlTab("communities");
+    render(<SearchResults query="chess" pov="nosfabrica" />);
+    expect([...allStreams].reverse()[0].params.tab).toBe("communities");
+    const channel = ev("ch40", 40, who, '{"name":"Chess chat","about":"Old about"}');
+    const update = {
+      ...ev("ch41", 41, who, '{"name":"Chess chat","about":"The global chat of Chess."}', [["e", "ch40"]]),
+      created_at: 1_700_000_500,
+    };
+    const group = ev("g1", 39000, who, "", [["d", "x"], ["name", "nutshell"], ["public"], ["closed"]]);
+    const community = ev("c1", 34550, who, "", [
+      ["d", "k"],
+      ["name", "Kiteh Kawasaki"],
+      ["description", "Hi fans"],
+    ]);
+    const unnamed = ev("ch-junk", 40, who, '{"about":"no name"}');
+    emit({ hits: [channel, update, group, community, unnamed].map(hitOf), eose: true, timeMs: 100 });
+
+    const card = await screen.findByTestId("thing-card-ch41");
+    expect(card).toHaveTextContent("Chess chat");
+    expect(card).toHaveTextContent("The global chat of Chess.");
+    expect(screen.queryByTestId("thing-card-ch40")).toBeNull();
+    expect(screen.getByTestId("thing-card-g1")).toHaveTextContent("Closed");
+    expect(screen.getByTestId("thing-card-c1")).toHaveTextContent("Hi fans");
+    expect(screen.queryByTestId("thing-card-ch-junk")).toBeNull();
+  });
+
+  it("Reviews shows a relay review's stars and a mint review's door to the mint", async () => {
+    setUrlTab("reviews");
+    render(<SearchResults query="reliable" pov="nosfabrica" />);
+    const relay = ev("r1", 31987, who, "maybe a bit slow", [
+      ["d", "wss://relay.nostrcheck.me/"],
+      ["rating", "0.8"],
+    ]);
+    const mint = ev("m1", 38000, who, "Stable and reliable", [
+      ["d", "https://mint.lnpay.cz"],
+      ["u", "https://mint.lnpay.cz"],
+      ["rating", "5"],
+    ]);
+    emit({ hits: [relay, mint].map(hitOf), eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("thing-stars-r1")).toHaveAttribute("aria-label", "4 out of 5 stars");
+    expect(screen.getByTestId("thing-title-r1")).toHaveTextContent("relay.nostrcheck.me");
+    expect(screen.getByTestId("thing-link-m1")).toHaveAttribute("href", "https://mint.lnpay.cz");
+    expect(screen.getByTestId("thing-card-m1")).toHaveTextContent("Reviewed by");
+  });
+
+  it("the Shop sells a NIP-15 product as a priced card and shows a named stall, never the typing game that shares its kind", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="art" pov="nosfabrica" />);
+    const product = ev(
+      "p1",
+      30018,
+      who,
+      JSON.stringify({
+        name: "Riding Peas",
+        description: "Livingroom art",
+        images: ["https://img/peas.jpg"],
+        currency: "sat",
+        price: 21000,
+      }),
+      [["d", "p1"]],
+    );
+    const stall = ev(
+      "s1",
+      30017,
+      who,
+      JSON.stringify({ name: "BKBoom Paper Art", description: "handcrafted", currency: "sat" }),
+      [["d", "s1"]],
+    );
+    const game = ev("s2", 30017, who, '{"wpm":63,"accuracy":99}', [
+      ["d", "s2"],
+      ["t", "typing-test"],
+    ]);
+    emit({ hits: [product, stall, game].map(hitOf), eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("listing-card-p1")).toHaveTextContent("Riding Peas");
+    expect(screen.getByTestId("thing-card-s1")).toHaveTextContent("BKBoom Paper Art");
+    expect(screen.queryByTestId("thing-card-s2")).toBeNull();
+    expect(screen.queryByTestId("listing-card-s2")).toBeNull();
+  });
+
+  it("Events keeps calendars below the dated events, under their own heading", async () => {
+    setUrlTab("events");
+    render(<SearchResults query="meetup" pov="nosfabrica" />);
+    const soon = Math.floor(Date.now() / 1000) + 86_400 * 2;
+    const meetup = ev("e1", 31923, who, "", [
+      ["d", "e1"],
+      ["title", "Bitcoin meetup"],
+      ["start", String(soon)],
+    ]);
+    const calendar = ev("cal1", 31924, who, "", [
+      ["d", "meetup-370"],
+      ["title", "Jednadvacet"],
+      ["a", "31923:x:1"],
+    ]);
+    emit({ hits: [calendar, meetup].map(hitOf), eose: true, timeMs: 100 });
+
+    const cal = await screen.findByTestId("thing-card-cal1");
+    expect(cal).toHaveTextContent("Jednadvacet");
+    expect(screen.getByTestId("event-day-calendars")).toHaveTextContent("Calendars");
+    const results = screen.getByTestId("container-search-results");
+    expect(results.textContent!.indexOf("Bitcoin meetup")).toBeLessThan(results.textContent!.indexOf("Jednadvacet"));
+  });
+
+  it("Communities with nothing lib/thing can name says Nothing found, not a blank grid", async () => {
+    setUrlTab("communities");
+    render(<SearchResults query="chess" pov="nosfabrica" />);
+    const unnamed = ev("ch-junk", 40, who, '{"about":"no name"}');
+    emit({ hits: [hitOf(unnamed)], eose: true, timeMs: 100 });
+    expect(await screen.findByTestId("container-no-results")).toBeInTheDocument();
+  });
+
+  it("a calendar never folds into its events' cluster", async () => {
+    setUrlTab("events");
+    render(<SearchResults query="jednadvacet" pov="nosfabrica" />);
+    const past = Math.floor(Date.now() / 1000) - 86_400 * 3;
+    const meetup = ev("e1", 31923, who, "", [
+      ["d", "e1"],
+      ["title", "Jednadvacet Brno"],
+      ["start", String(past)],
+    ]);
+    const calendar = {
+      ...ev("cal1", 31924, who, "", [
+        ["d", "brno"],
+        ["title", "Jednadvacet Brno"],
+        ["a", "31923:x:e1"],
+      ]),
+      created_at: Math.floor(Date.now() / 1000),
+    };
+    emit({ hits: [calendar, meetup].map(hitOf), eose: true, timeMs: 100 });
+
+    // Nothing upcoming: the tab shows the past, and the calendar still sits below it on its own.
+    const cal = await screen.findByTestId("thing-card-cal1");
+    expect(screen.queryByTestId("cluster-expand-cal1")).toBeNull();
+    expect(screen.queryByTestId("cluster-expand-e1")).toBeNull();
+    const results = screen.getByTestId("container-search-results");
+    expect(results.textContent!.indexOf("Calendars")).toBeGreaterThan(0);
+    expect(cal).toHaveTextContent("Jednadvacet Brno");
+  });
+
+  it("Fundraisers shows a zap goal's progress, and 0 only once a complete answer found no receipt", async () => {
+    setUrlTab("fundraisers");
+    const funded = ev("g1", 9041, who, "Fiatjaf Protection Fees", [["amount", "10000000"]]);
+    const quiet = ev("g2", 9041, who, "combine upkeep", [["amount", "60000000"]]);
+    goalProgressMock.mockResolvedValueOnce({ byGoal: new Map([["g1", { sats: 1056, zappers: [] }]]), complete: true });
+    render(<SearchResults query="fees" pov="nosfabrica" />);
+    emit({ hits: [funded, quiet].map(hitOf), eose: true, timeMs: 100 });
+    expect(await screen.findByText(/1,056 sats/)).toBeInTheDocument();
+    expect(screen.getByTestId("thing-goal-g2")).toHaveTextContent("0 sats of 60k");
+    expect(goalProgressMock).toHaveBeenCalledWith(["g1", "g2"]);
+  });
+
+  it("an incomplete answer leaves a goal's progress unknown, not zero", async () => {
+    setUrlTab("fundraisers");
+    goalProgressMock.mockResolvedValueOnce({ byGoal: new Map(), complete: false });
+    render(<SearchResults query="upkeep" pov="nosfabrica" />);
+    emit({ hits: [hitOf(ev("g3", 9041, who, "combine upkeep", [["amount", "60000000"]]))], eose: true, timeMs: 100 });
+    await waitFor(() => expect(goalProgressMock).toHaveBeenCalled());
+    await Promise.resolve();
+    expect(screen.getByTestId("thing-goal-g3")).toHaveTextContent("Goal 60,000 sats");
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("Lists keeps a badge and an emoji pack, which hold no p/e/a/r items", async () => {
+    setUrlTab("lists");
+    render(<SearchResults query="cool" pov="nosfabrica" />);
+    const badge = ev("b1", 30009, who, "", [
+      ["d", "ice"],
+      ["name", "Ice Cool Builder"],
+      ["description", "Only the coolest"],
+    ]);
+    const pack = ev("ep1", 30030, who, "", [
+      ["d", "p"],
+      ["title", "Legends"],
+      ["emoji", "a", "https://x.test/a.png"],
+    ]);
+    emit({ hits: [badge, pack].map(hitOf), eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("thing-card-b1")).toHaveTextContent("Ice Cool Builder");
+    expect(screen.getByTestId("thing-previews-ep1")).toBeInTheDocument();
+  });
+
+  it("Music plays a kind-36787 track", async () => {
+    setUrlTab("music");
+    render(<SearchResults query="acapella" pov="nosfabrica" />);
+    const track = ev("t36787", 36787, who, "", [
+      ["d", "6704f12b"],
+      ["title", "Acapella Random Song"],
+      ["artist", "Beatbox Serenade"],
+      ["url", "https://blossom.ditto.pub/ef316b48.mp3"],
+    ]);
+    emit({ hits: [hitOf(track)], eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("track-card-t36787")).toHaveTextContent("Acapella Random Song");
   });
 });

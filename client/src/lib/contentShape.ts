@@ -3,7 +3,8 @@
  * (Ditto, Armada, Nostr Mail settings) is NIP-44 ciphertext; a row that
  * printed 300 characters of base64 as a snippet said nothing to a person.
  */
-export type ContentShape = { kind: "empty" } | { kind: "encrypted" } | { kind: "json"; fields: number } | { kind: "text" };
+export type ContentShape =
+  { kind: "empty" } | { kind: "encrypted" } | { kind: "json"; fields: number } | { kind: "text" };
 
 /** One base64 run with no whitespace, long enough that no word is one. */
 const BASE64_BLOB = /^[A-Za-z0-9+/]{64,}={0,2}$/;

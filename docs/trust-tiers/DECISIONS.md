@@ -27,8 +27,8 @@ highly verified?" (Jon). Give users actionable information, not gradations.
    already follows.
 3. **Names: Verified · Unknown · Flagged.** "Mystery" rejected (not serious);
    "Network supported" rejected (describes the verified bucket, not the middle).
-   Unknown gets a one-line explainer wherever there's room: *"No one in your
-   network has vouched for this account yet."*
+   Unknown gets a one-line explainer wherever there's room: _"No one in your
+   network has vouched for this account yet."_
 4. **Colors reuse three existing constants; color never carries it alone.**
    Verified → Aurora Cyan `#13d2e5` (today's `trusted`), Unknown → brand grey
    `#8c929e` (today's `unverified`), Flagged → `#ef4444` (today's `flagged`).
@@ -40,9 +40,9 @@ highly verified?" (Jon). Give users actionable information, not gradations.
    and photo (the 2px white/slate step the perspective ring already uses). The
    gap can't be painted from inside an image. The glyph is inside the badge.
    Rings (tier/word display modes) are reinforcement only, never the sole proof.
-6. **Two independent settings, not a sixth display mode.** *Tiers* is a data
-   choice — **Simple (3)** or **Detailed (6: five tiers + Flagged)**. *Display
-   mode* (number / level / tier / word / off) is a rendering choice and works
+6. **Two independent settings, not a sixth display mode.** _Tiers_ is a data
+   choice — **Simple (3)** or **Detailed (6: five tiers + Flagged)**. _Display
+   mode_ (number / level / tier / word / off) is a rendering choice and works
    under either ladder: Number colors digits by bucket; Level's pips become
    ladder-aware (Simple: Flagged 1 · Unknown 2 · Verified 3); Tier and Word
    draw ring/chip in bucket color plus the straddling glyph badge in every mode

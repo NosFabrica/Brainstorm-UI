@@ -36,7 +36,10 @@ export function MobileSearchOverlay() {
   useEffect(() => {
     // Every opening starts from an empty box — set with the opening, so the sheet never
     // mounts on the last query and then clears it.
-    const onOpen = () => { setQ(""); setOpen(true); };
+    const onOpen = () => {
+      setQ("");
+      setOpen(true);
+    };
     window.addEventListener(OPEN_MOBILE_SEARCH_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_MOBILE_SEARCH_EVENT, onOpen);
   }, []);
@@ -46,7 +49,9 @@ export function MobileSearchOverlay() {
     if (!open) return;
     // An Escape the field already took — closing its calendar or group picker — is not
     // the sheet's to act on.
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) setOpen(false);
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";

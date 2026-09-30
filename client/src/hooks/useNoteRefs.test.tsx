@@ -21,10 +21,21 @@ const QUOTED_ID = "e".repeat(64);
 const PARENT_ID = "f".repeat(64);
 const NAMES: Record<string, string> = { [AUTHOR]: "alice", [QUOTER]: "quoter", [CAROL]: "carol", [DAVE]: "dave" };
 
-const profileMapMock = vi.fn(async (pks: string[]) => new Map(pks.filter((pk) => NAMES[pk]).map((pk) => [pk, { name: NAMES[pk] }])));
+const profileMapMock = vi.fn(
+  async (pks: string[]) => new Map(pks.filter((pk) => NAMES[pk]).map((pk) => [pk, { name: NAMES[pk] }])),
+);
 const eventsByIdsMock = vi.fn(async (ids: string[], _relays?: string[]) =>
   ids.includes(QUOTED_ID)
-    ? [{ id: QUOTED_ID, kind: 1, pubkey: QUOTER, content: `hello nostr:${nip19.npubEncode(DAVE)}`, tags: [], created_at: 1 }]
+    ? [
+        {
+          id: QUOTED_ID,
+          kind: 1,
+          pubkey: QUOTER,
+          content: `hello nostr:${nip19.npubEncode(DAVE)}`,
+          tags: [],
+          created_at: 1,
+        },
+      ]
     : [],
 );
 const addrMock = vi.fn(async (_addrs?: { relays?: string[] }[], _relays?: string[]) => new Map());
@@ -46,7 +57,10 @@ const note: MinimalEvent = {
   kind: 1,
   pubkey: AUTHOR,
   content: `Yo quiero nostr:${nip19.nprofileEncode({ pubkey: CAROL })} nostr:${nip19.neventEncode({ id: QUOTED_ID })}`,
-  tags: [["e", PARENT_ID, "", "reply"], ["p", DAVE]],
+  tags: [
+    ["e", PARENT_ID, "", "reply"],
+    ["p", DAVE],
+  ],
   created_at: 1,
 };
 
@@ -81,7 +95,12 @@ describe("useNoteRefs", () => {
   // A reference's relay hint is where its author said the event lives; it is
   // asked beside the default relays (Vitor, 2026-09-24).
   it("asks the relays an nevent and an naddr name", async () => {
-    const naddr = nip19.naddrEncode({ kind: 30023, pubkey: CAROL, identifier: "post", relays: ["wss://article.example/"] });
+    const naddr = nip19.naddrEncode({
+      kind: 30023,
+      pubkey: CAROL,
+      identifier: "post",
+      relays: ["wss://article.example/"],
+    });
     const hinted: MinimalEvent = {
       ...note,
       id: "2".repeat(64),

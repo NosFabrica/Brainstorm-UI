@@ -65,7 +65,15 @@ describe("requestAllByRelay", () => {
   });
 
   it("de-dupes events that more than one relay returns", async () => {
-    const event = { id: "e".repeat(64), kind: 1, pubkey: ALICE, created_at: 1, tags: [], content: "", sig: "s" } as NostrEvent;
+    const event = {
+      id: "e".repeat(64),
+      kind: 1,
+      pubkey: ALICE,
+      created_at: 1,
+      tags: [],
+      content: "",
+      sig: "s",
+    } as NostrEvent;
     requestMock.mockReturnValueOnce(of(event, event) as never);
 
     expect(await requestAllByRelay(plan, { kinds: [1] }, 10)).toEqual([event]);

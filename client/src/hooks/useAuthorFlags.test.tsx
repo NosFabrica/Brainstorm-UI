@@ -38,7 +38,9 @@ const row = (p: string) => screen.getByTestId(`row-${p}`);
 beforeEach(() => {
   vi.clearAllMocks();
   __resetAuthorSignals();
-  signalsMock.mockImplementation(async (pks) => new Map(pks.filter((p) => p === A).map((p) => [p, { influence: 0.8, flagged: true }])));
+  signalsMock.mockImplementation(
+    async (pks) => new Map(pks.filter((p) => p === A).map((p) => [p, { influence: 0.8, flagged: true }])),
+  );
 });
 
 describe("Trust signals for a page of authors", () => {

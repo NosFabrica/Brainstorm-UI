@@ -9,20 +9,20 @@ Every status below reflects a response observed directly, not inferred.
 ## What this audit is, and what it is not
 
 > **Superseded, 2026-08-13.** This audit originally concluded that the estate's
-> answer-200-to-everything behaviour was *the cause* of the reputation flags. That conclusion was
+> answer-200-to-everything behaviour was _the cause_ of the reputation flags. That conclusion was
 > wrong, and [issue #45](https://github.com/NosFabrica/Brainstorm-UI/issues/45) is the authority on
 > the actual cause. The survey findings below were observed directly and still stand; only the
 > causal claim has been retracted. This section was rewritten to match.
 
 **The actual root cause was never our content.** alphaMountain (threatYeti) rates `brainstorm.world`
-9.19 / Malicious on the strength of a crawl dated **2023-06-06** — over a year *before* we owned the
+9.19 / Malicious on the strength of a crawl dated **2023-06-06** — over a year _before_ we owned the
 domain (WHOIS creation **2024-07-12**). What their crawler captured was the previous registrant's
 GoDaddy ad-parking page; Wayback corroborates parked ads in 2018 and 2021. The domain lapsed, we
 registered the released name, and the vendor never re-crawled. Nothing we have ever deployed has
 been seen by them.
 
 That one stale verdict then spreads mechanically: root → every `*.brainstorm.world` subdomain
-("Shares Domain w/ Risky Hosts") → the IONOS IP `74.208.86.220`, whose *only* risk factor is hosting
+("Shares Domain w/ Risky Hosts") → the IONOS IP `74.208.86.220`, whose _only_ risk factor is hosting
 the root, which then echoes back onto the `nosfabrica.com` hosts sharing that IP.
 
 The control experiment is already in the vendor's own data: `brainstorm.nosfabrica.com` — a
@@ -56,41 +56,41 @@ part of the estate that was already clean.
 
 ### Product UI — `NosFabrica/Brainstorm-UI` (nginx)
 
-| Host | IP | Role | Status |
-|---|---|---|---|
-| `brainstorm.world` | 74.208.86.220 | Production | PR #43 open |
-| `brainstorm.nosfabrica.com` | 74.208.86.220 | Production alias | PR #43 open |
-| `brainstorm-staging.nosfabrica.com` | 74.208.86.220 | Staging | PR #43 open |
+| Host                                | IP            | Role             | Status      |
+| ----------------------------------- | ------------- | ---------------- | ----------- |
+| `brainstorm.world`                  | 74.208.86.220 | Production       | PR #43 open |
+| `brainstorm.nosfabrica.com`         | 74.208.86.220 | Production alias | PR #43 open |
+| `brainstorm-staging.nosfabrica.com` | 74.208.86.220 | Staging          | PR #43 open |
 
 ### R&D UI — `nous-clawds4/tapestry` (Express)
 
-| Host | IP | Role | Status |
-|---|---|---|---|
-| `tapestry.brainstorm.world` | 159.203.150.156 | Reference deploy | ✅ Live |
-| `staging.brainstorm.world` | 137.184.219.255 | Pre-production | ✅ Live |
-| `tags.brainstorm.world` | 24.199.72.90 | Sandbox | ✅ Live |
-| `communities.brainstorm.world` | 174.138.108.124 | Sandbox | ✅ Live |
-| `magic-carpet.brainstorm.world` | 68.183.114.219 | Sandbox | ✅ Live |
-| `curate.brainstorm.world` | 159.203.159.219 | Sandbox | ✅ Live |
+| Host                            | IP              | Role             | Status  |
+| ------------------------------- | --------------- | ---------------- | ------- |
+| `tapestry.brainstorm.world`     | 159.203.150.156 | Reference deploy | ✅ Live |
+| `staging.brainstorm.world`      | 137.184.219.255 | Pre-production   | ✅ Live |
+| `tags.brainstorm.world`         | 24.199.72.90    | Sandbox          | ✅ Live |
+| `communities.brainstorm.world`  | 174.138.108.124 | Sandbox          | ✅ Live |
+| `magic-carpet.brainstorm.world` | 68.183.114.219  | Sandbox          | ✅ Live |
+| `curate.brainstorm.world`       | 159.203.159.219 | Sandbox          | ✅ Live |
 
 ### nostr relays — strfry
 
-| Host | IP | Role | Status |
-|---|---|---|---|
-| `scores.brainstorm.world` | 74.208.86.220 | Public relay | Patch ready (k8s) |
-| `nip85.nosfabrica.com` | 74.208.86.220 | NIP-85 | Patch ready (k8s) |
-| `nip85-staging.nosfabrica.com` | 74.208.86.220 | NIP-85 staging | Patch ready (k8s) |
-| `nip85.brainstorm.world` | 129.212.133.141 | Trusted Assertions | ⚠️ Standalone — manual |
-| `dcosl.brainstorm.world` | 129.212.135.199 | Decentralized lists | ⚠️ Standalone — manual |
+| Host                           | IP              | Role                | Status                 |
+| ------------------------------ | --------------- | ------------------- | ---------------------- |
+| `scores.brainstorm.world`      | 74.208.86.220   | Public relay        | Patch ready (k8s)      |
+| `nip85.nosfabrica.com`         | 74.208.86.220   | NIP-85              | Patch ready (k8s)      |
+| `nip85-staging.nosfabrica.com` | 74.208.86.220   | NIP-85 staging      | Patch ready (k8s)      |
+| `nip85.brainstorm.world`       | 129.212.133.141 | Trusted Assertions  | ⚠️ Standalone — manual |
+| `dcosl.brainstorm.world`       | 129.212.135.199 | Decentralized lists | ⚠️ Standalone — manual |
 
 ### Backend APIs — `NosFabrica/brainstorm_server`
 
-| Host | IP | Role | Status |
-|---|---|---|---|
-| `api.brainstorm.world` | 74.208.86.220 | Production API | ✅ 404s correctly |
-| `search.brainstorm.world` | 74.208.86.220 | Search API | ✅ 404s correctly |
-| `brainstormserver.nosfabrica.com` | 74.208.86.220 | Production API | ✅ 404s correctly |
-| `brainstormserver-staging.nosfabrica.com` | 74.208.86.220 | Staging API | ✅ 404s correctly |
+| Host                                      | IP            | Role           | Status            |
+| ----------------------------------------- | ------------- | -------------- | ----------------- |
+| `api.brainstorm.world`                    | 74.208.86.220 | Production API | ✅ 404s correctly |
+| `search.brainstorm.world`                 | 74.208.86.220 | Search API     | ✅ 404s correctly |
+| `brainstormserver.nosfabrica.com`         | 74.208.86.220 | Production API | ✅ 404s correctly |
+| `brainstormserver-staging.nosfabrica.com` | 74.208.86.220 | Staging API    | ✅ 404s correctly |
 
 **Dead DNS.** Five hostnames referenced in source have no A record: `lists.`, `npub.`,
 `wot.brainstorm.world`, `nip85-staging.brainstorm.world`, `relay-staging.brainstorm.world`. Harmless
@@ -104,11 +104,11 @@ published as an ownership attestation.
 The same three things everywhere: publish a security contact, tell crawlers the truth, and stop
 answering `200` to paths that don't exist. The implementation differs because the serving layer does.
 
-| Codebase | Approach | State |
-|---|---|---|
-| `nous-clawds4/tapestry` | Express — pure module renders both documents; shape-based rule ahead of the SPA catch-all | ✅ Live on all six hosts |
-| `NosFabrica/Brainstorm-UI` | nginx — exact-match locations, deny rule, per-deployment values at container start | PR #43 |
-| `NosFabrica/brainstorm-k8s` | Ingress — relays have no app layer, so both documents are served at the edge | Patch, no PR (see below) |
+| Codebase                    | Approach                                                                                  | State                    |
+| --------------------------- | ----------------------------------------------------------------------------------------- | ------------------------ |
+| `nous-clawds4/tapestry`     | Express — pure module renders both documents; shape-based rule ahead of the SPA catch-all | ✅ Live on all six hosts |
+| `NosFabrica/Brainstorm-UI`  | nginx — exact-match locations, deny rule, per-deployment values at container start        | PR #43                   |
+| `NosFabrica/brainstorm-k8s` | Ingress — relays have no app layer, so both documents are served at the edge              | Patch, no PR (see below) |
 
 ---
 

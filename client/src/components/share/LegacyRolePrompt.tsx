@@ -100,11 +100,8 @@ export function LegacyRolePrompt({
     >
       <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand-primary" />
       <p className="min-w-0 flex-1 text-xs text-slate-600 dark:text-slate-300">
-        You used to list{" "}
-        <span className="font-semibold text-slate-900 dark:text-slate-100">
-          {pending.join(", ")}
-        </span>
-        . Add {pending.length === 1 ? "it" : "them"} as tags so other people can back{" "}
+        You used to list <span className="font-semibold text-slate-900 dark:text-slate-100">{pending.join(", ")}</span>.
+        Add {pending.length === 1 ? "it" : "them"} as tags so other people can back{" "}
         {pending.length === 1 ? "it" : "them"} up?
       </p>
       <div className="flex shrink-0 items-center gap-2">

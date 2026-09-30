@@ -26,11 +26,16 @@ export function TechnicalViewCard() {
           <Tags className="h-4 w-4 text-brand-deep" />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-technical-view-title">
+          <h2
+            className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+            data-testid="text-technical-view-title"
+          >
             Technical view
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            For power users: what each result is, which relay served it, and the query as it went out. Off, the app looks as it does for everyone.
+            For power users: what each result is, which relay served it, and the query as it went out. Off, the app
+            looks as it does for everyone.
           </p>
         </div>
       </div>
@@ -39,9 +44,18 @@ export function TechnicalViewCard() {
           <label htmlFor="technical-view-switch" className="text-sm font-medium text-slate-900 dark:text-slate-100">
             Technical view
           </label>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Kind and number on every card, the relay an event came from, the query as sent, an event&rsquo;s ids on its page. On this device, while you are signed in.</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Kind and number on every card, the relay an event came from, the query as sent, an event&rsquo;s ids on its
+            page. On this device, while you are signed in.
+          </p>
         </div>
-        <Switch id="technical-view-switch" checked={on} onCheckedChange={change} aria-label="Technical view" data-testid="switch-technical-view" />
+        <Switch
+          id="technical-view-switch"
+          checked={on}
+          onCheckedChange={change}
+          aria-label="Technical view"
+          data-testid="switch-technical-view"
+        />
       </div>
     </Card>
   );

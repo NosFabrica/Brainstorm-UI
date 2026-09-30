@@ -34,9 +34,15 @@ vi.mock("@/lib/serverStatus", async (importOriginal) => {
 });
 vi.mock("@/lib/searchRelay", () => ({
   searchRelay: () => ({
-    get connected() { return relayState.connected; },
-    get ready() { return relayState.ready; },
-    get lastMessageAt() { return relayState.lastMessageAt; },
+    get connected() {
+      return relayState.connected;
+    },
+    get ready() {
+      return relayState.ready;
+    },
+    get lastMessageAt() {
+      return relayState.lastMessageAt;
+    },
     req: (...args: unknown[]) => reqMock(...args),
     count: (...args: unknown[]) => countMock(...args),
   }),
@@ -58,6 +64,11 @@ import {
   appAddress,
   fetchAppReviews,
   fetchAppZaps,
+  fetchGoalProgress,
+  fetchFromSearch,
+  fetchByAddress,
+  bolt11Msats,
+  parseZapReceipt,
   fetchAppEndorsementCounts,
   fetchNoteEngagement,
   fetchAppsByAddress,
@@ -83,8 +94,12 @@ import {
   suggestProfiles,
   suggestListings,
   kindsForTab,
+  bandKindsForTab,
   TAB_KINDS,
-  type SearchSnapshot, type SearchHit, type SearchTab } from "./search";
+  type SearchSnapshot,
+  type SearchHit,
+  type SearchTab,
+} from "./search";
 import { __resetAuthorProfileQueue } from "./authorProfileQueue";
 
 const HOUSE = "f".repeat(64);
@@ -187,8 +202,21 @@ describe("searchStream", () => {
     const snaps: SearchSnapshot[] = [];
     searchStream("tea", { tab: "articles", pov: "nosfabrica" }, (s) => snaps.push(s));
     await tick();
-    const husk = { ...ev("h1", 30023, "b".repeat(64), ""), tags: [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]] } as NostrEvent;
-    const article = { ...ev("a1", 30023, "b".repeat(64), "# Cheese foam tea"), tags: [["d", "cheese-foam-tea-2"], ["title", "Cheese foam tea"]] } as NostrEvent;
+    const husk = {
+      ...ev("h1", 30023, "b".repeat(64), ""),
+      tags: [
+        ["d", "cheese-foam-tea"],
+        ["deleted", "true"],
+        ["title", "[Deleted]"],
+      ],
+    } as NostrEvent;
+    const article = {
+      ...ev("a1", 30023, "b".repeat(64), "# Cheese foam tea"),
+      tags: [
+        ["d", "cheese-foam-tea-2"],
+        ["title", "Cheese foam tea"],
+      ],
+    } as NostrEvent;
     subject.next(frame(husk));
     subject.next(frame(article));
     subject.next(EOSE);
@@ -256,7 +284,12 @@ describe("searchStream — a provisional seed", () => {
     subject.next(frame(person("fromRelay").event));
     subject.next(EOSE);
     await tick();
-    expect(snaps.at(-1)!.hits.map((h) => h.event.id).sort()).toEqual(["fromRelay", "guessed"]);
+    expect(
+      snaps
+        .at(-1)!
+        .hits.map((h) => h.event.id)
+        .sort(),
+    ).toEqual(["fromRelay", "guessed"]);
   });
 
   it("leaves an ordinary seed alone — a remembered page is an answer, not a guess", async () => {
@@ -267,7 +300,12 @@ describe("searchStream — a provisional seed", () => {
     subject.next(frame(person("fresh").event));
     subject.next(EOSE);
     await tick();
-    expect(snaps.at(-1)!.hits.map((h) => h.event.id).sort()).toEqual(["fresh", "remembered"]);
+    expect(
+      snaps
+        .at(-1)!
+        .hits.map((h) => h.event.id)
+        .sort(),
+    ).toEqual(["fresh", "remembered"]);
   });
 });
 
@@ -283,7 +321,11 @@ describe("searchStream — grouped", () => {
 
   it("opens one REQ carrying a filter per member", async () => {
     controllable();
-    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, () => {});
+    searchStream(
+      "bitcoin sort:recent",
+      { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" },
+      () => {},
+    );
     searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, () => {});
     await settle();
 
@@ -309,7 +351,9 @@ describe("searchStream — grouped", () => {
     controllable();
     const notes: SearchSnapshot[] = [];
 
-    searchStream("dvm spec:", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    searchStream("dvm spec:", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) =>
+      notes.push(s),
+    );
     searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica", limit: 5, group: "search-everything" }, () => {});
     await settle();
 
@@ -318,13 +362,18 @@ describe("searchStream — grouped", () => {
     expect(notes.at(-1)).toMatchObject({ hits: [], eose: true });
   });
 
-
   it("gives each member only the events its filter asked for, and settles them together", async () => {
     const { subject } = controllable();
     const notes: SearchSnapshot[] = [];
     const people: SearchSnapshot[] = [];
-    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
-    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) => people.push(s));
+    searchStream(
+      "bitcoin sort:recent",
+      { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" },
+      (s) => notes.push(s),
+    );
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) =>
+      people.push(s),
+    );
     await settle();
 
     subject.next(frame(ev("p1", 0, "b".repeat(64), JSON.stringify({ name: "jack" }))));
@@ -343,8 +392,16 @@ describe("searchStream — grouped", () => {
     const { subject, torndown } = controllable();
     const notes: SearchSnapshot[] = [];
     const people: SearchSnapshot[] = [];
-    const stopNotes = searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
-    const stopPeople = searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) => people.push(s));
+    const stopNotes = searchStream(
+      "bitcoin sort:recent",
+      { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" },
+      (s) => notes.push(s),
+    );
+    const stopPeople = searchStream(
+      "bitcoin",
+      { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" },
+      (s) => people.push(s),
+    );
     await settle();
 
     stopNotes();
@@ -364,8 +421,14 @@ describe("searchStream — grouped", () => {
     const { subject } = controllable();
     const notes: SearchSnapshot[] = [];
     const people: SearchSnapshot[] = [];
-    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
-    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) => people.push(s));
+    searchStream(
+      "bitcoin sort:recent",
+      { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" },
+      (s) => notes.push(s),
+    );
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) =>
+      people.push(s),
+    );
     await settle();
 
     subject.error(new Error("socket gone"));
@@ -427,7 +490,8 @@ describe("searchStream — more", () => {
     });
     return subjects;
   }
-  const note = (id: string, created_at: number): NostrEvent => ({ id, kind: 1, pubkey: "a".repeat(64), tags: [], content: id, created_at, sig: "s" }) as NostrEvent;
+  const note = (id: string, created_at: number): NostrEvent =>
+    ({ id, kind: 1, pubkey: "a".repeat(64), tags: [], content: id, created_at, sig: "s" }) as NostrEvent;
 
   it("asked for more, a recent-sorted stream requests the page older than what it has and appends it", async () => {
     const [first, second] = pages(2);
@@ -495,7 +559,12 @@ describe("searchStream — more", () => {
     const snaps: SearchSnapshot[] = [];
     const handle = searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", limit: 3 }, (s) => snaps.push(s));
     await tick();
-    for (const [id, at] of [["r1", 5], ["r2", 9], ["r3", 2]] as const) first.next(frame(note(id, at)));
+    for (const [id, at] of [
+      ["r1", 5],
+      ["r2", 9],
+      ["r3", 2],
+    ] as const)
+      first.next(frame(note(id, at)));
     first.next(EOSE);
     await tick();
     handle.more();
@@ -503,7 +572,14 @@ describe("searchStream — more", () => {
     const page2 = asked(1) as { until?: number; limit: number };
     expect(page2.until).toBeUndefined();
     expect(page2.limit).toBe(6);
-    for (const [id, at] of [["r1", 5], ["r2", 9], ["r3", 2], ["r4", 7], ["r5", 1]] as const) second.next(frame(note(id, at)));
+    for (const [id, at] of [
+      ["r1", 5],
+      ["r2", 9],
+      ["r3", 2],
+      ["r4", 7],
+      ["r5", 1],
+    ] as const)
+      second.next(frame(note(id, at)));
     second.next(EOSE);
     await tick();
     expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["r1", "r2", "r3", "r4", "r5"]);
@@ -576,14 +652,21 @@ describe("searchStream — seeded from a previous life", () => {
     });
     return subjects;
   }
-  const note = (id: string, created_at: number): NostrEvent => ({ id, kind: 1, pubkey: "a".repeat(64), tags: [], content: id, created_at, sig: "s" }) as NostrEvent;
-  const hit = (id: string, created_at: number): SearchHit => ({ event: note(id, created_at), author: null, rank: null });
+  const note = (id: string, created_at: number): NostrEvent =>
+    ({ id, kind: 1, pubkey: "a".repeat(64), tags: [], content: id, created_at, sig: "s" }) as NostrEvent;
+  const hit = (id: string, created_at: number): SearchHit => ({
+    event: note(id, created_at),
+    author: null,
+    rank: null,
+  });
 
   it("shows the seed at once, refreshes the first page in front of it, and turns the next page from its end", async () => {
     const [first, second] = pages(2);
     const snaps: SearchSnapshot[] = [];
     const seed = [hit("n1", 3000), hit("n2", 2000), hit("n3", 1000)];
-    const handle = searchStream("sort:recent", { tab: "notes", pov: "nosfabrica", limit: 3, seed }, (s) => snaps.push(s));
+    const handle = searchStream("sort:recent", { tab: "notes", pov: "nosfabrica", limit: 3, seed }, (s) =>
+      snaps.push(s),
+    );
     expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["n1", "n2", "n3"]);
     expect(snaps.at(-1)!.eose).toBe(false);
     await tick();
@@ -626,7 +709,16 @@ describe("searchStream — a person's live streams", () => {
     const snaps: SearchSnapshot[] = [];
     searchStream(`from:${MAR_NPUB} sort:recent`, { tab: "live", pov: "nosfabrica" }, (s) => snaps.push(s));
     await tick();
-    const stream = (id: string, role: string | null) => ({ id, kind: 30311, pubkey: "d".repeat(64), tags: [["d", id], ["status", "ended"], role === null ? ["p", MAR] : ["p", MAR, "", role]], content: "", created_at: 10, sig: "s" }) as NostrEvent;
+    const stream = (id: string, role: string | null) =>
+      ({
+        id,
+        kind: 30311,
+        pubkey: "d".repeat(64),
+        tags: [["d", id], ["status", "ended"], role === null ? ["p", MAR] : ["p", MAR, "", role]],
+        content: "",
+        created_at: 10,
+        sig: "s",
+      }) as NostrEvent;
     subject.next(frame(stream("hosted", "host")));
     subject.next(frame(stream("unroled", null)));
     subject.next(frame(stream("guest", "speaker")));
@@ -817,7 +909,9 @@ describe("paging a union", () => {
   it("a union is exhausted when a page brings nothing new, not when its total runs short", async () => {
     const [first] = pages(3);
     const snaps: SearchSnapshot[] = [];
-    const handle = searchStream("#nostr sort:recent", { tab: "notes", pov: "nosfabrica", limit: 4 }, (s) => snaps.push(s));
+    const handle = searchStream("#nostr sort:recent", { tab: "notes", pov: "nosfabrica", limit: 4 }, (s) =>
+      snaps.push(s),
+    );
     await tick();
     // Fewer events than the union's limits add up to — one filter simply had nothing. That
     // must not read as "the whole search is done".
@@ -945,7 +1039,9 @@ describe("suggestProfiles", () => {
     controllable();
     const controller = new AbortController();
     controller.abort();
-    expect(await suggestProfiles("vito", { pov: "nosfabrica" }, { signal: controller.signal, timeoutMs: 60_000 })).toEqual([]);
+    expect(
+      await suggestProfiles("vito", { pov: "nosfabrica" }, { signal: controller.signal, timeoutMs: 60_000 }),
+    ).toEqual([]);
     expect(reqMock).not.toHaveBeenCalled();
   });
 });
@@ -954,17 +1050,33 @@ describe("suggestProfiles", () => {
 // straight to the T-shirt. Product titles ride the same typeahead as people.
 describe("suggestListings", () => {
   const listing = (id: string, title: string, tags: string[][] = [], pubkey = "a".repeat(64)): NostrEvent =>
-    ({ id, kind: 30402, pubkey, tags: [["d", id], ["title", title], ["price", "21", "USD"], ...tags], content: "", created_at: 1, sig: "s" }) as NostrEvent;
+    ({
+      id,
+      kind: 30402,
+      pubkey,
+      tags: [["d", id], ["title", title], ["price", "21", "USD"], ...tags],
+      content: "",
+      created_at: 1,
+      sig: "s",
+    }) as NostrEvent;
 
   it("asks the Shop index and resolves at EOSE with sellable listings whose titles hold every typed word", async () => {
     const { subject } = controllable();
     const pending = suggestListings("satoshi smiley", { pov: "nosfabrica" }, { limit: 3 });
     await tick();
-    expect(askedFilters(0)[0].kinds).toEqual([30402]);
+    expect(askedFilters(0)[0].kinds).toEqual(TAB_KINDS.shop);
     subject.next(frame(listing("t1", "Satoshi Smiley T-shirt")));
     subject.next(frame(listing("t2", "Satoshi Mug")));
     subject.next(frame(listing("t3", "Smiley Satoshi Hoodie", [["status", "sold"]])));
-    subject.next(frame({ ...listing("t4", "Satoshi Smiley Cap"), tags: [["d", "t4"], ["title", "Satoshi Smiley Cap"]] }));
+    subject.next(
+      frame({
+        ...listing("t4", "Satoshi Smiley Cap"),
+        tags: [
+          ["d", "t4"],
+          ["title", "Satoshi Smiley Cap"],
+        ],
+      }),
+    );
     subject.next(frame(listing("t5", "SATOSHI smiley Sticker")));
     subject.next(EOSE);
     expect((await pending).map((h) => h.event.id)).toEqual(["t1", "t5"]);
@@ -974,7 +1086,9 @@ describe("suggestListings", () => {
     const { subject } = controllable();
     const pending = suggestListings("soap", { pov: "nosfabrica" }, { limit: 2 });
     await tick();
-    subject.next(frame(listing("s1", "Tallow Soap", [["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]])));
+    subject.next(
+      frame(listing("s1", "Tallow Soap", [["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]])),
+    );
     subject.next(frame(listing("s2", "Tallow Soap")));
     subject.next(frame(listing("s3", "Lavender Soap")));
     subject.next(frame(listing("s4", "Rose Soap")));
@@ -1062,9 +1176,11 @@ describe("author hydration on a slow relay", () => {
   const EOSE_FRAME: ReqFrame = { type: "EOSE", from: "wss://x", id: "h" };
   const author = (i: number) => i.toString(16).padStart(64, "0");
   const profile = (pk: string, name: string) => frame(ev(`p-${name}`, 0, pk, JSON.stringify({ name })));
-  const hydrations = (calls: ReturnType<typeof multiReq>) => calls.filter((c) => (c.filter.kinds as number[] | undefined)?.[0] === 0);
+  const hydrations = (calls: ReturnType<typeof multiReq>) =>
+    calls.filter((c) => (c.filter.kinds as number[] | undefined)?.[0] === 0);
   const openLookups = (calls: ReturnType<typeof multiReq>) => hydrations(calls).filter((c) => !c.closed);
-  const authorName = (snaps: SearchSnapshot[], id: string) => snaps.at(-1)!.hits.find((h) => h.event.id === id)!.author?.name;
+  const authorName = (snaps: SearchSnapshot[], id: string) =>
+    snaps.at(-1)!.hits.find((h) => h.event.id === id)!.author?.name;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -1150,7 +1266,11 @@ describe("author hydration on a slow relay", () => {
 
   it("keeps the limit of 4 open lookups across every section", async () => {
     const calls = multiReq();
-    const sections: [SearchTab, number][] = [["notes", 1], ["media", 20], ["articles", 30023]];
+    const sections: [SearchTab, number][] = [
+      ["notes", 1],
+      ["media", 20],
+      ["articles", 30023],
+    ];
     for (const [tab] of sections) searchStream("bitcoin", { tab, pov: "nosfabrica" }, () => {});
     await vi.advanceTimersByTimeAsync(0);
     // One new author per flush window, rotating through the sections.
@@ -1214,7 +1334,10 @@ describe("author hydration on a slow relay", () => {
     const showAlice = async (id: string, tab: SearchTab, kind: number) => {
       searchStream("bitcoin", { tab, pov: "nosfabrica" }, () => {});
       await vi.advanceTimersByTimeAsync(0);
-      calls.filter((c) => (c.filter.kinds as number[] | undefined)?.[0] !== 0).at(-1)!.subject.next(frame(ev(id, kind, alice)));
+      calls
+        .filter((c) => (c.filter.kinds as number[] | undefined)?.[0] !== 0)
+        .at(-1)!
+        .subject.next(frame(ev(id, kind, alice)));
       await vi.advanceTimersByTimeAsync(200);
     };
 
@@ -1284,7 +1407,21 @@ describe("fetchSpecsForKind", () => {
     expect(filter["#k"]).toEqual(["10040"]);
     expect(filter.search).toBe("include:spam");
 
-    subject.next(frame({ id: "s1", kind: 30817, pubkey: "b".repeat(64), tags: [["d", "trusted-assertions"], ["title", "Trusted Assertions"], ["k", "10040"]], content: "# TA", created_at: 1, sig: "s" } as NostrEvent));
+    subject.next(
+      frame({
+        id: "s1",
+        kind: 30817,
+        pubkey: "b".repeat(64),
+        tags: [
+          ["d", "trusted-assertions"],
+          ["title", "Trusted Assertions"],
+          ["k", "10040"],
+        ],
+        content: "# TA",
+        created_at: 1,
+        sig: "s",
+      } as NostrEvent),
+    );
     subject.next(EOSE);
     expect((await pending).map((e) => e.id)).toEqual(["s1"]);
   });
@@ -1303,7 +1440,18 @@ describe("fetchNipPage", () => {
   // competing versions (probed live: fiatjaf's real 10KB page next to a
   // 7-character stub) — the page with the most substance wins the panel.
   const page = (pk: string, content: string): NostrEvent =>
-    ({ id: pk.slice(0, 8), kind: 30818, pubkey: pk, tags: [["d", "nip-46"], ["title", "nip-46"]], content, created_at: 1, sig: "s" }) as NostrEvent;
+    ({
+      id: pk.slice(0, 8),
+      kind: 30818,
+      pubkey: pk,
+      tags: [
+        ["d", "nip-46"],
+        ["title", "nip-46"],
+      ],
+      content,
+      created_at: 1,
+      sig: "s",
+    }) as NostrEvent;
 
   it("looks the d-tags up and returns the most substantial page", async () => {
     const { subject } = controllable();
@@ -1336,7 +1484,18 @@ describe("fetchRepoActivity", () => {
   // page's activity feed, newest first.
   const ADDR = "30617:" + "b".repeat(64) + ":ngit";
   const item = (id: string, kind: number, at: number): NostrEvent =>
-    ({ id, kind, pubkey: "c".repeat(64), tags: [["a", ADDR], ["subject", `subject ${id}`]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+    ({
+      id,
+      kind,
+      pubkey: "c".repeat(64),
+      tags: [
+        ["a", ADDR],
+        ["subject", `subject ${id}`],
+      ],
+      content: "",
+      created_at: at,
+      sig: "s",
+    }) as NostrEvent;
 
   it("returns the repo's issues and patches newest first", async () => {
     const { subject } = controllable();
@@ -1362,7 +1521,19 @@ describe("fetchPersonSets", () => {
   // trust vouch for them under that tag.
   const ME = "a".repeat(64);
   const set = (id: string, exporter: string, title: string): NostrEvent =>
-    ({ id, kind: 30000, pubkey: exporter, tags: [["d", `tl-pin-${id}`], ["title", title], ["p", ME]], content: "", created_at: 1, sig: "s" }) as NostrEvent;
+    ({
+      id,
+      kind: 30000,
+      pubkey: exporter,
+      tags: [
+        ["d", `tl-pin-${id}`],
+        ["title", title],
+        ["p", ME],
+      ],
+      content: "",
+      created_at: 1,
+      sig: "s",
+    }) as NostrEvent;
 
   it("groups memberships by title and counts distinct exporters", async () => {
     const { subject } = controllable();
@@ -1377,7 +1548,15 @@ describe("fetchPersonSets", () => {
     subject.next(frame(set("s2", "2".repeat(64), "Verified Human")));
     subject.next(frame(set("s3", "3".repeat(64), "Verified Human")));
     subject.next(frame(set("s4", "1".repeat(64), "AOS 2026 Participant")));
-    subject.next(frame({ ...set("s5", "4".repeat(64), ""), tags: [["d", "x"], ["p", ME]] } as NostrEvent)); // untitled — out
+    subject.next(
+      frame({
+        ...set("s5", "4".repeat(64), ""),
+        tags: [
+          ["d", "x"],
+          ["p", ME],
+        ],
+      } as NostrEvent),
+    ); // untitled — out
     subject.next(EOSE);
     // The sets themselves ride along (id + publisher) so a badge can open a
     // specific list's page — the most trusted publisher's — not a search.
@@ -1392,7 +1571,12 @@ describe("fetchPersonSets", () => {
           { id: "s3", pubkey: "3".repeat(64) },
         ],
       },
-      { title: "AOS 2026 Participant", exporters: 1, exporterPubkeys: ["1".repeat(64)], sets: [{ id: "s4", pubkey: "1".repeat(64) }] },
+      {
+        title: "AOS 2026 Participant",
+        exporters: 1,
+        exporterPubkeys: ["1".repeat(64)],
+        sets: [{ id: "s4", pubkey: "1".repeat(64) }],
+      },
     ]);
   });
 });
@@ -1403,12 +1587,18 @@ describe("fetchRepoCounts", () => {
   // right tool for the "is this repo alive?" card signal.
   it("counts issues and patches for the address, through the lens — and reads who contributed and when it was last touched", async () => {
     const addr = "30617:" + "b".repeat(64) + ":ngit";
-    countMock.mockImplementation((filter: { kinds: number[] }) =>
-      of({ count: filter.kinds[0] === 1621 ? 3 : 1 }),
-    );
+    countMock.mockImplementation((filter: { kinds: number[] }) => of({ count: filter.kinds[0] === 1621 ? 3 : 1 }));
     const { subject } = controllable();
     const item = (id: string, kind: number, pk: string, at: number): NostrEvent =>
-      ({ id: id.padEnd(64, "0"), kind, pubkey: pk, tags: [["a", addr]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+      ({
+        id: id.padEnd(64, "0"),
+        kind,
+        pubkey: pk,
+        tags: [["a", addr]],
+        content: "",
+        created_at: at,
+        sig: "s",
+      }) as NostrEvent;
     const pending = fetchRepoCounts(addr);
     await tick();
     const page = reqMock.mock.calls[0][0] as Record<string, unknown>;
@@ -1451,16 +1641,42 @@ describe("fetchAppReviews", () => {
 
     subject.next(
       frame({
-        id: "r1", kind: 1111, pubkey: "c".repeat(64), created_at: 200, sig: "s",
+        id: "r1",
+        kind: 1111,
+        pubkey: "c".repeat(64),
+        created_at: 200,
+        sig: "s",
         content: "love Amethyst. is my daily driver",
-        tags: [["a", addr], ["k", "32267"], ["v", "1.13.1"]],
+        tags: [
+          ["a", addr],
+          ["k", "32267"],
+          ["v", "1.13.1"],
+        ],
       } as NostrEvent),
     );
-    subject.next(frame({ id: "r2", kind: 1, pubkey: "d".repeat(64), created_at: 100, sig: "s", content: "Perfect APP!", tags: [["a", addr]] } as NostrEvent));
+    subject.next(
+      frame({
+        id: "r2",
+        kind: 1,
+        pubkey: "d".repeat(64),
+        created_at: 100,
+        sig: "s",
+        content: "Perfect APP!",
+        tags: [["a", addr]],
+      } as NostrEvent),
+    );
     subject.next(EOSE);
 
     expect(await pending).toEqual([
-      { id: "r1", pubkey: "c".repeat(64), text: "love Amethyst. is my daily driver", at: 200, version: "1.13.1", k: "32267", kind: 1111 },
+      {
+        id: "r1",
+        pubkey: "c".repeat(64),
+        text: "love Amethyst. is my daily driver",
+        at: 200,
+        version: "1.13.1",
+        k: "32267",
+        kind: 1111,
+      },
       { id: "r2", pubkey: "d".repeat(64), text: "Perfect APP!", at: 100, version: null, k: null, kind: 1 },
     ]);
   });
@@ -1494,10 +1710,69 @@ describe("fetchPersonVouches", () => {
 
     const vouch = (id: string, pubkey: string, tags: string[][], content: string, at: number): NostrEvent =>
       ({ id, kind: 31871, pubkey, tags, content, created_at: at, sig: "s" }) as NostrEvent;
-    subject.next(frame(vouch("v-old", AUTHOR, [["d", SUBJECT], ["p", SUBJECT], ["t", "vouch"], ["s", "vouched"]], "early words", 100)));
-    subject.next(frame(vouch("v-new", AUTHOR, [["d", SUBJECT], ["p", SUBJECT], ["t", "identity"], ["s", "vouched"]], "✅ This account is the real Alex Gleason.", 200)));
-    subject.next(frame(vouch("ws", "9".repeat(64), [["d", `npub1x:${"e".repeat(64)}`], ["p", SUBJECT], ["validity", "valid"], ["c", "walletscrutiny"]], "", 300)));
-    subject.next(frame(vouch("untyped", "8".repeat(64), [["d", SUBJECT], ["p", SUBJECT], ["s", "vouched"]], "solid dev", 150)));
+    subject.next(
+      frame(
+        vouch(
+          "v-old",
+          AUTHOR,
+          [
+            ["d", SUBJECT],
+            ["p", SUBJECT],
+            ["t", "vouch"],
+            ["s", "vouched"],
+          ],
+          "early words",
+          100,
+        ),
+      ),
+    );
+    subject.next(
+      frame(
+        vouch(
+          "v-new",
+          AUTHOR,
+          [
+            ["d", SUBJECT],
+            ["p", SUBJECT],
+            ["t", "identity"],
+            ["s", "vouched"],
+          ],
+          "✅ This account is the real Alex Gleason.",
+          200,
+        ),
+      ),
+    );
+    subject.next(
+      frame(
+        vouch(
+          "ws",
+          "9".repeat(64),
+          [
+            ["d", `npub1x:${"e".repeat(64)}`],
+            ["p", SUBJECT],
+            ["validity", "valid"],
+            ["c", "walletscrutiny"],
+          ],
+          "",
+          300,
+        ),
+      ),
+    );
+    subject.next(
+      frame(
+        vouch(
+          "untyped",
+          "8".repeat(64),
+          [
+            ["d", SUBJECT],
+            ["p", SUBJECT],
+            ["s", "vouched"],
+          ],
+          "solid dev",
+          150,
+        ),
+      ),
+    );
     subject.next(EOSE);
 
     expect(await pending).toEqual([
@@ -1519,7 +1794,20 @@ describe("fetchVouchReplies", () => {
     expect(filter["#e"]).toEqual(["v1", "v2"]);
     expect(filter["#K"]).toEqual(["31871"]);
     const reply = (id: string, e: string, content: string, at: number): NostrEvent =>
-      ({ id, kind: 1111, pubkey: "c".repeat(64), tags: [["E", e], ["e", e], ["K", "31871"], ["k", "31871"]], content, created_at: at, sig: "s" }) as NostrEvent;
+      ({
+        id,
+        kind: 1111,
+        pubkey: "c".repeat(64),
+        tags: [
+          ["E", e],
+          ["e", e],
+          ["K", "31871"],
+          ["k", "31871"],
+        ],
+        content,
+        created_at: at,
+        sig: "s",
+      }) as NostrEvent;
     subject.next(frame(reply("r1", "v1", "thanks!", 10)));
     subject.next(frame(reply("r2", "v1", "thanks again!", 20)));
     subject.next(EOSE);
@@ -1531,6 +1819,148 @@ describe("fetchVouchReplies", () => {
   it("asks nothing for no vouches", async () => {
     expect((await fetchVouchReplies([])).size).toBe(0);
     expect(reqMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("bolt11Msats — an invoice's amount from its human-readable part", () => {
+  it("reads each multiplier, and no amount as none", () => {
+    expect(bolt11Msats("lnbc2500u1pvjluez")).toBe(250_000_000); // 2500 µBTC = 250k sats
+    expect(bolt11Msats("lnbc10n1pjx")).toBe(1_000); // 1 sat
+    expect(bolt11Msats("lnbc1m1pjx")).toBe(100_000_000);
+    expect(bolt11Msats("lnbc1pvjluez")).toBeNull(); // no amount
+    expect(bolt11Msats("not an invoice")).toBeNull();
+    expect(bolt11Msats(undefined)).toBeNull();
+  });
+});
+
+describe("parseZapReceipt", () => {
+  const receipt = (tags: string[][], content = "") =>
+    ({ id: "r", kind: 9735, pubkey: "e".repeat(64), created_at: 1, sig: "s", content, tags }) as NostrEvent;
+  const request = (amount?: string, pubkey = "c".repeat(64)) =>
+    JSON.stringify({ kind: 9734, pubkey, content: "gm", tags: amount ? [["amount", amount]] : [] });
+
+  it("counts what the invoice was for, not what the request asked", () => {
+    expect(
+      parseZapReceipt(
+        receipt([
+          ["bolt11", "lnbc10n1pjx"],
+          ["description", request("1000")],
+        ]),
+      ).msats,
+    ).toBe(1_000);
+    // Asked for 100M sats, invoiced 1 sat: the two must match, so it counts nothing.
+    expect(
+      parseZapReceipt(
+        receipt([
+          ["bolt11", "lnbc10n1pjx"],
+          ["description", request("100000000000")],
+        ]),
+      ).msats,
+    ).toBeNull();
+    // A request amount with no invoice is only a claim.
+    expect(parseZapReceipt(receipt([["description", request("5000")]])).msats).toBeNull();
+  });
+
+  it("names the zapper only by a 64-hex key", () => {
+    expect(parseZapReceipt(receipt([["P", "abc"]])).pubkey).toBeNull();
+    expect(parseZapReceipt(receipt([["description", request(undefined, "C".repeat(64))]])).pubkey).toBe("c".repeat(64));
+  });
+});
+
+describe("fetchGoalProgress", () => {
+  const goal = "9".repeat(64);
+  const receipt = (id: string, zapper: string, invoice: string) =>
+    ({
+      id,
+      kind: 9735,
+      pubkey: "e".repeat(64),
+      created_at: 1,
+      sig: "s",
+      content: "",
+      tags: [
+        ["e", goal],
+        ["P", zapper],
+        ["bolt11", invoice],
+      ],
+    }) as NostrEvent;
+
+  it("sums each goal's receipts, and a finished answer is complete", async () => {
+    const { subject } = controllable();
+    const pending = fetchGoalProgress([goal, "8".repeat(64)]);
+    await tick();
+    expect((reqMock.mock.calls[0][0] as Record<string, unknown>)["#e"]).toEqual([goal, "8".repeat(64)]);
+    subject.next(frame(receipt("r1", "a".repeat(64), "lnbc10u1pjx")));
+    subject.next(frame(receipt("r2", "b".repeat(64), "lnbc20u1pjx")));
+    subject.next(frame(receipt("r2", "b".repeat(64), "lnbc20u1pjx"))); // the same receipt twice counts once
+    subject.next(EOSE);
+    const { byGoal, complete } = await pending;
+    expect(complete).toBe(true);
+    expect(byGoal.get(goal)).toEqual({ sats: 3_000, zappers: ["a".repeat(64), "b".repeat(64)] });
+    expect(byGoal.has("8".repeat(64))).toBe(false);
+  });
+
+  it("leaves out receipts after the goal's closed_at (NIP-75)", async () => {
+    const { subject } = controllable();
+    const pending = fetchGoalProgress([goal], 5000, new Map([[goal, 1]]));
+    await tick();
+    subject.next(frame(receipt("r1", "a".repeat(64), "lnbc10u1pjx")));
+    subject.next(frame({ ...receipt("r2", "b".repeat(64), "lnbc20u1pjx"), created_at: 2 }));
+    subject.next(EOSE);
+    expect((await pending).byGoal.get(goal)).toEqual({ sats: 1_000, zappers: ["a".repeat(64)] });
+  });
+
+  it("an answer cut short by the deadline is not complete", async () => {
+    vi.useFakeTimers();
+    try {
+      controllable();
+      const pending = fetchGoalProgress([goal], 100);
+      await vi.advanceTimersByTimeAsync(150);
+      expect((await pending).complete).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("fetchFromSearch", () => {
+  it("merges its filters, newest first, and a failing stream settles at once instead of at the deadline", async () => {
+    const { subject } = controllable();
+    const good = reqMock.getMockImplementation()!;
+    let call = 0;
+    reqMock.mockImplementation((...args: unknown[]) =>
+      call++ === 0 ? throwError(() => new Error("closed")) : (good as (...a: unknown[]) => unknown)(...args),
+    );
+    const started = Date.now();
+    const pending = fetchFromSearch([{ kinds: [1] }, { kinds: [7] }], { timeoutMs: 60_000 });
+    await tick();
+    subject.next(frame({ ...ev("old"), created_at: 1 }));
+    subject.next(frame({ ...ev("new"), created_at: 2 }));
+    subject.next(EOSE);
+    expect((await pending).map((e) => e.id)).toEqual(["new", "old"]);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
+describe("fetchByAddress", () => {
+  it("asks one cross-product filter and returns only the coordinates asked, newest version of each", async () => {
+    const { subject } = controllable();
+    const a = "a".repeat(64);
+    const b = "b".repeat(64);
+    const pending = fetchByAddress([`31923:${a}:x`, `36787:${b}:y`, "not:a:coord"]);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([31923, 36787]);
+    expect(filter.authors).toEqual([a, b]);
+    expect(filter["#d"]).toEqual(["x", "y"]);
+    const at = (id: string, kind: number, pubkey: string, d: string, created_at: number) =>
+      ({ id, kind, pubkey, created_at, sig: "s", content: "", tags: [["d", d]] }) as NostrEvent;
+    subject.next(frame(at("old", 31923, a, "x", 1)));
+    subject.next(frame(at("new", 31923, a, "x", 2)));
+    subject.next(frame(at("stray", 31923, b, "y", 3))); // matches the cross-product, asked by nobody
+    subject.next(EOSE);
+    const found = await pending;
+    expect([...found.keys()]).toEqual([`31923:${a}:x`]);
+    expect(found.get(`31923:${a}:x`)?.id).toBe("new");
   });
 });
 
@@ -1553,9 +1983,49 @@ describe("fetchAppZaps", () => {
     const zapper = "c".repeat(64);
     const other = "d".repeat(64);
     const request = (pubkey: string, content: string) => JSON.stringify({ kind: 9734, pubkey, content, tags: [] });
-    subject.next(frame({ id: "z1", kind: 9735, pubkey: "e".repeat(64), created_at: 300, sig: "s", content: "", tags: [["a", addr], ["P", zapper], ["description", request(other, "love amethyst how it is")]] } as NostrEvent));
-    subject.next(frame({ id: "z2", kind: 9735, pubkey: "e".repeat(64), created_at: 200, sig: "s", content: "", tags: [["a", addr], ["description", request(other, "")]] } as NostrEvent));
-    subject.next(frame({ id: "z3", kind: 9735, pubkey: "e".repeat(64), created_at: 100, sig: "s", content: "", tags: [["a", addr], ["description", "not json"]] } as NostrEvent));
+    subject.next(
+      frame({
+        id: "z1",
+        kind: 9735,
+        pubkey: "e".repeat(64),
+        created_at: 300,
+        sig: "s",
+        content: "",
+        tags: [
+          ["a", addr],
+          ["P", zapper],
+          ["description", request(other, "love amethyst how it is")],
+        ],
+      } as NostrEvent),
+    );
+    subject.next(
+      frame({
+        id: "z2",
+        kind: 9735,
+        pubkey: "e".repeat(64),
+        created_at: 200,
+        sig: "s",
+        content: "",
+        tags: [
+          ["a", addr],
+          ["description", request(other, "")],
+        ],
+      } as NostrEvent),
+    );
+    subject.next(
+      frame({
+        id: "z3",
+        kind: 9735,
+        pubkey: "e".repeat(64),
+        created_at: 100,
+        sig: "s",
+        content: "",
+        tags: [
+          ["a", addr],
+          ["description", "not json"],
+        ],
+      } as NostrEvent),
+    );
     subject.next(EOSE);
 
     expect(await pending).toEqual([
@@ -1621,14 +2091,32 @@ describe("fetchNoteEngagement", () => {
 describe("fetchAppsByAddress", () => {
   it("asks for the listings by author + d in one REQ and keys them by address", async () => {
     const pk = "b".repeat(64);
-    const listing = { id: "L1", kind: 32267, pubkey: pk, created_at: 5, content: "", sig: "s", tags: [["d", "net.primal.android"], ["name", "Primal"]] } as NostrEvent;
+    const listing = {
+      id: "L1",
+      kind: 32267,
+      pubkey: pk,
+      created_at: 5,
+      content: "",
+      sig: "s",
+      tags: [
+        ["d", "net.primal.android"],
+        ["name", "Primal"],
+      ],
+    } as NostrEvent;
     const older = { ...listing, id: "L0", created_at: 1 } as NostrEvent;
-    reqMock.mockImplementation(() => of(frame(older), frame(listing), { type: "EOSE", from: "wss://x", id: "s" } as ReqFrame));
+    reqMock.mockImplementation(() =>
+      of(frame(older), frame(listing), { type: "EOSE", from: "wss://x", id: "s" } as ReqFrame),
+    );
     const map = await fetchAppsByAddress([`32267:${pk}:net.primal.android`, "junk"]);
     expect([...map.keys()]).toEqual([`32267:${pk}:net.primal.android`]);
     expect(map.get(`32267:${pk}:net.primal.android`)?.id).toBe("L1");
     const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
-    expect(filter).toMatchObject({ kinds: [32267], authors: [pk], "#d": ["net.primal.android"], search: "include:spam" });
+    expect(filter).toMatchObject({
+      kinds: [32267],
+      authors: [pk],
+      "#d": ["net.primal.android"],
+      search: "include:spam",
+    });
   });
 });
 
@@ -1663,16 +2151,23 @@ describe("fetchReleaseAsset", () => {
     expect(zapReqMock).toHaveBeenCalledTimes(1);
     expect((zapReqMock.mock.calls[0][0] as { ids: string[] }).ids).toEqual(["asset-1"]);
 
-    subject.next(frame({
-      id: "asset-1", kind: 3063, pubkey: "b".repeat(64), created_at: 1, sig: "s", content: "",
-      tags: [
-        ["url", "https://github.com/PrimalHQ/primal-android-app/releases/download/3.5.25/primal-3.5.25.apk"],
-        ["m", "application/vnd.android.package-archive"],
-        ["size", "160171130"],
-        ["version", "3.5.25"],
-        ["x", "6f5b89be7abb"],
-      ],
-    } as NostrEvent));
+    subject.next(
+      frame({
+        id: "asset-1",
+        kind: 3063,
+        pubkey: "b".repeat(64),
+        created_at: 1,
+        sig: "s",
+        content: "",
+        tags: [
+          ["url", "https://github.com/PrimalHQ/primal-android-app/releases/download/3.5.25/primal-3.5.25.apk"],
+          ["m", "application/vnd.android.package-archive"],
+          ["size", "160171130"],
+          ["version", "3.5.25"],
+          ["x", "6f5b89be7abb"],
+        ],
+      } as NostrEvent),
+    );
     subject.next(EOSE);
     expect(await pending).toEqual({
       url: "https://github.com/PrimalHQ/primal-android-app/releases/download/3.5.25/primal-3.5.25.apk",
@@ -1702,7 +2197,15 @@ describe("fetchSimilarApps", () => {
   // Category t-tags → sibling listings. Self excluded, replaceable dupes
   // collapsed by address, best tag-overlap first.
   const app = (pk: string, d: string, tags: string[], at = 1): NostrEvent =>
-    ({ id: d, kind: 32267, pubkey: pk, tags: [["d", d], ["name", d], ...tags.map((t) => ["t", t])], content: "", created_at: at, sig: "s" }) as NostrEvent;
+    ({
+      id: d,
+      kind: 32267,
+      pubkey: pk,
+      tags: [["d", d], ["name", d], ...tags.map((t) => ["t", t])],
+      content: "",
+      created_at: at,
+      sig: "s",
+    }) as NostrEvent;
 
   it("returns tag-mates, deduped by address, without the app itself", async () => {
     const { subject } = controllable();
@@ -1730,7 +2233,15 @@ describe("fetchSimilarListings", () => {
   // own items have their own row on the page, so they stay out; edits of
   // one listing collapse to the newest; best category overlap first.
   const listing = (pk: string, d: string, tags: string[], at = 1): NostrEvent =>
-    ({ id: `${d}-${at}`, kind: 30402, pubkey: pk, tags: [["d", d], ["title", d], ["price", "10", "USD"], ...tags.map((t) => ["t", t])], content: "", created_at: at, sig: "s" }) as NostrEvent;
+    ({
+      id: `${d}-${at}`,
+      kind: 30402,
+      pubkey: pk,
+      tags: [["d", d], ["title", d], ["price", "10", "USD"], ...tags.map((t) => ["t", t])],
+      content: "",
+      created_at: at,
+      sig: "s",
+    }) as NostrEvent;
 
   it("returns other sellers' listings sharing a category, best overlap first — never the listing itself or its seller's", async () => {
     const { subject } = controllable();
@@ -1775,7 +2286,15 @@ describe("fetchCommentsByAddress", () => {
   // every request rides include:spam. One comment, however many ways it was
   // tagged, is one comment.
   const comment = (id: string, tags: string[][]): NostrEvent =>
-    ({ id: id.padEnd(64, "0"), kind: 1111, pubkey: "c".repeat(64), tags, content: `c-${id}`, created_at: 1, sig: "s" }) as NostrEvent;
+    ({
+      id: id.padEnd(64, "0"),
+      kind: 1111,
+      pubkey: "c".repeat(64),
+      tags,
+      content: `c-${id}`,
+      created_at: 1,
+      sig: "s",
+    }) as NostrEvent;
 
   it("asks by coordinate and by id, under the lens, and dedupes", async () => {
     const { subject } = controllable();
@@ -1791,9 +2310,30 @@ describe("fetchCommentsByAddress", () => {
     expect(filters.find((f) => f["#E"])?.["#E"]).toEqual([rootId]);
     expect(filters.find((f) => f["#e"])?.["#e"]).toEqual([rootId]);
 
-    subject.next(frame(comment("q1", [["A", addr], ["K", "30402"]])));
-    subject.next(frame(comment("q1", [["A", addr], ["K", "30402"]]))); // the same comment, arriving again
-    subject.next(frame(comment("q2", [["E", rootId], ["e", rootId]])));
+    subject.next(
+      frame(
+        comment("q1", [
+          ["A", addr],
+          ["K", "30402"],
+        ]),
+      ),
+    );
+    subject.next(
+      frame(
+        comment("q1", [
+          ["A", addr],
+          ["K", "30402"],
+        ]),
+      ),
+    ); // the same comment, arriving again
+    subject.next(
+      frame(
+        comment("q2", [
+          ["E", rootId],
+          ["e", rootId],
+        ]),
+      ),
+    );
     subject.next(EOSE);
     const comments = await pending;
     expect(comments.map((c) => c.content).sort()).toEqual(["c-q1", "c-q2"]);
@@ -1804,11 +2344,24 @@ describe("fetchGitStatuses", () => {
   // One request for a page of issues and patches: status events reference
   // their item by a root e-tag; the newest per item wins.
   const status = (id: string, kind: number, target: string, at: number): NostrEvent =>
-    ({ id: id.padEnd(64, "0"), kind, pubkey: "m".repeat(64), tags: [["e", target, "wss://x", "root"], ["a", "30617:" + "a".repeat(64) + ":repo"]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+    ({
+      id: id.padEnd(64, "0"),
+      kind,
+      pubkey: "m".repeat(64),
+      tags: [
+        ["e", target, "wss://x", "root"],
+        ["a", "30617:" + "a".repeat(64) + ":repo"],
+      ],
+      content: "",
+      created_at: at,
+      sig: "s",
+    }) as NostrEvent;
 
   it("asks for every status kind by the items' ids, under the lens, and keeps the newest per item", async () => {
     const { subject } = controllable();
-    const issue = "1".repeat(64), patch = "2".repeat(64), quiet = "3".repeat(64);
+    const issue = "1".repeat(64),
+      patch = "2".repeat(64),
+      quiet = "3".repeat(64);
     const pending = fetchGitStatuses([issue, patch, quiet]);
     await tick();
     const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
@@ -1838,11 +2391,26 @@ describe("fetchGitCommentCounts", () => {
   // NIP-22 comments on an issue name it in an uppercase E (root) tag; one
   // request per page tallies them per issue.
   const comment = (id: string, root: string): NostrEvent =>
-    ({ id: id.padEnd(64, "0"), kind: 1111, pubkey: "c".repeat(64), tags: [["E", root, "", "root"], ["K", "1621"], ["e", root], ["k", "1621"]], content: "…", created_at: 1, sig: "s" }) as NostrEvent;
+    ({
+      id: id.padEnd(64, "0"),
+      kind: 1111,
+      pubkey: "c".repeat(64),
+      tags: [
+        ["E", root, "", "root"],
+        ["K", "1621"],
+        ["e", root],
+        ["k", "1621"],
+      ],
+      content: "…",
+      created_at: 1,
+      sig: "s",
+    }) as NostrEvent;
 
   it("asks by the issues' ids under the lens and counts comments per issue, once each", async () => {
     const { subject } = controllable();
-    const a = "1".repeat(64), b = "2".repeat(64), quiet = "3".repeat(64);
+    const a = "1".repeat(64),
+      b = "2".repeat(64),
+      quiet = "3".repeat(64);
     const pending = fetchGitCommentCounts([a, b, quiet]);
     await tick();
     const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
@@ -1866,7 +2434,19 @@ describe("fetchRepoForks", () => {
   // relay answers a #r filter on the commit; the repo itself is left out and
   // one announcement per maintainer counts once.
   const repo = (pk: string, d: string, euc: string, at = 1): NostrEvent =>
-    ({ id: `${d}-${at}`.padEnd(64, "0"), kind: 30617, pubkey: pk, tags: [["d", d], ["name", d], ["r", euc, "euc"]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+    ({
+      id: `${d}-${at}`.padEnd(64, "0"),
+      kind: 30617,
+      pubkey: pk,
+      tags: [
+        ["d", d],
+        ["name", d],
+        ["r", euc, "euc"],
+      ],
+      content: "",
+      created_at: at,
+      sig: "s",
+    }) as NostrEvent;
 
   it("returns the other announcements of the same codebase, deduped by maintainer", async () => {
     const { subject } = controllable();
@@ -1878,7 +2458,7 @@ describe("fetchRepoForks", () => {
     expect(filter.kinds).toEqual([30617]);
     expect(filter["#r"]).toEqual([euc]);
     expect(filter.search).toBe("include:spam");
-    subject.next(frame(repo(me, "gitnostr", euc)));           // itself
+    subject.next(frame(repo(me, "gitnostr", euc))); // itself
     subject.next(frame(repo("b".repeat(64), "gitnostr", euc, 1)));
     subject.next(frame(repo("b".repeat(64), "gitnostr", euc, 2))); // a newer edit by the same maintainer
     subject.next(frame(repo("c".repeat(64), "gitnostr-fork", euc)));
@@ -1900,8 +2480,28 @@ describe("fetchRepoByAddress", () => {
     expect(filter.authors).toEqual([pk]);
     expect(filter["#d"]).toEqual(["ngit"]);
     expect(filter.search).toBe("include:spam");
-    subject.next(frame({ id: "1".repeat(64), kind: 30617, pubkey: pk, tags: [["d", "ngit"]], content: "", created_at: 1, sig: "s" } as NostrEvent));
-    subject.next(frame({ id: "2".repeat(64), kind: 30617, pubkey: pk, tags: [["d", "ngit"]], content: "", created_at: 5, sig: "s" } as NostrEvent));
+    subject.next(
+      frame({
+        id: "1".repeat(64),
+        kind: 30617,
+        pubkey: pk,
+        tags: [["d", "ngit"]],
+        content: "",
+        created_at: 1,
+        sig: "s",
+      } as NostrEvent),
+    );
+    subject.next(
+      frame({
+        id: "2".repeat(64),
+        kind: 30617,
+        pubkey: pk,
+        tags: [["d", "ngit"]],
+        content: "",
+        created_at: 5,
+        sig: "s",
+      } as NostrEvent),
+    );
     subject.next(EOSE);
     expect((await pending)?.id).toBe("2".repeat(64));
     expect(await fetchRepoByAddress("not-a-coordinate")).toBeNull();
@@ -1913,11 +2513,24 @@ describe("fetchEventRsvps", () => {
   // status. One request per page; a person's newest answer is the one that
   // counts; "going" is the accepted ones, faces newest first.
   const rsvp = (id: string, addr: string, pk: string, status: string, at: number): NostrEvent =>
-    ({ id: id.padEnd(64, "0"), kind: 31925, pubkey: pk, tags: [["a", addr], ["status", status], ["d", id]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+    ({
+      id: id.padEnd(64, "0"),
+      kind: 31925,
+      pubkey: pk,
+      tags: [
+        ["a", addr],
+        ["status", status],
+        ["d", id],
+      ],
+      content: "",
+      created_at: at,
+      sig: "s",
+    }) as NostrEvent;
 
   it("counts who is going per event, a person's latest answer winning", async () => {
     const { subject } = controllable();
-    const A = "31923:" + "a".repeat(64) + ":meetup", B = "31923:" + "b".repeat(64) + ":talk";
+    const A = "31923:" + "a".repeat(64) + ":meetup",
+      B = "31923:" + "b".repeat(64) + ":talk";
     const pending = fetchEventRsvps([A, B]);
     await tick();
     const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
@@ -1951,7 +2564,18 @@ describe("fetchReleases", () => {
     const { subject } = controllable();
     const publisher = "b".repeat(64);
     const release = (d: string, at: number): NostrEvent =>
-      ({ id: d, kind: 30063, pubkey: publisher, tags: [["d", d], ["e", `asset-${d}`]], content: `notes for ${d}`, created_at: at, sig: "s" }) as NostrEvent;
+      ({
+        id: d,
+        kind: 30063,
+        pubkey: publisher,
+        tags: [
+          ["d", d],
+          ["e", `asset-${d}`],
+        ],
+        content: `notes for ${d}`,
+        created_at: at,
+        sig: "s",
+      }) as NostrEvent;
 
     const pending = fetchReleases("place.poster.app", publisher);
     await tick();
@@ -1969,8 +2593,18 @@ describe("fetchReleases", () => {
     // Newest first; the release's content IS the "What's new" text, and its
     // e-tags are the asset events (the APK) the app page can resolve.
     expect(releases).toEqual([
-      { version: "1.0.2133", at: 200, notes: "notes for place.poster.app@1.0.2133", assetIds: ["asset-place.poster.app@1.0.2133"] },
-      { version: "1.0.2132", at: 100, notes: "notes for place.poster.app@1.0.2132", assetIds: ["asset-place.poster.app@1.0.2132"] },
+      {
+        version: "1.0.2133",
+        at: 200,
+        notes: "notes for place.poster.app@1.0.2133",
+        assetIds: ["asset-place.poster.app@1.0.2133"],
+      },
+      {
+        version: "1.0.2132",
+        at: 100,
+        notes: "notes for place.poster.app@1.0.2132",
+        assetIds: ["asset-place.poster.app@1.0.2132"],
+      },
     ]);
   });
 
@@ -2006,7 +2640,8 @@ describe("kindsForTab", () => {
   // snippet kind was ~90% JSON junk). Apps = Zap Store listings; Repos = the
   // genuinely git-shaped kinds. Kind 1337 leaves the tabs entirely.
   it("splits the old code tab into Apps, Repos, Issues and PRs, junk kind dropped", () => {
-    expect(kindsForTab("apps")).toEqual([32267]);
+    // Zap Store listings lead Apps; NIP-89 handlers, Nostr sites and mini apps sit beside them.
+    expect(kindsForTab("apps")).toEqual([32267, 31990, 35128, 15128, 35129]);
     expect(kindsForTab("repos")).toEqual([30617]);
     expect(kindsForTab("issues")).toEqual([1621]);
     expect(kindsForTab("prs")).toEqual([1617, 1618]);
@@ -2016,10 +2651,51 @@ describe("kindsForTab", () => {
 
   // Benjamin: "we should be able to filter by events also". NIP-52 calendar
   // events get their own vertical; Live keeps the NIP-53 streams. Kind 31924
-  // (a calendar — a container of events) leaves the tabs; Everything still
-  // reaches it.
+  // (a calendar — a container of events) rides along in Events, below the
+  // dated events.
   it("splits calendar events out of Live into their own Events vertical", () => {
-    expect(kindsForTab("events")).toEqual([31922, 31923]);
+    expect(kindsForTab("events")).toEqual([31922, 31923, 31924]);
     expect(kindsForTab("live")).toEqual([30311, 30312, 30313]);
+  });
+});
+
+// A band (an Everything section, a home-feed band, a panel rail) has a few
+// slots and drops what it cannot show — so it never asks for it.
+describe("bandKindsForTab", () => {
+  const settle = async () => {
+    await tick();
+    await new Promise((r) => setTimeout(r, 1));
+    await tick();
+  };
+
+  it("leaves out the kinds only the tab itself shows", () => {
+    expect(bandKindsForTab("events")).toEqual([31922, 31923]); // no undated calendars
+    expect(bandKindsForTab("shop")).toEqual([30402, 30018, 30020]); // no priceless stalls or marketplaces
+    expect(bandKindsForTab("media")).not.toContain(2003); // nothing to see in a torrent
+    expect(bandKindsForTab("apps")).toEqual([32267]); // the rail draws Zap Store listings
+  });
+
+  it("is the tab's own kinds everywhere else", () => {
+    for (const tab of ["people", "notes", "articles", "live", "music", "lists"] as const) {
+      expect(bandKindsForTab(tab)).toEqual(TAB_KINDS[tab]);
+    }
+  });
+
+  it("is what a band stream asks, while the tab still asks for everything", async () => {
+    controllable();
+    searchStream("meetup", { tab: "events", pov: "nosfabrica", limit: 12, band: true }, () => {});
+    searchStream("meetup", { tab: "events", pov: "nosfabrica", limit: 12 }, () => {});
+    await settle();
+    expect(askedFilters(0)[0].kinds).toEqual([31922, 31923]);
+    expect(askedFilters(1)[0].kinds).toEqual([31922, 31923, 31924]);
+  });
+
+  it("a typed kind the band does not show asks nothing of it", async () => {
+    controllable();
+    let snap: SearchSnapshot | null = null;
+    searchStream("kind:31924", { tab: "events", pov: "nosfabrica", limit: 12, band: true }, (s) => (snap = s));
+    await settle();
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(snap).toMatchObject({ hits: [], eose: true });
   });
 });

@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { NostrEvent } from "nostr-tools";
 import { takeHeadStart, __resetHeadStart } from "./headStart";
-import { TAB_KINDS } from "@/services/search";
+import { bandKindsForTab } from "@/services/search";
 import { EVERYTHING_SECTIONS } from "@/components/search/ComposedResults";
 
 const added: NostrEvent[] = [];
@@ -68,17 +68,19 @@ describe("takeHeadStart", () => {
 
 describe("the inline script in index.html", () => {
   const html = readFileSync(join(__dirname, "../../index.html"), "utf8");
-  const asked = [...html.matchAll(/\{ kinds: \[([\d, ]+)\], search: (q|fresh) \+ perspective, limit: (\d+) \}/g)].map((m) => ({
-    kinds: m[1].split(",").map((n) => Number(n.trim())),
-    recent: m[2] === "fresh",
-    limit: Number(m[3]),
-  }));
+  const asked = [...html.matchAll(/\{ kinds: \[([\d, ]+)\], search: (q|fresh) \+ perspective, limit: (\d+) \}/g)].map(
+    (m) => ({
+      kinds: m[1].split(",").map((n) => Number(n.trim())),
+      recent: m[2] === "fresh",
+      limit: Number(m[3]),
+    }),
+  );
 
   it("asks each section exactly what the composed page asks it", () => {
     const tabs = ["people", "notes", "articles", "events", "live", "media", "music", "shop"] as const;
     expect(asked).toEqual(
       tabs.map((tab) => ({
-        kinds: [...TAB_KINDS[tab]],
+        kinds: [...(bandKindsForTab(tab) ?? [])],
         recent: EVERYTHING_SECTIONS[tab].recent,
         limit: EVERYTHING_SECTIONS[tab].limit,
       })),

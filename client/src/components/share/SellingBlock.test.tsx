@@ -47,12 +47,16 @@ describe("SellingBlock", () => {
     mount(<SellingBlock pubkey={SELLER} onCount={onCount} />);
     const block = await screen.findByTestId("share-block-selling");
     expect(recentMock).toHaveBeenCalledWith(SELLER, [30402], expect.any(Number));
-    const titles = within(block).getAllByText(/Skincare kit|Lip balm|Gone already/).map((n) => n.textContent);
+    const titles = within(block)
+      .getAllByText(/Skincare kit|Lip balm|Gone already/)
+      .map((n) => n.textContent);
     expect(titles).toEqual(["Skincare kit", "Lip balm"]);
     expect(within(block).getByTestId(`listing-price-${"l1".padEnd(64, "0")}`)).toHaveTextContent("$12");
     // The seller's own shelf names no author — it is theirs.
     expect(within(block).queryByText("Unknown")).toBeNull();
-    const hrefs = within(block).getAllByRole("link").map((a) => a.getAttribute("href"));
+    const hrefs = within(block)
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href"));
     expect(hrefs.some((h) => h?.startsWith("/e/"))).toBe(true);
     await waitFor(() => expect(onCount).toHaveBeenCalledWith(2));
     expect(within(block).queryByTestId("block-view-all")).toBeNull(); // two fit; nothing to see beyond
@@ -80,8 +84,21 @@ describe("SellingBlock", () => {
 
   it("folds one product in several sizes into one card that says how many options — the count is products, not listings", async () => {
     const shirt = (size: string, at: number) =>
-      ({ ...listing(`shirt-${size}`, `SOUND COFFEE T-SHIRT — ${size} / PEPPER`, at), tags: [["d", `shirt-${size}`], ["title", `SOUND COFFEE T-SHIRT — ${size} / PEPPER`], ["price", "35", "USD"], ["image", "https://img/shirt.jpg"]] }) as NostrEvent;
-    recentMock.mockResolvedValue([shirt("XXL", 3000), shirt("XL", 2900), shirt("SMALL", 2800), listing("bag", "SOUND COFFEE", 2000)]);
+      ({
+        ...listing(`shirt-${size}`, `SOUND COFFEE T-SHIRT — ${size} / PEPPER`, at),
+        tags: [
+          ["d", `shirt-${size}`],
+          ["title", `SOUND COFFEE T-SHIRT — ${size} / PEPPER`],
+          ["price", "35", "USD"],
+          ["image", "https://img/shirt.jpg"],
+        ],
+      }) as NostrEvent;
+    recentMock.mockResolvedValue([
+      shirt("XXL", 3000),
+      shirt("XL", 2900),
+      shirt("SMALL", 2800),
+      listing("bag", "SOUND COFFEE", 2000),
+    ]);
     const onCount = vi.fn();
     mount(<SellingBlock pubkey={SELLER} onCount={onCount} />);
     const block = await screen.findByTestId("share-block-selling");

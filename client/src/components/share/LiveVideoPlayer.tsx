@@ -38,11 +38,24 @@ export function LiveVideoPlayer({
 
   // Keep the HLS stream feeding a PiP window across navigation; it's torn down
   // when the viewer closes PiP (onClose), or on unmount when NOT in PiP.
-  usePipAwareAutoStop(videoRef, () => { try { hlsRef.current?.destroy(); } catch { /* ignore */ } });
-  useEffect(() => () => {
-    if (videoRef.current && document.pictureInPictureElement === videoRef.current) return;
-    try { hlsRef.current?.destroy(); } catch { /* ignore */ }
-  }, []);
+  usePipAwareAutoStop(videoRef, () => {
+    try {
+      hlsRef.current?.destroy();
+    } catch {
+      /* ignore */
+    }
+  });
+  useEffect(
+    () => () => {
+      if (videoRef.current && document.pictureInPictureElement === videoRef.current) return;
+      try {
+        hlsRef.current?.destroy();
+      } catch {
+        /* ignore */
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (autoStart) void start();
@@ -60,11 +73,23 @@ export function LiveVideoPlayer({
         video.src = src; // Safari / iOS native HLS
       } else {
         const Hls = (await import("hls.js")).default;
-        if (!Hls.isSupported()) { setLoading(false); onError?.(); return; }
+        if (!Hls.isSupported()) {
+          setLoading(false);
+          onError?.();
+          return;
+        }
         const hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 90 });
         hlsRef.current = hls;
         hls.on(Hls.Events.ERROR, (_evt: unknown, data: { fatal?: boolean }) => {
-          if (data?.fatal) { setLoading(false); try { hls.destroy(); } catch { /* ignore */ } onError?.(); }
+          if (data?.fatal) {
+            setLoading(false);
+            try {
+              hls.destroy();
+            } catch {
+              /* ignore */
+            }
+            onError?.();
+          }
         });
         hls.loadSource(src);
         hls.attachMedia(video);
@@ -97,7 +122,10 @@ export function LiveVideoPlayer({
   };
 
   return (
-    <div className={`relative aspect-video w-full overflow-hidden bg-black ${frameless ? "" : "rounded-2xl border border-slate-200"}`} data-testid="live-player">
+    <div
+      className={`relative aspect-video w-full overflow-hidden bg-black ${frameless ? "" : "rounded-2xl border border-slate-200"}`}
+      data-testid="live-player"
+    >
       <video
         ref={videoRef}
         poster={poster}
@@ -105,7 +133,9 @@ export function LiveVideoPlayer({
         controls={started}
         className="h-full w-full object-contain"
         data-testid="live-video"
-        onError={() => { if (started) onError?.(); }}
+        onError={() => {
+          if (started) onError?.();
+        }}
       />
       {started && muted && (
         <button
@@ -126,7 +156,11 @@ export function LiveVideoPlayer({
           data-testid="live-play"
         >
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 shadow-lg transition-transform group-hover:scale-105">
-            {loading ? <Loader2 className="h-6 w-6 animate-spin text-brand-link" /> : <Play className="h-7 w-7 translate-x-0.5 fill-current text-brand-link" />}
+            {loading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-brand-link" />
+            ) : (
+              <Play className="h-7 w-7 translate-x-0.5 fill-current text-brand-link" />
+            )}
           </span>
         </button>
       )}

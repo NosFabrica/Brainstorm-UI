@@ -77,7 +77,11 @@ function inWindow(span: { start: number; end: number }, when: EventWhen, now: nu
 }
 
 /** The hits that fall in the window, in calendar order. */
-export function filterEventsByWhen(hits: SearchHit[], when: EventWhen, now: number = Math.floor(Date.now() / 1000)): SearchHit[] {
+export function filterEventsByWhen(
+  hits: SearchHit[],
+  when: EventWhen,
+  now: number = Math.floor(Date.now() / 1000),
+): SearchHit[] {
   const dated = hits.map((hit) => ({ hit, ...spanOf(hit) })).filter((d) => inWindow(d, when, now));
   const upcoming = dated.filter((d) => d.start && d.end > now).sort((a, b) => a.start - b.start);
   const past = dated.filter((d) => d.start && d.end <= now).sort((a, b) => b.start - a.start);
@@ -86,8 +90,19 @@ export function filterEventsByWhen(hits: SearchHit[], when: EventWhen, now: numb
 }
 
 /** How many hits each facet would show — the numbers on the chips. */
-export function eventWhenCounts(hits: SearchHit[], now: number = Math.floor(Date.now() / 1000)): Record<EventWhen, number> {
+export function eventWhenCounts(
+  hits: SearchHit[],
+  now: number = Math.floor(Date.now() / 1000),
+): Record<EventWhen, number> {
   const spans = hits.map(spanOf);
   const count = (when: EventWhen) => spans.filter((s) => inWindow(s, when, now)).length;
-  return { upcoming: count("upcoming"), today: count("today"), weekend: count("weekend"), week: count("week"), month: count("month"), past: count("past"), all: count("all") };
+  return {
+    upcoming: count("upcoming"),
+    today: count("today"),
+    weekend: count("weekend"),
+    week: count("week"),
+    month: count("month"),
+    past: count("past"),
+    all: count("all"),
+  };
 }

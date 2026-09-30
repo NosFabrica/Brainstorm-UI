@@ -77,7 +77,16 @@ const listeners = new Set<() => void>();
 /** Register the ordered track list so playback auto-advances on `ended`. */
 export function setPlaylist(list: PlaylistTrack[]) {
   playlist = list;
-  for (const t of list) if (t.title) metaById.set(t.id, { title: t.title, artist: t.artist, cover: t.cover, href: t.href, artistHref: t.artistHref, artistPubkey: t.artistPubkey });
+  for (const t of list)
+    if (t.title)
+      metaById.set(t.id, {
+        title: t.title,
+        artist: t.artist,
+        cover: t.cover,
+        href: t.href,
+        artistHref: t.artistHref,
+        artistPubkey: t.artistPubkey,
+      });
 }
 
 /**
@@ -88,7 +97,12 @@ export function setPlaylist(list: PlaylistTrack[]) {
  */
 export function extendPlaylist(tracks: PlaylistTrack[]) {
   const idx = playlist.findIndex((t) => t.id === currentId);
-  const head = idx >= 0 ? playlist.slice(0, idx + 1) : currentId ? [{ id: currentId, src: audio?.src ?? "", ...(metaById.get(currentId) ?? {}) }] : [];
+  const head =
+    idx >= 0
+      ? playlist.slice(0, idx + 1)
+      : currentId
+        ? [{ id: currentId, src: audio?.src ?? "", ...(metaById.get(currentId) ?? {}) }]
+        : [];
   const tail = idx >= 0 ? playlist.slice(idx + 1) : [];
   const seen = new Set(head.map((t) => t.id));
   const fresh = tracks.filter((t) => !seen.has(t.id) && (seen.add(t.id), true));
@@ -105,7 +119,7 @@ export function trackMeta(id: string | null): TrackMeta | undefined {
 /** The track after this one in the registered playlist, if any. */
 export function peekNext(id: string | null): PlaylistTrack | null {
   const idx = playlist.findIndex((t) => t.id === id);
-  return idx >= 0 ? playlist[idx + 1] ?? null : null;
+  return idx >= 0 ? (playlist[idx + 1] ?? null) : null;
 }
 
 /**
@@ -114,7 +128,8 @@ export function peekNext(id: string | null): PlaylistTrack | null {
  * shared player. Best-effort — absent in test DOMs and old engines.
  */
 function applyMediaSession(id: string) {
-  if (typeof navigator === "undefined" || !("mediaSession" in navigator) || typeof MediaMetadata === "undefined") return;
+  if (typeof navigator === "undefined" || !("mediaSession" in navigator) || typeof MediaMetadata === "undefined")
+    return;
   const meta = metaById.get(id);
   if (!meta?.title) return;
   try {
@@ -123,18 +138,33 @@ function applyMediaSession(id: string) {
       artist: meta.artist ?? "",
       artwork: meta.cover ? [{ src: meta.cover }] : [],
     });
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 /** Idempotent, so it runs with every track start — cheap, and it survives a swapped session object. */
 function wireMediaSessionKeys() {
   if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
   const set = (name: MediaSessionAction, handler: () => void) => {
-    try { navigator.mediaSession.setActionHandler(name, handler); } catch { /* unsupported action */ }
+    try {
+      navigator.mediaSession.setActionHandler(name, handler);
+    } catch {
+      /* unsupported action */
+    }
   };
-  set("play", () => { if (audio && currentId) { playSolo(musicHolder); Promise.resolve(audio.play()).catch(() => {}); } });
+  set("play", () => {
+    if (audio && currentId) {
+      playSolo(musicHolder);
+      Promise.resolve(audio.play()).catch(() => {});
+    }
+  });
   set("pause", () => pausePlayback());
-  set("nexttrack", () => { playNext(); });
-  set("previoustrack", () => { playPrev(); });
+  set("nexttrack", () => {
+    playNext();
+  });
+  set("previoustrack", () => {
+    playPrev();
+  });
 }
 
 // Cached snapshot — rebuilt only on change so useSyncExternalStore stays stable.
@@ -159,19 +189,38 @@ function ensureAudio(): HTMLAudioElement {
   audio.addEventListener("timeupdate", emit);
   audio.addEventListener("durationchange", emit);
   audio.addEventListener("loadedmetadata", emit);
-  audio.addEventListener("waiting", () => { status = "loading"; emit(); });
-  audio.addEventListener("playing", () => { status = "playing"; emit(); });
-  audio.addEventListener("play", () => { status = audio && audio.readyState < 3 ? "loading" : "playing"; emit(); });
-  audio.addEventListener("pause", () => { if (status !== "error") status = "paused"; emit(); });
+  audio.addEventListener("waiting", () => {
+    status = "loading";
+    emit();
+  });
+  audio.addEventListener("playing", () => {
+    status = "playing";
+    emit();
+  });
+  audio.addEventListener("play", () => {
+    status = audio && audio.readyState < 3 ? "loading" : "playing";
+    emit();
+  });
+  audio.addEventListener("pause", () => {
+    if (status !== "error") status = "paused";
+    emit();
+  });
   audio.addEventListener("ended", () => {
     const idx = playlist.findIndex((t) => t.id === currentId);
     const next = idx >= 0 ? playlist[idx + 1] : undefined;
-    if (next) { toggleTrack(next.id, next.src); return; } // auto-advance
+    if (next) {
+      toggleTrack(next.id, next.src);
+      return;
+    } // auto-advance
     // The end of the queue: the last track stays current, paused, ready to
     // play again — Spotify's bar does not blink away when the music stops.
-    status = "paused"; emit();
+    status = "paused";
+    emit();
   });
-  audio.addEventListener("error", () => { status = "error"; emit(); });
+  audio.addEventListener("error", () => {
+    status = "error";
+    emit();
+  });
   return audio;
 }
 
@@ -182,8 +231,16 @@ export function toggleTrack(id: string, src: string, meta?: TrackMeta) {
   if (meta?.title) metaById.set(id, meta);
   wireMediaSessionKeys();
   if (currentId === id) {
-    if (a.paused) { status = "loading"; playSolo(musicHolder); Promise.resolve(a.play()).catch(() => { status = "error"; emit(); }); }
-    else { a.pause(); }
+    if (a.paused) {
+      status = "loading";
+      playSolo(musicHolder);
+      Promise.resolve(a.play()).catch(() => {
+        status = "error";
+        emit();
+      });
+    } else {
+      a.pause();
+    }
     emit();
     return;
   }
@@ -201,7 +258,10 @@ export function toggleTrack(id: string, src: string, meta?: TrackMeta) {
     playSolo(musicHolder);
     // Wrapped: a media element that returns nothing from play() (older engines,
     // test DOMs) must not throw before the store learns which track is active.
-    Promise.resolve(a.play()).catch(() => { status = "error"; emit(); });
+    Promise.resolve(a.play()).catch(() => {
+      status = "error";
+      emit();
+    });
     emit();
   };
   if (wavlakeTrackId(src)) void resolveAudioSrc(src).then(start);
@@ -211,8 +271,15 @@ export function toggleTrack(id: string, src: string, meta?: TrackMeta) {
 /** Play or pause whatever is active — the bar's button, the hardware key. */
 export function togglePlayback() {
   if (!audio || !currentId) return;
-  if (audio.paused) { status = "loading"; playSolo(musicHolder); Promise.resolve(audio.play()).catch(() => { status = "error"; emit(); }); emit(); }
-  else audio.pause();
+  if (audio.paused) {
+    status = "loading";
+    playSolo(musicHolder);
+    Promise.resolve(audio.play()).catch(() => {
+      status = "error";
+      emit();
+    });
+    emit();
+  } else audio.pause();
 }
 
 /** Pause the active track but keep its position, so it can resume. */
@@ -226,13 +293,26 @@ export function pausePlayback() {
  */
 export function closePlayer() {
   if (audio) {
-    try { audio.pause(); } catch { /* ignore */ }
-    try { audio.removeAttribute("src"); audio.load(); } catch { /* ignore */ }
+    try {
+      audio.pause();
+    } catch {
+      /* ignore */
+    }
+    try {
+      audio.removeAttribute("src");
+      audio.load();
+    } catch {
+      /* ignore */
+    }
   }
   currentId = null;
   status = "idle";
   if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
-    try { navigator.mediaSession.metadata = null; } catch { /* ignore */ }
+    try {
+      navigator.mediaSession.metadata = null;
+    } catch {
+      /* ignore */
+    }
   }
   emit();
 }
@@ -252,7 +332,9 @@ export function stopAllMedia() {
     document.querySelectorAll<HTMLMediaElement>("video, audio").forEach((m) => {
       if (m !== pip && !m.paused) m.pause();
     });
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
@@ -275,8 +357,16 @@ export function usePipAwareAutoStop(ref: RefObject<HTMLVideoElement | null>, onC
       // playing inline. Closing PiP after navigating away leaves the element
       // detached from any page, so stop it (and tear down e.g. HLS).
       if (document.contains(v)) return;
-      try { if (!v.paused) v.pause(); } catch { /* ignore */ }
-      try { onCloseRef.current?.(); } catch { /* ignore */ }
+      try {
+        if (!v.paused) v.pause();
+      } catch {
+        /* ignore */
+      }
+      try {
+        onCloseRef.current?.();
+      } catch {
+        /* ignore */
+      }
     };
     v.addEventListener("leavepictureinpicture", onLeavePiP);
     return () => {
@@ -284,7 +374,11 @@ export function usePipAwareAutoStop(ref: RefObject<HTMLVideoElement | null>, onC
       // leavepictureinpicture listener alive so closing PiP later still stops it.
       if (document.pictureInPictureElement === v) return;
       v.removeEventListener("leavepictureinpicture", onLeavePiP);
-      try { if (!v.paused) v.pause(); } catch { /* ignore */ }
+      try {
+        if (!v.paused) v.pause();
+      } catch {
+        /* ignore */
+      }
     };
   }, [ref]);
 }
@@ -298,7 +392,9 @@ export function seekTrack(id: string, fraction: number) {
 
 function subscribe(l: () => void) {
   listeners.add(l);
-  return () => { listeners.delete(l); };
+  return () => {
+    listeners.delete(l);
+  };
 }
 const getSnapshot = () => snapshot;
 
@@ -306,7 +402,12 @@ const getSnapshot = () => snapshot;
  * The player as a whole — which track is active and where it is — for a
  * now-playing bar that outlives any one row.
  */
-export function usePlayerState(): { currentId: string | null; status: TrackStatus; currentTime: number; duration: number } {
+export function usePlayerState(): {
+  currentId: string | null;
+  status: TrackStatus;
+  currentTime: number;
+  duration: number;
+} {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
@@ -368,7 +469,10 @@ export function useTrackDuration(src?: string): number | null {
   const [dur, setDur] = useState<number | null>(() => (src && durationCache.has(src) ? durationCache.get(src)! : null));
   useEffect(() => {
     if (!src || typeof window === "undefined") return;
-    if (durationCache.has(src)) { setDur(durationCache.get(src)!); return; }
+    if (durationCache.has(src)) {
+      setDur(durationCache.get(src)!);
+      return;
+    }
     const a = new Audio();
     a.preload = "metadata";
     const cleanup = () => {
@@ -377,7 +481,10 @@ export function useTrackDuration(src?: string): number | null {
       a.src = "";
     };
     const onMeta = () => {
-      if (Number.isFinite(a.duration)) { durationCache.set(src, a.duration); setDur(a.duration); }
+      if (Number.isFinite(a.duration)) {
+        durationCache.set(src, a.duration);
+        setDur(a.duration);
+      }
       cleanup();
     };
     a.addEventListener("loadedmetadata", onMeta);

@@ -55,15 +55,16 @@ export function shouldAutoPublishNip85(pubkey: string): boolean {
  * immediately (ta_pubkey not fetched yet); the calculate surfaces try
  * `publishBrainstormTrustAnchor` first, while the user is present to sign.
  */
-export async function triggerScoringAndAnchor(
-  pubkey: string,
-  opts?: { nip85Consent?: boolean },
-): Promise<void> {
+export async function triggerScoringAndAnchor(pubkey: string, opts?: { nip85Consent?: boolean }): Promise<void> {
   if (opts?.nip85Consent !== undefined) recordNip85Consent(pubkey, opts.nip85Consent);
   // Mark the start so the global status chip can show "Calculating…" immediately,
   // before the backend's graperankResult reflects an in-progress record.
-  try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pubkey), String(Date.now())); } catch {}
-  try { await apiClient.triggerGrapeRank(); } catch {}
+  try {
+    localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pubkey), String(Date.now()));
+  } catch {}
+  try {
+    await apiClient.triggerGrapeRank();
+  } catch {}
   if (shouldAutoPublishNip85(pubkey)) void pollAndPublishTrustAnchor(pubkey);
 }
 
@@ -174,8 +175,8 @@ export async function publishBrainstormTrustAnchor(
   let nip85Relay: string;
   try {
     nip85Relay = getNip85RelayUrl();
-  } catch (err: any) {
-    return { status: "error", message: err?.message || "NIP-85 relay URL is not configured." };
+  } catch (err) {
+    return { status: "error", message: (err as Error | undefined)?.message || "NIP-85 relay URL is not configured." };
   }
 
   const lists = opts.lists === undefined ? await listsToName(pubkey, taPubkey) : opts.lists;

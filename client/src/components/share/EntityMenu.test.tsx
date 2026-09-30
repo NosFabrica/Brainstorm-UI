@@ -42,7 +42,9 @@ describe("EntityMenu", () => {
     expect(within(menu).queryByTestId("open-amethyst")).toBeNull();
     expect(within(menu).queryByTestId("open-default")).toBeNull();
     // Copies come before the apps.
-    expect(within(menu).getByTestId("menu-copy-npub").compareDocumentPosition(primal) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      within(menu).getByTestId("menu-copy-npub").compareDocumentPosition(primal) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("copying keeps the menu open and says Copied for a moment", async () => {
@@ -56,7 +58,21 @@ describe("EntityMenu", () => {
 
   it("leading items sit before the copies and trailing ones after the apps", async () => {
     render(
-      <EntityMenu entity={entity} copies={copies} ua={MAC} leading={<div role="menuitem" data-testid="lead">Mute</div>} trailing={<div role="menuitem" data-testid="trail">Advanced view</div>} />,
+      <EntityMenu
+        entity={entity}
+        copies={copies}
+        ua={MAC}
+        leading={
+          <div role="menuitem" data-testid="lead">
+            Mute
+          </div>
+        }
+        trailing={
+          <div role="menuitem" data-testid="trail">
+            Advanced view
+          </div>
+        }
+      />,
     );
     const menu = await open();
     const lead = within(menu).getByTestId("lead");
@@ -70,7 +86,9 @@ describe("EntityMenu", () => {
   it("on Android the menu offers Amethyst and the default app; on a Mac neither", async () => {
     render(<EntityMenu entity={entity} copies={copies} ua={PIXEL} />);
     const menu = await open();
-    expect(within(menu).getByTestId("open-amethyst").getAttribute("href")).toMatch(/^intent:\/\/.*package=com\.vitorpamplona\.amethyst/);
+    expect(within(menu).getByTestId("open-amethyst").getAttribute("href")).toMatch(
+      /^intent:\/\/.*package=com\.vitorpamplona\.amethyst/,
+    );
     expect(within(menu).getByTestId("open-amethyst")).not.toHaveAttribute("target");
     expect(within(menu).getByTestId("open-default")).toHaveAttribute("href", `nostr:${npub}`);
   });
@@ -81,13 +99,23 @@ describe("EntityMenu", () => {
     render(
       <EntityMenu
         entity={entity}
-        copies={[{ id: "nprofile", label: "Copy nprofile", value: npub, hint: "Their key plus the relays their posts live on" }, ...copies]}
+        copies={[
+          {
+            id: "nprofile",
+            label: "Copy nprofile",
+            value: npub,
+            hint: "Their key plus the relays their posts live on",
+          },
+          ...copies,
+        ]}
         ua={MAC}
       />,
     );
     const menu = await open();
     const row = within(menu).getByTestId("menu-copy-nprofile");
-    expect(within(row).getByTestId("menu-copy-nprofile-hint")).toHaveTextContent("Their key plus the relays their posts live on");
+    expect(within(row).getByTestId("menu-copy-nprofile-hint")).toHaveTextContent(
+      "Their key plus the relays their posts live on",
+    );
     expect(within(menu).queryByTestId("menu-copy-npub-hint")).toBeNull();
     fireEvent.click(row);
     await waitFor(() => expect(row).toHaveTextContent("Copied"));
@@ -99,7 +127,9 @@ describe("EntityMenu", () => {
     render(
       <EntityMenu
         entity={{ kind: "hashtag", bech32: "bitcoin", uri: "" }}
-        copies={[{ id: "link", label: "Copy link", value: "https://brainstorm.world/t/bitcoin", hint: "This page's address" }]}
+        copies={[
+          { id: "link", label: "Copy link", value: "https://brainstorm.world/t/bitcoin", hint: "This page's address" },
+        ]}
         ua={PIXEL}
       />,
     );

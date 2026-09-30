@@ -88,21 +88,24 @@ export function ConfirmNewFollowListDialog({
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={(next) => { if (!next && !busy) onCancel(); }}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !busy) onCancel();
+      }}
+    >
       <AlertDialogContent data-testid="dialog-confirm-new-follow-list">
         <AlertDialogHeader>
           <AlertDialogTitle>We couldn't reach your relays</AlertDialogTitle>
           <AlertDialogDescription>
-            None of your relays answered, so we can't tell whether this key already has a
-            follow list. If you've followed people before — here or in another app —
-            publishing now could replace a list we simply couldn't see. Check your
-            connection and try again in a moment, continue only if you've never followed
-            anyone with this key — or, if you know a relay that has your list, search it
-            below.
+            None of your relays answered, so we can't tell whether this key already has a follow list. If you've
+            followed people before — here or in another app — publishing now could replace a list we simply couldn't
+            see. Check your connection and try again in a moment, continue only if you've never followed anyone with
+            this key — or, if you know a relay that has your list, search it below.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="border-t pt-4 space-y-2">
+        <div className="space-y-2 border-t pt-4">
           <p className="text-sm text-muted-foreground">
             Know a relay that has your follow list? We can check it directly.
           </p>
@@ -110,7 +113,12 @@ export function ConfirmNewFollowListDialog({
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void search(); } }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void search();
+                }
+              }}
               placeholder="wss://relay.example.com"
               className="font-mono text-xs"
               spellCheck={false}
@@ -141,8 +149,7 @@ export function ConfirmNewFollowListDialog({
               className={result.error ? "text-sm text-destructive" : "text-sm text-muted-foreground"}
               data-testid="text-relay-search-status"
             >
-              {result.error ??
-                "No follow list for this key on that relay. Try another relay, or continue below."}
+              {result.error ?? "No follow list for this key on that relay. Try another relay, or continue below."}
             </p>
           )}
         </div>
@@ -152,7 +159,10 @@ export function ConfirmNewFollowListDialog({
             Cancel — try again later
           </AlertDialogCancel>
           <AlertDialogAction
-            onClick={(e) => { e.preventDefault(); onConfirm(); }}
+            onClick={(e) => {
+              e.preventDefault();
+              onConfirm();
+            }}
             disabled={busy || searching}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             data-testid="button-new-follow-list-confirm"

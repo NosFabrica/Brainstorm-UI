@@ -71,8 +71,8 @@ const STAGES: Stage[] = [
     icon: Database,
     body: (
       <>
-        Brainstorm continuously indexes millions of profiles — and counting — so they can be searched
-        the instant you start typing.
+        Brainstorm continuously indexes millions of profiles — and counting — so they can be searched the instant you
+        start typing.
       </>
     ),
     detail: "Powered by Vespa · typo-tolerant full-text + hybrid (semantic) search",
@@ -83,8 +83,8 @@ const STAGES: Stage[] = [
     icon: ListFilter,
     body: (
       <>
-        Every query is matched against each profile's name, bio, identifier, and website to surface the
-        closest candidates.
+        Every query is matched against each profile's name, bio, identifier, and website to surface the closest
+        candidates.
       </>
     ),
     detail: "Instant matching across name · bio · identifier · website",
@@ -95,8 +95,8 @@ const STAGES: Stage[] = [
     icon: ShieldCheck,
     body: (
       <>
-        Organic community signals — follows, mutes, and reports — separate legitimate accounts from spam,
-        bots, and impersonators before they ever reach your screen.
+        Organic community signals — follows, mutes, and reports — separate legitimate accounts from spam, bots, and
+        impersonators before they ever reach your screen.
       </>
     ),
     detail: "GrapeRank · 0–100 verification score",
@@ -107,8 +107,8 @@ const STAGES: Stage[] = [
     icon: ArrowUpDown,
     body: (
       <>
-        Verified candidates are ordered by trust — either from the NosFabrica "house" point of view or your
-        own personalized Web of Trust.
+        Verified candidates are ordered by trust — either from the NosFabrica "house" point of view or your own
+        personalized Web of Trust.
       </>
     ),
     detail: "House POV (default) or My POV (personalized)",
@@ -131,8 +131,8 @@ const POWERED_BY: { name: string; note: string; href: string }[] = [
 function PipelineDiagram() {
   return (
     <Card className="p-5 sm:p-7" data-testid="diagram-pipeline">
-      <div className="flex items-center gap-2 mb-5">
-        <span className="text-[10px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
+      <div className="mb-5 flex items-center gap-2">
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-accent">
           The pipeline
         </span>
         <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
@@ -144,28 +144,32 @@ function PipelineDiagram() {
           return (
             <div key={node.key} className="contents">
               <div
-                className={`flex-1 rounded-xl border p-4 flex flex-col items-center text-center gap-2 ${
-                  isEndpoint ? "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900" : "border-brand-accent/25 bg-brand-accent/[0.04]"
+                className={`flex flex-1 flex-col items-center gap-2 rounded-xl border p-4 text-center ${
+                  isEndpoint
+                    ? "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
+                    : "border-brand-accent/25 bg-brand-accent/[0.04]"
                 }`}
                 data-testid={`node-pipeline-${node.key}`}
               >
                 <div
-                  className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                    isEndpoint ? "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400" : "bg-white dark:bg-slate-900 border border-brand-accent/25 text-brand-deep dark:text-brand-link"
+                  className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                    isEndpoint
+                      ? "border border-slate-200 bg-white text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+                      : "border border-brand-accent/25 bg-white text-brand-deep dark:bg-slate-900 dark:text-brand-link"
                   }`}
                 >
                   <Icon className="h-5 w-5" />
                 </div>
-                <span className="text-[9px] font-mono font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                   {node.step}
                 </span>
-                <p className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-none">{node.label}</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">{node.sub}</p>
+                <p className="text-sm font-bold leading-none text-slate-900 dark:text-slate-100">{node.label}</p>
+                <p className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">{node.sub}</p>
               </div>
               {i < PIPELINE.length - 1 && (
-                <div className="flex items-center justify-center text-slate-300 dark:text-slate-600 py-1 lg:py-0 lg:px-1">
-                  <ChevronRight className="hidden lg:block h-5 w-5" />
-                  <ChevronDown className="lg:hidden h-4 w-4" />
+                <div className="flex items-center justify-center py-1 text-slate-300 dark:text-slate-600 lg:px-1 lg:py-0">
+                  <ChevronRight className="hidden h-5 w-5 lg:block" />
+                  <ChevronDown className="h-4 w-4 lg:hidden" />
                 </div>
               )}
             </div>
@@ -194,17 +198,19 @@ function TrustSignal({
   const t = getTone(toneName);
   return (
     <div className="flex items-center gap-3" data-testid={`signal-${tone}`}>
-      <div className={`h-9 w-9 rounded-lg border flex items-center justify-center shrink-0 ${t.bg} ${t.border} ${t.icon}`}>
+      <div
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${t.bg} ${t.border} ${t.icon}`}
+      >
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2 mb-1.5">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{title}</p>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{title}</p>
           <Chip tone={toneName} size="md">
             {effect}
           </Chip>
         </div>
-        <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
           <div className={`h-full rounded-full ${barCls}`} style={{ width: `${fill}%` }} />
         </div>
       </div>
@@ -218,25 +224,29 @@ export default function HowSearchWorksPage() {
 
   return (
     <InfoPageLayout testId="page-how-search-works">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
-        <div className="space-y-12 sm:space-y-16 animate-fade-up">
+      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
+        <div className="animate-fade-up space-y-12 sm:space-y-16">
           {/* Editorial hero */}
           <PageHeader
             size="hero"
             kicker="Under the hood"
-            title={<>How Brainstorm finds the <span className="text-brand-link">real people</span>.</>}
+            title={
+              <>
+                How Brainstorm finds the <span className="text-brand-link">real people</span>.
+              </>
+            }
             subtitle="Search is only half the job. The harder part is telling legitimate accounts apart from the spam, bots, and impersonators. Here's the pipeline that does both — from query to verified results."
             testId="section-hsw-header"
           />
 
           {/* Plain-language intro */}
           <section
-            className="rounded-2xl border border-brand-accent/25 bg-brand-accent/[0.05] overflow-hidden"
+            className="overflow-hidden rounded-2xl border border-brand-accent/25 bg-brand-accent/[0.05]"
             data-testid="section-hsw-plain"
           >
             <div className="grid md:grid-cols-2 md:items-stretch">
               {/* Image */}
-              <div className="relative min-h-[220px] sm:min-h-[280px] md:min-h-[340px] bg-slate-950 md:order-2">
+              <div className="relative min-h-[220px] bg-slate-950 sm:min-h-[280px] md:order-2 md:min-h-[340px]">
                 <img
                   src={trustedRecommendationImg}
                   alt="Two friends sharing a trusted recommendation over coffee"
@@ -244,35 +254,33 @@ export default function HowSearchWorksPage() {
                   className="absolute inset-0 h-full w-full object-cover"
                   data-testid="section-hsw-plain-image"
                 />
-                <div className="absolute inset-0 bg-gradient-to-tl from-brand-deep/30 via-transparent to-transparent pointer-events-none" />
-                <div className="absolute inset-0 ring-1 ring-inset ring-white/5 pointer-events-none" />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-tl from-brand-deep/30 via-transparent to-transparent" />
+                <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5" />
               </div>
 
               {/* Copy */}
-              <div className="p-6 sm:p-10 flex flex-col justify-center md:order-1">
-                <div className="flex items-center gap-2.5 mb-4">
-                  <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-brand-accent/25 flex items-center justify-center shrink-0">
+              <div className="flex flex-col justify-center p-6 sm:p-10 md:order-1">
+                <div className="mb-4 flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/25 bg-white dark:bg-slate-900">
                     <PuzzleToyIcon className="h-4.5 w-4.5 text-brand-deep" />
                   </div>
-                  <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
+                  <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-accent">
                     The simple version
                   </span>
                 </div>
                 <div className="space-y-4">
-                  <p className="text-lg text-slate-700 dark:text-slate-200 leading-relaxed">
-                    Imagine you've just moved to a new town and you need a good coffee shop. You wouldn't trust a
-                    random flyer stapled to a pole — you'd ask the friends you trust where they go.
-                    Brainstorm works the same way.
+                  <p className="text-lg leading-relaxed text-slate-700 dark:text-slate-200">
+                    Imagine you've just moved to a new town and you need a good coffee shop. You wouldn't trust a random
+                    flyer stapled to a pole — you'd ask the friends you trust where they go. Brainstorm works the same
+                    way.
                   </p>
-                  <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                    When you search, it quietly checks what the people you (and your wider community) already
-                    trust have to say about each result. Real accounts that those people vouch for rise to the
-                    top. Bots, scammers, and impersonators that no one trusts get pushed aside — no matter how
-                    many of them there are.
+                  <p className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
+                    When you search, it quietly checks what the people you (and your wider community) already trust have
+                    to say about each result. Real accounts that those people vouch for rise to the top. Bots, scammers,
+                    and impersonators that no one trusts get pushed aside — no matter how many of them there are.
                   </p>
-                  <p className="text-[15px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                    That's the whole idea. Everything below is just a closer look at how it happens under the
-                    hood.
+                  <p className="text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    That's the whole idea. Everything below is just a closer look at how it happens under the hood.
                   </p>
                 </div>
               </div>
@@ -284,27 +292,27 @@ export default function HowSearchWorksPage() {
 
           {/* Metrics strip */}
           <section
-            className="grid grid-cols-2 lg:grid-cols-4 gap-px rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-200 dark:bg-slate-800"
+            className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 dark:border-slate-800 dark:bg-slate-800 lg:grid-cols-4"
             data-testid="section-hsw-metrics"
           >
             {METRICS.map((m) => (
-              <div key={m.label} className="bg-white dark:bg-slate-900 p-5 sm:p-6" data-testid={`metric-${m.value}`}>
+              <div key={m.label} className="bg-white p-5 dark:bg-slate-900 sm:p-6" data-testid={`metric-${m.value}`}>
                 <p
-                  className="text-xl sm:text-2xl font-bold text-brand-deep tracking-tight"
+                  className="text-xl font-bold tracking-tight text-brand-deep sm:text-2xl"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   {m.value}
                 </p>
-                <p className="mt-1 text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 leading-snug">{m.label}</p>
+                <p className="mt-1 text-xs leading-snug text-slate-500 dark:text-slate-400 sm:text-[13px]">{m.label}</p>
               </div>
             ))}
           </section>
 
           {/* Process stages */}
           <section data-testid="section-hsw-stages">
-            <div className="flex items-center gap-2.5 mb-7">
+            <div className="mb-7 flex items-center gap-2.5">
               <h2
-                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
+                className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 The four stages
@@ -317,24 +325,26 @@ export default function HowSearchWorksPage() {
                 return (
                   <div
                     key={stage.num}
-                    className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-6 sm:p-8"
+                    className="flex flex-col gap-4 p-6 sm:flex-row sm:gap-6 sm:p-8"
                     data-testid={`stage-${stage.num}`}
                   >
-                    <div className="flex items-center gap-4 sm:flex-col sm:items-start sm:gap-3 shrink-0 sm:w-20">
+                    <div className="flex shrink-0 items-center gap-4 sm:w-20 sm:flex-col sm:items-start sm:gap-3">
                       <span
-                        className="text-3xl font-bold text-slate-200 dark:text-slate-700 tabular-nums leading-none"
+                        className="text-3xl font-bold tabular-nums leading-none text-slate-200 dark:text-slate-700"
                         style={{ fontFamily: "var(--font-display)" }}
                       >
                         {stage.num}
                       </span>
-                      <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/10">
                         <Icon className="h-5 w-5 text-brand-deep" />
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-1.5">{stage.title}</h3>
-                      <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">{stage.body}</p>
-                      <p className="mt-3 inline-flex items-center text-[12px] font-mono text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-2.5 py-1">
+                      <h3 className="mb-1.5 text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                        {stage.title}
+                      </h3>
+                      <p className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">{stage.body}</p>
+                      <p className="mt-3 inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-[12px] text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
                         {stage.detail}
                       </p>
                     </div>
@@ -346,28 +356,53 @@ export default function HowSearchWorksPage() {
 
           {/* Trust-score visual */}
           <Card className="p-6 sm:p-8" data-testid="section-hsw-trust">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
+            <div className="mb-2 flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/10">
                 <ShieldCheck className="h-5 w-5 text-brand-deep" />
               </div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+              <h2
+                className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
                 How a Verification Score moves
               </h2>
             </div>
-            <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed mb-6 max-w-2xl">
-              Every profile starts unverified at <span className="font-semibold text-slate-800 dark:text-slate-200">0</span> and can
-              climb to <span className="font-semibold text-slate-800 dark:text-slate-200">100</span>. Only signals from already-verified
-              accounts count — which is what makes the system resistant to manipulation.
+            <p className="mb-6 max-w-2xl text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
+              Every profile starts unverified at{" "}
+              <span className="font-semibold text-slate-800 dark:text-slate-200">0</span> and can climb to{" "}
+              <span className="font-semibold text-slate-800 dark:text-slate-200">100</span>. Only signals from
+              already-verified accounts count — which is what makes the system resistant to manipulation.
             </p>
-            <div className="space-y-5 max-w-2xl">
-              <TrustSignal icon={Plus} tone="up" title="A verified account follows them" effect="Score rises" fill={82} />
-              <TrustSignal icon={Minus} tone="down" title="A verified account mutes or reports them" effect="Score falls" fill={28} />
-              <TrustSignal icon={Ban} tone="off" title="An unverified account (score 0) acts" effect="Ignored" fill={4} />
+            <div className="max-w-2xl space-y-5">
+              <TrustSignal
+                icon={Plus}
+                tone="up"
+                title="A verified account follows them"
+                effect="Score rises"
+                fill={82}
+              />
+              <TrustSignal
+                icon={Minus}
+                tone="down"
+                title="A verified account mutes or reports them"
+                effect="Score falls"
+                fill={28}
+              />
+              <TrustSignal
+                icon={Ban}
+                tone="off"
+                title="An unverified account (score 0) acts"
+                effect="Ignored"
+                fill={4}
+              />
             </div>
-            <div className="mt-7 rounded-xl border border-brand-accent/25 bg-brand-accent/[0.06] px-5 py-4" data-testid="callout-spambots">
+            <div
+              className="mt-7 rounded-xl border border-brand-accent/25 bg-brand-accent/[0.06] px-5 py-4"
+              data-testid="callout-spambots"
+            >
               <p className="text-[15px] font-medium leading-relaxed text-[#0A0E18] dark:text-slate-100">
-                So it doesn't matter how many spambots are spun up — a thousand, a million. Without social proof
-                from verified accounts, every one of them carries zero weight.
+                So it doesn't matter how many spambots are spun up — a thousand, a million. Without social proof from
+                verified accounts, every one of them carries zero weight.
               </p>
             </div>
 
@@ -375,7 +410,7 @@ export default function HowSearchWorksPage() {
             <button
               type="button"
               onClick={() => setShowMechanics((v) => !v)}
-              className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-deep hover:text-brand-accent transition-colors"
+              className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-deep transition-colors hover:text-brand-accent"
               data-testid="button-dig-deeper"
               aria-expanded={showMechanics}
               aria-controls="hsw-mechanics-panel"
@@ -384,17 +419,21 @@ export default function HowSearchWorksPage() {
               {showMechanics ? "Hide the details" : "Dig deeper into the mechanics"}
             </button>
             {showMechanics && (
-              <div id="hsw-mechanics-panel" className="mt-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-3" data-testid="panel-mechanics">
-                <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Brainstorm harnesses organic signals from your community to distinguish "legitimate" nostr
-                  accounts from spam, impersonators, bots, and other bad actors seeking to weasel their way onto
-                  the screen in front of your eyes. Currently we rely upon follows, mutes, and reports, processed
-                  using a method called{" "}
+              <div
+                id="hsw-mechanics-panel"
+                className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-900"
+                data-testid="panel-mechanics"
+              >
+                <p className="text-[14px] leading-relaxed text-slate-600 dark:text-slate-300">
+                  Brainstorm harnesses organic signals from your community to distinguish "legitimate" nostr accounts
+                  from spam, impersonators, bots, and other bad actors seeking to weasel their way onto the screen in
+                  front of your eyes. Currently we rely upon follows, mutes, and reports, processed using a method
+                  called{" "}
                   <a
                     href="https://github.com/NosFabrica"
                     target="_blank"
                     rel="noopener"
-                    className="inline-flex items-center gap-0.5 font-semibold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
+                    className="inline-flex items-center gap-0.5 font-semibold text-brand-primary transition-colors hover:text-brand-primary hover:underline"
                     data-testid="link-graperank"
                   >
                     GrapeRank
@@ -402,26 +441,26 @@ export default function HowSearchWorksPage() {
                   </a>{" "}
                   to come up with a verification score between 0 and 100.
                 </p>
-                <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="text-[14px] leading-relaxed text-slate-600 dark:text-slate-300">
                   When one profile (whose score is above 0) follows another, that profile's score gets a bump up,
-                  leveling out at the max score of 100. Mutes and reports push a score down. But have no fear: if
-                  an unverified account follows, mutes, or reports someone, that action is completely ignored by
-                  virtue of having a verification score of 0.
+                  leveling out at the max score of 100. Mutes and reports push a score down. But have no fear: if an
+                  unverified account follows, mutes, or reports someone, that action is completely ignored by virtue of
+                  having a verification score of 0.
                 </p>
-                <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="text-[14px] leading-relaxed text-slate-600 dark:text-slate-300">
                   Search itself is powered by{" "}
                   <a
                     href="https://vespa.ai/"
                     target="_blank"
                     rel="noopener"
-                    className="inline-flex items-center gap-0.5 font-semibold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
+                    className="inline-flex items-center gap-0.5 font-semibold text-brand-primary transition-colors hover:text-brand-primary hover:underline"
                     data-testid="link-vespa"
                   >
                     Vespa
                     <ExternalLink className="h-3 w-3" />
                   </a>
-                  , a lightning-fast, open-source search engine providing instant, typo-tolerant full-text and
-                  hybrid (semantic) search.
+                  , a lightning-fast, open-source search engine providing instant, typo-tolerant full-text and hybrid
+                  (semantic) search.
                 </p>
               </div>
             )}
@@ -429,27 +468,27 @@ export default function HowSearchWorksPage() {
 
           {/* Powered by */}
           <section data-testid="section-hsw-powered">
-            <div className="flex items-center gap-2.5 mb-5">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-slate-400 dark:text-slate-500 uppercase">
+            <div className="mb-5 flex items-center gap-2.5">
+              <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
                 Powered by
               </span>
               <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {POWERED_BY.map((tech) => (
                 <a
                   key={tech.name}
                   href={tech.href}
                   target="_blank"
                   rel="noopener"
-                  className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 hover:border-brand-accent/40 hover:shadow-sm transition-all"
+                  className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 transition-all hover:border-brand-accent/40 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900"
                   data-testid={`powered-${tech.name.toLowerCase()}`}
                 >
                   <div>
                     <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tech.name}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">{tech.note}</p>
                   </div>
-                  <ExternalLink className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-brand-accent shrink-0 transition-colors" />
+                  <ExternalLink className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-brand-accent dark:text-slate-600" />
                 </a>
               ))}
             </div>
@@ -458,19 +497,19 @@ export default function HowSearchWorksPage() {
           {/* Cross-link */}
           <button
             onClick={() => navigate("/personalization")}
-            className="group w-full text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-brand-accent/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
+            className="group flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 text-left transition-all hover:border-brand-accent/40 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900"
             data-testid="link-to-personalization"
           >
             <div>
-              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase mb-1.5">
+              <p className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-accent">
                 Keep reading
               </p>
               <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
                 Curious how your point of view affects what you see?
               </p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">See How Personalization Works</p>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">See How Personalization Works</p>
             </div>
-            <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="h-5 w-5 shrink-0 text-brand-accent transition-transform group-hover:translate-x-1" />
           </button>
         </div>
       </div>

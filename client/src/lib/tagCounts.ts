@@ -61,9 +61,6 @@ export function stanceOnlyRefs<Trusted extends HasTagRef, Mine extends HasTagRef
   mine: Mine[],
 ): Mine[] {
   return mine.filter(
-    (m) =>
-      !trusted.some(
-        (t) => t.tag.authorPubkey === m.tag.authorPubkey && t.tag.slug === m.tag.slug,
-      ),
+    (m) => !trusted.some((t) => t.tag.authorPubkey === m.tag.authorPubkey && t.tag.slug === m.tag.slug),
   );
 }

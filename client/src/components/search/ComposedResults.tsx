@@ -16,14 +16,19 @@ import { filterPodcastIndex } from "@/lib/dlists";
 import { parseTrack } from "@/lib/trackEvent";
 import { setPlaylist } from "@/lib/audioPlayer";
 import { Clock, HelpCircle } from "lucide-react";
-import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing, QuietTrustChrome } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { SerpRow } from "@/components/search/SerpRow";
 import { kindTypeLabel } from "@/lib/kindLabel";
-import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
+import {
+  ArticlesBento,
+  MediaTiles,
+  TopStories,
+  hasCover,
+  hasVisual,
+  pickTopStories,
+} from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
 import type { PanelSections } from "@/components/search/KnowledgePanel";
@@ -35,7 +40,9 @@ import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 /** A file-metadata hit stays in Media only when the file is a picture, a video or a sound. */
 function dropNonMediaFiles<T extends { hits: SearchHit[] } | null | undefined>(section: T): T {
   if (!section) return section;
-  const hits = section.hits.filter((h) => h.event.kind !== 1063 || (isMediaFile(h.event) && !isSoundtrackFile(h.event)));
+  const hits = section.hits.filter(
+    (h) => h.event.kind !== 1063 || (isMediaFile(h.event) && !isSoundtrackFile(h.event)),
+  );
   return hits.length === section.hits.length ? section : ({ ...section, hits } as T);
 }
 import { isFeedAccount } from "@/lib/feedAccount";
@@ -52,8 +59,7 @@ import { UNKNOWN_EXPLAINER, bucketFor } from "@/lib/trustLadder";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   kind0ToSearchResult,
-  searchStream,
-  TAB_KINDS,
+  bandKindsForTab,
   type SearchGroup,
   type SearchHit,
   type SearchPov,
@@ -84,7 +90,7 @@ function PersonChip({
       type="button"
       onClick={() => onOpen(person)}
       title={outside ? `${getDisplayLabel(person)} · ${UNKNOWN_EXPLAINER}` : getDisplayLabel(person)}
-      className="flex w-28 shrink-0 flex-col items-center gap-1.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 p-3 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      className="flex w-28 shrink-0 flex-col items-center gap-1.5 rounded-xl border border-slate-100 bg-white/70 p-3 transition-all hover:border-slate-200 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800"
       data-testid={`serp-person-${pk8}`}
     >
       <span className="relative">
@@ -122,7 +128,10 @@ function PersonChip({
 /** People first, feeds after — a stable partition, so the relay's order
  *  holds within each half and nothing is dropped. */
 function peopleFirst(clusters: HitCluster[]): HitCluster[] {
-  return [...clusters.filter((c) => !isFeedAccount(c.primary.author)), ...clusters.filter((c) => isFeedAccount(c.primary.author))];
+  return [
+    ...clusters.filter((c) => !isFeedAccount(c.primary.author)),
+    ...clusters.filter((c) => isFeedAccount(c.primary.author)),
+  ];
 }
 
 /** A stream that has not answered yet — no hits and no end-of-stored-events. */
@@ -169,7 +178,16 @@ interface Seeds {
 
 type SeedTab = Exclude<keyof Seeds, "complete">;
 
-const EMPTY_SEEDS: Seeds = { people: [], notes: [], articles: [], events: [], live: [], media: [], music: [], shop: [] };
+const EMPTY_SEEDS: Seeds = {
+  people: [],
+  notes: [],
+  articles: [],
+  events: [],
+  live: [],
+  media: [],
+  music: [],
+  shop: [],
+};
 
 /** Content fades into the place its skeleton held (index.css's fadeIn keyframes). */
 const FADE = "motion-safe:animate-[fadeIn_0.3s_ease-out]";
@@ -233,15 +251,21 @@ function ComposedResultsBody({
     if (remembered) return { ...EMPTY_SEEDS, ...remembered };
     if (userPubkey || pov !== "nosfabrica") return EMPTY_SEEDS;
     const forTab = (tab: Exclude<SearchTab, "everything">): SearchHit[] => {
-      const kinds = new Set(TAB_KINDS[tab]);
+      const kinds = new Set(bandKindsForTab(tab));
       return head.events
         .filter((event) => kinds.has(event.kind))
         .map((event) => ({ event, author: event.kind === 0 ? kind0ToSearchResult(event) : null, rank: null }));
     };
     return {
       complete: head.complete,
-      people: forTab("people"), notes: forTab("notes"), articles: forTab("articles"), events: forTab("events"),
-      live: forTab("live"), media: forTab("media"), music: forTab("music"), shop: forTab("shop"),
+      people: forTab("people"),
+      notes: forTab("notes"),
+      articles: forTab("articles"),
+      events: forTab("events"),
+      live: forTab("live"),
+      media: forTab("media"),
+      music: forTab("music"),
+      shop: forTab("shop"),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, pov, userPubkey, remembered, head]);
@@ -260,19 +284,43 @@ function ComposedResultsBody({
     return hits.reduce((newest, h) => Math.max(newest, h.event.created_at), 0) || undefined;
   };
 
-  const people = useSectionStream(query, "people", pov, userPubkey, EVERYTHING_SECTIONS.people.limit, { group: EVERYTHING, seed: seeds.people, since: sinceFor("people"), provisionalSeed: peopleSeedIsGuess });
+  const people = useSectionStream(query, "people", pov, userPubkey, EVERYTHING_SECTIONS.people.limit, {
+    group: EVERYTHING,
+    seed: seeds.people,
+    since: sinceFor("people"),
+    provisionalSeed: peopleSeedIsGuess,
+  });
   // Every CONTENT section leads with what's fresh (Benjamin's call:
   // scattered timestamps read as random) — the relay sorts, we ask for
   // recent. People stays trust-ranked; there are no timestamps to scatter.
   const fresh = `${query} sort:recent`.trim();
-  const latest = useSectionStream(fresh, "notes", pov, userPubkey, EVERYTHING_SECTIONS.notes.limit, { group: EVERYTHING, seed: seeds.notes, since: sinceFor("notes") });
+  const latest = useSectionStream(fresh, "notes", pov, userPubkey, EVERYTHING_SECTIONS.notes.limit, {
+    group: EVERYTHING,
+    seed: seeds.notes,
+    since: sinceFor("notes"),
+  });
   // Articles are evergreen: with words typed, relevance leads (recent-first
   // buried the page named "List of comedians" 26th; best match had it first).
-  const articles = useSectionStream(queryWords(query) ? query : fresh, "articles", pov, userPubkey, EVERYTHING_SECTIONS.articles.limit, { group: EVERYTHING, seed: seeds.articles, since: sinceFor("articles") });
+  const articles = useSectionStream(
+    queryWords(query) ? query : fresh,
+    "articles",
+    pov,
+    userPubkey,
+    EVERYTHING_SECTIONS.articles.limit,
+    { group: EVERYTHING, seed: seeds.articles, since: sinceFor("articles") },
+  );
   // Happening = calendar events AND live streams, two verticals since the
   // Events split; events lead (a meetup you can still attend beats a replay).
-  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, EVERYTHING_SECTIONS.events.limit, { group: EVERYTHING, seed: seeds.events, since: sinceFor("events") });
-  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, EVERYTHING_SECTIONS.live.limit, { group: EVERYTHING, seed: seeds.live, since: sinceFor("live") });
+  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, EVERYTHING_SECTIONS.events.limit, {
+    group: EVERYTHING,
+    seed: seeds.events,
+    since: sinceFor("events"),
+  });
+  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, EVERYTHING_SECTIONS.live.limit, {
+    group: EVERYTHING,
+    seed: seeds.live,
+    since: sinceFor("live"),
+  });
   const happening = useMemo(
     () =>
       mergeSnapshots(
@@ -283,31 +331,53 @@ function ComposedResultsBody({
       ),
     [happeningEvents, happeningLive],
   );
-  const media = useSectionStream(fresh, "media", pov, userPubkey, EVERYTHING_SECTIONS.media.limit, { group: EVERYTHING, seed: seeds.media, since: sinceFor("media") });
+  const media = useSectionStream(fresh, "media", pov, userPubkey, EVERYTHING_SECTIONS.media.limit, {
+    group: EVERYTHING,
+    seed: seeds.media,
+    since: sinceFor("media"),
+  });
   // Listen: native tracks (kind 31337) that match the words — best match, not
   // recency, because "jazz" should find jazz. The kind is abused for game
   // state and ad-skip data, so only hits that parse as a song count.
-  const music = useSectionStream(query, "music", pov, userPubkey, EVERYTHING_SECTIONS.music.limit, { group: EVERYTHING, seed: seeds.music, since: sinceFor("music") });
+  const music = useSectionStream(query, "music", pov, userPubkey, EVERYTHING_SECTIONS.music.limit, {
+    group: EVERYTHING,
+    seed: seeds.music,
+    since: sinceFor("music"),
+  });
   // Shop: things for sale that match the words — best match, since "cashmere"
   // should find cashmere. Sold, hidden and priceless are gated (lib/listing).
-  const shop = useSectionStream(query, "shop", pov, userPubkey, EVERYTHING_SECTIONS.shop.limit, { group: EVERYTHING, seed: seeds.shop, since: sinceFor("shop") });
+  const shop = useSectionStream(query, "shop", pov, userPubkey, EVERYTHING_SECTIONS.shop.limit, {
+    group: EVERYTHING,
+    seed: seeds.shop,
+    since: sinceFor("shop"),
+  });
   // A typed kind (an agent's `kind:32267`, a spec page's chip) that none of
   // the sections carry would be dealt to all of them and answered by none.
   // It gets a section of its own, asking for exactly that; the eight
   // sections ask nothing for it, so this is the page's only REQ then.
   const unplacedKinds = useMemo(() => {
     const typed = liftQuery(query).kinds ?? [];
-    const placed = new Set((Object.keys(EVERYTHING_SECTIONS) as SeedTab[]).flatMap((tab) => TAB_KINDS[tab]));
+    // Placed means a section ASKS for it: a calendar or a stall is in its tab
+    // but no band shows it, so a typed kind:31924 gets a section of its own.
+    const placed = new Set(
+      (Object.keys(EVERYTHING_SECTIONS) as SeedTab[]).flatMap((tab) => bandKindsForTab(tab) ?? []),
+    );
     return typed.filter((k) => !placed.has(k));
   }, [query]);
-  const byKind = useSectionStream(query, "everything", pov, userPubkey, 20, { kinds: unplacedKinds, enabled: unplacedKinds.length > 0 });
+  const byKind = useSectionStream(query, "everything", pov, userPubkey, 20, {
+    kinds: unplacedKinds,
+    enabled: unplacedKinds.length > 0,
+  });
   // The section says what the kind IS, once: its name in words with its
   // number, and the specs that cover it. Several specs cover most kinds (a
   // capability profile lists forty), so none is "the" definition — the
   // NIPs tab has them all.
   const kindSpecs = useSpecsForKind(unplacedKinds.length === 1 ? unplacedKinds[0] : null);
   const kindKicker = unplacedKinds
-    .map((k) => { const label = kindTypeLabel(k); return label.startsWith("Kind ") ? label : `${label} · kind ${k}`; })
+    .map((k) => {
+      const label = kindTypeLabel(k);
+      return label.startsWith("Kind ") ? label : `${label} · kind ${k}`;
+    })
     .join(", ");
 
   useEffect(() => {
@@ -350,10 +420,25 @@ function ComposedResultsBody({
   // through their own perspective.
   const floor = !clientState.includeSpam && pov !== "mywot";
   const filtered = (s: SearchSnapshot | null): SearchSnapshot | null =>
-    s ? { ...s, hits: clientFilterHits(s.hits, { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach, belowLine: floor }, { scoreOf, reach }) } : null;
+    s
+      ? {
+          ...s,
+          hits: clientFilterHits(
+            s.hits,
+            { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach, belowLine: floor },
+            { scoreOf, reach },
+          ),
+        }
+      : null;
   const hiddenBelowLine = floor
     ? countBelowLine(
-        [...new Map([people, latest, articles, happening, media, music, shop].flatMap((s) => s?.hits ?? []).map((h) => [h.event.id, h])).values()],
+        [
+          ...new Map(
+            [people, latest, articles, happening, media, music, shop]
+              .flatMap((s) => s?.hits ?? [])
+              .map((h) => [h.event.id, h]),
+          ).values(),
+        ],
         scoreOf,
       )
     : 0;
@@ -388,12 +473,18 @@ function ComposedResultsBody({
   // tracks lead (Nostr's own, trust-ranked); Wavlake's fill the row.
   const wavlake = useWavlakeSongs(query, true);
   const listen = useMemo(() => (musicF?.hits ?? []).filter((h) => parseTrack(h.event) !== null).slice(0, 4), [musicF]);
-  const listenWavlake = useMemo(() => wavlake.songs.slice(0, Math.max(0, 4 - listen.length)), [wavlake.songs, listen.length]);
+  const listenWavlake = useMemo(
+    () => wavlake.songs.slice(0, Math.max(0, 4 - listen.length)),
+    [wavlake.songs, listen.length],
+  );
   // The value-for-value lists (the team, 2026-09-24) are the third source:
   // up to three songs that answer the words, after Wavlake's. Everything
   // with words is where most searches start; with no words there are none.
   const podcastIndexAll = usePodcastIndexMusic(query.trim() !== "");
-  const listenPodcast = useMemo(() => filterPodcastIndex(query, podcastIndexAll).songs.slice(0, 3), [query, podcastIndexAll]);
+  const listenPodcast = useMemo(
+    () => filterPodcastIndex(query, podcastIndexAll).songs.slice(0, 3),
+    [query, podcastIndexAll],
+  );
   // The row is a queue: a song that ends hands off to the next one shown.
   useEffect(() => {
     if (listen.length + listenWavlake.length + listenPodcast.length === 0) return;
@@ -410,9 +501,7 @@ function ComposedResultsBody({
   const peopleOrdered = useMemo(() => {
     const hits = peopleF?.hits.filter((h) => h.author) ?? [];
     // Transparent on-device personalization: faces you've opened lead.
-    return [...hits].sort(
-      (a, b) => Number(visited.has(b.event.pubkey)) - Number(visited.has(a.event.pubkey)),
-    );
+    return [...hits].sort((a, b) => Number(visited.has(b.event.pubkey)) - Number(visited.has(a.event.pubkey)));
   }, [peopleF, visited]);
 
   const articleClusters = useMemo(
@@ -428,10 +517,15 @@ function ComposedResultsBody({
   );
   // Who is going to what Happening shows — one request for the section.
   const [happeningRsvps, setHappeningRsvps] = useState<Map<string, EventRsvps>>(new Map());
-  const calendarAddr = (e: { kind: number; pubkey: string; tags: string[][] }) => `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
+  const calendarAddr = (e: { kind: number; pubkey: string; tags: string[][] }) =>
+    `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
   const happeningEventAddrs = useMemo(
-    () => (happeningF ? happeningF.hits.filter((h) => h.event.kind === 31922 || h.event.kind === 31923).map((h) => calendarAddr(h.event)) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () =>
+      happeningF
+        ? happeningF.hits
+            .filter((h) => h.event.kind === 31922 || h.event.kind === 31923)
+            .map((h) => calendarAddr(h.event))
+        : [],
     [happeningF],
   );
   const happeningAddrKey = happeningEventAddrs.join(",");
@@ -460,15 +554,32 @@ function ComposedResultsBody({
   );
 
   const sections = [peopleF, latestF, articlesF, happeningF, mediaF, musicF, shopF, ...(byKindF ? [byKindF] : [])];
-  const anyContent = sections.some((s) => (s?.hits.length ?? 0) > 0) || listenWavlake.length > 0 || personMedia.length > 0;
+  const anyContent =
+    sections.some((s) => (s?.hits.length ?? 0) > 0) || listenWavlake.length > 0 || personMedia.length > 0;
   const allSettled = sections.every((s) => s?.eose || s?.error);
   // EVERY section collapses near-duplicates — live verification found the
   // Latest section dominated by one author's three near-identical posts
   // within minutes of shipping the Happening-only version.
-  const clustersOf = (snapshot: SearchSnapshot | null, exclude?: Set<string>, opts: { showType?: boolean; peopleFirst?: boolean } = {}) => {
-    const clusters = snapshot ? collapseHits(snapshot.hits.filter((h) => !exclude?.has(h.event.id)), undefined, { maxPerAuthor: 2 }) : [];
+  const clustersOf = (
+    snapshot: SearchSnapshot | null,
+    exclude?: Set<string>,
+    opts: { showType?: boolean; peopleFirst?: boolean } = {},
+  ) => {
+    const clusters = snapshot
+      ? collapseHits(
+          snapshot.hits.filter((h) => !exclude?.has(h.event.id)),
+          undefined,
+          { maxPerAuthor: 2 },
+        )
+      : [];
     return (opts.peopleFirst ? peopleFirst(clusters) : clusters).map((c) => (
-      <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} showType={opts.showType ?? true} />
+      <ClusterRows
+        key={c.primary.event.id}
+        cluster={c}
+        scoreOf={scoreOf}
+        query={query}
+        showType={opts.showType ?? true}
+      />
     ));
   };
   // Google leads its news with a Top stories strip: pictured news-shaped
@@ -510,7 +621,9 @@ function ComposedResultsBody({
         </p>
       )}
 
-      {peopleOrdered.length === 0 && stillLoading(peopleF) && <SectionSkeleton id="people" kicker="People" shape="people" />}
+      {peopleOrdered.length === 0 && stillLoading(peopleF) && (
+        <SectionSkeleton id="people" kicker="People" shape="people" />
+      )}
       {peopleOrdered.length > 0 && (
         <Section id="people" kicker="People" tab="people" onTabChange={onTabChange} className={FADE}>
           {/* More people than fit → arrow paging, Google-carousel style.
@@ -519,7 +632,7 @@ function ComposedResultsBody({
           <div className="relative">
             <div
               ref={stripRef}
-              className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_calc(100%_-_1.5rem),transparent)]"
+              className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 [mask-image:linear-gradient(to_right,black_calc(100%_-_1.5rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               data-testid="people-strip"
             >
               {peopleOrdered.map((h) => (
@@ -536,22 +649,26 @@ function ComposedResultsBody({
         </Section>
       )}
 
-      {(latestF?.hits.length ?? 0) === 0 && stillLoading(latestF) && <SectionSkeleton id="latest" kicker="Latest" shape="rows" />}
+      {(latestF?.hits.length ?? 0) === 0 && stillLoading(latestF) && (
+        <SectionSkeleton id="latest" kicker="Latest" shape="rows" />
+      )}
       {(latestF?.hits.length ?? 0) > 0 && (
         <Section id="latest" kicker="Latest" tab="notes" onTabChange={onTabChange} className={FADE}>
           <TopStories stories={topStories} stripRef={storiesRef} />
           {/* Only notes here — no "· Note" on every row. */}
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(latestF, storyIds, { showType: false, peopleFirst: true })}</div>
+          <div className="space-y-1">{clustersOf(latestF, storyIds, { showType: false, peopleFirst: true })}</div>
         </Section>
       )}
 
-      {(articlesF?.hits.length ?? 0) === 0 && stillLoading(articlesF) && <SectionSkeleton id="articles" kicker="Articles" shape="bento" />}
+      {(articlesF?.hits.length ?? 0) === 0 && stillLoading(articlesF) && (
+        <SectionSkeleton id="articles" kicker="Articles" shape="bento" />
+      )}
       {(articlesF?.hits.length ?? 0) > 0 && (
         <Section id="articles" kicker="Articles" tab="articles" onTabChange={onTabChange} className={FADE}>
           {/* A bento — lead + tiles — breaks the run of rows; overflow stays rows. */}
           <ArticlesBento clusters={coveredArticles} scoreOf={scoreOf} />
           {articleRows.length > 0 && (
-            <div className={`${coveredArticles.length > 0 ? "mt-2 " : ""}divide-y divide-slate-100 dark:divide-slate-800/60`}>
+            <div className={coveredArticles.length > 0 ? "mt-3 space-y-1" : "space-y-1"} data-testid="articles-rows">
               {/* The section says "Articles" for the rows, so an essay needs no
                   label — a spec (30817) rides here too and must not pass for one. */}
               {articleRows.map((c) => (
@@ -577,20 +694,27 @@ function ComposedResultsBody({
           {kindSpecs.length > 0 && (
             <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
               Specs covering it:{" "}
-              <Link href={`/?t=nips&q=${encodeURIComponent(`kind:${unplacedKinds[0]}`)}`} className="font-medium text-brand-primary hover:underline dark:text-brand-link" data-testid="serp-kind-spec">
-                {kindSpecs.slice(0, 2).map((sp) => sp.tags.find((t) => t[0] === "title")?.[1] ?? "a spec").join(", ")}
+              <Link
+                href={`/?t=nips&q=${encodeURIComponent(`kind:${unplacedKinds[0]}`)}`}
+                className="font-medium text-brand-primary hover:underline dark:text-brand-link"
+                data-testid="serp-kind-spec"
+              >
+                {kindSpecs
+                  .slice(0, 2)
+                  .map((sp) => sp.tags.find((t) => t[0] === "title")?.[1] ?? "a spec")
+                  .join(", ")}
                 {kindSpecs.length > 2 ? ` +${kindSpecs.length - 2}` : ""}
               </Link>
             </p>
           )}
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(byKindF)}</div>
+          <div className="space-y-1">{clustersOf(byKindF)}</div>
         </Section>
       )}
 
       {listen.length + listenWavlake.length + listenPodcast.length > 0 && (
         <Section id="listen" kicker="Listen" tab="music" onTabChange={onTabChange}>
           {/* Rows, not boxes: a stream of songs reads like a list. */}
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+          <div className="space-y-1">
             {listen.map((h) => (
               <TrackCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} flat />
             ))}
@@ -606,7 +730,7 @@ function ComposedResultsBody({
 
       {happeningClusters.length > 0 && (
         <Section id="happening" kicker="Happening" tab="events" onTabChange={onTabChange}>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+          <div className="space-y-1">
             {happeningClusters.map((c) => (
               <ClusterRows
                 key={c.primary.event.id}
@@ -615,7 +739,14 @@ function ComposedResultsBody({
                 query={query}
                 renderRow={
                   c.primary.event.kind === 31922 || c.primary.event.kind === 31923
-                    ? (h) => <EventRow hit={h} score={scoreOf(h.event.pubkey)} going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0} showKind />
+                    ? (h) => (
+                        <EventRow
+                          hit={h}
+                          score={scoreOf(h.event.pubkey)}
+                          going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0}
+                          showKind
+                        />
+                      )
                     : undefined
                 }
               />
@@ -627,17 +758,18 @@ function ComposedResultsBody({
       {(mediaF?.hits.length ?? 0) + mediaTiles.length > 0 && (
         <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>
           <MediaTiles hits={mediaTiles} scoreOf={scoreOf} />
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(mediaF, mediaTileIds)}</div>
+          <div className="space-y-1">{clustersOf(mediaF, mediaTileIds)}</div>
         </Section>
       )}
       {/* What the floor held back, said once and quietly, with the one tap that lifts it. */}
       {hiddenBelowLine > 0 && (
         <p className="mt-2 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="search-floor-notice">
-          {hiddenBelowLine} {hiddenBelowLine === 1 ? "result" : "results"} hidden from accounts below the verified line ·{" "}
+          {hiddenBelowLine} {hiddenBelowLine === 1 ? "result" : "results"} hidden from accounts below the verified line
+          ·{" "}
           <button
             type="button"
             onClick={() => onQueryRewrite?.(applyFilters(query, { includeSpam: true }))}
-            className="font-medium text-slate-500 hover:text-brand-link dark:text-slate-400 transition-colors"
+            className="font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
             data-testid="search-floor-show-all"
           >
             Show everyone

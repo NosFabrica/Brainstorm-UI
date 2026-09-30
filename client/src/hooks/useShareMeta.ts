@@ -68,5 +68,6 @@ export function useShareMeta(meta: ShareMeta | null) {
         }
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on fields; callers pass a fresh meta object each render
   }, [meta?.title, meta?.description, meta?.image, meta?.url]);
 }

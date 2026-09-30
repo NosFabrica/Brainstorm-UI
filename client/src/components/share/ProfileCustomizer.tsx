@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Reorder, useDragControls } from "framer-motion";
 import { useLocation } from "wouter";
 import { Loader2, Check, GripVertical, ChevronUp, ChevronDown, Search, X, UserRound, ArrowRight } from "lucide-react";
@@ -26,7 +26,15 @@ type Candidate = { pubkey: string; name?: string; picture?: string };
  * `onDragEnd` (not per drag tick), keeping the live preview smooth.
  */
 function SectionRow({
-  sectionKey, label, index, total, hidden, onToggle, onMoveUp, onMoveDown, onCommit,
+  sectionKey,
+  label,
+  index,
+  total,
+  hidden,
+  onToggle,
+  onMoveUp,
+  onMoveDown,
+  onCommit,
 }: {
   sectionKey: SectionKey;
   label: string;
@@ -46,7 +54,7 @@ function SectionRow({
       dragListener={false}
       dragControls={controls}
       onDragEnd={onCommit}
-      className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-2"
+      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 dark:border-slate-800 dark:bg-slate-900"
       data-testid={`customize-section-${sectionKey}`}
     >
       <span
@@ -57,9 +65,32 @@ function SectionRow({
         <GripVertical className="h-4 w-4" aria-hidden="true" />
       </span>
       <span className="flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">{label}</span>
-      <button type="button" onClick={onMoveUp} disabled={index === 0} className="rounded p-0.5 text-slate-300 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-30" aria-label="Move up" data-testid={`customize-up-${sectionKey}`}><ChevronUp className="h-4 w-4" /></button>
-      <button type="button" onClick={onMoveDown} disabled={index === total - 1} className="rounded p-0.5 text-slate-300 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-30" aria-label="Move down" data-testid={`customize-down-${sectionKey}`}><ChevronDown className="h-4 w-4" /></button>
-      <Switch checked={!hidden} onCheckedChange={onToggle} className="data-[state=checked]:bg-brand-primary" data-testid={`customize-toggle-${sectionKey}`} />
+      <button
+        type="button"
+        onClick={onMoveUp}
+        disabled={index === 0}
+        className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 dark:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+        aria-label="Move up"
+        data-testid={`customize-up-${sectionKey}`}
+      >
+        <ChevronUp className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={onMoveDown}
+        disabled={index === total - 1}
+        className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 dark:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+        aria-label="Move down"
+        data-testid={`customize-down-${sectionKey}`}
+      >
+        <ChevronDown className="h-4 w-4" />
+      </button>
+      <Switch
+        checked={!hidden}
+        onCheckedChange={onToggle}
+        className="data-[state=checked]:bg-brand-primary"
+        data-testid={`customize-toggle-${sectionKey}`}
+      />
     </Reorder.Item>
   );
 }
@@ -113,7 +144,9 @@ export function ProfileCustomizer({
   // mouse, no live-preview churn); we commit to the draft only when the gesture
   // settles. Re-synced whenever the saved order changes (arrows / external).
   const [localOrder, setLocalOrder] = useState<SectionKey[]>(activeSections);
-  useEffect(() => { setLocalOrder(activeSections); }, [activeSections]);
+  useEffect(() => {
+    setLocalOrder(activeSections);
+  }, [activeSections]);
 
   // Write a new active-section order into the full saved order (empties keep
   // their slots) and push it to the draft.
@@ -139,7 +172,8 @@ export function ProfileCustomizer({
     if (draft.pinnedFollowers.includes(pk) || draft.pinnedFollowers.length >= MAX_FOLLOWERS) return;
     onChange({ ...draft, pinnedFollowers: [...draft.pinnedFollowers, pk] });
   };
-  const removePinned = (pk: string) => onChange({ ...draft, pinnedFollowers: draft.pinnedFollowers.filter((x) => x !== pk) });
+  const removePinned = (pk: string) =>
+    onChange({ ...draft, pinnedFollowers: draft.pinnedFollowers.filter((x) => x !== pk) });
   const atMax = draft.pinnedFollowers.length >= MAX_FOLLOWERS;
   const q = followerQuery.trim().toLowerCase();
   const results = followerCandidates
@@ -150,20 +184,31 @@ export function ProfileCustomizer({
   const PersonAvatar = ({ c, size = "h-6 w-6" }: { c: Candidate; size?: string }) => (
     <Avatar className={`${size} shrink-0 overflow-hidden rounded-full`}>
       {c.picture ? <AvatarImage src={c.picture} alt="" className="object-cover" /> : null}
-      <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+      <AvatarFallback className="overflow-hidden">
+        <DefaultAvatarImg />
+      </AvatarFallback>
     </Avatar>
   );
 
   return (
-    <Sheet open={open} onOpenChange={(o) => { if (!o) onCancel(); }}>
+    <Sheet
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onCancel();
+      }}
+    >
       <SheetContent
         side={isMobile ? "bottom" : "right"}
         className={`flex flex-col gap-0 p-0 ${isMobile ? "h-[88vh] rounded-t-2xl" : "w-full sm:max-w-md"}`}
         data-testid="profile-customizer"
       >
-        <SheetHeader className="border-b border-slate-100 dark:border-slate-800/60 px-5 py-4 text-left">
-          <SheetTitle className="text-base font-bold text-slate-900 dark:text-slate-100">Customize your profile</SheetTitle>
-          <SheetDescription className="text-xs text-slate-500 dark:text-slate-400">Toggle what visitors see — it previews live behind this panel.</SheetDescription>
+        <SheetHeader className="border-b border-slate-100 px-5 py-4 text-left dark:border-slate-800/60">
+          <SheetTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+            Customize your profile
+          </SheetTitle>
+          <SheetDescription className="text-xs text-slate-500 dark:text-slate-400">
+            Toggle what visitors see — it previews live behind this panel.
+          </SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
@@ -173,8 +218,11 @@ export function ProfileCustomizer({
               editor at /settings?tab=profile. */}
           <button
             type="button"
-            onClick={() => { onCancel(); navigate("/settings?tab=profile"); }}
-            className="flex w-full items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/[0.04] px-3 py-2.5 text-left transition-colors hover:border-brand-accent/40 hover:bg-slate-50 dark:hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            onClick={() => {
+              onCancel();
+              navigate("/settings?tab=profile");
+            }}
+            className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white/60 px-3 py-2.5 text-left transition-colors hover:border-brand-accent/40 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800 dark:bg-white/[0.04] dark:hover:bg-white/[0.06]"
             data-testid="customize-edit-profile"
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary dark:text-brand-link">
@@ -189,7 +237,9 @@ export function ProfileCustomizer({
 
           {/* Sections */}
           <section>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sections · drag or arrows to reorder</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              Sections · drag or arrows to reorder
+            </p>
             <Reorder.Group as="div" axis="y" values={localOrder} onReorder={setLocalOrder} className="space-y-1.5">
               {localOrder.map((k, i) => (
                 <SectionRow
@@ -209,9 +259,15 @@ export function ProfileCustomizer({
             {emptySections.length > 0 && (
               <div className="mt-1.5 space-y-1.5">
                 {emptySections.map((k) => (
-                  <div key={k} className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-2.5 py-2" data-testid={`customize-section-${k}`}>
+                  <div
+                    key={k}
+                    className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-900/60"
+                    data-testid={`customize-section-${k}`}
+                  >
                     <GripVertical className="h-4 w-4 shrink-0 text-slate-200 dark:text-slate-700" aria-hidden="true" />
-                    <span className="flex-1 truncate text-sm font-medium text-slate-400 dark:text-slate-500">{SECTION_LABELS[k]}</span>
+                    <span className="flex-1 truncate text-sm font-medium text-slate-400 dark:text-slate-500">
+                      {SECTION_LABELS[k]}
+                    </span>
                     <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">Nothing to show yet</span>
                     <Switch checked={false} disabled className="opacity-50" data-testid={`customize-toggle-${k}`} />
                   </div>
@@ -222,15 +278,33 @@ export function ProfileCustomizer({
 
           {/* Profile details */}
           <section>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Profile details</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              Profile details
+            </p>
             <div className="space-y-1.5">
               {HERO_KEYS.map((k) => {
                 const empty = emptyKeys.has(k);
                 return (
-                  <div key={k} className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${empty ? "border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"}`} data-testid={`customize-row-${k}`}>
-                    <span className={`flex-1 truncate text-sm font-medium ${empty ? "text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-200"}`}>{HERO_LABELS[k]}</span>
-                    {empty && <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">Not set yet</span>}
-                    <Switch checked={empty ? false : !isHidden(k)} disabled={empty} onCheckedChange={(on) => setHidden(k, !on)} className={empty ? "opacity-50" : "data-[state=checked]:bg-brand-primary"} data-testid={`customize-toggle-${k}`} />
+                  <div
+                    key={k}
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${empty ? "border-dashed border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/60" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"}`}
+                    data-testid={`customize-row-${k}`}
+                  >
+                    <span
+                      className={`flex-1 truncate text-sm font-medium ${empty ? "text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-200"}`}
+                    >
+                      {HERO_LABELS[k]}
+                    </span>
+                    {empty && (
+                      <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">Not set yet</span>
+                    )}
+                    <Switch
+                      checked={empty ? false : !isHidden(k)}
+                      disabled={empty}
+                      onCheckedChange={(on) => setHidden(k, !on)}
+                      className={empty ? "opacity-50" : "data-[state=checked]:bg-brand-primary"}
+                      data-testid={`customize-toggle-${k}`}
+                    />
                   </div>
                 );
               })}
@@ -246,30 +320,57 @@ export function ProfileCustomizer({
 
           {/* Featured followers */}
           <section>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Featured followers · up to {MAX_FOLLOWERS} (empty = auto)</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              Featured followers · up to {MAX_FOLLOWERS} (empty = auto)
+            </p>
             {selected.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {selected.map((c) => (
-                  <span key={c.pubkey} className="inline-flex items-center gap-1.5 rounded-full border border-brand-accent/40 bg-brand-deep/5 py-0.5 pl-0.5 pr-1.5 text-xs font-semibold text-brand-deep">
+                  <span
+                    key={c.pubkey}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-brand-accent/40 bg-brand-deep/5 py-0.5 pl-0.5 pr-1.5 text-xs font-semibold text-brand-deep"
+                  >
                     <PersonAvatar c={c} size="h-5 w-5" />
                     <span className="max-w-[110px] truncate">{c.name || c.pubkey.slice(0, 8) + "…"}</span>
-                    <button type="button" onClick={() => removePinned(c.pubkey)} className="rounded-full p-0.5 hover:bg-brand-deep/10" aria-label="Remove" data-testid={`customize-follower-remove-${c.pubkey.slice(0, 8)}`}><X className="h-3 w-3" /></button>
+                    <button
+                      type="button"
+                      onClick={() => removePinned(c.pubkey)}
+                      className="rounded-full p-0.5 hover:bg-brand-deep/10"
+                      aria-label="Remove"
+                      data-testid={`customize-follower-remove-${c.pubkey.slice(0, 8)}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   </span>
                 ))}
               </div>
             )}
             {!atMax && followerCandidates.length > 0 && (
               <>
-                <div className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
                   <Search className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
-                  <input value={followerQuery} onChange={(e) => setFollowerQuery(e.target.value)} placeholder="Search your followers…" className="flex-1 bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none" data-testid="customize-follower-search" />
+                  <input
+                    value={followerQuery}
+                    onChange={(e) => setFollowerQuery(e.target.value)}
+                    placeholder="Search your followers…"
+                    className="flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                    data-testid="customize-follower-search"
+                  />
                 </div>
                 {results.length > 0 && (
                   <div className="mt-1.5 space-y-0.5">
                     {results.map((c) => (
-                      <button key={c.pubkey} type="button" onClick={() => addPinned(c.pubkey)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800" data-testid={`customize-follower-${c.pubkey.slice(0, 8)}`}>
+                      <button
+                        key={c.pubkey}
+                        type="button"
+                        onClick={() => addPinned(c.pubkey)}
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
+                        data-testid={`customize-follower-${c.pubkey.slice(0, 8)}`}
+                      >
                         <PersonAvatar c={c} />
-                        <span className="flex-1 truncate text-sm text-slate-700 dark:text-slate-200">{c.name || c.pubkey.slice(0, 10) + "…"}</span>
+                        <span className="flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
+                          {c.name || c.pubkey.slice(0, 10) + "…"}
+                        </span>
                         <span className="text-xs font-semibold text-brand-link">Add</span>
                       </button>
                     ))}
@@ -277,15 +378,36 @@ export function ProfileCustomizer({
                 )}
               </>
             )}
-            {atMax && <p className="text-xs text-slate-400 dark:text-slate-500">Max {MAX_FOLLOWERS} reached — remove one to add another.</p>}
+            {atMax && (
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Max {MAX_FOLLOWERS} reached — remove one to add another.
+              </p>
+            )}
           </section>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800/60 px-5 py-3">
-          {error ? <span className="truncate text-xs text-red-500">{error}</span> : <span className="text-xs text-slate-400 dark:text-slate-500">Saved to Nostr — you own it.</span>}
+        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 dark:border-slate-800/60">
+          {error ? (
+            <span className="truncate text-xs text-red-500">{error}</span>
+          ) : (
+            <span className="text-xs text-slate-400 dark:text-slate-500">Saved to Nostr — you own it.</span>
+          )}
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={onCancel} disabled={saving} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50">Cancel</button>
-            <button type="button" onClick={onSave} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-60" data-testid="customize-save">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={saving}
+              className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-60"
+              data-testid="customize-save"
+            >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
             </button>
           </div>

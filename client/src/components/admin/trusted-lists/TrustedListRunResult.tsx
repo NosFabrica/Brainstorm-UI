@@ -40,7 +40,8 @@ export function TrustedListRunResult({ run, observerName }: { run: TrustedListRu
         Published {plural(run.published, "list", "lists")} for {observerName}
         {run.signing_pubkey && (
           <span className="font-normal text-slate-500 dark:text-slate-400">
-            {" "}· signed by {run.signing_pubkey.slice(0, 8)}…
+            {" "}
+            · signed by {run.signing_pubkey.slice(0, 8)}…
           </span>
         )}
       </p>
@@ -68,7 +69,9 @@ export function TrustedListRunResult({ run, observerName }: { run: TrustedListRu
               <span className="min-w-0 truncate text-sm font-medium text-slate-900 dark:text-slate-100" title={t.d_tag}>
                 {t.slug}
               </span>
-              <Chip tone={STATUS[t.status].tone} size="sm">{STATUS[t.status].label}</Chip>
+              <Chip tone={STATUS[t.status].tone} size="sm">
+                {STATUS[t.status].label}
+              </Chip>
               {/* Its own line on a phone, beside the name on a desk. */}
               <span
                 className="basis-full text-xs text-slate-500 dark:text-slate-400 sm:basis-auto"

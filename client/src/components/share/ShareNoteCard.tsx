@@ -1,5 +1,4 @@
 import { useState, useMemo, type MouseEvent } from "react";
-import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TierTile } from "@/components/score/TierTile";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
@@ -8,7 +7,7 @@ import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { shareTierFor } from "@/components/share/TrustScoreBadge";
-import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
 import { TranslateLine } from "@/components/share/TranslateLine";
 import { parseNoteContent } from "@/lib/noteContent";
@@ -54,23 +53,30 @@ function ago(ts?: number): string {
 function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<string, ProfileLite> }) {
   const requestNav = useShareNav();
   const tierRing = useTierRing();
-  const coinReplaced = useCoinReplacedByRing();
   const scoreOf = useAuthorScores([pubkey]);
   const p = profiles.get(pubkey);
   const name = p?.display_name || p?.name || "someone";
   let npub = "";
-  try { npub = npubFromPubkey(pubkey); } catch { /* ignore */ }
+  try {
+    npub = npubFromPubkey(pubkey);
+  } catch {
+    /* ignore */
+  }
   return (
     <button
       type="button"
       onClick={() => requestNav({ kind: "profile", target: npub || pubkey, label: name, picture: p?.picture })}
       className="inline-flex items-center gap-1 hover:underline"
     >
-      <Avatar className={`h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(scoreOf(pubkey), false, "sm", true) ?? ""}`}>
+      <Avatar
+        className={`h-4 w-4 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${tierRing(scoreOf(pubkey), false, "sm", true) ?? ""}`}
+      >
         {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
-        <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+        <AvatarFallback className="overflow-hidden rounded-full">
+          <DefaultAvatarImg />
+        </AvatarFallback>
       </Avatar>
-      <span className="text-brand-link font-medium">@{name}</span>
+      <span className="font-medium text-brand-link">@{name}</span>
     </button>
   );
 }
@@ -114,7 +120,6 @@ export function ShareNoteCard({
    *  query, not one per card — see ACCEPTANCE C2 and `useEventTagsBatch`. */
   tags?: NoteTag[];
 }) {
-  const [displayMode] = useScoreDisplayMode();
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
   const [granularity] = useTierGranularity();
@@ -127,10 +132,18 @@ export function ShareNoteCard({
   // than parsing content and fetching a score nothing will read.
   const isRepost = event.kind === 6 || event.kind === 16;
   const hasMedia = useMemo(
-    () => !isRepost && parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
+    () =>
+      !isRepost &&
+      parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
     [event.content, isRepost],
   );
-  const authorNpub = useMemo(() => { try { return npubFromPubkey(event.pubkey); } catch { return ""; } }, [event.pubkey]);
+  const authorNpub = useMemo(() => {
+    try {
+      return npubFromPubkey(event.pubkey);
+    } catch {
+      return "";
+    }
+  }, [event.pubkey]);
   // Same fallback as EmbeddedNoteCard: callers that fetched a score pass it,
   // the rest (more-from-author, tagged notes) ride the shared house cache.
   const authorFallbackOf = useAuthorScores(isRepost || authorScore != null ? [] : [event.pubkey]);
@@ -155,21 +168,38 @@ export function ShareNoteCard({
     const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
     return (
       <div data-testid="note-repost" onClick={onCardClick} className={clickable}>
-        <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+        <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
           <Repeat2 className="h-3.5 w-3.5 text-emerald-600" /> Reposted
         </p>
         {inner && reading && inner.kind === 1 ? (
           // On the repost's own page the reposted note IS the content — set
           // it for reading, not shrunk into a quote card.
           <>
-            <ShareNoteCard event={inner} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded reading showAuthor />
+            <ShareNoteCard
+              event={inner}
+              profiles={profiles}
+              eventsById={eventsById}
+              addrByCoord={addrByCoord}
+              forceExpanded
+              reading
+              showAuthor
+            />
             {/* Its replies live on its own page. */}
-            <Link href={eventPath(inner)} className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline" data-testid="repost-open-original">
+            <Link
+              href={eventPath(inner)}
+              className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline"
+              data-testid="repost-open-original"
+            >
               Open the original note and its replies →
             </Link>
           </>
         ) : inner ? (
-          <EmbeddedNoteCard event={inner} author={profiles.get(inner.pubkey)} profiles={profiles} href={eventPath(inner)} />
+          <EmbeddedNoteCard
+            event={inner}
+            author={profiles.get(inner.pubkey)}
+            profiles={profiles}
+            href={eventPath(inner)}
+          />
         ) : (
           <p className="text-sm text-slate-400 dark:text-slate-500">Reposted a note</p>
         )}
@@ -190,10 +220,13 @@ export function ShareNoteCard({
   const collapsed = isLong && !expanded && !forceExpanded;
 
   const authorProfile = profiles.get(event.pubkey);
-  const authorName = authorProfile?.display_name || authorProfile?.name || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
+  const authorName =
+    authorProfile?.display_name || authorProfile?.name || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
   const authorHandle = authorProfile?.nip05
     ? authorProfile.nip05.replace(/^_@/, "@")
-    : authorNpub ? `@${authorNpub.slice(0, 12)}…` : "";
+    : authorNpub
+      ? `@${authorNpub.slice(0, 12)}…`
+      : "";
   const effectiveAuthorScore = authorScore ?? authorFallbackOf(event.pubkey);
   const authorTier = typeof effectiveAuthorScore === "number" ? shareTierFor(effectiveAuthorScore, granularity) : null;
   // Through the hook, not an inline boxShadow — the old style drew in EVERY
@@ -210,59 +243,105 @@ export function ShareNoteCard({
                 role="link"
                 tabIndex={0}
                 data-noopen
-                onClick={(e) => { e.stopPropagation(); if (authorNpub) navigate(`/p/${authorNpub}`); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (authorNpub) navigate(`/p/${authorNpub}`);
+                }}
                 className="group/author flex min-w-0 flex-1 cursor-pointer items-center gap-2.5"
               >
                 <Avatar className={`h-9 w-9 shrink-0 border border-slate-200 dark:border-slate-800 ${authorRing}`}>
-                  {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
-                  <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                  {authorProfile?.picture ? (
+                    <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" />
+                  ) : null}
+                  <AvatarFallback className="overflow-hidden">
+                    <DefaultAvatarImg />
+                  </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover/author:underline" data-testid="note-author-name">{authorName}</p>
-                  {authorHandle && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>}
+                  <p
+                    className="truncate text-sm font-semibold text-slate-900 group-hover/author:underline dark:text-slate-100"
+                    data-testid="note-author-name"
+                  >
+                    {authorName}
+                  </p>
+                  {authorHandle && (
+                    <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>
+                  )}
                 </div>
               </div>
             </HoverCardTrigger>
             {authorTier && typeof effectiveAuthorScore === "number" && (
-              <HoverCardContent align="start" className="w-64 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl" data-testid="note-author-trust">
+              <HoverCardContent
+                align="start"
+                className="w-64 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-800 dark:bg-slate-900"
+                data-testid="note-author-trust"
+              >
                 <div className="flex items-center gap-3">
                   <Avatar className={`h-10 w-10 shrink-0 ${authorRing}`}>
-                    {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
-                    <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                    {authorProfile?.picture ? (
+                      <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" />
+                    ) : null}
+                    <AvatarFallback className="overflow-hidden">
+                      <DefaultAvatarImg />
+                    </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">{authorName}</p>
-                    {authorHandle && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>}
+                    {authorHandle && (
+                      <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>
+                    )}
                   </div>
                 </div>
                 <TierTile score01={effectiveAuthorScore} pov="global" caption="Verification Score" className="mt-3" />
-                <p className="mt-2.5 text-[11px] leading-snug text-slate-400 dark:text-slate-500">Ranked into this topic by trusted accounts — not follower counts.</p>
+                <p className="mt-2.5 text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+                  Ranked into this topic by trusted accounts — not follower counts.
+                </p>
               </HoverCardContent>
             )}
           </HoverCard>
           {typeof effectiveAuthorScore === "number" && (
-            <VerificationCoin score01={effectiveAuthorScore} pov="global" size={24} className={tierRing(effectiveAuthorScore) && coinReplaced ? "sr-only ml-auto" : "ml-auto"} />
+            <VerificationCoin
+              score01={effectiveAuthorScore}
+              pov="global"
+              size={24}
+              className={tierRing(effectiveAuthorScore) && coinReplaced ? "sr-only ml-auto" : "ml-auto"}
+            />
           )}
           <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>
       )}
       {a.isReply && replyTargets.length > 0 && (
-        <p className="flex items-center flex-wrap gap-x-1.5 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mb-1.5" data-testid="note-reply-context">
+        <p
+          className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500 dark:text-slate-400"
+          data-testid="note-reply-context"
+        >
           <MessageSquare className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
           <span>Replying to</span>
           {replyTargets.slice(0, 3).map((pk) => (
             <ReplyTarget key={pk} pubkey={pk} profiles={profiles} />
           ))}
-          {replyTargets.length > 3 && <span className="text-slate-400 dark:text-slate-500">+{replyTargets.length - 3}</span>}
+          {replyTargets.length > 3 && (
+            <span className="text-slate-400 dark:text-slate-500">+{replyTargets.length - 3}</span>
+          )}
         </p>
       )}
 
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
-        <NoteContent content={event.content} compact={!reading} reading={reading} profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} embeddedIds={new Set(quoted.map((q) => q.id))} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
+        <NoteContent
+          content={event.content}
+          compact={!reading}
+          reading={reading}
+          profiles={profiles}
+          linkCard
+          imageOpensThread={!!href}
+          tags={event.tags}
+          embeddedIds={new Set(quoted.map((q) => q.id))}
+          authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name}
+        />
         {/* X's "Translate post" for notes in another language — on-device, quiet. */}
         {event.content?.trim() && <TranslateLine text={event.content} />}
         {collapsed && (
-          <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white dark:from-slate-900 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white to-transparent dark:from-slate-900" />
         )}
       </div>
       {isLong && !forceExpanded && (
@@ -277,7 +356,13 @@ export function ShareNoteCard({
       )}
 
       {quoted.map((qe) => (
-        <EmbeddedNoteCard key={qe.id} event={qe} author={profiles.get(qe.pubkey)} profiles={profiles} href={eventPath(qe)} />
+        <EmbeddedNoteCard
+          key={qe.id}
+          event={qe}
+          author={profiles.get(qe.pubkey)}
+          profiles={profiles}
+          href={eventPath(qe)}
+        />
       ))}
 
       {articles.map((ae) => (

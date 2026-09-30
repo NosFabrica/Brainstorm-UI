@@ -93,7 +93,14 @@ describe("gitItemTitleOf", () => {
     expect(gitItemTitleOf(ev(1617, MAIL, [["subject", "Given title"]]))).toBe("Given title");
     expect(gitItemTitleOf(ev(1617, MAIL, [["d", "."]]))).toBe("Trust proxy headers for NIP-98 behind TLS proxy");
     expect(gitItemTitleOf(ev(1617, SHOW, [["d", "."]]))).toBe("chore: bump swiss for Go 1.27 support");
-    expect(gitItemTitleOf(ev(1617, "", [["d", "."], ["description", "From the description tag"]]))).toBe("From the description tag");
+    expect(
+      gitItemTitleOf(
+        ev(1617, "", [
+          ["d", "."],
+          ["description", "From the description tag"],
+        ]),
+      ),
+    ).toBe("From the description tag");
     expect(gitItemTitleOf(ev(1617, "", [["d", "."]]))).toBe("Untitled patch");
   });
   it("an issue or pull request without a subject is titled by its first line", () => {
@@ -106,24 +113,52 @@ describe("gitItemTitleOf", () => {
 describe("gitItemSummaryOf", () => {
   const ev = (kind: number, content: string, tags: string[][] = []) => ({ kind, content, tags });
   it("a patch's summary is its commit message, never the title again and never the mail headers", () => {
-    expect(gitItemSummaryOf(ev(1617, MAIL, [["description", "Trust proxy headers for NIP-98 behind TLS proxy\n\nBehind a TLS-terminating proxy…"]]))).toBe(
-      "Behind a TLS-terminating proxy the scheme is http; honour X-Forwarded-*.",
+    expect(
+      gitItemSummaryOf(
+        ev(1617, MAIL, [
+          ["description", "Trust proxy headers for NIP-98 behind TLS proxy\n\nBehind a TLS-terminating proxy…"],
+        ]),
+      ),
+    ).toBe("Behind a TLS-terminating proxy the scheme is http; honour X-Forwarded-*.");
+    expect(gitItemSummaryOf(ev(1617, SHOW))).toBe(
+      "Update github.com/cockroachdb/swiss to a revision that builds with Go 1.27.",
     );
-    expect(gitItemSummaryOf(ev(1617, SHOW))).toBe("Update github.com/cockroachdb/swiss to a revision that builds with Go 1.27.");
     // No message in the text: the description tag, minus a repeated title.
-    expect(gitItemSummaryOf(ev(1617, "", [["description", "fix: count deposits\n\nThe treasury balance minus queued sats."]]))).toBe("The treasury balance minus queued sats.");
+    expect(
+      gitItemSummaryOf(
+        ev(1617, "", [["description", "fix: count deposits\n\nThe treasury balance minus queued sats."]]),
+      ),
+    ).toBe("The treasury balance minus queued sats.");
   });
   it("an issue's summary is its body after the title line, marks stripped", () => {
-    expect(gitItemSummaryOf(ev(1621, "## Report\n\nA user on **Windows 10** cannot share.", [["subject", "Report"]]))).toBe("A user on Windows 10 cannot share.");
+    expect(
+      gitItemSummaryOf(ev(1621, "## Report\n\nA user on **Windows 10** cannot share.", [["subject", "Report"]])),
+    ).toBe("A user on Windows 10 cannot share.");
     expect(gitItemSummaryOf(ev(1621, "Just one line."))).toBe("");
-    expect(gitItemSummaryOf(ev(1618, "Fixes a stuck warning.\nMore detail here.", [["subject", "fix(git-pool): stale warning"]]))).toBe("Fixes a stuck warning. More detail here.");
+    expect(
+      gitItemSummaryOf(
+        ev(1618, "Fixes a stuck warning.\nMore detail here.", [["subject", "fix(git-pool): stale warning"]]),
+      ),
+    ).toBe("Fixes a stuck warning. More detail here.");
   });
   it("links and pasted images leave the summary — the words stay", () => {
     // Live shape: an Armada issue whose body opens with two blossom screenshots.
     expect(
-      gitItemSummaryOf(ev(1621, "Report\n\nhttps://blossom.ditto.pub/4f18c2dd.webp https://blossom.ditto.pub/2c615f16.webp Armada crashes on start.", [["subject", "Report"]])),
+      gitItemSummaryOf(
+        ev(
+          1621,
+          "Report\n\nhttps://blossom.ditto.pub/4f18c2dd.webp https://blossom.ditto.pub/2c615f16.webp Armada crashes on start.",
+          [["subject", "Report"]],
+        ),
+      ),
     ).toBe("Armada crashes on start.");
-    expect(gitItemSummaryOf(ev(1621, "Report\n\n![screen](https://x.y/a.png) See [the log](https://x.y/log) for details.", [["subject", "Report"]]))).toBe("See the log for details.");
+    expect(
+      gitItemSummaryOf(
+        ev(1621, "Report\n\n![screen](https://x.y/a.png) See [the log](https://x.y/log) for details.", [
+          ["subject", "Report"],
+        ]),
+      ),
+    ).toBe("See the log for details.");
     expect(gitItemSummaryOf(ev(1621, "Report\n\nhttps://x.y/a.png", [["subject", "Report"]]))).toBe("");
   });
 });

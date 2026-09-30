@@ -44,13 +44,7 @@ export const BACKUP_MESSAGE: Record<BackupNeed, { title: string; body: string }>
  * stays available where someone deliberately goes looking for it, but it is not
  * what a nudge steers people toward.
  */
-export function BackupPrompt({
-  need,
-  onDelivered,
-}: {
-  need: BackupNeed | null;
-  onDelivered?: () => void;
-}) {
+export function BackupPrompt({ need, onDelivered }: { need: BackupNeed | null; onDelivered?: () => void }) {
   const { toast } = useToast();
   const [pass, setPass] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -99,7 +93,10 @@ export function BackupPrompt({
     if (!credential) return;
     try {
       await navigator.clipboard.writeText(credential.ncryptsec);
-      toast({ title: "Recovery key copied", description: "Paste it somewhere safe — you'll need your password to open it." });
+      toast({
+        title: "Recovery key copied",
+        description: "Paste it somewhere safe — you'll need your password to open it.",
+      });
     } catch {
       toast({ variant: "destructive", title: "Couldn't copy", description: "Download the file instead." });
     }
@@ -112,8 +109,8 @@ export function BackupPrompt({
           <Check className="h-4 w-4" /> Backup file downloaded
         </div>
         <p className="text-[13px] text-muted-foreground">
-          Saved to your password manager too, where your browser supports it. Downloads are easy to
-          lose on a phone — copy the key somewhere you'll find it.
+          Saved to your password manager too, where your browser supports it. Downloads are easy to lose on a phone —
+          copy the key somewhere you'll find it.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -145,11 +142,16 @@ export function BackupPrompt({
 
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); void setPasswordAndDownload(); }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        void setPasswordAndDownload();
+      }}
       className="space-y-2"
       data-testid="backup-prompt-set-form"
     >
-      <label htmlFor="backup-prompt-password" className="sr-only">Recovery password</label>
+      <label htmlFor="backup-prompt-password" className="sr-only">
+        Recovery password
+      </label>
       <Input
         id="backup-prompt-password"
         name="recovery-password"
@@ -161,7 +163,9 @@ export function BackupPrompt({
         disabled={busy}
         data-testid="backup-prompt-password"
       />
-      <label htmlFor="backup-prompt-confirm" className="sr-only">Confirm recovery password</label>
+      <label htmlFor="backup-prompt-confirm" className="sr-only">
+        Confirm recovery password
+      </label>
       <Input
         id="backup-prompt-confirm"
         name="recovery-password-confirm"
@@ -181,11 +185,17 @@ export function BackupPrompt({
       {/* Two files under two passwords is the confusion this warns about: the old
           one still opens, and nothing here invalidates it. */}
       <p className="text-xs text-muted-foreground" data-testid="backup-prompt-note">
-        There's no reset, so keep it somewhere safe. Any backup file you saved before still opens
-        with the password you used then — this one doesn't replace it.
+        There's no reset, so keep it somewhere safe. Any backup file you saved before still opens with the password you
+        used then — this one doesn't replace it.
       </p>
       <Button type="submit" size="sm" disabled={!canSet || busy} data-testid="backup-prompt-set">
-        {busy ? "Setting password…" : <><Download className="h-4 w-4" /> Set password &amp; download backup</>}
+        {busy ? (
+          "Setting password…"
+        ) : (
+          <>
+            <Download className="h-4 w-4" /> Set password &amp; download backup
+          </>
+        )}
       </Button>
     </form>
   );

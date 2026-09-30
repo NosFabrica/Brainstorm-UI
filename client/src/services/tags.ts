@@ -53,7 +53,6 @@ import {
   tagRelays,
   TRUST_RELAYS,
   Z_HANDLE_PUBKEYS,
-  NIP85_AUTHOR_PUBKEYS,
   TRUST_SETTINGS,
   TAG_FOR_NOSTR_PUBKEY_Z,
 } from "@/config/tagging";
@@ -275,9 +274,7 @@ function makeTrustFetcher(relay: string) {
  * (The subject's inbox is not in the union either, and that is also on purpose:
  * a tag assertion is a claim ABOUT someone — see `NOT_ADDRESSED_TO_P_TAGS`.)
  */
-async function publishTagEvent(
-  signed: Record<string, unknown>,
-): Promise<{ accepted: number; total: number }> {
+async function publishTagEvent(signed: Record<string, unknown>): Promise<{ accepted: number; total: number }> {
   const author = signed.pubkey as string;
   const relays = dedupeRelays([...(await outboxRelays(author, [])), ...tagRelays()]);
   const responses = await pool.publish(relays, signed as never);
@@ -374,10 +371,7 @@ interface ResolvedTrust {
  * SDK, and they then fail the predicate rather than passing it — so the caller
  * gets an empty result and has to say why, via `unverified`.
  */
-async function resolveTrust(
-  asserters: string[],
-  observer: TrustObserver = "house",
-): Promise<ResolvedTrust> {
+async function resolveTrust(asserters: string[], observer: TrustObserver = "house"): Promise<ResolvedTrust> {
   const observerPubkey = await observerPubkeyFor(observer);
   let source = await getTrustSource(observerPubkey);
 
@@ -502,9 +496,7 @@ interface TagRefResolved {
  * One batched fetch for all the `e`-only ids, not one per assertion. The
  * elements are immutable in practice, so this is cache-friendly.
  */
-async function resolveAssertionTags(
-  candidates: NostrEvent[],
-): Promise<Map<string, TagRefResolved>> {
+async function resolveAssertionTags(candidates: NostrEvent[]): Promise<Map<string, TagRefResolved>> {
   const byEventId = new Map<string, TagRefResolved>();
   const needElement = new Set<string>();
 
@@ -608,10 +600,7 @@ async function normalizeAssertions(candidates: NostrEvent[]): Promise<Normalized
  * answers from ONE perspective. Asking two different scoreboards would let a tag
  * be labelled "unknown creator" while that creator's assertions were counting.
  */
-async function fetchScoredPubkeys(
-  pubkeys: string[],
-  observer: TrustObserver = "house",
-): Promise<Set<string>> {
+async function fetchScoredPubkeys(pubkeys: string[], observer: TrustObserver = "house"): Promise<Set<string>> {
   const unique = Array.from(new Set(pubkeys.filter(Boolean)));
   if (!unique.length) return new Set();
 
@@ -826,8 +815,7 @@ export async function fetchProfileTags(
   const candidates = await fetchTagEvents(
     filterTagsAppliedToPubkey({ targetPubkey, zHandlePubkeys: Z_HANDLE_PUBKEYS }),
   );
-  if (!candidates.length)
-    return { tags: [], mine: [], trustUnverified: false, viewerUnscored: false };
+  if (!candidates.length) return { tags: [], mine: [], trustUnverified: false, viewerUnscored: false };
 
   const assertions = await normalizeAssertions(candidates);
   // The viewer joins the asserter set even when they've tagged nobody here, so
@@ -1016,7 +1004,9 @@ export async function fetchTagDetail(
   if (element) {
     try {
       meta = (JSON.parse(element.content) as { tag?: typeof meta }).tag ?? {};
-    } catch { /* malformed content → slug */ }
+    } catch {
+      /* malformed content → slug */
+    }
   }
   const tag: TagIdentity = {
     authorPubkey,
@@ -1243,10 +1233,7 @@ export interface TagSummary extends TagIdentity {
  *
  * Anonymous-safe like every read here.
  */
-export async function fetchTagIndex(
-  viewerPubkey?: string,
-  observer: TrustObserver = "house",
-): Promise<TagSummary[]> {
+export async function fetchTagIndex(viewerPubkey?: string, observer: TrustObserver = "house"): Promise<TagSummary[]> {
   const candidates = await fetchAllTagEvents({
     kinds: [TAG_ELEMENT_KIND],
     "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
@@ -1255,19 +1242,14 @@ export async function fetchTagIndex(
 
   const assertions = await normalizeAssertions(candidates);
   const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))), observer);
-  const scoredCreators = await fetchScoredPubkeys(
-    Array.from(new Set(assertions.map((a) => a.tagAuthor))),
-  );
+  const scoredCreators = await fetchScoredPubkeys(Array.from(new Set(assertions.map((a) => a.tagAuthor))));
 
   // Reuse the profile read's grouping so the catalogue can't drift from what a
   // profile shows: same trust filter, same latest-wins, same apply/dispute rule.
   // Support is tallied PER (tag, person) so the net rule can be applied per
   // carrier — a tag isn't "used" by someone the network has voted down.
   const counted = new Map<string, CountedTag>();
-  const perCarrier = new Map<
-    string,
-    { applies: Set<string>; disputes: Set<string>; selfApplied: boolean }
-  >();
+  const perCarrier = new Map<string, { applies: Set<string>; disputes: Set<string>; selfApplied: boolean }>();
 
   for (const a of assertions) {
     // The viewer's own taggings count for the viewer, as `mine` does on profiles.
@@ -1331,8 +1313,7 @@ export async function fetchTagIndex(
       vouches: group.applications.size,
       sharesName: sharesName.get(key) ?? 1,
       // Your own tags are never marked — you know perfectly well who made them.
-      unverified:
-        !scoredCreators.has(group.authorPubkey) && group.authorPubkey !== viewerPubkey,
+      unverified: !scoredCreators.has(group.authorPubkey) && group.authorPubkey !== viewerPubkey,
     }))
     .filter((t) => t.people > 0)
     .sort((a, b) => b.people - a.people || b.vouches - a.vouches || a.name.localeCompare(b.name));
@@ -1396,12 +1377,8 @@ export async function fetchApplicability(usage: TagSummary[] = []): Promise<Appl
     ]);
     const toSet = (members: Array<{ a: string }>) => new Set(members.map((m) => m.a));
     return {
-      pubkey: toSet(
-        deriveApplicabilityMembers({ usageRows, hintEls: pubkeyHints, context: "pubkey" }),
-      ),
-      event: toSet(
-        deriveApplicabilityMembers({ usageRows, hintEls: eventHints, context: "event" }),
-      ),
+      pubkey: toSet(deriveApplicabilityMembers({ usageRows, hintEls: pubkeyHints, context: "pubkey" })),
+      event: toSet(deriveApplicabilityMembers({ usageRows, hintEls: eventHints, context: "event" })),
       source: "derived",
     };
   } catch {
@@ -1450,10 +1427,7 @@ export interface PickerTag extends TagSummary {
  * suggestion list before you type and a query after — so the list/query split
  * has to be made there, not here. `TagPersonButton` does it.
  */
-export async function fetchPickerTags(
-  viewerPubkey?: string,
-  observer: TrustObserver = "house",
-): Promise<PickerTag[]> {
+export async function fetchPickerTags(viewerPubkey?: string, observer: TrustObserver = "house"): Promise<PickerTag[]> {
   const catalogue = await fetchTagIndex(viewerPubkey, observer);
   const applicability = await fetchApplicability(catalogue);
 
@@ -1472,9 +1446,7 @@ export async function fetchPickerTags(
 
   return banded.sort(
     (a, b) =>
-      (a.band === b.band ? 0 : a.band === "profile" ? -1 : 1) ||
-      b.people - a.people ||
-      a.name.localeCompare(b.name),
+      (a.band === b.band ? 0 : a.band === "profile" ? -1 : 1) || b.people - a.people || a.name.localeCompare(b.name),
   );
 }
 
@@ -1493,17 +1465,19 @@ export function matchTags(index: TagSummary[], query: string, max = 5): TagSumma
     if (n.includes(q)) return 2;
     return 3;
   };
-  return index
-    .map((t) => ({ t, b: band(t) }))
-    .filter((x) => x.b < 3)
-    // How well the name matches outranks who made the tag — an exact hit on an
-    // unverified tag is still what the person typed, and burying it under
-    // loose contains-matches is how `lfo` became unfindable. Creator standing
-    // only breaks ties inside a band; usage order survives beneath that,
-    // because the sort is stable.
-    .sort((x, y) => x.b - y.b || Number(x.t.unverified) - Number(y.t.unverified))
-    .slice(0, max)
-    .map((x) => x.t);
+  return (
+    index
+      .map((t) => ({ t, b: band(t) }))
+      .filter((x) => x.b < 3)
+      // How well the name matches outranks who made the tag — an exact hit on an
+      // unverified tag is still what the person typed, and burying it under
+      // loose contains-matches is how `lfo` became unfindable. Creator standing
+      // only breaks ties inside a band; usage order survives beneath that,
+      // because the sort is stable.
+      .sort((x, y) => x.b - y.b || Number(x.t.unverified) - Number(y.t.unverified))
+      .slice(0, max)
+      .map((x) => x.t)
+  );
 }
 
 // ─── Comments on a tag ───────────────────────────────────────────────────────
@@ -1552,10 +1526,7 @@ export interface TagComment {
  * OFF by default (`TAG_COMMENTS_ENABLED`) — no kit document defines a comment
  * layer, so nothing extra-protocol should be live during an acceptance run.
  */
-export async function fetchTagComments(
-  authorPubkey: string,
-  slug: string,
-): Promise<TagComment[]> {
+export async function fetchTagComments(authorPubkey: string, slug: string): Promise<TagComment[]> {
   const coord = tagCoordinate({ authorPubkey, slug });
   // NIP-22 puts the ROOT scope in uppercase `#A` and the immediate parent in
   // lowercase `#a`. For a top-level comment they're the same address, but
@@ -1586,11 +1557,7 @@ export async function fetchTagComments(
  * else it signs is structured (follows, reports, prefs, tag assertions). Worth
  * knowing when weighing spam and moderation questions later.
  */
-export async function publishTagComment(
-  authorPubkey: string,
-  slug: string,
-  content: string,
-): Promise<void> {
+export async function publishTagComment(authorPubkey: string, slug: string, content: string): Promise<void> {
   const user = activeAccount();
   if (!user?.pubkey) throw new Error("Sign in to comment.");
   const text = content.trim();
@@ -1665,9 +1632,7 @@ export async function resolveOrMintTag(
     // tag that may duplicate than block the user entirely.
   }
 
-  const candidates = existing
-    .filter((ev) => tagValue(ev, "d") === slug)
-    .sort((a, b) => a.created_at - b.created_at); // oldest first = the tiebreak
+  const candidates = existing.filter((ev) => tagValue(ev, "d") === slug).sort((a, b) => a.created_at - b.created_at); // oldest first = the tiebreak
 
   if (!candidates.length) return { name, description };
   if (candidates.length === 1) {
@@ -1704,12 +1669,9 @@ export async function resolveOrMintTag(
     // Fall through to the oldest — a ranking we couldn't compute is not a
     // reason to block the user from tagging.
   }
-  const score = (pubkey: string) =>
-    Array.from(usage.keys()).filter((k) => k.startsWith(`${pubkey}|`)).length;
+  const score = (pubkey: string) => Array.from(usage.keys()).filter((k) => k.startsWith(`${pubkey}|`)).length;
 
-  const best = [...candidates].sort(
-    (a, b) => score(b.pubkey) - score(a.pubkey) || a.created_at - b.created_at,
-  )[0];
+  const best = [...candidates].sort((a, b) => score(b.pubkey) - score(a.pubkey) || a.created_at - b.created_at)[0];
   return { authorPubkey: best.pubkey, slug, eventId: best.id };
 }
 
@@ -1799,19 +1761,13 @@ export async function fetchPinnedTags(viewerPubkey: string): Promise<PinnedTag[]
     }).catch(() => [] as NostrEvent[]),
     // The hub almost certainly holds none of these — see `unpinTag` — but ask
     // anyway, in case an operator widens the allow-list later.
-    fetchTagEvents({ kinds: [DELETION_KIND], authors: [viewerPubkey] }).catch(
-      () => [] as NostrEvent[],
-    ),
-    fetchCommentEvents({ kinds: [DELETION_KIND], authors: [viewerPubkey] }).catch(
-      () => [] as NostrEvent[],
-    ),
+    fetchTagEvents({ kinds: [DELETION_KIND], authors: [viewerPubkey] }).catch(() => [] as NostrEvent[]),
+    fetchCommentEvents({ kinds: [DELETION_KIND], authors: [viewerPubkey] }).catch(() => [] as NostrEvent[]),
   ]);
   const deletions = [...hubDeletions, ...generalDeletions];
   if (!pins.length) return [];
 
-  const deleted = new Set(
-    deletions.flatMap((d) => (d.tags || []).filter((t) => t[0] === "e").map((t) => t[1])),
-  );
+  const deleted = new Set(deletions.flatMap((d) => (d.tags || []).filter((t) => t[0] === "e").map((t) => t[1])));
 
   // Latest wins per pin address, same replaceable discipline as everything else.
   const latest = new Map<string, NostrEvent>();
@@ -1987,9 +1943,7 @@ export async function fetchMyAssertions(viewerPubkey: string): Promise<MyAsserti
   // so it goes through the classifier rather than `normalizeAssertions`.
   const dedupedEvents = latestByReplaceableKey(eventEvents);
   if (dedupedEvents.length) {
-    const headers = await resolveTaggingHeaders(
-      dedupedEvents.map(descriptorOf).filter((c): c is string => !!c),
-    );
+    const headers = await resolveTaggingHeaders(dedupedEvents.map(descriptorOf).filter((c): c is string => !!c));
     // Grouped per target because the classifier answers "what tags are on THIS
     // target"; we're asking the transpose, one target at a time.
     const byTarget = new Map<string, NostrEvent[]>();
@@ -2173,9 +2127,7 @@ function latestByReplaceableKey(events: NostrEvent[]): NostrEvent[] {
 
 /** The descriptor coordinate a candidate assertion points at, if it has one. */
 function descriptorOf(ev: NostrEvent): string | null {
-  const z = (ev.tags || []).find(
-    (t) => t[0] === "z" && /^39999:[0-9a-f]{64}:tagging:.+-tagging$/.test(t[1] || ""),
-  );
+  const z = (ev.tags || []).find((t) => t[0] === "z" && /^39999:[0-9a-f]{64}:tagging:.+-tagging$/.test(t[1] || ""));
   return z ? z[1] : null;
 }
 
@@ -2238,9 +2190,7 @@ export async function fetchEventTagsBatch(
   // Headers, trust and names all resolve ONCE across every note — the whole
   // point of batching. Notes on a profile tend to share tags, so this is where
   // most of the saving actually lands.
-  const headers = await resolveTaggingHeaders(
-    deduped.map(descriptorOf).filter((c): c is string => !!c),
-  );
+  const headers = await resolveTaggingHeaders(deduped.map(descriptorOf).filter((c): c is string => !!c));
   const trust = await resolveTrust(Array.from(new Set(deduped.map((ev) => ev.pubkey))), observer);
 
   const byTarget = new Map<string, NostrEvent[]>();
@@ -2279,10 +2229,7 @@ export async function fetchEventTagsBatch(
 
   for (const [target, classified] of classifiedByTarget) {
     const mine = new Map(
-      classified.mine.map((m) => [
-        `${m.tag.authorPubkey}|${m.tag.slug}`,
-        m.stance as "apply" | "dispute",
-      ]),
+      classified.mine.map((m) => [`${m.tag.authorPubkey}|${m.tag.slug}`, m.stance as "apply" | "dispute"]),
     );
 
     // `classified.tags` is trust-filtered; `classified.mine` is not. A tag whose
@@ -2323,9 +2270,7 @@ export async function fetchEventTagsBatch(
       .filter((t) => t.counted || !!t.myStance)
       .sort(
         (a, b) =>
-          Number(b.counted) - Number(a.counted) ||
-          b.applications - a.applications ||
-          a.name.localeCompare(b.name),
+          Number(b.counted) - Number(a.counted) || b.applications - a.applications || a.name.localeCompare(b.name),
       );
 
     out.set(target, {
@@ -2510,10 +2455,7 @@ export async function applyTagToEvent({
         const found = await Promise.all(
           Z_HANDLE_PUBKEYS.map((ta) =>
             fetchTagEvents(
-              filterTaggingHeadersForTag({ tagAuthorPubkey, slug, taPubkey: ta }) as Record<
-                string,
-                unknown
-              >,
+              filterTaggingHeadersForTag({ tagAuthorPubkey, slug, taPubkey: ta }) as Record<string, unknown>,
             ).catch(() => [] as NostrEvent[]),
           ),
         );

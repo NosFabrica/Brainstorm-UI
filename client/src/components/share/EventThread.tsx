@@ -20,8 +20,14 @@ import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useHasSession } from "@/hooks/useHasSession";
 
@@ -143,32 +149,37 @@ export function EventThread({
   const [scoreVersion, setScoreVersion] = useState(0);
   const [scoring, setScoring] = useState(false);
 
-  const fetchScores = useCallback(async (pubkeys: string[]) => {
-    const key = (pk: string) => `${povTag}:${pk}`;
-    const todo = pubkeys.filter((pk) => !scoreCache.current.has(key(pk)));
-    if (!todo.length) return;
-    setScoring(true);
-    if (!usePersonal) {
-      const res = await Promise.all(todo.map(async (pk) => ({ pk, s: (await lookupTrustSignals(pk)).influence })));
-      res.forEach((r) => scoreCache.current.set(key(r.pk), r.s));
-      setScoreVersion((v) => v + 1);
+  const fetchScores = useCallback(
+    async (pubkeys: string[]) => {
+      const key = (pk: string) => `${povTag}:${pk}`;
+      const todo = pubkeys.filter((pk) => !scoreCache.current.has(key(pk)));
+      if (!todo.length) return;
+      setScoring(true);
+      if (!usePersonal) {
+        const res = await Promise.all(todo.map(async (pk) => ({ pk, s: (await lookupTrustSignals(pk)).influence })));
+        res.forEach((r) => scoreCache.current.set(key(r.pk), r.s));
+        setScoreVersion((v) => v + 1);
+        setScoring(false);
+        return;
+      }
+      for (let i = 0; i < todo.length; i += 8) {
+        const batch = todo.slice(i, i + 8);
+        const res = await Promise.allSettled(
+          batch.map(async (pk) => {
+            const ov = (await apiClient.getUserOverview(pk)) as { data?: { influence?: unknown } };
+            const s = ov?.data?.influence;
+            return { pk, s: typeof s === "number" && Number.isFinite(s) ? s : null };
+          }),
+        );
+        res.forEach((r) => {
+          if (r.status === "fulfilled") scoreCache.current.set(key(r.value.pk), r.value.s);
+        });
+        setScoreVersion((v) => v + 1);
+      }
       setScoring(false);
-      return;
-    }
-    for (let i = 0; i < todo.length; i += 8) {
-      const batch = todo.slice(i, i + 8);
-      const res = await Promise.allSettled(
-        batch.map(async (pk) => {
-          const ov = (await apiClient.getUserOverview(pk)) as { data?: { influence?: unknown } };
-          const s = ov?.data?.influence;
-          return { pk, s: typeof s === "number" && Number.isFinite(s) ? s : null };
-        }),
-      );
-      res.forEach((r) => { if (r.status === "fulfilled") scoreCache.current.set(key(r.value.pk), r.value.s); });
-      setScoreVersion((v) => v + 1);
-    }
-    setScoring(false);
-  }, [povTag, usePersonal]);
+    },
+    [povTag, usePersonal],
+  );
 
   // Score every commenter as soon as the thread loads — the per-comment trust
   // ring/pill is always-on, not gated behind the filter. Anonymous viewers get
@@ -204,7 +215,10 @@ export function EventThread({
 
   if (repliesQuery.isLoading) {
     return (
-      <div className="mt-6 flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500" data-testid="thread-loading">
+      <div
+        className="mt-6 flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500"
+        data-testid="thread-loading"
+      >
         <Loader2 className="h-4 w-4 animate-spin" /> Loading comments…
       </div>
     );
@@ -213,19 +227,24 @@ export function EventThread({
 
   return (
     <section className="mt-6" data-testid="event-thread">
-      <div className="flex items-center justify-between gap-2 mb-3">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="inline-flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100">
-          <MessageSquare className="h-4 w-4 text-slate-400 dark:text-slate-500" /> Comments <span className="text-slate-400 dark:text-slate-500 font-semibold">({replies.length})</span>
+          <MessageSquare className="h-4 w-4 text-slate-400 dark:text-slate-500" /> Comments{" "}
+          <span className="font-semibold text-slate-400 dark:text-slate-500">({replies.length})</span>
         </h2>
         {loggedIn && (
-          <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5" data-testid="thread-trust-filter" title="Filter comments by trust in your current perspective">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 ml-1.5" />
+          <div
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900"
+            data-testid="thread-trust-filter"
+            title="Filter comments by trust in your current perspective"
+          >
+            <SlidersHorizontal className="ml-1.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
             {(granularity === "simple" ? SIMPLE_TRUST_FILTERS : TRUST_FILTERS).map((f) => (
               <button
                 key={f.key}
                 type="button"
                 onClick={() => setMinTrust(f.min)}
-                className={`rounded-md px-2 py-1 text-xs font-semibold transition-colors ${minTrust === f.min ? "bg-brand-primary text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"}`}
+                className={`rounded-md px-2 py-1 text-xs font-semibold transition-colors ${minTrust === f.min ? "bg-brand-primary text-white" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"}`}
                 data-testid={`thread-filter-${f.key}`}
               >
                 {f.label}
@@ -238,9 +257,13 @@ export function EventThread({
       {loggedIn && !usePersonal && (
         <p className="mb-2 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-filter-unlock">
           {calcTriggered ? (
-            <span className="inline-flex items-center gap-1 text-brand-deep"><Loader2 className="h-3 w-3 animate-spin" /> Calculating your network — the filter switches to your perspective when it's ready.</span>
+            <span className="inline-flex items-center gap-1 text-brand-deep">
+              <Loader2 className="h-3 w-3 animate-spin" /> Calculating your network — the filter switches to your
+              perspective when it's ready.
+            </span>
           ) : hasFollows ? (
-            <>Filtering by the Brainstorm network.{" "}
+            <>
+              Filtering by the Brainstorm network.{" "}
               <button
                 type="button"
                 onClick={() => setConfirmCalc(true)}
@@ -251,8 +274,11 @@ export function EventThread({
               </button>
             </>
           ) : (
-            <>Filtering by the Brainstorm network.{" "}
-              <Link href={buildWotHref} className="font-semibold text-brand-link hover:underline">Follow a few people to filter by your own network →</Link>
+            <>
+              Filtering by the Brainstorm network.{" "}
+              <Link href={buildWotHref} className="font-semibold text-brand-link hover:underline">
+                Follow a few people to filter by your own network →
+              </Link>
             </>
           )}
         </p>
@@ -261,9 +287,15 @@ export function EventThread({
       {loggedIn && minTrust > 0 && (
         <p className="mb-2 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-filter-status">
           {scoring ? (
-            <span className="inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Scoring commenters in {usePersonal ? "your network" : "the Brainstorm network"}…</span>
+            <span className="inline-flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Scoring commenters in{" "}
+              {usePersonal ? "your network" : "the Brainstorm network"}…
+            </span>
           ) : (
-            <>{hiddenCount} {hiddenCount === 1 ? "comment" : "comments"} hidden by your filter ({usePersonal ? "your network" : "the Brainstorm network"}).</>
+            <>
+              {hiddenCount} {hiddenCount === 1 ? "comment" : "comments"} hidden by your filter (
+              {usePersonal ? "your network" : "the Brainstorm network"}).
+            </>
           )}
         </p>
       )}
@@ -282,21 +314,34 @@ export function EventThread({
       </div>
 
       {!loggedIn && gatedCount > 0 && (
-        <div className="mt-3 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="thread-gate">
+        <div
+          className="mt-3 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center"
+          data-testid="thread-gate"
+        >
           <p className="text-sm font-bold text-slate-900 dark:text-slate-100">See the whole conversation</p>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
-            Create a free account to read all {replies.length} comments, see who engaged, and <span className="font-semibold text-brand-deep">filter the thread through your own network</span>.
+          <p className="mx-auto mt-1 max-w-md text-sm text-slate-600 dark:text-slate-300">
+            Create a free account to read all {replies.length} comments, see who engaged, and{" "}
+            <span className="font-semibold text-brand-deep">filter the thread through your own network</span>.
           </p>
           <Link
             href={loginHref}
-            className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+            className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
             data-testid="thread-gate-cta"
           >
             Create your free account <ArrowRight className="h-4 w-4" />
           </Link>
-          <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">Free, takes a minute — no email required</p>
+          <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+            Free, takes a minute — no email required
+          </p>
           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            Already part of the network? <Link href={loginHref} className="font-semibold text-brand-link hover:underline" data-testid="thread-gate-signin">Sign in →</Link>
+            Already part of the network?{" "}
+            <Link
+              href={loginHref}
+              className="font-semibold text-brand-link hover:underline"
+              data-testid="thread-gate-signin"
+            >
+              Sign in →
+            </Link>
           </p>
         </div>
       )}
@@ -308,9 +353,8 @@ export function EventThread({
                 here, this is a first run. What it shares is the honest cost — the
                 wait — and the same ask-before-you-start contract. */}
             <AlertDialogDescription>
-              This builds your personal scores from the accounts you follow. It takes
-              about 5 minutes, and this filter switches to your own perspective as soon as
-              it's ready.
+              This builds your personal scores from the accounts you follow. It takes about 5 minutes, and this filter
+              switches to your own perspective as soon as it's ready.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -319,7 +363,10 @@ export function EventThread({
               onClick={(ev) => {
                 ev.preventDefault();
                 setConfirmCalc(false);
-                if (myPubkey) { void triggerScoringAndAnchor(myPubkey); setCalcTriggered(true); }
+                if (myPubkey) {
+                  void triggerScoringAndAnchor(myPubkey);
+                  setCalcTriggered(true);
+                }
               }}
               data-testid="button-thread-calc-confirm"
             >

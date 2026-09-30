@@ -4,13 +4,7 @@ import { AccountManager, BaseAccount } from "applesauce-accounts";
 import { PrivateKeySigner } from "applesauce-signers";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 
-import {
-  createMirror,
-  withTabLock,
-  type CrossTabMessage,
-  type MirroredChange,
-  type TabChannel,
-} from "./cross-tab";
+import { createMirror, withTabLock, type CrossTabMessage, type MirroredChange, type TabChannel } from "./cross-tab";
 import { LocalAccount } from "./local-account";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
@@ -91,8 +85,8 @@ function sharedAccounts(a: AccountManager<AccountMetadata>, b: AccountManager<Ac
   for (const id of ids) {
     const inA = testAccount(id);
     const inB = testAccount(id);
-    a.addAccount(inA as any);
-    b.addAccount(inB as any);
+    a.addAccount(inA);
+    b.addAccount(inB);
     held[id] = { a: inA, b: inB };
   }
   return held;
@@ -144,7 +138,7 @@ describe("mirroring the active account", () => {
   it("says nothing about the accounts it restored at start", () => {
     const bus = createBus();
     const manager = new AccountManager<AccountMetadata>();
-    manager.addAccount(testAccount("alice") as any);
+    manager.addAccount(testAccount("alice"));
     manager.setActive("alice");
 
     createMirror({ manager, channel: bus.open() });
@@ -156,7 +150,7 @@ describe("mirroring the active account", () => {
     const tabs = twoTabs();
     const { a, b } = tabs;
     const held = sharedAccounts(a.manager, b.manager, ["alice"]);
-    a.manager.addAccount(testAccount("carol") as any);
+    a.manager.addAccount(testAccount("carol"));
     a.manager.setActive("alice");
     b.manager.setActive("alice");
     tabs.settled();
@@ -173,7 +167,7 @@ describe("mirroring the active account", () => {
     const carol = testAccount("carol");
     // as `createPersistence` does: deserialise it and put it in the manager
     const adopt = vi.fn(() => {
-      manager.addAccount(carol as any);
+      manager.addAccount(carol);
       return carol;
     });
     createMirror({ manager, channel: bus.open(), persistence: { adopt } });
@@ -192,15 +186,15 @@ describe("mirroring a removed account", () => {
     const { a, b } = tabs;
     const inA = await unlockedAccount("alice");
     const inB = await unlockedAccount("alice");
-    a.manager.addAccount(inA as any);
-    b.manager.addAccount(inB as any);
+    a.manager.addAccount(inA);
+    b.manager.addAccount(inB);
     a.manager.setActive("alice");
     b.manager.setActive("alice");
     tabs.settled();
     await inB.signEvent({ kind: 1, tags: [], content: "hi", created_at: 0 });
     expect(inB.signer.unlocked).toBe(true);
 
-    a.manager.removeAccount(inA as any);
+    a.manager.removeAccount(inA);
 
     expect(inB.signer.unlocked).toBe(false);
   });
@@ -351,11 +345,11 @@ describe("mirroring an added account", () => {
   it("tells the other tab, without making it switch", () => {
     const tabs = twoTabs();
     sharedAccounts(tabs.a.manager, tabs.b.manager, ["alice"]);
-    tabs.a.manager.setActive(tabs.a.manager.getAccount("alice") as any);
-    tabs.b.manager.setActive(tabs.b.manager.getAccount("alice") as any);
+    tabs.a.manager.setActive(tabs.a.manager.getAccount("alice")!);
+    tabs.b.manager.setActive(tabs.b.manager.getAccount("alice")!);
     tabs.settled();
 
-    tabs.a.manager.addAccount(testAccount("bob") as any);
+    tabs.a.manager.addAccount(testAccount("bob"));
 
     expect(tabs.bus.sent).toContainEqual({ type: "account-added", accountId: "bob" });
     // adding is not switching — alice is still the one signing in both tabs
@@ -367,7 +361,7 @@ describe("mirroring an added account", () => {
     const manager = new AccountManager<AccountMetadata>();
     const bob = testAccount("bob");
     const adopt = vi.fn(() => {
-      manager.addAccount(bob as any);
+      manager.addAccount(bob);
       return bob;
     });
     createMirror({ manager, channel: bus.open(), persistence: { adopt } });
@@ -386,7 +380,7 @@ describe("mirroring an added account", () => {
     createMirror({
       manager,
       channel: bus.open(),
-      persistence: { adopt: () => (manager.addAccount(bob as any), bob) },
+      persistence: { adopt: () => (manager.addAccount(bob), bob) },
     });
 
     const told = { type: "account-added", accountId: "bob" } as const;

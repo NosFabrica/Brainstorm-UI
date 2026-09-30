@@ -32,21 +32,29 @@ export interface EnsureAssistantResult {
  * Throws on a hard backend error so callers' UI can surface it; returns the
  * published identity on success.
  */
-export async function ensureAssistantPublished(
-  { follow, skipIfPublished = true, background = false }: {
-    follow: boolean;
-    skipIfPublished?: boolean;
-    /** Nobody asked: the pointer publish defers rather than raising the unlock modal. */
-    background?: boolean;
-  },
-): Promise<EnsureAssistantResult> {
+export async function ensureAssistantPublished({
+  follow,
+  skipIfPublished = true,
+  background = false,
+}: {
+  follow: boolean;
+  skipIfPublished?: boolean;
+  /** Nobody asked: the pointer publish defers rather than raising the unlock modal. */
+  background?: boolean;
+}): Promise<EnsureAssistantResult> {
   if (skipIfPublished) {
     const existing = getCurrentAssistantPubkey();
     if (existing) {
       const stored = readPublishedAssistant();
       const state: PublishedAssistantState = stored ?? {
         pubkey: existing,
-        npub: (() => { try { return nip19.npubEncode(existing); } catch { return existing; } })(),
+        npub: (() => {
+          try {
+            return nip19.npubEncode(existing);
+          } catch {
+            return existing;
+          }
+        })(),
         eventId: "",
         publishedAt: Date.now(),
       };
@@ -67,7 +75,13 @@ export async function ensureAssistantPublished(
 
   const state: PublishedAssistantState = {
     pubkey,
-    npub: (() => { try { return nip19.npubEncode(pubkey); } catch { return pubkey; } })(),
+    npub: (() => {
+      try {
+        return nip19.npubEncode(pubkey);
+      } catch {
+        return pubkey;
+      }
+    })(),
     eventId,
     publishedAt: Date.now(),
   };

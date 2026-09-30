@@ -8,7 +8,7 @@
  * Node, not jsdom: the event is really signed, as in `nostr.publishProfile.test.ts`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { finalizeEvent, getPublicKey } from "nostr-tools/pure";
+import { finalizeEvent } from "nostr-tools/pure";
 
 const publish = vi.fn();
 const relayPublish = vi.fn();
@@ -55,7 +55,6 @@ vi.mock("@/lib/runtimeEnv", () => ({
 }));
 
 const SECRET = new Uint8Array(32).fill(7);
-const PUBKEY = getPublicKey(SECRET);
 
 const NIP85 = "wss://nip85-staging.example";
 
@@ -63,8 +62,7 @@ const relayList = (...urls: string[]) => ({ kind: 10002, tags: urls.map((u) => [
 
 let nostr: typeof import("./nostr");
 
-const signed = (kind: number) =>
-  finalizeEvent({ kind, created_at: 0, tags: [], content: "" } as never, SECRET);
+const signed = (kind: number) => finalizeEvent({ kind, created_at: 0, tags: [], content: "" } as never, SECRET);
 
 /** The relay list a publish actually targeted, however it was sent. */
 const targeted = (): string[] =>

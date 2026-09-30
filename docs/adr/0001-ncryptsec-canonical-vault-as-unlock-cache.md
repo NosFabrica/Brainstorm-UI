@@ -8,7 +8,7 @@ backup could lose the identity outright — and the sign-out flow had to grow a
 "save a backup first?" wall because of it.
 
 We are making the NIP-49 **ncryptsec** the canonical at-rest form. It is
-portable, standard, and it *is* the Backup — the same artefact we store and the
+portable, standard, and it _is_ the Backup — the same artefact we store and the
 User exports — so an account that can be signed with is an account that can be
 recovered. skVault stays, but demoted: it now caches an already-unlocked key so
 later page loads need no Recovery password. It holds no authority the ncryptsec

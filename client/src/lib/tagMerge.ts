@@ -106,10 +106,7 @@ export function mergeSameNamedTags(
   counted: Map<string, CountedTag>,
   names: Map<string, { name: string; description?: string }>,
 ): MergedTag[] {
-  const byName = new Map<
-    string,
-    Array<{ key: string; group: CountedTag; name: string; description?: string }>
-  >();
+  const byName = new Map<string, Array<{ key: string; group: CountedTag; name: string; description?: string }>>();
 
   for (const [key, group] of counted) {
     const meta = names.get(key);

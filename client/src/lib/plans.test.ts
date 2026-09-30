@@ -93,8 +93,7 @@ describe("plans — the billing interval, formatted not matched", () => {
 });
 
 describe("plans — amounts come off the plan", () => {
-  const amount = (minor: number, currency: string) =>
-    formatAmount(minor, currency).replace(/\u00a0/g, " ");
+  const amount = (minor: number, currency: string) => formatAmount(minor, currency).replace(/\u00a0/g, " ");
 
   it("formats from minor units, in the plan's own currency", () => {
     expect(amount(200, "USD")).toBe("$2.00");

@@ -46,7 +46,9 @@ function fakePool() {
   };
   return pool;
 }
-const tick = async () => { for (let i = 0; i < 3; i++) await Promise.resolve(); };
+const tick = async () => {
+  for (let i = 0; i < 3; i++) await Promise.resolve();
+};
 
 /** A pool with one gated relay already in it, the watcher running over `active$`. */
 function setup(active: Account | undefined = account) {
@@ -156,9 +158,21 @@ describe("startRelayAuth", () => {
   // NIP-42 has no sign-out: a connection signed in as someone who may no
   // longer sign is dropped, and the next read opens an anonymous one.
   it.each([
-    ["the switch is turned off", (active$: BehaviorSubject<Account | undefined>) => { void active$; setRelayAuthAllowed(PK, false); }],
+    [
+      "the switch is turned off",
+      (active$: BehaviorSubject<Account | undefined>) => {
+        void active$;
+        setRelayAuthAllowed(PK, false);
+      },
+    ],
     ["the reader signs out", (active$: BehaviorSubject<Account | undefined>) => active$.next(undefined)],
-    ["another account becomes active", (active$: BehaviorSubject<Account | undefined>) => { setRelayAuthAllowed(PK2, true); active$.next(other); }],
+    [
+      "another account becomes active",
+      (active$: BehaviorSubject<Account | undefined>) => {
+        setRelayAuthAllowed(PK2, true);
+        active$.next(other);
+      },
+    ],
   ])("drops a relay signed in as the account when %s", async (_when, change) => {
     setRelayAuthAllowed(PK, true);
     const { pool, active$, gated } = setup();

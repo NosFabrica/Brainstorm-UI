@@ -6,6 +6,7 @@
  */
 import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { AccountManager, BaseAccount, EventTemplate } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 import { distinctUntilChanged, map, of, startWith, switchMap, type Observable } from "rxjs";
 
 import { extractAdminFlag } from "@/lib/jwt";
@@ -67,10 +68,7 @@ export class SessionDeferredError extends Error {
  * out through a query's `error`.
  */
 export function isSessionDeferredError(error: unknown): boolean {
-  return (
-    error instanceof SessionDeferredError ||
-    (error as { name?: string })?.name === "SessionDeferredError"
-  );
+  return error instanceof SessionDeferredError || (error as { name?: string })?.name === "SessionDeferredError";
 }
 
 export function getSessionToken(account: BrainstormAccount): string | undefined {
@@ -102,14 +100,12 @@ export function activeHasSession(): boolean {
  * a disabled query — so unlocking cleared the notice and left the page empty
  * until a manual reload.
  */
-export function activeHasSession$(
-  manager: AccountManager<AccountMetadata>,
-): Observable<boolean> {
+export function activeHasSession$(manager: AccountManager<AccountMetadata>): Observable<boolean> {
   return manager.active$.pipe(
     switchMap((active) => {
       if (!active) return of(false);
       const account = active as unknown as BrainstormAccount;
-      return (active as BaseAccount<any, any, AccountMetadata>).metadata$.pipe(
+      return (active as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$.pipe(
         startWith(null),
         map(() => hasSession(account)),
       );
@@ -169,10 +165,7 @@ export function createSessions(
     return token;
   }
 
-  async function authenticate(
-    account: BrainstormAccount,
-    options: SessionOptions = {},
-  ): Promise<string> {
+  async function authenticate(account: BrainstormAccount, options: SessionOptions = {}): Promise<string> {
     if (options.background && !(await canSignSilently(account))) {
       clearSession(account);
       throw new SessionDeferredError();

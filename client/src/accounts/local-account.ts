@@ -1,12 +1,7 @@
 import { BaseAccount, type SerializedAccount } from "applesauce-accounts";
 
 import type { AccountMetadata } from "./metadata";
-import {
-  LocalSigner,
-  NoUnlockPathError,
-  type LocalSignerData,
-  type LocalSignerOptions,
-} from "./local-signer";
+import { LocalSigner, NoUnlockPathError, type LocalSignerData, type LocalSignerOptions } from "./local-signer";
 
 /**
  * An Account whose key this app holds. Every sign, encrypt and decrypt routes

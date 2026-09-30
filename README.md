@@ -40,14 +40,14 @@ container additionally substitutes them into `config.js` at container start
 read through [`client/src/lib/runtimeEnv.ts`](client/src/lib/runtimeEnv.ts), which
 prefers the runtime value and falls back to the build-time one.
 
-| Variable | Meaning |
-|---|---|
-| `VITE_API_URL` | Base URL of the brainstorm_server API |
-| `VITE_NIP85_RELAY_URL` | Relay where the deployment's Trusted Assertions live |
-| `VITE_WOT_SEARCH_RELAY` | NIP-50 relay backing nostr profile search — unset disables search |
-| `VITE_TAG_RELAY_URLS` | Comma-separated tag relays; unset falls back to the hub in `client/src/config/tagging.config.json` |
-| `VITE_FEATURE_AGENT_SUITE` | Feature flag — agent suite (default off) |
-| `VITE_FEATURE_ASSISTANTS_ADMIN` | Feature flag — assistants admin (default off) |
+| Variable                        | Meaning                                                                                            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `VITE_API_URL`                  | Base URL of the brainstorm_server API                                                              |
+| `VITE_NIP85_RELAY_URL`          | Relay where the deployment's Trusted Assertions live                                               |
+| `VITE_WOT_SEARCH_RELAY`         | NIP-50 relay backing nostr profile search — unset disables search                                  |
+| `VITE_TAG_RELAY_URLS`           | Comma-separated tag relays; unset falls back to the hub in `client/src/config/tagging.config.json` |
+| `VITE_FEATURE_AGENT_SUITE`      | Feature flag — agent suite (default off)                                                           |
+| `VITE_FEATURE_ASSISTANTS_ADMIN` | Feature flag — assistants admin (default off)                                                      |
 
 ## Deploying to staging
 
@@ -68,16 +68,16 @@ Details in
 
 ## Documentation
 
-| Doc | What it covers |
-|---|---|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | The architecture overview: routing model, anonymous vs. authenticated data paths, the staging/production API switcher, known backend gaps |
-| [CONTEXT.md](CONTEXT.md), [docs/adr/](docs/adr/) | The domain vocabulary, and the decisions behind it |
-| [CLAUDE.md](CLAUDE.md) | Conventions for AI agents working in this repo: issue triage, domain docs, and the design-system rules |
-| [docs/design-system.md](docs/design-system.md) | The shared UI primitives (Chip, StatTile, Card, SectionHeader, tones) and what stays bespoke |
-| [docs/brainstorm-admin-api-spec.md](docs/brainstorm-admin-api-spec.md), [docs/brainstorm-assistant-profile-spec.md](docs/brainstorm-assistant-profile-spec.md) | API contracts this UI is wired for, written for the backend |
-| [docs/nips/](docs/nips/) | Protocol drafting (Profile Presentation pre-NIP) |
-| [docs/decentralized-tagging/](docs/decentralized-tagging/), [docs/trust-tiers/](docs/trust-tiers/), [docs/score-display/](docs/score-display/) | Decision records for shipped feature areas |
-| [docs/plans/](docs/plans/) | Proposed feature plans awaiting review |
+| Doc                                                                                                                                                            | What it covers                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md)                                                                                                                             | The architecture overview: routing model, anonymous vs. authenticated data paths, the staging/production API switcher, known backend gaps |
+| [CONTEXT.md](CONTEXT.md), [docs/adr/](docs/adr/)                                                                                                               | The domain vocabulary, and the decisions behind it                                                                                        |
+| [CLAUDE.md](CLAUDE.md)                                                                                                                                         | Conventions for AI agents working in this repo: issue triage, domain docs, and the design-system rules                                    |
+| [docs/design-system.md](docs/design-system.md)                                                                                                                 | The shared UI primitives (Chip, StatTile, Card, SectionHeader, tones) and what stays bespoke                                              |
+| [docs/brainstorm-admin-api-spec.md](docs/brainstorm-admin-api-spec.md), [docs/brainstorm-assistant-profile-spec.md](docs/brainstorm-assistant-profile-spec.md) | API contracts this UI is wired for, written for the backend                                                                               |
+| [docs/nips/](docs/nips/)                                                                                                                                       | Protocol drafting (Profile Presentation pre-NIP)                                                                                          |
+| [docs/decentralized-tagging/](docs/decentralized-tagging/), [docs/trust-tiers/](docs/trust-tiers/), [docs/score-display/](docs/score-display/)                 | Decision records for shipped feature areas                                                                                                |
+| [docs/plans/](docs/plans/)                                                                                                                                     | Proposed feature plans awaiting review                                                                                                    |
 
 ## The wider estate
 

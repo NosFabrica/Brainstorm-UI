@@ -10,7 +10,15 @@ import audioDefault from "@/assets/audio-default.webp";
  * The "now playing" equalizer — bars bounce while playing, freeze on pause.
  * It lives on the cover art, Spotify's playing mark, in white over the dark wash.
  */
-export function Equalizer({ playing, className = "h-3.5 w-3.5", bar = "bg-brand-primary" }: { playing: boolean; className?: string; bar?: string }) {
+export function Equalizer({
+  playing,
+  className = "h-3.5 w-3.5",
+  bar = "bg-brand-primary",
+}: {
+  playing: boolean;
+  className?: string;
+  bar?: string;
+}) {
   return (
     <span className={`flex shrink-0 items-end gap-[2px] ${className}`} aria-hidden="true" data-testid="track-eq">
       {[0, 1, 2, 3].map((i) => (
@@ -94,15 +102,16 @@ export function EmbeddedTrackCard({
     if (!audio || player.isPlaying) return;
     toggleTrack(id, audio, { title, artist, cover, href: href ?? pageUrl, artistHref, artistPubkey });
   };
-  const onRowClick = playable || open
-    ? (e: MouseEvent) => {
-        if ((e.target as HTMLElement).closest("a, button, [data-noopen]")) return;
-        if (playable) play();
-        else open?.();
-      }
-    : undefined;
+  const onRowClick =
+    playable || open
+      ? (e: MouseEvent) => {
+          if ((e.target as HTMLElement).closest("a, button, [data-noopen]")) return;
+          if (playable) play();
+          else open?.();
+        }
+      : undefined;
 
-  const total = player.isActive && player.duration ? player.duration : durationSec ?? metaDuration ?? 0;
+  const total = player.isActive && player.duration ? player.duration : (durationSec ?? metaDuration ?? 0);
   const pct = total > 0 ? (player.currentTime / total) * 100 : 0;
   // Active controls are always shown; idle controls reveal on hover.
   const revealCls = player.isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100";
@@ -115,8 +124,10 @@ export function EmbeddedTrackCard({
           ? `group flex items-center gap-3 rounded-lg px-1 py-2 transition-colors ${player.isActive ? "bg-brand-link/[0.04]" : ""} ${
               href || playable || onOpen ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/60" : ""
             }`
-          : `group flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-2.5 transition-colors ${
-              player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200 dark:border-slate-800"
+          : `group flex items-center gap-3 rounded-xl border bg-white p-2.5 transition-colors dark:bg-slate-900 ${
+              player.isActive
+                ? "border-brand-link/30 ring-1 ring-brand-link/10"
+                : "border-slate-200 dark:border-slate-800"
             } ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`
       }
       data-testid="embedded-track"
@@ -125,8 +136,11 @@ export function EmbeddedTrackCard({
       <button
         type="button"
         disabled={!playable}
-        onClick={(e) => { e.stopPropagation(); if (audio) toggleTrack(id, audio, { title, artist, cover, href: href ?? pageUrl, artistHref, artistPubkey }); }}
-        className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg group/cover disabled:cursor-default"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (audio) toggleTrack(id, audio, { title, artist, cover, href: href ?? pageUrl, artistHref, artistPubkey });
+        }}
+        className="group/cover relative h-12 w-12 shrink-0 overflow-hidden rounded-lg disabled:cursor-default"
         aria-label={player.isPlaying ? "Pause" : "Play"}
         data-testid="track-play"
       >
@@ -134,11 +148,15 @@ export function EmbeddedTrackCard({
           src={cover || audioDefault}
           alt=""
           loading="lazy"
-          onError={(e) => { if (!e.currentTarget.src.includes("audio-default")) e.currentTarget.src = audioDefault; }}
+          onError={(e) => {
+            if (!e.currentTarget.src.includes("audio-default")) e.currentTarget.src = audioDefault;
+          }}
           className="h-full w-full bg-brand-deep/10 object-cover"
         />
         {playable && (
-          <span className={`absolute inset-0 flex items-center justify-center transition-colors ${player.isActive ? "bg-black/45" : "bg-black/25 group-hover/cover:bg-black/40"}`}>
+          <span
+            className={`absolute inset-0 flex items-center justify-center transition-colors ${player.isActive ? "bg-black/45" : "bg-black/25 group-hover/cover:bg-black/40"}`}
+          >
             {/* The active track's mark is the moving bars on its art; the
                 control comes back under the pointer. Idle covers offer Play. */}
             {player.isActive && !player.isLoading && !player.isError && (
@@ -164,10 +182,21 @@ export function EmbeddedTrackCard({
       </button>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 min-w-0">
-          <p className={`min-w-0 truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>
+        <div className="flex min-w-0 items-center gap-2">
+          <p
+            className={`min-w-0 truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}
+          >
             {open ? (
-              <button type="button" onClick={(e) => { e.stopPropagation(); open(); }} className="truncate text-left hover:underline">{title}</button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  open();
+                }}
+                className="truncate text-left hover:underline"
+              >
+                {title}
+              </button>
             ) : (
               title
             )}
@@ -177,7 +206,17 @@ export function EmbeddedTrackCard({
         {artist && (
           <p className="truncate text-xs text-slate-500 dark:text-slate-400">
             {/* The artist's own page when they have one here — the row and the face agree. */}
-            {artistHref ? <Link href={artistHref} className="hover:text-brand-link hover:underline" onClick={(e) => e.stopPropagation()}>{artist}</Link> : artist}
+            {artistHref ? (
+              <Link
+                href={artistHref}
+                className="hover:text-brand-link hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {artist}
+              </Link>
+            ) : (
+              artist
+            )}
           </p>
         )}
 
@@ -196,7 +235,7 @@ export function EmbeddedTrackCard({
             >
               <div className="absolute inset-y-0 left-0 rounded-full bg-brand-primary" style={{ width: `${pct}%` }} />
               <div
-                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full bg-brand-primary opacity-0 shadow transition-opacity group-hover/bar:opacity-100"
+                className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-primary opacity-0 shadow transition-opacity group-hover/bar:opacity-100"
                 style={{ left: `${pct}%` }}
               />
             </div>
@@ -217,7 +256,7 @@ export function EmbeddedTrackCard({
             aria-label="Support the artist"
             title="Support the artist"
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-brand-link hover:bg-brand-primary/5 dark:hover:bg-brand-primary/15 transition-colors"
+            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-brand-link transition-colors hover:bg-brand-primary/5 dark:hover:bg-brand-primary/15"
             data-testid="track-support"
           >
             <HeartHandshake className="h-3 w-3" />
@@ -227,23 +266,34 @@ export function EmbeddedTrackCard({
         {sourceLabel && (
           // The source's own mark, the way the app brands zap.stream and GitHub:
           // the mark at every width, the name from sm up. A badge, not a door.
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400" title={sourceLabel} data-testid="track-source">
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+            title={sourceLabel}
+            data-testid="track-source"
+          >
             {sourceHost && <Favicon host={sourceHost} className="h-3 w-3 rounded-sm" />}
             <span className="hidden sm:inline">{sourceLabel}</span>
           </span>
         )}
         {genre && (
-          <span className={`hidden rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 transition-opacity sm:inline ${revealCls}`}>
+          <span
+            className={`hidden rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 transition-opacity dark:bg-slate-800 dark:text-slate-400 sm:inline ${revealCls}`}
+          >
             {genre}
           </span>
         )}
         {!player.isActive && total > 0 && (
-          <span className="text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500">{formatTime(total)}</span>
+          <span className="text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500">
+            {formatTime(total)}
+          </span>
         )}
         {onZap && (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onZap(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onZap();
+            }}
             className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-amber-500 transition-all hover:bg-amber-50 dark:hover:bg-amber-500/10 ${revealCls}`}
             aria-label="Zap this track"
             title="Send a zap to support this track"

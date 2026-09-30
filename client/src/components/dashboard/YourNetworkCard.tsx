@@ -66,7 +66,8 @@ export function YourNetworkCard({
 }) {
   const segments = health.filter((s) => s.value > 0);
   const total = segments.reduce((acc, s) => acc + s.value, 0);
-  const statValue = (v: number) => (loading || !isReady ? <BrainLogo size={18} className="animate-pulse text-brand-link" /> : v.toLocaleString());
+  const statValue = (v: number) =>
+    loading || !isReady ? <BrainLogo size={18} className="animate-pulse text-brand-link" /> : v.toLocaleString();
 
   const statTile = (label: string, value: number, icon: React.ReactNode, group: string, faces: NetworkFace[] = []) => (
     // The tile is a plain container, NOT a role="button". Its primary action is a
@@ -75,7 +76,7 @@ export function YourNetworkCard({
     // nesting links inside a role="button" is invalid and unusable with a screen
     // reader. Faces sit above the overlay via z-10.
     <div
-      className={`relative flex h-full flex-col rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.06] dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.12] p-3 transition-all duration-300 overflow-hidden ${isReady ? "border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
+      className={`relative flex h-full flex-col overflow-hidden rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.06] p-3 transition-all duration-300 dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.12] ${isReady ? "border-slate-200/80 hover:-translate-y-0.5 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] dark:border-slate-800/80" : "border-slate-100 dark:border-slate-800/60"}`}
       data-testid={`your-network-${group}`}
     >
       <button
@@ -87,15 +88,22 @@ export function YourNetworkCard({
         data-testid={`your-network-${group}-explore`}
       >
         <span className="mb-2 flex items-center gap-1.5">
-          <span className="p-1 rounded-md bg-brand-deep/8 text-brand-deep">{icon}</span>
-          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</span>
+          <span className="bg-brand-deep/8 rounded-md p-1 text-brand-deep">{icon}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            {label}
+          </span>
         </span>
-        <span className="block text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none">{statValue(value)}</span>
+        <span className="block font-mono text-2xl font-bold leading-none tracking-tight text-slate-900 dark:text-slate-100">
+          {statValue(value)}
+        </span>
       </button>
       {isReady && (
-        <div className="mt-auto pt-2 flex items-end justify-between gap-2">
+        <div className="mt-auto flex items-end justify-between gap-2 pt-2">
           {faceStack(faces)}
-          <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold text-brand-deep/60"><span>Explore</span><ChevronRight className="h-2.5 w-2.5" /></span>
+          <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold text-brand-deep/60">
+            <span>Explore</span>
+            <ChevronRight className="h-2.5 w-2.5" />
+          </span>
         </div>
       )}
     </div>
@@ -132,9 +140,13 @@ export function YourNetworkCard({
                 className="rounded-full outline-none transition-transform hover:z-10 hover:-translate-y-0.5 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-brand-accent/50"
                 data-testid="your-network-face"
               >
-                <Avatar className={`h-6 w-6 rounded-full border border-slate-200 dark:border-slate-800 ${tierRing(f.score01, false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}>
+                <Avatar
+                  className={`h-6 w-6 rounded-full border border-slate-200 dark:border-slate-800 ${tierRing(f.score01, false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}
+                >
                   {f.picture ? <AvatarImage src={f.picture} alt="" className="object-cover" /> : null}
-                  <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+                  <AvatarFallback className="overflow-hidden rounded-full">
+                    <DefaultAvatarImg />
+                  </AvatarFallback>
                 </Avatar>
               </button>
             );
@@ -148,20 +160,33 @@ export function YourNetworkCard({
   };
 
   return (
-    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 flex flex-col gap-3 h-full w-full relative" data-testid="card-your-network">
+    <Card
+      className="relative flex h-full w-full flex-col gap-3 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      data-testid="card-your-network"
+    >
       {!isReady && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px]" data-testid="your-network-locked">
+        <div
+          className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-xl bg-white/60 backdrop-blur-[1px] dark:bg-slate-900/60"
+          data-testid="your-network-locked"
+        >
           <Loader2 className="mb-2 h-5 w-5 animate-spin text-slate-400 dark:text-slate-500" />
-          <span className="text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400">Scores calculating…</span>
+          <span className="text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400">
+            Scores calculating…
+          </span>
         </div>
       )}
-      <div className={`${!isReady ? "opacity-30 pointer-events-none select-none " : ""}flex flex-col gap-3`}>
+      <div className={`${!isReady ? "pointer-events-none select-none opacity-30" : ""}flex flex-col gap-3`}>
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
+          <div className="rounded-lg border border-slate-100 bg-white p-1.5 text-brand-deep shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-800 dark:ring-slate-800">
             <Users className="h-3.5 w-3.5" />
           </div>
-          <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Your Network</span>
-          <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-500 dark:text-slate-400">
+          <span
+            className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Your Network
+          </span>
+          <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Live
           </span>
         </div>
@@ -170,74 +195,99 @@ export function YourNetworkCard({
             the followers/following wrapper so its two tiles join the same 4-col
             grid, and items-stretch makes every box share one height. */}
         <div className={wide ? "grid gap-3 lg:grid-cols-4 lg:items-stretch" : "flex flex-col gap-3"}>
-        {/* Social graph */}
-        <div className={wide ? "contents" : "grid grid-cols-2 gap-2"}>
-          {statTile("Followers", followers, <Award className="h-3 w-3" />, "followed_by", followersFaces)}
-          {statTile("Following", following, <UserPlus className="h-3 w-3" />, "following", followingFaces)}
-        </div>
-
-        {/* Extended reach + hop slider */}
-        <div className="flex h-full flex-col rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider"><Network className="h-3 w-3" /> Extended reach</span>
-            <span className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100">{loading || !isReady ? "—" : extendedCount.toLocaleString()}</span>
+          {/* Social graph */}
+          <div className={wide ? "contents" : "grid grid-cols-2 gap-2"}>
+            {statTile("Followers", followers, <Award className="h-3 w-3" />, "followed_by", followersFaces)}
+            {statTile("Following", following, <UserPlus className="h-3 w-3" />, "following", followingFaces)}
           </div>
-          {/* Fixed-height band centres the slider track so it lands on the exact
+
+          {/* Extended reach + hop slider */}
+          <div className="flex h-full flex-col space-y-2 rounded-lg border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/80">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <Network className="h-3 w-3" /> Extended reach
+              </span>
+              <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100">
+                {loading || !isReady ? "—" : extendedCount.toLocaleString()}
+              </span>
+            </div>
+            {/* Fixed-height band centres the slider track so it lands on the exact
               same line as the trust-health bar in the box beside it. */}
-          <div className="flex h-5 items-center">
-            <Slider
-              value={hopRange}
-              onValueChange={(v) => {
-                if (!isReady) return;
-                const next = (v ?? [1, maxHop]).slice(0, 2) as number[];
-                const lo = Math.min(next[0] ?? 1, next[1] ?? 1);
-                const hi = Math.min(maxHop, Math.max(next[0] ?? 1, next[1] ?? 1));
-                onHopChange([lo, hi]);
-              }}
-              max={maxHop}
-              min={1}
-              step={1}
-              disabled={!isReady}
-              className={isReady ? "cursor-pointer w-full" : "cursor-not-allowed w-full opacity-50"}
-            />
+            <div className="flex h-5 items-center">
+              <Slider
+                value={hopRange}
+                onValueChange={(v) => {
+                  if (!isReady) return;
+                  const next = (v ?? [1, maxHop]).slice(0, 2) as number[];
+                  const lo = Math.min(next[0] ?? 1, next[1] ?? 1);
+                  const hi = Math.min(maxHop, Math.max(next[0] ?? 1, next[1] ?? 1));
+                  onHopChange([lo, hi]);
+                }}
+                max={maxHop}
+                min={1}
+                step={1}
+                disabled={!isReady}
+                className={isReady ? "w-full cursor-pointer" : "w-full cursor-not-allowed opacity-50"}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <span>Direct</span>
+              <span className="text-brand-primary dark:text-brand-link">
+                {hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}–${hopRange[1]}`} hops
+              </span>
+              <span>Global</span>
+            </div>
           </div>
-          <div className="flex justify-between text-[10px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500">
-            <span>Direct</span>
-            <span className="text-brand-primary dark:text-brand-link">{hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}–${hopRange[1]}`} hops</span>
-            <span>Global</span>
-          </div>
-        </div>
 
-        {/* Trust health — compact stacked bar + legend, full detail on /network.
+          {/* Trust health — compact stacked bar + legend, full detail on /network.
             Same boxed chrome as Extended Reach so the two align on one baseline
             when the card goes wide. */}
-        <div className="flex h-full flex-col rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Trust health</span>
-            <button type="button" onClick={() => onNavigate("/network")} className="text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded" data-testid="your-network-health-details">
-              Details →
-            </button>
-          </div>
-          {/* Same 20px band + 1.5 bar height as the slider so both sit on one line. */}
-          <div className="flex h-5 items-center">
-            <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" data-testid="your-network-health-bar">
-              {total > 0 && segments.map((s, i) => (
-                <div key={i} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${(s.value / total) * 100}%`, backgroundColor: isReady ? s.color : "#cbd5e1" }} title={`${s.name}: ${s.value.toLocaleString()}`} />
+          <div className="flex h-full flex-col space-y-2 rounded-lg border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/80">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Trust health
+              </span>
+              <button
+                type="button"
+                onClick={() => onNavigate("/network")}
+                className="rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                data-testid="your-network-health-details"
+              >
+                Details →
+              </button>
+            </div>
+            {/* Same 20px band + 1.5 bar height as the slider so both sit on one line. */}
+            <div className="flex h-5 items-center">
+              <div
+                className="flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                data-testid="your-network-health-bar"
+              >
+                {total > 0 &&
+                  segments.map((s, i) => (
+                    <div
+                      key={i}
+                      className="h-full first:rounded-l-full last:rounded-r-full"
+                      style={{ width: `${(s.value / total) * 100}%`, backgroundColor: isReady ? s.color : "#cbd5e1" }}
+                      title={`${s.name}: ${s.value.toLocaleString()}`}
+                    />
+                  ))}
+              </div>
+            </div>
+            {/* List ALL tiers (not just the ones with data, and no 4-item cap), so
+              the breakdown reads as complete — a user seeing only 3 of the 6 named
+              tiers reasonably thinks it's broken. Zero-value tiers show 0%. */}
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+              {health.map((s, i) => (
+                <span key={i} className="inline-flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                  {s.name}{" "}
+                  <span className="font-mono text-slate-400 dark:text-slate-500">
+                    {total > 0 ? `${Math.round((s.value / total) * 100)}%` : "—"}
+                  </span>
+                </span>
               ))}
             </div>
           </div>
-          {/* List ALL tiers (not just the ones with data, and no 4-item cap), so
-              the breakdown reads as complete — a user seeing only 3 of the 6 named
-              tiers reasonably thinks it's broken. Zero-value tiers show 0%. */}
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-            {health.map((s, i) => (
-              <span key={i} className="inline-flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
-                {s.name} <span className="font-mono text-slate-400 dark:text-slate-500">{total > 0 ? `${Math.round((s.value / total) * 100)}%` : "—"}</span>
-              </span>
-            ))}
-          </div>
-        </div>
         </div>
       </div>
     </Card>

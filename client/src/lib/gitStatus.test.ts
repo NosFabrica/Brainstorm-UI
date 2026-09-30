@@ -24,7 +24,14 @@ describe("gitStateOf", () => {
 
 describe("gitAgentOf", () => {
   it("names the agent that filed an issue, and nothing for a person", () => {
-    expect(gitAgentOf({ tags: [["buzz-origin-agent", "Sentinel"], ["subject", "x"]] })).toBe("Sentinel");
+    expect(
+      gitAgentOf({
+        tags: [
+          ["buzz-origin-agent", "Sentinel"],
+          ["subject", "x"],
+        ],
+      }),
+    ).toBe("Sentinel");
     expect(gitAgentOf({ tags: [["buzz-origin-agent", ""]] })).toBe("agent");
     expect(gitAgentOf({ tags: [["subject", "x"]] })).toBeNull();
   });
@@ -33,7 +40,9 @@ describe("gitAgentOf", () => {
   // "DanConwayDev's Agent". The author says it when the event does not.
   it("reads the author too: a bot flag, or agent or bot in the name", () => {
     const issue = { tags: [["subject", "x"]] };
-    expect(gitAgentOf(issue, { name: "yuki", displayName: "Yuki (Personal Agent)", bot: true })).toBe("Yuki (Personal Agent)");
+    expect(gitAgentOf(issue, { name: "yuki", displayName: "Yuki (Personal Agent)", bot: true })).toBe(
+      "Yuki (Personal Agent)",
+    );
     expect(gitAgentOf(issue, { displayName: "DanConwayDev's Agent" })).toBe("DanConwayDev's Agent");
     expect(gitAgentOf(issue, { name: "buildbot" })).toBeNull(); // whole words only
     expect(gitAgentOf(issue, { name: "Derek Ross" })).toBeNull();
@@ -45,7 +54,17 @@ describe("gitLabelsOf", () => {
   it("reads the maintainer's labels, never NIP-34's structural t-tags", () => {
     // A patch series marks its root and cover letter with t-tags; they say
     // where a patch sits, not how it was triaged.
-    expect(gitLabelsOf({ tags: [["t", "root"], ["t", "cover-letter"], ["t", "Bug"], ["t", "root-revision"], ["t", "android"]] })).toEqual(["bug", "android"]);
+    expect(
+      gitLabelsOf({
+        tags: [
+          ["t", "root"],
+          ["t", "cover-letter"],
+          ["t", "Bug"],
+          ["t", "root-revision"],
+          ["t", "android"],
+        ],
+      }),
+    ).toEqual(["bug", "android"]);
     expect(gitLabelsOf({ tags: [["t", "root"]] })).toEqual([]);
   });
 });

@@ -29,7 +29,15 @@ import { fetchPillProfiles } from "./searchFaces";
 
 const JOE = "e".repeat(64);
 const profile = (name: string, at: number, pubkey = JOE): NostrEvent =>
-  ({ id: `${name}${at}`, kind: 0, pubkey, tags: [], created_at: at, sig: "s", content: JSON.stringify({ display_name: name }) }) as NostrEvent;
+  ({
+    id: `${name}${at}`,
+    kind: 0,
+    pubkey,
+    tags: [],
+    created_at: at,
+    sig: "s",
+    content: JSON.stringify({ display_name: name }),
+  }) as NostrEvent;
 
 /** One REQ answering with these events, then EOSE. */
 const answers = (events: NostrEvent[]) =>
@@ -62,9 +70,13 @@ describe("fetchPillProfiles", () => {
     loadReplaceableMock.mockResolvedValue(profile("Joe Martin", 100));
     await fetchPillProfiles([JOE]);
     expect(outboxMock).toHaveBeenCalledWith(JOE, ["wss://default.example/"]);
-    expect(loadReplaceableMock).toHaveBeenCalledWith(0, JOE, expect.objectContaining({
-      relays: ["wss://joes-own-relay.example/"],
-    }));
+    expect(loadReplaceableMock).toHaveBeenCalledWith(
+      0,
+      JOE,
+      expect.objectContaining({
+        relays: ["wss://joes-own-relay.example/"],
+      }),
+    );
   });
 
   it("the newer kind-0 wins — their own relays carry what they last published", async () => {
@@ -119,7 +131,13 @@ describe("fetchPillProfiles", () => {
   });
 
   it("a relay that errors does not take the other source down with it", async () => {
-    reqMock.mockImplementation(() => new Observable((sub) => { sub.error(new Error("closed")); return () => {}; }));
+    reqMock.mockImplementation(
+      () =>
+        new Observable((sub) => {
+          sub.error(new Error("closed"));
+          return () => {};
+        }),
+    );
     loadReplaceableMock.mockResolvedValue(profile("Joe Martin", 100));
     expect((await fetchPillProfiles([JOE])).get(JOE)?.displayName).toBe("Joe Martin");
   });

@@ -8,11 +8,12 @@ import { PlanMappingsCard } from "./PlanMappingsCard";
 const getAdminBillingPlanMappings = vi.fn<() => Promise<AdminBillingPlanMapping[]>>();
 const getSchedulingPolicies = vi.fn<() => Promise<SchedulingItem[]>>();
 const createAdminBillingPlan = vi.fn<(body: unknown) => Promise<AdminBillingPlanMapping>>();
-const updateAdminBillingPlan =
-  vi.fn<(id: number, body: unknown) => Promise<AdminBillingPlanMapping>>();
+const updateAdminBillingPlan = vi.fn<(id: number, body: unknown) => Promise<AdminBillingPlanMapping>>();
 
 const getBillingPlans = vi.fn<() => Promise<{ plans: unknown[] }>>(async () => ({ plans: [] }));
-const getAdminBillingFlashServices = vi.fn<() => Promise<FlashServiceItem[]>>(async () => { throw new Error("Flash list unavailable in this test"); });
+const getAdminBillingFlashServices = vi.fn<() => Promise<FlashServiceItem[]>>(async () => {
+  throw new Error("Flash list unavailable in this test");
+});
 vi.mock("@/services/api", () => ({
   apiClient: {
     // Flash's live list is unavailable in these suites, so the mapping dialog
@@ -86,7 +87,21 @@ describe("PlanMappingsCard", () => {
     // Flash lists the plan we sell; the chip says "For sale" only when that is true.
     getBillingPlans.mockResolvedValue({
       plans: [
-        { policy_id: 7, policy_name: "Priority", schedule_interval_seconds: 604800, is_default: false, plan_id: "4f2a", plan_name: "Priority", description: null, amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x", features: null, not_included: null },
+        {
+          policy_id: 7,
+          policy_name: "Priority",
+          schedule_interval_seconds: 604800,
+          is_default: false,
+          plan_id: "4f2a",
+          plan_name: "Priority",
+          description: null,
+          amount_minor: 200,
+          currency: "USD",
+          billing_interval: "monthly",
+          checkout_url: "https://x",
+          features: null,
+          not_included: null,
+        },
       ],
     });
     getAdminBillingPlanMappings.mockResolvedValue([
@@ -114,12 +129,42 @@ describe("PlanMappingsCard", () => {
   it("names and prices each mapping from Flash's plans list", async () => {
     getBillingPlans.mockResolvedValue({
       plans: [
-        { policy_id: 7, policy_name: "Priority", schedule_interval_seconds: 604800, is_default: false, plan_id: "4f2a", plan_name: "Priority", description: null, amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x", features: null, not_included: null },
+        {
+          policy_id: 7,
+          policy_name: "Priority",
+          schedule_interval_seconds: 604800,
+          is_default: false,
+          plan_id: "4f2a",
+          plan_name: "Priority",
+          description: null,
+          amount_minor: 200,
+          currency: "USD",
+          billing_interval: "monthly",
+          checkout_url: "https://x",
+          features: null,
+          not_included: null,
+        },
       ],
     });
     getAdminBillingPlanMappings.mockResolvedValue([
-      { id: 1, flash_service_id: "9c1e", flash_plan_id: "4f2a", scheduling_id: 7, is_active: true, created_at: "", updated_at: "" } as AdminBillingPlanMapping,
-      { id: 2, flash_service_id: "9c1e", flash_plan_id: "zzzz", scheduling_id: 7, is_active: true, created_at: "", updated_at: "" } as AdminBillingPlanMapping,
+      {
+        id: 1,
+        flash_service_id: "9c1e",
+        flash_plan_id: "4f2a",
+        scheduling_id: 7,
+        is_active: true,
+        created_at: "",
+        updated_at: "",
+      } as AdminBillingPlanMapping,
+      {
+        id: 2,
+        flash_service_id: "9c1e",
+        flash_plan_id: "zzzz",
+        scheduling_id: 7,
+        is_active: true,
+        created_at: "",
+        updated_at: "",
+      } as AdminBillingPlanMapping,
     ]);
     getSchedulingPolicies.mockResolvedValue(POLICIES);
     renderCard();
@@ -141,7 +186,21 @@ describe("PlanMappingsCard", () => {
   it("puts what sells first under its own heading, then what does not — and each row says which it is", async () => {
     getBillingPlans.mockResolvedValue({
       plans: [
-        { policy_id: 7, policy_name: "Priority", schedule_interval_seconds: 604800, is_default: false, plan_id: "4f2a", plan_name: "Priority", description: null, amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x", features: null, not_included: null },
+        {
+          policy_id: 7,
+          policy_name: "Priority",
+          schedule_interval_seconds: 604800,
+          is_default: false,
+          plan_id: "4f2a",
+          plan_name: "Priority",
+          description: null,
+          amount_minor: 200,
+          currency: "USD",
+          billing_interval: "monthly",
+          checkout_url: "https://x",
+          features: null,
+          not_included: null,
+        },
       ],
     });
     getAdminBillingPlanMappings.mockResolvedValue([
@@ -151,7 +210,7 @@ describe("PlanMappingsCard", () => {
     ]);
     const { container } = renderCard();
     await waitFor(() => expect(screen.getByTestId("billing-plan-1").textContent).toContain("$2.00"));
-    const order = [...container.querelectorAll ? [] : container.querySelectorAll('[data-testid^="billing-plan-"]')]
+    const order = [...(container.querelectorAll ? [] : container.querySelectorAll('[data-testid^="billing-plan-"]'))]
       .map((e) => e.getAttribute("data-testid") as string)
       .filter((id) => /^billing-plan-\d+$/.test(id));
     expect(order).toEqual(["billing-plan-1", "billing-plan-2", "billing-plan-3"]);
@@ -185,7 +244,21 @@ describe("PlanMappingsCard", () => {
   it("a withdrawn mapping says so in grey; only a mapping Flash dropped wears the amber line; a name said once", async () => {
     getBillingPlans.mockResolvedValue({
       plans: [
-        { policy_id: 7, policy_name: "Priority", schedule_interval_seconds: 604800, is_default: false, plan_id: "4f2a", plan_name: "Priority", description: null, amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x", features: null, not_included: null },
+        {
+          policy_id: 7,
+          policy_name: "Priority",
+          schedule_interval_seconds: 604800,
+          is_default: false,
+          plan_id: "4f2a",
+          plan_name: "Priority",
+          description: null,
+          amount_minor: 200,
+          currency: "USD",
+          billing_interval: "monthly",
+          checkout_url: "https://x",
+          features: null,
+          not_included: null,
+        },
       ],
     });
     getAdminBillingPlanMappings.mockResolvedValue([
@@ -256,9 +329,7 @@ describe("PlanMappingsCard", () => {
     await user.click(await screen.findByTestId("button-edit-plan-1"));
     await user.click(screen.getByTestId("button-plan-mapping-submit"));
 
-    await waitFor(() =>
-      expect(screen.queryByTestId("dialog-plan-mapping-form")).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByTestId("dialog-plan-mapping-form")).not.toBeInTheDocument());
     expect(updateAdminBillingPlan).not.toHaveBeenCalled();
   });
 
@@ -303,12 +374,30 @@ describe("PlanMappingsCard", () => {
   it("names each mapping's Flash service when the account's list knows it, and keeps the id when it does not", async () => {
     getAdminBillingFlashServices.mockResolvedValue([{ id: "9c1e", name: "Brainstorm - Testing ***" }]);
     getAdminBillingPlanMappings.mockResolvedValue([
-      { id: 1, flash_service_id: "9c1e", flash_plan_id: "4f2a", scheduling_id: 7, is_active: true, created_at: "", updated_at: "" } as AdminBillingPlanMapping,
-      { id: 2, flash_service_id: "0000", flash_plan_id: "zzzz", scheduling_id: 7, is_active: true, created_at: "", updated_at: "" } as AdminBillingPlanMapping,
+      {
+        id: 1,
+        flash_service_id: "9c1e",
+        flash_plan_id: "4f2a",
+        scheduling_id: 7,
+        is_active: true,
+        created_at: "",
+        updated_at: "",
+      } as AdminBillingPlanMapping,
+      {
+        id: 2,
+        flash_service_id: "0000",
+        flash_plan_id: "zzzz",
+        scheduling_id: 7,
+        is_active: true,
+        created_at: "",
+        updated_at: "",
+      } as AdminBillingPlanMapping,
     ]);
     renderCard();
     await screen.findByTestId("billing-plan-1");
-    await waitFor(() => expect(screen.getByTestId("billing-plan-service-1")).toHaveTextContent("Brainstorm - Testing ***"));
+    await waitFor(() =>
+      expect(screen.getByTestId("billing-plan-service-1")).toHaveTextContent("Brainstorm - Testing ***"),
+    );
     expect(screen.getByTestId("billing-plan-service-1")).not.toHaveTextContent("9c1e");
     expect(screen.getByTestId("billing-plan-service-2")).toHaveTextContent("0000");
   });

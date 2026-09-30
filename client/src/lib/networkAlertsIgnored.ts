@@ -44,15 +44,22 @@ export function hasEscalated(atReports: number | null, currentReports: number): 
   return currentReports >= Math.max(atReports * 2, atReports + 5);
 }
 
-function normalize(raw: any): IgnoredEntry[] {
+type RawEntry = { pubkey?: unknown; atReports?: unknown } | null;
+
+function normalize(raw: { entries?: unknown; pubkeys?: unknown } | null | undefined): IgnoredEntry[] {
   if (Array.isArray(raw?.entries)) {
     return raw.entries
-      .filter((e: any) => e && typeof e.pubkey === "string")
-      .map((e: any) => ({ pubkey: e.pubkey, atReports: typeof e.atReports === "number" ? e.atReports : null }));
+      .filter((e: RawEntry): e is { pubkey: string; atReports?: unknown } => !!e && typeof e.pubkey === "string")
+      .map((e: { pubkey: string; atReports?: unknown }) => ({
+        pubkey: e.pubkey,
+        atReports: typeof e.atReports === "number" ? e.atReports : null,
+      }));
   }
   // Legacy shape: { pubkeys: string[] } with no baseline recorded.
   if (Array.isArray(raw?.pubkeys)) {
-    return raw.pubkeys.filter((p: any) => typeof p === "string").map((pubkey: string) => ({ pubkey, atReports: null }));
+    return raw.pubkeys
+      .filter((p: unknown): p is string => typeof p === "string")
+      .map((pubkey: string) => ({ pubkey, atReports: null }));
   }
   return [];
 }
@@ -93,13 +100,21 @@ export function getIgnoreSyncState(): IgnoreSyncState {
 
 export function onIgnoreSyncChange(fn: (s: IgnoreSyncState) => void): () => void {
   syncListeners.add(fn);
-  return () => { syncListeners.delete(fn); };
+  return () => {
+    syncListeners.delete(fn);
+  };
 }
 
 function setSyncState(next: IgnoreSyncState) {
   if (next === syncState) return;
   syncState = next;
-  for (const fn of syncListeners) { try { fn(next); } catch { /* a listener must not break the others */ } }
+  for (const fn of syncListeners) {
+    try {
+      fn(next);
+    } catch {
+      /* a listener must not break the others */
+    }
+  }
 }
 
 /**
@@ -114,14 +129,20 @@ function isPermanentFailure(error?: string): boolean {
 
 const dirtyKey = (observer: string) => accountKey("brainstorm_alert_prefs_dirty", observer);
 const isDirty = (observer: string) => {
-  try { return !!observer && localStorage.getItem(dirtyKey(observer)) === "1"; } catch { return false; }
+  try {
+    return !!observer && localStorage.getItem(dirtyKey(observer)) === "1";
+  } catch {
+    return false;
+  }
 };
 const setDirty = (observer: string, on: boolean) => {
   try {
     if (!observer) return;
     if (on) localStorage.setItem(dirtyKey(observer), "1");
     else localStorage.removeItem(dirtyKey(observer));
-  } catch { /* private mode */ }
+  } catch {
+    /* private mode */
+  }
 };
 
 let inFlight: Promise<IgnoreSyncState> = Promise.resolve("ok");
@@ -177,7 +198,9 @@ export function flushIgnoredToNostr(
     if (retryTimer) clearTimeout(retryTimer);
     // Carries the mode: a background flush that hit a relay blip must not come
     // back fifteen seconds later as a password prompt.
-    retryTimer = setTimeout(() => { void flushIgnoredToNostr(observer, { background }); }, 15_000);
+    retryTimer = setTimeout(() => {
+      void flushIgnoredToNostr(observer, { background });
+    }, 15_000);
     return "retrying" as const;
   })();
   return inFlight;
@@ -217,7 +240,10 @@ function persist(
   const next = Array.from(byKey.values());
   if (observer) {
     try {
-      localStorage.setItem(storageKey(observer), JSON.stringify({ entries: next, updated_at: Date.now() } satisfies IgnoredAlerts));
+      localStorage.setItem(
+        storageKey(observer),
+        JSON.stringify({ entries: next, updated_at: Date.now() } satisfies IgnoredAlerts),
+      );
     } catch {
       // ignore (private mode / SSR)
     }
@@ -237,7 +263,10 @@ export function ignoreAlert(observer: string, pubkey: string, atReports: number)
 }
 
 export function unignoreAlert(observer: string, pubkey: string): Map<string, number | null> {
-  return persist(observer, load(observer).filter((e) => e.pubkey !== pubkey));
+  return persist(
+    observer,
+    load(observer).filter((e) => e.pubkey !== pubkey),
+  );
 }
 
 /**
@@ -246,14 +275,20 @@ export function unignoreAlert(observer: string, pubkey: string): Map<string, num
  * by pubkey so re-ignoring an already-ignored account just refreshes its
  * escalation baseline.
  */
-export function ignoreMany(observer: string, items: { pubkey: string; atReports: number }[]): Map<string, number | null> {
+export function ignoreMany(
+  observer: string,
+  items: { pubkey: string; atReports: number }[],
+): Map<string, number | null> {
   return persist(observer, [...load(observer), ...items.map((i) => ({ pubkey: i.pubkey, atReports: i.atReports }))]);
 }
 
 /** Un-ignore many accounts in one shot (the Undo for ignoreMany). */
 export function unignoreMany(observer: string, pubkeys: string[]): Map<string, number | null> {
   const drop = new Set(pubkeys);
-  return persist(observer, load(observer).filter((e) => !drop.has(e.pubkey)));
+  return persist(
+    observer,
+    load(observer).filter((e) => !drop.has(e.pubkey)),
+  );
 }
 
 /**
@@ -314,7 +349,9 @@ export function markActed(observer: string, pubkey: string): Set<string> {
   const next = actedAlertSet(observer);
   next.add(pubkey);
   if (observer) {
-    try { localStorage.setItem(actedKey(observer), JSON.stringify(Array.from(next))); } catch {}
+    try {
+      localStorage.setItem(actedKey(observer), JSON.stringify(Array.from(next)));
+    } catch {}
   }
   return next;
 }

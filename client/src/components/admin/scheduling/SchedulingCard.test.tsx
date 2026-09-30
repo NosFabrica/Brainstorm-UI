@@ -18,12 +18,24 @@ vi.mock("@/services/nostr", async (importOriginal) => {
 });
 
 const WEEKLY: SchedulingItem = {
-  id: 1, name: "Weekly", schedule_interval_seconds: 604800, priority: 0,
-  enabled: true, is_default: true, manual_quota_limit: 20, manual_quota_window_seconds: 604800,
+  id: 1,
+  name: "Weekly",
+  schedule_interval_seconds: 604800,
+  priority: 0,
+  enabled: true,
+  is_default: true,
+  manual_quota_limit: 20,
+  manual_quota_window_seconds: 604800,
 };
 const DAILY: SchedulingItem = {
-  id: 2, name: "Daily", schedule_interval_seconds: 86400, priority: 10,
-  enabled: true, is_default: false, manual_quota_limit: 20, manual_quota_window_seconds: 86400,
+  id: 2,
+  name: "Daily",
+  schedule_interval_seconds: 86400,
+  priority: 10,
+  enabled: true,
+  is_default: false,
+  manual_quota_limit: 20,
+  manual_quota_window_seconds: 86400,
 };
 
 afterEach(() => {
@@ -66,10 +78,7 @@ describe("SchedulingCard", () => {
   });
 
   it("marks the policies that include priority support", async () => {
-    vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([
-      { ...WEEKLY, support_included: true },
-      DAILY,
-    ]);
+    vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([{ ...WEEKLY, support_included: true }, DAILY]);
 
     renderWithProviders(<SchedulingCard active />);
 
@@ -109,9 +118,7 @@ describe("SchedulingCard", () => {
   });
 
   it("shows a loading state while policies are fetching", () => {
-    vi.spyOn(apiClient, "getSchedulingPolicies").mockReturnValue(
-      new Promise(() => {}),
-    );
+    vi.spyOn(apiClient, "getSchedulingPolicies").mockReturnValue(new Promise(() => {}));
 
     renderWithProviders(<SchedulingCard active />);
 
@@ -136,15 +143,17 @@ describe("SchedulingCard", () => {
 
   it("creates a policy via the New Policy dialog and refreshes the list", async () => {
     const created: SchedulingItem = {
-      id: 3, name: "Hourly", schedule_interval_seconds: 3600, priority: 0,
-      enabled: true, is_default: false, manual_quota_limit: 20, manual_quota_window_seconds: 604800,
+      id: 3,
+      name: "Hourly",
+      schedule_interval_seconds: 3600,
+      priority: 0,
+      enabled: true,
+      is_default: false,
+      manual_quota_limit: 20,
+      manual_quota_window_seconds: 604800,
     };
-    vi.spyOn(apiClient, "getSchedulingPolicies")
-      .mockResolvedValueOnce([WEEKLY])
-      .mockResolvedValue([WEEKLY, created]);
-    const createSpy = vi
-      .spyOn(apiClient, "createSchedulingPolicy")
-      .mockResolvedValue(created);
+    vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValueOnce([WEEKLY]).mockResolvedValue([WEEKLY, created]);
+    const createSpy = vi.spyOn(apiClient, "createSchedulingPolicy").mockResolvedValue(created);
 
     renderWithProviders(<SchedulingCard active />);
     await screen.findByText("Weekly");
@@ -164,9 +173,7 @@ describe("SchedulingCard", () => {
     vi.spyOn(apiClient, "getSchedulingPolicies")
       .mockResolvedValueOnce([DAILY])
       .mockResolvedValue([{ ...DAILY, name: "Renamed" }]);
-    const updateSpy = vi
-      .spyOn(apiClient, "updateSchedulingPolicy")
-      .mockResolvedValue({ ...DAILY, name: "Renamed" });
+    const updateSpy = vi.spyOn(apiClient, "updateSchedulingPolicy").mockResolvedValue({ ...DAILY, name: "Renamed" });
 
     renderWithProviders(<SchedulingCard active />);
     await screen.findByText("Daily");
@@ -183,9 +190,7 @@ describe("SchedulingCard", () => {
     vi.spyOn(apiClient, "getSchedulingPolicies")
       .mockResolvedValueOnce([DAILY])
       .mockResolvedValue([{ ...DAILY, enabled: false }]);
-    const updateSpy = vi
-      .spyOn(apiClient, "updateSchedulingPolicy")
-      .mockResolvedValue({ ...DAILY, enabled: false });
+    const updateSpy = vi.spyOn(apiClient, "updateSchedulingPolicy").mockResolvedValue({ ...DAILY, enabled: false });
 
     renderWithProviders(<SchedulingCard active />);
     await screen.findByText("Daily");
@@ -206,9 +211,7 @@ describe("SchedulingCard", () => {
 
     fireEvent.click(within(row).getByRole("switch"));
 
-    await waitFor(() =>
-      expect(within(row).getByRole("switch")).toHaveAttribute("aria-checked", "true"),
-    );
+    await waitFor(() => expect(within(row).getByRole("switch")).toHaveAttribute("aria-checked", "true"));
   });
 
   it("disables Delete for the default policy only", async () => {
@@ -224,9 +227,7 @@ describe("SchedulingCard", () => {
   });
 
   it("deletes a non-default policy after confirmation", async () => {
-    vi.spyOn(apiClient, "getSchedulingPolicies")
-      .mockResolvedValueOnce([WEEKLY, DAILY])
-      .mockResolvedValue([WEEKLY]);
+    vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValueOnce([WEEKLY, DAILY]).mockResolvedValue([WEEKLY]);
     const delSpy = vi.spyOn(apiClient, "deleteSchedulingPolicy").mockResolvedValue();
 
     renderWithProviders(<SchedulingCard active />);
@@ -260,7 +261,10 @@ describe("SchedulingCard", () => {
     vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([DAILY]);
     vi.spyOn(apiClient, "getSchedulingPolicyUsers").mockResolvedValue({
       items: [{ pubkey: A, last_time_published_graperank: null }],
-      total: 1, page: 1, size: 20, pages: 1,
+      total: 1,
+      page: 1,
+      size: 20,
+      pages: 1,
     });
 
     renderWithProviders(<SchedulingCard active />);
@@ -277,7 +281,11 @@ describe("SchedulingCard", () => {
   it("opens the Assign-users dialog (with paste box) from an expanded row", async () => {
     vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([DAILY]);
     vi.spyOn(apiClient, "getSchedulingPolicyUsers").mockResolvedValue({
-      items: [], total: 0, page: 1, size: 20, pages: 1,
+      items: [],
+      total: 0,
+      page: 1,
+      size: 20,
+      pages: 1,
     });
 
     renderWithProviders(<SchedulingCard active />);

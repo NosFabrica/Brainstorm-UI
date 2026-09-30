@@ -6,7 +6,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 
-const song = { id: "podcastindex:s1", eventId: "s1", title: "Step Into the Light", artist: "Torcon 7", audio: "https://mp3s.podcastindex.org/x.mp3", source: "podcastindex" as const };
+const song = {
+  id: "podcastindex:s1",
+  eventId: "s1",
+  title: "Step Into the Light",
+  artist: "Torcon 7",
+  audio: "https://mp3s.podcastindex.org/x.mp3",
+  source: "podcastindex" as const,
+};
 const fetchMock = vi.fn(async () => ({ songs: [song], musicians: [] }));
 vi.mock("@/services/dlists", () => ({ fetchPodcastIndexMusic: () => fetchMock() }));
 

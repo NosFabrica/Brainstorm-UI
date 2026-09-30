@@ -104,7 +104,7 @@ export default function BillingReturnPage() {
   }, [phase, isPaid, status]);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-start justify-center px-4 pt-24">
+    <div className="flex min-h-screen items-start justify-center bg-slate-50 px-4 pt-24 dark:bg-slate-950">
       <Card className="w-full max-w-md p-6 sm:p-7" data-testid="billing-return">
         {!signedIn ? (
           <>
@@ -113,24 +113,25 @@ export default function BillingReturnPage() {
               Sign in to finish connecting your payment to your account.
             </p>
             <Button className="mt-4 w-full gap-1.5" asChild data-testid="billing-return-signin">
-              <Link href="/login">Sign in <ArrowRight className="h-4 w-4" /></Link>
+              <Link href="/login">
+                Sign in <ArrowRight className="h-4 w-4" />
+              </Link>
             </Button>
           </>
         ) : phase === "done" ? (
           <>
             <div className="flex items-center gap-2.5">
               <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                {planName} is on
-              </h1>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">{planName} is on</h1>
             </div>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-success">
-              Payment received. Your scores now refresh on the {planName} schedule —
-              nothing else to do.
+              Payment received. Your scores now refresh on the {planName} schedule — nothing else to do.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button asChild className="gap-1.5" data-testid="billing-return-insights">
-                <Link href="/insights">See your plan <ArrowRight className="h-4 w-4" /></Link>
+                <Link href="/insights">
+                  See your plan <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/settings?tab=billing">Billing</Link>
@@ -139,18 +140,24 @@ export default function BillingReturnPage() {
           </>
         ) : phase === "mismatch" ? (
           <>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">This payment belongs to a different account</h1>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              This payment belongs to a different account
+            </h1>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-mismatch">
-              The subscription this link names is connected to another account, so it can't be applied
-              here. If you paid while signed in elsewhere, switch to that account and it will be waiting.
-              If you're sure it should be this one, get in touch with the payment id and we'll sort it out.
+              The subscription this link names is connected to another account, so it can't be applied here. If you paid
+              while signed in elsewhere, switch to that account and it will be waiting. If you're sure it should be this
+              one, get in touch with the payment id and we'll sort it out.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button asChild className="gap-1.5" data-testid="billing-return-switch-account">
-                <Link href="/login?switch=1">Switch account <ArrowRight className="h-4 w-4" /></Link>
+                <Link href="/login?switch=1">
+                  Switch account <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
               <Button asChild variant="outline" data-testid="billing-return-support">
-                <a href={`mailto:support@nosfabrica.com?subject=${encodeURIComponent(`Payment ${claimedId ?? ""} shows on the wrong account`)}`}>
+                <a
+                  href={`mailto:support@nosfabrica.com?subject=${encodeURIComponent(`Payment ${claimedId ?? ""} shows on the wrong account`)}`}
+                >
                   Contact support
                 </a>
               </Button>
@@ -160,12 +167,14 @@ export default function BillingReturnPage() {
           <>
             <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">We couldn't find that payment</h1>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-unknown">
-              Our payment provider has no subscription matching this link, so nothing has changed on your
-              account. If the checkout was interrupted, starting again from pricing is safe.
+              Our payment provider has no subscription matching this link, so nothing has changed on your account. If
+              the checkout was interrupted, starting again from pricing is safe.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button asChild className="gap-1.5" data-testid="billing-return-retry">
-                <Link href="/pricing">Back to pricing <ArrowRight className="h-4 w-4" /></Link>
+                <Link href="/pricing">
+                  Back to pricing <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/settings?tab=billing">Billing</Link>
@@ -180,7 +189,9 @@ export default function BillingReturnPage() {
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button asChild className="gap-1.5">
-                <Link href="/pricing">Back to pricing <ArrowRight className="h-4 w-4" /></Link>
+                <Link href="/pricing">
+                  Back to pricing <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/">Home</Link>
@@ -194,11 +205,10 @@ export default function BillingReturnPage() {
               <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Confirming your payment</h1>
             </div>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-pending">
-              We haven't seen your payment land yet — usually this takes a minute or two, though
-              Lightning can take about ten. This page updates on its own for ten minutes, and it's
-              safe to leave; your plan switches the moment it clears. After that, reload to check
-              again — if it still hasn't cleared, the payment didn't go through, nothing was
-              charged, and it's safe to try again.
+              We haven't seen your payment land yet — usually this takes a minute or two, though Lightning can take
+              about ten. This page updates on its own for ten minutes, and it's safe to leave; your plan switches the
+              moment it clears. After that, reload to check again — if it still hasn't cleared, the payment didn't go
+              through, nothing was charged, and it's safe to try again.
             </p>
             {flashUnavailable && (
               <p className="mt-2 text-xs text-slate-400 dark:text-slate-500" data-testid="billing-return-unavailable">

@@ -57,21 +57,41 @@ beforeEach(() => {
 // was filed as identity, live), so an identity confirmation only counts from
 // someone you follow or a verified account — and the words travel with it.
 describe("rankVouches / identityConfirmers", () => {
-  const vouch = (id: string, pubkey: string, type: "vouch" | "identity", text: string, at: number) => ({ id, pubkey, type, text, at });
+  const vouch = (id: string, pubkey: string, type: "vouch" | "identity", text: string, at: number) => ({
+    id,
+    pubkey,
+    type,
+    text,
+    at,
+  });
   const ctx = { follows: new Set([C]), scoreOf: (pk: string) => ({ [A]: 0.9, [B]: null, [C]: null, [D]: 0.3 })[pk] };
 
   it("orders vouches by the reviewer's standing, keeping type and words", () => {
     const ranked = rankVouches(
-      [vouch("b", B, "identity", "this mf is a fake", 400), vouch("a", A, "vouch", "solid dev", 100), vouch("c", C, "vouch", "my friend", 50), vouch("d", D, "identity", "real", 200)],
+      [
+        vouch("b", B, "identity", "this mf is a fake", 400),
+        vouch("a", A, "vouch", "solid dev", 100),
+        vouch("c", C, "vouch", "my friend", 50),
+        vouch("d", D, "identity", "real", 200),
+      ],
       ctx,
     );
-    expect(ranked.map((r) => [r.pubkey, r.group])).toEqual([[C, "followed"], [A, "verified"], [D, "verified"], [B, "other"]]);
+    expect(ranked.map((r) => [r.pubkey, r.group])).toEqual([
+      [C, "followed"],
+      [A, "verified"],
+      [D, "verified"],
+      [B, "other"],
+    ]);
     expect(ranked[0]).toMatchObject({ id: "c", type: "vouch", text: "my friend", score: null });
   });
 
   it("counts identity confirmations only from trusted reviewers", () => {
     const ranked = rankVouches(
-      [vouch("b", B, "identity", "this mf is a fake", 400), vouch("d", D, "identity", "✅ real", 200), vouch("a", A, "vouch", "solid dev", 100)],
+      [
+        vouch("b", B, "identity", "this mf is a fake", 400),
+        vouch("d", D, "identity", "✅ real", 200),
+        vouch("a", A, "vouch", "solid dev", 100),
+      ],
       ctx,
     );
     expect(identityConfirmers(ranked).map((r) => r.pubkey)).toEqual([D]);
@@ -79,7 +99,15 @@ describe("rankVouches / identityConfirmers", () => {
 });
 
 describe("fetchAppEndorsements", () => {
-  const review = (id: string, pubkey: string, k: string | null, at = 1) => ({ id, pubkey, text: id, at, version: null, k, kind: 1111 });
+  const review = (id: string, pubkey: string, k: string | null, at = 1) => ({
+    id,
+    pubkey,
+    text: id,
+    at,
+    version: null,
+    k,
+    kind: 1111,
+  });
 
   it("composes reviews, zaps and counts, dropping the publisher's own words and nested replies", async () => {
     reviewsMock.mockResolvedValue([
@@ -130,17 +158,26 @@ describe("fetchAppEndorsements", () => {
 // viewer's own when they look through My perspective.
 describe("fetchPersonEndorsements", () => {
   it("reads the top verified followers, keeping each one's score for its ring — and the person's vouches", async () => {
-    connectionsMock.mockResolvedValue({ data: { items: [A, { pubkey: B, influence: 0.42 }, { pubkey: "" }], total: 1234 } });
+    connectionsMock.mockResolvedValue({
+      data: { items: [A, { pubkey: B, influence: 0.42 }, { pubkey: "" }], total: 1234 },
+    });
     vouchesMock.mockResolvedValue([{ id: "v", pubkey: D, type: "vouch", text: "solid", at: 1 }]);
     const e = await fetchPersonEndorsements(C, { personal: false });
     expect(e).toEqual({
-      followedBy: [{ pubkey: A, score01: null }, { pubkey: B, score01: 0.42 }],
+      followedBy: [
+        { pubkey: A, score01: null },
+        { pubkey: B, score01: 0.42 },
+      ],
       total: 1234,
       vouches: [{ id: "v", pubkey: D, type: "vouch", text: "solid", at: 1 }],
     });
     expect(vouchesMock).toHaveBeenCalledWith(C);
     expect(connectionsMock).toHaveBeenCalledWith(C, "followed_by", {
-      limit: 8, order: "desc", verified_only: true, with_total: true, house: true,
+      limit: 8,
+      order: "desc",
+      verified_only: true,
+      with_total: true,
+      house: true,
     });
   });
 
@@ -155,7 +192,9 @@ describe("fetchPersonEndorsements", () => {
     connectionsMock.mockRejectedValue(new Error("500"));
     vouchesMock.mockResolvedValue([{ id: "v", pubkey: D, type: "vouch", text: "solid", at: 1 }]);
     expect(await fetchPersonEndorsements(C, { personal: false })).toEqual({
-      followedBy: [], total: null, vouches: [{ id: "v", pubkey: D, type: "vouch", text: "solid", at: 1 }],
+      followedBy: [],
+      total: null,
+      vouches: [{ id: "v", pubkey: D, type: "vouch", text: "solid", at: 1 }],
     });
   });
 });
@@ -180,7 +219,10 @@ describe("rankEndorsers", () => {
 
   it("counts a person once, keeping their latest endorsement", () => {
     const ranked = rankEndorsers(
-      [{ pubkey: A, at: 10 }, { pubkey: A, at: 90 }],
+      [
+        { pubkey: A, at: 10 },
+        { pubkey: A, at: 90 },
+      ],
       { follows: new Set(), scoreOf: () => 0.5 },
     );
     expect(ranked).toEqual([{ pubkey: A, at: 90, score: 0.5, group: "verified" }]);
@@ -188,7 +230,10 @@ describe("rankEndorsers", () => {
 
   it("breaks ties within a group by recency", () => {
     const ranked = rankEndorsers(
-      [{ pubkey: A, at: 10 }, { pubkey: B, at: 20 }],
+      [
+        { pubkey: A, at: 10 },
+        { pubkey: B, at: 20 },
+      ],
       { follows: new Set(), scoreOf: () => null },
     );
     expect(ranked.map((e) => e.pubkey)).toEqual([B, A]);
@@ -209,7 +254,9 @@ describe("endorsementLabel", () => {
   });
 
   it("tidies names as people actually write them — live: a display name with newlines, another 40 characters long", () => {
-    expect(endorsementLabel("Reviewed", ["𝕋ℍ𝔼 𝕋𝕆𝔻𝔻𝕊𝕋ℝ\r\n\r\n", "  capybara "], 14)).toBe("Reviewed by 𝕋ℍ𝔼 𝕋𝕆𝔻𝔻𝕊𝕋ℝ, capybara & 12 others");
+    expect(endorsementLabel("Reviewed", ["𝕋ℍ𝔼 𝕋𝕆𝔻𝔻𝕊𝕋ℝ\r\n\r\n", "  capybara "], 14)).toBe(
+      "Reviewed by 𝕋ℍ𝔼 𝕋𝕆𝔻𝔻𝕊𝕋ℝ, capybara & 12 others",
+    );
     expect(endorsementLabel("Reviewed", ["x".repeat(40)], 1)).toBe(`Reviewed by ${"x".repeat(23)}…`);
     // A name that is all whitespace resolves to nothing.
     expect(endorsementLabel("Reviewed", ["\n"], 3)).toBe("Reviewed by 3 people");
@@ -262,7 +309,9 @@ describe("visiblePersonSets", () => {
 describe("quoteFor", () => {
   it("keeps a short review whole and cuts a long one at a sentence boundary", () => {
     expect(quoteFor("Perfect APP! Thanks!")).toBe("Perfect APP! Thanks!");
-    expect(quoteFor("love Amethyst. is my daily driver, but it seems to be melting my battery lately and I wish it did not")).toBe("love Amethyst.");
+    expect(
+      quoteFor("love Amethyst. is my daily driver, but it seems to be melting my battery lately and I wish it did not"),
+    ).toBe("love Amethyst.");
   });
 
   it("has nothing to quote from a review with no words — live: the top verified review of Amethyst is '👍'", () => {

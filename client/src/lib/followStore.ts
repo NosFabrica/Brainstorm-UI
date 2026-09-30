@@ -55,11 +55,7 @@ export function knownFollowCount(pubkey: string): number {
  * overwrites; an observed relay read is only stored when it doesn't shrink the
  * known floor (so a stale/short relay response can never lower our guard).
  */
-export function recordFollowList(
-  pubkey: string,
-  event: FollowEventLike,
-  opts: { authoritative?: boolean } = {},
-): void {
+export function recordFollowList(pubkey: string, event: FollowEventLike, opts: { authoritative?: boolean } = {}): void {
   if (!pubkey || !event?.tags) return;
   try {
     const newCount = countFollows(event.tags);

@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
-import {
-  closeAccountSheet,
-  openAccountSheet,
-  setAccountSheet,
-  useAccountSheetOpen,
-} from "./accountSheetStore";
+import { closeAccountSheet, openAccountSheet, setAccountSheet, useAccountSheetOpen } from "./accountSheetStore";
 
 describe("the mobile account sheet", () => {
   it("starts closed and follows whoever opens it", () => {

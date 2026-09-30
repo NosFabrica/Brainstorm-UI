@@ -21,18 +21,30 @@ import { FaLinkedin } from "react-icons/fa";
 function Glyph({ icon }: { icon: IdentityIcon }) {
   const cls = "h-3.5 w-3.5";
   switch (icon) {
-    case "github": return <SiGithub className={cls} aria-hidden="true" />;
-    case "x": return <SiX className={cls} aria-hidden="true" />;
-    case "telegram": return <SiTelegram className={cls} aria-hidden="true" />;
-    case "mastodon": return <SiMastodon className={cls} aria-hidden="true" />;
-    case "linkedin": return <FaLinkedin className={cls} aria-hidden="true" />;
-    case "youtube": return <SiYoutube className={cls} aria-hidden="true" />;
-    case "signal": return <SiSignal className={cls} aria-hidden="true" />;
-    case "bluesky": return <SiBluesky className={cls} aria-hidden="true" />;
-    case "facebook": return <SiFacebook className={cls} aria-hidden="true" />;
-    case "tiktok": return <SiTiktok className={cls} aria-hidden="true" />;
-    case "instagram": return <SiInstagram className={cls} aria-hidden="true" />;
-    default: return <LinkIcon className={cls} aria-hidden="true" />;
+    case "github":
+      return <SiGithub className={cls} aria-hidden="true" />;
+    case "x":
+      return <SiX className={cls} aria-hidden="true" />;
+    case "telegram":
+      return <SiTelegram className={cls} aria-hidden="true" />;
+    case "mastodon":
+      return <SiMastodon className={cls} aria-hidden="true" />;
+    case "linkedin":
+      return <FaLinkedin className={cls} aria-hidden="true" />;
+    case "youtube":
+      return <SiYoutube className={cls} aria-hidden="true" />;
+    case "signal":
+      return <SiSignal className={cls} aria-hidden="true" />;
+    case "bluesky":
+      return <SiBluesky className={cls} aria-hidden="true" />;
+    case "facebook":
+      return <SiFacebook className={cls} aria-hidden="true" />;
+    case "tiktok":
+      return <SiTiktok className={cls} aria-hidden="true" />;
+    case "instagram":
+      return <SiInstagram className={cls} aria-hidden="true" />;
+    default:
+      return <LinkIcon className={cls} aria-hidden="true" />;
   }
 }
 
@@ -52,14 +64,24 @@ export function ExternalIdentities({ identities }: { identities: ExternalIdentit
         const title = `${id.label}: ${id.identity}`;
         const body = (
           <>
-            <span className="shrink-0 text-slate-400 dark:text-slate-500"><Glyph icon={id.icon} /></span>
+            <span className="shrink-0 text-slate-400 dark:text-slate-500">
+              <Glyph icon={id.icon} />
+            </span>
             <span className="truncate">
               {id.label} · {id.identity}
             </span>
           </>
         );
         return id.url ? (
-          <a key={`${id.platform}:${id.identity}`} href={id.url} target="_blank" rel="noopener noreferrer" title={title} className={`${row} hover:text-brand-link transition-colors`} data-testid="profile-identity">
+          <a
+            key={`${id.platform}:${id.identity}`}
+            href={id.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={title}
+            className={`${row} transition-colors hover:text-brand-link`}
+            data-testid="profile-identity"
+          >
             {body}
           </a>
         ) : (

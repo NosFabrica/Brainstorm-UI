@@ -6,7 +6,7 @@ import { generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
 import type { NostrEvent } from "applesauce-core/helpers/event";
 
 import { LocalAccount } from "./local-account";
-import { getMetadata, updateMetadata, type BrainstormAccount } from "./metadata";
+import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import {
   createSessions,
   hasSession,
@@ -60,7 +60,7 @@ function createFakeTransport(): FakeTransport {
 }
 
 /** An Account that can always sign without asking — an extension or a bunker. */
-class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, any> {
+class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
   static readonly type = "test-always-signable";
 }
 
@@ -114,7 +114,7 @@ describe("authenticate", () => {
     expect(pubkey).toBe(account.pubkey);
     expect(event.kind).toBe(LOGIN_KIND);
     expect(event.tags).toContainEqual(["challenge", transport.challenges[0]]);
-    expect(verifyEvent(event as any)).toBe(true);
+    expect(verifyEvent(event)).toBe(true);
   });
 
   it("writes isAdmin onto the session at the moment the token is minted", async () => {
@@ -134,10 +134,7 @@ describe("authenticate", () => {
     const sessions = createSessions(transport);
     const account = signableAccount();
 
-    const [first, second] = await Promise.all([
-      sessions.authenticate(account),
-      sessions.authenticate(account),
-    ]);
+    const [first, second] = await Promise.all([sessions.authenticate(account), sessions.authenticate(account)]);
 
     expect(first).toBe(second);
     expect(transport.challenges).toHaveLength(1);
@@ -150,7 +147,7 @@ describe("authenticate", () => {
  */
 function queuedLock() {
   const waiting: (() => void)[] = [];
-  const lock = async <T,>(_name: string, task: () => Promise<T>): Promise<T> => {
+  const lock = async <T>(_name: string, task: () => Promise<T>): Promise<T> => {
     if (waiting.length) await new Promise<void>((resolve) => waiting.push(resolve));
     else waiting.push(() => {});
     return task();
@@ -207,7 +204,7 @@ describe("a signer that never answers the challenge", () => {
   /** Web Locks' behaviour: one holder at a time, the rest wait their turn. */
   function mutex() {
     let tail: Promise<unknown> = Promise.resolve();
-    return <T,>(_name: string, task: () => Promise<T>): Promise<T> => {
+    return <T>(_name: string, task: () => Promise<T>): Promise<T> => {
       const run = tail.then(task, task);
       tail = run.catch(() => undefined);
       return run;
@@ -369,9 +366,7 @@ describe("a background 401", () => {
     unlockCache.wipe(); // no Unlock cache to fall back on: unlocking would prompt
     account.signer.lock();
 
-    await expect(sessions.refreshSession(account, { background: true })).rejects.toBeInstanceOf(
-      SessionDeferredError,
-    );
+    await expect(sessions.refreshSession(account, { background: true })).rejects.toBeInstanceOf(SessionDeferredError);
 
     expect(requestPassword).not.toHaveBeenCalled();
     expect(transport.verified).toHaveLength(1); // only the first, user-initiated one
@@ -385,9 +380,7 @@ describe("a background 401", () => {
     const transport = createFakeTransport();
     const sessions = createSessions(transport);
 
-    await expect(sessions.ensureSession(account, { background: true })).rejects.toBeInstanceOf(
-      SessionDeferredError,
-    );
+    await expect(sessions.ensureSession(account, { background: true })).rejects.toBeInstanceOf(SessionDeferredError);
 
     expect(requestPassword).not.toHaveBeenCalled();
     expect(transport.challenges).toHaveLength(0);

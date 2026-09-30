@@ -78,8 +78,13 @@ describe("FollowSetHero", () => {
   // card read as a duplicate header (Benjamin, 2026-09-09).
   it("does not repeat the curator — the author row above the card names them", () => {
     knownProfiles.set(CURATOR, {
-      id: "p".repeat(64), kind: 0, pubkey: CURATOR, tags: [],
-      content: JSON.stringify({ name: "Dr. Edo Paz" }), created_at: 1, sig: "s",
+      id: "p".repeat(64),
+      kind: 0,
+      pubkey: CURATOR,
+      tags: [],
+      content: JSON.stringify({ name: "Dr. Edo Paz" }),
+      created_at: 1,
+      sig: "s",
     } as NostrEvent);
     render(<FollowSetHero event={SET} />);
     expect(screen.queryByTestId("set-hero-curator")).toBeNull();

@@ -7,11 +7,11 @@ import { CrossTabIdentity } from "./CrossTabIdentity";
 
 /** Just enough of the mirror's stream to subscribe to — rxjs can't be imported this early. */
 const mirror = vi.hoisted(() => {
-  const handlers = new Set<(change: any) => void>();
+  const handlers = new Set<(change: MirroredChange) => void>();
   return {
-    emit: (change: unknown) => handlers.forEach((handler) => handler(change)),
+    emit: (change: MirroredChange) => handlers.forEach((handler) => handler(change)),
     changes$: {
-      subscribe(handler: (change: any) => void) {
+      subscribe(handler: (change: MirroredChange) => void) {
         handlers.add(handler);
         return { unsubscribe: () => handlers.delete(handler) };
       },
@@ -30,7 +30,11 @@ vi.mock("@/lib/queryClient", () => ({ queryClient: { clear: () => clear() } }));
 vi.mock("wouter", () => ({ useLocation: () => [location, navigate] }));
 
 function accountNamed(name: string | undefined, npub: string): BrainstormAccount {
-  return { id: npub, pubkey: "a".repeat(64), metadata: { remembered: true, name, npub } } as unknown as BrainstormAccount;
+  return {
+    id: npub,
+    pubkey: "a".repeat(64),
+    metadata: { remembered: true, name, npub },
+  } as unknown as BrainstormAccount;
 }
 
 const alice = accountNamed("Alice", "npub1alice");
@@ -55,9 +59,7 @@ describe("following another tab's switch", () => {
 
     changes$.next({ account: bob, previous: alice });
 
-    await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Now signed in as Bob" })),
-    );
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Now signed in as Bob" })));
   });
 
   it("falls back to the npub for an account with no cached name", async () => {
@@ -66,9 +68,7 @@ describe("following another tab's switch", () => {
     changes$.next({ account: accountNamed(undefined, "npub1carolxxxxxxxx"), previous: alice });
 
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Now signed in as npub1carolxx…" }),
-      ),
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Now signed in as npub1carolxx…" })),
     );
   });
 
@@ -109,9 +109,7 @@ describe("following another tab's sign-out", () => {
 
     changes$.next({ account: null, previous: alice });
 
-    await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Signed out" })),
-    );
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Signed out" })));
     expect(clear).toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });

@@ -20,19 +20,13 @@
  *   eat it silently, and nsec.app uses `auth_url` for *every* un-permissioned
  *   request. The prompt is replaced with a link the user clicks.
  */
-import {
-  NostrConnectAccount,
-  type NostrConnectAccountSignerData,
-} from "applesauce-accounts/accounts";
+import { NostrConnectAccount, type NostrConnectAccountSignerData } from "applesauce-accounts/accounts";
 import { BaseAccount, type SerializedAccount } from "applesauce-accounts";
 import { hexToBytes, type NostrEvent } from "applesauce-core/helpers/event";
 import { getHiddenContent } from "applesauce-core/helpers";
 import { normalizeRelayUrl } from "applesauce-core/helpers/relays";
-import {
-  NostrConnectSigner,
-  PrivateKeySigner,
-  type NostrConnectSignerOptions,
-} from "applesauce-signers";
+import { allowLocalRelay } from "@/lib/localNetwork";
+import { NostrConnectSigner, PrivateKeySigner, type NostrConnectSignerOptions } from "applesauce-signers";
 import { isNIP04 } from "applesauce-signers/helpers/encryption";
 import {
   buildSigningPermissions,
@@ -149,11 +143,7 @@ export const SIGNED_KINDS = [
  * hand. They are not padding: the alert-preference list is NIP-44 encrypted to
  * the user's own key, so the first visit to settings needs them.
  */
-export const NIP46_PERMISSIONS = [
-  ...buildSigningPermissions(SIGNED_KINDS),
-  "nip44_encrypt",
-  "nip44_decrypt",
-];
+export const NIP46_PERMISSIONS = [...buildSigningPermissions(SIGNED_KINDS), "nip44_encrypt", "nip44_decrypt"];
 
 /** Long enough to walk to your phone, find the app and read the screen. */
 export const PAIRING_TIMEOUT_MS = 3 * 60_000;
@@ -178,9 +168,7 @@ export const CONNECT_TIMEOUT_MS = 90_000;
  */
 export function appMetadata(): NostrConnectAppMetadata {
   const origin =
-    typeof window !== "undefined" && window.location?.origin
-      ? window.location.origin
-      : "https://brainstorm.world";
+    typeof window !== "undefined" && window.location?.origin ? window.location.origin : "https://brainstorm.world";
   return {
     name: "Brainstorm",
     url: origin,
@@ -197,10 +185,7 @@ export class RemoteSignerTimeoutError extends Error {
 }
 
 export function isRemoteSignerTimeout(error: unknown): boolean {
-  return (
-    error instanceof RemoteSignerTimeoutError ||
-    (error as { name?: string })?.name === "RemoteSignerTimeoutError"
-  );
+  return error instanceof RemoteSignerTimeoutError || (error as { name?: string })?.name === "RemoteSignerTimeoutError";
 }
 
 /**
@@ -257,6 +242,20 @@ export class RemoteSigner extends NostrConnectSigner {
   constructor(options: RemoteSignerOptions) {
     super({ onAuth: requestSignerApproval, ...options });
     this.requireConnectSecret = options.requireConnectSecret ?? false;
+
+    // The reader picked this signer's relays — pasted in a `bunker://` link, or
+    // named by the signer they paired, including later via `switch_relays` — so
+    // one on their LAN is theirs to reach. Consent is given where the relays are
+    // USED, since `switchRelays` swaps `this.relays` and reopens behind our back.
+    const { subscriptionMethod, publishMethod } = this;
+    this.subscriptionMethod = (relays, filters) => {
+      allowLocalRelay(relays);
+      return subscriptionMethod(relays, filters);
+    };
+    this.publishMethod = (relays, event) => {
+      allowLocalRelay(relays);
+      return publishMethod(relays, event);
+    };
   }
 
   /**

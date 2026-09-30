@@ -10,11 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { apiClient } from "@/services/api";
-import {
-  invalidatePresetDrivenReads,
-  trustPresetQueryKey,
-  useSetTrustPreset,
-} from "@/hooks/useTrustPresetSync";
+import { invalidatePresetDrivenReads, trustPresetQueryKey, useSetTrustPreset } from "@/hooks/useTrustPresetSync";
 
 const PK = "a".repeat(64);
 
@@ -28,8 +24,7 @@ function clientWithFreshQueries(keys: unknown[][]): QueryClient {
   return queryClient;
 }
 
-const isStale = (queryClient: QueryClient, key: unknown[]) =>
-  queryClient.getQueryState(key)?.isInvalidated === true;
+const isStale = (queryClient: QueryClient, key: unknown[]) => queryClient.getQueryState(key)?.isInvalidated === true;
 
 describe("invalidatePresetDrivenReads", () => {
   it("invalidates every read whose verified counts the preset drives", () => {
@@ -83,9 +78,7 @@ describe("useSetTrustPreset", () => {
 
   it("persists the preset to the server in the backend's vocabulary", async () => {
     // The picker is a real account setting, not a client-side filter.
-    const spy = vi
-      .spyOn(apiClient, "setGrapeRankPreset")
-      .mockResolvedValue({ data: { preset: "RESTRICTIVE" } });
+    const spy = vi.spyOn(apiClient, "setGrapeRankPreset").mockResolvedValue({ data: { preset: "RESTRICTIVE" } });
     const queryClient = clientWithFreshQueries([]);
 
     const { result } = renderIt(queryClient);

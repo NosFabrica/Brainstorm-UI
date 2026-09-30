@@ -18,7 +18,15 @@ const ME = "a".repeat(64);
 const TA = "b".repeat(64);
 const LISTS = { key: "c".repeat(64), relay: "wss://nip85-staging.example" };
 
-const signNip85 = vi.fn(async () => ({ id: "signed", kind: 10040, pubkey: ME, tags: [], content: "", sig: "", created_at: 0 }));
+const signNip85 = vi.fn(async () => ({
+  id: "signed",
+  kind: 10040,
+  pubkey: ME,
+  tags: [],
+  content: "",
+  sig: "",
+  created_at: 0,
+}));
 const publishToRelays = vi.fn(async () => ({ success: true, relay: "wss://relay" }));
 
 vi.mock("@/services/nostr", () => ({
@@ -48,7 +56,11 @@ describe("activating Brainstorm from the dashboard", () => {
     await userEvent.click(screen.getByTestId("button-activate-confirm"));
 
     await waitFor(() => expect(signNip85).toHaveBeenCalled());
-    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85-staging.example", expect.objectContaining({ lists: LISTS }));
+    expect(signNip85).toHaveBeenCalledWith(
+      TA,
+      "wss://nip85-staging.example",
+      expect.objectContaining({ lists: LISTS }),
+    );
   });
 
   it("signs the declaration alone when there are no lists to name", async () => {

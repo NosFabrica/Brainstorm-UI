@@ -31,7 +31,7 @@ export function buildAccountBackupFileContent(ncryptsec: string, npub: string): 
     "YOUR ACCOUNT  (public - safe to share)",
     npub || "(unknown)",
     "",
-    'YOUR ENCRYPTED RECOVERY KEY  (private - needs your password)',
+    "YOUR ENCRYPTED RECOVERY KEY  (private - needs your password)",
     ncryptsec,
     "",
     "HOW TO RESTORE",
@@ -196,8 +196,5 @@ export function buildRawKeyBackupFileContent(nsec: string, npub: string): string
 export async function downloadRawKeyBackup(): Promise<void> {
   const nsec = await revealSecretKey();
   const npub = activeDisplay()?.npub ?? "";
-  downloadTextFile(
-    buildRawKeyBackupFileContent(nsec, npub),
-    backupFileName("brainstorm-account-key"),
-  );
+  downloadTextFile(buildRawKeyBackupFileContent(nsec, npub), backupFileName("brainstorm-account-key"));
 }

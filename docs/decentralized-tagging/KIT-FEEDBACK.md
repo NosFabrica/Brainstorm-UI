@@ -22,7 +22,7 @@ We surveyed the house relay (`wss://tags.brainstorm.world/relay`) on 2026-08-05:
 **500 of 500 sampled kind-30382 events carry `d`, `rank` and `followers`. Not one
 carries `hops`.**
 
-So every asserter who *has* a published trust score is rejected, while everyone
+So every asserter who _has_ a published trust score is rejected, while everyone
 with no score at all passes via `unknownPolicy: "trusted"`. Exactly backwards.
 Concretely: david@bitcoinpark has `rank: 100` — the maximum — and read as
 untrusted. Our chip row rendered empty on every profile until we found it.
@@ -66,7 +66,7 @@ a large share are harness output
 (`profile-tag-wysiwyg-s17-1785898945945-kv0oo3-…`).
 
 Our first read consumed `#a` only, and we wrote here that doing so was
-conveniently *also* the noise filter — advice we asked you to put in the docs.
+conveniently _also_ the noise filter — advice we asked you to put in the docs.
 That was wrong twice over. `tags.md` §"Deployed variant" is explicit that until
 the `a`-backfill lands, "a reader needing completeness MUST union `#a` lookups
 with legacy `#e` lookups against the tag-element's event ids". And when we
@@ -82,30 +82,30 @@ whose creator has a published trust score", with direct links, existing
 taggings and the viewer's own tags all still working. It's the only thing we
 found that separates harness tags from real ones without a name-shape
 blocklist, and every integrator otherwise invents something worse. We did — we
-gated on the *tagged* person having a kind-0, which is the wrong axis entirely,
+gated on the _tagged_ person having a kind-0, which is the wrong axis entirely,
 since the spam economics are about minting being free.
 
 **But please document it as a rule about SURFACES, not about tags** — we shipped
 the blunt version first and it cost us the second most-used tag on your hub.
 
-*Usage cannot be the filter, and we'd suggest saying so explicitly, because it's
-the first thing everyone reaches for.* Measured 2026-08-07 across all 875 tags
+_Usage cannot be the filter, and we'd suggest saying so explicitly, because it's
+the first thing everyone reaches for._ Measured 2026-08-07 across all 875 tags
 with at least one carrier: your harness fakes asserters as well as targets — 35
 junk tags carry **5 distinct asserters each** — while genuinely-used tags like
 `tunestr-community` (28 people) and `urbit` (7) carry **one**. There is no
 threshold that admits the real ones and excludes the fakes.
 
-*What the blunt rule costs.* Of those 875, 34 were listed and 841 were not.
+_What the blunt rule costs._ Of those 875, 34 were listed and 841 were not.
 Excluding the harness output, that set is essentially one tag: **`lfo`, 54
 people, the second most-used on the hub** behind `aos-2026-participant`. Its
 creator has no kind-30382, so it was absent from browse, from every search box,
-and from the tag picker — where typing "LFO" then offered *"Create tag"* for a
+and from the tag picker — where typing "LFO" then offered _"Create tag"_ for a
 tag 54 people already carry. `resolveOrMintTag` reuses the existing element, so
 nothing was corrupted, but the user is told something false. We'd note that
 `ACCEPTANCE` line 33 ("existing protocol tags load and search-by-name filters
 them") passes on a strict reading while failing in spirit under this rule.
 
-*What we ship now.* Nothing is dropped; tags carry an `unverified` flag.
+_What we ship now._ Nothing is dropped; tags carry an `unverified` flag.
 Surfaces that render an **unrequested list** filter them out. Surfaces that
 answer a **typed query** — search, and the picker once you type — include them,
 labelled. Junk can flood a page nobody asked for; it cannot flood a name
@@ -113,7 +113,7 @@ somebody typed. That also lands closer to `Start.md` Q5's own recommended
 default ("full client-side search over all existing protocol tags") than the
 list-wide gate did.
 
-*And the reason any of this bites right now is upstream.* Only **3 of 138** tag
+_And the reason any of this bites right now is upstream._ Only **3 of 138** tag
 creators have a published score, because `trustRelays` still carries the
 2026-05-26 snapshot under the retired key while the current TA has published
 zero 30382s — the caveat your own `CONFIG` `_comment` records. Until that
@@ -132,7 +132,7 @@ first tag catalogue under-reported because of it (claimed 2 people for a tag wit
 A genuine question, not a defect.
 
 The protocol allows two authors to mint the same name, and the stated model is
-that WoT surfaces the most relevant. But the *write* side has no guidance: when
+that WoT surfaces the most relevant. But the _write_ side has no guidance: when
 a user types "Bitcoin" and two `bitcoin` elements exist, should a client
 
 - reuse the best-supported existing element (what we do — counts converge on one
@@ -167,7 +167,7 @@ event-applicable coordinates as of 2026-08-05. Two problems in practice:
 
 - **For a people-picker sourced from usage, the hint is redundant and actively
   harmful as a sort key.** Applicability is HINT ∪ USAGE, and a catalogue built
-  from profile taggings is *entirely* applicable-by-usage. Only 9 of our 39
+  from profile taggings is _entirely_ applicable-by-usage. Only 9 of our 39
   tags carry the hint, so ordering by it buried `AOS 2026 Participant` (88
   people) beneath tags with three. Worth stating in C3 that the hint is for
   cold-start and cross-context ordering, not for ranking a usage-derived list.
@@ -240,7 +240,7 @@ exactly as before — coexistence, no regression". But `Start.md` Q2 offers
 **migrate** — "a one-time, owner-prompted conversion" — as a sanctioned answer,
 and an integrator who takes it cannot satisfy that line.
 
-Floor A reads as the check for Q2's *default*. Suggest it say so explicitly
+Floor A reads as the check for Q2's _default_. Suggest it say so explicitly
 ("if you chose coexist"), and add the migrate equivalent: the conversion is
 owner-prompted, one-time, and publishes nothing without an explicit action.
 
@@ -370,10 +370,10 @@ that the user removed it.
 **Confirmed on the wire, not just inferred from the allow-list.** We published a
 real pin and then unpinned it with a throwaway key on 2026-08-06:
 
-| event | hub | general relays |
-|---|---|---|
-| the pin (kind 39999) | **accepted**, still there | — |
-| the unpin (kind 5) | **0 — rejected** | accepted, correctly referencing the pin id |
+| event                | hub                       | general relays                             |
+| -------------------- | ------------------------- | ------------------------------------------ |
+| the pin (kind 39999) | **accepted**, still there | —                                          |
+| the unpin (kind 5)   | **0 — rejected**          | accepted, correctly referencing the pin id |
 
 So the pin is now permanently on `dcosl.brainstorm.world` with no way to remove
 it there, while the deletion that says otherwise lives somewhere else entirely.
@@ -387,7 +387,7 @@ Options, in preference order:
 
 1. Add kind 5 to the hub's allow-list, scoped to deleting the author's own
    DList events. Unpinning then works where the spec says it should.
-2. Failing that, specify unpinning as something the hub *can* store — a
+2. Failing that, specify unpinning as something the hub _can_ store — a
    replaceable pin carrying an explicit `["status","unpinned"]`, say — rather
    than a deletion the storage layer rejects.
 3. At minimum, document the split so nobody ships an unpin button that silently

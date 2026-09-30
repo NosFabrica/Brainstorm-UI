@@ -22,7 +22,14 @@ beforeEach(() => {
   signIn();
 });
 
-const ev = (kind: number, tags: string[][] = []) => ({ id: "1".repeat(64), kind, pubkey: "a".repeat(64), tags, content: "", created_at: 1 });
+const ev = (kind: number, tags: string[][] = []) => ({
+  id: "1".repeat(64),
+  kind,
+  pubkey: "a".repeat(64),
+  tags,
+  content: "",
+  created_at: 1,
+});
 
 describe("KindPill", () => {
   it("says what a thing is, as the design-system chip", () => {
@@ -35,7 +42,13 @@ describe("KindPill", () => {
   // Benjamin (2026-09-24): by default only a spec is named — the case with
   // no NIP number to lean on. Every other kind waits for the switch.
   it("names nothing but a spec by default", () => {
-    render(<><KindPill event={ev(30023)} /><KindPill event={ev(30818)} /><KindPill label="News" /></>);
+    render(
+      <>
+        <KindPill event={ev(30023)} />
+        <KindPill event={ev(30818)} />
+        <KindPill label="News" />
+      </>,
+    );
     expect(screen.queryByTestId("kind-pill")).toBeNull();
   });
 
@@ -66,7 +79,12 @@ describe("KindPill", () => {
   // fiatjaf's repo defines. A Nostr Hub spec's kind has none, and none is invented.
   it("with the technical view on, carries the kind's number and names its NIP on hover", () => {
     setTechnicalView(true);
-    render(<><KindPill event={ev(30402)} mixed={false} /><KindPill event={ev(30817)} /></>);
+    render(
+      <>
+        <KindPill event={ev(30402)} mixed={false} />
+        <KindPill event={ev(30817)} />
+      </>,
+    );
     const [listing, spec] = screen.getAllByTestId("kind-pill");
     expect(listing).toHaveTextContent(/^Listing · 30402$/);
     expect(listing.getAttribute("title")).toBe("kind 30402 · NIP-99");

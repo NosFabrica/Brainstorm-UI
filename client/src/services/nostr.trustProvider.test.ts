@@ -30,7 +30,15 @@ import { fetchTrustProviderList } from "./nostr";
 
 const PK = "6".repeat(64);
 const declaration = (created_at: number) =>
-  ({ id: String(created_at).padStart(64, "0"), kind: 10040, pubkey: PK, created_at, content: "", tags: [["30382:rank", "a".repeat(64), "wss://ta/"]], sig: "s" }) as NostrEvent;
+  ({
+    id: String(created_at).padStart(64, "0"),
+    kind: 10040,
+    pubkey: PK,
+    created_at,
+    content: "",
+    tags: [["30382:rank", "a".repeat(64), "wss://ta/"]],
+    sig: "s",
+  }) as NostrEvent;
 
 beforeEach(() => {
   requestNewestMock.mockReset();

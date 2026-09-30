@@ -9,8 +9,11 @@ import { historyDepth } from "@/lib/historyState";
  */
 export function useGoBack() {
   const [, navigate] = useLocation();
-  return useCallback((fallback: string) => {
-    if (historyDepth() > 0) window.history.back();
-    else navigate(fallback);
-  }, [navigate]);
+  return useCallback(
+    (fallback: string) => {
+      if (historyDepth() > 0) window.history.back();
+      else navigate(fallback);
+    },
+    [navigate],
+  );
 }

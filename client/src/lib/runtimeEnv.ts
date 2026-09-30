@@ -15,8 +15,7 @@ declare global {
 }
 
 function read(key: EnvKey): string | undefined {
-  const fromWindow =
-    typeof window !== "undefined" ? window.__ENV__?.[key] : undefined;
+  const fromWindow = typeof window !== "undefined" ? window.__ENV__?.[key] : undefined;
   // Treat unsubstituted placeholder ("__FOO__") as unset so dev fallback wins.
   if (fromWindow && !/^__.+__$/.test(fromWindow)) return fromWindow;
   const fromBuild = (import.meta.env as Record<string, string | undefined>)[key];

@@ -43,10 +43,9 @@ export function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResu
     }
   }
 
-  const num = (v: unknown): number | null =>
-    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-  const wot = (hit.wot && typeof hit.wot === "object") ? (hit.wot as Record<string, unknown>) : null;
+  const wot = hit.wot && typeof hit.wot === "object" ? (hit.wot as Record<string, unknown>) : null;
 
   // Legacy Meili endpoint returns snake_case `wot_rank` / `wot_followers`
   // (overall, house POV) plus per-TA variants `wot_rank_<taPubkey8>` /
@@ -62,10 +61,7 @@ export function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResu
   // user's perspective (mywot). We keep both so the Profile page can render
   // them side-by-side in the dual-meter widget.
   const wotRankNosfabrica: number | null =
-    num(hit.wot_rank) ??
-    num(hit.wotRank) ??
-    num(hit.rank) ??
-    (wot ? num(wot.rank) ?? num(wot.score) : null);
+    num(hit.wot_rank) ?? num(hit.wotRank) ?? num(hit.rank) ?? (wot ? (num(wot.rank) ?? num(wot.score)) : null);
   let wotRankMywot: number | null = null;
   for (const key of Object.keys(hit)) {
     if (TA_RANK_RE.test(key)) {
@@ -80,10 +76,7 @@ export function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResu
   // mywot) so existing callers that only read `wotRank` still work.
   const wotRank: number | null = wotRankNosfabrica ?? wotRankMywot;
   let wotFollowers: number | null =
-    num(hit.wot_followers) ??
-    num(hit.wotFollowers) ??
-    num(hit.followers) ??
-    (wot ? num(wot.followers) : null);
+    num(hit.wot_followers) ?? num(hit.wotFollowers) ?? num(hit.followers) ?? (wot ? num(wot.followers) : null);
   if (wotFollowers === null) {
     for (const key of Object.keys(hit)) {
       if (TA_FOLLOWERS_RE.test(key)) {
@@ -96,8 +89,7 @@ export function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResu
     }
   }
 
-  const str = (v: unknown): string | undefined =>
-    typeof v === "string" && v.length > 0 ? v : undefined;
+  const str = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 
   return {
     pubkey,
@@ -133,8 +125,7 @@ export function byTextResultToSearchResult(hit: Record<string, unknown>): Search
     }
   }
 
-  const num = (v: unknown): number | null =>
-    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
   // The `/search/byText` endpoint exposes two possible rank sources:
   //   - NosFabrica ("house") perspective (ownPubkey=false): `_quality_score`
@@ -155,9 +146,7 @@ export function byTextResultToSearchResult(hit: Record<string, unknown>): Search
   // scales, and this is where they are reconciled.
   const to01 = (v: number | null): number | null => (v === null ? null : v / 100);
 
-  const wotRankNosfabrica: number | null = to01(
-    num(hit._quality_score) ?? num(hit.quality_score),
-  );
+  const wotRankNosfabrica: number | null = to01(num(hit._quality_score) ?? num(hit.quality_score));
   let wotRankMywot: number | null = null;
   for (const key of Object.keys(hit)) {
     if (/^rank_[0-9a-f]+$/i.test(key)) {
@@ -171,8 +160,7 @@ export function byTextResultToSearchResult(hit: Record<string, unknown>): Search
   // Prefer the user's own perspective when present, otherwise NosFabrica's.
   const wotRank: number | null = wotRankMywot ?? wotRankNosfabrica;
 
-  const str = (v: unknown): string | undefined =>
-    typeof v === "string" && v.length > 0 ? v : undefined;
+  const str = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 
   return {
     pubkey,
@@ -240,11 +228,9 @@ export function typeaheadPause(speed: ConnectionSpeed): number {
   return speed === "normal" ? TYPEAHEAD_PAUSE_MS : TYPEAHEAD_PAUSE_SLOW_MS;
 }
 
-export const isLikelyNpub = (value: string) =>
-  /^npub1[02-9ac-hj-np-z]{20,}$/i.test(value.trim());
+export const isLikelyNpub = (value: string) => /^npub1[02-9ac-hj-np-z]{20,}$/i.test(value.trim());
 
-export const isHexPubkey = (value: string) =>
-  /^[0-9a-f]{64}$/i.test(value.trim());
+export const isHexPubkey = (value: string) => /^[0-9a-f]{64}$/i.test(value.trim());
 
 export const isNip05Handle = (value: string) => {
   const v = value.trim();

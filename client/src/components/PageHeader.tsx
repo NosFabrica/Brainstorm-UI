@@ -30,14 +30,16 @@ export function PageHeader({
 }) {
   const titleSize = size === "hero" ? "text-4xl sm:text-5xl" : "text-3xl sm:text-4xl";
   const h1 = (
-    <h1 className={`font-brand ${titleSize} font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.1] ${actions ? "min-w-0 break-words" : ""}`}>
+    <h1
+      className={`font-brand ${titleSize} font-bold leading-[1.1] tracking-tight text-slate-900 dark:text-slate-100 ${actions ? "min-w-0 break-words" : ""}`}
+    >
       {title}
     </h1>
   );
   return (
     <header className={`max-w-3xl ${className}`} data-testid={testId}>
-      <div className="flex items-center gap-2.5 mb-5">
-        <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
+      <div className="mb-5 flex items-center gap-2.5">
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-accent">
           {kicker}
         </span>
         <div className="h-px w-12 bg-brand-accent/40" />
@@ -51,9 +53,7 @@ export function PageHeader({
         h1
       )}
       {subtitle && (
-        <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
-          {subtitle}
-        </p>
+        <p className="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600 dark:text-slate-300">{subtitle}</p>
       )}
     </header>
   );

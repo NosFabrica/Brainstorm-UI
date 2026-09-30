@@ -10,7 +10,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SerpRow } from "@/components/search/SerpRow";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import type { HitCluster } from "@/lib/searchCollapse";
-import { searchStream, type SearchGroup, type SearchHit, type SearchPov, type SearchSnapshot, type SearchTab } from "@/services/search";
+import {
+  searchStream,
+  type SearchGroup,
+  type SearchHit,
+  type SearchPov,
+  type SearchSnapshot,
+  type SearchTab,
+} from "@/services/search";
 
 /** Two section streams as one: hits concatenated in order, settled when both are. */
 export function mergeSnapshots(a: SearchSnapshot | null, b: SearchSnapshot | null): SearchSnapshot | null {
@@ -34,7 +41,14 @@ export function useSectionStream(
     provisionalSeed,
     kinds,
     enabled = true,
-  }: { since?: number; group?: SearchGroup; seed?: SearchHit[]; provisionalSeed?: boolean; kinds?: number[]; enabled?: boolean } = {},
+  }: {
+    since?: number;
+    group?: SearchGroup;
+    seed?: SearchHit[];
+    provisionalSeed?: boolean;
+    kinds?: number[];
+    enabled?: boolean;
+  } = {},
 ): SearchSnapshot | null {
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
   // A section restarts when the relay comes back from an outage (lib/serverStatus).
@@ -44,7 +58,12 @@ export function useSectionStream(
     setSnapshot(null);
     // A section that has nothing to ask for this query stays silent (null).
     if (!enabled) return;
-    return searchStream(query, { tab, pov, userPubkey, limit, since, group, seed, provisionalSeed, kinds }, setSnapshot);
+    // Every section stream is a band: it asks what it can show (bandKindsForTab).
+    return searchStream(
+      query,
+      { tab, pov, userPubkey, limit, since, group, seed, provisionalSeed, kinds, band: true },
+      setSnapshot,
+    );
     // `seed` is taken once per query (lib/headStart) — re-running on its
     // identity would restart the section with nothing; `kinds` goes by value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,19 +120,21 @@ export function Section({
   className?: string;
 }) {
   return (
-    <section className={`mt-5 first:mt-0 ${className}`} data-testid={`${testIdPrefix}-${id}`}>
-      <div className="mb-2 flex items-baseline gap-2">
+    <section className={`mt-6 first:mt-0 ${className}`} data-testid={`${testIdPrefix}-${id}`}>
+      <div className="mb-3 flex items-baseline gap-2">
         <SectionHeader variant="title" kicker={kicker} className="flex-1" />
         {/* Quiet until hovered: the title carries the section, the link
             only has to be findable. */}
-        {tab && <button
-          type="button"
-          onClick={() => onTabChange(tab)}
-          className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
-          data-testid={`${testIdPrefix === "serp-section" ? "serp-more" : `${testIdPrefix}-more`}-${id}`}
-        >
-          See all
-        </button>}
+        {tab && (
+          <button
+            type="button"
+            onClick={() => onTabChange(tab)}
+            className="shrink-0 rounded text-[13px] font-medium text-slate-500 hover:text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400"
+            data-testid={`${testIdPrefix === "serp-section" ? "serp-more" : `${testIdPrefix}-more`}-${id}`}
+          >
+            See all
+          </button>
+        )}
       </div>
       {children}
     </section>
@@ -144,7 +165,14 @@ export function ClusterRows({
     renderRow ? (
       renderRow(h)
     ) : (
-      <SerpRow event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} query={query} engagement={engagementOf?.(h.event.id) ?? undefined} showType={showType} />
+      <SerpRow
+        event={h.event}
+        author={h.author}
+        score={scoreOf(h.event.pubkey)}
+        query={query}
+        engagement={engagementOf?.(h.event.id) ?? undefined}
+        showType={showType}
+      />
     );
   return (
     <div>
@@ -153,7 +181,7 @@ export function ClusterRows({
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="ml-2 mt-0.5 rounded-full border border-slate-200 dark:border-slate-800 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
+          className="ml-2 mt-1 rounded-full border border-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
           data-testid={`serp-expand-${cluster.primary.event.id}`}
         >
           +{cluster.others.length} more from {authorName}
@@ -170,14 +198,27 @@ export function ClusterRows({
  * instead of reflowing under the reader. Collapses (the caller renders
  * nothing) when the answer is empty.
  */
-export function SectionSkeleton({ id, kicker, shape }: { id: string; kicker: string; shape: "people" | "rows" | "bento" }) {
+export function SectionSkeleton({
+  id,
+  kicker,
+  shape,
+}: {
+  id: string;
+  kicker: string;
+  shape: "people" | "rows" | "bento";
+}) {
   return (
-    <section className="mt-5 first:mt-0" data-testid={`serp-skeleton-${id}`} aria-busy="true" aria-label={`Loading ${kicker}`}>
+    <section
+      className="mt-5 first:mt-0"
+      data-testid={`serp-skeleton-${id}`}
+      aria-busy="true"
+      aria-label={`Loading ${kicker}`}
+    >
       <div className="mb-2 flex items-baseline gap-2">
         <SectionHeader variant="title" kicker={kicker} className="flex-1 opacity-60" />
       </div>
       {shape === "people" && (
-        <div className="flex gap-2.5 overflow-hidden -mx-1 px-1">
+        <div className="-mx-1 flex gap-2.5 overflow-hidden px-1">
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="flex w-28 shrink-0 flex-col items-center gap-2 p-3">
               <Skeleton className="h-12 w-12 rounded-full" />
@@ -187,16 +228,16 @@ export function SectionSkeleton({ id, kicker, shape }: { id: string; kicker: str
         </div>
       )}
       {shape === "rows" && (
-        <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+        <div className="space-y-1">
           {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="flex items-start gap-3 px-2 py-3 -mx-2">
-              <div className="min-w-0 flex-1 space-y-2">
+            <div key={i} className="-mx-2 flex items-start gap-4 px-2 py-3.5">
+              <div className="min-w-0 flex-1 space-y-2.5">
                 <div className="flex items-center gap-1.5">
-                  <Skeleton className="h-5 w-5 rounded-full" />
-                  <Skeleton className="h-3 w-24 rounded" />
+                  <Skeleton className="h-6 w-6 rounded-full" />
+                  <Skeleton className="h-3.5 w-28 rounded" />
                 </div>
-                <Skeleton className="h-3 w-full rounded" />
-                <Skeleton className="h-3 w-3/4 rounded" />
+                <Skeleton className="h-3.5 w-full rounded" />
+                <Skeleton className="h-3.5 w-3/4 rounded" />
               </div>
             </div>
           ))}
@@ -214,12 +255,20 @@ export function SectionSkeleton({ id, kicker, shape }: { id: string; kicker: str
 }
 
 /** A one-line, horizontally scrolling row of facet chips, faded at the right edge. */
-export function FacetRow({ testId, className = "", children }: { testId: string; className?: string; children: React.ReactNode }) {
+export function FacetRow({
+  testId,
+  className = "",
+  children,
+}: {
+  testId: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
   const ref = useWheelScrollX();
   return (
     <div
       ref={ref}
-      className={`-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_calc(100%_-_1.25rem),transparent)] ${className}`}
+      className={`-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 [mask-image:linear-gradient(to_right,black_calc(100%_-_1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
       data-testid={testId}
     >
       {children}
@@ -249,7 +298,7 @@ export function FacetChip({
       className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
         pressed
           ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-          : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+          : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
       }`}
       data-testid={testId}
     >

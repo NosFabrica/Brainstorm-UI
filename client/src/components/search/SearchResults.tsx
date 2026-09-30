@@ -8,13 +8,25 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
-import { nip19 } from "nostr-tools";
-import type { NostrEvent } from "nostr-tools";
+import { nip19, type NostrEvent } from "nostr-tools";
 import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
-import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, queryWords, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch, scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
+import {
+  BROWSE_UNAVAILABLE_SORTS,
+  activeFilterCount,
+  applyFilters,
+  browseSafeQuery,
+  datePreset,
+  liftQuery,
+  queryWords,
+  readFilters,
+  sinceForPreset,
+  type DatePreset,
+  type SearchFilterPatch,
+  scopeOf,
+  scopedSearchHref,
+} from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
-import { eventStore } from "@/lib/eventStore";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PersonCard } from "@/components/search/PersonCard";
 import { QuietTrustChrome } from "@/components/score/VerificationCoin";
@@ -40,18 +52,53 @@ import { MoreResults } from "./MoreResults";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
-import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsvps } from "@/services/search";
-import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
+import {
+  fetchEventRsvps,
+  fetchGitCommentCounts,
+  fetchGitStatuses,
+  fetchGoalProgress,
+  type EventRsvps,
+  type GoalProgress,
+} from "@/services/search";
+import {
+  GIT_STATE_LABEL,
+  foldForks,
+  gitLabelsOf,
+  gitStateOf,
+  isGitItem,
+  peopleBeforeAgents,
+  type GitState,
+} from "@/lib/gitStatus";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 import { groupPeoplePacks } from "@/lib/listGroups";
-import { AppCard, EventCard, LiveTile, ListCard, MediaCard, RepoCard, TrackCard, platformWords, mediaUrlOf, ListingCard, type ListGroupView } from "@/components/search/cards";
+import {
+  AppCard,
+  EventCard,
+  LiveTile,
+  ListCard,
+  MediaCard,
+  RepoCard,
+  TrackCard,
+  platformWords,
+  mediaUrlOf,
+  ListingCard,
+  type ListGroupView,
+} from "@/components/search/cards";
+import { ThingCard } from "@/components/search/thingCards";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
-import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
+import {
+  EVENT_WHEN_LABELS,
+  EVENT_WHEN_ORDER,
+  eventWhenCounts,
+  filterEventsByWhen,
+  type EventWhen,
+} from "@/lib/eventFilters";
 import { EventDateTile } from "@/components/share/EventDateTile";
 import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
 import { isSellable, parseListing } from "@/lib/listing";
+import { describeThing, oneCardPerChannel, THING_KINDS } from "@/lib/thing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { priceBands, priceInCurrency, toSats, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
@@ -96,6 +143,12 @@ const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
 const MUSIC_KINDS = new Set(TAB_KINDS.music);
 const SHOP_KINDS = new Set(TAB_KINDS.shop);
+/** NIP-15 stalls and marketplaces: in the Shop, but places to buy rather than things for sale. */
+const SHOP_PLACE_KINDS = new Set([30017, 30019]);
+/** NIP-52 calendars: collections of events, with no date of their own. */
+const CALENDAR_KIND = 31924;
+/** The tabs made only of kinds lib/thing reads — one ThingCard each, in a grid. */
+const isThingTab = (tab: SearchTab) => tab === "communities" || tab === "fundraisers" || tab === "reviews";
 
 /** What kind of article a hit is — the Articles tab's type chips narrow by this. */
 type ArticleType = "article" | "spec" | "wiki";
@@ -159,9 +212,39 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
  * stay in Articles too, labelled — these are where people look for them.
  */
 const MORE_GROUPS: { title: string | null; tabs: { key: SearchTab; label: string }[] }[] = [
-  { title: "Read & listen", tabs: [{ key: "articles", label: "Articles" }, { key: "music", label: "Music" }, { key: "recipes", label: "Recipes" }] },
-  { title: "Happening", tabs: [{ key: "events", label: "Events" }, { key: "live", label: "Live" }] },
-  { title: "Build", tabs: [{ key: "apps", label: "Apps" }, { key: "repos", label: "Repos" }, { key: "issues", label: "Issues" }, { key: "prs", label: "PRs" }, { key: "nips", label: "NIPs" }] },
+  {
+    title: "Read & listen",
+    tabs: [
+      { key: "articles", label: "Articles" },
+      { key: "music", label: "Music" },
+      { key: "recipes", label: "Recipes" },
+    ],
+  },
+  {
+    title: "Happening",
+    tabs: [
+      { key: "events", label: "Events" },
+      { key: "live", label: "Live" },
+    ],
+  },
+  {
+    title: "Build",
+    tabs: [
+      { key: "apps", label: "Apps" },
+      { key: "repos", label: "Repos" },
+      { key: "issues", label: "Issues" },
+      { key: "prs", label: "PRs" },
+      { key: "nips", label: "NIPs" },
+    ],
+  },
+  {
+    title: "Community",
+    tabs: [
+      { key: "communities", label: "Communities" },
+      { key: "fundraisers", label: "Fundraisers" },
+      { key: "reviews", label: "Reviews" },
+    ],
+  },
   { title: null, tabs: [{ key: "lists", label: "Lists" }] },
 ];
 const MORE_TABS: { key: SearchTab; label: string }[] = MORE_GROUPS.flatMap((g) => g.tabs);
@@ -225,9 +308,17 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
           className="absolute right-0 top-full z-20 mt-1 min-w-[9rem] rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
         >
           {MORE_GROUPS.map((g, gi) => (
-            <div key={g.title ?? "rest"} className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""} role="group" aria-label={g.title ?? undefined}>
+            <div
+              key={g.title ?? "rest"}
+              className={gi > 0 ? "mt-1 border-t border-slate-100 pt-1 dark:border-slate-800" : ""}
+              role="group"
+              aria-label={g.title ?? undefined}
+            >
               {g.title && (
-                <div className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500" data-testid={`search-tab-group-${g.title.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
+                <div
+                  className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500"
+                  data-testid={`search-tab-group-${g.title.toLowerCase().replace(/[^a-z]+/g, "-")}`}
+                >
                   {g.title}
                 </div>
               )}
@@ -252,20 +343,23 @@ function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTa
                   {t.label}
                 </button>
               ))}
-              {g.title === "Build" && SOON_TABS.map((t) => (
-                // A muted row, not a door: the Apps launcher's "Soon" treatment.
-                <div
-                  key={t.key}
-                  role="menuitem"
-                  aria-disabled="true"
-                  title={t.title}
-                  className="flex w-full cursor-default items-center justify-between rounded-lg px-3 py-1.5 text-left text-[13px] text-slate-400 dark:text-slate-500"
-                  data-testid={`search-tab-${t.key}-soon`}
-                >
-                  {t.label}
-                  <span className="ml-3 text-[9px] font-bold uppercase tracking-[0.15em] text-slate-300 dark:text-slate-600">Soon</span>
-                </div>
-              ))}
+              {g.title === "Build" &&
+                SOON_TABS.map((t) => (
+                  // A muted row, not a door: the Apps launcher's "Soon" treatment.
+                  <div
+                    key={t.key}
+                    role="menuitem"
+                    aria-disabled="true"
+                    title={t.title}
+                    className="flex w-full cursor-default items-center justify-between rounded-lg px-3 py-1.5 text-left text-[13px] text-slate-400 dark:text-slate-500"
+                    data-testid={`search-tab-${t.key}-soon`}
+                  >
+                    {t.label}
+                    <span className="ml-3 text-[9px] font-bold uppercase tracking-[0.15em] text-slate-300 dark:text-slate-600">
+                      Soon
+                    </span>
+                  </div>
+                ))}
             </div>
           ))}
         </div>
@@ -306,7 +400,6 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: "year", label: "Past year" },
   { value: "custom", label: "Custom range" },
 ];
-
 
 // Every option here changes the relay's order — probed 2026-09-03. "Text match
 // only" went: it ordered exactly like "Include unranked" and confused people.
@@ -352,7 +445,6 @@ const RANK_FLOORS: { value: number | null; label: string }[] = [
  *  the tokens OUT of the visible box and in the URL's `f` instead. */
 function FiltersPanel({
   query,
-  pov,
   userPubkey,
   tab,
   onQueryRewrite,
@@ -378,7 +470,6 @@ function FiltersPanel({
   }, [advancedActive]);
   const write = (patch: SearchFilterPatch) => onQueryRewrite(applyFilters(query, patch));
 
-
   const showDates = customDates || preset === "custom";
   // The menu is coarse, but the grammar takes any 0..100 — a hand-typed `filter:rank:gte:33`
   // would otherwise read as "No floor" while the Filters badge counted it, which is the panel
@@ -386,12 +477,15 @@ function FiltersPanel({
   const floors = useMemo(() => {
     const typed = state.rankFloor;
     if (typed == null || RANK_FLOORS.some((o) => o.value === typed)) return RANK_FLOORS;
-    return [...RANK_FLOORS, { value: typed, label: `Rank ${typed}+` }]
-      .sort((a, b) => (a.value ?? -1) - (b.value ?? -1));
+    return [...RANK_FLOORS, { value: typed, label: `Rank ${typed}+` }].sort(
+      (a, b) => (a.value ?? -1) - (b.value ?? -1),
+    );
   }, [state.rankFloor]);
   const segment = (on: boolean) =>
     `h-8 px-2.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/30 ${
-      on ? "bg-brand-primary text-white" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+      on
+        ? "bg-brand-primary text-white"
+        : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
     }`;
   const field =
     "h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
@@ -408,7 +502,7 @@ function FiltersPanel({
 
   return (
     <div
-      className="mb-3 flex flex-wrap items-start gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 p-3"
+      className="mb-3 flex flex-wrap items-start gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 bg-white/70 p-3 dark:border-slate-800/60 dark:bg-slate-900/70"
       data-testid="search-filters-panel"
     >
       {!userPubkey && (
@@ -451,7 +545,9 @@ function FiltersPanel({
           data-testid="filter-date"
         >
           {DATE_PRESETS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
           ))}
         </select>
       </label>
@@ -480,7 +576,7 @@ function FiltersPanel({
         </>
       )}
       {browsing && (
-        <p className="basis-full -mt-1 text-[10px] text-slate-400 dark:text-slate-500" data-testid="filter-sort-hint">
+        <p className="-mt-1 basis-full text-[10px] text-slate-400 dark:text-slate-500" data-testid="filter-sort-hint">
           Trust and follower sorts need a search term
         </p>
       )}
@@ -491,76 +587,80 @@ function FiltersPanel({
         type="button"
         onClick={() => setAdvancedOpen((v) => !v)}
         aria-expanded={advancedOpen}
-        className="basis-full flex items-center gap-1 text-left text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link"
+        className="flex basis-full items-center gap-1 text-left text-[11px] font-medium text-slate-500 hover:text-brand-link dark:text-slate-400"
         data-testid="filters-advanced-toggle"
       >
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
         Advanced
       </button>
       {advancedOpen && (
-        <div className="basis-full flex flex-wrap items-end gap-x-4 gap-y-3" data-testid="filters-advanced">
-      {/* Trust distance — how far the search casts its net. The relay has no
+        <div className="flex basis-full flex-wrap items-end gap-x-4 gap-y-3" data-testid="filters-advanced">
+          {/* Trust distance — how far the search casts its net. The relay has no
           hops, so this reads the viewer's own follow graph (Benjamin's
           slider); with nobody signed in there is no "you", so it isn't there. */}
-      {userPubkey && (
-        <div className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-          Trust distance
-          <div
-            role="group"
-            aria-label="Trust distance"
-            className="inline-flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 divide-x divide-slate-200 dark:divide-slate-800"
-            data-testid="filter-reach"
-          >
-            {(
-              [
-                ["follows", "People you follow"],
-                ["friends", "Friends of friends"],
-                [null, "Everyone"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={label}
-                type="button"
-                aria-pressed={state.reach === value}
-                onClick={() => write({ reach: value })}
-                className={segment(state.reach === value)}
-                data-testid={`filter-reach-${value ?? "all"}`}
+          {userPubkey && (
+            <div className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              Trust distance
+              <div
+                role="group"
+                aria-label="Trust distance"
+                className="inline-flex divide-x divide-slate-200 overflow-hidden rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-800"
+                data-testid="filter-reach"
               >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {/* The relay's own floor, the opposite end of the same dial as "Include unranked":
+                {(
+                  [
+                    ["follows", "People you follow"],
+                    ["friends", "Friends of friends"],
+                    [null, "Everyone"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    aria-pressed={state.reach === value}
+                    onClick={() => write({ reach: value })}
+                    className={segment(state.reach === value)}
+                    data-testid={`filter-reach-${value ?? "all"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* The relay's own floor, the opposite end of the same dial as "Include unranked":
           one lifts the floor to nothing, the other raises it. Both cannot be on, so
           choosing a floor turns the waiver off. */}
-      <label className={column}>
-        Trust floor
-        <select
-          className={control}
-          value={state.rankFloor ?? ""}
-          onChange={(e) => {
-            const next = e.target.value === "" ? null : Number(e.target.value);
-            write(next == null ? { rankFloor: null } : { rankFloor: next, includeSpam: false });
-          }}
-          data-testid="filter-rank-floor"
-        >
-          {floors.map((o) => (
-            <option key={o.label} value={o.value ?? ""}>{o.label}</option>
-          ))}
-        </select>
-      </label>
-      <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-        <input
-          type="checkbox"
-          className="h-3.5 w-3.5 accent-brand-primary"
-          checked={state.includeSpam}
-          onChange={(e) => write(e.target.checked ? { includeSpam: true, rankFloor: null } : { includeSpam: false })}
-          data-testid="filter-spam"
-        />
-        Include unranked accounts
-      </label>
+          <label className={column}>
+            Trust floor
+            <select
+              className={control}
+              value={state.rankFloor ?? ""}
+              onChange={(e) => {
+                const next = e.target.value === "" ? null : Number(e.target.value);
+                write(next == null ? { rankFloor: null } : { rankFloor: next, includeSpam: false });
+              }}
+              data-testid="filter-rank-floor"
+            >
+              {floors.map((o) => (
+                <option key={o.label} value={o.value ?? ""}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 accent-brand-primary"
+              checked={state.includeSpam}
+              onChange={(e) =>
+                write(e.target.checked ? { includeSpam: true, rankFloor: null } : { includeSpam: false })
+              }
+              data-testid="filter-spam"
+            />
+            Include unranked accounts
+          </label>
         </div>
       )}
     </div>
@@ -590,7 +690,8 @@ function rememberComposed(key: string, sections: Record<string, SearchHit[]>, sc
   if (!Object.values(sections).some((hits) => hits.length)) return;
   COMPOSED_MEMORY.delete(key);
   COMPOSED_MEMORY.set(key, { sections, scrollY, at: Date.now() });
-  while (COMPOSED_MEMORY.size > SEARCH_MEMORY_SIZE) COMPOSED_MEMORY.delete(COMPOSED_MEMORY.keys().next().value as string);
+  while (COMPOSED_MEMORY.size > SEARCH_MEMORY_SIZE)
+    COMPOSED_MEMORY.delete(COMPOSED_MEMORY.keys().next().value as string);
 }
 
 function recallComposed(key: string): { sections: Record<string, SearchHit[]>; scrollY: number } | null {
@@ -695,6 +796,7 @@ export function SearchResults({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
   }, [tab, query, panelPerson?.pubkey]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [syntaxOpen, setSyntaxOpen] = useState(false);
@@ -743,8 +845,7 @@ export function SearchResults({
   const composedMemory = useRef(composed ? recallComposed(composedKey) : null);
   // Coming back beats the typeahead: memory holds every section, the typeahead
   // only the people it had already found.
-  const composedSeeds =
-    composedMemory.current?.sections ?? (peopleSeed?.length ? { people: peopleSeed } : undefined);
+  const composedSeeds = composedMemory.current?.sections ?? (peopleSeed?.length ? { people: peopleSeed } : undefined);
   // Memory is an answer this page already had; the typeahead is a guess.
   const peopleSeedIsGuess = !composedMemory.current && !!peopleSeed?.length;
   const rememberSections = useCallback(
@@ -765,7 +866,6 @@ export function SearchResults({
       if (typeof at === "number" && typeof cancelAnimationFrame === "function") cancelAnimationFrame(at);
     };
     // Once per mount of a composed page: the recall is read from a ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composed, composedKey]);
 
   useEffect(() => {
@@ -786,7 +886,9 @@ export function SearchResults({
     const remembered = recallSearch(key);
     const restoreScroll = firstRun.current && remembered ? remembered.scrollY : null;
     firstRun.current = false;
-    let latest: SearchSnapshot | null = remembered ? { hits: remembered.hits, eose: false, timeMs: null, error: null } : null;
+    let latest: SearchSnapshot | null = remembered
+      ? { hits: remembered.hits, eose: false, timeMs: null, error: null }
+      : null;
     setSnapshot(latest);
     const handle = searchStream(effectiveQuery, { tab, pov, userPubkey, limit, seed: remembered?.hits }, (snap) => {
       latest = snap;
@@ -836,11 +938,25 @@ export function SearchResults({
     // never count, so the count line and the cards agree.
     // One product, one card: a seller's same-title copies from two apps fold
     // into the one with a product page (lib/listingDuplicates).
-    if (tab === "shop") return collapseDuplicateListings(base.filter((h) => { const l = parseListing(h.event); return !!l && isSellable(l); }));
+    // A NIP-15 stall or marketplace is a shop, not an item: it has no price,
+    // and stays when it has a name to show (lib/thing).
+    if (tab === "shop")
+      return collapseDuplicateListings(
+        base.filter((h) => {
+          if (SHOP_PLACE_KINDS.has(h.event.kind)) return describeThing(h.event) !== null;
+          const l = parseListing(h.event);
+          return !!l && isSellable(l);
+        }),
+      );
     // The relay narrows by tag but cannot exclude by one: zap.cooking's own
     // articles wear the recipe tag too. One source of truth says which is
     // which, here, so the count line, the chips and the cards agree.
     if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
+    // Only what lib/thing can name is a result — decided here, like the Shop,
+    // so "Nothing found" and the counts agree with the cards — and one card
+    // per NIP-28 channel.
+    if (isThingTab(tab)) return oneCardPerChannel(base.filter((h) => describeThing(h.event) !== null));
+    if (tab === "events") return base.filter((h) => h.event.kind !== CALENDAR_KIND || describeThing(h.event) !== null);
     // A named person's own tracks join the Music tab's hits, once each.
     if (tab === "music") {
       const seen = new Set(base.map((h) => h.event.id));
@@ -860,7 +976,13 @@ export function SearchResults({
   // Streams are published by platforms for their streamers: the host's key
   // joins the score request so the channel row can wear the streamer's ring.
   const allAuthors = useMemo(
-    () => [...new Set(rawHits.flatMap((h) => (LIVE_KINDS.has(h.event.kind) ? [h.event.pubkey, liveHostOf(h.event) ?? h.event.pubkey] : [h.event.pubkey])))],
+    () => [
+      ...new Set(
+        rawHits.flatMap((h) =>
+          LIVE_KINDS.has(h.event.kind) ? [h.event.pubkey, liveHostOf(h.event) ?? h.event.pubkey] : [h.event.pubkey],
+        ),
+      ),
+    ],
     [rawHits],
   );
   const scoreOf = useAuthorScores(allAuthors);
@@ -878,7 +1000,12 @@ export function SearchResults({
   // The box no longer shows filter tokens — the Filters button says how many are on.
   const activeFilters = activeFilterCount(clientState);
   const hits = useMemo(
-    () => clientFilterHits(rawHits, { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach, belowLine: floor }, { scoreOf, reach }),
+    () =>
+      clientFilterHits(
+        rawHits,
+        { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach, belowLine: floor },
+        { scoreOf, reach },
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rawHits, clientState.verifiedOnly, clientState.reach, floor, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
   );
@@ -893,7 +1020,7 @@ export function SearchResults({
         <button
           type="button"
           onClick={() => onQueryRewrite?.(applyFilters(query, { includeSpam: true }))}
-          className="font-medium text-slate-500 hover:text-brand-link dark:text-slate-400 transition-colors"
+          className="font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
           data-testid="search-floor-show-all"
         >
           Show everyone
@@ -915,7 +1042,10 @@ export function SearchResults({
   // third source, asked of the tag hub on the tab, never for one person's
   // catalogue — the lists are not per person. The words narrow them here.
   const podcastIndexAll = usePodcastIndexMusic(tab === "music" && !scope);
-  const podcastIndex = useMemo(() => ({ ...filterPodcastIndex(query, podcastIndexAll), loading: podcastIndexAll.loading }), [query, podcastIndexAll]);
+  const podcastIndex = useMemo(
+    () => ({ ...filterPodcastIndex(query, podcastIndexAll), loading: podcastIndexAll.loading }),
+    [query, podcastIndexAll],
+  );
   // The people the network tagged Musician — the tagging list; the tab narrows them by the words.
   const tagged = useTaggedMusicians(tab === "music" && !scope);
   // Words that name a person find that person's music, as their profile does
@@ -927,35 +1057,57 @@ export function SearchResults({
   const musicPerson = tab === "music" && !scope ? panelPerson : null;
   // What the person linked on Fountain — the panel plays it; so does the view.
   const fountain = usePersonFountain(tab === "music" ? (scopedTo ?? musicPerson?.pubkey ?? null) : null);
-  const catalogue = useArtistCatalogue(tab === "music" ? (scopedTo ?? musicPerson?.pubkey ?? null) : null, { name: scopedTo ? undefined : musicPerson ? getDisplayLabel(musicPerson) : undefined });
+  const catalogue = useArtistCatalogue(tab === "music" ? (scopedTo ?? musicPerson?.pubkey ?? null) : null, {
+    name: scopedTo ? undefined : musicPerson ? getDisplayLabel(musicPerson) : undefined,
+  });
   const wavlake = useMemo(() => {
     if (!scope) {
       if (!musicPerson) return wavlakeWords;
       const seenSongs = new Set(wavlakeWords.songs.map((s) => s.id));
       const seenArtists = new Set(wavlakeWords.artists.map((a) => a.id));
       return {
-        artists: catalogue.artist && !seenArtists.has(catalogue.artist.id) ? [catalogue.artist, ...wavlakeWords.artists] : wavlakeWords.artists,
+        artists:
+          catalogue.artist && !seenArtists.has(catalogue.artist.id)
+            ? [catalogue.artist, ...wavlakeWords.artists]
+            : wavlakeWords.artists,
         albums: wavlakeWords.albums,
         songs: [...catalogue.songs.filter((s) => !seenSongs.has(s.id)), ...wavlakeWords.songs],
         loading: wavlakeWords.loading || catalogue.loading,
       };
     }
     const words = scope.rest.toLowerCase().split(/\s+/).filter(Boolean);
-    const songs = words.length === 0 ? catalogue.songs : catalogue.songs.filter((s) => words.every((w) => s.title.toLowerCase().includes(w)));
+    const songs =
+      words.length === 0
+        ? catalogue.songs
+        : catalogue.songs.filter((s) => words.every((w) => s.title.toLowerCase().includes(w)));
     return { artists: catalogue.artist ? [catalogue.artist] : [], albums: [], songs, loading: catalogue.loading };
   }, [scope, wavlakeWords, catalogue, musicPerson]);
   const mediaSettled = tab !== "media" || !!mediaNotes?.eose || !!mediaNotes?.error;
   const searching =
     personMedia.length === 0 &&
-    (!snapshot || (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading)) || (tab === "media" && !mediaSettled && hits.length === 0));
+    (!snapshot ||
+      (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading)) ||
+      (tab === "media" && !mediaSettled && hits.length === 0));
   const noResults =
     !!snapshot?.eose &&
     mediaSettled &&
     hits.length === 0 &&
     personMedia.length === 0 &&
-    (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0 && !fountain.loading && fountain.items.length === 0 && !podcastIndex.loading && podcastIndex.songs.length === 0 && podcastIndex.musicians.length === 0 && !tagged.loading && filterTaggedPeople(query, tagged.people).length === 0 && (query.trim() !== "" || tagged.people.length === 0)));
+    (tab !== "music" ||
+      (!wavlake.loading &&
+        wavlake.songs.length === 0 &&
+        !fountain.loading &&
+        fountain.items.length === 0 &&
+        !podcastIndex.loading &&
+        podcastIndex.songs.length === 0 &&
+        podcastIndex.musicians.length === 0 &&
+        !tagged.loading &&
+        filterTaggedPeople(query, tagged.people).length === 0 &&
+        (query.trim() !== "" || tagged.people.length === 0)));
   // What the count line counts, when it shows: every source the tab shows.
-  const extraCount = (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
+  const extraCount =
+    (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) +
+    (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
   const peopleIdx = useRef(0);
   peopleIdx.current = 0;
 
@@ -967,8 +1119,13 @@ export function SearchResults({
   // upcoming the tab shows what just happened and says so.
   const [eventWhen, setEventWhen] = useState<EventWhen>("upcoming");
   useEffect(() => setEventWhen("upcoming"), [query]);
-  const eventCounts = useMemo(() => (tab === "events" ? eventWhenCounts(hits) : null), [tab, hits]);
-  const eventsFellBack = tab === "events" && eventWhen === "upcoming" && !!eventCounts && eventCounts.upcoming === 0 && eventCounts.past > 0;
+  // The When chips count dated events; calendars ride along with every window.
+  const eventCounts = useMemo(
+    () => (tab === "events" ? eventWhenCounts(hits.filter((h) => h.event.kind !== CALENDAR_KIND)) : null),
+    [tab, hits],
+  );
+  const eventsFellBack =
+    tab === "events" && eventWhen === "upcoming" && !!eventCounts && eventCounts.upcoming === 0 && eventCounts.past > 0;
   const effectiveWhen: EventWhen = eventsFellBack ? "past" : eventWhen;
   // Live tab: three shelves — Live · Upcoming · Replays. Live leads when
   // anyone is on; a replay counts only once its recording answers.
@@ -985,7 +1142,13 @@ export function SearchResults({
     () =>
       tab === "live"
         ? hits
-            .map((h) => (liveStates.get(h.event.id) === "replay" ? h.event.tags.find((t) => t[0] === "recording")?.[1] ?? "" : liveStates.get(h.event.id) === "live" ? liveNeedsCheck(h.event) ?? "" : ""))
+            .map((h) =>
+              liveStates.get(h.event.id) === "replay"
+                ? (h.event.tags.find((t) => t[0] === "recording")?.[1] ?? "")
+                : liveStates.get(h.event.id) === "live"
+                  ? (liveNeedsCheck(h.event) ?? "")
+                  : "",
+            )
             .filter(Boolean)
         : [],
     [hits, tab, liveStates],
@@ -1013,7 +1176,9 @@ export function SearchResults({
     }
     return c;
   }, [hits, tab, liveStates, proven]);
-  const effectiveShelf: LiveState = liveShelf ?? (liveCounts.live > 0 ? "live" : liveCounts.upcoming > 0 ? "upcoming" : liveCounts.replay > 0 ? "replay" : "live");
+  const effectiveShelf: LiveState =
+    liveShelf ??
+    (liveCounts.live > 0 ? "live" : liveCounts.upcoming > 0 ? "upcoming" : liveCounts.replay > 0 ? "replay" : "live");
   const liveShowable = liveCounts.live + liveCounts.upcoming + liveCounts.replay > 0;
   // Apps facet by PLATFORM — a one-tap chip row (Benjamin's "categorize by
   // the chips"), computed from what the results actually run on.
@@ -1038,10 +1203,63 @@ export function SearchResults({
   const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
   // Events tab: who is going — one request per page, keyed by event coordinate.
   const [eventRsvps, setEventRsvps] = useState<Map<string, EventRsvps>>(new Map());
+  // Fundraisers tab: what each zap goal has raised. Like the git counts
+  // below, each streamed snapshot or "more" page asks only after the goals
+  // it adds, and a generation drops answers that land after the page emptied.
+  // `settled` holds the goals a complete answer covered: only there does no
+  // receipt mean "raised nothing" rather than "not known".
+  const [goalProgress, setGoalProgress] = useState<{ byGoal: Map<string, GoalProgress>; settled: Set<string> }>({
+    byGoal: new Map(),
+    settled: new Set(),
+  });
+  const goalIdsKey = useMemo(
+    () => (tab === "fundraisers" ? hits.filter((h) => h.event.kind === 9041).map((h) => h.event.id) : []).join(","),
+    [hits, tab],
+  );
+  // Each shown goal's closed_at: receipts after it don't count (NIP-75). Read
+  // through a ref so the fetch below stays keyed on the ids alone.
+  const goalCloses = useRef(new Map<string, number>());
+  goalCloses.current = useMemo(() => {
+    const m = new Map<string, number>();
+    if (tab !== "fundraisers") return m;
+    for (const h of hits) {
+      if (h.event.kind !== 9041) continue;
+      const closes = Number(h.event.tags.find((t) => t[0] === "closed_at")?.[1]);
+      if (Number.isFinite(closes) && closes > 0) m.set(h.event.id, closes);
+    }
+    return m;
+  }, [hits, tab]);
+  const goalFetched = useRef({ gen: 0, ids: new Set<string>() });
+  useEffect(() => {
+    const seen = goalFetched.current;
+    if (!goalIdsKey) {
+      seen.gen += 1;
+      seen.ids = new Set();
+      setGoalProgress({ byGoal: new Map(), settled: new Set() });
+      return;
+    }
+    const ids = goalIdsKey.split(",").filter((id) => !seen.ids.has(id));
+    if (ids.length === 0) return;
+    for (const id of ids) seen.ids.add(id);
+    const gen = seen.gen;
+    void fetchGoalProgress(ids, undefined, goalCloses.current).then(({ byGoal, complete }) => {
+      if (goalFetched.current.gen !== gen) return;
+      setGoalProgress((prev) => ({
+        byGoal: new Map([...prev.byGoal, ...byGoal]),
+        settled: complete ? new Set([...prev.settled, ...ids]) : prev.settled,
+      }));
+    });
+  }, [goalIdsKey]);
+  const progressOf = (e: NostrEvent): GoalProgress | undefined =>
+    tab !== "fundraisers" || e.kind !== 9041
+      ? undefined
+      : (goalProgress.byGoal.get(e.id) ?? (goalProgress.settled.has(e.id) ? { sats: 0, zappers: [] } : undefined));
   const eventAddresses = useMemo(
     () =>
       tab === "events"
-        ? hits.filter((h) => h.event.kind === 31922 || h.event.kind === 31923).map((h) => `${h.event.kind}:${h.event.pubkey}:${h.event.tags.find((t) => t[0] === "d")?.[1] ?? ""}`)
+        ? hits
+            .filter((h) => h.event.kind === 31922 || h.event.kind === 31923)
+            .map((h) => `${h.event.kind}:${h.event.pubkey}:${h.event.tags.find((t) => t[0] === "d")?.[1] ?? ""}`)
         : [],
     [hits, tab],
   );
@@ -1059,7 +1277,8 @@ export function SearchResults({
       alive = false;
     };
   }, [eventAddrKey]);
-  const rsvpsOf = (e: NostrEvent) => eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
+  const rsvpsOf = (e: NostrEvent) =>
+    eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
   const gitItemIds = useMemo(
     () => (isGitItemTab(tab) ? hits.filter((h) => isGitItem(h.event.kind)).map((h) => h.event.id) : []),
     [hits, tab],
@@ -1089,7 +1308,8 @@ export function SearchResults({
       if (gitFetched.current.gen === gen && m.size) setGitComments((prev) => new Map([...prev, ...m]));
     });
   }, [gitIdsKey]);
-  const stateOf = (e: NostrEvent): GitState | null => (isGitItem(e.kind) ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null);
+  const stateOf = (e: NostrEvent): GitState | null =>
+    isGitItem(e.kind) ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null;
   const [repoLabel, setRepoLabel] = useState<string | null>(null);
   // The labels maintainers share, most common first. A label is a triage
   // convention when more than one author reaches for it; one author's private
@@ -1146,13 +1366,16 @@ export function SearchResults({
       const k = mediaKindOf(h.event);
       if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
     }
-    const present = MEDIA_KIND_ORDER.filter((k) => counts.has(k)).map((k) => [k, counts.get(k)!] as [MediaKind, number]);
+    const present = MEDIA_KIND_ORDER.filter((k) => counts.has(k)).map(
+      (k) => [k, counts.get(k)!] as [MediaKind, number],
+    );
     return present.length > 1 ? present : [];
   }, [tab, hits]);
   const shopFacets = useMemo(() => {
     if (tab !== "shop") return [];
     const counts = new Map<string, number>();
-    for (const h of hits) for (const c of parseListing(h.event)?.categories ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
+    for (const h of hits)
+      for (const c of parseListing(h.event)?.categories ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
   }, [tab, hits]);
   // The kinds of article among the hits, in a fixed order. Chips only when
@@ -1199,7 +1422,16 @@ export function SearchResults({
   }, [tab, hits, appCategoryTags]);
   const displayHits = useMemo<DisplayRow[]>(() => {
     let shown = hits;
-    if (tab === "events") shown = filterEventsByWhen(shown, effectiveWhen);
+    // Calendars have no date to window by: they follow the dated events,
+    // whichever window is picked.
+    if (tab === "events")
+      shown = [
+        ...filterEventsByWhen(
+          shown.filter((h) => h.event.kind !== CALENDAR_KIND),
+          effectiveWhen,
+        ),
+        ...shown.filter((h) => h.event.kind === CALENDAR_KIND),
+      ];
     // A 31337 without a title and audio is not a song (the kind is abused).
     if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
     if (tab === "apps" && appPlatform) {
@@ -1283,7 +1515,9 @@ export function SearchResults({
       const itemCount = (e: NostrEvent) => e.tags.filter((t) => ["p", "e", "a", "r"].includes(t[0])).length;
       const isPeoplePack = (e: NostrEvent) =>
         e.tags.some((t) => t[0] === "p") && !e.tags.some((t) => ["e", "a", "r"].includes(t[0]));
-      shown = hits.filter((h) => titled(h.event) && itemCount(h.event) > 0);
+      // Badges and emoji packs hold no p/e/a/r items; they stay when lib/thing can name them.
+      const namedThing = (e: NostrEvent) => (e.kind === 30009 || e.kind === 30030) && describeThing(e) !== null;
+      shown = hits.filter((h) => namedThing(h.event) || (titled(h.event) && itemCount(h.event) > 0));
       shown = [...shown.filter((h) => isPeoplePack(h.event)), ...shown.filter((h) => !isPeoplePack(h.event))];
     }
     if (isGitTab(tab)) {
@@ -1293,10 +1527,17 @@ export function SearchResults({
       // 2026-09-05, one company's 23 bare repos filled the first screens; the
       // rest now ride their third card's "+20 more from …" chip. A page that
       // is all one author's has no one to make room for, so it stays whole.
-      const repoName = (h: SearchHit) => h.event.tags.find((t) => t[0] === "name")?.[1] ?? h.event.tags.find((t) => t[0] === "d")?.[1] ?? "the original";
-      const groups = foldForks(shown, (h) => ({ event: h.event, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null }));
+      const repoName = (h: SearchHit) =>
+        h.event.tags.find((t) => t[0] === "name")?.[1] ?? h.event.tags.find((t) => t[0] === "d")?.[1] ?? "the original";
+      const groups = foldForks(shown, (h) => ({
+        event: h.event,
+        score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null,
+      }));
       const authors = new Set(shown.map((h) => h.event.pubkey));
-      const rows = authors.size > 1 ? capPerAuthor(groups, (g) => g.primary.event.pubkey, 3) : groups.map((g) => ({ item: g, overflow: [] as typeof groups }));
+      const rows =
+        authors.size > 1
+          ? capPerAuthor(groups, (g) => g.primary.event.pubkey, 3)
+          : groups.map((g) => ({ item: g, overflow: [] as typeof groups }));
       const folded: DisplayRow[] = [];
       for (const { item: g, overflow } of rows) {
         const id = g.primary.event.id;
@@ -1308,12 +1549,19 @@ export function SearchResults({
           forks > 0 ? `${forks} ${forks === 1 ? "fork" : "forks"}` : null,
           more > 0 ? `+${more} more from ${who}` : null,
         ].filter(Boolean);
-        folded.push({ hit: g.primary, collapsedCount: open ? 0 : forks + more, clusterId: id, chipLabel: parts.join(" · ") });
+        folded.push({
+          hit: g.primary,
+          collapsedCount: open ? 0 : forks + more,
+          clusterId: id,
+          chipLabel: parts.join(" · "),
+        });
         if (open) {
-          for (const f of g.forks) folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(g.primary) });
+          for (const f of g.forks)
+            folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(g.primary) });
           for (const o of overflow) {
             folded.push({ hit: o.primary, collapsedCount: 0, clusterId: "" });
-            for (const f of o.forks) folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(o.primary) });
+            for (const f of o.forks)
+              folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(o.primary) });
           }
         }
       }
@@ -1326,7 +1574,10 @@ export function SearchResults({
       // and door, everyone across them — rather than one list of five
       // (Benjamin, 2026-09-09). No chip, no extra rows.
       const folded: DisplayRow[] = [];
-      for (const g of groupPeoplePacks(shown, (h) => ({ event: h.event, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null }))) {
+      for (const g of groupPeoplePacks(shown, (h) => ({
+        event: h.event,
+        score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null,
+      }))) {
         folded.push({
           hit: g.primary,
           collapsedCount: 0,
@@ -1338,7 +1589,11 @@ export function SearchResults({
                   members: g.members,
                   consensus: g.consensus,
                   agreement: g.agreement,
-                  items: [g.primary, ...g.others].map((h) => ({ event: h.event, author: h.author, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null })),
+                  items: [g.primary, ...g.others].map((h) => ({
+                    event: h.event,
+                    author: h.author,
+                    score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null,
+                  })),
                 }
               : undefined,
         });
@@ -1346,16 +1601,45 @@ export function SearchResults({
       return folded;
     }
     if (!clustered) return shown.map((h) => ({ hit: h, collapsedCount: 0, clusterId: "" }));
+    // A calendar is not one of its events: it never folds into (or leads) an
+    // event's cluster, and stays below the dated events, unclustered.
+    const calendars = tab === "events" ? shown.filter((h) => h.event.kind === CALENDAR_KIND) : [];
     const out: DisplayRow[] = [];
-    for (const cluster of collapseHits(shown)) {
+    for (const cluster of collapseHits(
+      calendars.length ? shown.filter((h) => h.event.kind !== CALENDAR_KIND) : shown,
+    )) {
       const id = cluster.primary.event.id;
       const open = expandedClusters.has(id);
       out.push({ hit: cluster.primary, collapsedCount: open ? 0 : cluster.others.length, clusterId: id });
       if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
     }
+    for (const h of calendars) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits, tab, appPlatform, appCategory, shopCategory, shopPrice, rates, bands, viewerFiat, priceSort, mediaKind, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, proven]);
+  }, [
+    hits,
+    tab,
+    appPlatform,
+    appCategory,
+    shopCategory,
+    shopPrice,
+    rates,
+    bands,
+    viewerFiat,
+    priceSort,
+    mediaKind,
+    repoState,
+    repoLabel,
+    gitStatuses,
+    appCategoryTags,
+    clustered,
+    expandedClusters,
+    effectiveWhen,
+    scoreOf,
+    liveStates,
+    effectiveShelf,
+    proven,
+  ]);
 
   // The Events tab is a timeline: the first card of each day carries a header
   // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
@@ -1366,6 +1650,12 @@ export function SearchResults({
     let last: string | null = null;
     const nowSec = Math.floor(Date.now() / 1000);
     for (const row of displayHits) {
+      if (row.hit.event.kind === CALENDAR_KIND) {
+        if (last === "calendars") continue;
+        last = "calendars";
+        out.set(row.hit.event.id, { key: "calendars", startSec: 0, label: "Calendars" });
+        continue;
+      }
       const cal = parseCal(row.hit.event);
       const d = cal.startSec ? new Date(cal.startSec * 1000) : null;
       // Already running — a conference on its second day, a walk series that
@@ -1376,13 +1666,19 @@ export function SearchResults({
         out.set(row.hit.event.id, { key: "ongoing", startSec: 0, label: "Ongoing" });
         continue;
       }
-      const key = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "tba";
+      const key = d
+        ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+        : "tba";
       if (key === last) continue;
       last = key;
       const rel = d ? relativeDay(cal.startSec) : "";
       const dayWord = rel === "Today" || rel === "Tomorrow" || rel === "Yesterday" ? rel : null;
       const long = d ? d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "";
-      out.set(row.hit.event.id, { key, startSec: cal.startSec, label: d ? (dayWord ? `${dayWord} · ${long}` : long) : "Date to be announced" });
+      out.set(row.hit.event.id, {
+        key,
+        startSec: cal.startSec,
+        label: d ? (dayWord ? `${dayWord} · ${long}` : long) : "Date to be announced",
+      });
     }
     return out;
   }, [displayHits, tab, effectiveWhen]);
@@ -1410,7 +1706,8 @@ export function SearchResults({
   // Asked once the stream has settled, so a snapshot every few hundred
   // milliseconds does not re-key the fetch; the fetchers are store-first.
   const noteEvents = useMemo(
-    () => (snapshot?.eose ? hits.filter((h) => NOTE_KINDS.has(h.event.kind)).map((h) => h.event as MinimalEvent) : NO_NOTES),
+    () =>
+      snapshot?.eose ? hits.filter((h) => NOTE_KINDS.has(h.event.kind)).map((h) => h.event as MinimalEvent) : NO_NOTES,
     [hits, snapshot?.eose],
   );
   const noteRefs = useNoteRefs(noteEvents);
@@ -1422,626 +1719,762 @@ export function SearchResults({
 
   return (
     <QuietTrustChrome>
-    <div className="w-full max-w-2xl lg:max-w-[62rem] mx-auto mt-4 sm:mt-5 text-left" data-testid="search-results">
-      {/* One quiet row, Google's anatomy: five tabs (scrolling on phones),
+      <div className="mx-auto mt-4 w-full max-w-2xl text-left sm:mt-5 lg:max-w-[62rem]" data-testid="search-results">
+        {/* One quiet row, Google's anatomy: five tabs (scrolling on phones),
           then pinned at the right edge — More ▾, the perspective control and
           Filters — so nothing a person needs ever scrolls out of view. */}
-      <div
-        className="mb-2 sm:mb-3 -mx-1 flex items-stretch border-b border-slate-100 dark:border-slate-800/60 px-1"
-        data-testid="search-toolbar"
-      >
         <div
-          role="tablist"
-          aria-label="Result types"
-          className="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          data-testid="search-tabs"
+          className="-mx-1 mb-2 flex items-stretch border-b border-slate-100 px-1 dark:border-slate-800/60 sm:mb-3"
+          data-testid="search-toolbar"
         >
-          {PRIMARY_TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.key}
-              onClick={() => changeTab(t.key)}
-              className={tabClass(tab === t.key)}
-              data-testid={`search-tab-${t.key}`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
-          <MoreTabs tab={tab} onChange={changeTab} />
-          {perspective}
-          {/* The syntax sheet, before the sorting: what can be typed into the box is the
+          <div
+            role="tablist"
+            aria-label="Result types"
+            className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1 [&::-webkit-scrollbar]:hidden"
+            data-testid="search-tabs"
+          >
+            {PRIMARY_TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => changeTab(t.key)}
+                className={tabClass(tab === t.key)}
+                data-testid={`search-tab-${t.key}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
+            <MoreTabs tab={tab} onChange={changeTab} />
+            {perspective}
+            {/* The syntax sheet, before the sorting: what can be typed into the box is the
               question people have first. The mark alone — a labelled button wraps this row
               on a phone — and `aria-label` says what it is. */}
-          <button
-            type="button"
-            aria-haspopup="dialog"
-            aria-label="Search syntax"
-            title="Search syntax — people, days, topics, and the tokens that rank the answer. Shortcut: ?"
-            onClick={() => setSyntaxOpen(true)}
-            // Same bare 24px round mark as the perspective control's ⓘ beside it (not a tab: a
-            // tab's underline border pushes the glyph off-centre), pulled in so the pair reads as one.
-            className={"inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-brand-deep dark:text-slate-500 dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" + (perspective ? " sm:-ml-1.5" : "")}
-            data-testid="search-syntax-toggle"
-          >
-            <HelpCircle className="h-3.5 w-3.5" />
-          </button>
-          {onQueryRewrite && (
             <button
               type="button"
-              aria-expanded={filtersOpen}
-              aria-label="Filters"
-              onClick={() => setFiltersOpen((v) => !v)}
-              className={tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:-ml-1.5 sm:!pl-1.5 sm:!pr-2.5"}
-              data-testid="search-filters-toggle"
+              aria-haspopup="dialog"
+              aria-label="Search syntax"
+              title="Search syntax — people, days, topics, and the tokens that rank the answer. Shortcut: ?"
+              onClick={() => setSyntaxOpen(true)}
+              // Same bare 24px round mark as the perspective control's ⓘ beside it (not a tab: a
+              // tab's underline border pushes the glyph off-centre), pulled in so the pair reads as one.
+              className={
+                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-500 dark:hover:text-white" +
+                (perspective ? " sm:-ml-1.5" : "")
+              }
+              data-testid="search-syntax-toggle"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-              <span className="hidden sm:inline">Filters</span>
-              {activeFilters > 0 && (
-                <span
-                  className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-semibold leading-none text-white"
-                  data-testid="filters-active-count"
-                >
-                  {activeFilters}
-                </span>
-              )}
+              <HelpCircle className="h-3.5 w-3.5" />
             </button>
-          )}
+            {onQueryRewrite && (
+              <button
+                type="button"
+                aria-expanded={filtersOpen}
+                aria-label="Filters"
+                onClick={() => setFiltersOpen((v) => !v)}
+                className={
+                  tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:-ml-1.5 sm:!pl-1.5 sm:!pr-2.5"
+                }
+                data-testid="search-filters-toggle"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+                <span className="hidden sm:inline">Filters</span>
+                {activeFilters > 0 && (
+                  <span
+                    className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-semibold leading-none text-white"
+                    data-testid="filters-active-count"
+                  >
+                    {activeFilters}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      <QueryAsSent query={effectiveQuery} tab={tab} pov={pov} timeMs={snapshot?.timeMs} />
-      {filtersOpen && onQueryRewrite && <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} tab={tab} onQueryRewrite={onQueryRewrite} />}
-      <SearchSyntaxSheet open={syntaxOpen} onOpenChange={setSyntaxOpen} />
+        <QueryAsSent query={effectiveQuery} tab={tab} pov={pov} timeMs={snapshot?.timeMs} />
+        {filtersOpen && onQueryRewrite && (
+          <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} tab={tab} onQueryRewrite={onQueryRewrite} />
+        )}
+        <SearchSyntaxSheet open={syntaxOpen} onOpenChange={setSyntaxOpen} />
 
-      {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
+        {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
           card on mobile, the right rail on desktop (flex order). When no
           person clears the confidence bar it renders nothing and the column
           takes the full width. */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:justify-center lg:items-start lg:gap-6">
-      <KnowledgePanel
-        query={query}
-        pov={pov}
-        userPubkey={userPubkey}
-        sections={composed ? sections : undefined}
-        onOpen={onOpenProfile}
-        onPerson={setPanelPerson}
-        onTab={(next) => changeTab(next as SearchTab)}
-        // Not pinned: the panel is context for the query, read at the top, and
-        // it scrolls away with the page the way Google's does. Pinned, it
-        // followed the reader down every page and ducked under the search
-        // band (Benjamin, 2026-09-09: "I don't like how this gets covered and
-        // always stays in view"). The Top pill brings it back in one tap.
-        className="lg:order-2 lg:w-72 lg:shrink-0"
-      />
-      <div className="min-w-0 w-full lg:order-1 lg:w-[42rem] lg:flex-none">
-      {serverStatus.search === "down" ? (
-        // The relay is the thing that is down: the results area says so, and
-        // the box, the tabs and Filters above stay usable.
-        <SorryPage scope="search" variant="inline" onRetry={() => retryNow("search")} signedIn={!!userPubkey} />
-      ) : composed ? (
-        <ComposedResults
-          query={query}
-          personMedia={personMedia}
-          onSections={setSections}
-          onSectionHits={rememberSections}
-          seeds={composedSeeds}
-          peopleSeedIsGuess={peopleSeedIsGuess}
-          pov={pov}
-          userPubkey={userPubkey}
-          onTabChange={changeTab}
-          onOpenProfile={openProfile}
-          onQueryRewrite={onQueryRewrite}
-        />
-      ) : snapshot?.error ? (
-        <div
-          className="rounded-xl border border-red-100 dark:border-red-500/20 bg-red-50/60 dark:bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300"
-          data-testid="search-error"
-        >
-          {snapshot.error}
-        </div>
-      ) : searching ? (
-        <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/60 animate-pulse"
-              style={{ animationDelay: `${i * 0.08}s` }}
-            >
-              <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
-              <div className="flex-1 space-y-2 pt-1">
-                <div className="h-3 sm:h-3.5 bg-slate-200 dark:bg-slate-700 rounded-full w-28 sm:w-36" />
-                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full w-full max-w-md" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : noResults && tab === "music" && scopedTo ? (
-        // A person's music view with nothing here yet: say so, and offer the
-        // person — a face in a music context opens their music, and this is
-        // where a Bandcamp-only musician lands.
-        <div className="mt-4 sm:mt-6" data-testid="music-scoped-empty">
-          <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
-            <EmptyState
-              icon={Radar}
-              compact
-              title={`No songs from ${panelPerson ? getDisplayLabel(panelPerson) : "them"} here yet`}
-              description="Nothing on Nostr or Wavlake under their key so far."
-              action={
-                <Link href={`/p/${(() => { try { return nip19.npubEncode(scopedTo); } catch { return scopedTo; } })()}`} className="text-sm font-semibold text-brand-link hover:underline">
-                  See their profile →
-                </Link>
-              }
-            />
-          </div>
-        </div>
-      ) : noResults ? (
-        <div className="mt-4 sm:mt-6" data-testid="container-no-results">
-          <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
-            {scopedTo && hiddenBelowLine === 0 ? (
-              (() => {
-                const who = scopedName ?? "This person";
-                const thing = tab === "everything" ? "anything" : tabLabel(tab).toLowerCase();
-                const others = { chips: (scopedContent.get(scopedTo)?.chips ?? []).filter((c) => c.tab !== tab) };
-                return (
-                  <EmptyState
-                    icon={Radar}
-                    compact
-                    title={`${who} hasn't published ${thing} here yet`}
-                    description={others.chips.length ? `What ${scopedName ? who : "they"} ${scopedName ? "does" : "do"} publish:` : "Try another tab, or everything they have published."}
-                    action={
-                      <div className="flex flex-col items-center gap-3" data-testid="scoped-empty">
-                        {others.chips.length > 0 && (
-                          <PersonContentChips pubkey={scopedTo} name={who} content={others} onPick={(c) => changeTab(c.tab as SearchTab)} testId="scoped-empty-chips" />
-                        )}
-                        {tab !== "everything" && (
-                          // The page reads its tab once, on mount: a link that only rewrites the URL
-                          // moved nothing. It switches the tab in place, the way the chips do; the
-                          // href stays for a middle-click or a copied link.
-                          <Link
-                            href={scopedSearchHref(scopedTo, "everything", scope?.rest)}
-                            onClick={(e) => { e.preventDefault(); changeTab("everything"); }}
-                            className="text-xs font-semibold text-brand-link hover:underline"
-                            data-testid="scoped-empty-all"
-                          >
-                            See everything from {who === "This person" ? "them" : who} →
-                          </Link>
-                        )}
-                      </div>
-                    }
-                  />
-                );
-              })()
-            ) : (
-            <EmptyState
-              icon={Radar}
-              compact
-              title="Nothing found"
-              description={hiddenBelowLine > 0 ? "Everything that matched came from accounts below the verified line." : "Try different words, another tab, or paste an npub directly."}
-            />
-            )}
-          </div>
-          {floorNotice}
-        </div>
-      ) : (
-        <>
-          {tab === "events" && eventCounts && (
-            <div className="mb-2.5">
-              <FacetRow testId="event-facets">
-                {EVENT_WHEN_ORDER.filter((when) => !((when === "today" || when === "weekend") && eventCounts[when] === 0)).map((when) => (
-                  <button
-                    key={when}
-                    type="button"
-                    aria-pressed={effectiveWhen === when}
-                    onClick={() => setEventWhen(when)}
-                    className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                      effectiveWhen === when
-                        ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
-                    }`}
-                    data-testid={`event-facet-${when}`}
-                  >
-                    {EVENT_WHEN_LABELS[when]} <span className="opacity-60">{eventCounts[when]}</span>
-                  </button>
-                ))}
-              </FacetRow>
-              {eventsFellBack && (
-                <p className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="event-facets-note">
-                  No upcoming events for this search — showing past events.
-                </p>
-              )}
-              {displayHits.length === 0 && !eventsFellBack && (
-                <p className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="event-facets-empty">
-                  No {EVENT_WHEN_LABELS[effectiveWhen].toLowerCase()} events here — try another window.
-                </p>
-              )}
-            </div>
-          )}
-          {isGitItemTab(tab) && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
-            <FacetRow className="mb-2" testId="repo-state-facets">
-              <button
-                type="button"
-                onClick={() => setRepoState(null)}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === null ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
-                data-testid="repo-state-all"
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-center lg:gap-6">
+          <KnowledgePanel
+            query={query}
+            pov={pov}
+            userPubkey={userPubkey}
+            sections={composed ? sections : undefined}
+            onOpen={onOpenProfile}
+            onPerson={setPanelPerson}
+            onTab={(next) => changeTab(next as SearchTab)}
+            // Not pinned: the panel is context for the query, read at the top, and
+            // it scrolls away with the page the way Google's does. Pinned, it
+            // followed the reader down every page and ducked under the search
+            // band (Benjamin, 2026-09-09: "I don't like how this gets covered and
+            // always stays in view"). The Top pill brings it back in one tap.
+            className="lg:order-2 lg:w-72 lg:shrink-0"
+          />
+          <div className="w-full min-w-0 lg:order-1 lg:w-[42rem] lg:flex-none">
+            {serverStatus.search === "down" ? (
+              // The relay is the thing that is down: the results area says so, and
+              // the box, the tabs and Filters above stay usable.
+              <SorryPage scope="search" variant="inline" onRetry={() => retryNow("search")} signedIn={!!userPubkey} />
+            ) : composed ? (
+              <ComposedResults
+                query={query}
+                personMedia={personMedia}
+                onSections={setSections}
+                onSectionHits={rememberSections}
+                seeds={composedSeeds}
+                peopleSeedIsGuess={peopleSeedIsGuess}
+                pov={pov}
+                userPubkey={userPubkey}
+                onTabChange={changeTab}
+                onOpenProfile={openProfile}
+                onQueryRewrite={onQueryRewrite}
+              />
+            ) : snapshot?.error ? (
+              <div
+                className="rounded-xl border border-red-100 bg-red-50/60 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/5 dark:text-red-300"
+                data-testid="search-error"
               >
-                All
-              </button>
-              {repoStateFacets.map(([st, count]) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setRepoState(repoState === st ? null : st)}
-                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === st ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
-                  data-testid={`repo-state-${st}`}
-                >
-                  {GIT_STATE_LABEL[st]}
-                </button>
-              ))}
-              {repoStateFacets.length > 0 && repoLabelFacets.length > 0 && (
-                <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
-              )}
-              {repoLabelFacets.map(([label, count]) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => setRepoLabel(repoLabel === label ? null : label)}
-                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoLabel === label ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
-                  data-testid={`repo-label-${label}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </FacetRow>
-          )}
-          {tab === "live" && !liveShowable && hits.length > 0 && (
-            // Nothing on any shelf yet. While the relay or the proofs are still
-            // answering, hold the shape; once they have, say so — never a blank
-            // page under a count of eleven (Joe Martin's stale "live" pair).
-            !snapshot?.eose || proofs.pending > 0 ? (
-              <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3" data-testid="live-skeleton" aria-hidden="true">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="animate-pulse">
-                    <div className="aspect-video rounded-xl bg-slate-200 dark:bg-slate-800" />
-                    <div className="mt-2 h-3 w-3/4 rounded-full bg-slate-200 dark:bg-slate-800" />
-                    <div className="mt-1.5 h-2.5 w-1/2 rounded-full bg-slate-100 dark:bg-slate-800/70" />
+                {snapshot.error}
+              </div>
+            ) : searching ? (
+              <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex animate-pulse items-start gap-3 rounded-xl border border-slate-100 bg-white/70 p-3 dark:border-slate-800/60 dark:bg-slate-900/70 sm:gap-4 sm:p-4"
+                    style={{ animationDelay: `${i * 0.08}s` }}
+                  >
+                    <div className="h-9 w-9 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 sm:h-11 sm:w-11" />
+                    <div className="flex-1 space-y-2 pt-1">
+                      <div className="h-3 w-28 rounded-full bg-slate-200 dark:bg-slate-700 sm:h-3.5 sm:w-36" />
+                      <div className="h-2.5 w-full max-w-md rounded-full bg-slate-100 dark:bg-slate-800" />
+                    </div>
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="mt-2 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/60 dark:bg-slate-900/60 p-2" data-testid="live-empty">
-                <EmptyState
-                  icon={Radio}
-                  compact
-                  title={scopedTo ? "Nothing live from them right now" : query.trim() ? `Nothing live for “${query.trim()}” right now` : "Nothing live right now"}
-                  description={`${hits.length} past ${hits.length === 1 ? "stream" : "streams"} matched, but none is on air, scheduled, or left a recording.`}
-                />
+            ) : noResults && tab === "music" && scopedTo ? (
+              // A person's music view with nothing here yet: say so, and offer the
+              // person — a face in a music context opens their music, and this is
+              // where a Bandcamp-only musician lands.
+              <div className="mt-4 sm:mt-6" data-testid="music-scoped-empty">
+                <div className="rounded-xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60 sm:rounded-2xl">
+                  <EmptyState
+                    icon={Radar}
+                    compact
+                    title={`No songs from ${panelPerson ? getDisplayLabel(panelPerson) : "them"} here yet`}
+                    description="Nothing on Nostr or Wavlake under their key so far."
+                    action={
+                      <Link
+                        href={`/p/${(() => {
+                          try {
+                            return nip19.npubEncode(scopedTo);
+                          } catch {
+                            return scopedTo;
+                          }
+                        })()}`}
+                        className="text-sm font-semibold text-brand-link hover:underline"
+                      >
+                        See their profile →
+                      </Link>
+                    }
+                  />
+                </div>
               </div>
-            )
-          )}
-          {tab === "live" && liveShowable && (
-            <FacetRow className="mb-3" testId="live-facets">
-              {(["live", "upcoming", "replay"] as LiveState[]).filter((st) => liveCounts[st] > 0).map((st) => (
-                <FacetChip key={st} pressed={effectiveShelf === st} onClick={() => setLiveShelf(st)} count={liveCounts[st]} testId={`live-facet-${st === "replay" ? "replays" : st}`}>
-                  {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
-                </FacetChip>
-              ))}
-            </FacetRow>
-          )}
-          {tab === "articles" && articleFacets.length > 0 && (
-            <FacetRow className="mb-2" testId="article-facets">
-              <button
-                type="button"
-                onClick={() => setArticleType(null)}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  articleType === null
-                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
-                }`}
-                data-testid="article-facet-all"
-              >
-                All
-              </button>
-              {articleFacets.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setArticleType((cur) => (cur === t ? null : t))}
-                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    articleType === t
-                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
-                  }`}
-                  data-testid={`article-facet-${t}`}
-                >
-                  {ARTICLE_TYPE_LABEL[t]}
-                </button>
-              ))}
-            </FacetRow>
-          )}
-          {tab === "recipes" && recipeFacets.length > 0 && (
-            <FacetRow className="mb-2" testId="recipe-facets">
-              <button
-                type="button"
-                onClick={() => setRecipeTopic(null)}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  recipeTopic === null
-                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
-                }`}
-                data-testid="recipe-facet-all"
-              >
-                All
-              </button>
-              {recipeFacets.map(([topic]) => (
-                <button
-                  key={topic}
-                  type="button"
-                  onClick={() => setRecipeTopic((cur) => (cur === topic ? null : topic))}
-                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    recipeTopic === topic
-                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
-                  }`}
-                  data-testid={`recipe-facet-${topic}`}
-                >
-                  {topic}
-                </button>
-              ))}
-            </FacetRow>
-          )}
-          {tab === "media" && mediaFacets.length > 0 && (
-            <FacetRow className="mb-2" testId="media-facets">
-              <FacetChip pressed={mediaKind === null} onClick={() => setMediaKind(null)} testId="media-facet-all">
-                All
-              </FacetChip>
-              {mediaFacets.map(([kind, count]) => (
-                <FacetChip key={kind} pressed={mediaKind === kind} onClick={() => setMediaKind((cur) => (cur === kind ? null : kind))} count={count} testId={`media-facet-${kind}`}>
-                  {MEDIA_KIND_LABELS[kind]}
-                </FacetChip>
-              ))}
-            </FacetRow>
-          )}
-          {tab === "shop" && shopFacets.length > 0 && (
-            <FacetRow className="mb-2" testId="shop-facets">
-              <button
-                type="button"
-                onClick={() => setShopCategory(null)}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  shopCategory === null
-                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
-                }`}
-                data-testid="shop-facet-all"
-              >
-                All
-              </button>
-              {shopFacets.map(([cat, count]) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setShopCategory((cur) => (cur === cat ? null : cat))}
-                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    shopCategory === cat
-                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
-                  }`}
-                  data-testid={`shop-facet-${cat}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </FacetRow>
-          )}
-          {tab === "shop" && rates && rawHits.length > 0 && (
-            <FacetRow className="mb-2" testId="shop-price-facets">
-              {bands.map((b) => (
-                <FacetChip key={b.key} pressed={shopPrice === b.key} onClick={() => setShopPrice((cur) => (cur === b.key ? null : b.key))} testId={`shop-price-${b.key}`}>
-                  {b.label}
-                </FacetChip>
-              ))}
-            </FacetRow>
-          )}
-          {tab === "apps" && (appFacets.length > 0 || appCategoryFacets.length > 0) && (
-            <FacetRow className="mb-2" testId="app-facets">
-              <button
-                type="button"
-                onClick={() => setAppPlatform(null)}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  appPlatform === null
-                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
-                }`}
-                data-testid="app-facet-all"
-              >
-                All
-              </button>
-              {appFacets.map(([platform, count]) => (
-                <button
-                  key={platform}
-                  type="button"
-                  onClick={() => setAppPlatform((cur) => (cur === platform ? null : platform))}
-                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    appPlatform === platform
-                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
-                  }`}
-                  data-testid={`app-facet-${platform.toLowerCase()}`}
-                >
-                  {platform}
-                </button>
-              ))}
-              {/* One row, like Repos: platforms, a hairline, then the apps' own
+            ) : noResults ? (
+              <div className="mt-4 sm:mt-6" data-testid="container-no-results">
+                <div className="rounded-xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60 sm:rounded-2xl">
+                  {scopedTo && hiddenBelowLine === 0 ? (
+                    (() => {
+                      const who = scopedName ?? "This person";
+                      const thing = tab === "everything" ? "anything" : tabLabel(tab).toLowerCase();
+                      const others = { chips: (scopedContent.get(scopedTo)?.chips ?? []).filter((c) => c.tab !== tab) };
+                      return (
+                        <EmptyState
+                          icon={Radar}
+                          compact
+                          title={`${who} hasn't published ${thing} here yet`}
+                          description={
+                            others.chips.length
+                              ? `What ${scopedName ? who : "they"} ${scopedName ? "does" : "do"} publish:`
+                              : "Try another tab, or everything they have published."
+                          }
+                          action={
+                            <div className="flex flex-col items-center gap-3" data-testid="scoped-empty">
+                              {others.chips.length > 0 && (
+                                <PersonContentChips
+                                  pubkey={scopedTo}
+                                  name={who}
+                                  content={others}
+                                  onPick={(c) => changeTab(c.tab as SearchTab)}
+                                  testId="scoped-empty-chips"
+                                />
+                              )}
+                              {tab !== "everything" && (
+                                // The page reads its tab once, on mount: a link that only rewrites the URL
+                                // moved nothing. It switches the tab in place, the way the chips do; the
+                                // href stays for a middle-click or a copied link.
+                                <Link
+                                  href={scopedSearchHref(scopedTo, "everything", scope?.rest)}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    changeTab("everything");
+                                  }}
+                                  className="text-xs font-semibold text-brand-link hover:underline"
+                                  data-testid="scoped-empty-all"
+                                >
+                                  See everything from {who === "This person" ? "them" : who} →
+                                </Link>
+                              )}
+                            </div>
+                          }
+                        />
+                      );
+                    })()
+                  ) : (
+                    <EmptyState
+                      icon={Radar}
+                      compact
+                      title="Nothing found"
+                      description={
+                        hiddenBelowLine > 0
+                          ? "Everything that matched came from accounts below the verified line."
+                          : "Try different words, another tab, or paste an npub directly."
+                      }
+                    />
+                  )}
+                </div>
+                {floorNotice}
+              </div>
+            ) : (
+              <>
+                {tab === "events" && eventCounts && (
+                  <div className="mb-2.5">
+                    <FacetRow testId="event-facets">
+                      {EVENT_WHEN_ORDER.filter(
+                        (when) => !((when === "today" || when === "weekend") && eventCounts[when] === 0),
+                      ).map((when) => (
+                        <button
+                          key={when}
+                          type="button"
+                          aria-pressed={effectiveWhen === when}
+                          onClick={() => setEventWhen(when)}
+                          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            effectiveWhen === when
+                              ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                              : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                          }`}
+                          data-testid={`event-facet-${when}`}
+                        >
+                          {EVENT_WHEN_LABELS[when]} <span className="opacity-60">{eventCounts[when]}</span>
+                        </button>
+                      ))}
+                    </FacetRow>
+                    {eventsFellBack && (
+                      <p
+                        className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500"
+                        data-testid="event-facets-note"
+                      >
+                        No upcoming events for this search — showing past events.
+                      </p>
+                    )}
+                    {displayHits.length === 0 && !eventsFellBack && (
+                      <p
+                        className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500"
+                        data-testid="event-facets-empty"
+                      >
+                        No {EVENT_WHEN_LABELS[effectiveWhen].toLowerCase()} events here — try another window.
+                      </p>
+                    )}
+                  </div>
+                )}
+                {isGitItemTab(tab) && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
+                  <FacetRow className="mb-2" testId="repo-state-facets">
+                    <button
+                      type="button"
+                      onClick={() => setRepoState(null)}
+                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === null ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
+                      data-testid="repo-state-all"
+                    >
+                      All
+                    </button>
+                    {repoStateFacets.map(([st]) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setRepoState(repoState === st ? null : st)}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === st ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
+                        data-testid={`repo-state-${st}`}
+                      >
+                        {GIT_STATE_LABEL[st]}
+                      </button>
+                    ))}
+                    {repoStateFacets.length > 0 && repoLabelFacets.length > 0 && (
+                      <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+                    )}
+                    {repoLabelFacets.map(([label]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setRepoLabel(repoLabel === label ? null : label)}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoLabel === label ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"}`}
+                        data-testid={`repo-label-${label}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </FacetRow>
+                )}
+                {tab === "live" &&
+                  !liveShowable &&
+                  hits.length > 0 &&
+                  // Nothing on any shelf yet. While the relay or the proofs are still
+                  // answering, hold the shape; once they have, say so — never a blank
+                  // page under a count of eleven (Joe Martin's stale "live" pair).
+                  (!snapshot?.eose || proofs.pending > 0 ? (
+                    <div
+                      className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
+                      data-testid="live-skeleton"
+                      aria-hidden="true"
+                    >
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="animate-pulse">
+                          <div className="aspect-video rounded-xl bg-slate-200 dark:bg-slate-800" />
+                          <div className="mt-2 h-3 w-3/4 rounded-full bg-slate-200 dark:bg-slate-800" />
+                          <div className="mt-1.5 h-2.5 w-1/2 rounded-full bg-slate-100 dark:bg-slate-800/70" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      className="mt-2 rounded-2xl border border-slate-100 bg-white/60 p-2 dark:border-slate-800/60 dark:bg-slate-900/60"
+                      data-testid="live-empty"
+                    >
+                      <EmptyState
+                        icon={Radio}
+                        compact
+                        title={
+                          scopedTo
+                            ? "Nothing live from them right now"
+                            : query.trim()
+                              ? `Nothing live for “${query.trim()}” right now`
+                              : "Nothing live right now"
+                        }
+                        description={`${hits.length} past ${hits.length === 1 ? "stream" : "streams"} matched, but none is on air, scheduled, or left a recording.`}
+                      />
+                    </div>
+                  ))}
+                {tab === "live" && liveShowable && (
+                  <FacetRow className="mb-3" testId="live-facets">
+                    {(["live", "upcoming", "replay"] as LiveState[])
+                      .filter((st) => liveCounts[st] > 0)
+                      .map((st) => (
+                        <FacetChip
+                          key={st}
+                          pressed={effectiveShelf === st}
+                          onClick={() => setLiveShelf(st)}
+                          count={liveCounts[st]}
+                          testId={`live-facet-${st === "replay" ? "replays" : st}`}
+                        >
+                          {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
+                        </FacetChip>
+                      ))}
+                  </FacetRow>
+                )}
+                {tab === "articles" && articleFacets.length > 0 && (
+                  <FacetRow className="mb-2" testId="article-facets">
+                    <button
+                      type="button"
+                      onClick={() => setArticleType(null)}
+                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                        articleType === null
+                          ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                          : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                      }`}
+                      data-testid="article-facet-all"
+                    >
+                      All
+                    </button>
+                    {articleFacets.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setArticleType((cur) => (cur === t ? null : t))}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          articleType === t
+                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                        }`}
+                        data-testid={`article-facet-${t}`}
+                      >
+                        {ARTICLE_TYPE_LABEL[t]}
+                      </button>
+                    ))}
+                  </FacetRow>
+                )}
+                {tab === "recipes" && recipeFacets.length > 0 && (
+                  <FacetRow className="mb-2" testId="recipe-facets">
+                    <button
+                      type="button"
+                      onClick={() => setRecipeTopic(null)}
+                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                        recipeTopic === null
+                          ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                          : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                      }`}
+                      data-testid="recipe-facet-all"
+                    >
+                      All
+                    </button>
+                    {recipeFacets.map(([topic]) => (
+                      <button
+                        key={topic}
+                        type="button"
+                        onClick={() => setRecipeTopic((cur) => (cur === topic ? null : topic))}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          recipeTopic === topic
+                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                        }`}
+                        data-testid={`recipe-facet-${topic}`}
+                      >
+                        {topic}
+                      </button>
+                    ))}
+                  </FacetRow>
+                )}
+                {tab === "media" && mediaFacets.length > 0 && (
+                  <FacetRow className="mb-2" testId="media-facets">
+                    <FacetChip pressed={mediaKind === null} onClick={() => setMediaKind(null)} testId="media-facet-all">
+                      All
+                    </FacetChip>
+                    {mediaFacets.map(([kind, count]) => (
+                      <FacetChip
+                        key={kind}
+                        pressed={mediaKind === kind}
+                        onClick={() => setMediaKind((cur) => (cur === kind ? null : kind))}
+                        count={count}
+                        testId={`media-facet-${kind}`}
+                      >
+                        {MEDIA_KIND_LABELS[kind]}
+                      </FacetChip>
+                    ))}
+                  </FacetRow>
+                )}
+                {tab === "shop" && shopFacets.length > 0 && (
+                  <FacetRow className="mb-2" testId="shop-facets">
+                    <button
+                      type="button"
+                      onClick={() => setShopCategory(null)}
+                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                        shopCategory === null
+                          ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                          : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                      }`}
+                      data-testid="shop-facet-all"
+                    >
+                      All
+                    </button>
+                    {shopFacets.map(([cat]) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setShopCategory((cur) => (cur === cat ? null : cat))}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          shopCategory === cat
+                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                        }`}
+                        data-testid={`shop-facet-${cat}`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </FacetRow>
+                )}
+                {tab === "shop" && rates && rawHits.length > 0 && (
+                  <FacetRow className="mb-2" testId="shop-price-facets">
+                    {bands.map((b) => (
+                      <FacetChip
+                        key={b.key}
+                        pressed={shopPrice === b.key}
+                        onClick={() => setShopPrice((cur) => (cur === b.key ? null : b.key))}
+                        testId={`shop-price-${b.key}`}
+                      >
+                        {b.label}
+                      </FacetChip>
+                    ))}
+                  </FacetRow>
+                )}
+                {tab === "apps" && (appFacets.length > 0 || appCategoryFacets.length > 0) && (
+                  <FacetRow className="mb-2" testId="app-facets">
+                    <button
+                      type="button"
+                      onClick={() => setAppPlatform(null)}
+                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                        appPlatform === null
+                          ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                          : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                      }`}
+                      data-testid="app-facet-all"
+                    >
+                      All
+                    </button>
+                    {appFacets.map(([platform]) => (
+                      <button
+                        key={platform}
+                        type="button"
+                        onClick={() => setAppPlatform((cur) => (cur === platform ? null : platform))}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          appPlatform === platform
+                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                        }`}
+                        data-testid={`app-facet-${platform.toLowerCase()}`}
+                      >
+                        {platform}
+                      </button>
+                    ))}
+                    {/* One row, like Repos: platforms, a hairline, then the apps' own
                   categories. Licences are a fact for the app page, not a way
                   people browse. */}
-              {appCategoryFacets.length > 0 && <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />}
-              {appCategoryFacets.map(([cat]) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setAppCategory((cur) => (cur === cat ? null : cat))}
-                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    appCategory === cat
-                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
-                  }`}
-                  data-testid={`app-cat-facet-${cat}`}
-                >
-                  #{cat}
-                </button>
-              ))}
-            </FacetRow>
-          )}
-          {/* No count by default — Google dropped it from the default view too.
+                    {appCategoryFacets.length > 0 && (
+                      <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+                    )}
+                    {appCategoryFacets.map(([cat]) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setAppCategory((cur) => (cur === cat ? null : cat))}
+                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                          appCategory === cat
+                            ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                            : "border-slate-200 text-slate-600 hover:border-brand-accent/40 dark:border-slate-700 dark:text-slate-300"
+                        }`}
+                        data-testid={`app-cat-facet-${cat}`}
+                      >
+                        #{cat}
+                      </button>
+                    ))}
+                  </FacetRow>
+                )}
+                {/* No count by default — Google dropped it from the default view too.
               The number does work only when a chip or a filter narrows the
               page: what matched, of how many. */}
-          {narrowed && totalCount > 0 && (
-            <div className="mb-2 sm:mb-3 px-1">
-              <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
-                {displayedCount} of {totalCount} match
-              </p>
-            </div>
-          )}
-          {tab === "music" ? (
-            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} podcastIndex={podcastIndex} tagged={tagged} fountain={fountain} person={panelPerson} scoreOf={scoreOf} onOpenProfile={openProfile} />
-          ) : (
-          <div
-            className={
-              tab === "shop"
-                ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
-                : tab === "live"
-                  ? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
-                  : tab === "apps" || isGitTab(tab)
-                  ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2"
-                  : "space-y-2 sm:space-y-3"
-            }
-            data-testid="container-search-results"
-          >
-            {tab === "media" && panelPerson && personMedia.length > 0 && (
-              <div className="col-span-full mb-1" data-testid="media-from-person">
-                <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  From {getDisplayLabel(panelPerson)}
-                </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {personMedia.map((h) => (
-                    <MediaCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {displayHits.filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id))).map(({ hit, collapsedCount, clusterId, chipLabel, forkOf, listGroup }) => {
-              const { event } = hit;
-              const chip =
-                collapsedCount > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedClusters((prev) => new Set(prev).add(clusterId))
+                {narrowed && totalCount > 0 && (
+                  <div className="mb-2 px-1 sm:mb-3">
+                    <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
+                      {displayedCount} of {totalCount} match
+                    </p>
+                  </div>
+                )}
+                {tab === "music" ? (
+                  <MusicResults
+                    hits={displayHits.map((d) => d.hit)}
+                    query={query}
+                    wavlake={wavlake}
+                    podcastIndex={podcastIndex}
+                    tagged={tagged}
+                    fountain={fountain}
+                    person={panelPerson}
+                    scoreOf={scoreOf}
+                    onOpenProfile={openProfile}
+                  />
+                ) : (
+                  <div
+                    className={
+                      tab === "shop"
+                        ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
+                        : tab === "live"
+                          ? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
+                          : tab === "apps" || isGitTab(tab) || isThingTab(tab)
+                            ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2"
+                            : "space-y-2 sm:space-y-3"
                     }
-                    className="ml-1 mt-1 rounded-full border border-slate-200 dark:border-slate-800 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
-                    data-testid={`cluster-expand-${clusterId}`}
+                    data-testid="container-search-results"
                   >
-                    {chipLabel ?? `+${collapsedCount} more like this`}
-                  </button>
-                ) : null;
-              // Grid tabs (Apps, Repos, Issues, PRs) stretch every cell so a row of cards
-              // shares one height; list tabs are unaffected by h-full.
-              const day = eventDayHeaders.get(event.id);
-              const wrap = (card: React.ReactNode) => (
-                <div key={event.id} className="h-full">
-                  {day && (
-                    <div className={`flex items-center gap-2.5 ${eventDayHeaders.keys().next().value === event.id ? "" : "pt-3"} pb-1.5`} data-testid={`event-day-${day.key}`}>
-                      {day.startSec > 0 ? (
-                        <EventDateTile startSec={day.startSec} size="sm" testId="day-header-tile" />
-                      ) : (
-                        <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden="true" />
-                      )}
-                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{day.label}</span>
-                      <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
-                    </div>
-                  )}
-                  {card}
-                  {chip}
-                </div>
-              );
-              if (event.kind === 0 && hit.author) {
-                const idx = peopleIdx.current++;
-                const scored =
-                  hit.author.wotRank == null
-                    ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
-                    : hit.author;
-                return wrap(
-                  <PersonCard
-                    result={scored}
-                    idx={idx}
-                    pov={pov}
-                    onOpen={openProfile}
-                    onPrefetchEnter={onPrefetchEnter}
-                    onPrefetchLeave={onPrefetchLeave}
-                    showFollowedBy={idx < 3}
-                  />
-                );
-              }
-              if (ARTICLE_KINDS.has(event.kind)) {
-                return wrap(
-                  <EmbeddedArticleCard
-                    leadKinds={searchedKinds}
-                    mixed={tab === "articles"}
-                    event={event as MinimalEvent}
-                    author={profiles.get(event.pubkey)}
-                    trustScore01={scoreOf(event.pubkey) ?? null}
-                  />
-                );
-              }
-              if (NOTE_KINDS.has(event.kind) && tab !== "media") {
-                return wrap(
-                  <ShareNoteCard
-                    event={event as MinimalEvent}
-                    profiles={profiles}
-                    eventsById={noteRefs.eventsById}
-                    addrByCoord={noteRefs.addrByCoord}
-                    href={eventPath(event)}
-                    showAuthor
-                    authorScore={scoreOf(event.pubkey)}
-                  />
-                );
-              }
-              const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
-              if (EVENT_KINDS.has(event.kind)) {
-                const r = rsvpsOf(event);
-                return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
-              }
-              if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
-              if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} rates={rates} sellerListings={(snapshot?.hits ?? []).filter((h) => h.event.pubkey === event.pubkey).map((h) => h.event)} />);
-              if (LIVE_KINDS.has(event.kind)) {
-                const hostPk = liveHostOf(event);
-                return wrap(<LiveTile {...typed} state={liveStates.get(event.id) ?? liveStateOf(event)} hostScore={hostPk ? scoreOf(hostPk) : undefined} />);
-              }
-              if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
-              if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} state={stateOf(event) ?? undefined} comments={gitComments.get(event.id)} forkOf={forkOf} />);
-              if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
-              if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
-              // Open-set posture: an unmapped kind renders as media-style
-              // generic rather than vanishing — the relay may index new kinds
-              // before this UI learns them.
-              return wrap(<MediaCard {...typed} />);
-            })}
+                    {tab === "media" && panelPerson && personMedia.length > 0 && (
+                      <div className="col-span-full mb-1" data-testid="media-from-person">
+                        <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          From {getDisplayLabel(panelPerson)}
+                        </p>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          {personMedia.map((h) => (
+                            <MediaCard
+                              key={h.event.id}
+                              event={h.event}
+                              author={h.author}
+                              score={scoreOf(h.event.pubkey)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {displayHits
+                      .filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id)))
+                      .map(({ hit, collapsedCount, clusterId, chipLabel, forkOf, listGroup }) => {
+                        const { event } = hit;
+                        const chip =
+                          collapsedCount > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedClusters((prev) => new Set(prev).add(clusterId))}
+                              className="ml-1 mt-1 rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
+                              data-testid={`cluster-expand-${clusterId}`}
+                            >
+                              {chipLabel ?? `+${collapsedCount} more like this`}
+                            </button>
+                          ) : null;
+                        // Grid tabs (Apps, Repos, Issues, PRs) stretch every cell so a row of cards
+                        // shares one height; list tabs are unaffected by h-full.
+                        const day = eventDayHeaders.get(event.id);
+                        const wrap = (card: React.ReactNode) => (
+                          <div key={event.id} className="h-full">
+                            {day && (
+                              <div
+                                className={`flex items-center gap-2.5 ${eventDayHeaders.keys().next().value === event.id ? "" : "pt-3"} pb-1.5`}
+                                data-testid={`event-day-${day.key}`}
+                              >
+                                {day.startSec > 0 ? (
+                                  <EventDateTile startSec={day.startSec} size="sm" testId="day-header-tile" />
+                                ) : (
+                                  <span
+                                    className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"
+                                    aria-hidden="true"
+                                  />
+                                )}
+                                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                  {day.label}
+                                </span>
+                                <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
+                              </div>
+                            )}
+                            {card}
+                            {chip}
+                          </div>
+                        );
+                        if (event.kind === 0 && hit.author) {
+                          const idx = peopleIdx.current++;
+                          const scored =
+                            hit.author.wotRank == null
+                              ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
+                              : hit.author;
+                          return wrap(
+                            <PersonCard
+                              result={scored}
+                              idx={idx}
+                              pov={pov}
+                              onOpen={openProfile}
+                              onPrefetchEnter={onPrefetchEnter}
+                              onPrefetchLeave={onPrefetchLeave}
+                              showFollowedBy={idx < 3}
+                            />,
+                          );
+                        }
+                        // The kinds with no card of their own, whichever tab they are on.
+                        if (THING_KINDS.has(event.kind)) {
+                          const thing = describeThing(event);
+                          if (thing)
+                            return wrap(
+                              <ThingCard
+                                event={event}
+                                author={hit.author}
+                                score={scoreOf(event.pubkey)}
+                                thing={thing}
+                                progress={progressOf(event)}
+                              />,
+                            );
+                        }
+                        if (ARTICLE_KINDS.has(event.kind)) {
+                          return wrap(
+                            <EmbeddedArticleCard
+                              leadKinds={searchedKinds}
+                              mixed={tab === "articles"}
+                              event={event as MinimalEvent}
+                              author={profiles.get(event.pubkey)}
+                              trustScore01={scoreOf(event.pubkey) ?? null}
+                            />,
+                          );
+                        }
+                        if (NOTE_KINDS.has(event.kind) && tab !== "media") {
+                          return wrap(
+                            <ShareNoteCard
+                              event={event as MinimalEvent}
+                              profiles={profiles}
+                              eventsById={noteRefs.eventsById}
+                              addrByCoord={noteRefs.addrByCoord}
+                              href={eventPath(event)}
+                              showAuthor
+                              authorScore={scoreOf(event.pubkey)}
+                            />,
+                          );
+                        }
+                        const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
+                        if (EVENT_KINDS.has(event.kind)) {
+                          const r = rsvpsOf(event);
+                          return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
+                        }
+                        if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
+                        if (SHOP_KINDS.has(event.kind))
+                          return wrap(
+                            <ListingCard
+                              {...typed}
+                              rates={rates}
+                              sellerListings={(snapshot?.hits ?? [])
+                                .filter((h) => h.event.pubkey === event.pubkey)
+                                .map((h) => h.event)}
+                            />,
+                          );
+                        if (LIVE_KINDS.has(event.kind)) {
+                          const hostPk = liveHostOf(event);
+                          return wrap(
+                            <LiveTile
+                              {...typed}
+                              state={liveStates.get(event.id) ?? liveStateOf(event)}
+                              hostScore={hostPk ? scoreOf(hostPk) : undefined}
+                            />,
+                          );
+                        }
+                        if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
+                        if (REPO_KINDS.has(event.kind))
+                          return wrap(
+                            <RepoCard
+                              {...typed}
+                              state={stateOf(event) ?? undefined}
+                              comments={gitComments.get(event.id)}
+                              forkOf={forkOf}
+                            />,
+                          );
+                        if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
+                        if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
+                        // Open-set posture: an unmapped kind renders as media-style
+                        // generic rather than vanishing — the relay may index new kinds
+                        // before this UI learns them.
+                        return wrap(<MediaCard {...typed} />);
+                      })}
+                  </div>
+                )}
+                <MoreResults
+                  show={!!snapshot?.eose && !snapshot.error && !snapshot.exhausted}
+                  loading={!!snapshot?.loadingMore}
+                  onMore={() => streamRef.current?.more()}
+                />
+                {floorNotice}
+              </>
+            )}
           </div>
-          )}
-          <MoreResults
-            show={!!snapshot?.eose && !snapshot.error && !snapshot.exhausted}
-            loading={!!snapshot?.loadingMore}
-            onMore={() => streamRef.current?.more()}
-          />
-          {floorNotice}
-        </>
-      )}
+        </div>
       </div>
-      </div>
-    </div>
     </QuietTrustChrome>
   );
 }

@@ -7,5 +7,11 @@ import { DEFAULT_AVATAR_SRC, DEFAULT_AVATAR_FLAGGED_SRC } from "@/lib/profileDef
  * flagged account reads as risky at a glance.
  */
 export function DefaultAvatarImg({ flagged = false }: { flagged?: boolean }) {
-  return <img src={flagged ? DEFAULT_AVATAR_FLAGGED_SRC : DEFAULT_AVATAR_SRC} alt="" className="h-full w-full object-cover" />;
+  return (
+    <img
+      src={flagged ? DEFAULT_AVATAR_FLAGGED_SRC : DEFAULT_AVATAR_SRC}
+      alt=""
+      className="h-full w-full object-cover"
+    />
+  );
 }

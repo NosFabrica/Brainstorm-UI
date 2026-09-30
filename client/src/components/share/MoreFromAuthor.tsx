@@ -41,11 +41,7 @@ export function MoreFromAuthor({
     // the query the outbox model exists for, and a prolific author who does not
     // publish to the big shared relays looks silent without it.
     queryFn: async () =>
-      fetchEventsByFilter(
-        { authors: [pubkey], kinds: [1], limit: 12 },
-        await outboxRelays(pubkey, relays),
-        6000,
-      ),
+      fetchEventsByFilter({ authors: [pubkey], kinds: [1], limit: 12 }, await outboxRelays(pubkey, relays), 6000),
     enabled: !!pubkey,
     staleTime: 60_000,
     retry: false,
@@ -64,6 +60,7 @@ export function MoreFromAuthor({
     const originals = evs.filter((e) => !(e.tags || []).some((t) => t[0] === "e"));
     const pick = originals.length >= 2 ? originals : evs;
     return pick.sort((a, b) => b.created_at - a.created_at).slice(0, 4);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keep pre-lint deps; excludeContent tracks excludeId
   }, [q.data, excludeId]);
 
   // Resolve every referenced pubkey (@-mentions AND reply targets) so notes
@@ -94,10 +91,17 @@ export function MoreFromAuthor({
 
   return (
     <section className="mt-8" data-testid="more-from-author">
-      <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-3">More from {authorName}</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      <h2 className="mb-3 text-sm font-bold text-slate-900 dark:text-slate-100">More from {authorName}</h2>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         {notes.map((n) => (
-          <EmbeddedNoteCard key={n.id} event={n} author={author} profiles={profiles} href={eventPath(n, relayHints)} showReplyContext />
+          <EmbeddedNoteCard
+            key={n.id}
+            event={n}
+            author={author}
+            profiles={profiles}
+            href={eventPath(n, relayHints)}
+            showReplyContext
+          />
         ))}
       </div>
     </section>

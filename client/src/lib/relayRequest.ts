@@ -52,11 +52,7 @@ function beats(candidate: NostrEvent, incumbent: NostrEvent | undefined): boolea
  * one. Where a call site cares enough to wait out the window for the true
  * newest, it wants `requestNewest` instead.
  */
-export function requestOne(
-  relays: string[],
-  filter: Filter,
-  timeoutMs: number,
-): Promise<NostrEvent | undefined> {
+export function requestOne(relays: string[], filter: Filter, timeoutMs: number): Promise<NostrEvent | undefined> {
   return lastValueFrom(
     pool.request(relays, filter, options(timeoutMs)).pipe(
       catchError(() => EMPTY),
@@ -74,11 +70,7 @@ export function requestOne(
  * arbitrary one. `reduce` emits once, on completion, so a source that fails or
  * finds nothing still yields the seed rather than throwing.
  */
-export function requestNewest(
-  relays: string[],
-  filter: Filter,
-  timeoutMs: number,
-): Promise<NostrEvent | undefined> {
+export function requestNewest(relays: string[], filter: Filter, timeoutMs: number): Promise<NostrEvent | undefined> {
   return lastValueFrom(
     pool.request(relays, filter, options(timeoutMs)).pipe(
       catchError(() => EMPTY),
@@ -106,11 +98,7 @@ export function requestNewest(
  * timeout always loses to the cap, so no-answer is reliably a rejection; the
  * cap only exists for a relay that keeps dribbling events without EOSE.
  */
-export function requestNewestRaw(
-  relays: string[],
-  filter: Filter,
-  timeoutMs: number,
-): Promise<NostrEvent | undefined> {
+export function requestNewestRaw(relays: string[], filter: Filter, timeoutMs: number): Promise<NostrEvent | undefined> {
   return lastValueFrom(
     pool.request(relays, filter, { timeout: timeoutMs }).pipe(
       takeUntil(timer(timeoutMs * 2)),

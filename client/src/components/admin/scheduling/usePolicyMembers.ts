@@ -62,12 +62,7 @@ async function loadAllPolicyUsers(
  */
 export function usePolicyMembers(policyId: number, enabled = true) {
   const usersKey = ["/api/admin/scheduling", policyId, "users", "all"];
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: usersKey,
     queryFn: () => loadAllPolicyUsers(policyId),
     enabled,
@@ -78,9 +73,7 @@ export function usePolicyMembers(policyId: number, enabled = true) {
   const truncated = data?.truncated ?? false;
   const pubkeyKey = rawItems.map((i) => i.pubkey).join(",");
 
-  const [profiles, setProfiles] = useState<
-    Map<string, { name?: string; picture?: string }>
-  >(new Map());
+  const [profiles, setProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
   const [enriching, setEnriching] = useState(false);
   const requestedRef = useRef<Set<string>>(new Set());
 
@@ -94,9 +87,7 @@ export function usePolicyMembers(policyId: number, enabled = true) {
   useEffect(() => {
     const pubkeys = pubkeyKey ? pubkeyKey.split(",") : [];
     if (!pubkeys.length) return;
-    const target = pubkeys
-      .slice(0, ENRICH_CAP)
-      .filter((pk) => pk && !requestedRef.current.has(pk));
+    const target = pubkeys.slice(0, ENRICH_CAP).filter((pk) => pk && !requestedRef.current.has(pk));
     if (!target.length) return;
     target.forEach((pk) => requestedRef.current.add(pk));
 
@@ -117,10 +108,7 @@ export function usePolicyMembers(policyId: number, enabled = true) {
           const next = new Map(prev);
           for (const pk of chunk) {
             const c = map.get(pk);
-            next.set(
-              pk,
-              c ? { name: c.display_name || c.name, picture: c.picture } : {},
-            );
+            next.set(pk, c ? { name: c.display_name || c.name, picture: c.picture } : {});
           }
           return next;
         });
@@ -130,7 +118,6 @@ export function usePolicyMembers(policyId: number, enabled = true) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pubkeyKey]);
 
   const members: PolicyMember[] = useMemo(

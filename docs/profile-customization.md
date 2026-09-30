@@ -8,10 +8,10 @@ generalized, cross-client standard we could propose from this, see
 ## 1. Design principles
 
 - **User-owned, not app-owned.** Preferences are a Nostr event signed by the
-  *user's* key and stored on relays. Brainstorm holds nothing; it is a pure
+  _user's_ key and stored on relays. Brainstorm holds nothing; it is a pure
   client here.
 - **Opt-out model.** Everything renders by default. The record stores only what
-  to *hide* and how to *reorder* — so a client (or a future version) that ignores
+  to _hide_ and how to _reorder_ — so a client (or a future version) that ignores
   the record still shows a sane, full profile.
 - **Public.** The event is world-readable — that's the point: every visitor's
   view of the `/p/` page reflects the owner's choices.
@@ -45,7 +45,7 @@ Example event as published today:
   "tags": [["d", "brainstorm.world/profile-prefs"]],
   "content": "{\"v\":1,\"hidden\":[\"status\",\"videos\"],\"order\":[\"featured\",\"notes\",\"photos\"],\"pinnedFollowers\":[\"<pk1>\",\"<pk2>\"],\"roles\":[\"developer\",\"founder\"]}",
   "id": "<event-id>",
-  "sig": "<schnorr-sig>"
+  "sig": "<schnorr-sig>",
 }
 ```
 
@@ -53,21 +53,21 @@ Example event as published today:
 
 Defined in `client/src/config/personalization.ts`:
 
-| Field             | Type       | Meaning |
-| ----------------- | ---------- | ------- |
-| `v`               | `1`        | Schema version |
-| `hidden`          | `string[]` | Section/hero keys the owner hid |
-| `order`           | `string[]` | Section keys in display order; missing keys fall back to default order |
-| `pinnedFollowers` | `string[]` | Hand-picked pubkeys for the "Followed by" row; empty ⇒ auto top-trusted |
+| Field             | Type       | Meaning                                                                                                                                                                                                                                                                                          |
+| ----------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `v`               | `1`        | Schema version                                                                                                                                                                                                                                                                                   |
+| `hidden`          | `string[]` | Section/hero keys the owner hid                                                                                                                                                                                                                                                                  |
+| `order`           | `string[]` | Section keys in display order; missing keys fall back to default order                                                                                                                                                                                                                           |
+| `pinnedFollowers` | `string[]` | Hand-picked pubkeys for the "Followed by" row; empty ⇒ auto top-trusted                                                                                                                                                                                                                          |
 | `roles`           | `string[]` | **Retired 2026-08-05** — self-declared role keys. No longer rendered or editable; decentralized tags replaced them (`docs/decentralized-tagging/DECISIONS.md` §3). Still parsed and re-serialized so existing users' saved values survive a save, and offered back to the owner as one-tap tags. |
 
 Customizable surfaces:
 
 - **Sections** (reorder + hide) — `featured, live, events, articles, audio,
-  videos, photos, notes`. Each maps to a Nostr content kind: notes=`1`,
+videos, photos, notes`. Each maps to a Nostr content kind: notes=`1`,
   articles=`30023`, photos=`20`, videos=`21`, music=`31337`, live=`30311`.
 - **Hero elements** (hide only) — `bio, topics, followedBy, tenure, identities,
-  status`. Core identity (name / avatar / npub / WoT score / stats) is **always
+status`. Core identity (name / avatar / npub / WoT score / stats) is **always
   shown**, intentionally not toggleable.
 - **Roles** — from a fixed vocabulary (`ROLES` in the same file).
 
@@ -105,23 +105,23 @@ Customizable surfaces:
 
 ## 7. File map
 
-| Concern | File |
-| ------- | ---- |
-| Schema, section/hero/role vocab | `client/src/config/personalization.ts` |
-| Parse + local draft cache | `client/src/lib/personalization.ts` |
-| Publish/fetch (Nostr) | `client/src/services/nostr.ts` (`publishProfilePrefs`, `fetchProfilePrefs`) |
-| Editor UI | `client/src/components/share/ProfileCustomizer.tsx` |
-| Apply on public page | `client/src/pages/SharePage.tsx` |
+| Concern                         | File                                                                        |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| Schema, section/hero/role vocab | `client/src/config/personalization.ts`                                      |
+| Parse + local draft cache       | `client/src/lib/personalization.ts`                                         |
+| Publish/fetch (Nostr)           | `client/src/services/nostr.ts` (`publishProfilePrefs`, `fetchProfilePrefs`) |
+| Editor UI                       | `client/src/components/share/ProfileCustomizer.tsx`                         |
+| Apply on public page            | `client/src/pages/SharePage.tsx`                                            |
 
 ## 8. How Nostr supports it
 
-| Property | How Nostr provides it |
-| -------- | --------------------- |
-| **User ownership** | The record lives under the user's pubkey, signed by their key — Brainstorm can't alter it |
-| **Portability** | Any client could read/write the same `d` tag; not locked to Brainstorm |
-| **"Settings" semantics** | Parameterized-replaceable (30078) ⇒ newest-wins, no row migrations |
-| **No backend** | Relays store and serve it; Brainstorm is a pure client |
-| **Consistent public view** | Public event ⇒ every viewer resolves the same prefs |
+| Property                   | How Nostr provides it                                                                     |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| **User ownership**         | The record lives under the user's pubkey, signed by their key — Brainstorm can't alter it |
+| **Portability**            | Any client could read/write the same `d` tag; not locked to Brainstorm                    |
+| **"Settings" semantics**   | Parameterized-replaceable (30078) ⇒ newest-wins, no row migrations                        |
+| **No backend**             | Relays store and serve it; Brainstorm is a pure client                                    |
+| **Consistent public view** | Public event ⇒ every viewer resolves the same prefs                                       |
 
 Related NIPs on the same page: **NIP-65** (which relays to publish/read),
 **NIP-07 / NIP-49** (signing / encrypted key backup), **NIP-85**
@@ -136,5 +136,5 @@ Related NIPs on the same page: **NIP-65** (which relays to publish/read),
   `config/personalization.ts` are marked "indicative." `ROLES` outlived the role
   chips — it now seeds the tag picker's suggestions.
 - A **separate** system — search "Personalization" (`PersonalizationPrefs`) — is
-  **localStorage-only**, *not* on Nostr yet (`client/src/lib/personalization.ts`,
+  **localStorage-only**, _not_ on Nostr yet (`client/src/lib/personalization.ts`,
   `loadPersonalization`/`savePersonalization`). Don't conflate the two.

@@ -19,7 +19,11 @@ import { decodeNostrEntity, type AddressRef } from "@/lib/noteRefs";
 function PageLink({ bech32, children }: { bech32: string; children: string }) {
   const [, navigate] = useLocation();
   return (
-    <button type="button" onClick={() => navigate(`/e/${bech32}`)} className="font-medium text-brand-link hover:underline">
+    <button
+      type="button"
+      onClick={() => navigate(`/e/${bech32}`)}
+      className="font-medium text-brand-link hover:underline"
+    >
       {children}
     </button>
   );
@@ -29,7 +33,15 @@ function QuotedNoteRef({ id, bech32 }: { id: string; bech32: string }) {
   const { notes } = useQuotedNotes([id]);
   const q = notes[0];
   if (!q) return <PageLink bech32={bech32}>↳ quoted note</PageLink>;
-  return <EmbeddedNoteCard event={q.event} author={q.author} profiles={q.profiles} href={`/e/${nip19.neventEncode({ id: q.event.id, author: q.event.pubkey })}`} nested />;
+  return (
+    <EmbeddedNoteCard
+      event={q.event}
+      author={q.author}
+      profiles={q.profiles}
+      href={`/e/${nip19.neventEncode({ id: q.event.id, author: q.event.pubkey })}`}
+      nested
+    />
+  );
 }
 
 function ArticleRef({ address, bech32 }: { address: AddressRef; bech32: string }) {
@@ -39,7 +51,13 @@ function ArticleRef({ address, bech32 }: { address: AddressRef; bech32: string }
   return <EmbeddedArticleCard event={ev} />;
 }
 
-export function NostrRef({ bech32, url }: { bech32: string; /** The web link the reference was found inside, if any. */ url?: string }) {
+export function NostrRef({
+  bech32,
+  url,
+}: {
+  bech32: string;
+  /** The web link the reference was found inside, if any. */ url?: string;
+}) {
   const { pubkey, id, address } = decodeNostrEntity(bech32);
   if (pubkey) return <MentionChip uri={`nostr:${bech32}`} />;
   if (id) return <QuotedNoteRef id={id} bech32={bech32} />;

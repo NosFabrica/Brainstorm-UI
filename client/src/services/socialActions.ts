@@ -8,6 +8,7 @@ import { PROFILE_RELAYS } from "@/lib/relays";
 import { outboxRelays, outboxRelaysFromDb, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { eventStore } from "@/lib/eventStore";
 import { isRelayUrl } from "@/config/tagging";
+import { allowLocalRelay } from "@/lib/localNetwork";
 import { identityHas } from "@/accounts/display";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -30,8 +31,8 @@ async function ingestFollowList(signed: Record<string, unknown>): Promise<void> 
     try {
       await apiClient.submitFollowList(signed);
       return;
-    } catch (e: any) {
-      if (e?.status === 429) return; // intentional rate-limit — respect it, stop
+    } catch (e) {
+      if ((e as { status?: number } | null)?.status === 429) return; // intentional rate-limit — respect it, stop
       if (attempt === backoffMs.length) return; // transient: gave up after retries
       await new Promise((r) => setTimeout(r, backoffMs[attempt]));
     }
@@ -46,14 +47,6 @@ export interface NostrEvent {
   tags: string[][];
   content: string;
   sig?: string;
-}
-
-/** This client's identifier, stamped on every list we publish for diagnosability. */
-const CLIENT_TAG = ["client", "Brainstorm"];
-
-/** Replace any existing client tag with ours (deduped). */
-function withClientTag(tags: string[][]): string[][] {
-  return [...tags.filter((t) => t[0] !== "client"), CLIENT_TAG];
 }
 
 /**
@@ -177,7 +170,11 @@ async function resolveContactBase(
   // that can tell "there is no list" from "nobody answered" (#72).
   let provablyNew = false;
   if (!base && !mintedHere) {
-    try { await fetchOutboxRelayList(pubkey); } catch { /* best-effort warm */ }
+    try {
+      await fetchOutboxRelayList(pubkey);
+    } catch {
+      /* best-effort warm */
+    }
     base = pickAuthoritativeBase([await fetchContactList(pubkey), stored]);
     if (!base) {
       // Store-only on purpose: the `fetchOutboxRelayList` above just put the
@@ -257,17 +254,15 @@ async function publishContactList(
   build: (factory: ContactsFactory) => ContactsFactory,
 ): Promise<PublishOutcome> {
   try {
-    const draft = await build(
-      base ? ContactsFactory.modify(base as never) : ContactsFactory.create(),
-    );
+    const draft = await build(base ? ContactsFactory.modify(base as never) : ContactsFactory.create());
     const signed = await signAs(account, {
       kind: 3,
-      tags: withClientTag(draft.tags),
+      tags: draft.tags,
       content: base?.content || "",
     });
     const res = await publishToRelays(signed);
     if (res.success) {
-      recordFollowList(account.pubkey, signed as any, { authoritative: true });
+      recordFollowList(account.pubkey, signed, { authoritative: true });
       // GATE: ingest the follows server-side and WAIT for it before returning, so
       // the caller's subsequent GrapeRank trigger scores fresh follows (not stale
       // relay-propagation state). Best-effort — never fails the follow.
@@ -302,9 +297,12 @@ async function verifyPublishedContactList(published: NostrEvent): Promise<void> 
     toast({
       variant: "destructive",
       title: "Your follow list may not have saved",
-      description: "A relay is still serving an older list. Check your follows in a moment and retry if anything is missing.",
+      description:
+        "A relay is still serving an older list. Check your follows in a moment and retry if anything is missing.",
     });
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
 }
 
 export async function followUser(
@@ -321,7 +319,7 @@ export async function followUser(
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
   if (unverifiedNew && !opts.allowFromScratch) return UNCONFIRMED_BASE;
-  if (base) recordFollowList(account.pubkey, base as any); // remember the largest seen
+  if (base) recordFollowList(account.pubkey, base); // remember the largest seen
   const baseTags = base?.tags ?? []; // confirmed new key (or user-confirmed): genuinely empty list
 
   if (baseTags.some(isPTagFor(targetPubkey))) return { success: true };
@@ -329,7 +327,10 @@ export async function followUser(
   return publishContactList(account, base, (f) => f.addContact(contact(targetPubkey)));
 }
 
-export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<PublishOutcome> {
+export async function unfollowUser(
+  targetPubkey: string,
+  cachedContactList?: NostrEvent | null,
+): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
 
@@ -337,7 +338,7 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
   if (unsafe || !base) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
-  recordFollowList(account.pubkey, base as any);
+  recordFollowList(account.pubkey, base);
 
   if (!base.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
@@ -350,10 +351,7 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
  * authoritative base (empty for a brand-new account) and never shrinks an
  * existing list.
  */
-export async function followPubkeys(
-  targetPubkeys: string[],
-  opts: FollowOptions = {},
-): Promise<FollowOutcome> {
+export async function followPubkeys(targetPubkeys: string[], opts: FollowOptions = {}): Promise<FollowOutcome> {
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
   const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== account.pubkey);
@@ -364,20 +362,17 @@ export async function followPubkeys(
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
   if (unverifiedNew && !opts.allowFromScratch) return UNCONFIRMED_BASE;
-  if (base) recordFollowList(account.pubkey, base as any);
+  if (base) recordFollowList(account.pubkey, base);
   const baseTags = base?.tags ?? [];
   const have = new Set(baseTags.filter((t) => t[0] === "p").map((t) => t[1]));
   const additions = wanted.filter((pk) => !have.has(pk));
   if (!additions.length) return { success: true };
 
-  return publishContactList(account, base, (f) =>
-    additions.reduce((acc, pk) => acc.addContact(contact(pk)), f),
-  );
+  return publishContactList(account, base, (f) => additions.reduce((acc, pk) => acc.addContact(contact(pk)), f));
 }
 
 export type RecoverFollowListOutcome =
-  | { found: true; event: NostrEvent; follows: number }
-  | { found: false; error?: string };
+  { found: true; event: NostrEvent; follows: number } | { found: false; error?: string };
 
 /** `found: false` with no `error` — the relay answered and simply has no list. */
 const RELAY_HAS_NO_LIST: RecoverFollowListOutcome = { found: false };
@@ -405,6 +400,8 @@ export async function recoverFollowListFromRelay(
   if (!isRelayUrl(url)) {
     return { found: false, error: "That doesn't look like a relay address — it should start with wss://" };
   }
+  // Typed by the reader — often their own Citrine or home relay, which is the point.
+  allowLocalRelay([url]);
 
   const fetchKind = (kind: number) =>
     requestNewestRaw([url], { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);
@@ -457,7 +454,7 @@ async function publishMuteList(
     const draft = await build(MuteListFactory.modify(base as never));
     const signed = await signAs(account, {
       kind: 10000,
-      tags: withClientTag(draft.tags),
+      tags: draft.tags,
       content: base.content || "",
     });
     return await publishToRelays(signed);
@@ -471,7 +468,7 @@ export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent
   if (!account) return NOT_LOGGED_IN;
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
 
-  const current = cachedMuteList ?? await fetchMuteList(account.pubkey);
+  const current = cachedMuteList ?? (await fetchMuteList(account.pubkey));
   if (!current) return { success: false, error: "Could not fetch your mute list from relays. Please try again." };
 
   if (current.tags.some(isPTagFor(targetPubkey))) return { success: true };
@@ -483,7 +480,7 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
 
-  const current = cachedMuteList ?? await fetchMuteList(account.pubkey);
+  const current = cachedMuteList ?? (await fetchMuteList(account.pubkey));
   if (!current) return { success: false, error: "Could not fetch your mute list" };
 
   if (!current.tags.some(isPTagFor(targetPubkey))) return { success: true };
@@ -538,7 +535,10 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
   const latest = collected[0];
   let reportType = "other";
   for (const tag of latest.tags || []) {
-    if (tag[0] === "p" && tag[1] === targetPubkey && tag[2]) { reportType = tag[2]; break; }
+    if (tag[0] === "p" && tag[1] === targetPubkey && tag[2]) {
+      reportType = tag[2];
+      break;
+    }
   }
   return {
     id: latest.id,
@@ -564,10 +564,7 @@ export async function unreportUser(targetPubkey: string): Promise<PublishOutcome
       kind: 5,
       // These `e`s name the viewer's OWN reports, so the hint is where THEY
       // write — not where the person reported does.
-      tags: [
-        ...mine.eventIds.map((id) => tagWithHint("e", id, relayHintFor(account.pubkey))),
-        ["k", "1984"],
-      ],
+      tags: [...mine.eventIds.map((id) => tagWithHint("e", id, relayHintFor(account.pubkey))), ["k", "1984"]],
       content: "",
     });
     return await publishToRelays(signed);

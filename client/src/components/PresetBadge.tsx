@@ -42,10 +42,7 @@ export function PresetBadge({ preset, size = "xs", className = "", testId, varia
   const key = presetFromBackend(upper);
   const label = presetDisplayLabel(key);
   const style = STYLES[key];
-  const sizeClass =
-    size === "sm"
-      ? "px-2.5 py-1 text-[10px]"
-      : "px-2 py-0.5 text-[9px]";
+  const sizeClass = size === "sm" ? "px-2.5 py-1 text-[10px]" : "px-2 py-0.5 text-[9px]";
 
   if (variant === "quiet") {
     return (
@@ -61,7 +58,7 @@ export function PresetBadge({ preset, size = "xs", className = "", testId, varia
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border ${style.bg} ${style.border} ${style.text} ${sizeClass} font-bold uppercase tracking-widest whitespace-nowrap ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full border ${style.bg} ${style.border} ${style.text} ${sizeClass} whitespace-nowrap font-bold uppercase tracking-widest ${className}`}
       data-testid={testId}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />

@@ -53,8 +53,7 @@ export function useFinishSetup(): FinishSetupState {
 
   const followVerdict = useVerifiedNoFollows(pubkey);
   const historyQuery = useSelfHistory(pubkey);
-  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data
-    ?.ta_pubkey;
+  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
   const providerStatus = useTrustProviderStatus(pubkey, taPubkey).data;
   const locallyActivated = isNip85Activated(pubkey);
   const listsStatus = useTrustListsStatus(pubkey, taPubkey).data?.status;
@@ -69,8 +68,7 @@ export function useFinishSetup(): FinishSetupState {
     // "other" counts as pending even when the local flag says activated: they
     // declared a different provider from another app, and re-selecting
     // Brainstorm is exactly the remedy (mirrors needsActivationPrompt).
-    const activatePending =
-      signedIn && !activateDone && (providerStatus === "none" || providerStatus === "other");
+    const activatePending = signedIn && !activateDone && (providerStatus === "none" || providerStatus === "other");
     // Their Trusted Lists exist but the 10040 doesn't name them: an update,
     // flagged apart from the steps.
     const listsPending = signedIn && activateDone && listsStatus === "missing";

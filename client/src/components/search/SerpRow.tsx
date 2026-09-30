@@ -7,7 +7,7 @@
  * to clickable domain chips. The row body opens the in-app event page —
  * a div-with-navigate, so the external anchors inside stay legal HTML.
  */
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { dlistOfEvent, parseDListMusician, parseDListSong } from "@/lib/dlists";
 import { Link, useLocation } from "wouter";
@@ -27,9 +27,10 @@ import { TranslateLine } from "@/components/share/TranslateLine";
 import { useLightbox } from "@/components/share/Lightbox";
 import { eventStore } from "@/lib/eventStore";
 import { MentionChip } from "@/components/share/MentionChip";
-import { fetchEventsByIds, fetchProfileMap } from "@/services/nostr";
+import { fetchEventsByIds } from "@/services/nostr";
 import { highlightTerms } from "@/lib/highlight";
-import { parseNewsShape } from "@/lib/newsShape";
+import { linkResultOf, linkResultText } from "@/lib/linkResult";
+import { useLinkMetadata } from "@/hooks/useLinkMetadata";
 import { wavlakeTrackId } from "@/lib/wavlake";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { eventPath } from "@/lib/shareId";
@@ -39,6 +40,7 @@ import { kindLabel } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
 import { contentShape } from "@/lib/contentShape";
+import { describeThing, THING_KINDS } from "@/lib/thing";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { MediaImg } from "@/components/ui/media-img";
@@ -96,7 +98,14 @@ function quotedIn(text: string): { id: string; uri: string }[] {
  * What this result calls itself, when the app that published it has a better
  * word than the kind's: a kind-30023 on zap.cooking is a "Recipe".
  */
-export function typeLabelFor(event: { kind: number; tags: string[][]; pubkey: string; id: string; content: string; created_at: number }): string {
+export function typeLabelFor(event: {
+  kind: number;
+  tags: string[][];
+  pubkey: string;
+  id: string;
+  content: string;
+  created_at: number;
+}): string {
   return dlistTypeFor(event)?.label ?? sourceAppFor(event)?.noun ?? kindLabel(event);
 }
 
@@ -105,7 +114,14 @@ export function typeLabelFor(event: { kind: number; tags: string[][]; pubkey: st
  * musician/songs D-list event ids with the music icon): a header is a
  * "Music list", an item the song or musician it is.
  */
-export function dlistTypeFor(event: { kind: number; tags: string[][]; pubkey: string; id: string; content: string; created_at: number }): { label: string; icon: LucideIcon } | null {
+export function dlistTypeFor(event: {
+  kind: number;
+  tags: string[][];
+  pubkey: string;
+  id: string;
+  content: string;
+  created_at: number;
+}): { label: string; icon: LucideIcon } | null {
   const list = dlistOfEvent(event);
   if (!list) return null;
   const category = list.category.charAt(0).toUpperCase() + list.category.slice(1);
@@ -114,9 +130,6 @@ export function dlistTypeFor(event: { kind: number; tags: string[][]; pubkey: st
   if (parseDListMusician(event)) return { label: "Musician", icon: list.icon };
   return { label: `${category} list item`, icon: list.icon };
 }
-
-
-
 
 /**
  * A headline is words: a mentioned person by name (no second anchor inside
@@ -131,7 +144,11 @@ export function Headline({ text, query }: { text: string; query: string }) {
   return (
     <>
       {parts.map((part, i) =>
-        /^nostr:/i.test(part) ? <MentionChip key={i} uri={part} plain /> : <Marked key={i} text={part.replace(/\s{2,}/g, " ")} query={query} />,
+        /^nostr:/i.test(part) ? (
+          <MentionChip key={i} uri={part} plain />
+        ) : (
+          <Marked key={i} text={part.replace(/\s{2,}/g, " ")} query={query} />
+        ),
       )}
     </>
   );
@@ -154,7 +171,6 @@ function Marked({ text, query }: { text: string; query: string }) {
   );
 }
 
-
 /** The row's media square: a poster/image that HIDES itself if the URL is
  *  dead (expired signed thumbs must not render as broken glass), or a
  *  metadata-only <video> first frame when only the video itself exists. */
@@ -170,18 +186,35 @@ function rowThumbMedia(event: NostrEvent): { url: string | null; poster: string 
   };
 }
 
-function RowThumb({ event, author, score, onFail }: { event: NostrEvent; author: SearchResult | null; score?: number | null; onFail?: () => void }) {
+function RowThumb({
+  event,
+  author,
+  score,
+  onFail,
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+  onFail?: () => void;
+}) {
   const speed = useConnectionSpeed();
   const [failed, setFailed] = useState(false);
   const openLightbox = useLightbox();
   // The full view is told whose media it is and where the post lives.
   const context = {
-    author: author ? { name: getDisplayLabel(author), npub: author.npub, picture: author.picture, score01: score ?? author.wotRank ?? null } : null,
+    author: author
+      ? {
+          name: getDisplayLabel(author),
+          npub: author.npub,
+          picture: author.picture,
+          score01: score ?? author.wotRank ?? null,
+        }
+      : null,
     postHref: eventPath(event),
   };
   const { url, poster, isVideo } = rowThumbMedia(event);
-  // Google's news rows run ~92px; a 64px square undersold every picture.
-  const cls = "h-20 w-24 shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
+  // Google's result thumbnail is a 92px square; a 64px one undersold every picture.
+  const cls = "h-[92px] w-[92px] shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
   // The thumbnail IS the media: a tap opens it full view (a clip plays), not
   // the post — the rest of the row still opens the post.
   const openMedia = (e: React.MouseEvent) => {
@@ -226,10 +259,22 @@ function RowThumb({ event, author, score, onFail }: { event: NostrEvent; author:
 
 /** Snippet where bare URLs become clickable domain chips. `hide` is a URL
  *  the row already shows another way (its thumbnail), so no chip for it. */
-export function Snippet({ text, query, lines = 3, hide }: { text: string; query: string; lines?: 2 | 3; hide?: string | null }) {
+export function Snippet({
+  text,
+  query,
+  lines = 3,
+  hide,
+}: {
+  text: string;
+  query: string;
+  lines?: 2 | 3;
+  hide?: string | null;
+}) {
   const parts = unwrapMarkdownLinks(text).split(TOKEN_SPLIT_RE);
   return (
-    <p className={`text-[13px] leading-snug text-slate-700 dark:text-slate-200 break-words ${lines === 2 ? "line-clamp-2" : "line-clamp-3"}`}>
+    <p
+      className={`break-words text-sm leading-[1.58] text-slate-700 dark:text-slate-200 ${lines === 2 ? "line-clamp-2" : "line-clamp-3"}`}
+    >
       {parts.map((part, i) => {
         if (/^https?:\/\//i.test(part)) {
           if (hide && part === hide) return null;
@@ -278,7 +323,11 @@ function QuotedNoteCard({ id, uri, query }: { id: string; uri: string; query: st
   }, [id, quoted]);
   if (missing) {
     return (
-      <Link href={`/e/${uri.slice("nostr:".length)}`} className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline" data-testid="serp-quote-link">
+      <Link
+        href={`/e/${uri.slice("nostr:".length)}`}
+        className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline"
+        data-testid="serp-quote-link"
+      >
         ↳ quoted note
       </Link>
     );
@@ -292,7 +341,7 @@ function QuotedNoteCard({ id, uri, query }: { id: string; uri: string; query: st
       onKeyDown={(e) => {
         if (e.key === "Enter") navigate(eventPath(quoted));
       }}
-      className="mt-2 cursor-pointer rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 px-3 py-2 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+      className="mt-2 cursor-pointer rounded-xl border border-slate-200 bg-white/70 px-3 py-2 transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700"
       data-testid="serp-quote"
     >
       <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
@@ -330,30 +379,40 @@ function AuthorLine({
 }) {
   const tierRing = useTierRing();
   return (
-    <div className="flex items-center gap-1.5 min-w-0">
-      <Avatar className={`h-5 w-5 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}>
+    <div className="flex min-w-0 items-center gap-1.5">
+      <Avatar
+        className={`h-6 w-6 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}
+      >
         {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">
           <DefaultAvatarImg />
         </AvatarFallback>
       </Avatar>
-      {/* Name (12px) and the 11px meta share one baseline — centring boxes of
-          two font sizes leaves the meta riding high. */}
-      <div className="flex min-w-0 items-baseline gap-1.5 leading-4">
-        <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+      {/* Name (14px, Google's source line) and the 12px meta share one baseline —
+          centring boxes of two font sizes leaves the meta riding high. */}
+      <div className="flex min-w-0 items-baseline gap-1.5 leading-5">
+        <span className="truncate text-sm font-medium text-slate-600 dark:text-slate-300">
           {author ? getDisplayLabel(author) : "Unknown"}
         </span>
-        <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
+        <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
         {type && TypeIcon ? (
-          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
-            · <TypeIcon className="h-3 w-3" />{type}
+          <span
+            className="inline-flex shrink-0 items-center gap-1 text-xs text-slate-400 dark:text-slate-500"
+            data-testid="serp-type"
+          >
+            · <TypeIcon className="h-3 w-3" />
+            {type}
           </span>
         ) : (
           type && <KindPill event={typeOf} label={type} className="self-center" />
         )}
         {typeOf && <ViaRelay event={typeOf} />}
         {feed && (
-          <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title="An automated feed account" data-testid="serp-feed">
+          <span
+            className="inline-flex shrink-0 items-center gap-0.5 text-xs text-slate-400 dark:text-slate-500"
+            title="An automated feed account"
+            data-testid="serp-feed"
+          >
             · <Rss className="h-3 w-3" /> feed
           </span>
         )}
@@ -370,7 +429,7 @@ export function EngagementLine({ zaps, replies, testId }: { zaps: number; replie
   if (zaps > 0) parts.push(`⚡ ${zaps}`);
   if (replies > 0) parts.push(`${replies} ${replies === 1 ? "reply" : "replies"}`);
   return (
-    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500" data-testid={testId}>
+    <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500" data-testid={testId}>
       {parts.join(" · ")}
     </p>
   );
@@ -400,24 +459,46 @@ export function SerpRow({
   // A dead row thumbnail gives its picture's chip back to the text.
   const [thumbFailed, setThumbFailed] = useState(false);
 
-  const title = tagVal(event, "title") ?? tagVal(event, "name");
-  const news = !title && event.content ? parseNewsShape(event.content, { imageSplitsHeadline: isFeedAccount(author) }) : null;
+  // Communities, stalls, handlers, reviews and the rest read through lib/thing:
+  // several keep their name in JSON content, where the row would say "Structured data".
+  const thing = THING_KINDS.has(event.kind) ? describeThing(event) : null;
+  const title = thing?.title ?? tagVal(event, "title") ?? tagVal(event, "name");
+  // The link is the point (a share, or a feed's headline-link-summary): the
+  // row shows the page the way a search engine does, not a note with a URL.
+  // A Primal/Habla/… link names a Nostr thing and resolves natively below, so it is never a page result.
+  const feed = isFeedAccount(author);
+  const shared = !title && event.content ? linkResultOf(event.content, { feedAccount: feed }) : null;
+  const news = shared && !clientRef(shared.url) ? shared : null;
+  // The page's own title, description and picture — asked once the row is near.
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const linkMeta = useLinkMetadata(news?.url ?? null, rowRef);
 
   // A wiki page is AsciiDoc; the row shows its words, not "[[comedian]]".
   // A designation is its rows, read for people; anything else with no
   // content gets the author's own NIP-31 `alt` line, when they wrote one.
   // Ciphertext and JSON are not for reading: the row says what they are.
   // A news or song row returns before any of this is shown, so it reads nothing.
-  const shape = news || event.kind === 10040 || event.kind === 30818 ? null : contentShape(event.content);
+  const shape = news || thing || event.kind === 10040 || event.kind === 30818 ? null : contentShape(event.content);
   const opaque = shape?.kind === "encrypted" || shape?.kind === "json";
   const body = news
     ? ""
-    : opaque
-      ? tagVal(event, "alt") || ""
-      : event.kind === 10040
-        ? describeDesignation(event).summary
-        : (event.kind === 30818 ? wikiPlainText(event.content) : event.content) || tagVal(event, "summary") || tagVal(event, "description") || tagVal(event, "alt") || "";
-  const shapeLine = shape?.kind === "encrypted" ? "Encrypted — only its owner can read it" : shape?.kind === "json" ? `Structured data · ${shape.fields} ${shape.fields === 1 ? "field" : "fields"}` : null;
+    : thing
+      ? (thing.description ?? "")
+      : opaque
+        ? tagVal(event, "alt") || ""
+        : event.kind === 10040
+          ? describeDesignation(event).summary
+          : (event.kind === 30818 ? wikiPlainText(event.content) : event.content) ||
+            tagVal(event, "summary") ||
+            tagVal(event, "description") ||
+            tagVal(event, "alt") ||
+            "";
+  const shapeLine =
+    shape?.kind === "encrypted"
+      ? "Encrypted — only its owner can read it"
+      : shape?.kind === "json"
+        ? `Structured data · ${shape.fields} ${shape.fields === 1 ? "field" : "fields"}`
+        : null;
   // Same link a feed would card for this note, so the two never disagree.
   const cardLink = body ? primaryLink(parseNoteContent(body)) : null;
   // A Primal link names a Nostr thing: an article is its card, the way the
@@ -428,9 +509,15 @@ export function SerpRow({
   // A news row has no body, so it asks about nothing.
   const cardRef = cardLink ? clientRef(cardLink) : null;
   const cardEntity = useClientLink(cardRef);
-  const linkedArticle = cardEntity.status === "done" && cardEntity.entity?.kind === "article" ? cardEntity.entity : null;
+  const linkedArticle =
+    cardEntity.status === "done" && cardEntity.entity?.kind === "article" ? cardEntity.entity : null;
   // While a Primal link resolves, no metadata card either: it would flash and go.
-  const plainCardLink = cardLink && !cardRef ? cardLink : cardLink && cardEntity.status === "done" && cardEntity.entity === null ? cardLink : null;
+  const plainCardLink =
+    cardLink && !cardRef
+      ? cardLink
+      : cardLink && cardEntity.status === "done" && cardEntity.entity === null
+        ? cardLink
+        : null;
 
   const rowProps = {
     role: "link" as const,
@@ -443,7 +530,7 @@ export function SerpRow({
       }
     },
     className:
-      "group flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
+      "group flex cursor-pointer items-start gap-4 rounded-lg px-2 py-3.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
     "data-testid": `serp-row-${event.id}`,
   };
 
@@ -455,76 +542,93 @@ export function SerpRow({
         <div className="min-w-0 flex-1">
           <div className="min-w-0" data-testid="news-source">
             <AuthorLine author={author} score={score} created_at={event.created_at}>
-              <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+              <span className="hidden min-w-0 items-center gap-1 text-xs text-slate-400 dark:text-slate-500 sm:inline-flex">
                 ·
-                <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
+                <Favicon host={news.domain} className="h-3.5 w-3.5 shrink-0 rounded-sm object-contain" />
                 <span className="truncate">{news.domain}</span>
               </span>
             </AuthorLine>
           </div>
           {/* The poster's words — the headline was only ever the note's text. */}
           <div className="mt-1.5 [&>p]:text-slate-700 dark:[&>p]:text-slate-200">
-            <Snippet text={[news.headline, news.description].filter(Boolean).join(" ")} query={query} lines={2} />
+            <Snippet text={[news.headline, news.words].filter(Boolean).join(" ")} query={query} lines={2} />
           </div>
           <div onClick={(e) => e.stopPropagation()}>
             <WavlakeTrackCard url={news.url} />
           </div>
-          {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
+          {engagement && (
+            <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />
+          )}
         </div>
       </div>
     );
   }
 
   if (news) {
-    const thumb = news.imageUrl ?? tagVal(event, "image") ?? null;
+    // A link result, the way Google shows a page: who shared it, the source
+    // line (site name, domain), the page's title, a description, a picture.
+    // Title, source and picture open the page; the rest of the row opens the note.
+    const text = linkResultText(news, linkMeta);
+    const siteName =
+      linkMeta?.siteName && linkMeta.siteName.toLowerCase() !== news.domain.toLowerCase() ? linkMeta.siteName : null;
+    const thumb = news.imageUrl ?? linkMeta?.image ?? null;
+    const out = {
+      href: news.url,
+      target: "_blank",
+      rel: "noopener",
+      onClick: (e: React.MouseEvent) => e.stopPropagation(),
+    };
     return (
-      <div {...rowProps}>
+      <div {...rowProps} ref={rowRef}>
         <div className="min-w-0 flex-1">
-          {/* Source line — the outlet, Google-News style. The poster's
-              identity (and tier ring) still leads; the domain says where
-              the story lives. */}
-          <div className="min-w-0" data-testid="news-source">
-            <AuthorLine author={author} score={score} created_at={event.created_at} type="News" typeOf={event}>
-              <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
-                ·
-                <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
-                <span className="truncate">{news.domain}</span>
-              </span>
-            </AuthorLine>
-          </div>
+          <AuthorLine
+            author={author}
+            score={score}
+            created_at={event.created_at}
+            type={feed || news.headline ? "News" : undefined}
+            typeOf={event}
+            feed={feed}
+          />
           <a
-            href={news.url}
-            target="_blank"
-            rel="noopener"
-            onClick={(e) => e.stopPropagation()}
-            className="mt-1.5 block text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline transition-colors break-words line-clamp-2"
-            data-testid="news-headline"
+            {...out}
+            className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-slate-500 hover:text-brand-primary dark:text-slate-400"
+            data-testid="news-source"
           >
-            <Headline text={news.headline} query={query} />
+            <Favicon host={news.domain} className="h-4 w-4 shrink-0 rounded-sm object-contain" />
+            <span className="truncate font-medium text-slate-600 dark:text-slate-300">{siteName ?? news.domain}</span>
+            {/* The domain beside the name from `sm:` up; a phone shows the name alone. */}
+            {siteName && (
+              <span className="hidden truncate text-slate-400 dark:text-slate-500 sm:inline">· {news.domain}</span>
+            )}
           </a>
-          {news.description && (
-            <div className="mt-1 [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
-              <Snippet text={news.description} query={query} lines={2} />
+          {text.title && (
+            <a
+              {...out}
+              className="mt-1 line-clamp-2 block break-words text-lg font-semibold leading-[1.3] text-slate-900 transition-colors hover:text-brand-primary hover:underline dark:text-slate-100 sm:text-xl"
+              data-testid="news-headline"
+            >
+              <Headline text={text.title} query={query} />
+            </a>
+          )}
+          {text.description && (
+            <div className="mt-1.5 [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
+              <Snippet text={text.description} query={query} lines={2} />
             </div>
           )}
-          <TranslateLine text={`${news.headline}\n${news.description ?? ""}`.trim()} />
-          {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
+          <TranslateLine text={`${text.title ?? ""}\n${text.description ?? ""}`.trim()} />
+          {engagement && (
+            <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />
+          )}
         </div>
         {thumb && !newsThumbFailed && (
-          <a
-            href={news.url}
-            target="_blank"
-            rel="noopener"
-            onClick={(e) => e.stopPropagation()}
-            className="shrink-0"
-            tabIndex={-1}
-          >
+          <a {...out} className="shrink-0" tabIndex={-1}>
             <img
               src={thumb}
               alt=""
               loading="lazy"
+              referrerPolicy="no-referrer"
               onError={() => setNewsThumbFailed(true)}
-              className="h-20 w-28 rounded-xl object-cover bg-slate-100 dark:bg-slate-800 shadow-sm"
+              className="h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
               data-testid="news-thumb"
             />
           </a>
@@ -542,19 +646,30 @@ export function SerpRow({
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
-        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? typeLabelFor(event) : undefined} typeIcon={showType ? dlistTypeFor(event)?.icon : undefined} typeOf={event} feed={isFeedAccount(author)} />
+        <AuthorLine
+          author={author}
+          score={score}
+          created_at={event.created_at}
+          type={showType ? typeLabelFor(event) : undefined}
+          typeIcon={showType ? dlistTypeFor(event)?.icon : undefined}
+          typeOf={event}
+          feed={isFeedAccount(author)}
+        />
         {title && (
-          <div className="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors [&>p]:font-semibold [&>p]:text-sm">
+          <div className="mt-1.5 text-lg font-semibold leading-[1.3] text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100 sm:text-xl [&>p]:text-lg [&>p]:font-semibold [&>p]:leading-[1.3] sm:[&>p]:text-xl">
             <Snippet text={title} query={query} lines={2} />
           </div>
         )}
         {shapeLine && (
-          <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500" data-testid="serp-content-shape">
+          <p
+            className="mt-1.5 inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500"
+            data-testid="serp-content-shape"
+          >
             {shape?.kind === "encrypted" ? <Lock className="h-3 w-3" /> : <Braces className="h-3 w-3" />} {shapeLine}
           </p>
         )}
         {body && (
-          <div className={title ? "mt-1" : "mt-1.5"}>
+          <div className={title ? "mt-1.5" : "mt-2"}>
             <Snippet text={shown} query={query} lines={title ? 2 : 3} hide={linkedArticle ? cardLink : thumbUrl} />
             {/* X's "Translate post" for text in another language — on-device, quiet. */}
             <TranslateLine text={body.slice(0, 1000)} />
@@ -567,14 +682,20 @@ export function SerpRow({
         )}
         {plainCardLink && (
           <div onClick={(e) => e.stopPropagation()}>
-            <LinkPreviewCard url={plainCardLink} showImage={!thumb.url} context={[title, shown].filter(Boolean).join("\n")} />
+            <LinkPreviewCard
+              url={plainCardLink}
+              showImage={!thumb.url}
+              context={[title, shown].filter(Boolean).join("\n")}
+            />
           </div>
         )}
-        {quotedIn(body).slice(0, 1).map((q) => (
-          <div key={q.id} onClick={(e) => e.stopPropagation()}>
-            <QuotedNoteCard id={q.id} uri={q.uri} query={query} />
-          </div>
-        ))}
+        {quotedIn(body)
+          .slice(0, 1)
+          .map((q) => (
+            <div key={q.id} onClick={(e) => e.stopPropagation()}>
+              <QuotedNoteCard id={q.id} uri={q.uri} query={query} />
+            </div>
+          ))}
         {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
       </div>
       <RowThumb event={event} author={author} score={score} onFail={() => setThumbFailed(true)} />

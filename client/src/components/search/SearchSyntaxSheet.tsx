@@ -62,7 +62,14 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
             rows={[
               { token: "bitcoin mining", what: "Both words, anywhere in the event." },
               { token: '"exact phrase"', what: "Those words, in that order." },
-              { token: "-word", what: <>Everything <b>except</b> results with that word.</> },
+              {
+                token: "-word",
+                what: (
+                  <>
+                    Everything <b>except</b> results with that word.
+                  </>
+                ),
+              },
             ]}
           />
 
@@ -73,10 +80,14 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
               { token: "from:", em: "npub1…", what: "Only what that person wrote." },
               { token: "to:", em: "npub1…", what: "Only events that mention them." },
               {
-                token: "to:", em: "note1…",
+                token: "to:",
+                em: "note1…",
                 what: (
-                  <>Only events that cite that event — its replies, its reactions, the labels written on it. An{" "}
-                    <code className="font-mono text-[12px]">naddr1…</code> asks the same about an article, an app or a list.</>
+                  <>
+                    Only events that cite that event — its replies, its reactions, the labels written on it. An{" "}
+                    <code className="font-mono text-[12px]">naddr1…</code> asks the same about an article, an app or a
+                    list.
+                  </>
                 ),
               },
             ]}
@@ -87,22 +98,37 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
             intro="Whole days, in your own timezone, and a calendar opens as you type one."
             rows={[
               { token: "since:", em: "2026-08-06", what: "Written that day or after." },
-              { token: "until:", em: "2026-08-06", what: "Written that day or before — the whole of it, midnight to midnight." },
+              {
+                token: "until:",
+                em: "2026-08-06",
+                what: "Written that day or before — the whole of it, midnight to midnight.",
+              },
             ]}
           />
 
           <Section
             title="Topics, labels and groups"
             rows={[
-              { token: "#", em: "hashtag", what: "Events tagged with that topic, plus the labels and the comments written on it." },
               {
-                token: "label:", em: "review/app",
+                token: "#",
+                em: "hashtag",
+                what: "Events tagged with that topic, plus the labels and the comments written on it.",
+              },
+              {
+                token: "label:",
+                em: "review/app",
                 what: (
-                  <>The NIP-32 labels carrying that mark — the labels themselves, not what they name. Add a{" "}
-                    <code className="font-mono text-[12px]">to:</code> to read the ones written on one thing.</>
+                  <>
+                    The NIP-32 labels carrying that mark — the labels themselves, not what they name. Add a{" "}
+                    <code className="font-mono text-[12px]">to:</code> to read the ones written on one thing.
+                  </>
                 ),
               },
-              { token: "group:", em: "id", what: "A NIP-29 relay group. Type a few letters and pick one; the ids are not memorable." },
+              {
+                token: "group:",
+                em: "id",
+                what: "A NIP-29 relay group. Type a few letters and pick one; the ids are not memorable.",
+              },
             ]}
           />
 
@@ -123,42 +149,82 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
 
           <Section
             title="Kinds"
-            intro={<>The raw event kinds, for when a tab is not the cut you want. They narrow whatever tab you are on rather than replacing it, so <code className="font-mono text-[12px]">kind:</code> on Articles asks for that kind among articles.</>}
+            intro={
+              <>
+                The raw event kinds, for when a tab is not the cut you want. They narrow whatever tab you are on rather
+                than replacing it, so <code className="font-mono text-[12px]">kind:</code> on Articles asks for that
+                kind among articles.
+              </>
+            }
             rows={[
-              { token: "kind:", em: "30023", what: "Only events of that kind — drawn by name where this app has a word for it." },
-              { token: "spec:", what: <>The NIP definitions themselves (kind 30817) — the word for the kind, since nobody remembers the number.</> },
+              {
+                token: "kind:",
+                em: "30023",
+                what: "Only events of that kind — drawn by name where this app has a word for it.",
+              },
+              {
+                token: "spec:",
+                what: (
+                  <>
+                    The NIP definitions themselves (kind 30817) — the word for the kind, since nobody remembers the
+                    number.
+                  </>
+                ),
+              },
             ]}
           />
 
           <Section
             title="Ranking and order"
-            intro={<>These reach the relay as typed. The <b>Filters</b> button writes all but <code className="font-mono text-[12px]">observer:</code>.</>}
+            intro={
+              <>
+                These reach the relay as typed. The <b>Filters</b> button writes all but{" "}
+                <code className="font-mono text-[12px]">observer:</code>.
+              </>
+            }
             rows={[
               { token: "sort:recent", what: "Newest first, ignoring how well anything matched." },
               {
                 token: "sort:rank",
-                what: <>Most trusted authors first. <code className="font-mono text-[12px]">sort:rank:asc</code> turns it upside down.</>,
+                what: (
+                  <>
+                    Most trusted authors first. <code className="font-mono text-[12px]">sort:rank:asc</code> turns it
+                    upside down.
+                  </>
+                ),
               },
               { token: "sort:followers", what: "Most followed authors first." },
-              { token: "sort:text", what: "Text match alone, trust not consulted. With none of these you get the default: best match." },
               {
-                token: "observer:", em: "npub1…",
+                token: "sort:text",
+                what: "Text match alone, trust not consulted. With none of these you get the default: best match.",
+              },
+              {
+                token: "observer:",
+                em: "npub1…",
                 what: (
-                  <>Rank through <b>that</b> pubkey's web of trust instead of your own. Signing in does this for
-                    you; typing this is how you look through somebody else's eyes, which is a debugging tool more
-                    than a daily one. Trust scores are public, so it needs no signature.</>
+                  <>
+                    Rank through <b>that</b> pubkey's web of trust instead of your own. Signing in does this for you;
+                    typing this is how you look through somebody else's eyes, which is a debugging tool more than a
+                    daily one. Trust scores are public, so it needs no signature.
+                  </>
                 ),
               },
               {
                 token: "include:spam",
                 what: (
-                  <>Lift the trust floor: also show what your web of trust does not rank. It is also how a search with no
-                    lens at all asks for the whole corpus — this relay answers a read that names neither with
+                  <>
+                    Lift the trust floor: also show what your web of trust does not rank. It is also how a search with
+                    no lens at all asks for the whole corpus — this relay answers a read that names neither with
                     <code className="font-mono text-[12px]"> auth-required:</code> rather than quietly handing over an
-                    unranked index.</>
+                    unranked index.
+                  </>
                 ),
               },
-              { token: "filter:rank:gte:", em: "50", what: "Raise it instead — drop authors ranking below that, 0 to 100." },
+              {
+                token: "filter:rank:gte:",
+                em: "50",
+                what: "Raise it instead — drop authors ranking below that, 0 to 100.",
+              },
             ]}
           />
 
@@ -167,7 +233,15 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
             intro="The relay has no hops and no verification of its own, so these two are applied here, to what came back."
             rows={[
               { token: "trust:verified", what: "Only authors this page can verify." },
-              { token: "reach:follows", what: <>Only people you follow. <code className="font-mono text-[12px]">reach:friends</code> widens it to friends of friends.</> },
+              {
+                token: "reach:follows",
+                what: (
+                  <>
+                    Only people you follow. <code className="font-mono text-[12px]">reach:friends</code> widens it to
+                    friends of friends.
+                  </>
+                ),
+              },
             ]}
           />
 
@@ -175,7 +249,12 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
             Everything above combines, in any order:{" "}
             <Tok token="#nostr from:" em="npub1…" tail=" since:2026-01-01 sort:recent" />. The prefixes are filters, not
             words — they are lifted out of the query before the text is matched. The rest is{" "}
-            <a href="https://github.com/nostr-protocol/nips/blob/master/50.md" target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link hover:underline">
+            <a
+              href="https://github.com/nostr-protocol/nips/blob/master/50.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-brand-link hover:underline"
+            >
               NIP-50
             </a>
             , as this relay extends it.
@@ -197,7 +276,11 @@ export function useSyntaxSheetShortcut(onOpen: () => void): void {
       const t = e.target as HTMLElement | null;
       // `closest`, not `isContentEditable`: the key may land on a pill INSIDE the search box,
       // and jsdom does not compute `isContentEditable` at all.
-      if (t && (t.isContentEditable || t.closest?.('[contenteditable="true"]') || /^(input|textarea|select)$/i.test(t.tagName))) return;
+      if (
+        t &&
+        (t.isContentEditable || t.closest?.('[contenteditable="true"]') || /^(input|textarea|select)$/i.test(t.tagName))
+      )
+        return;
       e.preventDefault();
       onOpen();
     };

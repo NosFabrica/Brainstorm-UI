@@ -27,8 +27,21 @@ const npub = nip19.npubEncode(PK);
 const RELAYS = ["wss://one.example", "wss://two.example"];
 const MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/124.0 Safari/537.36";
 
-function menuFor(viewer: { loggedIn: boolean; isOwner: boolean; isAdmin: boolean }, extra: Partial<{ initialMuted: boolean; alreadyReported: boolean }> = {}) {
-  render(<ProfileMenu pubkey={PK} npub={npub} relays={RELAYS} viewer={viewer} initialMuted={extra.initialMuted ?? false} alreadyReported={extra.alreadyReported ?? false} ua={MAC} />);
+function menuFor(
+  viewer: { loggedIn: boolean; isOwner: boolean; isAdmin: boolean },
+  extra: Partial<{ initialMuted: boolean; alreadyReported: boolean }> = {},
+) {
+  render(
+    <ProfileMenu
+      pubkey={PK}
+      npub={npub}
+      relays={RELAYS}
+      viewer={viewer}
+      initialMuted={extra.initialMuted ?? false}
+      alreadyReported={extra.alreadyReported ?? false}
+      ua={MAC}
+    />,
+  );
 }
 const open = async () => {
   fireEvent.pointerDown(screen.getByTestId("share-actions-menu"), { button: 0, ctrlKey: false });
@@ -60,7 +73,9 @@ describe("ProfileMenu", () => {
     const menu = await open();
     const mute = within(menu).getByTestId("share-mute");
     expect(within(menu).getByTestId("share-report")).toBeInTheDocument();
-    expect(mute.compareDocumentPosition(within(menu).getByTestId("menu-copy-npub")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      mute.compareDocumentPosition(within(menu).getByTestId("menu-copy-npub")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("the owner gets the copies and Open in, nothing to mute", async () => {
@@ -76,7 +91,9 @@ describe("ProfileMenu", () => {
     const menu = await open();
     const advanced = within(menu).getByTestId("share-advanced-view");
     expect(advanced).toHaveAttribute("href", `/profile/${npub}`);
-    expect(within(menu).getByTestId("open-primal").compareDocumentPosition(advanced) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      within(menu).getByTestId("open-primal").compareDocumentPosition(advanced) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("Mute publishes and flips to Unmute; a refusal reverts with a toast", async () => {
@@ -109,8 +126,14 @@ describe("ProfileMenu", () => {
   it("the three copy rows say what each key is for", async () => {
     menuFor({ loggedIn: false, isOwner: false, isAdmin: false });
     const menu = await open();
-    expect(within(menu).getByTestId("menu-copy-npub-hint")).toHaveTextContent("Their public key, for Nostr apps and mentions");
-    expect(within(menu).getByTestId("menu-copy-hex-hint")).toHaveTextContent("The raw key, for developers and relay tools");
-    expect(within(menu).getByTestId("menu-copy-nprofile-hint")).toHaveTextContent("Their key plus the relays their posts live on");
+    expect(within(menu).getByTestId("menu-copy-npub-hint")).toHaveTextContent(
+      "Their public key, for Nostr apps and mentions",
+    );
+    expect(within(menu).getByTestId("menu-copy-hex-hint")).toHaveTextContent(
+      "The raw key, for developers and relay tools",
+    );
+    expect(within(menu).getByTestId("menu-copy-nprofile-hint")).toHaveTextContent(
+      "Their key plus the relays their posts live on",
+    );
   });
 });

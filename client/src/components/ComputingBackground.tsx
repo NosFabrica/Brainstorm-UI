@@ -5,7 +5,13 @@ const clusterA = {
     { label: "follows: 847", x: 18, y: 34 },
     { label: "verified: true", x: 40, y: 36 },
   ],
-  lines: [[0, 1], [1, 3], [0, 2], [2, 3], [1, 2]] as [number, number][],
+  lines: [
+    [0, 1],
+    [1, 3],
+    [0, 2],
+    [2, 3],
+    [1, 2],
+  ] as [number, number][],
 };
 
 const clusterB = {
@@ -15,7 +21,13 @@ const clusterB = {
     { label: "kind:3 → follows", x: 72, y: 32 },
     { label: "pubkey: a1b2c3...", x: 56, y: 28 },
   ],
-  lines: [[0, 1], [0, 3], [1, 2], [3, 2], [0, 2]] as [number, number][],
+  lines: [
+    [0, 1],
+    [0, 3],
+    [1, 2],
+    [3, 2],
+    [0, 2],
+  ] as [number, number][],
 };
 
 const clusterC = {
@@ -25,7 +37,13 @@ const clusterC = {
     { label: "hops: 2 → 0.73", x: 20, y: 80 },
     { label: "attest: positive", x: 42, y: 82 },
   ],
-  lines: [[0, 1], [0, 2], [1, 3], [2, 3], [1, 2]] as [number, number][],
+  lines: [
+    [0, 1],
+    [0, 2],
+    [1, 3],
+    [2, 3],
+    [1, 2],
+  ] as [number, number][],
 };
 
 const clusterD = {
@@ -35,7 +53,13 @@ const clusterD = {
     { label: "depth: 3", x: 68, y: 76 },
     { label: "context: global", x: 86, y: 80 },
   ],
-  lines: [[0, 1], [0, 2], [1, 3], [2, 3], [1, 2]] as [number, number][],
+  lines: [
+    [0, 1],
+    [0, 2],
+    [1, 3],
+    [2, 3],
+    [1, 2],
+  ] as [number, number][],
 };
 
 const CYCLE_A = 52;
@@ -50,12 +74,7 @@ const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
   delay: 5 + i * 2.5,
 }));
 
-function buildClusterKeyframes(
-  cluster: typeof clusterA,
-  prefix: string,
-  cycle: number,
-  startDelay: number,
-) {
+function buildClusterKeyframes(cluster: typeof clusterA, prefix: string, cycle: number, startDelay: number) {
   const kf: string[] = [];
   const p = (sec: number) => {
     const val = ((startDelay + sec) / cycle) * 100;
@@ -125,19 +144,14 @@ function buildClusterKeyframes(
 export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "light" }) {
   const isDark = variant === "dark";
 
-  const keyframesA = buildClusterKeyframes(clusterA, 'cA', CYCLE_A, 0);
-  const keyframesB = buildClusterKeyframes(clusterB, 'cB', CYCLE_B, 0);
-  const keyframesC = buildClusterKeyframes(clusterC, 'cC', CYCLE_A, 24);
-  const keyframesD = buildClusterKeyframes(clusterD, 'cD', CYCLE_B, 28);
+  const keyframesA = buildClusterKeyframes(clusterA, "cA", CYCLE_A, 0);
+  const keyframesB = buildClusterKeyframes(clusterB, "cB", CYCLE_B, 0);
+  const keyframesC = buildClusterKeyframes(clusterC, "cC", CYCLE_A, 24);
+  const keyframesD = buildClusterKeyframes(clusterD, "cD", CYCLE_B, 28);
 
-  const allKf = [...keyframesA, ...keyframesB, ...keyframesC, ...keyframesD].join('\n');
+  const allKf = [...keyframesA, ...keyframesB, ...keyframesC, ...keyframesD].join("\n");
 
-  const renderCluster = (
-    cluster: typeof clusterA,
-    prefix: string,
-    cycle: number,
-    initialWait: number,
-  ) => (
+  const renderCluster = (cluster: typeof clusterA, prefix: string, cycle: number, initialWait: number) => (
     <>
       {cluster.lines.map(([a, b], li) => {
         const n1 = cluster.nodes[a];
@@ -148,7 +162,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
             d={`M ${n1.x} ${n1.y} L ${n2.x} ${n2.y}`}
             pathLength={1}
             fill="none"
-            stroke={isDark ? 'url(#cbLineGrad)' : 'url(#cbLineGradLight)'}
+            stroke={isDark ? "url(#cbLineGrad)" : "url(#cbLineGradLight)"}
             strokeWidth={isDark ? "0.12" : "0.18"}
             strokeLinecap="round"
             strokeDasharray="1"
@@ -167,7 +181,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
           cx={node.x}
           cy={node.y}
           r="0.4"
-          fill={isDark ? 'rgba(96,165,250,0.35)' : 'rgb(var(--brand-primary)/0.3)'}
+          fill={isDark ? "rgba(96,165,250,0.35)" : "rgb(var(--brand-primary)/0.3)"}
           style={{
             transformOrigin: `${node.x}px ${node.y}px`,
             opacity: 0,
@@ -178,17 +192,12 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
     </>
   );
 
-  const renderClusterText = (
-    cluster: typeof clusterA,
-    prefix: string,
-    cycle: number,
-    initialWait: number,
-  ) =>
+  const renderClusterText = (cluster: typeof clusterA, prefix: string, cycle: number, initialWait: number) =>
     cluster.nodes.map((node, ni) => (
       <div
         key={`${prefix}-t-${ni}`}
-        className={`absolute text-[10px] font-mono pointer-events-none select-none hidden md:block tracking-wide ${
-          isDark ? 'text-blue-300/60' : 'text-brand-primary'
+        className={`pointer-events-none absolute hidden select-none font-mono text-[10px] tracking-wide md:block ${
+          isDark ? "text-blue-300/60" : "text-brand-primary"
         }`}
         style={{
           left: `${node.x}%`,
@@ -202,7 +211,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
     ));
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <style>{`
         @keyframes cbFloatNode {
           0% { transform: translateY(0) scale(0.5); opacity: 0; }
@@ -237,38 +246,38 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
         <>
           <div className="absolute inset-0 bg-[#F8FAFC]" />
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.15]" />
-          <div className="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] rounded-full bg-slate-200/40 blur-[120px]" />
-          <div className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-brand-primary/15 blur-[140px]" />
+          <div className="absolute -left-[10%] -top-[20%] h-[80%] w-[80%] rounded-full bg-slate-200/40 blur-[120px]" />
+          <div className="absolute -right-[20%] top-[10%] h-[80%] w-[80%] rounded-full bg-brand-primary/15 blur-[140px]" />
         </>
       )}
 
       <div
-        className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full blur-3xl"
+        className="absolute left-[15%] top-[10%] h-64 w-64 rounded-full blur-3xl"
         style={{
-          background: isDark ? 'rgba(37,99,235,0.04)' : 'rgb(var(--brand-primary-hover)/0.03)',
-          animation: 'cbGlowOrb1 18s ease-in-out infinite 2s',
+          background: isDark ? "rgba(37,99,235,0.04)" : "rgb(var(--brand-primary-hover)/0.03)",
+          animation: "cbGlowOrb1 18s ease-in-out infinite 2s",
         }}
       />
       <div
-        className="absolute bottom-[20%] right-[10%] w-48 h-48 rounded-full blur-3xl"
+        className="absolute bottom-[20%] right-[10%] h-48 w-48 rounded-full blur-3xl"
         style={{
-          background: isDark ? 'rgba(59,130,246,0.04)' : 'rgba(124,58,237,0.03)',
-          animation: 'cbGlowOrb2 22s ease-in-out infinite 6s',
+          background: isDark ? "rgba(59,130,246,0.04)" : "rgba(124,58,237,0.03)",
+          animation: "cbGlowOrb2 22s ease-in-out infinite 6s",
         }}
       />
       <div
-        className="absolute top-[50%] right-[25%] w-32 h-32 rounded-full blur-2xl"
+        className="absolute right-[25%] top-[50%] h-32 w-32 rounded-full blur-2xl"
         style={{
-          background: isDark ? 'rgba(96,165,250,0.03)' : 'rgba(59,130,246,0.03)',
-          animation: 'cbGlowOrb3 16s ease-in-out infinite 10s',
+          background: isDark ? "rgba(96,165,250,0.03)" : "rgba(59,130,246,0.03)",
+          animation: "cbGlowOrb3 16s ease-in-out infinite 10s",
         }}
       />
 
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-        {renderCluster(clusterA, 'cA', CYCLE_A, 4)}
-        {renderCluster(clusterB, 'cB', CYCLE_B, 8)}
-        {renderCluster(clusterC, 'cC', CYCLE_A, 6)}
-        {renderCluster(clusterD, 'cD', CYCLE_B, 12)}
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        {renderCluster(clusterA, "cA", CYCLE_A, 4)}
+        {renderCluster(clusterB, "cB", CYCLE_B, 8)}
+        {renderCluster(clusterC, "cC", CYCLE_A, 6)}
+        {renderCluster(clusterD, "cD", CYCLE_B, 12)}
 
         <defs>
           <linearGradient id="cbLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -293,20 +302,18 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
             width: node.size + 2,
             height: node.size + 2,
             background: isDark
-              ? 'radial-gradient(circle, rgba(96,165,250,0.2) 0%, rgba(96,165,250,0.04) 60%, transparent 100%)'
-              : 'radial-gradient(circle, rgb(var(--brand-primary)/0.15) 0%, rgb(var(--brand-primary)/0.04) 60%, transparent 100%)',
-            boxShadow: isDark
-              ? '0 0 4px 1px rgba(96,165,250,0.05)'
-              : '0 0 4px 1px rgb(var(--brand-primary)/0.05)',
+              ? "radial-gradient(circle, rgba(96,165,250,0.2) 0%, rgba(96,165,250,0.04) 60%, transparent 100%)"
+              : "radial-gradient(circle, rgb(var(--brand-primary)/0.15) 0%, rgb(var(--brand-primary)/0.04) 60%, transparent 100%)",
+            boxShadow: isDark ? "0 0 4px 1px rgba(96,165,250,0.05)" : "0 0 4px 1px rgb(var(--brand-primary)/0.05)",
             animation: `cbFloatNode ${node.duration}s ease-in-out infinite ${node.delay}s`,
           }}
         />
       ))}
 
-      {renderClusterText(clusterA, 'cA', CYCLE_A, 4)}
-      {renderClusterText(clusterB, 'cB', CYCLE_B, 8)}
-      {renderClusterText(clusterC, 'cC', CYCLE_A, 6)}
-      {renderClusterText(clusterD, 'cD', CYCLE_B, 12)}
+      {renderClusterText(clusterA, "cA", CYCLE_A, 4)}
+      {renderClusterText(clusterB, "cB", CYCLE_B, 8)}
+      {renderClusterText(clusterC, "cC", CYCLE_A, 6)}
+      {renderClusterText(clusterD, "cD", CYCLE_B, 12)}
     </div>
   );
 }

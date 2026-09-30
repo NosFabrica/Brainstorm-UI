@@ -1,6 +1,7 @@
-import type { ComponentType } from "react";
+import { useEffect, type ComponentType } from "react";
 import { Redirect, useLocation } from "wouter";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { setRouteRequiresSession } from "@/services/api";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { useCountdown } from "@/components/sorry/useCountdown";
@@ -20,11 +21,15 @@ export function RequireAuth({ component: Component }: { component: ComponentType
   const signedIn = useActiveAccountDisplay();
   const status = useServerStatus();
   const nextTryInSec = useCountdown(status.nextProbeAt);
+  // This page has no meaning without a Session, so a lost one may give up the
+  // route; public pages never mount this guard and keep their deep links.
+  useEffect(() => {
+    setRouteRequiresSession(true);
+    return () => setRouteRequiresSession(false);
+  }, []);
   if (!signedIn) {
     const next =
-      location && location.startsWith("/") && location !== "/login"
-        ? `?next=${encodeURIComponent(location)}`
-        : "";
+      location && location.startsWith("/") && location !== "/login" ? `?next=${encodeURIComponent(location)}` : "";
     // `replace`, not push: pushing leaves the gated URL in history, so pressing
     // Back returns to it, RequireAuth fires again and shoves you forward to
     // /login — a trap you can't reverse out of. Replacing means Back skips
@@ -33,7 +38,14 @@ export function RequireAuth({ component: Component }: { component: ComponentType
   }
   if (status.api === "down") {
     return (
-      <SorryPage scope="api" variant="page" onRetry={() => retryNow("api")} checking={status.checking} nextTryInSec={nextTryInSec} signedIn />
+      <SorryPage
+        scope="api"
+        variant="page"
+        onRetry={() => retryNow("api")}
+        checking={status.checking}
+        nextTryInSec={nextTryInSec}
+        signedIn
+      />
     );
   }
   return <Component />;

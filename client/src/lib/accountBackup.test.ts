@@ -42,9 +42,7 @@ beforeEach(() => {
   // jsdom implements neither, so they are assigned rather than spied on.
   URL.createObjectURL = () => "blob:fake";
   URL.revokeObjectURL = () => {};
-  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
-    this: HTMLAnchorElement,
-  ) {
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
     downloads.push(this.download);
   });
 });

@@ -7,8 +7,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 
-const findArtistMock = vi.fn(async (_q: { name?: string | null; pubkey?: string | null }) => null as null | { id: string; name: string; url: string; artistNpub: string });
-const artistTracksMock = vi.fn(async (_id: string, _limit?: number) => [] as { id: string; title: string; artist: string; audio: string; url: string; source: "wavlake"; artistNpub: string }[]);
+const findArtistMock = vi.fn(
+  async (_q: { name?: string | null; pubkey?: string | null }) =>
+    null as null | { id: string; name: string; url: string; artistNpub: string },
+);
+const artistTracksMock = vi.fn(
+  async (_id: string, _limit?: number) =>
+    [] as {
+      id: string;
+      title: string;
+      artist: string;
+      audio: string;
+      url: string;
+      source: "wavlake";
+      artistNpub: string;
+    }[],
+);
 vi.mock("@/lib/wavlake", () => ({
   findWavlakeArtist: (q: { name?: string | null; pubkey?: string | null }) => findArtistMock(q),
   wavlakeArtistTracks: (id: string, limit?: number) => artistTracksMock(id, limit),
@@ -20,7 +34,15 @@ import { useArtistCatalogue } from "./useArtistCatalogue";
 
 const JOE = "e".repeat(64);
 const artist = { id: "art-1", name: "Joe Martin", url: "https://wavlake.com/joe-martin", artistNpub: "" };
-const song = (id: string, title: string) => ({ id: `wavlake:${id}`, title, artist: "Joe Martin", audio: `https://cdn/${id}.mp3`, url: `https://wavlake.com/track/${id}`, source: "wavlake" as const, artistNpub: "" });
+const song = (id: string, title: string) => ({
+  id: `wavlake:${id}`,
+  title,
+  artist: "Joe Martin",
+  audio: `https://cdn/${id}.mp3`,
+  url: `https://wavlake.com/track/${id}`,
+  source: "wavlake" as const,
+  artistNpub: "",
+});
 
 describe("useArtistCatalogue", () => {
   beforeEach(() => {

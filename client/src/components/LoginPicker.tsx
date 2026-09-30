@@ -109,12 +109,7 @@ export type LoginPickerProps = {
   onRecheckExtension: () => void;
 };
 
-export function LoginPicker({
-  identities,
-  onSignedIn,
-  onUseKey,
-  onRecheckExtension,
-}: LoginPickerProps) {
+export function LoginPicker({ identities, onSignedIn, onUseKey, onRecheckExtension }: LoginPickerProps) {
   const { toast } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [forgetting, setForgetting] = useState<BrainstormAccount | null>(null);
@@ -147,10 +142,7 @@ export function LoginPicker({
 
   if (identities.length === 0) {
     return (
-      <Card
-        className="border-dashed p-4 text-center text-sm text-muted-foreground"
-        data-testid="login-picker-empty"
-      >
+      <Card className="border-dashed p-4 text-center text-sm text-muted-foreground" data-testid="login-picker-empty">
         No accounts are saved on this device yet.
       </Card>
     );
@@ -163,20 +155,20 @@ export function LoginPicker({
       onClick={() => void select(row)}
       disabled={busy !== null}
       className={cn(
-        "w-full flex items-center gap-3 text-left transition-colors disabled:opacity-60",
+        "flex w-full items-center gap-3 text-left transition-colors disabled:opacity-60",
         grouped ? "px-3 py-2 hover:bg-muted" : "px-3 py-2.5",
       )}
       data-testid={`button-pick-account-${row.account.id}`}
     >
       {!grouped && <AccountFace identity={identity} />}
       {!grouped && <AccountNames identity={identity} />}
-      <span className={cn("flex items-center gap-1.5", grouped ? "flex-1" : "flex-col items-end shrink-0")}>
+      <span className={cn("flex items-center gap-1.5", grouped ? "flex-1" : "shrink-0 flex-col items-end")}>
         <AccountRowChips row={row} />
       </span>
       {busy === row.account.id ? (
         <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
       ) : (
-        grouped && <span className="text-xs font-semibold text-brand-link shrink-0">Use</span>
+        grouped && <span className="shrink-0 text-xs font-semibold text-brand-link">Use</span>
       )}
     </button>
   );
@@ -184,13 +176,9 @@ export function LoginPicker({
   return (
     <div className="space-y-2.5" data-testid="login-picker">
       {unavailable > 1 && (
-        <p
-          className="text-[13px] leading-snug text-muted-foreground"
-          data-testid="notice-keys-unavailable"
-        >
-          This browser no longer holds the keys for the accounts marked below — they were kept
-          here and nowhere else. Sign in with a key you kept elsewhere, or remove them; the npubs
-          are the last trace of what was lost.
+        <p className="text-[13px] leading-snug text-muted-foreground" data-testid="notice-keys-unavailable">
+          This browser no longer holds the keys for the accounts marked below — they were kept here and nowhere else.
+          Sign in with a key you kept elsewhere, or remove them; the npubs are the last trace of what was lost.
         </p>
       )}
 
@@ -206,7 +194,7 @@ export function LoginPicker({
                   <div className="flex items-center gap-3">
                     <AccountFace identity={identity} />
                     <AccountNames identity={identity} />
-                    <span className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="flex shrink-0 flex-col items-end gap-1">
                       <AccountRowChips row={identity.rows[0]} />
                     </span>
                   </div>
@@ -256,8 +244,8 @@ export function LoginPicker({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove this account from this device?</AlertDialogTitle>
             <AlertDialogDescription>
-              Everything this browser holds for it goes, including its npub. Anyone holding the
-              key elsewhere can add it again; nobody else can.
+              Everything this browser holds for it goes, including its npub. Anyone holding the key elsewhere can add it
+              again; nobody else can.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

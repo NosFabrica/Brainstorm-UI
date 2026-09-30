@@ -5,6 +5,7 @@
  * what persists and what the header renders can't disagree.
  */
 import type { AccountManager, BaseAccount } from "applesauce-accounts";
+import type { ISigner } from "applesauce-signers";
 import { npubEncode } from "nostr-tools/nip19";
 import { distinctUntilChanged, map, of, startWith, switchMap, type Observable } from "rxjs";
 
@@ -121,7 +122,7 @@ export function displayStream(manager: AccountManager<AccountMetadata>): Observa
   return manager.active$.pipe(
     switchMap((account) =>
       account
-        ? (account as BaseAccount<any, any, AccountMetadata>).metadata$.pipe(
+        ? (account as BaseAccount<ISigner, unknown, AccountMetadata>).metadata$.pipe(
             startWith(null),
             map(() => displayOf(account as BrainstormAccount)),
           )

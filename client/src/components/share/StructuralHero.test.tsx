@@ -9,16 +9,35 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-const specsMock = vi.fn(() => Promise.resolve([] as { id: string; kind: number; pubkey: string; tags: string[][]; content: string; created_at: number }[]));
+const specsMock = vi.fn(() =>
+  Promise.resolve(
+    [] as { id: string; kind: number; pubkey: string; tags: string[][]; content: string; created_at: number }[],
+  ),
+);
 vi.mock("@/services/search", () => ({ fetchSpecsForKind: (kind: number) => specsMock(kind) }));
 
 import { StructuralHero } from "./StructuralHero";
 
-const event = (kind: number, tags: string[][], content = "") => ({ id: "1".repeat(64), kind, pubkey: "c".repeat(64), tags, content, created_at: 1_758_500_000 });
+const event = (kind: number, tags: string[][], content = "") => ({
+  id: "1".repeat(64),
+  kind,
+  pubkey: "c".repeat(64),
+  tags,
+  content,
+  created_at: 1_758_500_000,
+});
 
 describe("StructuralHero", () => {
   it("names the kind, shows the alt line, and lays the tags out", () => {
-    render(<StructuralHero event={event(30078, [["d", "nostrmail/settings"], ["alt", "Nostr Mail settings"], ["p", "b".repeat(64), "wss://relay.example"]])} />);
+    render(
+      <StructuralHero
+        event={event(30078, [
+          ["d", "nostrmail/settings"],
+          ["alt", "Nostr Mail settings"],
+          ["p", "b".repeat(64), "wss://relay.example"],
+        ])}
+      />,
+    );
 
     const hero = screen.getByTestId("structural-hero");
     expect(hero).toHaveTextContent("App data");
@@ -38,9 +57,39 @@ describe("StructuralHero", () => {
 
   it("links the specs that cover the kind, when the relay has any", async () => {
     specsMock.mockResolvedValueOnce([
-      { id: "s".repeat(64), kind: 30817, pubkey: "b".repeat(64), tags: [["d", "app-data"], ["title", "Arbitrary public custom app data"]], content: "#", created_at: 1 },
-      { id: "t".repeat(64), kind: 30817, pubkey: "c".repeat(64), tags: [["d", "noornote"], ["title", "NoorNote"]], content: "#", created_at: 1 },
-      { id: "u".repeat(64), kind: 30817, pubkey: "d".repeat(64), tags: [["d", "x"], ["title", "X"]], content: "#", created_at: 1 },
+      {
+        id: "s".repeat(64),
+        kind: 30817,
+        pubkey: "b".repeat(64),
+        tags: [
+          ["d", "app-data"],
+          ["title", "Arbitrary public custom app data"],
+        ],
+        content: "#",
+        created_at: 1,
+      },
+      {
+        id: "t".repeat(64),
+        kind: 30817,
+        pubkey: "c".repeat(64),
+        tags: [
+          ["d", "noornote"],
+          ["title", "NoorNote"],
+        ],
+        content: "#",
+        created_at: 1,
+      },
+      {
+        id: "u".repeat(64),
+        kind: 30817,
+        pubkey: "d".repeat(64),
+        tags: [
+          ["d", "x"],
+          ["title", "X"],
+        ],
+        content: "#",
+        created_at: 1,
+      },
     ]);
     render(<StructuralHero event={event(30078, [["d", "x"]])} />);
     const link = await screen.findByTestId("structural-spec");
@@ -52,7 +101,8 @@ describe("StructuralHero", () => {
   // The content of app data is ciphertext or JSON: the page says which, and
   // prints JSON readably — the raw event stays behind the disclosure.
   it("says encrypted content is encrypted, and prints structured content readably", () => {
-    const blob = "AgkXT1NChTXAHiDpLZZwu5PO5rAVpAxTeRwbCyrcWYDpXson5eEnf/JjsvZqC+V/P5uTF4sbspmfOlVeCi8aJb/oceACXS4VBRcA6s3FxVx0AUbFFqpQGtWjw7a4fu51pNS";
+    const blob =
+      "AgkXT1NChTXAHiDpLZZwu5PO5rAVpAxTeRwbCyrcWYDpXson5eEnf/JjsvZqC+V/P5uTF4sbspmfOlVeCi8aJb/oceACXS4VBRcA6s3FxVx0AUbFFqpQGtWjw7a4fu51pNS";
     const { unmount } = render(<StructuralHero event={event(30078, [["d", "ditto"]], blob)} />);
     expect(screen.getByTestId("structural-content-shape")).toHaveTextContent("Encrypted — only its owner can read it");
     expect(screen.getByTestId("structural-hero").textContent).not.toContain("AgkXT1NCh");

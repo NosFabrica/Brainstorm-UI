@@ -20,7 +20,10 @@ const markNip85Activated = vi.fn();
 const clearNip85Activated = vi.fn();
 const activeAccount = vi.fn((): { pubkey: string } | null => null);
 const canSignSilently = vi.fn(async () => false);
-const checkUserLists = vi.fn(async (..._a: unknown[]) => ({ status: "none", designation: null as null | { key: string; relay: string } }));
+const checkUserLists = vi.fn(async (..._a: unknown[]) => ({
+  status: "none",
+  designation: null as null | { key: string; relay: string },
+}));
 const listsToName = vi.fn(async (..._a: unknown[]) => null as null | { key: string; relay: string });
 const recordTrustListsDeclared = vi.fn();
 

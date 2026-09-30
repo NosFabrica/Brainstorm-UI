@@ -8,7 +8,11 @@ import { searchWavlake, searchWavlakeTracks, type WavlakeCatalogueHits, type Wav
  * as an empty list, not an error: Wavlake being down is not a search failure.
  */
 export function useWavlakeSongs(term: string, enabled: boolean): { songs: WavlakeSong[]; loading: boolean } {
-  const [state, setState] = useState<{ term: string; songs: WavlakeSong[]; loading: boolean }>({ term: "", songs: [], loading: false });
+  const [state, setState] = useState<{ term: string; songs: WavlakeSong[]; loading: boolean }>({
+    term: "",
+    songs: [],
+    loading: false,
+  });
   useEffect(() => {
     const q = term.trim();
     if (!enabled || q.length < 2) {
@@ -35,7 +39,11 @@ const NO_HITS: WavlakeCatalogueHits = { artists: [], albums: [], songs: [] };
  * hook: asks only when enabled, an outage is three empty lists.
  */
 export function useWavlakeSearch(term: string, enabled: boolean): WavlakeCatalogueHits & { loading: boolean } {
-  const [state, setState] = useState<{ term: string; hits: WavlakeCatalogueHits; loading: boolean }>({ term: "", hits: NO_HITS, loading: false });
+  const [state, setState] = useState<{ term: string; hits: WavlakeCatalogueHits; loading: boolean }>({
+    term: "",
+    hits: NO_HITS,
+    loading: false,
+  });
   useEffect(() => {
     const q = term.trim();
     if (!enabled || q.length < 2) {

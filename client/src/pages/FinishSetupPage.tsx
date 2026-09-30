@@ -107,7 +107,14 @@ export default function FinishSetupPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
-      <AppHeader user={user} onLogout={() => { logout(); navigate("/"); }} search={false} />
+      <AppHeader
+        user={user}
+        onLogout={() => {
+          logout();
+          navigate("/");
+        }}
+        search={false}
+      />
 
       <main className="mx-auto max-w-2xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
         <SectionHeader kicker="Finish setting up" className="mb-4" />
@@ -120,7 +127,10 @@ export default function FinishSetupPage() {
         </h1>
 
         <div className="mt-7">
-          <span className="text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300" data-testid="text-finish-setup-progress">
+          <span
+            className="text-xs font-bold tabular-nums text-slate-600 dark:text-slate-300"
+            data-testid="text-finish-setup-progress"
+          >
             {doneCount} of 3 complete
           </span>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">

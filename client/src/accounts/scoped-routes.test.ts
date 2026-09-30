@@ -19,9 +19,7 @@ describe("leaving a page that belonged to the previous identity", () => {
   });
 
   it("follows your own profile across to the new identity's", () => {
-    expect(leaveScopedRoute(`/profile/${ALICE}`, { previousNpub: ALICE, nextNpub: BOB })).toBe(
-      `/profile/${BOB}`,
-    );
+    expect(leaveScopedRoute(`/profile/${ALICE}`, { previousNpub: ALICE, nextNpub: BOB })).toBe(`/profile/${BOB}`);
   });
 
   it("stays on someone else's profile — it reads the same either way", () => {
