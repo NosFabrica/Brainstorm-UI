@@ -120,8 +120,8 @@ export function Section({
   className?: string;
 }) {
   return (
-    <section className={`mt-5 first:mt-0 ${className}`} data-testid={`${testIdPrefix}-${id}`}>
-      <div className="mb-2 flex items-baseline gap-2">
+    <section className={`mt-6 first:mt-0 ${className}`} data-testid={`${testIdPrefix}-${id}`}>
+      <div className="mb-3 flex items-baseline gap-2">
         <SectionHeader variant="title" kicker={kicker} className="flex-1" />
         {/* Quiet until hovered: the title carries the section, the link
             only has to be findable. */}
@@ -129,7 +129,7 @@ export function Section({
           <button
             type="button"
             onClick={() => onTabChange(tab)}
-            className="shrink-0 rounded text-xs font-medium text-slate-500 hover:text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400"
+            className="shrink-0 rounded text-[13px] font-medium text-slate-500 hover:text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400"
             data-testid={`${testIdPrefix === "serp-section" ? "serp-more" : `${testIdPrefix}-more`}-${id}`}
           >
             See all
@@ -181,7 +181,7 @@ export function ClusterRows({
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="ml-2 mt-0.5 rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
+          className="ml-2 mt-1 rounded-full border border-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-500 hover:border-brand-accent/30 dark:border-slate-800 dark:text-slate-400"
           data-testid={`serp-expand-${cluster.primary.event.id}`}
         >
           +{cluster.others.length} more from {authorName}
@@ -228,16 +228,16 @@ export function SectionSkeleton({
         </div>
       )}
       {shape === "rows" && (
-        <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+        <div className="space-y-1">
           {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="-mx-2 flex items-start gap-3 px-2 py-3">
-              <div className="min-w-0 flex-1 space-y-2">
+            <div key={i} className="-mx-2 flex items-start gap-4 px-2 py-3.5">
+              <div className="min-w-0 flex-1 space-y-2.5">
                 <div className="flex items-center gap-1.5">
-                  <Skeleton className="h-5 w-5 rounded-full" />
-                  <Skeleton className="h-3 w-24 rounded" />
+                  <Skeleton className="h-6 w-6 rounded-full" />
+                  <Skeleton className="h-3.5 w-28 rounded" />
                 </div>
-                <Skeleton className="h-3 w-full rounded" />
-                <Skeleton className="h-3 w-3/4 rounded" />
+                <Skeleton className="h-3.5 w-full rounded" />
+                <Skeleton className="h-3.5 w-3/4 rounded" />
               </div>
             </div>
           ))}

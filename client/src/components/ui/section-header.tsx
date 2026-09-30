@@ -34,7 +34,7 @@ export function SectionHeader({
       <div className={cn("flex items-center gap-2", className)} {...props}>
         {Icon && <Icon className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}
         <h2
-          className="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100"
+          className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100"
           style={{ fontFamily: "var(--font-display)" }}
         >
           {kicker}
