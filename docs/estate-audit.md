@@ -92,6 +92,11 @@ part of the estate that was already clean.
 | `brainstormserver.nosfabrica.com`         | 74.208.86.220 | Production API | ✅ 404s correctly |
 | `brainstormserver-staging.nosfabrica.com` | 74.208.86.220 | Staging API    | ✅ 404s correctly |
 
+> **Moved, 2026-09-30.** `search.brainstorm.world` now points at the SearchOverTrust relay
+> ([`NosFabrica/vespa-relay`](https://github.com/NosFabrica/vespa-relay), 74.208.86.139), not
+> brainstorm_server. The row above records what was surveyed in August; the host has not been
+> re-surveyed since the move.
+
 **Dead DNS.** Five hostnames referenced in source have no A record: `lists.`, `npub.`,
 `wot.brainstorm.world`, `nip85-staging.brainstorm.world`, `relay-staging.brainstorm.world`. Harmless
 on its own, but evidence the inventory drifts unnoticed — which matters now that the inventory is
