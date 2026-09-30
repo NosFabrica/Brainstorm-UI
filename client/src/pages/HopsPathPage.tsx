@@ -210,7 +210,7 @@ export default function HopsPathPage() {
   const backLink = `/p/${rawId}`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
+    <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       {/* The public pages' header — B mark, the shared search box, account — so
           search stays one tap away below a profile too, with Back pinned in it. */}
       <PublicPageHeader

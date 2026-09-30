@@ -793,7 +793,7 @@ export default function DashboardPage() {
   return (
     <TooltipProvider>
       <div
-        className="relative flex min-h-screen flex-col overflow-hidden bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
+        className="relative flex min-h-page flex-col overflow-hidden bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
         data-testid="page-dashboard"
       >
         <PageBackground />

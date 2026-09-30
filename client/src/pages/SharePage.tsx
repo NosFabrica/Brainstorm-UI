@@ -1833,7 +1833,7 @@ function ProfileShareSheet({
 
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <PublicPageHeader maxWidthClass="max-w-4xl" actions={actions} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6">{children}</main>
     </div>

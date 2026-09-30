@@ -80,7 +80,7 @@ export default function SupportPage() {
   const tickets = supportQuery.data?.tickets ?? [];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-page bg-[#F8FAFC] text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {user && <AppHeader user={user} onLogout={() => logout()} />}
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10" data-testid="page-support">
         <Link

@@ -140,7 +140,7 @@ export default function LoginPage() {
 
   return (
     <div
-      className="flex min-h-screen w-full bg-background font-sans text-foreground lg:overflow-hidden"
+      className="flex min-h-page w-full bg-background font-sans text-foreground lg:overflow-hidden"
       data-testid="page-login"
     >
       {/* Left column — editorial value panel */}

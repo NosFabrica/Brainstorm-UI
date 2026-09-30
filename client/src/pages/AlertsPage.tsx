@@ -175,7 +175,7 @@ export default function AlertsPage() {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-white dark:bg-slate-950">
+    <div className="flex min-h-page flex-col bg-white dark:bg-slate-950">
       {user && <AppHeader user={user} onLogout={handleLogout} />}
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
         <button

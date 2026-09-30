@@ -93,7 +93,7 @@ export default function ActivatePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
+    <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       <OnboardingHeader
         onSkip={() => {
           markSeen();

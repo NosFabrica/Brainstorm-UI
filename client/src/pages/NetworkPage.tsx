@@ -953,7 +953,7 @@ export default function NetworkPage() {
       // left "Back to Dashboard" as the only way out — and the dashboard is itself
       // a waiting screen, so a new user just bounced between two of them.
       <div
-        className="flex min-h-screen flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100"
+        className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100"
         data-testid="page-network-gate"
       >
         <AppHeader user={user} onLogout={handleLogout} active="network" />
@@ -1010,7 +1010,7 @@ export default function NetworkPage() {
 
   return (
     <div
-      className="relative flex min-h-screen flex-col overflow-clip bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
+      className="relative flex min-h-page flex-col overflow-clip bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
       data-testid="page-network"
     >
       <GlossBackground />

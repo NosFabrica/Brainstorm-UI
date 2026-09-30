@@ -104,7 +104,7 @@ export default function BillingReturnPage() {
   }, [phase, isPaid, status]);
 
   return (
-    <div className="flex min-h-screen items-start justify-center bg-slate-50 px-4 pt-24 dark:bg-slate-950">
+    <div className="flex min-h-page items-start justify-center bg-slate-50 px-4 pt-24 dark:bg-slate-950">
       <Card className="w-full max-w-md p-6 sm:p-7" data-testid="billing-return">
         {!signedIn ? (
           <>

@@ -481,12 +481,13 @@ export default function Landing() {
   // search is under way) so the list/results have room.
   const lifted = hasSearched || isSearching || query.trim().length > 0;
 
-  // 100dvh, not 100vh: on iOS the toolbar eats a big share of a LANDSCAPE
-  // viewport, and 100vh measures the large (toolbar-hidden) viewport — so the
-  // bottom of the page sits under the chrome exactly when room is scarcest.
+  // min-h-page (100dvh less the bottom chrome), not 100vh: on iOS the toolbar
+  // eats a big share of a LANDSCAPE viewport, and 100vh measures the large
+  // (toolbar-hidden) viewport — so the bottom of the page sits under the chrome
+  // exactly when room is scarcest.
   return (
     <div
-      className="relative flex min-h-[100dvh] flex-col bg-white text-slate-900 [overflow-x:clip] dark:bg-slate-950 dark:text-slate-100"
+      className="relative flex min-h-page flex-col bg-white text-slate-900 [overflow-x:clip] dark:bg-slate-950 dark:text-slate-100"
       data-testid="page-home"
     >
       <GlossBackground />
