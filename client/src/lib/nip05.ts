@@ -10,6 +10,7 @@
  * and a Primal link's `<name>@primal.net` (resolveNip05) — answering null
  * instead of throwing: a link that cannot resolve is a link, not an error.
  */
+import { isLocalNetworkHost } from "./localNetwork";
 
 export type Nip05Status =
   /** The domain maps this name to this pubkey. */
@@ -21,9 +22,10 @@ export type Nip05Status =
 
 /** Local parts NIP-05 allows: a-z0-9-_. (compared lowercase). */
 const LOCAL = /^[a-z0-9._-]+$/;
-/** A DNS name with a letter TLD — no ports, no IP literals. Every visitor's
- *  browser makes this request, so a profile must not be able to aim it at
- *  their LAN (`_@192.168.1.1`) or an arbitrary port. */
+/** A DNS name with a letter TLD — no ports, no IP literals, and no LAN-only
+ *  names (`_@umbrel.local`, `lib/localNetwork`). Every visitor's browser makes
+ *  this request, so a profile must not be able to aim it at their LAN
+ *  (`_@192.168.1.1`) or an arbitrary port. */
 const DOMAIN = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]*[a-z0-9]$/;
 const HEX64 = /^[0-9a-f]{64}$/;
 
@@ -34,7 +36,7 @@ export function parseNip05(raw: string | undefined | null): { name: string; doma
   const at = v.lastIndexOf("@");
   const name = at === -1 ? "_" : v.slice(0, at);
   const domain = at === -1 ? v : v.slice(at + 1);
-  if (!LOCAL.test(name) || !DOMAIN.test(domain)) return null;
+  if (!LOCAL.test(name) || !DOMAIN.test(domain) || isLocalNetworkHost(domain)) return null;
   return { name, domain };
 }
 

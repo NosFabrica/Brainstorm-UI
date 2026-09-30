@@ -25,6 +25,7 @@ import { BaseAccount, type SerializedAccount } from "applesauce-accounts";
 import { hexToBytes, type NostrEvent } from "applesauce-core/helpers/event";
 import { getHiddenContent } from "applesauce-core/helpers";
 import { normalizeRelayUrl } from "applesauce-core/helpers/relays";
+import { allowLocalRelay } from "@/lib/localNetwork";
 import { NostrConnectSigner, PrivateKeySigner, type NostrConnectSignerOptions } from "applesauce-signers";
 import { isNIP04 } from "applesauce-signers/helpers/encryption";
 import {
@@ -240,6 +241,9 @@ export class RemoteSigner extends NostrConnectSigner {
 
   constructor(options: RemoteSignerOptions) {
     super({ onAuth: requestSignerApproval, ...options });
+    // The reader picked this signer's relays — pasted in a `bunker://` link, or
+    // ours from the `nostrconnect://` URI — so one on their LAN is theirs to reach.
+    allowLocalRelay(options.relays ?? []);
     this.requireConnectSecret = options.requireConnectSecret ?? false;
   }
 

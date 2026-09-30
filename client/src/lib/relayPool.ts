@@ -22,7 +22,7 @@
 import { Relay, RelayGroup, RelayPool, type GroupRequestCompleteOperator, type RelayOptions } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
 import { filter, map, scan } from "rxjs";
-import { isUnreachableLocalRelay } from "./relayList";
+import { isUnreachableLocalRelay } from "./localNetwork";
 
 /**
  * How long an idle socket stays open. The library's 30s means a pause between
@@ -83,36 +83,28 @@ const readComplete = (relays: Parameters<RelayPool["request"]>[0]) =>
     Array.isArray(relays) ? everyAskedRelayDone(relays) : RelayGroup.completeOnAllEose(),
   );
 
-type RelayUrls = Parameters<RelayPool["group"]>[0];
-
-/**
- * The relays in a list this page may actually connect to — not one on the
- * reader's own device or LAN (lib/relayList `isLocalNetworkHost`). Relay lists
- * are read through `dedupeRelays`, which already drops them; this is the
- * backstop for every other way a URL reaches the pool (hints, raw lists).
- */
-function reachable(relays: string[]): string[];
-function reachable(relays: RelayUrls): RelayUrls;
-function reachable(relays: RelayUrls): RelayUrls {
-  const keep = (urls: string[]) => urls.filter((url) => !isUnreachableLocalRelay(url));
-  return Array.isArray(relays) ? keep(relays) : relays.pipe(map(keep));
-}
-
 class ReadFirstPool extends RelayPool {
-  /** Every read, subscription and publish builds its group here. */
-  group(relays: RelayUrls, ignoreOffline?: boolean): ReturnType<RelayPool["group"]> {
-    return super.group(reachable(relays), ignoreOffline);
-  }
-
   /** Every one-shot read gets the app's completion rule unless the caller brings its own. */
   request(
     relays: Parameters<RelayPool["request"]>[0],
     filters: Parameters<RelayPool["request"]>[1],
     opts?: Parameters<RelayPool["request"]>[2],
   ): ReturnType<RelayPool["request"]> {
-    // Filtered here too, so the completion rule doesn't wait on a relay the group never asks.
-    relays = reachable(relays);
     return super.request(relays, filters, { complete: readComplete(relays), ...opts });
+  }
+
+  /**
+   * A refused relay (see `refusingLocal`) is left out of a publish up front.
+   * Reads fail it fast, but a publish waits several seconds for a socket that
+   * is never going to open before it counts the relay as failed.
+   */
+  publish(
+    relays: Parameters<RelayPool["publish"]>[0],
+    event: Parameters<RelayPool["publish"]>[1],
+    opts?: Parameters<RelayPool["publish"]>[2],
+  ): ReturnType<RelayPool["publish"]> {
+    const reachable = Array.isArray(relays) ? relays.filter((url) => !isUnreachableLocalRelay(url)) : relays;
+    return super.publish(reachable, event, opts);
   }
 
   /** Live subscriptions wait for a gated relay's login; see ReadFirstRelay. */
@@ -145,12 +137,64 @@ class ReadFirstPool extends RelayPool {
   }
 }
 
+/**
+ * The socket a refused relay gets: one that fails the moment it is watched, as
+ * a relay that cannot be reached does. Nothing touches the network.
+ */
+class RefusedSocket {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSING = 2;
+  static readonly CLOSED = 3;
+  readonly readyState = RefusedSocket.CLOSED;
+  binaryType = "blob";
+  onopen: ((e: unknown) => void) | null = null;
+  onmessage: ((e: unknown) => void) | null = null;
+  onerror: ((e: unknown) => void) | null = null;
+  onclose: ((e: unknown) => void) | null = null;
+  constructor(readonly url: string) {
+    // After the caller has attached its handlers, as a real socket's errors are.
+    setTimeout(() => {
+      this.onerror?.({ type: "error" });
+      this.onclose?.({ type: "close", code: 1006, reason: "local relay not chosen by the reader", wasClean: false });
+    }, 0);
+  }
+  send(): void {}
+  close(): void {}
+}
+
+type SocketCtor = RelayOptions["WebSocket"];
+
+/**
+ * The one door every socket goes through, so no route around it: a relay on
+ * the reader's own device or LAN that they didn't choose (lib/localNetwork) is
+ * refused here. Relay lists already drop such relays (`dedupeRelays`); this
+ * catches every other way a URL arrives — a hint on an event, the provider
+ * relay a kind-10040 names, `pool.relay(url)`. A refusal fails fast like any
+ * unreachable relay, so reads finish on the relays that can answer.
+ */
+function refusingLocal(Socket: SocketCtor): SocketCtor {
+  if (!Socket) return Socket;
+  return new Proxy(Socket, {
+    construct(target, args: unknown[]) {
+      return isUnreachableLocalRelay(String(args[0]))
+        ? new RefusedSocket(String(args[0]))
+        : Reflect.construct(target, args);
+    },
+  });
+}
+
 /** The pool the app runs on, built once below; exposed so a test can build its own over a fake socket. */
 export function createPool(options: RelayOptions = {}): RelayPool {
   // A one-shot read does not retry a relay whose socket will not connect —
   // the library's three retries with backoff kept an article waiting on an
   // author's `umbrel.local`. Live subscriptions keep their reconnects.
-  return new ReadFirstPool({ keepAlive: KEEP_ALIVE_MS, requestReconnect: 0, ...options });
+  return new ReadFirstPool({
+    keepAlive: KEEP_ALIVE_MS,
+    requestReconnect: 0,
+    ...options,
+    WebSocket: refusingLocal(options.WebSocket ?? globalThis.WebSocket),
+  });
 }
 
 export const pool = createPool();

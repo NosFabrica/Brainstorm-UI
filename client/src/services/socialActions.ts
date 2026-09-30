@@ -8,6 +8,7 @@ import { PROFILE_RELAYS } from "@/lib/relays";
 import { outboxRelays, outboxRelaysFromDb, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { eventStore } from "@/lib/eventStore";
 import { isRelayUrl } from "@/config/tagging";
+import { allowLocalRelay } from "@/lib/localNetwork";
 import { identityHas } from "@/accounts/display";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -399,6 +400,8 @@ export async function recoverFollowListFromRelay(
   if (!isRelayUrl(url)) {
     return { found: false, error: "That doesn't look like a relay address — it should start with wss://" };
   }
+  // Typed by the reader — often their own Citrine or home relay, which is the point.
+  allowLocalRelay([url]);
 
   const fetchKind = (kind: number) =>
     requestNewestRaw([url], { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);

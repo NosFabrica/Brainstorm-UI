@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { dedupeRelays, isLocalNetworkHost, isUnreachableLocalRelay } from "./relayList";
+import { dedupeRelays } from "./relayList";
+import { isLocalNetworkHost, isUnreachableLocalRelay } from "./localNetwork";
 
 const host = (url: string) => new URL(url).hostname;
 
@@ -10,6 +11,11 @@ describe("isLocalNetworkHost", () => {
     "ws://relay.localhost",
     "ws://umbrel.local:4848",
     "ws://umbrel.local.:4848",
+    "ws://umbrel.lan:4848",
+    "ws://relay.home.arpa",
+    "ws://relay.internal",
+    "ws://nas.localdomain",
+    "ws://raspberrypi:7777", // single-label: no public relay has one
     "ws://127.0.0.1:7777",
     "ws://127.1.2.3",
     "ws://0.0.0.0:8080",
@@ -39,13 +45,18 @@ describe("isLocalNetworkHost", () => {
     "wss://nos.lol",
     "wss://relay.community",
     "wss://local.example.com", // "local" as a label, not the .local TLD
-    "wss://mylocal",
+    "wss://relay.homes", // .homes is a public TLD; .home is not
+    "wss://mylocal.com",
     "ws://172.15.0.1",
     "ws://172.32.0.1",
     "ws://100.63.0.1",
     "ws://100.128.0.1",
     "ws://8.8.8.8",
     "ws://[2001:db8::1]",
+    // Canonical IPv6 drops leading zeros: these are 0x0fe8 and 0x00fc, not fe80::/10 or fc00::/7.
+    "ws://[0fe8::1]",
+    "ws://[00fc::1]",
+    "ws://[0fd1::1]",
     "ws://[::ffff:8.8.8.8]",
   ])("%s is not", (url) => {
     expect(isLocalNetworkHost(host(url))).toBe(false);
