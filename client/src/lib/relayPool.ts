@@ -22,6 +22,7 @@
 import { Relay, RelayGroup, RelayPool, type GroupRequestCompleteOperator, type RelayOptions } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
 import { filter, map, scan } from "rxjs";
+import { isUnreachableLocalRelay } from "./relayList";
 
 /**
  * How long an idle socket stays open. The library's 30s means a pause between
@@ -82,13 +83,35 @@ const readComplete = (relays: Parameters<RelayPool["request"]>[0]) =>
     Array.isArray(relays) ? everyAskedRelayDone(relays) : RelayGroup.completeOnAllEose(),
   );
 
+type RelayUrls = Parameters<RelayPool["group"]>[0];
+
+/**
+ * The relays in a list this page may actually connect to — not one on the
+ * reader's own device or LAN (lib/relayList `isLocalNetworkHost`). Relay lists
+ * are read through `dedupeRelays`, which already drops them; this is the
+ * backstop for every other way a URL reaches the pool (hints, raw lists).
+ */
+function reachable(relays: string[]): string[];
+function reachable(relays: RelayUrls): RelayUrls;
+function reachable(relays: RelayUrls): RelayUrls {
+  const keep = (urls: string[]) => urls.filter((url) => !isUnreachableLocalRelay(url));
+  return Array.isArray(relays) ? keep(relays) : relays.pipe(map(keep));
+}
+
 class ReadFirstPool extends RelayPool {
+  /** Every read, subscription and publish builds its group here. */
+  group(relays: RelayUrls, ignoreOffline?: boolean): ReturnType<RelayPool["group"]> {
+    return super.group(reachable(relays), ignoreOffline);
+  }
+
   /** Every one-shot read gets the app's completion rule unless the caller brings its own. */
   request(
     relays: Parameters<RelayPool["request"]>[0],
     filters: Parameters<RelayPool["request"]>[1],
     opts?: Parameters<RelayPool["request"]>[2],
   ): ReturnType<RelayPool["request"]> {
+    // Filtered here too, so the completion rule doesn't wait on a relay the group never asks.
+    relays = reachable(relays);
     return super.request(relays, filters, { complete: readComplete(relays), ...opts });
   }
 
