@@ -1,3 +1,4 @@
+import { dashboardShortcutFor } from "@/lib/dashboardShortcuts";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { PageHeader } from "@/components/PageHeader";
@@ -663,16 +664,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      switch (e.key.toLowerCase()) {
-        case "e":
+      // Not while typing anywhere (the search box is a contenteditable), not with a modifier.
+      switch (dashboardShortcutFor(e)) {
+        case "export":
           handleExport();
           break;
-        case "h":
+        case "home":
           navigate("/dashboard");
           break;
-        case "?":
+        case "help":
           setShowShortcuts((prev) => !prev);
           break;
       }
