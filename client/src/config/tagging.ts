@@ -15,6 +15,7 @@
  */
 import raw from "./tagging.config.json";
 import { env } from "@/lib/runtimeEnv";
+import { allowLocalRelay } from "@/lib/localNetwork";
 
 /**
  * The kit's URLs have no trailing slash; ours (PROFILE_RELAYS et al.) do. Both
@@ -62,6 +63,8 @@ function loadStoredTagRelays(): string[] | null {
 }
 
 let storedTagRelays: string[] | null = loadStoredTagRelays();
+// The reader's own list, from Settings: a relay on their LAN is theirs to reach.
+allowLocalRelay(storedTagRelays ?? []);
 
 /**
  * The tag relays in force right now. A function, not a const, because Settings
@@ -91,6 +94,7 @@ export function setTagRelays(urls: string[]): string[] {
     // applies for this session — better than refusing the edit outright.
   }
   storedTagRelays = list.length ? list : null;
+  allowLocalRelay(list);
   return tagRelays();
 }
 

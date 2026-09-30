@@ -59,7 +59,7 @@ import { UNKNOWN_EXPLAINER, bucketFor } from "@/lib/trustLadder";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   kind0ToSearchResult,
-  TAB_KINDS,
+  bandKindsForTab,
   type SearchGroup,
   type SearchHit,
   type SearchPov,
@@ -283,7 +283,7 @@ function ComposedResultsBody({
     if (remembered) return { ...EMPTY_SEEDS, ...remembered };
     if (userPubkey || pov !== "nosfabrica") return EMPTY_SEEDS;
     const forTab = (tab: Exclude<SearchTab, "everything">): SearchHit[] => {
-      const kinds = new Set(TAB_KINDS[tab]);
+      const kinds = new Set(bandKindsForTab(tab));
       return head.events
         .filter((event) => kinds.has(event.kind))
         .map((event) => ({ event, author: event.kind === 0 ? kind0ToSearchResult(event) : null, rank: null }));
@@ -389,7 +389,11 @@ function ComposedResultsBody({
   // sections ask nothing for it, so this is the page's only REQ then.
   const unplacedKinds = useMemo(() => {
     const typed = liftQuery(query).kinds ?? [];
-    const placed = new Set((Object.keys(EVERYTHING_SECTIONS) as SeedTab[]).flatMap((tab) => TAB_KINDS[tab]));
+    // Placed means a section ASKS for it: a calendar or a stall is in its tab
+    // but no band shows it, so a typed kind:31924 gets a section of its own.
+    const placed = new Set(
+      (Object.keys(EVERYTHING_SECTIONS) as SeedTab[]).flatMap((tab) => bandKindsForTab(tab) ?? []),
+    );
     return typed.filter((k) => !placed.has(k));
   }, [query]);
   const byKind = useSectionStream(query, "everything", pov, userPubkey, 20, {

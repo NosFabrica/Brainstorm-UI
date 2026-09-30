@@ -24,14 +24,35 @@ export function kindTypeLabel(kind: number): string {
     case 0:
       return "Person";
     case 31337:
+    case 36787:
       return "Track";
+    case 54:
+    case 30054:
+      return "Episode";
+    case 30055:
+      return "Trailer";
+    case 34139:
+      return "Playlist";
     case 30402:
       return "Listing";
+    case 30018:
+      return "Product";
+    case 30020:
+      return "Auction";
+    case 30017:
+      return "Stall";
+    case 30019:
+      return "Marketplace";
     case 1:
     case 11:
       return "Note";
     case 1111:
       return "Comment";
+    case 9802:
+      return "Highlight";
+    case 1068:
+    case 6969:
+      return "Poll";
     case 30023:
     case 30024:
     case 30040:
@@ -39,6 +60,8 @@ export function kindTypeLabel(kind: number): string {
       return "Article";
     case 30818:
       return "Wiki";
+    case 30142:
+      return "Learning resource";
     case 30817:
       return "Spec";
     case 20:
@@ -52,6 +75,8 @@ export function kindTypeLabel(kind: number): string {
       return "File";
     case 1222:
       return "Audio";
+    case 2003:
+      return "Torrent";
     // "Stream", not "Live": a pill saying Live beside a tile's Replay or
     // Upcoming status would contradict itself.
     case 30311:
@@ -67,6 +92,12 @@ export function kindTypeLabel(kind: number): string {
       return "Repo";
     case 32267:
       return "App";
+    case 15128:
+    case 35128:
+      return "Website";
+    case 15129:
+    case 35129:
+      return "Mini app";
     case 30063:
       return "Release";
     // NIP-34: a patch, a pull request, an issue.
@@ -88,6 +119,32 @@ export function kindTypeLabel(kind: number): string {
     case 30267:
     case 39701:
       return "List";
+    case 39089:
+      return "Starter pack";
+    case 30004:
+    case 30005:
+    case 30006:
+      return "Collection";
+    case 30030:
+      return "Emoji pack";
+    // Communities: NIP-72 moderated, NIP-29 relay groups, NIP-28 channels.
+    case 34550:
+      return "Community";
+    case 39000:
+      return "Group";
+    case 40:
+    case 41:
+      return "Channel";
+    case 9041:
+      return "Zap goal";
+    case 33863:
+      return "Fundraiser";
+    case 34259:
+      return "Rating";
+    case 31987:
+      return "Relay review";
+    case 38000:
+      return "Mint review";
     case 10040:
       return "Trust designation";
     // The common NIP kinds a typed `kind:` finds, in words. The number

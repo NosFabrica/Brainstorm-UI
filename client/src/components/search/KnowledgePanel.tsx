@@ -437,7 +437,7 @@ function KnowledgePanelBody({
     // Apps whose NAME matches the words ride the rail too (Google's app
     // sidebar) — fuzzy strays with unrelated names are filtered out.
     const q = norm(query);
-    const cancelApps = searchStream(query, { tab: "apps", pov, userPubkey, limit: 6 }, (snapshot) => {
+    const cancelApps = searchStream(query, { tab: "apps", pov, userPubkey, limit: 6, band: true }, (snapshot) => {
       if (!alive || !snapshot.eose) return;
       const matched = snapshot.hits.filter((h) => {
         const name = norm(h.event.tags.find((t) => t[0] === "name")?.[1] ?? "");
@@ -462,11 +462,15 @@ function KnowledgePanelBody({
     if ((topicEvents?.length ?? 0) >= EVENTS_SHOWN) return;
     if (hasSections && (sectionRow.length >= EVENTS_SHOWN || !eventsSettled)) return;
     let alive = true;
-    const cancel = searchStream(`${query} sort:recent`, { tab: "events", pov, userPubkey, limit: 60 }, (snapshot) => {
-      if (!alive || !snapshot.eose) return;
-      const upcoming = eventsRow(snapshot.hits, query);
-      if (upcoming.length > 0) setTopicEvents(upcoming);
-    });
+    const cancel = searchStream(
+      `${query} sort:recent`,
+      { tab: "events", pov, userPubkey, limit: 60, band: true },
+      (snapshot) => {
+        if (!alive || !snapshot.eose) return;
+        const upcoming = eventsRow(snapshot.hits, query);
+        if (upcoming.length > 0) setTopicEvents(upcoming);
+      },
+    );
     return () => {
       alive = false;
       cancel();

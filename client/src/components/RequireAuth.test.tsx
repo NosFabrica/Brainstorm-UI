@@ -20,6 +20,12 @@ vi.mock("@/lib/serverStatus", async (importOriginal) => {
   return { ...actual, useServerStatus: () => statusMock(), retryNow: (scope: "api" | "search") => retryMock(scope) };
 });
 
+const setRouteRequiresSession = vi.fn();
+vi.mock("@/services/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/api")>();
+  return { ...actual, setRouteRequiresSession: (v: boolean) => setRouteRequiresSession(v) };
+});
+
 const Page = () => <div data-testid="the-page">dashboard</div>;
 
 beforeEach(() => {
@@ -44,6 +50,13 @@ describe("RequireAuth", () => {
     expect(screen.getByTestId("sorry-countdown")).toHaveTextContent(/Checking again in (9|10)s/);
     screen.getByTestId("sorry-retry").click();
     expect(retryMock).toHaveBeenCalledWith("api");
+  });
+
+  it("tells the API layer the page needs a Session while it is on screen, and takes it back when it leaves", () => {
+    const { unmount } = render(<RequireAuth component={Page} />);
+    expect(setRouteRequiresSession).toHaveBeenLastCalledWith(true);
+    unmount();
+    expect(setRouteRequiresSession).toHaveBeenLastCalledWith(false);
   });
 
   it("signed out still goes to sign in, server or no server", () => {

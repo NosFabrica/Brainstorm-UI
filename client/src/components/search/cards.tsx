@@ -84,7 +84,7 @@ function fmtWhen(created_at: number): string {
   }
 }
 
-function AuthorRow({
+export function AuthorRow({
   author,
   score,
   created_at,
@@ -120,7 +120,7 @@ function AuthorRow({
 
 /** The enterprise footer both people-facing cards close on: a hairline,
  *  a kicker, a small ringed face + name, and the date at the far right. */
-function CuratorFooter({
+export function CuratorFooter({
   kicker,
   author,
   score,
@@ -166,7 +166,7 @@ function CuratorFooter({
   );
 }
 
-function CardShell({
+export function CardShell({
   event,
   children,
   openInUrl,
@@ -519,7 +519,7 @@ const FORGE_LABELS: Record<string, string> = {
 /** Clone URLs on these hosts double as browsable repo pages. */
 const BROWSABLE_FORGES = new Set(["github.com", "gitlab.com", "codeberg.org", "bitbucket.org"]);
 
-function hostOf(url: string): string | null {
+export function hostOf(url: string): string | null {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
   } catch {
@@ -531,7 +531,7 @@ function hostOf(url: string): string | null {
  *  (npub1….nsite.lol, npub1….pages.gittr.space) collapse to the site people
  *  would recognize; anything still long gets bounded so it can't swamp the
  *  corner. */
-function hostLabel(host: string): string {
+export function hostLabel(host: string): string {
   if (FORGE_LABELS[host]) return FORGE_LABELS[host];
   const trimmed = host
     .split(".")
@@ -573,7 +573,7 @@ export function repoDestination(event: NostrEvent): { url: string; host: string;
   }
 }
 
-type MemberProfile = { name?: string; display_name?: string; picture?: string };
+export type MemberProfile = { name?: string; display_name?: string; picture?: string };
 
 export function RepoCard({
   event,
@@ -1043,7 +1043,7 @@ export function LiveTile({
  * or watch a past one's recording when there is one.
  */
 /** Profiles for a few faces: the store first, one fetch for the rest. */
-function useFaceProfiles(pubkeys: string[]): Map<string, MemberProfile> {
+export function useFaceProfiles(pubkeys: string[]): Map<string, MemberProfile> {
   const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
   const key = pubkeys.join(",");
   useEffect(() => {

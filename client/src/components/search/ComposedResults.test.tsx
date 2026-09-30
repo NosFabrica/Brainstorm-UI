@@ -885,6 +885,35 @@ describe("ComposedResults", () => {
     expect(screen.queryByTestId("composed-empty")).toBeNull();
   });
 
+  // A calendar is in the Events tab but no section shows it — Happening keeps
+  // the upcoming window, and a calendar has no date — so a typed kind:31924
+  // is not dealt to Happening to be dropped there: it gets its own section.
+  it("a typed kind only its tab shows (a calendar) gets a section of its own", async () => {
+    window.history.replaceState({}, "", "/?q=kind%3A31924");
+    render(<ComposedResults query="kind:31924" pov="nosfabrica" onTabChange={vi.fn()} />);
+
+    const byKind = sectionCall("everything");
+    expect(byKind.params.kinds).toEqual([31924]);
+    for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
+    byKind.emit({
+      hits: [
+        hitOf(
+          ev("cal1", 31924, "a".repeat(64), "", [
+            ["d", "m"],
+            ["title", "Jednadvacet"],
+          ]),
+          "einundzwanzig",
+        ),
+      ],
+      eose: true,
+      timeMs: 200,
+    });
+
+    const section = await screen.findByTestId("serp-section-kind");
+    expect(section).toHaveTextContent("Jednadvacet");
+    expect(screen.queryByTestId("composed-empty")).toBeNull();
+  });
+
   // Several specs cover most kinds — a capability profile lists forty — so
   // "defined in <the first one back>" was a guess ("Nostr mail settings" for
   // kind 30078). The section names the kind in words with its number, and

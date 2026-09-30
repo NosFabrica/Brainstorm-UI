@@ -9,7 +9,7 @@ import { adminApi } from "./admin";
 
 // Only the two session facts callers outside this folder read; the transport
 // helpers stay internal to the folder rather than becoming public surface.
-export { isAuthRedirecting, resumeSession } from "./core";
+export { isAuthRedirecting, resumeSession, setRouteRequiresSession } from "./core";
 export * from "./auth";
 export * from "./users";
 export * from "./search";
