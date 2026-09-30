@@ -40,6 +40,7 @@ import { kindLabel } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
 import { contentShape } from "@/lib/contentShape";
+import { describeThing, THING_KINDS } from "@/lib/thing";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { MediaImg } from "@/components/ui/media-img";
@@ -458,7 +459,10 @@ export function SerpRow({
   // A dead row thumbnail gives its picture's chip back to the text.
   const [thumbFailed, setThumbFailed] = useState(false);
 
-  const title = tagVal(event, "title") ?? tagVal(event, "name");
+  // Communities, stalls, handlers, reviews and the rest read through lib/thing:
+  // several keep their name in JSON content, where the row would say "Structured data".
+  const thing = THING_KINDS.has(event.kind) ? describeThing(event) : null;
+  const title = thing?.title ?? tagVal(event, "title") ?? tagVal(event, "name");
   // The link is the point (a share, or a feed's headline-link-summary): the
   // row shows the page the way a search engine does, not a note with a URL.
   // A Primal/Habla/… link names a Nostr thing and resolves natively below, so it is never a page result.
@@ -474,19 +478,21 @@ export function SerpRow({
   // content gets the author's own NIP-31 `alt` line, when they wrote one.
   // Ciphertext and JSON are not for reading: the row says what they are.
   // A news or song row returns before any of this is shown, so it reads nothing.
-  const shape = news || event.kind === 10040 || event.kind === 30818 ? null : contentShape(event.content);
+  const shape = news || thing || event.kind === 10040 || event.kind === 30818 ? null : contentShape(event.content);
   const opaque = shape?.kind === "encrypted" || shape?.kind === "json";
   const body = news
     ? ""
-    : opaque
-      ? tagVal(event, "alt") || ""
-      : event.kind === 10040
-        ? describeDesignation(event).summary
-        : (event.kind === 30818 ? wikiPlainText(event.content) : event.content) ||
-          tagVal(event, "summary") ||
-          tagVal(event, "description") ||
-          tagVal(event, "alt") ||
-          "";
+    : thing
+      ? (thing.description ?? "")
+      : opaque
+        ? tagVal(event, "alt") || ""
+        : event.kind === 10040
+          ? describeDesignation(event).summary
+          : (event.kind === 30818 ? wikiPlainText(event.content) : event.content) ||
+            tagVal(event, "summary") ||
+            tagVal(event, "description") ||
+            tagVal(event, "alt") ||
+            "";
   const shapeLine =
     shape?.kind === "encrypted"
       ? "Encrypted — only its owner can read it"

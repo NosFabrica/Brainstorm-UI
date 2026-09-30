@@ -40,6 +40,7 @@ import { dlistOfEvent } from "@/lib/dlists";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
+import { ThingHero, ThingSections, hasThingPage } from "@/components/share/things";
 import { ListingRelated } from "@/components/share/ListingRelated";
 import { EventHero } from "@/components/share/EventHero";
 import { VideoHero } from "@/components/share/VideoHero";
@@ -332,6 +333,7 @@ function EventView({
     !!note &&
     !isGitItem(note.kind) &&
     !DEDICATED_KINDS.has(note.kind) &&
+    !hasThingPage(note) &&
     !VIDEO_EVENT_KINDS.has(note.kind) &&
     !NOTE_KINDS.has(note.kind);
   // The ⋯ in the header: copies of the event's ids and "Open in" another
@@ -553,6 +555,10 @@ function EventView({
                 <ListingHero event={note} sellerWebsite={profile.website} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
+              ) : hasThingPage(note) ? (
+                // Communities, fundraisers, reviews, shops, apps, calendars,
+                // badges, emoji packs, playlists, lessons, torrents (lib/thing).
+                <ThingHero event={note} />
               ) : VIDEO_EVENT_KINDS.has(note.kind) ? (
                 <VideoHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
@@ -608,6 +614,10 @@ function EventView({
             {/* Under a listing: the seller's other things, then similar things
                 from other sellers — a shop page that leads somewhere. */}
             {note.kind === 30402 && <ListingRelated event={note} sellerName={authorName} />}
+
+            {/* Under a thing: what the network holds around it — a community's
+                posts, a fundraiser's supporters, a calendar's events… */}
+            {hasThingPage(note) && <ThingSections event={note} />}
 
             {/* What the network says this post is ABOUT (rung C2). Sits under
                 the note itself, where a reader has just finished it and a

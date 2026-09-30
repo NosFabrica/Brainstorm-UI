@@ -11,6 +11,7 @@ import { useNearViewport } from "@/hooks/useNearViewport";
 import { MediaImg } from "@/components/ui/media-img";
 import { useConnectionSpeed } from "@/lib/connection";
 import { echoContext, isEchoed } from "@/lib/echoedText";
+import { isRefusedLocalHost } from "@/lib/localNetwork";
 
 /**
  * Link previews for a note's links. A browser can't read another site's Open
@@ -29,11 +30,20 @@ function parse(raw: string): URL | null {
   }
 }
 
+/** A `host` (maybe with a port, maybe a bracketed IPv6) down to the name `URL` would give. */
+function hostnameOf(host: string): string {
+  return parse(`https://${host}`)?.hostname ?? host;
+}
+
 /** `/favicon.ico` on the host, then its apex when the link said www. No
  *  third-party icon service. `/favicon.png` was dropped: across a sample of
  *  real hosts it never rescued one whose `.ico` failed, and each miss is a
  *  failed request in every reader's network log. */
 function faviconCandidates(host: string): string[] {
+  // A link to someone's router or home server names the READER's network, and
+  // requesting it raises Chrome's "access other apps and services on this
+  // device" prompt. The globe does fine.
+  if (isRefusedLocalHost(hostnameOf(host))) return [];
   const hosts = [host];
   const apex = host.replace(/^www\./i, "");
   if (apex !== host) hosts.push(apex);

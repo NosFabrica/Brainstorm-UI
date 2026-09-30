@@ -123,6 +123,10 @@ export async function loadRelayList(
 
   const held = relayListFromDb(pubkey);
   if (held) return held;
+  // Held, but naming nothing we can use (only relays on its author's own
+  // network, say): that IS their list. Asking the relays again would only
+  // fetch the same event, on every miss window, for every read of them.
+  if (eventStore.getReplaceable(RELAY_LIST_KIND, pubkey)) return null;
 
   const missed = missedAt.get(pubkey);
   if (missed !== undefined && Date.now() < missed) return null;

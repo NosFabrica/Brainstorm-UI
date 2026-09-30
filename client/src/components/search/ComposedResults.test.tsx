@@ -53,6 +53,19 @@ const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { goin
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
+// Tags the words match, and the people on them — the People strip leads with those people.
+const tagMatchesMock = vi.fn((_q: string): unknown[] => []);
+vi.mock("@/hooks/useTags", () => ({ useTagMatches: (q: string) => tagMatchesMock(q) }));
+const carriersMock = vi.fn((_tags: unknown[]) => ({
+  byPubkey: new Map<string, unknown[]>(),
+  people: [] as unknown[],
+  settled: true,
+}));
+vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
+const personTagsMock = vi.fn(
+  (pks: readonly string[]) => new Map<string, unknown[] | undefined>(pks.map((pk) => [pk, []])),
+);
+vi.mock("@/hooks/usePersonTags", () => ({ usePersonTags: (pks: readonly string[]) => personTagsMock(pks) }));
 const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({
   direct: new Set(),
   friends: new Set(),
@@ -877,6 +890,35 @@ describe("ComposedResults", () => {
     expect(screen.queryByTestId("composed-empty")).toBeNull();
   });
 
+  // A calendar is in the Events tab but no section shows it — Happening keeps
+  // the upcoming window, and a calendar has no date — so a typed kind:31924
+  // is not dealt to Happening to be dropped there: it gets its own section.
+  it("a typed kind only its tab shows (a calendar) gets a section of its own", async () => {
+    window.history.replaceState({}, "", "/?q=kind%3A31924");
+    render(<ComposedResults query="kind:31924" pov="nosfabrica" onTabChange={vi.fn()} />);
+
+    const byKind = sectionCall("everything");
+    expect(byKind.params.kinds).toEqual([31924]);
+    for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
+    byKind.emit({
+      hits: [
+        hitOf(
+          ev("cal1", 31924, "a".repeat(64), "", [
+            ["d", "m"],
+            ["title", "Jednadvacet"],
+          ]),
+          "einundzwanzig",
+        ),
+      ],
+      eose: true,
+      timeMs: 200,
+    });
+
+    const section = await screen.findByTestId("serp-section-kind");
+    expect(section).toHaveTextContent("Jednadvacet");
+    expect(screen.queryByTestId("composed-empty")).toBeNull();
+  });
+
   // Several specs cover most kinds — a capability profile lists forty — so
   // "defined in <the first one back>" was a guess ("Nostr mail settings" for
   // kind 30078). The section names the kind in words with its number, and
@@ -1489,5 +1531,99 @@ describe("ComposedResults — network reach", () => {
   it("a search filtered by reach loads it", () => {
     render(<ComposedResults query="liverpool reach:follows" pov="nosfabrica" userPubkey={ME} onTabChange={vi.fn()} />);
     expect(reachMock).toHaveBeenCalledWith(ME);
+  });
+});
+
+describe("ComposedResults — a query that matches a tag", () => {
+  const TAG_AUTHOR = "9".repeat(64);
+  const human = {
+    key: `39999:${TAG_AUTHOR}:verified-human`,
+    authorPubkey: TAG_AUTHOR,
+    slug: "verified-human",
+    name: "Verified Human",
+    people: 5,
+    vouches: 2,
+    sharesName: 0,
+    unverified: false,
+  };
+  const AVI = "a".repeat(64),
+    BILL = "b".repeat(64),
+    FRESH = "c".repeat(64);
+  const carrier = (pubkey: string, name: string) => ({
+    pubkey,
+    npub: "npub1" + name,
+    name,
+    applications: 1,
+    addedAt: 0,
+  });
+
+  beforeEach(() => {
+    tagMatchesMock.mockReset();
+    tagMatchesMock.mockReturnValue([]);
+    carriersMock.mockReset();
+    carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: true });
+    personTagsMock.mockReset();
+    personTagsMock.mockImplementation((pks) => new Map(pks.map((pk) => [pk, []])));
+  });
+
+  it("a face card wears a tag only when it is the one searched — no room for a truncated own tag", async () => {
+    personTagsMock.mockImplementation(
+      (pks) =>
+        new Map(
+          pks.map((pk) => [
+            pk,
+            pk === FRESH
+              ? [
+                  {
+                    key: "k|author",
+                    authorPubkey: TAG_AUTHOR,
+                    slug: "author",
+                    name: "Author",
+                    applications: 2,
+                    counted: true,
+                  },
+                ]
+              : [],
+          ]),
+        ),
+    );
+    render(<ComposedResults query="human verifier" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("people").emit({
+      hits: [hitOf(ev("p1", 0, FRESH, JSON.stringify({ name: "Human Verifier" })), "Human Verifier")],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId(`serp-person-${FRESH.slice(0, 8)}`);
+    expect(screen.queryByTestId(`strip-person-tag-${FRESH.slice(0, 8)}`)).toBeNull();
+  });
+
+  it("the People strip leads with the tag's people, best first, each wearing the tag; the relay's match follows bare", async () => {
+    tagMatchesMock.mockReturnValue([human]);
+    const people = [carrier(BILL, "Bill"), carrier(AVI, "Avi")];
+    carriersMock.mockReturnValue({ byPubkey: new Map(people.map((p) => [p.pubkey, [human]])), people, settled: true });
+    scoreOfMock.mockImplementation((pk) => (pk === AVI ? 0.9 : pk === BILL ? 0.5 : 0.7));
+    render(<ComposedResults query="verified human" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("people").emit({
+      hits: [hitOf(ev("p1", 0, FRESH, JSON.stringify({ name: "Human Verifier" })), "Human Verifier")],
+      eose: true,
+      timeMs: 100,
+    });
+    const strip = await screen.findByTestId("people-strip");
+    const ids = [...strip.querySelectorAll("[data-testid^='serp-person-']")].map((el) =>
+      el.getAttribute("data-testid"),
+    );
+    expect(ids).toEqual([
+      `serp-person-${AVI.slice(0, 8)}`,
+      `serp-person-${BILL.slice(0, 8)}`,
+      `serp-person-${FRESH.slice(0, 8)}`,
+    ]);
+    expect(
+      within(screen.getByTestId(`serp-person-${AVI.slice(0, 8)}`)).getByTestId(`strip-person-tag-${AVI.slice(0, 8)}`),
+    ).toHaveTextContent("Verified Human");
+    expect(
+      within(screen.getByTestId(`serp-person-${FRESH.slice(0, 8)}`)).queryByTestId(
+        `strip-person-tag-${FRESH.slice(0, 8)}`,
+      ),
+    ).toBeNull();
   });
 });

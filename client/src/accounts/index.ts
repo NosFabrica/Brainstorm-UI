@@ -9,11 +9,18 @@
  */
 import { bootstrapAccounts } from "./bootstrap";
 import { createMirror } from "./cross-tab";
+import { setReadersOwnPubkeys } from "@/lib/localNetwork";
 
 export const accounts = bootstrapAccounts();
 
 /** The `AccountManager` itself, for non-hook callers. Components use `useActiveAccount()`. */
 export const accountManager = accounts.manager;
+
+/**
+ * Local relays in these accounts' own relay lists are the reader's (Citrine on
+ * this phone), so they are reached rather than refused — see lib/localNetwork.
+ */
+accountManager.accounts$.subscribe((list) => setReadersOwnPubkeys(list.map((account) => account.pubkey)));
 
 /**
  * Keeps the other tabs in step. Started here rather than in bootstrap so the

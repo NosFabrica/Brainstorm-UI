@@ -38,6 +38,7 @@ let account: StubAccount;
 let apiClient: typeof import("./api").apiClient;
 let isAuthRedirecting: typeof import("./api").isAuthRedirecting;
 let resumeSession: typeof import("./api").resumeSession;
+let setRouteRequiresSession: typeof import("./api").setRouteRequiresSession;
 let getServerStatus: typeof import("@/lib/serverStatus").getServerStatus;
 let __resetServerStatus: typeof import("@/lib/serverStatus").__resetServerStatus;
 
@@ -49,7 +50,7 @@ beforeEach(async () => {
   activeAccount.mockReturnValue(account);
   heldAccounts.length = 0;
   heldAccounts.push(account);
-  ({ apiClient, isAuthRedirecting, resumeSession } = await import("./api"));
+  ({ apiClient, isAuthRedirecting, resumeSession, setRouteRequiresSession } = await import("./api"));
   ({ getServerStatus, __resetServerStatus } = await import("@/lib/serverStatus"));
   __resetServerStatus();
 });
@@ -130,14 +131,27 @@ describe("a session that cannot be renewed at all", () => {
     expect(isAuthRedirecting()).toBe(false);
   });
 
-  it("gives up the route only when there is nothing else on this device", async () => {
+  it("gives up the route only when there is nothing else on this device and the page needs a Session", async () => {
     holdsSession("stale");
     cannotHeal();
+    setRouteRequiresSession(true);
     stubFetch(unauthorized(), unauthorized());
 
     await expect(apiClient.getUserHistory()).rejects.toThrow();
 
     expect(isAuthRedirecting()).toBe(true);
+  });
+
+  it("on a public page, drops the dead token and stays put — the page renders for everyone", async () => {
+    holdsSession("stale");
+    cannotHeal();
+    stubFetch(unauthorized(), unauthorized());
+
+    // an account-only widget on /p/<npub> fails quietly; the deep link is kept
+    await expect(apiClient.getUserHistory()).rejects.toThrow();
+
+    expect(isAuthRedirecting()).toBe(false);
+    expect(getSessionToken(account as never)).toBeUndefined();
   });
 });
 
@@ -151,6 +165,37 @@ describe("anon-viewable data while the session is deferred", () => {
 
     // the retry carries no token at all, rather than the stale one the server refused
     expect(fetchMock.mock.calls[1]?.[1]).not.toHaveProperty("headers.access_token");
+  });
+});
+
+describe("anon-viewable data when the session cannot be renewed at all", () => {
+  /** A re-auth that fails outright — not deferred, genuinely unusable. */
+  const cannotHeal = () => refreshSession.mockRejectedValue(new Error("expired"));
+
+  it("keeps the deep link: the public profile is served anonymously and nobody is sent home", async () => {
+    holdsSession("stale");
+    cannotHeal();
+    const fetchMock = stubFetch(unauthorized(), ok());
+
+    await expect(apiClient.getUserOverview("c".repeat(64))).resolves.toEqual({ data: [] });
+
+    // the retry carries no token at all, rather than the stale one the server refused
+    expect(fetchMock.mock.calls[1]?.[1]).not.toHaveProperty("headers.access_token");
+    // the route is left alone — this device holds nothing else, and still no redirect
+    expect(isAuthRedirecting()).toBe(false);
+    // the dead token is gone, so the next account-only action mints instead of retrying it
+    expect(getSessionToken(account as never)).toBeUndefined();
+  });
+
+  it("reads anonymously from the start when there is no token and none can be minted", async () => {
+    cannotHeal();
+    const fetchMock = stubFetch(ok());
+
+    await expect(apiClient.getUserOverview("c".repeat(64))).resolves.toEqual({ data: [] });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("headers.access_token");
+    expect(isAuthRedirecting()).toBe(false);
   });
 });
 

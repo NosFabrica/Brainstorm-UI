@@ -11,7 +11,7 @@ import { setTechnicalView } from "@/lib/technicalView";
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot } from "@/services/search";
 
@@ -62,8 +62,12 @@ vi.mock("@/services/search", async (importOriginal) => {
     fetchGitStatuses: (ids: string[]) => gitStatusesMock(ids),
     fetchGitCommentCounts: (ids: string[]) => gitCommentsMock(ids),
     fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
+    fetchGoalProgress: (ids: string[]) => goalProgressMock(ids),
   };
 });
+const goalProgressMock = vi.fn<
+  (ids: string[]) => Promise<{ byGoal: Map<string, { sats: number; zappers: string[] }>; complete: boolean }>
+>(() => Promise.resolve({ byGoal: new Map(), complete: false }));
 // Who is going, per event address — nobody unless a test says otherwise.
 const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() =>
   Promise.resolve(new Map()),
@@ -109,6 +113,18 @@ const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.85)
 // What a scoped person publishes — the empty tab under a scope offers it.
 const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
 vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
+// Tags the words match, and the people on them — the People tab leads with those people.
+const tagMatchesMock = vi.fn((_q: string): unknown[] => []);
+vi.mock("@/hooks/useTags", () => ({ useTagMatches: (q: string) => tagMatchesMock(q) }));
+const carriersMock = vi.fn((_tags: unknown[]) => ({
+  byPubkey: new Map<string, unknown[]>(),
+  people: [] as unknown[],
+  settled: true,
+}));
+vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
+// Each person's own tags — quiet chips on every row.
+const personTagsMock = vi.fn((_pks: readonly string[]) => new Map<string, unknown[] | undefined>());
+vi.mock("@/hooks/usePersonTags", () => ({ usePersonTags: (pks: readonly string[]) => personTagsMock(pks) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 // One Bitcoin price for the Shop page — fixed here so a sats price converts to round money.
 const TEST_RATES = { USD: 100_000, EUR: 90_000, GBP: 80_000, CAD: 140_000, CHF: 85_000, AUD: 150_000, JPY: 15_000_000 };
@@ -241,6 +257,12 @@ beforeEach(() => {
   flagsMock.mockImplementation(() => false);
   reachMock.mockReturnValue({ direct: new Set(), friends: new Set(), ready: true });
   scoreOfMock.mockImplementation(() => 0.85);
+  tagMatchesMock.mockReset();
+  tagMatchesMock.mockReturnValue([]);
+  carriersMock.mockReset();
+  carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: true });
+  personTagsMock.mockReset();
+  personTagsMock.mockImplementation((pks) => new Map(pks.map((pk) => [pk, []])));
   ratesMock.mockReset();
   ratesMock.mockReturnValue(TEST_RATES);
   wavlakeCatalogueMock.mockResolvedValue({ artists: [], albums: [], songs: [] });
@@ -387,12 +409,12 @@ describe("SearchResults", () => {
   // Benjamin (2026-09-24): ten flat rows mixing Recipes with PRs read like a
   // settings list. The menu is grouped by what a person is doing, consumer
   // things first and developer things last.
-  it("groups More by what you're doing: Read & listen, Happening, Build, then Lists", () => {
+  it("groups More by what you're doing: Read & listen, Happening, Build, Community, then Lists", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     fireEvent.click(screen.getByTestId("search-tab-more"));
     const menu = screen.getByRole("menu");
     const groups = [...menu.querySelectorAll('[data-testid^="search-tab-group-"]')].map((el) => el.textContent);
-    expect(groups).toEqual(["Read & listen", "Happening", "Build"]);
+    expect(groups).toEqual(["Read & listen", "Happening", "Build", "Community"]);
     // Doors only: a "Soon" row names where we're going and opens nothing.
     const items = [
       ...menu.querySelectorAll(
@@ -410,6 +432,9 @@ describe("SearchResults", () => {
       "search-tab-issues",
       "search-tab-prs",
       "search-tab-nips",
+      "search-tab-communities",
+      "search-tab-fundraisers",
+      "search-tab-reviews",
       "search-tab-lists",
     ]);
   });
@@ -4121,5 +4146,395 @@ describe("the Music tab's V4V lists from Podcast Index", () => {
     emit({ hits: [], eose: true, timeMs: 150 });
     await screen.findByTestId(/^podcastindex-song-/);
     expect(within(screen.getByTestId("music-artists")).getByTestId(/^music-artist-podcastindex-/)).toBeInTheDocument();
+  });
+});
+
+describe("a People search whose words match a tag", () => {
+  const TAG_AUTHOR = "9".repeat(64);
+  const human = {
+    key: `39999:${TAG_AUTHOR}:verified-human`,
+    authorPubkey: TAG_AUTHOR,
+    slug: "verified-human",
+    name: "Verified Human",
+    people: 5,
+    vouches: 2,
+    sharesName: 0,
+    unverified: false,
+  };
+  const pk = (c: string) => c.repeat(64);
+  const carrier = (c: string, name: string) => ({ ...author(pk(c), name), applications: 1, addedAt: 0 });
+  const carriersOf = (people: ReturnType<typeof carrier>[]) => ({
+    byPubkey: new Map(people.map((p) => [p.pubkey, [human]])),
+    people,
+    settled: true,
+  });
+  const nameOf = (i: number) => screen.getByTestId(`text-result-name-${i}`).textContent;
+
+  beforeEach(() => {
+    setUrlTab("people");
+    window.history.replaceState({}, "", "/?q=verified%20human&t=people");
+    tagMatchesMock.mockReturnValue([human]);
+  });
+
+  it("leads with the tag's people, best first, each wearing the tag; the relay's name match follows without one", async () => {
+    carriersMock.mockReturnValue(carriersOf([carrier("b", "Bill"), carrier("a", "Avi")]));
+    scoreOfMock.mockImplementation((p) => (p === pk("a") ? 0.9 : p === pk("b") ? 0.5 : 0.7));
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: person("p1", pk("c"), "Human Verifier"), author: author(pk("c"), "Human Verifier"), rank: null }],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("result-profile-2");
+    expect([0, 1, 2].map(nameOf)).toEqual(["Avi", "Bill", "Human Verifier"]);
+    const chip = within(screen.getByTestId("result-profile-0")).getByTestId("person-tag-chip-verified-human");
+    expect(chip).toHaveTextContent("Verified Human");
+    expect(
+      within(screen.getByTestId("result-profile-1")).getByTestId("person-tag-chip-verified-human"),
+    ).toBeInTheDocument();
+    expect(within(screen.getByTestId("result-profile-2")).queryByTestId("person-tag-chip-verified-human")).toBeNull();
+  });
+
+  it("a prefix of the tag's name marks its people but leaves the relay's order alone", async () => {
+    const aos = {
+      ...human,
+      key: `39999:${TAG_AUTHOR}:aos-2026`,
+      slug: "aos-2026",
+      name: "AOS 2026 Participant",
+      people: 99,
+    };
+    tagMatchesMock.mockReturnValue([aos]);
+    carriersMock.mockReturnValue({
+      byPubkey: new Map([[pk("a"), [aos]]]),
+      people: [carrier("a", "Alice")],
+      settled: true,
+    });
+    window.history.replaceState({}, "", "/?q=aos&t=people");
+    render(<SearchResults query="aos" pov="nosfabrica" />);
+    emit({
+      hits: [
+        { event: person("p1", pk("c"), "Aos Lopez"), author: author(pk("c"), "Aos Lopez"), rank: null },
+        { event: person("p2", pk("a"), "Alice"), author: author(pk("a"), "Alice"), rank: null },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("result-profile-1");
+    expect([0, 1].map(nameOf)).toEqual(["Aos Lopez", "Alice"]);
+    expect(within(screen.getByTestId("result-profile-1")).getByTestId("person-tag-chip-aos-2026")).toHaveAttribute(
+      "data-emphasis",
+      "loud",
+    );
+  });
+
+  it("shows a person the relay also found once, in the tag's place, with the relay's fuller profile", async () => {
+    carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({
+      hits: [
+        { event: person("p1", pk("c"), "Human Verifier"), author: author(pk("c"), "Human Verifier"), rank: null },
+        {
+          event: person("p2", pk("a"), "Avi"),
+          author: { ...author(pk("a"), "Avi"), nip05: "avi@nip21.media" },
+          rank: null,
+        },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("result-profile-1");
+    expect([0, 1].map(nameOf)).toEqual(["Avi", "Human Verifier"]);
+    expect(screen.queryByTestId("result-profile-2")).toBeNull();
+    expect(within(screen.getByTestId("result-profile-0")).getByTestId("text-nip05-0")).toHaveTextContent(
+      "avi@nip21.media",
+    );
+  });
+
+  it("is not Nothing found when the relay found nobody but the tag has people", async () => {
+    carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 100 });
+    await screen.findByTestId("result-profile-0");
+    expect(screen.queryByText(/Nothing found/i)).toBeNull();
+  });
+
+  it("holds the skeleton until the tag hub answers, then paints the tag's people and the relay's together", async () => {
+    carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: false });
+    const { rerender } = render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: person("p1", pk("c"), "Human Verifier"), author: author(pk("c"), "Human Verifier"), rank: null }],
+      eose: true,
+      timeMs: 100,
+    });
+    await act(async () => {});
+    expect(screen.queryByTestId("result-profile-0")).toBeNull();
+    expect(screen.queryByText(/Nothing found/i)).toBeNull();
+    carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    rerender(<SearchResults query="verified human" pov="nosfabrica" />);
+    await screen.findByTestId("result-profile-1");
+    expect([0, 1].map(nameOf)).toEqual(["Avi", "Human Verifier"]);
+  });
+
+  it("keeps the order it painted when a score lands late", async () => {
+    carriersMock.mockReturnValue(carriersOf([carrier("b", "Bill"), carrier("a", "Avi")]));
+    scoreOfMock.mockImplementation((p) => (p === pk("a") ? 0.9 : p === pk("b") ? 0.5 : 0.7));
+    const { rerender } = render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 100 });
+    await screen.findByTestId("result-profile-1");
+    expect([0, 1].map(nameOf)).toEqual(["Avi", "Bill"]);
+    // Bill's score arrives higher a moment later — the block does not jump.
+    scoreOfMock.mockImplementation((p) => (p === pk("a") ? 0.9 : p === pk("b") ? 0.95 : 0.7));
+    rerender(<SearchResults query="verified human" pov="nosfabrica" />);
+    await act(async () => {});
+    expect([0, 1].map(nameOf)).toEqual(["Avi", "Bill"]);
+  });
+
+  it("a chip tap opens the tag page, not the person", async () => {
+    const onOpenProfile = vi.fn();
+    carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    render(<SearchResults query="verified human" pov="nosfabrica" onOpenProfile={onOpenProfile} />);
+    emit({ hits: [], eose: true, timeMs: 100 });
+    const chip = await screen.findByTestId("person-tag-chip-verified-human");
+    fireEvent.click(chip);
+    expect(onOpenProfile).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe(`/tags/${nip19.npubEncode(TAG_AUTHOR)}/verified-human`);
+  });
+});
+
+describe("a person's own tags on their People card", () => {
+  const AUTHOR = "9".repeat(64);
+  const own = (slug: string, applications: number) => ({
+    key: `${AUTHOR}|${slug}`,
+    authorPubkey: AUTHOR,
+    slug,
+    name: slug,
+    applications,
+    disputes: 0,
+    asserters: [],
+    selfDeclared: false,
+    subjectDisagreed: false,
+    counted: true,
+    sharesName: 1,
+    addedAt: 0,
+  });
+
+  it("a name search wears the person's tags quietly at the card's right edge", async () => {
+    setUrlTab("people");
+    const nathan = "a".repeat(64);
+    personTagsMock.mockImplementation(
+      (pks) => new Map(pks.map((pk) => [pk, pk === nathan ? [own("verified-human", 3)] : []])),
+    );
+    render(<SearchResults query="nathan" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: person("p1", nathan, "Nathan Day"), author: author(nathan, "Nathan Day"), rank: null }],
+      eose: true,
+      timeMs: 100,
+    });
+    const card = await screen.findByTestId("result-profile-0");
+    expect(within(card).getByTestId("person-tag-chip-verified-human")).toHaveAttribute("data-emphasis", "quiet");
+  });
+});
+
+// The kinds with no card of their own (lib/thing), each where a searcher
+// looks for it — shapes as staging holds them, 2026-09-29.
+describe("SearchResults — the kinds lib/thing reads", () => {
+  const who = "7".repeat(64);
+  const hitOf = (event: NostrEvent) => ({ event, author: author(event.pubkey, "Someone"), rank: null });
+
+  it("Communities shows one card per channel (the newest of its 40 and 41s), groups and communities, and drops the unnamed", async () => {
+    setUrlTab("communities");
+    render(<SearchResults query="chess" pov="nosfabrica" />);
+    expect([...allStreams].reverse()[0].params.tab).toBe("communities");
+    const channel = ev("ch40", 40, who, '{"name":"Chess chat","about":"Old about"}');
+    const update = {
+      ...ev("ch41", 41, who, '{"name":"Chess chat","about":"The global chat of Chess."}', [["e", "ch40"]]),
+      created_at: 1_700_000_500,
+    };
+    const group = ev("g1", 39000, who, "", [["d", "x"], ["name", "nutshell"], ["public"], ["closed"]]);
+    const community = ev("c1", 34550, who, "", [
+      ["d", "k"],
+      ["name", "Kiteh Kawasaki"],
+      ["description", "Hi fans"],
+    ]);
+    const unnamed = ev("ch-junk", 40, who, '{"about":"no name"}');
+    emit({ hits: [channel, update, group, community, unnamed].map(hitOf), eose: true, timeMs: 100 });
+
+    const card = await screen.findByTestId("thing-card-ch41");
+    expect(card).toHaveTextContent("Chess chat");
+    expect(card).toHaveTextContent("The global chat of Chess.");
+    expect(screen.queryByTestId("thing-card-ch40")).toBeNull();
+    expect(screen.getByTestId("thing-card-g1")).toHaveTextContent("Closed");
+    expect(screen.getByTestId("thing-card-c1")).toHaveTextContent("Hi fans");
+    expect(screen.queryByTestId("thing-card-ch-junk")).toBeNull();
+  });
+
+  it("Reviews shows a relay review's stars and a mint review's door to the mint", async () => {
+    setUrlTab("reviews");
+    render(<SearchResults query="reliable" pov="nosfabrica" />);
+    const relay = ev("r1", 31987, who, "maybe a bit slow", [
+      ["d", "wss://relay.nostrcheck.me/"],
+      ["rating", "0.8"],
+    ]);
+    const mint = ev("m1", 38000, who, "Stable and reliable", [
+      ["d", "https://mint.lnpay.cz"],
+      ["u", "https://mint.lnpay.cz"],
+      ["rating", "5"],
+    ]);
+    emit({ hits: [relay, mint].map(hitOf), eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("thing-stars-r1")).toHaveAttribute("aria-label", "4 out of 5 stars");
+    expect(screen.getByTestId("thing-title-r1")).toHaveTextContent("relay.nostrcheck.me");
+    expect(screen.getByTestId("thing-link-m1")).toHaveAttribute("href", "https://mint.lnpay.cz");
+    expect(screen.getByTestId("thing-card-m1")).toHaveTextContent("Reviewed by");
+  });
+
+  it("the Shop sells a NIP-15 product as a priced card and shows a named stall, never the typing game that shares its kind", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="art" pov="nosfabrica" />);
+    const product = ev(
+      "p1",
+      30018,
+      who,
+      JSON.stringify({
+        name: "Riding Peas",
+        description: "Livingroom art",
+        images: ["https://img/peas.jpg"],
+        currency: "sat",
+        price: 21000,
+      }),
+      [["d", "p1"]],
+    );
+    const stall = ev(
+      "s1",
+      30017,
+      who,
+      JSON.stringify({ name: "BKBoom Paper Art", description: "handcrafted", currency: "sat" }),
+      [["d", "s1"]],
+    );
+    const game = ev("s2", 30017, who, '{"wpm":63,"accuracy":99}', [
+      ["d", "s2"],
+      ["t", "typing-test"],
+    ]);
+    emit({ hits: [product, stall, game].map(hitOf), eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("listing-card-p1")).toHaveTextContent("Riding Peas");
+    expect(screen.getByTestId("thing-card-s1")).toHaveTextContent("BKBoom Paper Art");
+    expect(screen.queryByTestId("thing-card-s2")).toBeNull();
+    expect(screen.queryByTestId("listing-card-s2")).toBeNull();
+  });
+
+  it("Events keeps calendars below the dated events, under their own heading", async () => {
+    setUrlTab("events");
+    render(<SearchResults query="meetup" pov="nosfabrica" />);
+    const soon = Math.floor(Date.now() / 1000) + 86_400 * 2;
+    const meetup = ev("e1", 31923, who, "", [
+      ["d", "e1"],
+      ["title", "Bitcoin meetup"],
+      ["start", String(soon)],
+    ]);
+    const calendar = ev("cal1", 31924, who, "", [
+      ["d", "meetup-370"],
+      ["title", "Jednadvacet"],
+      ["a", "31923:x:1"],
+    ]);
+    emit({ hits: [calendar, meetup].map(hitOf), eose: true, timeMs: 100 });
+
+    const cal = await screen.findByTestId("thing-card-cal1");
+    expect(cal).toHaveTextContent("Jednadvacet");
+    expect(screen.getByTestId("event-day-calendars")).toHaveTextContent("Calendars");
+    const results = screen.getByTestId("container-search-results");
+    expect(results.textContent!.indexOf("Bitcoin meetup")).toBeLessThan(results.textContent!.indexOf("Jednadvacet"));
+  });
+
+  it("Communities with nothing lib/thing can name says Nothing found, not a blank grid", async () => {
+    setUrlTab("communities");
+    render(<SearchResults query="chess" pov="nosfabrica" />);
+    const unnamed = ev("ch-junk", 40, who, '{"about":"no name"}');
+    emit({ hits: [hitOf(unnamed)], eose: true, timeMs: 100 });
+    expect(await screen.findByTestId("container-no-results")).toBeInTheDocument();
+  });
+
+  it("a calendar never folds into its events' cluster", async () => {
+    setUrlTab("events");
+    render(<SearchResults query="jednadvacet" pov="nosfabrica" />);
+    const past = Math.floor(Date.now() / 1000) - 86_400 * 3;
+    const meetup = ev("e1", 31923, who, "", [
+      ["d", "e1"],
+      ["title", "Jednadvacet Brno"],
+      ["start", String(past)],
+    ]);
+    const calendar = {
+      ...ev("cal1", 31924, who, "", [
+        ["d", "brno"],
+        ["title", "Jednadvacet Brno"],
+        ["a", "31923:x:e1"],
+      ]),
+      created_at: Math.floor(Date.now() / 1000),
+    };
+    emit({ hits: [calendar, meetup].map(hitOf), eose: true, timeMs: 100 });
+
+    // Nothing upcoming: the tab shows the past, and the calendar still sits below it on its own.
+    const cal = await screen.findByTestId("thing-card-cal1");
+    expect(screen.queryByTestId("cluster-expand-cal1")).toBeNull();
+    expect(screen.queryByTestId("cluster-expand-e1")).toBeNull();
+    const results = screen.getByTestId("container-search-results");
+    expect(results.textContent!.indexOf("Calendars")).toBeGreaterThan(0);
+    expect(cal).toHaveTextContent("Jednadvacet Brno");
+  });
+
+  it("Fundraisers shows a zap goal's progress, and 0 only once a complete answer found no receipt", async () => {
+    setUrlTab("fundraisers");
+    const funded = ev("g1", 9041, who, "Fiatjaf Protection Fees", [["amount", "10000000"]]);
+    const quiet = ev("g2", 9041, who, "combine upkeep", [["amount", "60000000"]]);
+    goalProgressMock.mockResolvedValueOnce({ byGoal: new Map([["g1", { sats: 1056, zappers: [] }]]), complete: true });
+    render(<SearchResults query="fees" pov="nosfabrica" />);
+    emit({ hits: [funded, quiet].map(hitOf), eose: true, timeMs: 100 });
+    expect(await screen.findByText(/1,056 sats/)).toBeInTheDocument();
+    expect(screen.getByTestId("thing-goal-g2")).toHaveTextContent("0 sats of 60k");
+    expect(goalProgressMock).toHaveBeenCalledWith(["g1", "g2"]);
+  });
+
+  it("an incomplete answer leaves a goal's progress unknown, not zero", async () => {
+    setUrlTab("fundraisers");
+    goalProgressMock.mockResolvedValueOnce({ byGoal: new Map(), complete: false });
+    render(<SearchResults query="upkeep" pov="nosfabrica" />);
+    emit({ hits: [hitOf(ev("g3", 9041, who, "combine upkeep", [["amount", "60000000"]]))], eose: true, timeMs: 100 });
+    await waitFor(() => expect(goalProgressMock).toHaveBeenCalled());
+    await Promise.resolve();
+    expect(screen.getByTestId("thing-goal-g3")).toHaveTextContent("Goal 60,000 sats");
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("Lists keeps a badge and an emoji pack, which hold no p/e/a/r items", async () => {
+    setUrlTab("lists");
+    render(<SearchResults query="cool" pov="nosfabrica" />);
+    const badge = ev("b1", 30009, who, "", [
+      ["d", "ice"],
+      ["name", "Ice Cool Builder"],
+      ["description", "Only the coolest"],
+    ]);
+    const pack = ev("ep1", 30030, who, "", [
+      ["d", "p"],
+      ["title", "Legends"],
+      ["emoji", "a", "https://x.test/a.png"],
+    ]);
+    emit({ hits: [badge, pack].map(hitOf), eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("thing-card-b1")).toHaveTextContent("Ice Cool Builder");
+    expect(screen.getByTestId("thing-previews-ep1")).toBeInTheDocument();
+  });
+
+  it("Music plays a kind-36787 track", async () => {
+    setUrlTab("music");
+    render(<SearchResults query="acapella" pov="nosfabrica" />);
+    const track = ev("t36787", 36787, who, "", [
+      ["d", "6704f12b"],
+      ["title", "Acapella Random Song"],
+      ["artist", "Beatbox Serenade"],
+      ["url", "https://blossom.ditto.pub/ef316b48.mp3"],
+    ]);
+    emit({ hits: [hitOf(track)], eose: true, timeMs: 100 });
+
+    expect(await screen.findByTestId("track-card-t36787")).toHaveTextContent("Acapella Random Song");
   });
 });

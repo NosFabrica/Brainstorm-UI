@@ -27,8 +27,18 @@ type EventLike = { id: string; pubkey: string; kind: number; created_at: number;
 
 export const TRACK_KIND = 31337;
 
+/**
+ * Every kind the Music tab plays: 31337, the newer addressable music track
+ * (36787 — Amethyst, Ditto and Yakihonne publish it with `title`, `artist`,
+ * `url`, `image`, `duration`), and podcast episodes (54 by feed2nostr,
+ * Podcasting 2.0's 30054 episodes and 30055 trailers). Each passes the same
+ * gate: a title and something to play. 30054/30055 are also used by other
+ * apps (reading progress, claim graphs — probed 2026-09-29), none with audio.
+ */
+export const TRACK_KINDS = new Set([TRACK_KIND, 36787, 54, 30054, 30055]);
+
 export function parseTrack(ev: EventLike): Track | null {
-  if (ev.kind !== TRACK_KIND) return null;
+  if (!TRACK_KINDS.has(ev.kind)) return null;
   const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
   const title = tag("title") || tag("subject");
   const audio = audioUrlFromEvent(ev);

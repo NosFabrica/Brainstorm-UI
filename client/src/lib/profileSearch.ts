@@ -240,3 +240,19 @@ export const isNip05Handle = (value: string) => {
   }
   return /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(v);
 };
+
+/** The profile fields a relay's kind-0 content carries, as far as a people row needs them. */
+export type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string; about?: string };
+
+/** A person for a people row from their kind-0 profile — or from nothing, when they have none. */
+export function profileToSearchResult(pubkey: string, profile: ProfileLite | undefined): SearchResult {
+  return {
+    pubkey,
+    npub: nip19.npubEncode(pubkey),
+    name: profile?.name,
+    displayName: profile?.display_name,
+    picture: profile?.picture,
+    nip05: profile?.nip05,
+    about: profile?.about,
+  };
+}

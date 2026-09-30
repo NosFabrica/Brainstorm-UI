@@ -66,3 +66,25 @@ describe("matchTags", () => {
     expect(matchTags(index, "music", 3)).toHaveLength(3);
   });
 });
+
+describe("matchTags with a typo", () => {
+  const index = [
+    tag("Verified Human", { slug: "verified-human" }),
+    tag("Verified Builder", { slug: "verified-builder" }),
+    tag("Bitcoin Vendor", { slug: "bitcoin-vendor" }),
+  ];
+
+  it("finds a tag whose words are one letter off, after the clean matches", () => {
+    expect(matchTags(index, "verfied human").map((t) => t.slug)).toEqual(["verified-human"]);
+    expect(matchTags(index, "verified humna").map((t) => t.slug)).toEqual(["verified-human"]);
+    expect(matchTags(index, "bitcion vendor").map((t) => t.slug)).toEqual(["bitcoin-vendor"]);
+  });
+
+  it("does not stretch short words, and nonsense finds nobody", () => {
+    expect(matchTags(index, "bitcoin ven").map((t) => t.slug)).toEqual(["bitcoin-vendor"]);
+    expect(matchTags(index, "bit vnd")).toEqual([]);
+    expect(matchTags(index, "verified huamn")).toHaveLength(1);
+    expect(matchTags(index, "verified hunam")).toEqual([]);
+    expect(matchTags(index, "purple cow")).toEqual([]);
+  });
+});
