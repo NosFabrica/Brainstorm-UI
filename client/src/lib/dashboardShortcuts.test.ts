@@ -6,7 +6,7 @@
  * file — nor when a modifier is held (⌘E is the browser's, not ours).
  */
 import { describe, expect, it } from "vitest";
-import { dashboardShortcutFor } from "./dashboardShortcuts";
+import { dashboardShortcutFor, isTypingTarget } from "./dashboardShortcuts";
 
 const key = (k: string, target: EventTarget | null, extra: Partial<KeyboardEvent> = {}) =>
   ({ key: k, target, metaKey: false, ctrlKey: false, altKey: false, isComposing: false, ...extra }) as KeyboardEvent;
@@ -45,5 +45,18 @@ describe("dashboardShortcutFor", () => {
     expect(dashboardShortcutFor(key("e", document.body, { ctrlKey: true }))).toBeNull();
     expect(dashboardShortcutFor(key("e", document.body, { altKey: true }))).toBeNull();
     expect(dashboardShortcutFor(key("e", document.body, { isComposing: true }))).toBeNull();
+  });
+});
+
+describe("isTypingTarget", () => {
+  it("is the guard other single-key pages share: editable or inside editable, else not", () => {
+    expect(isTypingTarget(document.body)).toBe(false);
+    expect(isTypingTarget(null)).toBe(false);
+    expect(isTypingTarget(el("input"))).toBe(true);
+    const box = el("div", { contenteditable: "true" });
+    const pill = document.createElement("span");
+    box.appendChild(pill);
+    expect(isTypingTarget(pill)).toBe(true);
+    expect(isTypingTarget(el("button"))).toBe(false);
   });
 });

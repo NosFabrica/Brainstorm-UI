@@ -1,3 +1,4 @@
+import { isTypingTarget } from "@/lib/dashboardShortcuts";
 import { useEffect, useState } from "react";
 import { Wordmark } from "@/components/Wordmark";
 
@@ -231,6 +232,8 @@ export default function HeroLab() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Not while typing (the header's search box is a contenteditable), not with a modifier.
+      if (e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
       if (e.key === "ArrowLeft") prev();
       else if (e.key === "ArrowRight") next();
       else if (e.key.toLowerCase() === "d") setDark((v) => !v);
