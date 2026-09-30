@@ -4380,9 +4380,17 @@ describe("SearchResults — the kinds lib/thing reads", () => {
       ["u", "https://mint.lnpay.cz"],
       ["rating", "5"],
     ]);
-    emit({ hits: [relay, mint].map(hitOf), eose: true, timeMs: 100 });
+    // Kind 38000 also carries BAO's prediction markets: a market is no review.
+    const market = ev("k1", 38000, who, "Will it be reliable?", [
+      ["market", "m1"],
+      ["title", "Will the mint stay reliable?"],
+      ["outcome", "YES"],
+      ["outcome", "NO"],
+    ]);
+    emit({ hits: [relay, mint, market].map(hitOf), eose: true, timeMs: 100 });
 
     expect(await screen.findByTestId("thing-stars-r1")).toHaveAttribute("aria-label", "4 out of 5 stars");
+    expect(screen.queryByTestId("thing-card-k1")).toBeNull();
     expect(screen.getByTestId("thing-title-r1")).toHaveTextContent("relay.nostrcheck.me");
     expect(screen.getByTestId("thing-link-m1")).toHaveAttribute("href", "https://mint.lnpay.cz");
     expect(screen.getByTestId("thing-card-m1")).toHaveTextContent("Reviewed by");

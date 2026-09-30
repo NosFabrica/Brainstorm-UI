@@ -268,6 +268,88 @@ describe("Review page, own review", () => {
   });
 });
 
+describe("Kind-38000 pages: prediction market, ballot", () => {
+  const market = () =>
+    ev(38000, [
+      ["d", "59a3"],
+      ["market", "59a3"],
+      ["c", "bitcoin"],
+      ["category", "bitcoin"],
+      ["status", "resolved"],
+      ["network", "demo"],
+      ["end", "1778716800"],
+      ["outcome", "YES"],
+      ["outcome", "NO"],
+      ["resolution", "NO"],
+      ["resolution_source", "https://mempool.space/api/v1/blocks"],
+      ["min_bet", "100"],
+      ["max_bet", "100000"],
+      ["fee_percent", "4.21"],
+      ["data", JSON.stringify({ title: "Fewer than 140 blocks today?", description: "Target is 144 blocks per day." })],
+    ]);
+
+  it("a market states its question, its winner, that it is play money, and its terms", async () => {
+    page(market());
+    expect(screen.getByTestId("thing-page-title")).toHaveTextContent("Fewer than 140 blocks today?");
+    expect(screen.getByTestId("thing-page-market")).toHaveTextContent("Resolved");
+    expect(screen.getByTestId("thing-page-market")).toHaveTextContent("Demo network — play money");
+    expect(within(screen.getByTestId("thing-page-outcomes")).getByText("NO")).toBeInTheDocument();
+    const terms = screen.getByTestId("thing-page-terms");
+    expect(terms).toHaveTextContent("Resolved asNO");
+    expect(terms).toHaveTextContent("100 sats – 100,000 sats");
+    expect(terms).toHaveTextContent("4.21%");
+    expect(within(terms).getByRole("link")).toHaveAttribute("href", "https://mempool.space/api/v1/blocks");
+    await screen.findByText("No other markets in this category.");
+  });
+
+  it("lists the creator's other markets in the same category, never the mint reviews on the same kind", async () => {
+    const other = ev(38000, [
+      ["market", "b"],
+      ["c", "bitcoin"],
+      ["status", "active"],
+      ["outcome", "YES"],
+      ["outcome", "NO"],
+      ["title", "Will fees spike?"],
+    ]);
+    const review = ev(
+      38000,
+      [
+        ["u", "https://mint.example"],
+        ["c", "bitcoin"],
+      ],
+      "Good mint",
+    );
+    fromSearchMock.mockResolvedValue([other, review]);
+    const m = market();
+    page(m);
+    const list = await screen.findByTestId("thing-page-more-markets");
+    await waitFor(() => expect(list).toHaveTextContent("Will fees spike?"));
+    expect(list).not.toHaveTextContent("Good mint");
+    expect(fromSearchMock).toHaveBeenCalledWith([{ kinds: [38000], authors: [m.pubkey], "#c": ["bitcoin"] }], {
+      limit: 30,
+    });
+  });
+
+  it("a ballot shows its election and each answer", () => {
+    page(
+      ev(
+        38000,
+        [["election", "sec06-feedback"]],
+        JSON.stringify({
+          responses: [
+            { question_id: "q1", value: "Yes" },
+            { question_id: "q2", value: "Sauna talks" },
+          ],
+        }),
+      ),
+    );
+    expect(screen.getByTestId("thing-page-title")).toHaveTextContent("Ballot in sec06-feedback");
+    const answers = screen.getByTestId("thing-page-answers");
+    expect(answers).toHaveTextContent("q1Yes");
+    expect(answers).toHaveTextContent("q2Sauna talks");
+  });
+});
+
 describe("Calendar page", () => {
   it("lists its events under the day they fall on, upcoming first, past behind a door", async () => {
     const soon = Math.floor(Date.now() / 1000) + 86_400 * 3;

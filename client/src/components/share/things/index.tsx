@@ -8,6 +8,7 @@ import type { PageEvent } from "./shared";
 import { CommunityHero, CommunitySections } from "./CommunityPage";
 import { FundraiserHero, FundraiserSections } from "./FundraiserPage";
 import { ReviewHero, ReviewSections } from "./ReviewPage";
+import { BallotHero, MarketHero, MarketSections } from "./MarketPage";
 import { ShopPlaceHero, ShopPlaceSections } from "./ShopPlacePage";
 import { AppThingHero, AppThingSections } from "./AppThingPage";
 import {
@@ -37,6 +38,10 @@ export function ThingHero({ event }: { event: PageEvent }) {
       return <FundraiserHero event={event} thing={thing} detail={d} />;
     case "review":
       return <ReviewHero event={event} thing={thing} detail={d} />;
+    case "market":
+      return <MarketHero event={event} thing={thing} detail={d} />;
+    case "ballot":
+      return <BallotHero thing={thing} detail={d} />;
     case "shop":
       return <ShopPlaceHero event={event} thing={thing} detail={d} />;
     case "app":
@@ -67,6 +72,10 @@ export function ThingSections({ event }: { event: PageEvent }) {
       return <FundraiserSections event={event} detail={d} />;
     case "review":
       return <ReviewSections event={event} detail={d} />;
+    case "market":
+      return <MarketSections event={event} detail={d} />;
+    case "ballot":
+      return null;
     case "shop":
       return <ShopPlaceSections event={event} detail={d} />;
     case "app":

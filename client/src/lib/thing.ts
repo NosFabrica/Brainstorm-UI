@@ -31,6 +31,9 @@ export interface Thing {
   detail: ThingDetail;
 }
 
+/** Where a prediction market stands: taking bets, waiting on its oracle, settled, or called off. */
+export type MarketStatus = "open" | "closed" | "resolved" | "cancelled";
+
 export type TorrentCategory = "audio" | "video" | "image" | "software" | "archive" | "other";
 
 /** The per-kind part of a [Thing], one shape per card. */
@@ -61,6 +64,27 @@ export type ThingDetail =
       subjectLabel: string;
       /** A relay review's per-aspect scores (speed, uptime…), out of five. */
       aspects: { name: string; stars: number }[];
+    }
+  | {
+      type: "market";
+      /** The answers a bettor picks between: "YES"/"NO", or ranges and names. */
+      outcomes: string[];
+      status: MarketStatus | null;
+      /** The outcome it resolved to, when the event says. */
+      resolution: string | null;
+      /** When betting closes, unix seconds. */
+      closes: number | null;
+      category: string | null;
+      /** On BAO's demo network — play money, not sats. */
+      demo: boolean;
+    }
+  | {
+      type: "ballot";
+      /** The election's own id, as the voting app names it. */
+      election: string;
+      /** Each question's id and the voter's answer, in the order cast. */
+      answers: { question: string; answer: string }[];
+      proofHash: string | null;
     }
   | { type: "shop"; variant: "stall" | "marketplace"; currency: string | null; zones: string[]; merchants: number }
   | {
@@ -148,6 +172,30 @@ export function isMintReview(ev: Pick<EventLike, "tags">): boolean {
   const k = ev.tags.find((t) => t[0] === "k")?.[1]?.trim();
   if (k) return k === "38172" || k === "38173";
   return ev.tags.some((t) => t[0] === "u" && t[1]?.trim());
+}
+
+/** The formats kind 38000 carries that Brainstorm can draw. */
+export type Kind38000Format = "mint-review" | "market" | "ballot";
+
+/**
+ * Which of kind 38000's formats an event is, told apart by the tags each
+ * app always writes (production relay, 2026-09-30 — 15k events a year):
+ *
+ * - a NIP-87 mint review names the mint (isMintReview);
+ * - a ballot names its `election` (an auditable-voting app; JSON answers);
+ * - a BAO prediction market has a `market` id, two or more `outcome`s, or
+ *   — its first shape — a `type` and an `end`.
+ *
+ * Anything else — the 12k one-key "sybil test vote"s against a federation,
+ * app manifests, agent profiles — is null, and shows as a plain event.
+ */
+export function kind38000Format(ev: Pick<EventLike, "tags">): Kind38000Format | null {
+  if (isMintReview(ev)) return "mint-review";
+  const has = (k: string) => ev.tags.some((t) => t[0] === k && t[1]?.trim());
+  if (has("election")) return "ballot";
+  const outcomes = ev.tags.filter((t) => t[0] === "outcome" && t[1]?.trim()).length;
+  if (has("market") || outcomes >= 2 || (has("type") && has("end"))) return "market";
+  return null;
 }
 
 /**
@@ -517,9 +565,12 @@ function readThing(ev: EventLike): Thing | null {
         detail: { type: "review", subject: "relay", subjectLabel: "Relay", aspects },
       });
     }
-    // NIP-87 mint recommendation: `u` is the mint.
     case 38000: {
-      if (!isMintReview(ev)) return null;
+      const format = kind38000Format(ev);
+      if (format === "market") return readMarket(ev);
+      if (format === "ballot") return readBallot(ev);
+      if (format !== "mint-review") return null;
+      // NIP-87 mint recommendation: `u` is the mint.
       const mint = tag(ev, "u") ?? tag(ev, "d");
       if (!mint) return null;
       const host = hostOfUrl(mint);
@@ -637,6 +688,118 @@ function rulesOf(ev: EventLike): string | null {
   const rules = tag(ev, "rules") ?? tag(ev, "guidelines");
   const same = (a: string, b: string | undefined) => a.replace(/\s+/g, " ") === b?.replace(/\s+/g, " ");
   return rules && !same(rules, tag(ev, "description")) ? rules : null;
+}
+
+/** A JSON object in a string, or null. */
+function jsonObject(text: string | undefined): Record<string, unknown> | null {
+  if (!text?.trim().startsWith("{")) return null;
+  return jsonContent({ kind: 0, tags: [], content: text });
+}
+
+const MARKET_STATUS: Record<string, MarketStatus> = {
+  active: "open",
+  open: "open",
+  funding: "open",
+  resolving: "closed",
+  ended: "closed",
+  closed: "closed",
+  resolved: "resolved",
+  settled: "resolved",
+  voided: "cancelled",
+  cancelled: "cancelled",
+  canceled: "cancelled",
+};
+
+/** Unix seconds from seconds, milliseconds or an ISO date; null for anything else. */
+function unixSeconds(v: unknown): number | null {
+  if (typeof v === "string" && !/^\d+$/.test(v.trim())) {
+    const ms = Date.parse(v);
+    return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
+  }
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
+}
+
+/**
+ * A BAO prediction market, in any of its three shapes: the current one
+ * (everything in tags, the market's words as JSON in a `data` tag, a post in
+ * `content`), BAO Fund's (a `title` tag, JSON content) and the first
+ * (`baoMarkets-mkt-…`, JSON content with outcome objects).
+ */
+function readMarket(ev: EventLike): Thing | null {
+  const data = jsonObject(tag(ev, "data")) ?? jsonContent(ev);
+  const title = str(data?.title) ?? tag(ev, "title");
+  if (!title) return null;
+  const tagged = ev.tags.filter((t) => t[0] === "outcome" && t[1]?.trim()).map((t) => t[1].trim());
+  const listed = Array.isArray(data?.outcomes)
+    ? data.outcomes
+        .map(
+          (o) =>
+            str(o) ??
+            (o && typeof o === "object"
+              ? (str((o as { label?: unknown }).label) ?? str((o as { id?: unknown }).id))
+              : undefined),
+        )
+        .filter((o): o is string => !!o)
+    : [];
+  const outcomes = [...new Set(tagged.length ? tagged : listed)];
+  const resolution = tag(ev, "resolution") ?? null;
+  const closes = unixSeconds(tag(ev, "end") ?? data?.endTime ?? data?.endDate);
+  const said = (tag(ev, "status") ?? tag(ev, "state") ?? str(data?.status) ?? str(data?.state))?.toLowerCase();
+  const status: MarketStatus | null =
+    (said && MARKET_STATUS[said]) ||
+    (resolution ? "resolved" : closes !== null ? (closes * 1000 <= Date.now() ? "closed" : "open") : null);
+  const demo = (tag(ev, "network") ?? tag(ev, "n"))?.toLowerCase() === "demo";
+  const category = tag(ev, "category") ?? tag(ev, "c") ?? null;
+  // The current shape's content is a social post of the same words, emoji and hashtags added.
+  const description = str(data?.description) ?? (data ? null : ev.content.trim() || null);
+  return thing({
+    title,
+    description,
+    facts: ["Prediction market", ...(demo ? ["Demo"] : [])],
+    detail: { type: "market", outcomes, status, resolution, closes, category, demo },
+  });
+}
+
+/** An answer as words: a number or yes/no as written, an object not at all. */
+const answerWords = (v: unknown): string | null =>
+  typeof v === "string" ? v.trim() || null : typeof v === "number" || typeof v === "boolean" ? String(v) : null;
+
+/**
+ * A ballot cast in an auditable-voting app: the `election` it belongs to and
+ * its answers, which are JSON in content — `responses` (question id, value),
+ * a `ballot` object of question → choice, or a lone `vote_choice`.
+ */
+function readBallot(ev: EventLike): Thing | null {
+  const election = tag(ev, "election");
+  if (!election) return null;
+  const json = jsonContent(ev);
+  const answers: { question: string; answer: string }[] = [];
+  if (Array.isArray(json?.responses)) {
+    for (const r of json.responses as unknown[]) {
+      if (!r || typeof r !== "object") continue;
+      const { question_id, value } = r as { question_id?: unknown; value?: unknown };
+      const question = answerWords(question_id);
+      const answer = answerWords(value);
+      if (question && answer) answers.push({ question, answer });
+    }
+  }
+  if (json?.ballot && typeof json.ballot === "object" && !Array.isArray(json.ballot)) {
+    for (const [question, value] of Object.entries(json.ballot as Record<string, unknown>)) {
+      const answer = answerWords(value);
+      if (answer) answers.push({ question, answer });
+    }
+  }
+  const choice = answerWords(json?.vote_choice);
+  if (choice) answers.push({ question: "Vote", answer: choice });
+  const proofHash = tag(ev, "proof-hash") ?? tag(ev, "proof_hash") ?? str(json?.proof_hash) ?? null;
+  return thing({
+    title: `Ballot in ${election}`,
+    description: answers.length ? answers.map((a) => `${a.question}: ${a.answer}`).join(" · ") : null,
+    facts: ["Ballot", ...(answers.length ? [plural(answers.length, "answer")] : [])],
+    detail: { type: "ballot", election, answers, proofHash },
+  });
 }
 
 /** An event's `t` topics, lower-cased and de-duplicated. */
