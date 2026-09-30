@@ -45,6 +45,18 @@ describe("kindLabel", () => {
     ).toBe("Recipe");
     expect(kindLabel(ev(30023, [["d", "why"]]))).toBe("Article");
   });
+
+  it("calls a kind-38000 a mint review only when it is one — a prediction market on that kind is its number", () => {
+    expect(kindLabel(ev(38000, [["u", "https://mint.lnpay.cz"]]))).toBe("Mint review");
+    expect(
+      kindLabel(
+        ev(38000, [
+          ["d", "59a3b0cda6c25472714327435b0e8190"],
+          ["market", "59a3b0cda6c25472714327435b0e8190"],
+        ]),
+      ),
+    ).toBe("Kind 38000");
+  });
 });
 
 describe("specKindTags", () => {

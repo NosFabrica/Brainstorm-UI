@@ -138,6 +138,19 @@ export function hostOfUrl(url: string): string {
 }
 
 /**
+ * Kind 38000 is NIP-87's mint recommendation, but the number is shared: BAO
+ * Markets publishes prediction markets on it, and ballots, games and test
+ * votes sit there too (probed 2026-09-30). NIP-87 names the mint's own kind
+ * in `k` — 38172 a Cashu mint, 38173 a Fedimint — so a `k` decides; without
+ * one, only a `u` (the mint's address) makes it a mint review.
+ */
+export function isMintReview(ev: Pick<EventLike, "tags">): boolean {
+  const k = ev.tags.find((t) => t[0] === "k")?.[1]?.trim();
+  if (k) return k === "38172" || k === "38173";
+  return ev.tags.some((t) => t[0] === "u" && t[1]?.trim());
+}
+
+/**
  * Which scale a kind's `rating` is on. Relay reviews (31987) are always the
  * 0..1 fraction (Quartz's `RelayReviewEvent`); NIP-87 mint reviews (38000)
  * are published as raw stars — `["rating","1"]` there is one star, not five.
@@ -506,6 +519,7 @@ function readThing(ev: EventLike): Thing | null {
     }
     // NIP-87 mint recommendation: `u` is the mint.
     case 38000: {
+      if (!isMintReview(ev)) return null;
       const mint = tag(ev, "u") ?? tag(ev, "d");
       if (!mint) return null;
       const host = hostOfUrl(mint);

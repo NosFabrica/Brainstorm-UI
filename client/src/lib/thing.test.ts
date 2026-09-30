@@ -250,6 +250,45 @@ describe("describeThing — reviews", () => {
     expect(t).toMatchObject({ title: "mint.lnpay.cz", stars: 5, link: "https://mint.lnpay.cz" });
   });
 
+  it("reads a NIP-87 Fedimint recommendation named by its `k`, even with no `u`", () => {
+    const t = describeThing(
+      ev(
+        38000,
+        [
+          ["k", "38173"],
+          ["d", "fedmint.example"],
+        ],
+        "Solid guardians",
+      ),
+    );
+    expect(t).toMatchObject({ title: "fedmint.example", description: "Solid guardians", facts: ["Ecash mint"] });
+  });
+
+  it("leaves out the other apps' kind-38000s: a BAO prediction market, a ballot, an unknown `k`", () => {
+    const market = ev(
+      38000,
+      [
+        ["d", "59a3b0cda6c25472714327435b0e8190"],
+        ["market", "59a3b0cda6c25472714327435b0e8190"],
+        ["type", "binary"],
+        ["client", "BAO Markets"],
+        ["outcome", "YES"],
+        ["outcome", "NO"],
+      ],
+      "₿ Will the Bitcoin network mine fewer than 140 blocks today?",
+    );
+    expect(describeThing(market)).toBeNull();
+    expect(describeThing(ev(38000, [["election", "spring-2026-council"]], '{"election_id":"x"}'))).toBeNull();
+    expect(
+      describeThing(
+        ev(38000, [
+          ["k", "38177"],
+          ["d", "8404582ef72b077c9e1926d3a6d86563959e5f7505b56a3ebdebaefb99887f5d"],
+        ]),
+      ),
+    ).toBeNull();
+  });
+
   it("says an unknown mark as written", () => {
     expect(
       describeThing(
