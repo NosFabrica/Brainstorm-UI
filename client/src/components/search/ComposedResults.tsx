@@ -656,9 +656,7 @@ function ComposedResultsBody({
         <Section id="latest" kicker="Latest" tab="notes" onTabChange={onTabChange} className={FADE}>
           <TopStories stories={topStories} stripRef={storiesRef} />
           {/* Only notes here — no "· Note" on every row. */}
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-            {clustersOf(latestF, storyIds, { showType: false, peopleFirst: true })}
-          </div>
+          <div className="space-y-1">{clustersOf(latestF, storyIds, { showType: false, peopleFirst: true })}</div>
         </Section>
       )}
 
@@ -670,9 +668,7 @@ function ComposedResultsBody({
           {/* A bento — lead + tiles — breaks the run of rows; overflow stays rows. */}
           <ArticlesBento clusters={coveredArticles} scoreOf={scoreOf} />
           {articleRows.length > 0 && (
-            <div
-              className={`${coveredArticles.length > 0 ? "mt-2" : ""}divide-y divide-slate-100 dark:divide-slate-800/60`}
-            >
+            <div className={coveredArticles.length > 0 ? "mt-3 space-y-1" : "space-y-1"} data-testid="articles-rows">
               {/* The section says "Articles" for the rows, so an essay needs no
                   label — a spec (30817) rides here too and must not pass for one. */}
               {articleRows.map((c) => (
@@ -711,14 +707,14 @@ function ComposedResultsBody({
               </Link>
             </p>
           )}
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(byKindF)}</div>
+          <div className="space-y-1">{clustersOf(byKindF)}</div>
         </Section>
       )}
 
       {listen.length + listenWavlake.length + listenPodcast.length > 0 && (
         <Section id="listen" kicker="Listen" tab="music" onTabChange={onTabChange}>
           {/* Rows, not boxes: a stream of songs reads like a list. */}
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+          <div className="space-y-1">
             {listen.map((h) => (
               <TrackCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} flat />
             ))}
@@ -734,7 +730,7 @@ function ComposedResultsBody({
 
       {happeningClusters.length > 0 && (
         <Section id="happening" kicker="Happening" tab="events" onTabChange={onTabChange}>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+          <div className="space-y-1">
             {happeningClusters.map((c) => (
               <ClusterRows
                 key={c.primary.event.id}
@@ -762,7 +758,7 @@ function ComposedResultsBody({
       {(mediaF?.hits.length ?? 0) + mediaTiles.length > 0 && (
         <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>
           <MediaTiles hits={mediaTiles} scoreOf={scoreOf} />
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(mediaF, mediaTileIds)}</div>
+          <div className="space-y-1">{clustersOf(mediaF, mediaTileIds)}</div>
         </Section>
       )}
       {/* What the floor held back, said once and quietly, with the one tap that lifts it. */}
