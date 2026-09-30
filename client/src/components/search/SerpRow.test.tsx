@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTechnicalView } from "@/lib/technicalView";
 // The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 import type { NostrEvent } from "nostr-tools";
 import { SerpRow } from "./SerpRow";
@@ -298,14 +298,13 @@ describe("SerpRow — link metadata", () => {
     clientLink.resolve.mockImplementation(() => new Promise(() => {}));
   });
 
-  it("turns a plain link into a metadata card when the proxy knows it", async () => {
+  it("a short share is a link result: source line, the page's title, the sharer's words, the page's picture", async () => {
     unfurlMock.mockResolvedValue({
       title: "Liverpool F.C.",
       description: "Professional football club based in Liverpool.",
       image: "https://img/lfc.jpg",
       siteName: "Wikipedia",
     });
-    // A short lead — a long one plus a link IS the news shape, which has its own card.
     render(
       <SerpRow
         event={note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.")}
@@ -314,13 +313,35 @@ describe("SerpRow — link metadata", () => {
         query="liverpool"
       />,
     );
-    const card = await screen.findByTestId("link-card");
-    expect(card).toHaveTextContent("Liverpool F.C.");
-    expect(card).toHaveTextContent("Professional football club");
-    expect(card).toHaveTextContent("en.wikipedia.org");
-    expect(card.querySelector("img")?.getAttribute("src")).toBe("https://img/lfc.jpg");
-    expect(card.getAttribute("href")).toBe("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+    const title = await screen.findByTestId("news-headline");
+    expect(title).toHaveTextContent("Liverpool F.C.");
+    expect(title.getAttribute("href")).toBe("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+    expect(title.getAttribute("target")).toBe("_blank");
+    // Google's source line: site name, then the domain in grey; it opens the page too.
+    const source = screen.getByTestId("news-source");
+    expect(source).toHaveTextContent("Wikipedia");
+    expect(source).toHaveTextContent("en.wikipedia.org");
+    expect(source.closest("a")?.getAttribute("href")).toBe("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+    // The sharer's own words describe it — they add something the title doesn't.
+    expect(screen.getByText(/Worth a read/)).toBeInTheDocument();
+    expect(screen.queryByText(/Professional football club/)).toBeNull();
+    // The page's picture is the thumbnail; the URL has left the text; no second card.
+    expect((screen.getByTestId("news-thumb") as HTMLImageElement).src).toBe("https://img/lfc.jpg");
+    expect(screen.queryByTestId("link-chip")).toBeNull();
+    expect(screen.queryByTestId("link-card")).toBeNull();
     expect(unfurlMock).toHaveBeenCalledWith("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+  });
+
+  it("a bare link with nothing known yet shows the source line alone, and the page's description once it answers", async () => {
+    let answer!: (m: { title: string; description: string; image: null; siteName: null }) => void;
+    unfurlMock.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    render(<SerpRow event={note("https://example.com/post")} author={author} score={0.7} query="x" />);
+    expect(await screen.findByTestId("news-source")).toHaveTextContent("example.com");
+    expect(screen.queryByTestId("news-headline")).toBeNull();
+    expect(screen.queryByTestId("link-chip")).toBeNull();
+    await act(async () => answer({ title: "A post", description: "What it says.", image: null, siteName: null }));
+    expect(screen.getByTestId("news-headline")).toHaveTextContent("A post");
+    expect(screen.getByText("What it says.")).toBeInTheDocument();
   });
 
   it("a markdown image in the body leaves no brackets in the snippet", async () => {
@@ -337,7 +358,7 @@ describe("SerpRow — link metadata", () => {
     expect(screen.queryByText(/!\[\]\(/)).toBeNull();
   });
 
-  it("cards the same link a feed would — the last one", async () => {
+  it("asks about the same link a feed would — the last one", async () => {
     unfurlMock.mockResolvedValue({ title: "Second", description: null, image: null, siteName: null });
     render(
       <SerpRow
@@ -347,7 +368,7 @@ describe("SerpRow — link metadata", () => {
         query="liverpool"
       />,
     );
-    await screen.findByTestId("link-card");
+    expect(await screen.findByTestId("news-headline")).toHaveTextContent("Second");
     expect(unfurlMock).toHaveBeenCalledWith("https://b.example/second");
     expect(unfurlMock).not.toHaveBeenCalledWith("https://a.example/first");
   });
@@ -368,12 +389,12 @@ describe("SerpRow — link metadata", () => {
         query=""
       />,
     );
-    // Nothing new to say: no card, the chip alone names the link.
-    await screen.findByTestId("link-card-echoed");
-    expect(screen.getByTestId("serp-thumb")).toHaveAttribute("src", "https://s2-g1.glbimg.com/a.jpg");
-    expect(screen.getAllByTestId("link-chip").map((c) => c.getAttribute("href"))).toEqual([
-      "https://g1.globo.com/es/noticia.ghtml",
-    ]);
+    // The page's title leads; the words only repeated it, so nothing is said twice.
+    expect(await screen.findByTestId("news-headline")).toHaveTextContent("Serra: homem solto | G1");
+    expect(screen.getAllByText(/Serra: homem solto/)).toHaveLength(1);
+    // The note's own picture is the thumbnail; the URL has left the text.
+    expect(screen.getByTestId("news-thumb")).toHaveAttribute("src", "https://s2-g1.glbimg.com/a.jpg");
+    expect(screen.queryByTestId("link-chip")).toBeNull();
     expect(screen.queryByTestId("link-card")).toBeNull();
   });
 
@@ -393,13 +414,16 @@ describe("SerpRow — link metadata", () => {
     ]);
   });
 
-  it("no answer, no card — the domain chip stands alone", async () => {
+  it("no answer from the page: the source line and the sharer's words stand alone, no title", async () => {
     unfurlMock.mockResolvedValue(null);
     render(
       <SerpRow event={note("Great read https://example.org/post")} author={author} score={0.7} query="liverpool" />,
     );
-    await screen.findByTestId("link-chip");
+    expect(await screen.findByTestId("news-source")).toHaveTextContent("example.org");
     await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByText(/Great read/)).toBeInTheDocument();
+    expect(screen.queryByTestId("news-headline")).toBeNull();
+    expect(screen.queryByTestId("link-chip")).toBeNull();
     expect(screen.queryByTestId("link-card")).toBeNull();
   });
 });
@@ -456,6 +480,26 @@ describe("SerpRow", () => {
     expect(screen.queryByTestId("news-thumb")).toBeNull();
     // The words that were not the song stay.
     expect(screen.getByTestId(`serp-row-${boost.id}`)).toHaveTextContent(/Boost more music/);
+  });
+
+  it("a news-shaped note asks the page too: its title leads, the note's own picture stays the thumbnail", async () => {
+    unfurlMock.mockResolvedValue({
+      title: "Everton fan group 'standing down' – Liverpool Echo",
+      description: "Full story.",
+      image: "https://img/echo-og.jpg",
+      siteName: "Liverpool Echo",
+    });
+    render(<SerpRow event={note(NEWS)} author={author} score={0.7} query="liverpool" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("news-headline")).toHaveTextContent(
+        "Everton fan group 'standing down' – Liverpool Echo",
+      ),
+    );
+    expect(screen.getByTestId("news-source")).toHaveTextContent("Liverpool Echo");
+    expect(screen.getByTestId("news-source")).toHaveTextContent("liverpoolecho.co.uk");
+    // The note's words still describe it, and its own photo beats the page's.
+    expect(screen.getByText(/The 1878s have issued a statement/)).toBeInTheDocument();
+    expect((screen.getByTestId("news-thumb") as HTMLImageElement).src).toContain("cdn.example/photo.jpg");
   });
 
   it("renders a news-shaped note as a news card with a clickable headline", () => {

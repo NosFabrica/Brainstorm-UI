@@ -7,7 +7,7 @@
  * to clickable domain chips. The row body opens the in-app event page —
  * a div-with-navigate, so the external anchors inside stay legal HTML.
  */
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { dlistOfEvent, parseDListMusician, parseDListSong } from "@/lib/dlists";
 import { Link, useLocation } from "wouter";
@@ -29,7 +29,8 @@ import { eventStore } from "@/lib/eventStore";
 import { MentionChip } from "@/components/share/MentionChip";
 import { fetchEventsByIds } from "@/services/nostr";
 import { highlightTerms } from "@/lib/highlight";
-import { parseNewsShape } from "@/lib/newsShape";
+import { linkResultOf, linkResultText } from "@/lib/linkResult";
+import { useLinkMetadata } from "@/hooks/useLinkMetadata";
 import { wavlakeTrackId } from "@/lib/wavlake";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { eventPath } from "@/lib/shareId";
@@ -458,8 +459,15 @@ export function SerpRow({
   const [thumbFailed, setThumbFailed] = useState(false);
 
   const title = tagVal(event, "title") ?? tagVal(event, "name");
-  const news =
-    !title && event.content ? parseNewsShape(event.content, { imageSplitsHeadline: isFeedAccount(author) }) : null;
+  // The link is the point (a share, or a feed's headline-link-summary): the
+  // row shows the page the way a search engine does, not a note with a URL.
+  // A Primal/Habla/… link names a Nostr thing and resolves natively below, so it is never a page result.
+  const feed = isFeedAccount(author);
+  const shared = !title && event.content ? linkResultOf(event.content, { feedAccount: feed }) : null;
+  const news = shared && !clientRef(shared.url) ? shared : null;
+  // The page's own title, description and picture — asked once the row is near.
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const linkMeta = useLinkMetadata(news?.url ?? null, rowRef);
 
   // A wiki page is AsciiDoc; the row shows its words, not "[[comedian]]".
   // A designation is its rows, read for people; anything else with no
@@ -537,7 +545,7 @@ export function SerpRow({
           </div>
           {/* The poster's words — the headline was only ever the note's text. */}
           <div className="mt-1.5 [&>p]:text-slate-700 dark:[&>p]:text-slate-200">
-            <Snippet text={[news.headline, news.description].filter(Boolean).join(" ")} query={query} lines={2} />
+            <Snippet text={[news.headline, news.words].filter(Boolean).join(" ")} query={query} lines={2} />
           </div>
           <div onClick={(e) => e.stopPropagation()}>
             <WavlakeTrackCard url={news.url} />
@@ -551,55 +559,68 @@ export function SerpRow({
   }
 
   if (news) {
-    const thumb = news.imageUrl ?? tagVal(event, "image") ?? null;
+    // A link result, the way Google shows a page: who shared it, the source
+    // line (site name, domain), the page's title, a description, a picture.
+    // Title, source and picture open the page; the rest of the row opens the note.
+    const text = linkResultText(news, linkMeta);
+    const siteName =
+      linkMeta?.siteName && linkMeta.siteName.toLowerCase() !== news.domain.toLowerCase() ? linkMeta.siteName : null;
+    const thumb = news.imageUrl ?? linkMeta?.image ?? null;
+    const out = {
+      href: news.url,
+      target: "_blank",
+      rel: "noopener",
+      onClick: (e: React.MouseEvent) => e.stopPropagation(),
+    };
     return (
-      <div {...rowProps}>
+      <div {...rowProps} ref={rowRef}>
         <div className="min-w-0 flex-1">
-          {/* Source line — the outlet, Google-News style. The poster's
-              identity (and tier ring) still leads; the domain says where
-              the story lives. */}
-          <div className="min-w-0" data-testid="news-source">
-            <AuthorLine author={author} score={score} created_at={event.created_at} type="News" typeOf={event}>
-              <span className="hidden min-w-0 items-center gap-1 text-xs text-slate-400 dark:text-slate-500 sm:inline-flex">
-                ·
-                <Favicon host={news.domain} className="h-3.5 w-3.5 shrink-0 rounded-sm object-contain" />
-                <span className="truncate">{news.domain}</span>
-              </span>
-            </AuthorLine>
-          </div>
+          <AuthorLine
+            author={author}
+            score={score}
+            created_at={event.created_at}
+            type={feed || news.headline ? "News" : undefined}
+            typeOf={event}
+            feed={feed}
+          />
           <a
-            href={news.url}
-            target="_blank"
-            rel="noopener"
-            onClick={(e) => e.stopPropagation()}
-            className="mt-1.5 line-clamp-2 block break-words text-lg font-semibold leading-[1.3] text-slate-900 transition-colors hover:text-brand-primary hover:underline dark:text-slate-100 sm:text-xl"
-            data-testid="news-headline"
+            {...out}
+            className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs leading-4 text-slate-500 hover:text-brand-primary dark:text-slate-400"
+            data-testid="news-source"
           >
-            <Headline text={news.headline} query={query} />
+            <Favicon host={news.domain} className="h-4 w-4 shrink-0 rounded-sm object-contain" />
+            <span className="truncate font-medium text-slate-600 dark:text-slate-300">{siteName ?? news.domain}</span>
+            {/* The domain beside the name from `sm:` up; a phone shows the name alone. */}
+            {siteName && (
+              <span className="hidden truncate text-slate-400 dark:text-slate-500 sm:inline">· {news.domain}</span>
+            )}
           </a>
-          {news.description && (
+          {text.title && (
+            <a
+              {...out}
+              className="mt-1 line-clamp-2 block break-words text-lg font-semibold leading-[1.3] text-slate-900 transition-colors hover:text-brand-primary hover:underline dark:text-slate-100 sm:text-xl"
+              data-testid="news-headline"
+            >
+              <Headline text={text.title} query={query} />
+            </a>
+          )}
+          {text.description && (
             <div className="mt-1.5 [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
-              <Snippet text={news.description} query={query} lines={2} />
+              <Snippet text={text.description} query={query} lines={2} />
             </div>
           )}
-          <TranslateLine text={`${news.headline}\n${news.description ?? ""}`.trim()} />
+          <TranslateLine text={`${text.title ?? ""}\n${text.description ?? ""}`.trim()} />
           {engagement && (
             <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />
           )}
         </div>
         {thumb && !newsThumbFailed && (
-          <a
-            href={news.url}
-            target="_blank"
-            rel="noopener"
-            onClick={(e) => e.stopPropagation()}
-            className="shrink-0"
-            tabIndex={-1}
-          >
+          <a {...out} className="shrink-0" tabIndex={-1}>
             <img
               src={thumb}
               alt=""
               loading="lazy"
+              referrerPolicy="no-referrer"
               onError={() => setNewsThumbFailed(true)}
               className="h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
               data-testid="news-thumb"
