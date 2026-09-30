@@ -30,6 +30,14 @@ Single-context layout — [`CONTEXT.md`](CONTEXT.md) + [`docs/adr/`](docs/adr/) 
 
 PR → merge into `staging` → deploy staging from brainstorm-k8s. By default create the PR and walk the user through the rest. See `docs/agents/staging-deploy.md`.
 
+## Probing Nostr data
+
+When you need real events (what a kind looks like in practice, who publishes it, how many), fetch them from **`wss://search.brainstorm.world`**, our production relay, before trying public relays. It holds far more than they do (kind 38000: ~16.8k events vs ~750 across ~25 public relays).
+
+- Reads without sign-in are refused as `auth-required`. Put a NIP-50 `search` token in the filter: `"include:spam"` for the whole corpus unranked (what a census wants), or `"observer:<64-hex pubkey>"` for one person's web-of-trust ranking.
+- Page back with `until` (oldest `created_at` − 1) until a page comes back empty.
+- Use public relays only to cross-check, or for data the production relay doesn't index.
+
 ## Signing events
 
 Sign through `signAs()` (`client/src/accounts/signing.ts`), never `account.signEvent`/`finalizeEvent` directly — it picks the Active Account and stamps the `["client", "Brainstorm"]` tag.
