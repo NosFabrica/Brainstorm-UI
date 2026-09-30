@@ -1,6 +1,7 @@
-import type { ComponentType } from "react";
+import { useEffect, type ComponentType } from "react";
 import { Redirect, useLocation } from "wouter";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { setRouteRequiresSession } from "@/services/api";
 import { retryNow, useServerStatus } from "@/lib/serverStatus";
 import { SorryPage } from "@/components/sorry/SorryPage";
 import { useCountdown } from "@/components/sorry/useCountdown";
@@ -20,6 +21,12 @@ export function RequireAuth({ component: Component }: { component: ComponentType
   const signedIn = useActiveAccountDisplay();
   const status = useServerStatus();
   const nextTryInSec = useCountdown(status.nextProbeAt);
+  // This page has no meaning without a Session, so a lost one may give up the
+  // route; public pages never mount this guard and keep their deep links.
+  useEffect(() => {
+    setRouteRequiresSession(true);
+    return () => setRouteRequiresSession(false);
+  }, []);
   if (!signedIn) {
     const next =
       location && location.startsWith("/") && location !== "/login" ? `?next=${encodeURIComponent(location)}` : "";

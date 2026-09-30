@@ -64,6 +64,18 @@ export function isAuthRedirecting(): boolean {
 }
 
 /**
+ * Whether the page on screen needs a Session at all. The guard on account-only
+ * routes (`RequireAuth`) raises it while mounted; public pages (/, /p/:id, /faq,
+ * …) never do, so a lost Session there fails the account-only widgets quietly
+ * and the reader keeps the URL they arrived on.
+ */
+let routeRequiresSession = false;
+
+export function setRouteRequiresSession(required: boolean): void {
+  routeRequiresSession = required;
+}
+
+/**
  * The Session ended and could not be renewed. It costs the Active Account its
  * token, not its place on this device — the Account is still listed and signing
  * back in is one tap.
@@ -74,11 +86,13 @@ export function isAuthRedirecting(): boolean {
  * leaving the route alone lets the switcher offer it — bouncing to the landing
  * page would throw away a session the user still has. We do not pick the
  * replacement for them; whether that Signer can actually sign is a probe the
- * picker already makes properly.
+ * picker already makes properly. And a public page has no identity to protect:
+ * a deep link to a profile is not the place to send someone home.
  */
 function handleUnauthorized() {
   const account = activeAccount();
   if (account) clearSession(account);
+  if (!routeRequiresSession) return;
   if (accountManager.accounts.some((held) => held !== account)) return;
   isRedirectingToLogin = true;
   window.location.href = "/";
@@ -132,7 +146,38 @@ function currentToken(): string | undefined {
   return account && getSessionToken(account);
 }
 
+/**
+ * What a request does when the Session is gone for good. An account-only
+ * request `redirect`s — there is nothing sensible to render — while a public
+ * read `report`s: the dead token is dropped so the next account-only action
+ * mints instead of retrying it, and the caller decides what to do with the
+ * route. A deep link to a profile is not the place to send someone home.
+ */
+type LostSessionPolicy = "redirect" | "report";
+
+/** The Session could not be renewed; the caller asked to be told, not bounced. */
+class SessionLostError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SessionLostError";
+  }
+}
+
+function sessionLost(policy: LostSessionPolicy, message: string): Error {
+  if (policy === "redirect") {
+    handleUnauthorized();
+    return new Error(message);
+  }
+  const account = activeAccount();
+  if (account) clearSession(account);
+  return new SessionLostError(message);
+}
+
 export async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  return fetchWithSession(url, options, "redirect");
+}
+
+async function fetchWithSession(url: string, options: RequestInit, onLost: LostSessionPolicy): Promise<Response> {
   let token = currentToken();
   if (!token) {
     const reauth = await silentReauth();
@@ -140,10 +185,7 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
     // so nothing is wiped and nobody is redirected. The caller renders the
     // "sign in again to see this" state instead.
     if (reauth === "deferred") throw new SessionDeferredError();
-    if (reauth === "failed") {
-      handleUnauthorized();
-      throw new Error("No session token found");
-    }
+    if (reauth === "failed") throw sessionLost(onLost, "No session token found");
     token = currentToken();
   }
   const response = await fetch(url, {
@@ -162,13 +204,11 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
         headers: { ...options.headers, access_token: newToken! },
       });
       if (retryResponse.status === 401 || retryResponse.status === 403) {
-        handleUnauthorized();
-        throw new Error("Session expired. Please log in again.");
+        throw sessionLost(onLost, "Session expired. Please log in again.");
       }
       return retryResponse;
     }
-    handleUnauthorized();
-    throw new Error(detail || "Session expired. Please log in again.");
+    throw sessionLost(onLost, detail || "Session expired. Please log in again.");
   }
   if (response.status === 403) {
     const data = await response.json().catch(() => null);
@@ -192,11 +232,12 @@ export async function optionalAuthFetch(url: string, options: RequestInit = {}):
   // a deferred mint falls through to the anonymous read below.
   if (activeAccount()) {
     try {
-      return await authenticatedFetch(url, options);
+      return await fetchWithSession(url, options, "report");
     } catch (err) {
-      // A deferred Session says nothing about public data. Serve it anonymously
-      // rather than leaving a signed-in reader worse off than a signed-out one.
-      if (isSessionDeferredError(err)) return fetch(url, options);
+      // A deferred or lost Session says nothing about public data. Serve it
+      // anonymously rather than leaving a signed-in reader worse off than a
+      // signed-out one — and keep the deep link they arrived on.
+      if (isSessionDeferredError(err) || err instanceof SessionLostError) return fetch(url, options);
       throw err;
     }
   }
