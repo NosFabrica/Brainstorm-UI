@@ -1216,6 +1216,19 @@ export function SearchResults({
     () => (tab === "fundraisers" ? hits.filter((h) => h.event.kind === 9041).map((h) => h.event.id) : []).join(","),
     [hits, tab],
   );
+  // Each shown goal's closed_at: receipts after it don't count (NIP-75). Read
+  // through a ref so the fetch below stays keyed on the ids alone.
+  const goalCloses = useRef(new Map<string, number>());
+  goalCloses.current = useMemo(() => {
+    const m = new Map<string, number>();
+    if (tab !== "fundraisers") return m;
+    for (const h of hits) {
+      if (h.event.kind !== 9041) continue;
+      const closes = Number(h.event.tags.find((t) => t[0] === "closed_at")?.[1]);
+      if (Number.isFinite(closes) && closes > 0) m.set(h.event.id, closes);
+    }
+    return m;
+  }, [hits, tab]);
   const goalFetched = useRef({ gen: 0, ids: new Set<string>() });
   useEffect(() => {
     const seen = goalFetched.current;
@@ -1229,7 +1242,7 @@ export function SearchResults({
     if (ids.length === 0) return;
     for (const id of ids) seen.ids.add(id);
     const gen = seen.gen;
-    void fetchGoalProgress(ids).then(({ byGoal, complete }) => {
+    void fetchGoalProgress(ids, undefined, goalCloses.current).then(({ byGoal, complete }) => {
       if (goalFetched.current.gen !== gen) return;
       setGoalProgress((prev) => ({
         byGoal: new Map([...prev.byGoal, ...byGoal]),

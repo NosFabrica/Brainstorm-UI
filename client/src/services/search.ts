@@ -1784,6 +1784,8 @@ export interface GoalProgress {
  * its invoice's amount (parseZapReceipt), never the amount its zap request
  * merely asked for; receipt signers are not checked against the goal
  * owner's LNURL server, so this is what the network reports, not an audit.
+ * A goal's `closed_at` (in `closesAt`, by id) ends it: receipts after it
+ * don't count (NIP-75).
  *
  * `complete` says whether the answer is the whole answer: the relay reached
  * EOSE before the deadline without filling the page. Only then does a goal
@@ -1793,6 +1795,7 @@ export interface GoalProgress {
 export function fetchGoalProgress(
   goalIds: string[],
   timeoutMs = 5000,
+  closesAt?: ReadonlyMap<string, number>,
 ): Promise<{ byGoal: Map<string, GoalProgress>; complete: boolean }> {
   return new Promise((resolve) => {
     const byGoal = new Map<string, GoalProgress>();
@@ -1812,6 +1815,8 @@ export function fetchGoalProgress(
           seen.add(e.id);
           const goal = e.tags.find((t) => t[0] === "e" && wanted.has(t[1]))?.[1];
           if (!goal) return;
+          const closes = closesAt?.get(goal);
+          if (closes !== undefined && e.created_at > closes) return;
           const receipt = parseZapReceipt(e);
           const row = tally.get(goal) ?? { msats: 0, zappers: [] };
           if (receipt.msats) row.msats += receipt.msats;
@@ -1855,16 +1860,9 @@ export function fetchFromSearch(
     const relay = searchRelay();
     if (!relay || filters.length === 0) return resolve([]);
     const byId = new Map<string, NostrEvent>();
+    const subs: { unsubscribe(): void }[] = [];
     let open = filters.length;
     let done = false;
-    const subs = filters.map((f) =>
-      relay.req({ limit, ...f, search: "include:spam" }).subscribe((msg: { type: string; event?: NostrEvent }) => {
-        if (msg.type === "EVENT" && msg.event) byId.set(msg.event.id, msg.event);
-        else if (msg.type === "EOSE" || msg.type === "CLOSED") {
-          if (--open <= 0) finish();
-        }
-      }),
-    );
     const timer = setTimeout(finish, timeoutMs);
     function finish() {
       if (done) return;
@@ -1872,6 +1870,24 @@ export function fetchFromSearch(
       clearTimeout(timer);
       subs.forEach((s) => s.unsubscribe());
       resolve([...byId.values()].sort((a, b) => b.created_at - a.created_at));
+    }
+    for (const f of filters) {
+      // A filter is settled by its EOSE, a CLOSED, or its stream failing — once.
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        if (--open <= 0) finish();
+      };
+      const sub = relay.req({ limit, ...f, search: "include:spam" }).subscribe({
+        next: (msg: { type: string; event?: NostrEvent }) => {
+          if (msg.type === "EVENT" && msg.event) byId.set(msg.event.id, msg.event);
+          else if (msg.type === "EOSE" || msg.type === "CLOSED") settle();
+        },
+        error: settle,
+      });
+      if (done) sub.unsubscribe();
+      else subs.push(sub);
     }
   });
 }

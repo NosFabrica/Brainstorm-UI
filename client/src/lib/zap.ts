@@ -90,12 +90,14 @@ export function buildZapRequest(opts: {
    * What the zap is FOR, when it is not just the person: a NIP-75 zap goal
    * is zapped by `e`-tagging it (and `a`-tagging it when addressable), and
    * the wallet copies those tags into the receipt — which is how the goal's
-   * progress is counted.
+   * progress is counted. `relays` are the goal's own (its `relays` tag).
    */
-  target?: { eventId?: string; address?: string };
+  target?: { eventId?: string; address?: string; relays?: string[] };
 }): EventTemplate {
+  // A goal's own relays join the recipient's, so the receipt lands where the goal is tallied (NIP-75).
+  const relays = [...new Set([...opts.relays, ...(opts.target?.relays ?? [])])];
   const tags: string[][] = [
-    ["relays", ...opts.relays], // one tag, URLs spread inline (NIP-57)
+    ["relays", ...relays], // one tag, URLs spread inline (NIP-57)
     ["amount", String(opts.amountMsat)], // millisats, string
     ["lnurl", opts.lnurl],
     opts.relayHint ? ["p", opts.recipientPubkey, opts.relayHint] : ["p", opts.recipientPubkey], // hex

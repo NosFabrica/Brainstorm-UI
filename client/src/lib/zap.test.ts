@@ -66,4 +66,14 @@ describe("what a zap is for", () => {
     expect(tags).toContainEqual(["e", "g".repeat(64)]);
     expect(tags).toContainEqual(["a", `33863:${"a".repeat(64)}:bitmoot`]);
   });
+
+  it("sends the receipt to the goal's own relays too, once each", () => {
+    const tags = buildZapRequest({
+      ...base,
+      target: { eventId: "g".repeat(64), relays: ["wss://goal.example", base.relays[0]] },
+    }).tags;
+    const relays = tags.find((t) => t[0] === "relays")!.slice(1);
+    expect(relays).toContain("wss://goal.example");
+    expect(new Set(relays).size).toBe(relays.length);
+  });
 });

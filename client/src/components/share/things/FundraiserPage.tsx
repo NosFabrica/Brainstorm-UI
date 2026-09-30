@@ -29,6 +29,7 @@ import {
   Section,
   SectionNote,
   nameOf,
+  refetch,
   useFetched,
   useProfileContent,
   type PageEvent,
@@ -44,15 +45,22 @@ interface Gift {
 
 const RECEIPTS_ASKED = 500;
 
-/** The receipts that name this fundraiser (by id, and by address when it has one), as gifts. */
-function useGifts(event: PageEvent): { gifts: Gift[]; capped: boolean } | undefined {
-  return useFetched(`fund-gifts:${event.id}`, async () => {
+const giftsKey = (event: PageEvent) => `fund-gifts:${event.id}`;
+
+/**
+ * The receipts that name this fundraiser (by id, and by address when it has
+ * one), as gifts. A zap goal's `closed_at` ends it: NIP-75 says receipts after
+ * it don't count, so they are left out.
+ */
+function useGifts(event: PageEvent, closesAt: number | null): { gifts: Gift[]; capped: boolean } | undefined {
+  return useFetched(giftsKey(event), async () => {
     const d = event.tags.find((t) => t[0] === "d")?.[1];
     const filters: Record<string, unknown>[] = [{ kinds: [9735], "#e": [event.id] }];
     if (d !== undefined && event.kind >= 30000)
       filters.push({ kinds: [9735], "#a": [`${event.kind}:${event.pubkey}:${d}`] });
     const receipts = await fetchFromSearch(filters, { limit: RECEIPTS_ASKED });
-    const gifts = receipts.map((e: NostrEvent) => {
+    const counted = closesAt === null ? receipts : receipts.filter((e) => e.created_at <= closesAt);
+    const gifts = counted.map((e: NostrEvent) => {
       const r = parseZapReceipt(e);
       return {
         id: e.id,
@@ -89,7 +97,7 @@ export function FundraiserHero({
   thing: Thing;
   detail: Detail<"fundraiser">;
 }) {
-  const result = useGifts(event);
+  const result = useGifts(event, detail.zapGoal ? detail.deadline : null);
   const raised = result ? result.gifts.reduce((n, g) => n + g.sats, 0) : null;
   const givers = result ? new Set(result.gifts.map((g) => g.pubkey).filter(Boolean)).size : 0;
   const pct = detail.zapGoal && raised !== null && detail.goalSats ? (raised / detail.goalSats) * 100 : null;
@@ -175,7 +183,12 @@ export function FundraiserHero({
 
       <Actions testId="thing-page-actions">
         {detail.zapGoal &&
-          (lud16 ? (
+          (detail.ended ? (
+            // Zaps after closed_at don't count (NIP-75): no button that takes money for nothing.
+            <span className="text-xs text-slate-500 dark:text-slate-400" data-testid="thing-page-closed">
+              This goal has closed.
+            </span>
+          ) : lud16 ? (
             <ActionButton primary icon={Zap} onClick={() => setZapping(true)} testId="thing-page-zap">
               Zap this goal
             </ActionButton>
@@ -218,10 +231,14 @@ export function FundraiserHero({
       )}
       {story && <ReadingText text={story} className="mt-4" testId="thing-page-description" />}
 
-      {detail.zapGoal && lud16 && (
+      {detail.zapGoal && !detail.ended && lud16 && (
         <ZapModal
           open={zapping}
-          onOpenChange={setZapping}
+          onOpenChange={(open) => {
+            setZapping(open);
+            // The receipt is usually out by the time the dialog closes: count it.
+            if (!open) refetch(giftsKey(event));
+          }}
           recipientPubkey={event.pubkey}
           lud16={lud16}
           displayName={(organizer?.display_name as string) || (organizer?.name as string) || "the organizer"}
@@ -229,6 +246,8 @@ export function FundraiserHero({
           target={{
             eventId: event.id,
             address: d !== undefined && event.kind >= 30000 ? `${event.kind}:${event.pubkey}:${d}` : undefined,
+            // NIP-75: the goal names the relays its zaps are sent to and tallied from.
+            relays: goalRelays(event),
           }}
         />
       )}
@@ -236,8 +255,14 @@ export function FundraiserHero({
   );
 }
 
-export function FundraiserSections({ event }: { event: PageEvent }) {
-  const result = useGifts(event);
+/** A zap goal's `relays` tag — the relays other clients tally its zaps from. */
+function goalRelays(event: PageEvent): string[] {
+  const tag = event.tags.find((t) => t[0] === "relays");
+  return (tag?.slice(1) ?? []).filter((r) => /^wss?:\/\//i.test(r));
+}
+
+export function FundraiserSections({ event, detail }: { event: PageEvent; detail: Detail<"fundraiser"> }) {
+  const result = useGifts(event, detail.zapGoal ? detail.deadline : null);
   const gifts = result?.gifts ?? [];
   const faces = useFaceProfiles([...new Set(gifts.map((g) => g.pubkey).filter((p): p is string => !!p))].slice(0, 60));
   return (

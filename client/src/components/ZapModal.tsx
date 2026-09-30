@@ -48,7 +48,7 @@ interface ZapModalProps {
   displayName: string;
   picture?: string;
   /** Zap an event rather than just the person (a NIP-75 zap goal) — see buildZapRequest. */
-  target?: { eventId?: string; address?: string };
+  target?: { eventId?: string; address?: string; relays?: string[] };
 }
 
 type Step = "loading" | "compose" | "invoice" | "fallback" | "error" | "unverified";

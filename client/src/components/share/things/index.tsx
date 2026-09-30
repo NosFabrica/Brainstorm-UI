@@ -64,7 +64,7 @@ export function ThingSections({ event }: { event: PageEvent }) {
     case "community":
       return <CommunitySections event={event} detail={d} />;
     case "fundraiser":
-      return <FundraiserSections event={event} />;
+      return <FundraiserSections event={event} detail={d} />;
     case "review":
       return <ReviewSections event={event} detail={d} />;
     case "shop":

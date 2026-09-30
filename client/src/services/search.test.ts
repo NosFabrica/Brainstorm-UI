@@ -65,6 +65,7 @@ import {
   fetchAppReviews,
   fetchAppZaps,
   fetchGoalProgress,
+  fetchFromSearch,
   fetchByAddress,
   bolt11Msats,
   parseZapReceipt,
@@ -1898,6 +1899,16 @@ describe("fetchGoalProgress", () => {
     expect(byGoal.has("8".repeat(64))).toBe(false);
   });
 
+  it("leaves out receipts after the goal's closed_at (NIP-75)", async () => {
+    const { subject } = controllable();
+    const pending = fetchGoalProgress([goal], 5000, new Map([[goal, 1]]));
+    await tick();
+    subject.next(frame(receipt("r1", "a".repeat(64), "lnbc10u1pjx")));
+    subject.next(frame({ ...receipt("r2", "b".repeat(64), "lnbc20u1pjx"), created_at: 2 }));
+    subject.next(EOSE);
+    expect((await pending).byGoal.get(goal)).toEqual({ sats: 1_000, zappers: ["a".repeat(64)] });
+  });
+
   it("an answer cut short by the deadline is not complete", async () => {
     vi.useFakeTimers();
     try {
@@ -1908,6 +1919,25 @@ describe("fetchGoalProgress", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("fetchFromSearch", () => {
+  it("merges its filters, newest first, and a failing stream settles at once instead of at the deadline", async () => {
+    const { subject } = controllable();
+    const good = reqMock.getMockImplementation()!;
+    let call = 0;
+    reqMock.mockImplementation((...args: unknown[]) =>
+      call++ === 0 ? throwError(() => new Error("closed")) : (good as (...a: unknown[]) => unknown)(...args),
+    );
+    const started = Date.now();
+    const pending = fetchFromSearch([{ kinds: [1] }, { kinds: [7] }], { timeoutMs: 60_000 });
+    await tick();
+    subject.next(frame({ ...ev("old"), created_at: 1 }));
+    subject.next(frame({ ...ev("new"), created_at: 2 }));
+    subject.next(EOSE);
+    expect((await pending).map((e) => e.id)).toEqual(["new", "old"]);
+    expect(Date.now() - started).toBeLessThan(5_000);
   });
 });
 

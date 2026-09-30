@@ -101,9 +101,11 @@ export function CommunitySections({ event, detail }: { event: PageEvent; detail:
   const posts = useFetched(detail.variant === "moderated" ? null : `community-posts:${event.id}`, () =>
     fetchFromSearch(conversationFilters(event, detail.variant), { limit: 30 }),
   );
-  // A NIP-29 group's roster is the relay's own kind-39002 list for that group id.
-  const members = useFetched(detail.variant === "group" ? `group-members:${dTag(event)}` : null, () =>
-    fetchFromSearch([{ kinds: [39002], "#d": [dTag(event)] }], { limit: 5 }).then((evs) => [
+  // A NIP-29 group's roster is the relay's own kind-39002 list for that group
+  // id, signed by the same relay key as the group's 39000 — group ids are
+  // only unique per relay, and anyone can publish a 39002 with the same `d`.
+  const members = useFetched(detail.variant === "group" ? `group-members:${event.pubkey}:${dTag(event)}` : null, () =>
+    fetchFromSearch([{ kinds: [39002], authors: [event.pubkey], "#d": [dTag(event)] }], { limit: 1 }).then((evs) => [
       ...new Set(
         evs.flatMap((e) => e.tags.filter((t) => t[0] === "p" && /^[0-9a-f]{64}$/i.test(t[1] ?? "")).map((t) => t[1])),
       ),

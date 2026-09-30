@@ -29,12 +29,19 @@ vi.mock("@/services/search", async (importOriginal) => {
 // The event card's RSVP button signs as the Active Account — not what these pages test.
 vi.mock("@/components/share/RsvpButton", () => ({ RsvpButton: () => null }));
 vi.mock("@/components/ZapModal", () => ({
-  ZapModal: (p: { open: boolean; target?: { eventId?: string } }) =>
-    p.open ? <div data-testid="zap-modal">zapping {p.target?.eventId}</div> : null,
+  ZapModal: (p: { open: boolean; onOpenChange: (o: boolean) => void; target?: { eventId?: string } }) =>
+    p.open ? (
+      <div data-testid="zap-modal">
+        zapping {p.target?.eventId}
+        <button type="button" onClick={() => p.onOpenChange(false)}>
+          close
+        </button>
+      </div>
+    ) : null,
 }));
 
 import { ThingHero, ThingSections, hasThingPage } from "./index";
-import { __resetThingPageCache, readablePost } from "./shared";
+import { __resetThingPageCache, fetchOnce, readablePost } from "./shared";
 
 const who = "7".repeat(64);
 let n = 0;
@@ -103,6 +110,8 @@ describe("Community pages", () => {
     await waitFor(() => expect(posts).toHaveTextContent("hello world"));
     expect(posts).not.toHaveTextContent("https://");
     expect(fromSearchMock).toHaveBeenCalledWith([{ kinds: [9, 11, 1111], "#h": ["g1"] }], expect.anything());
+    // The roster is the group relay's own list, never a stranger's 39002 with the same id.
+    expect(fromSearchMock).toHaveBeenCalledWith([{ kinds: [39002], authors: [who], "#d": ["g1"] }], expect.anything());
   });
 
   it("a NIP-72 community leaves its posts to the page's comment thread", async () => {
@@ -143,6 +152,38 @@ describe("Fundraiser page", () => {
     fireEvent.click(await screen.findByTestId("thing-page-zap"));
     expect(screen.getByTestId("zap-modal")).toHaveTextContent(goal.id);
     expect(fromSearchMock).toHaveBeenCalledWith([{ kinds: [9735], "#e": [goal.id] }], expect.anything());
+  });
+
+  it("leaves out zaps after the goal closed, and offers no zap button once it has", async () => {
+    const goal = ev(
+      9041,
+      [
+        ["amount", "10000000"],
+        ["closed_at", "1790000000"],
+      ],
+      "Closed goal",
+    );
+    const late = { ...receipt(500, "c".repeat(64)), created_at: 1_790_000_001 };
+    fromSearchMock.mockResolvedValue([receipt(21, "a".repeat(64)), late]);
+    profileMapMock.mockResolvedValue(new Map([[who, { name: "Slayer", lud16: "slayer@x.test" }]]));
+    page(goal);
+    const g = screen.getByTestId("thing-page-goal");
+    await waitFor(() => expect(g).toHaveTextContent(/21\s*sats raised/));
+    expect(g).toHaveTextContent("1 supporter");
+    expect(screen.getByTestId("thing-page-closed")).toBeInTheDocument();
+    expect(screen.queryByTestId("thing-page-zap")).toBeNull();
+  });
+
+  it("counts again once the zap dialog closes, one ask for hero and list", async () => {
+    const goal = ev(9041, [["amount", "10000000"]], "Open goal");
+    fromSearchMock.mockResolvedValue([receipt(21, "a".repeat(64))]);
+    profileMapMock.mockResolvedValue(new Map([[who, { name: "Slayer", lud16: "slayer@x.test" }]]));
+    page(goal);
+    await waitFor(() => expect(screen.getByTestId("thing-page-goal")).toHaveTextContent(/21\s*sats raised/));
+    const asked = fromSearchMock.mock.calls.length;
+    fireEvent.click(await screen.findByTestId("thing-page-zap"));
+    fireEvent.click(screen.getByText("close"));
+    await waitFor(() => expect(fromSearchMock.mock.calls.length).toBe(asked + 1));
   });
 
   it("an Agora campaign offers its bitcoin address instead of a bar", () => {
@@ -196,6 +237,34 @@ describe("Review page", () => {
       [{ kinds: [31987], "#d": ["wss://nos.lol", "wss://nos.lol/"] }],
       expect.anything(),
     );
+  });
+});
+
+describe("Review page, own review", () => {
+  it("counts the page's own review when the search relay doesn't return it", async () => {
+    const mine = ev(
+      31987,
+      [
+        ["d", "wss://relay.test"],
+        ["rating", "1"],
+      ],
+      "fast",
+    );
+    fromSearchMock.mockResolvedValue([
+      ev(
+        31987,
+        [
+          ["d", "wss://relay.test"],
+          ["rating", "0.6"],
+        ],
+        "ok",
+        "c".repeat(64),
+      ),
+    ]);
+    page(mine);
+    const avg = await screen.findByTestId("thing-page-average");
+    expect(avg).toHaveTextContent("4.0");
+    expect(avg).toHaveTextContent("2 ratings");
   });
 });
 
@@ -267,7 +336,11 @@ describe("Badge, emoji, playlist pages", () => {
     ]);
     page(badge);
     expect(await screen.findByTestId("thing-page-awardees")).toHaveTextContent("2");
-    expect(fromSearchMock).toHaveBeenCalledWith([{ kinds: [8], "#a": [`30009:${who}:ice`] }], expect.anything());
+    // Only the issuer's awards count: anyone else's is a forgery.
+    expect(fromSearchMock).toHaveBeenCalledWith(
+      [{ kinds: [8], authors: [who], "#a": [`30009:${who}:ice`] }],
+      expect.anything(),
+    );
   });
 
   it("an emoji pack shows every emoji with its shortcode", () => {
@@ -315,6 +388,52 @@ describe("Badge, emoji, playlist pages", () => {
     const tracks = await screen.findByTestId("thing-page-tracks");
     await waitFor(() => expect(tracks).toHaveTextContent("First"));
     expect(tracks.textContent!.indexOf("First")).toBeLessThan(tracks.textContent!.indexOf("Second"));
+  });
+
+  it("a track listed twice plays twice; none found says so", async () => {
+    const pk = "a".repeat(64);
+    const one = ev(
+      36787,
+      [
+        ["d", "1"],
+        ["title", "Loop"],
+        ["url", "https://x.test/1.mp3"],
+      ],
+      "",
+      pk,
+    );
+    byAddressMock.mockResolvedValue(new Map([[`36787:${pk}:1`, one]]));
+    page(
+      ev(34139, [
+        ["d", "rep"],
+        ["title", "Repeat"],
+        ["a", `36787:${pk}:1`],
+        ["a", `36787:${pk.toUpperCase()}:1`],
+      ]),
+    );
+    const tracks = await screen.findByTestId("thing-page-tracks");
+    await waitFor(() => expect(tracks.textContent!.split("Loop").length - 1).toBe(2));
+
+    byAddressMock.mockResolvedValue(new Map());
+    page(
+      ev(34139, [
+        ["d", "gone"],
+        ["title", "Gone"],
+        ["a", `36787:${pk}:9`],
+      ]),
+    );
+    expect(await screen.findByText("None of these tracks are on the search relay yet.")).toBeInTheDocument();
+  });
+});
+
+describe("fetchOnce", () => {
+  it("asks once while fresh, and forgets a failed ask", async () => {
+    const load = vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue(7);
+    await expect(fetchOnce("k", load)).rejects.toThrow("down");
+    await Promise.resolve();
+    expect(await fetchOnce("k", load)).toBe(7);
+    expect(await fetchOnce("k", load)).toBe(7);
+    expect(load).toHaveBeenCalledTimes(2);
   });
 });
 

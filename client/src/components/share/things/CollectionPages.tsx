@@ -34,6 +34,11 @@ import {
 
 const dOf = (e: PageEvent) => e.tags.find((t) => t[0] === "d")?.[1] ?? "";
 const addressOf = (e: PageEvent) => `${e.kind}:${e.pubkey}:${dOf(e)}`;
+/** `kind:pubkey:d` with the pubkey lower-cased — how fetchByAddress keys what it found. */
+const normalCoord = (c: string) => {
+  const [k, pk, ...d] = c.split(":");
+  return [k, pk?.toLowerCase(), ...d].join(":");
+};
 const coordsOf = (e: PageEvent, kinds: number[]) =>
   e.tags.filter((t) => t[0] === "a" && kinds.some((k) => t[1]?.startsWith(`${k}:`))).map((t) => t[1]);
 
@@ -203,9 +208,11 @@ export function BadgeHero({ thing }: { thing: Thing }) {
 }
 
 export function BadgeSections({ event }: { event: PageEvent }) {
-  // NIP-58 awards (kind 8) name the badge by address; their `p` tags are who got it.
+  // NIP-58 awards (kind 8) name the badge by address; their `p` tags are who
+  // got it. Only the badge's issuer can award it — an award signed by anyone
+  // else is a forgery, so the filter asks for the issuer's alone.
   const awardees = useFetched(`badge-awards:${event.id}`, () =>
-    fetchFromSearch([{ kinds: [8], "#a": [addressOf(event)] }], { limit: 300 }).then((evs) => [
+    fetchFromSearch([{ kinds: [8], authors: [event.pubkey], "#a": [addressOf(event)] }], { limit: 300 }).then((evs) => [
       ...new Set(
         evs.flatMap((e) => e.tags.filter((t) => t[0] === "p" && /^[0-9a-f]{64}$/i.test(t[1] ?? "")).map((t) => t[1])),
       ),
@@ -337,9 +344,11 @@ export function PlaylistHero({ thing, detail }: { thing: Thing; detail: Detail<"
 export function PlaylistSections({ event, detail }: { event: PageEvent; detail: Detail<"playlist"> }) {
   const coords = event.tags.filter((t) => t[0] === "a" && t[1]).map((t) => t[1]);
   const found = useFetched(coords.length ? `playlist-tracks:${event.id}` : null, () => fetchByAddress(coords));
-  // In the playlist's own order; a track the network does not have is skipped, and counted.
+  // In the playlist's own order; a track the network does not have is skipped,
+  // and counted. fetchByAddress keys by lower-case pubkey; a track listed twice
+  // plays twice.
   const tracks = found
-    ? coords.map((c) => found.get(c)).filter((e): e is NostrEvent => !!e && parseTrack(e) !== null)
+    ? coords.map((c) => found.get(normalCoord(c))).filter((e): e is NostrEvent => !!e && parseTrack(e) !== null)
     : [];
   const missing = found ? coords.length - tracks.length : 0;
   if (coords.length === 0 && detail.trackLines.length === 0) return null;
@@ -349,10 +358,12 @@ export function PlaylistSections({ event, detail }: { event: PageEvent; detail: 
         <SectionNote>Loading the tracks…</SectionNote>
       ) : tracks.length > 0 ? (
         <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white px-2 dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
-          {tracks.map((e) => (
-            <TrackCard key={e.id} event={e} author={null} flat />
+          {tracks.map((e, i) => (
+            <TrackCard key={`${e.id}-${i}`} event={e} author={null} flat />
           ))}
         </div>
+      ) : detail.trackLines.length === 0 ? (
+        <SectionNote>None of these tracks are on the search relay yet.</SectionNote>
       ) : (
         <ol className="space-y-1 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
           {detail.trackLines.map((l, i) => (

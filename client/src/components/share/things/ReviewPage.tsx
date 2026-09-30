@@ -34,22 +34,23 @@ import {
 
 const tagOf = (e: PageEvent, k: string) => e.tags.find((t) => t[0] === k)?.[1];
 
-/** Every review of the same subject, this one included. */
+/**
+ * Every review of the same subject, this one included. An empty identifier
+ * names no subject — asking for `#d: [""]` would gather every review that
+ * left it blank — so it asks nothing.
+ */
 function reviewFilters(event: PageEvent, subject: Detail<"review">["subject"]): Record<string, unknown>[] {
-  const d = tagOf(event, "d") ?? "";
+  const d = tagOf(event, "d")?.trim() ?? "";
   if (subject === "relay") {
     // Publishers disagree on the trailing slash; both spellings are the same relay.
     const bare = d.replace(/\/+$/, "");
-    return [{ kinds: [31987], "#d": [bare, `${bare}/`] }];
+    return bare ? [{ kinds: [31987], "#d": [bare, `${bare}/`] }] : [];
   }
   if (subject === "mint") {
-    const u = tagOf(event, "u") ?? d;
-    return [
-      { kinds: [38000], "#u": [u] },
-      { kinds: [38000], "#d": [d] },
-    ];
+    const u = tagOf(event, "u")?.trim();
+    return [...(u ? [{ kinds: [38000], "#u": [u] }] : []), ...(d ? [{ kinds: [38000], "#d": [d] }] : [])];
   }
-  return [{ kinds: [34259], "#d": [d] }];
+  return d ? [{ kinds: [34259], "#d": [d] }] : [];
 }
 
 /** A rating of an addressable thing names it; the subject's own title, when the network has it. */
@@ -168,8 +169,9 @@ export function ReviewSections({ event, detail }: { event: PageEvent; detail: De
     fetchFromSearch(reviewFilters(event, detail.subject), { limit: 200 }),
   );
   // One review per author — their newest — scored on this kind's own scale.
-  const byAuthor = new Map<string, NostrEvent>();
-  for (const e of all ?? []) {
+  // The page's own review counts even when the search relay hasn't got it.
+  const byAuthor = new Map<string, PageEvent>();
+  for (const e of all ? [event, ...all] : []) {
     const held = byAuthor.get(e.pubkey);
     if (!held || e.created_at > held.created_at) byAuthor.set(e.pubkey, e);
   }

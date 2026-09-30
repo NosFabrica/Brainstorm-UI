@@ -377,21 +377,36 @@ export function ActivityList({
 // ——— Fetching ———
 
 /**
- * One answer per key for the page's life: the hero and the sections below it
- * ask the same questions (a fundraiser's zaps feed both its bar and its
- * supporter list), and each is asked once. Bounded, oldest out.
+ * One answer per key, shared: the hero and the sections below it ask the same
+ * questions (a fundraiser's zaps feed both its bar and its zap list), and each
+ * is asked once. An answer is kept for a couple of minutes — long enough for
+ * back-and-forth navigation, short enough that a page opened later shows what
+ * has happened since. A failed ask is forgotten, so the next visit asks again.
+ * Bounded, oldest out.
  */
-const answers = new Map<string, Promise<unknown>>();
+const answers = new Map<string, { p: Promise<unknown>; at: number }>();
 const ANSWERS_KEPT = 64;
+const ANSWER_TTL_MS = 2 * 60_000;
+/** Who is showing each key, so `refetch` can tell them to ask again. */
+const watchers = new Map<string, Set<() => void>>();
 
 export function fetchOnce<T>(key: string, load: () => Promise<T>): Promise<T> {
-  let p = answers.get(key) as Promise<T> | undefined;
-  if (!p) {
-    p = load();
-    answers.set(key, p);
-    if (answers.size > ANSWERS_KEPT) answers.delete(answers.keys().next().value as string);
-  }
+  const held = answers.get(key);
+  if (held && Date.now() - held.at < ANSWER_TTL_MS) return held.p as Promise<T>;
+  const p = load();
+  answers.delete(key); // re-inserted last: the map's order is its age
+  answers.set(key, { p, at: Date.now() });
+  p.catch(() => {
+    if (answers.get(key)?.p === p) answers.delete(key);
+  });
+  if (answers.size > ANSWERS_KEPT) answers.delete(answers.keys().next().value as string);
   return p;
+}
+
+/** Forget `key`'s answer and have every component showing it ask again (after a zap, say). */
+export function refetch(key: string) {
+  answers.delete(key);
+  watchers.get(key)?.forEach((ask) => ask());
 }
 
 /** Test seam: forget every cached answer. */
@@ -402,17 +417,29 @@ export function __resetThingPageCache() {
 /** What `load` answered for `key` — undefined while it asks; `null` key asks nothing. */
 export function useFetched<T>(key: string | null, load: () => Promise<T>): T | undefined {
   const [state, setState] = useState<{ key: string | null; value: T | undefined }>({ key: null, value: undefined });
+  const [round, setRound] = useState(0);
   useEffect(() => {
     if (!key) return;
     let alive = true;
-    void fetchOnce(key, load).then((value) => {
-      if (alive) setState({ key, value });
-    });
+    const ask = () => setRound((r) => r + 1);
+    const set = watchers.get(key) ?? new Set();
+    set.add(ask);
+    watchers.set(key, set);
+    fetchOnce(key, load).then(
+      (value) => {
+        if (alive) setState({ key, value });
+      },
+      () => {
+        /* forgotten by fetchOnce; the section keeps its quiet "looking…" line */
+      },
+    );
     return () => {
       alive = false;
+      set.delete(ask);
+      if (set.size === 0) watchers.delete(key);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the key names the question
-  }, [key]);
+  }, [key, round]);
   return state.key === key ? state.value : undefined;
 }
 
@@ -427,8 +454,12 @@ export function useProfileContent(pubkey: string | null): Record<string, unknown
         /* fall through to the network */
       }
     }
-    const map = await fetchProfileMap([pubkey as string]);
-    return (map.get(pubkey as string) as Record<string, unknown> | undefined) ?? {};
+    try {
+      const map = await fetchProfileMap([pubkey as string]);
+      return (map.get(pubkey as string) as Record<string, unknown> | undefined) ?? {};
+    } catch {
+      return {};
+    }
   });
 }
 
