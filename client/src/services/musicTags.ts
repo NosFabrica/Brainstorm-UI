@@ -9,13 +9,10 @@
  * the trust the chip already has. Once per session; a failed read is
  * nobody, silently, and is asked again on the next visit.
  */
-import { nip19 } from "nostr-tools";
 import { CATEGORY_TAGS } from "@/lib/dlists";
-import type { SearchResult } from "@/lib/profileSearch";
+import { profileToSearchResult, type ProfileLite, type SearchResult } from "@/lib/profileSearch";
 import { fetchProfileMap } from "@/services/nostr";
 import { fetchTagDetail } from "@/services/tags";
-
-type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string; about?: string };
 
 async function lookup(): Promise<SearchResult[]> {
   const tags = CATEGORY_TAGS.filter((t) => t.category === "music");
@@ -23,18 +20,7 @@ async function lookup(): Promise<SearchResult[]> {
   const pubkeys = [...new Set(details.flatMap((d) => d.carriers.map((c) => c.pubkey)))];
   if (pubkeys.length === 0) return [];
   const profiles = (await fetchProfileMap(pubkeys).catch(() => new Map())) as Map<string, ProfileLite>;
-  return pubkeys.map((pubkey) => {
-    const p = profiles.get(pubkey);
-    return {
-      pubkey,
-      npub: nip19.npubEncode(pubkey),
-      name: p?.name,
-      displayName: p?.display_name,
-      picture: p?.picture,
-      nip05: p?.nip05,
-      about: p?.about,
-    };
-  });
+  return pubkeys.map((pubkey) => profileToSearchResult(pubkey, profiles.get(pubkey)));
 }
 
 let cached: Promise<SearchResult[]> | null = null;

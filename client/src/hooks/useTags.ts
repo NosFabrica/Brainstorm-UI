@@ -140,11 +140,13 @@ export function usePickerTags(enabled = true) {
  * After that first fetch it's cached for half an hour and every later keystroke
  * filters in memory — no relay traffic per character.
  */
-export function useTagMatches(query: string, max = 3): TagSummary[] {
+export function useTagMatches(query: string, max = 3, { fetch = true }: { fetch?: boolean } = {}): TagSummary[] {
   // The catalogue is megabytes; a poor connection does without tag suggestions.
   const speed = useConnectionSpeed();
   const enabled = query.trim().length >= 2 && speed === "normal";
-  const { data } = useTagIndex(enabled);
+  // `fetch: false` reads whatever the dropdown already pulled and never asks
+  // itself — a results page opened from a link must not pull the catalogue.
+  const { data } = useTagIndex(enabled && fetch);
   return useMemo(() => (enabled ? matchTags(data ?? [], query, max) : []), [enabled, data, query, max]);
 }
 

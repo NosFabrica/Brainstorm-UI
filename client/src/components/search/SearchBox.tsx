@@ -68,6 +68,11 @@ import { useConnectionSpeed } from "@/lib/connection";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { usePersonContent } from "@/hooks/usePersonContent";
 import { useTagMatches } from "@/hooks/useTags";
+import { useTagCarriers } from "@/hooks/useTagCarriers";
+import { leadingCarriers, mergeCarrierPeople, personTagChips, tagsCarriedBy } from "@/lib/tagCarrierPeople";
+import { leadingTags } from "@/lib/tagMatch";
+import { usePersonTags } from "@/hooks/usePersonTags";
+import { PersonTagChips } from "@/components/search/PersonTagChips";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useSearchPov } from "@/hooks/useSearchPov";
 import { useOpenProfile } from "@/hooks/useOpenProfile";
@@ -236,9 +241,52 @@ export function SearchBox({
   // True while the field's own calendar or group picker owns the space under the box; the
   // suggestion dropdown stands down rather than stacking two lists on one square.
   const [fieldPicking, setFieldPicking] = useState(false);
+  const topicMatch = useMemo(() => parseTopicQuery(value), [value]);
+  // Tags the query matches. Skipped entirely for `#topic` queries — those are
+  // already routed at the hashtag feed and shouldn't offer a second answer.
+  // Only while suggestions show — a query restored from the URL mustn't pull the whole catalogue.
+  const tagMatches = useTagMatches(topicMatch.isTopic || !showSuggestions ? "" : value);
+  // The people those tags are on — they wear the tag (the team, 2026-09-29),
+  // and lead the list only when the words ARE a tag's name and the tag carries
+  // weight (lib/tagMatch): a prefix is an offer, not a ranking.
+  const carriers = useTagCarriers(tagMatches, { pov: effectivePov, viewerPubkey: user?.pubkey });
+  const leadPeople = useMemo(
+    () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, value)),
+    [carriers.people, carriers.byPubkey, tagMatches, value],
+  );
   // Relay hits carry no rank numbers (order-only wire) — the dropdown's rings
   // and coins feed from the shared author-score cache, like every card.
-  const suggestScoreOf = useAuthorScores(useMemo(() => suggestions.map((x) => x.pubkey), [suggestions]));
+  const suggestScoreOf = useAuthorScores(
+    useMemo(
+      () => [...suggestions.map((x) => x.pubkey), ...carriers.people.map((x) => x.pubkey)],
+      [suggestions, carriers.people],
+    ),
+  );
+  const carrierSets = useMemo(() => {
+    const sets = new Map<string, Set<string>>();
+    for (const [pubkey, tags] of carriers.byPubkey) {
+      for (const tag of tags) {
+        const set = sets.get(tag.key) ?? new Set<string>();
+        set.add(pubkey);
+        sets.set(tag.key, set);
+      }
+    }
+    return sets;
+  }, [carriers.byPubkey]);
+  // The rows: the tag's people first, best-scored first, then the names the
+  // relay found. A few carriers at most lead, so a name match is never hidden
+  // behind a tag that happens to share its words.
+  const rows = useMemo(
+    () =>
+      mergeCarrierPeople({
+        relay: suggestions,
+        carriers: leadPeople,
+        scoreOf: suggestScoreOf,
+        leadCap: 4,
+        limit: 7,
+      }),
+    [suggestions, leadPeople, suggestScoreOf],
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<SearchFieldHandle | null>(null);
@@ -514,19 +562,13 @@ export function SearchBox({
   // Under a scope only the WORDS can be a pasted key — the scope's own npub
   // is the person, not an entity to open.
   const entityMatch = useMemo(() => resolveEntityToPath((scope ? words : value).trim()), [value, scope, words]);
-  const topicMatch = useMemo(() => parseTopicQuery(value), [value]);
-  // Tags the query matches. Skipped entirely for `#topic` queries — those are
-  // already routed at the hashtag feed and shouldn't offer a second answer.
-  // Only while suggestions show — a query restored from the URL mustn't pull the whole catalogue.
-  const tagMatches = useTagMatches(topicMatch.isTopic || !showSuggestions ? "" : value);
-  // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
   const dropdownOpen =
     !fieldPicking &&
     (sheet
       ? // The sheet keeps its list up while there are words: "See all" is never a dead end.
         value.trim().length > 0
       : showSuggestions &&
-        (suggestions.length > 0 ||
+        (rows.length > 0 ||
           productSuggestions.length > 0 ||
           isSuggesting ||
           topicMatch.isTopic ||
@@ -541,17 +583,21 @@ export function SearchBox({
   const personContent = usePersonContent(
     useMemo(
       () => [
-        ...suggestions.map((s) => s.pubkey),
+        ...rows.map((s) => s.pubkey),
         ...(showRecent ? recent.flatMap((r) => (r.type === "profile" ? [r.pubkey] : [])) : []),
       ],
-      [suggestions, recent, showRecent],
+      [rows, recent, showRecent],
     ),
   );
-  // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
-  const intent = useMemo(
-    () => intentTarget(searchIntent(value), suggestions, personContent),
-    [value, suggestions, personContent],
+  // Each person's own tags — quiet chips on every row (the team, 2026-09-29:
+  // tags are important to see when searching for people); the tag the words
+  // matched is the loud one.
+  const personTags = usePersonTags(
+    useMemo(() => rows.map((s) => s.pubkey), [rows]),
+    { pov: effectivePov, viewerPubkey: user?.pubkey },
   );
+  // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
+  const intent = useMemo(() => intentTarget(searchIntent(value), rows, personContent), [value, rows, personContent]);
 
   // Recents change as the reader searches elsewhere — read them fresh each time they show.
   useEffect(() => {
@@ -643,8 +689,7 @@ export function SearchBox({
           onRemoveToken={onRemoveToken}
           onFocus={() => {
             setFocused(true);
-            if (typedSinceSearchRef.current && suggestions.length > 0 && value.trim().length >= 2)
-              setShowSuggestions(true);
+            if (typedSinceSearchRef.current && rows.length > 0 && value.trim().length >= 2) setShowSuggestions(true);
           }}
           onBlur={() => setFocused(false)}
           onPointerDown={() => setEngaged(true)}
@@ -652,8 +697,8 @@ export function SearchBox({
             // Only open a single profile when the user explicitly arrow-keyed
             // to a suggestion. Plain typing + Enter (even with the mouse
             // resting over the dropdown) always runs a full text search.
-            if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
-              pickSuggestion(suggestions[activeSuggestion]);
+            if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && rows[activeSuggestion]) {
+              pickSuggestion(rows[activeSuggestion]);
               return;
             }
             // `typed`, not `value`: a soft keyboard's action key commits text and submits
@@ -668,13 +713,13 @@ export function SearchBox({
           }}
           onKeyDown={(e) => {
             setEngaged(true);
-            if (e.key === "ArrowDown" && showSuggestions && suggestions.length > 0) {
+            if (e.key === "ArrowDown" && showSuggestions && rows.length > 0) {
               e.preventDefault();
               kbdNavRef.current = true;
-              setActiveSuggestion((i) => Math.min(i + 1, suggestions.length - 1));
+              setActiveSuggestion((i) => Math.min(i + 1, rows.length - 1));
               return true;
             }
-            if (e.key === "ArrowUp" && showSuggestions && suggestions.length > 0) {
+            if (e.key === "ArrowUp" && showSuggestions && rows.length > 0) {
               e.preventDefault();
               kbdNavRef.current = true;
               setActiveSuggestion((i) => Math.max(i - 1, -1));
@@ -735,7 +780,7 @@ export function SearchBox({
               }}
               testId="home-topic"
             />
-          ) : isSuggesting && suggestions.length === 0 && tagMatches.length === 0 ? (
+          ) : isSuggesting && rows.length === 0 && tagMatches.length === 0 ? (
             <div
               className="flex items-center gap-2 px-4 py-3 text-xs text-slate-400 dark:text-slate-500"
               data-testid="home-suggestions-loading"
@@ -779,8 +824,12 @@ export function SearchBox({
                 className={cn(!sheet && "min-h-0 flex-1 overflow-y-auto overscroll-contain")}
                 data-testid="list-home-suggestions"
               >
-                {suggestions.map((s, i) => {
+                {rows.map((s, i) => {
                   const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
+                  const rowTags = personTagChips(
+                    personTags.get(s.pubkey),
+                    tagMatches.length > 0 && carriers.settled ? tagsCarriedBy(s.pubkey, carrierSets, tagMatches) : [],
+                  );
                   const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
                   return (
                     // A div, not a button: the chips inside are links, and the
@@ -835,7 +884,22 @@ export function SearchBox({
                           onLeave?.();
                         }}
                         linkTabIndex={-1}
-                        className="sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100"
+                        className={cn(
+                          "sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100",
+                          // On a phone the tag is the chip that matters on this row; the rest wait for a wider screen.
+                          (rowTags?.chips.length ?? 0) > 0 && "hidden sm:inline-flex",
+                        )}
+                      />
+                      {/* Their tags, at the right edge where a list scans: the matched one loud, the rest quiet. */}
+                      <PersonTagChips
+                        tags={rowTags?.chips}
+                        emphasis={rowTags?.emphasis}
+                        max={2}
+                        onNavigate={() => {
+                          setShowSuggestions(false);
+                          onLeave?.();
+                        }}
+                        linkTabIndex={-1}
                       />
                       {/* Same coin as the results list and every people list. */}
                       {rank != null && (

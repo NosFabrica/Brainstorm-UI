@@ -11,7 +11,7 @@ import { setTechnicalView } from "@/lib/technicalView";
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot } from "@/services/search";
 
@@ -113,6 +113,18 @@ const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.85)
 // What a scoped person publishes — the empty tab under a scope offers it.
 const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
 vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
+// Tags the words match, and the people on them — the People tab leads with those people.
+const tagMatchesMock = vi.fn((_q: string): unknown[] => []);
+vi.mock("@/hooks/useTags", () => ({ useTagMatches: (q: string) => tagMatchesMock(q) }));
+const carriersMock = vi.fn((_tags: unknown[]) => ({
+  byPubkey: new Map<string, unknown[]>(),
+  people: [] as unknown[],
+  settled: true,
+}));
+vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
+// Each person's own tags — quiet chips on every row.
+const personTagsMock = vi.fn((_pks: readonly string[]) => new Map<string, unknown[] | undefined>());
+vi.mock("@/hooks/usePersonTags", () => ({ usePersonTags: (pks: readonly string[]) => personTagsMock(pks) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 // One Bitcoin price for the Shop page — fixed here so a sats price converts to round money.
 const TEST_RATES = { USD: 100_000, EUR: 90_000, GBP: 80_000, CAD: 140_000, CHF: 85_000, AUD: 150_000, JPY: 15_000_000 };
@@ -245,6 +257,12 @@ beforeEach(() => {
   flagsMock.mockImplementation(() => false);
   reachMock.mockReturnValue({ direct: new Set(), friends: new Set(), ready: true });
   scoreOfMock.mockImplementation(() => 0.85);
+  tagMatchesMock.mockReset();
+  tagMatchesMock.mockReturnValue([]);
+  carriersMock.mockReset();
+  carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: true });
+  personTagsMock.mockReset();
+  personTagsMock.mockImplementation((pks) => new Map(pks.map((pk) => [pk, []])));
   ratesMock.mockReset();
   ratesMock.mockReturnValue(TEST_RATES);
   wavlakeCatalogueMock.mockResolvedValue({ artists: [], albums: [], songs: [] });
@@ -4128,6 +4146,192 @@ describe("the Music tab's V4V lists from Podcast Index", () => {
     emit({ hits: [], eose: true, timeMs: 150 });
     await screen.findByTestId(/^podcastindex-song-/);
     expect(within(screen.getByTestId("music-artists")).getByTestId(/^music-artist-podcastindex-/)).toBeInTheDocument();
+  });
+});
+
+describe("a People search whose words match a tag", () => {
+  const TAG_AUTHOR = "9".repeat(64);
+  const human = {
+    key: `39999:${TAG_AUTHOR}:verified-human`,
+    authorPubkey: TAG_AUTHOR,
+    slug: "verified-human",
+    name: "Verified Human",
+    people: 5,
+    vouches: 2,
+    sharesName: 0,
+    unverified: false,
+  };
+  const pk = (c: string) => c.repeat(64);
+  const carrier = (c: string, name: string) => ({ ...author(pk(c), name), applications: 1, addedAt: 0 });
+  const carriersOf = (people: ReturnType<typeof carrier>[]) => ({
+    byPubkey: new Map(people.map((p) => [p.pubkey, [human]])),
+    people,
+    settled: true,
+  });
+  const nameOf = (i: number) => screen.getByTestId(`text-result-name-${i}`).textContent;
+
+  beforeEach(() => {
+    setUrlTab("people");
+    window.history.replaceState({}, "", "/?q=verified%20human&t=people");
+    tagMatchesMock.mockReturnValue([human]);
+  });
+
+  it("leads with the tag's people, best first, each wearing the tag; the relay's name match follows without one", async () => {
+    carriersMock.mockReturnValue(carriersOf([carrier("b", "Bill"), carrier("a", "Avi")]));
+    scoreOfMock.mockImplementation((p) => (p === pk("a") ? 0.9 : p === pk("b") ? 0.5 : 0.7));
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: person("p1", pk("c"), "Human Verifier"), author: author(pk("c"), "Human Verifier"), rank: null }],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("result-profile-2");
+    expect([0, 1, 2].map(nameOf)).toEqual(["Avi", "Bill", "Human Verifier"]);
+    const chip = within(screen.getByTestId("result-profile-0")).getByTestId("person-tag-chip-verified-human");
+    expect(chip).toHaveTextContent("Verified Human");
+    expect(
+      within(screen.getByTestId("result-profile-1")).getByTestId("person-tag-chip-verified-human"),
+    ).toBeInTheDocument();
+    expect(within(screen.getByTestId("result-profile-2")).queryByTestId("person-tag-chip-verified-human")).toBeNull();
+  });
+
+  it("a prefix of the tag's name marks its people but leaves the relay's order alone", async () => {
+    const aos = {
+      ...human,
+      key: `39999:${TAG_AUTHOR}:aos-2026`,
+      slug: "aos-2026",
+      name: "AOS 2026 Participant",
+      people: 99,
+    };
+    tagMatchesMock.mockReturnValue([aos]);
+    carriersMock.mockReturnValue({
+      byPubkey: new Map([[pk("a"), [aos]]]),
+      people: [carrier("a", "Alice")],
+      settled: true,
+    });
+    window.history.replaceState({}, "", "/?q=aos&t=people");
+    render(<SearchResults query="aos" pov="nosfabrica" />);
+    emit({
+      hits: [
+        { event: person("p1", pk("c"), "Aos Lopez"), author: author(pk("c"), "Aos Lopez"), rank: null },
+        { event: person("p2", pk("a"), "Alice"), author: author(pk("a"), "Alice"), rank: null },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("result-profile-1");
+    expect([0, 1].map(nameOf)).toEqual(["Aos Lopez", "Alice"]);
+    expect(within(screen.getByTestId("result-profile-1")).getByTestId("person-tag-chip-aos-2026")).toHaveAttribute(
+      "data-emphasis",
+      "loud",
+    );
+  });
+
+  it("shows a person the relay also found once, in the tag's place, with the relay's fuller profile", async () => {
+    carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({
+      hits: [
+        { event: person("p1", pk("c"), "Human Verifier"), author: author(pk("c"), "Human Verifier"), rank: null },
+        {
+          event: person("p2", pk("a"), "Avi"),
+          author: { ...author(pk("a"), "Avi"), nip05: "avi@nip21.media" },
+          rank: null,
+        },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("result-profile-1");
+    expect([0, 1].map(nameOf)).toEqual(["Avi", "Human Verifier"]);
+    expect(screen.queryByTestId("result-profile-2")).toBeNull();
+    expect(within(screen.getByTestId("result-profile-0")).getByTestId("text-nip05-0")).toHaveTextContent(
+      "avi@nip21.media",
+    );
+  });
+
+  it("is not Nothing found when the relay found nobody but the tag has people", async () => {
+    carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 100 });
+    await screen.findByTestId("result-profile-0");
+    expect(screen.queryByText(/Nothing found/i)).toBeNull();
+  });
+
+  it("holds the skeleton until the tag hub answers, then paints the tag's people and the relay's together", async () => {
+    carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: false });
+    const { rerender } = render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: person("p1", pk("c"), "Human Verifier"), author: author(pk("c"), "Human Verifier"), rank: null }],
+      eose: true,
+      timeMs: 100,
+    });
+    await act(async () => {});
+    expect(screen.queryByTestId("result-profile-0")).toBeNull();
+    expect(screen.queryByText(/Nothing found/i)).toBeNull();
+    carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    rerender(<SearchResults query="verified human" pov="nosfabrica" />);
+    await screen.findByTestId("result-profile-1");
+    expect([0, 1].map(nameOf)).toEqual(["Avi", "Human Verifier"]);
+  });
+
+  it("keeps the order it painted when a score lands late", async () => {
+    carriersMock.mockReturnValue(carriersOf([carrier("b", "Bill"), carrier("a", "Avi")]));
+    scoreOfMock.mockImplementation((p) => (p === pk("a") ? 0.9 : p === pk("b") ? 0.5 : 0.7));
+    const { rerender } = render(<SearchResults query="verified human" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 100 });
+    await screen.findByTestId("result-profile-1");
+    expect([0, 1].map(nameOf)).toEqual(["Avi", "Bill"]);
+    // Bill's score arrives higher a moment later — the block does not jump.
+    scoreOfMock.mockImplementation((p) => (p === pk("a") ? 0.9 : p === pk("b") ? 0.95 : 0.7));
+    rerender(<SearchResults query="verified human" pov="nosfabrica" />);
+    await act(async () => {});
+    expect([0, 1].map(nameOf)).toEqual(["Avi", "Bill"]);
+  });
+
+  it("a chip tap opens the tag page, not the person", async () => {
+    const onOpenProfile = vi.fn();
+    carriersMock.mockReturnValue(carriersOf([carrier("a", "Avi")]));
+    render(<SearchResults query="verified human" pov="nosfabrica" onOpenProfile={onOpenProfile} />);
+    emit({ hits: [], eose: true, timeMs: 100 });
+    const chip = await screen.findByTestId("person-tag-chip-verified-human");
+    fireEvent.click(chip);
+    expect(onOpenProfile).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe(`/tags/${nip19.npubEncode(TAG_AUTHOR)}/verified-human`);
+  });
+});
+
+describe("a person's own tags on their People card", () => {
+  const AUTHOR = "9".repeat(64);
+  const own = (slug: string, applications: number) => ({
+    key: `${AUTHOR}|${slug}`,
+    authorPubkey: AUTHOR,
+    slug,
+    name: slug,
+    applications,
+    disputes: 0,
+    asserters: [],
+    selfDeclared: false,
+    subjectDisagreed: false,
+    counted: true,
+    sharesName: 1,
+    addedAt: 0,
+  });
+
+  it("a name search wears the person's tags quietly at the card's right edge", async () => {
+    setUrlTab("people");
+    const nathan = "a".repeat(64);
+    personTagsMock.mockImplementation(
+      (pks) => new Map(pks.map((pk) => [pk, pk === nathan ? [own("verified-human", 3)] : []])),
+    );
+    render(<SearchResults query="nathan" pov="nosfabrica" />);
+    emit({
+      hits: [{ event: person("p1", nathan, "Nathan Day"), author: author(nathan, "Nathan Day"), rank: null }],
+      eose: true,
+      timeMs: 100,
+    });
+    const card = await screen.findByTestId("result-profile-0");
+    expect(within(card).getByTestId("person-tag-chip-verified-human")).toHaveAttribute("data-emphasis", "quiet");
   });
 });
 
