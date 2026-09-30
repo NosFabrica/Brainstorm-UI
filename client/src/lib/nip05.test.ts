@@ -32,6 +32,11 @@ describe("parseNip05", () => {
     expect(parseNip05("_@[::1]")).toBeNull();
     expect(parseNip05("_@-bad.com")).toBeNull();
   });
+  it("won't aim them at a LAN-only name either", () => {
+    expect(parseNip05("_@umbrel.local")).toBeNull();
+    expect(parseNip05("bob@nas.lan")).toBeNull();
+    expect(parseNip05("_@relay.home.arpa")).toBeNull();
+  });
 });
 
 describe("verifyNip05", () => {

@@ -11,8 +11,9 @@
  * `relayRouting` re-exports all of this, so the rest of the app can keep asking
  * the routing module for it.
  */
-import type { NostrEvent } from "nostr-tools";
+import { verifyEvent, type NostrEvent } from "nostr-tools";
 import { mergeRelaySets } from "applesauce-core/helpers/relays";
+import { allowOwnListRelays, consentVersion, isReadersOwnPubkey, isUnreachableLocalUrl } from "./localNetwork";
 
 /** NIP-65 relay list. */
 export const RELAY_LIST_KIND = 10002;
@@ -28,7 +29,9 @@ export const EMPTY_LIST: RelayList = { write: [], read: [] };
 
 /**
  * A relay address is a WebSocket address: something that parses as a URL on
- * `ws://` or `wss://`. Nothing else is a relay address.
+ * `ws://` or `wss://`. Nothing else is a relay address. One on the reader's
+ * own device or LAN is not one we can use either, unless they chose it
+ * (`lib/localNetwork`).
  *
  * Deliberately NOT applesauce's `isSafeRelayURL`, which additionally requires
  * the host's last label to be at most six characters. That rejects
@@ -38,8 +41,8 @@ export const EMPTY_LIST: RelayList = { write: [], read: [] };
  */
 function looksLikeRelayUrl(url: string): boolean {
   try {
-    const protocol = new URL(url).protocol;
-    return protocol === "wss:" || protocol === "ws:";
+    const parsed = new URL(url);
+    return (parsed.protocol === "wss:" || parsed.protocol === "ws:") && !isUnreachableLocalUrl(parsed);
   } catch {
     return false;
   }
@@ -69,8 +72,13 @@ export function dedupeRelays(urls: Iterable<string>): string[] {
   return mergeRelaySets(relays);
 }
 
-/** Parsed lists, keyed by the event they came from — `relayListFromDb` is hot. */
-const parsed = new WeakMap<NostrEvent, RelayList>();
+/**
+ * Parsed lists, keyed by the event they came from — `relayListFromDb` is hot.
+ * Each remembers the consent it was parsed under (`lib/localNetwork`): the
+ * reader's own list parsed before they signed in dropped their local relays,
+ * and must not keep dropping them after.
+ */
+const parsed = new WeakMap<NostrEvent, { list: RelayList; consent: number }>();
 
 /**
  * NIP-65: `["r", <url>]` is both, `["r", <url>, "read"|"write"]` is one. An
@@ -85,7 +93,7 @@ const parsed = new WeakMap<NostrEvent, RelayList>();
 export function parseRelayList(event: NostrEvent | undefined | null): RelayList {
   if (!event || event.kind !== RELAY_LIST_KIND) return EMPTY_LIST;
   const memo = parsed.get(event);
-  if (memo) return memo;
+  if (memo && memo.consent === consentVersion()) return memo.list;
 
   const write: string[] = [];
   const read: string[] = [];
@@ -95,7 +103,12 @@ export function parseRelayList(event: NostrEvent | undefined | null): RelayList 
     if (marker !== "read") write.push(tag[1]);
     if (marker !== "write") read.push(tag[1]);
   }
+  // The reader's own list: its local relays are theirs (Citrine on this phone).
+  // Only if they really signed it — this also parses lists straight off a
+  // relay, and a forgery naming their key must not open their LAN to anyone.
+  if (isReadersOwnPubkey(event.pubkey) && verifyEvent(event))
+    allowOwnListRelays(event.pubkey, event.created_at, [...write, ...read]);
   const list = { write: dedupeRelays(write), read: dedupeRelays(read) };
-  parsed.set(event, list);
+  parsed.set(event, { list, consent: consentVersion() });
   return list;
 }
