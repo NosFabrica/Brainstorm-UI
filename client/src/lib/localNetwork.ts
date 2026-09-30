@@ -86,16 +86,51 @@ function parse(url: string): URL | null {
   }
 }
 
-/** Consent is per `host:port` — the thing a socket opens. */
-const allowed = new Set<string>();
+/**
+ * The unit consent is given for: the host and port a socket opens. Spelled so
+ * every way of writing one relay agrees — `umbrel.local.` and `umbrel.local`,
+ * `ws://relay.lan` and `ws://relay.lan:80`.
+ */
+function consentKey(url: URL): string {
+  const port = url.port || (url.protocol === "wss:" || url.protocol === "https:" ? "443" : "80");
+  return `${url.hostname.toLowerCase().replace(/\.$/, "")}:${port}`;
+}
+
+/** Chosen outright: typed, pasted, configured. Lasts the session. */
+const chosen = new Set<string>();
+/** From a signed-in account's own relay list, by account — gone when the account is. */
+const ownLists = new Map<string, { at: number; keys: Set<string> }>();
 
 /**
  * Bumped whenever what is refused changes, so a result computed under the old
- * consent (a parsed relay list, `relayList`) knows to be computed again.
+ * consent (a parsed relay list, `relayList`; a refused socket, `relayPool`)
+ * knows to be computed again.
  */
 let version = 0;
+const listeners = new Set<() => void>();
+
 export function consentVersion(): number {
   return version;
+}
+
+/** Called after every consent change. Returns the unsubscribe. */
+export function onConsentChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function changed(): void {
+  version++;
+  for (const listener of listeners) listener();
+}
+
+function keysOf(urls: Iterable<string>): string[] {
+  const keys: string[] = [];
+  for (const url of urls) {
+    const parsed = parse(url);
+    if (parsed) keys.push(consentKey(parsed));
+  }
+  return keys;
 }
 
 /**
@@ -106,13 +141,10 @@ export function consentVersion(): number {
  * relay list) call this again when they load it.
  */
 export function allowLocalRelay(urls: Iterable<string>): void {
-  for (const url of urls) {
-    const parsed = parse(url);
-    if (parsed && !allowed.has(parsed.host)) {
-      allowed.add(parsed.host);
-      version++;
-    }
-  }
+  const fresh = keysOf(urls).filter((key) => !chosen.has(key));
+  if (!fresh.length) return;
+  for (const key of fresh) chosen.add(key);
+  changed();
 }
 
 /** The accounts signed in on this device — the reader, in every identity they use here. */
@@ -120,18 +152,47 @@ let own = new Set<string>();
 
 /**
  * Who the reader is. A relay in the reader's OWN relay list is one they chose
- * — Citrine on the phone they are reading on is exactly that — so
- * `relayList` approves the local relays in a list these keys signed.
+ * — Citrine on the phone they are reading on is exactly that — so `relayList`
+ * approves the local relays in a list these keys signed. Signing an account
+ * out takes its list's consent with it: on a shared browser, the next person
+ * must not inherit a way into the last one's network.
  */
 export function setReadersOwnPubkeys(pubkeys: Iterable<string>): void {
   const next = new Set([...pubkeys].map((pubkey) => pubkey.toLowerCase()));
   if (next.size === own.size && [...next].every((pubkey) => own.has(pubkey))) return;
   own = next;
-  version++;
+  for (const pubkey of ownLists.keys()) if (!own.has(pubkey)) ownLists.delete(pubkey);
+  changed();
 }
 
 export function isReadersOwnPubkey(pubkey: unknown): boolean {
   return typeof pubkey === "string" && own.has(pubkey.toLowerCase());
+}
+
+/**
+ * The relays in a signed-in account's own relay list — the caller has checked
+ * the signature. Replaces what that account's previous list allowed, so a relay
+ * they took out of their list stops being reached; an older list parsed later
+ * (from a cache, a slow relay) changes nothing.
+ */
+export function allowOwnListRelays(pubkey: string, createdAt: number, urls: Iterable<string>): void {
+  const key = pubkey.toLowerCase();
+  if (!own.has(key)) return;
+  const prev = ownLists.get(key);
+  if (prev && createdAt < prev.at) return;
+  const next = new Set(keysOf(urls));
+  if (prev && prev.keys.size === next.size && [...next].every((k) => prev.keys.has(k))) {
+    prev.at = createdAt;
+    return;
+  }
+  ownLists.set(key, { at: createdAt, keys: next });
+  changed();
+}
+
+function isAllowed(key: string): boolean {
+  if (chosen.has(key)) return true;
+  for (const list of ownLists.values()) if (list.keys.has(key)) return true;
+  return false;
 }
 
 /** The deployment's own relays are the operator's choice. */
@@ -142,13 +203,25 @@ allowLocalRelay(
     .filter(Boolean),
 );
 
+/** `isUnreachableLocalRelay` for a URL the caller has already parsed — the hot path. */
+export function isUnreachableLocalUrl(url: URL): boolean {
+  return !PAGE_IS_LOCAL && isLocalNetworkHost(url.hostname) && !isAllowed(consentKey(url));
+}
+
 /**
  * A relay this page must not connect to: one on the reader's own device or
  * network that the reader did not choose. False for anything that isn't a URL —
  * whether it is a relay at all is the caller's question.
  */
 export function isUnreachableLocalRelay(url: string): boolean {
-  if (PAGE_IS_LOCAL) return false;
   const parsed = parse(url);
-  return !!parsed && !allowed.has(parsed.host) && isLocalNetworkHost(parsed.hostname);
+  return !!parsed && isUnreachableLocalUrl(parsed);
+}
+
+/**
+ * A host this page must not make the reader's browser request from someone
+ * else's data — a favicon, a preview. There is no consent to give here.
+ */
+export function isRefusedLocalHost(hostname: string): boolean {
+  return !PAGE_IS_LOCAL && isLocalNetworkHost(hostname);
 }

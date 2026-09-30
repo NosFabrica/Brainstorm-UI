@@ -108,6 +108,12 @@ describe("on a public page, relays on the reader's own device or network", () =>
     expect(opened).toEqual(["wss://nos.lol/"]);
   });
 
+  it("are left out of a live subscription, so it never retries them", async () => {
+    const pool = freshPool();
+    await firstValueFrom(pool.subscription([...LOCALS, PUBLIC], { kinds: [1] }, { eventStore: null }));
+    expect([...pool.relays.keys()]).toEqual(["wss://nos.lol/"]);
+  });
+
   it("are never connected to by a subscription or a REQ", async () => {
     const pool = freshPool();
     await firstValueFrom(pool.subscription([...LOCALS, PUBLIC], { kinds: [1] }, { eventStore: null }));
@@ -202,6 +208,52 @@ describe("on a public page, relays on the reader's own device or network", () =>
     } finally {
       setReadersOwnPubkeys([]);
     }
+  });
+
+  it("are refused again once the account whose list named them signs out", () => {
+    const key = generateSecretKey();
+    const own = finalizeEvent({ kind: 10002, created_at: 1, content: "", tags: [["r", "ws://localhost:4873"]] }, key);
+    setReadersOwnPubkeys([getPublicKey(key)]);
+    parseRelayList(own);
+    expect(isUnreachableLocalRelay("ws://localhost:4873")).toBe(false);
+    setReadersOwnPubkeys([]);
+    expect(isUnreachableLocalRelay("ws://localhost:4873")).toBe(true);
+    expect(parseRelayList(own).write).toEqual([]);
+  });
+
+  it("follow the reader's newest list, not an older one parsed after it", () => {
+    const key = generateSecretKey();
+    const newer = finalizeEvent({ kind: 10002, created_at: 2, content: "", tags: [["r", "ws://localhost:4874"]] }, key);
+    const older = finalizeEvent({ kind: 10002, created_at: 1, content: "", tags: [["r", "ws://localhost:4875"]] }, key);
+    setReadersOwnPubkeys([getPublicKey(key)]);
+    try {
+      parseRelayList(newer);
+      parseRelayList(older);
+      expect(isUnreachableLocalRelay("ws://localhost:4874")).toBe(false);
+      expect(isUnreachableLocalRelay("ws://localhost:4875")).toBe(true);
+    } finally {
+      setReadersOwnPubkeys([]);
+    }
+  });
+
+  it("are reached once chosen, however the address is spelled", () => {
+    allowLocalRelay(["ws://relay.lan"]);
+    expect(isUnreachableLocalRelay("ws://relay.lan:80")).toBe(false);
+    expect(isUnreachableLocalRelay("ws://relay.lan.:80/")).toBe(false);
+    expect(isUnreachableLocalRelay("wss://relay.lan")).toBe(true);
+  });
+
+  it("are reached at once when chosen after being refused — not after the refusal's reconnect backoff", async () => {
+    const pool = freshPool();
+    await lastValueFrom(pool.request(["ws://localhost:4876"], { kinds: [1] }).pipe(toArray()));
+    expect(opened).toEqual([]);
+
+    allowLocalRelay(["ws://localhost:4876"]);
+    const started = Date.now();
+    const events = await lastValueFrom(pool.request(["ws://localhost:4876"], { kinds: [1] }).pipe(toArray()));
+    expect(events.map((e) => e.id)).toEqual([EVENT.id]);
+    expect(opened).toEqual(["ws://localhost:4876/"]);
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 
   it("are still refused in someone else's list", () => {

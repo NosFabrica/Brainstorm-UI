@@ -13,7 +13,7 @@
  */
 import { verifyEvent, type NostrEvent } from "nostr-tools";
 import { mergeRelaySets } from "applesauce-core/helpers/relays";
-import { allowLocalRelay, consentVersion, isReadersOwnPubkey, isUnreachableLocalRelay } from "./localNetwork";
+import { allowOwnListRelays, consentVersion, isReadersOwnPubkey, isUnreachableLocalUrl } from "./localNetwork";
 
 /** NIP-65 relay list. */
 export const RELAY_LIST_KIND = 10002;
@@ -41,8 +41,8 @@ export const EMPTY_LIST: RelayList = { write: [], read: [] };
  */
 function looksLikeRelayUrl(url: string): boolean {
   try {
-    const protocol = new URL(url).protocol;
-    return (protocol === "wss:" || protocol === "ws:") && !isUnreachableLocalRelay(url);
+    const parsed = new URL(url);
+    return (parsed.protocol === "wss:" || parsed.protocol === "ws:") && !isUnreachableLocalUrl(parsed);
   } catch {
     return false;
   }
@@ -106,7 +106,8 @@ export function parseRelayList(event: NostrEvent | undefined | null): RelayList 
   // The reader's own list: its local relays are theirs (Citrine on this phone).
   // Only if they really signed it — this also parses lists straight off a
   // relay, and a forgery naming their key must not open their LAN to anyone.
-  if (isReadersOwnPubkey(event.pubkey) && verifyEvent(event)) allowLocalRelay([...write, ...read]);
+  if (isReadersOwnPubkey(event.pubkey) && verifyEvent(event))
+    allowOwnListRelays(event.pubkey, event.created_at, [...write, ...read]);
   const list = { write: dedupeRelays(write), read: dedupeRelays(read) };
   parsed.set(event, { list, consent: consentVersion() });
   return list;

@@ -214,6 +214,15 @@ describe("where to read an author's events", () => {
 
     expect(loadReplaceableMock.mock.calls.length).toBeGreaterThan(1);
   });
+
+  // A list naming only its author's own-network relays parses to nothing on a
+  // public page; one with no usable tags at all is the same shape here.
+  it("answers from a held list that names nothing usable, without asking the relays again", async () => {
+    seed(relayList(ALICE, [["r", "not a relay"]]));
+    expect(await loadRelayList(ALICE)).toBeNull();
+    expect(await loadRelayList(ALICE)).toBeNull();
+    expect(loadReplaceableMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("where to send an event that names someone", () => {

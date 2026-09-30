@@ -241,10 +241,21 @@ export class RemoteSigner extends NostrConnectSigner {
 
   constructor(options: RemoteSignerOptions) {
     super({ onAuth: requestSignerApproval, ...options });
-    // The reader picked this signer's relays — pasted in a `bunker://` link, or
-    // ours from the `nostrconnect://` URI — so one on their LAN is theirs to reach.
-    allowLocalRelay(options.relays ?? []);
     this.requireConnectSecret = options.requireConnectSecret ?? false;
+
+    // The reader picked this signer's relays — pasted in a `bunker://` link, or
+    // named by the signer they paired, including later via `switch_relays` — so
+    // one on their LAN is theirs to reach. Consent is given where the relays are
+    // USED, since `switchRelays` swaps `this.relays` and reopens behind our back.
+    const { subscriptionMethod, publishMethod } = this;
+    this.subscriptionMethod = (relays, filters) => {
+      allowLocalRelay(relays);
+      return subscriptionMethod(relays, filters);
+    };
+    this.publishMethod = (relays, event) => {
+      allowLocalRelay(relays);
+      return publishMethod(relays, event);
+    };
   }
 
   /**
