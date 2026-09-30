@@ -11,7 +11,8 @@ import { describe, expect, it } from "vitest";
 import { firstValueFrom, lastValueFrom, toArray } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import { dedupeRelays, parseRelayList } from "./relayList";
-import { allowLocalRelay, isUnreachableLocalRelay } from "./localNetwork";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools";
+import { allowLocalRelay, isUnreachableLocalRelay, setReadersOwnPubkeys } from "./localNetwork";
 import { createPool } from "./relayPool";
 
 const LOCALS = [
@@ -150,7 +151,72 @@ describe("on a public page, relays on the reader's own device or network", () =>
     expect(Date.now() - started).toBeLessThan(1000);
   });
 
-  // Last: consent is session-wide, so it would leak into the cases above.
+  // Below here consent is given, and it is session-wide: each case uses hosts
+  // of its own so it can't leak into another.
+
+  it("are reached when they are in the reader's own relay list — even one parsed before they signed in", async () => {
+    const key = generateSecretKey();
+    const own = finalizeEvent(
+      {
+        kind: 10002,
+        created_at: 1,
+        content: "",
+        tags: [
+          ["r", "ws://localhost:4870"],
+          ["r", PUBLIC],
+        ],
+      },
+      key,
+    );
+    // Before sign-in it is just someone's list.
+    expect(parseRelayList(own).write).toEqual(["wss://nos.lol/"]);
+
+    setReadersOwnPubkeys([getPublicKey(key)]);
+    try {
+      expect(parseRelayList(own).write).toEqual(["ws://localhost:4870/", "wss://nos.lol/"]);
+      const pool = freshPool();
+      await lastValueFrom(pool.request(parseRelayList(own).write, { kinds: [1] }).pipe(toArray()));
+      expect(opened).toEqual(["ws://localhost:4870/", "wss://nos.lol/"]);
+    } finally {
+      setReadersOwnPubkeys([]);
+    }
+  });
+
+  it("are not reached for a forged list that only claims to be the reader's", () => {
+    const key = generateSecretKey();
+    const real = finalizeEvent({ kind: 10002, created_at: 1, content: "", tags: [["r", PUBLIC]] }, key);
+    // Off the wire, as a relay would hand it over: new tags under the real signature.
+    const forged = JSON.parse(
+      JSON.stringify({
+        ...real,
+        tags: [
+          ["r", "ws://localhost:4871"],
+          ["r", PUBLIC],
+        ],
+      }),
+    );
+    setReadersOwnPubkeys([getPublicKey(key)]);
+    try {
+      expect(parseRelayList(forged).write).toEqual(["wss://nos.lol/"]);
+      expect(isUnreachableLocalRelay("ws://localhost:4871")).toBe(true);
+    } finally {
+      setReadersOwnPubkeys([]);
+    }
+  });
+
+  it("are still refused in someone else's list", () => {
+    const stranger = finalizeEvent(
+      { kind: 10002, created_at: 1, content: "", tags: [["r", "ws://localhost:4872"]] },
+      generateSecretKey(),
+    );
+    setReadersOwnPubkeys([getPublicKey(generateSecretKey())]);
+    try {
+      expect(parseRelayList(stranger).write).toEqual([]);
+    } finally {
+      setReadersOwnPubkeys([]);
+    }
+  });
+
   it("are reached when the reader chose them — a typed relay, a pasted bunker:// link", async () => {
     allowLocalRelay(["ws://192.168.1.10:4848/"]);
     expect(isUnreachableLocalRelay("ws://192.168.1.10:4848")).toBe(false);

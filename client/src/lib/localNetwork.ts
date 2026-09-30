@@ -10,8 +10,9 @@
  * Access) prompt that reads as if Brainstorm were asking for something.
  *
  * So a local address from someone else's data is refused. One the reader chose
- * themselves — a relay they typed, a `bunker://` link they pasted, one the
- * deployment configured — is theirs to reach: `allowLocalRelay`.
+ * themselves — a relay they typed, a `bunker://` link they pasted, one in their
+ * own relay list, one the deployment configured — is theirs to reach:
+ * `allowLocalRelay`.
  *
  * A LEAF: imports nothing of ours but the runtime env, so `relayList`,
  * `relayPool` and `nip05` can all use it.
@@ -89,6 +90,15 @@ function parse(url: string): URL | null {
 const allowed = new Set<string>();
 
 /**
+ * Bumped whenever what is refused changes, so a result computed under the old
+ * consent (a parsed relay list, `relayList`) knows to be computed again.
+ */
+let version = 0;
+export function consentVersion(): number {
+  return version;
+}
+
+/**
  * The reader chose these relays themselves — typed them, pasted them in a
  * `bunker://` link, or the deployment configured them — so reaching them on a
  * local address is what they asked for, prompt and all. Consent lasts for the
@@ -98,8 +108,30 @@ const allowed = new Set<string>();
 export function allowLocalRelay(urls: Iterable<string>): void {
   for (const url of urls) {
     const parsed = parse(url);
-    if (parsed) allowed.add(parsed.host);
+    if (parsed && !allowed.has(parsed.host)) {
+      allowed.add(parsed.host);
+      version++;
+    }
   }
+}
+
+/** The accounts signed in on this device — the reader, in every identity they use here. */
+let own = new Set<string>();
+
+/**
+ * Who the reader is. A relay in the reader's OWN relay list is one they chose
+ * — Citrine on the phone they are reading on is exactly that — so
+ * `relayList` approves the local relays in a list these keys signed.
+ */
+export function setReadersOwnPubkeys(pubkeys: Iterable<string>): void {
+  const next = new Set([...pubkeys].map((pubkey) => pubkey.toLowerCase()));
+  if (next.size === own.size && [...next].every((pubkey) => own.has(pubkey))) return;
+  own = next;
+  version++;
+}
+
+export function isReadersOwnPubkey(pubkey: unknown): boolean {
+  return typeof pubkey === "string" && own.has(pubkey.toLowerCase());
 }
 
 /** The deployment's own relays are the operator's choice. */
