@@ -211,8 +211,8 @@ function RowThumb({
     postHref: eventPath(event),
   };
   const { url, poster, isVideo } = rowThumbMedia(event);
-  // Google's news rows run ~92px; a 64px square undersold every picture.
-  const cls = "h-20 w-24 shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
+  // Google's result thumbnail is a 92px square; a 64px one undersold every picture.
+  const cls = "h-[92px] w-[92px] shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
   // The thumbnail IS the media: a tap opens it full view (a clip plays), not
   // the post — the rest of the row still opens the post.
   const openMedia = (e: React.MouseEvent) => {
@@ -271,7 +271,7 @@ export function Snippet({
   const parts = unwrapMarkdownLinks(text).split(TOKEN_SPLIT_RE);
   return (
     <p
-      className={`break-words text-[13px] leading-snug text-slate-700 dark:text-slate-200 ${lines === 2 ? "line-clamp-2" : "line-clamp-3"}`}
+      className={`break-words text-sm leading-[1.58] text-slate-700 dark:text-slate-200 ${lines === 2 ? "line-clamp-2" : "line-clamp-3"}`}
     >
       {parts.map((part, i) => {
         if (/^https?:\/\//i.test(part)) {
@@ -379,23 +379,23 @@ function AuthorLine({
   return (
     <div className="flex min-w-0 items-center gap-1.5">
       <Avatar
-        className={`h-5 w-5 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}
+        className={`h-6 w-6 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null) ?? ""}`}
       >
         {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">
           <DefaultAvatarImg />
         </AvatarFallback>
       </Avatar>
-      {/* Name (12px) and the 11px meta share one baseline — centring boxes of
-          two font sizes leaves the meta riding high. */}
-      <div className="flex min-w-0 items-baseline gap-1.5 leading-4">
-        <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+      {/* Name (14px, Google's source line) and the 12px meta share one baseline —
+          centring boxes of two font sizes leaves the meta riding high. */}
+      <div className="flex min-w-0 items-baseline gap-1.5 leading-5">
+        <span className="truncate text-sm font-medium text-slate-600 dark:text-slate-300">
           {author ? getDisplayLabel(author) : "Unknown"}
         </span>
-        <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
+        <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
         {type && TypeIcon ? (
           <span
-            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500"
+            className="inline-flex shrink-0 items-center gap-1 text-xs text-slate-400 dark:text-slate-500"
             data-testid="serp-type"
           >
             · <TypeIcon className="h-3 w-3" />
@@ -407,7 +407,7 @@ function AuthorLine({
         {typeOf && <ViaRelay event={typeOf} />}
         {feed && (
           <span
-            className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500"
+            className="inline-flex shrink-0 items-center gap-0.5 text-xs text-slate-400 dark:text-slate-500"
             title="An automated feed account"
             data-testid="serp-feed"
           >
@@ -427,7 +427,7 @@ export function EngagementLine({ zaps, replies, testId }: { zaps: number; replie
   if (zaps > 0) parts.push(`⚡ ${zaps}`);
   if (replies > 0) parts.push(`${replies} ${replies === 1 ? "reply" : "replies"}`);
   return (
-    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500" data-testid={testId}>
+    <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500" data-testid={testId}>
       {parts.join(" · ")}
     </p>
   );
@@ -516,7 +516,7 @@ export function SerpRow({
       }
     },
     className:
-      "group flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
+      "group flex cursor-pointer items-start gap-4 rounded-lg px-2 py-3.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
     "data-testid": `serp-row-${event.id}`,
   };
 
@@ -528,9 +528,9 @@ export function SerpRow({
         <div className="min-w-0 flex-1">
           <div className="min-w-0" data-testid="news-source">
             <AuthorLine author={author} score={score} created_at={event.created_at}>
-              <span className="hidden min-w-0 items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 sm:inline-flex">
+              <span className="hidden min-w-0 items-center gap-1 text-xs text-slate-400 dark:text-slate-500 sm:inline-flex">
                 ·
-                <Favicon host={news.domain} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
+                <Favicon host={news.domain} className="h-3.5 w-3.5 shrink-0 rounded-sm object-contain" />
                 <span className="truncate">{news.domain}</span>
               </span>
             </AuthorLine>
@@ -560,9 +560,9 @@ export function SerpRow({
               the story lives. */}
           <div className="min-w-0" data-testid="news-source">
             <AuthorLine author={author} score={score} created_at={event.created_at} type="News" typeOf={event}>
-              <span className="hidden min-w-0 items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 sm:inline-flex">
+              <span className="hidden min-w-0 items-center gap-1 text-xs text-slate-400 dark:text-slate-500 sm:inline-flex">
                 ·
-                <Favicon host={news.domain} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
+                <Favicon host={news.domain} className="h-3.5 w-3.5 shrink-0 rounded-sm object-contain" />
                 <span className="truncate">{news.domain}</span>
               </span>
             </AuthorLine>
@@ -572,13 +572,13 @@ export function SerpRow({
             target="_blank"
             rel="noopener"
             onClick={(e) => e.stopPropagation()}
-            className="mt-1.5 line-clamp-2 block break-words text-[15px] font-semibold leading-snug text-slate-900 transition-colors hover:text-brand-primary hover:underline dark:text-slate-100"
+            className="mt-1.5 line-clamp-2 block break-words text-lg font-semibold leading-[1.3] text-slate-900 transition-colors hover:text-brand-primary hover:underline dark:text-slate-100 sm:text-xl"
             data-testid="news-headline"
           >
             <Headline text={news.headline} query={query} />
           </a>
           {news.description && (
-            <div className="mt-1 [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
+            <div className="mt-1.5 [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
               <Snippet text={news.description} query={query} lines={2} />
             </div>
           )}
@@ -601,7 +601,7 @@ export function SerpRow({
               alt=""
               loading="lazy"
               onError={() => setNewsThumbFailed(true)}
-              className="h-20 w-28 rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
+              className="h-[92px] w-[92px] rounded-xl bg-slate-100 object-cover shadow-sm dark:bg-slate-800"
               data-testid="news-thumb"
             />
           </a>
@@ -629,7 +629,7 @@ export function SerpRow({
           feed={isFeedAccount(author)}
         />
         {title && (
-          <div className="mt-1.5 text-sm font-semibold text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100 [&>p]:text-sm [&>p]:font-semibold">
+          <div className="mt-1.5 text-lg font-semibold leading-[1.3] text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100 sm:text-xl [&>p]:text-lg [&>p]:font-semibold [&>p]:leading-[1.3] sm:[&>p]:text-xl">
             <Snippet text={title} query={query} lines={2} />
           </div>
         )}
@@ -642,7 +642,7 @@ export function SerpRow({
           </p>
         )}
         {body && (
-          <div className={title ? "mt-1" : "mt-1.5"}>
+          <div className={title ? "mt-1.5" : "mt-2"}>
             <Snippet text={shown} query={query} lines={title ? 2 : 3} hide={linkedArticle ? cardLink : thumbUrl} />
             {/* X's "Translate post" for text in another language — on-device, quiet. */}
             <TranslateLine text={body.slice(0, 1000)} />

@@ -58,6 +58,20 @@ Tinted pill for tags, status badges, counts (p17 "Tags & Badges").
 <Chip tone="success" size="sm">Saved</Chip>
 ```
 
+## Result rows — `components/search/SerpRow.tsx`, `sections.tsx`
+
+The rows on the Everything page and the home feed follow Google's result proportions (the team, 2026-09-29: "do I need glasses?"). Reading text on a result row is never below 14px, meta never below 12px; pills are the exception.
+
+| Element                                        | Size                                                                                |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Author name (the source line)                  | 14px `text-sm`, avatar 24px                                                         |
+| Time, feed, type meta, engagement              | 12px `text-xs`                                                                      |
+| Title (articles, linked pages, news headlines) | 20px `text-xl` at `sm:`, 18px on phones, `leading-[1.3]`                            |
+| Snippet body                                   | 14px `text-sm leading-[1.58]`, three lines, two under a title                       |
+| Thumbnail                                      | 92px square, `rounded-xl`, 16px gap                                                 |
+| Row                                            | `py-3.5`, lists are `space-y-1` — whitespace before dividers, no rules between rows |
+| Section title                                  | 16px (`SectionHeader variant="title"`); "See all" 13px; "+N more from" 12px         |
+
 ### KindPill — `components/ui/kind-pill.tsx`
 
 The Chip that says what a content item _is_ — Spec, Article, Listing, App, Event, Stream, Track… —

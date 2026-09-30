@@ -82,7 +82,7 @@ export function LinkChip({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noopener"
-      className="not-prose inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+      className="not-prose inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-sm font-medium text-brand-link no-underline transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
       data-testid="link-chip"
     >
       <Favicon host={u?.hostname || ""} className="h-3.5 w-3.5 shrink-0 rounded-sm object-contain" />

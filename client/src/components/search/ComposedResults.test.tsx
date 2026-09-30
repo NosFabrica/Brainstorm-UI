@@ -663,6 +663,11 @@ describe("ComposedResults — media-rich sections", () => {
     expect(tiles).toEqual(["article-tile-a2", "article-tile-a4", "article-tile-a5"]);
     expect(within(section).queryByTestId("article-placeholder")).toBeNull();
     expect(within(section).getByTestId("serp-row-a3")).toBeInTheDocument();
+    // The rows beneath the bento keep their breathing room: the list is
+    // spaced like every other run of rows and stands off the grid.
+    const rows = within(section).getByTestId("articles-rows");
+    expect(rows.className).toMatch(/\bspace-y-/);
+    expect(rows.className).toMatch(/\bmt-\d/);
     expect(within(section).getByTestId("serp-row-a3")).toHaveTextContent("Scouse cuisine, ranked");
     expect(within(section).queryByTestId("serp-row-a1")).toBeNull();
     expect(within(section).queryByTestId("serp-row-a5")).toBeNull();
