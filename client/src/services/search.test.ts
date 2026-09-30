@@ -65,6 +65,7 @@ import {
   fetchAppReviews,
   fetchAppZaps,
   fetchGoalProgress,
+  fetchByAddress,
   bolt11Msats,
   parseZapReceipt,
   fetchAppEndorsementCounts,
@@ -1907,6 +1908,29 @@ describe("fetchGoalProgress", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("fetchByAddress", () => {
+  it("asks one cross-product filter and returns only the coordinates asked, newest version of each", async () => {
+    const { subject } = controllable();
+    const a = "a".repeat(64);
+    const b = "b".repeat(64);
+    const pending = fetchByAddress([`31923:${a}:x`, `36787:${b}:y`, "not:a:coord"]);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([31923, 36787]);
+    expect(filter.authors).toEqual([a, b]);
+    expect(filter["#d"]).toEqual(["x", "y"]);
+    const at = (id: string, kind: number, pubkey: string, d: string, created_at: number) =>
+      ({ id, kind, pubkey, created_at, sig: "s", content: "", tags: [["d", d]] }) as NostrEvent;
+    subject.next(frame(at("old", 31923, a, "x", 1)));
+    subject.next(frame(at("new", 31923, a, "x", 2)));
+    subject.next(frame(at("stray", 31923, b, "y", 3))); // matches the cross-product, asked by nobody
+    subject.next(EOSE);
+    const found = await pending;
+    expect([...found.keys()]).toEqual([`31923:${a}:x`]);
+    expect(found.get(`31923:${a}:x`)?.id).toBe("new");
   });
 });
 

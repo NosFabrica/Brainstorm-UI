@@ -86,6 +86,13 @@ export function buildZapRequest(opts: {
   anon?: boolean;
   /** Where the RECIPIENT writes, so a reader of the receipt can find them. */
   relayHint?: string;
+  /**
+   * What the zap is FOR, when it is not just the person: a NIP-75 zap goal
+   * is zapped by `e`-tagging it (and `a`-tagging it when addressable), and
+   * the wallet copies those tags into the receipt — which is how the goal's
+   * progress is counted.
+   */
+  target?: { eventId?: string; address?: string };
 }): EventTemplate {
   const tags: string[][] = [
     ["relays", ...opts.relays], // one tag, URLs spread inline (NIP-57)
@@ -93,6 +100,8 @@ export function buildZapRequest(opts: {
     ["lnurl", opts.lnurl],
     opts.relayHint ? ["p", opts.recipientPubkey, opts.relayHint] : ["p", opts.recipientPubkey], // hex
   ];
+  if (opts.target?.eventId) tags.push(["e", opts.target.eventId]);
+  if (opts.target?.address) tags.push(["a", opts.target.address]);
   if (opts.anon) tags.push(["anon", ""]); // anonymous-zap convention (Damus/Amethyst)
   // No `pubkey` — whoever signs stamps their own.
   return {

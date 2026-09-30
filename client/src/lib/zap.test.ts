@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { acceptsZaps, canAttributeZap, type LnurlPayParams } from "./zap";
+import { acceptsZaps, buildZapRequest, canAttributeZap, type LnurlPayParams } from "./zap";
 
 const params = (over: Partial<LnurlPayParams> = {}): LnurlPayParams => ({
   callback: "https://example.test/lnurlp/callback",
@@ -47,5 +47,23 @@ describe("whether the zap carries the zapper's name", () => {
   it("survives a lapsed Session — signing is not the backend's business", () => {
     // an Account whose Session has been cleared can still sign a kind-9734
     expect(canAttributeZap(params(), { ...account, metadata: { session: undefined } })).toBe(true);
+  });
+});
+
+describe("what a zap is for", () => {
+  const base = { recipientPubkey: "a".repeat(64), amountMsat: 21_000, lnurl: "lnurl1x", relays: ["wss://r.test"] };
+
+  it("zaps the person alone by default", () => {
+    const tags = buildZapRequest(base).tags;
+    expect(tags.some((t) => t[0] === "e" || t[0] === "a")).toBe(false);
+  });
+
+  it("names a zap goal it is for, by id and by address (NIP-75)", () => {
+    const tags = buildZapRequest({
+      ...base,
+      target: { eventId: "g".repeat(64), address: `33863:${"a".repeat(64)}:bitmoot` },
+    }).tags;
+    expect(tags).toContainEqual(["e", "g".repeat(64)]);
+    expect(tags).toContainEqual(["a", `33863:${"a".repeat(64)}:bitmoot`]);
   });
 });

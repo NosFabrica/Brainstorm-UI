@@ -47,11 +47,13 @@ interface ZapModalProps {
   lud16: string;
   displayName: string;
   picture?: string;
+  /** Zap an event rather than just the person (a NIP-75 zap goal) — see buildZapRequest. */
+  target?: { eventId?: string; address?: string };
 }
 
 type Step = "loading" | "compose" | "invoice" | "fallback" | "error" | "unverified";
 
-export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayName, picture }: ZapModalProps) {
+export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayName, picture, target }: ZapModalProps) {
   const [step, setStep] = useState<Step>("loading");
   const [params, setParams] = useState<LnurlPayParams | null>(null);
   const [amount, setAmount] = useState("1000");
@@ -158,6 +160,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
             comment: commentText,
             anon: true,
             relayHint: recipientHint,
+            target,
           }),
         );
       let signedZapRequest: Record<string, unknown> | undefined;
@@ -173,6 +176,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                 relays,
                 comment: commentText,
                 relayHint: recipientHint,
+                target,
               }),
             );
           } catch (e) {
