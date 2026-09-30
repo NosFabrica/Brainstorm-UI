@@ -1784,6 +1784,8 @@ export interface GoalProgress {
  * its invoice's amount (parseZapReceipt), never the amount its zap request
  * merely asked for; receipt signers are not checked against the goal
  * owner's LNURL server, so this is what the network reports, not an audit.
+ * A goal's `closed_at` (in `closesAt`, by id) ends it: receipts after it
+ * don't count (NIP-75).
  *
  * `complete` says whether the answer is the whole answer: the relay reached
  * EOSE before the deadline without filling the page. Only then does a goal
@@ -1793,6 +1795,7 @@ export interface GoalProgress {
 export function fetchGoalProgress(
   goalIds: string[],
   timeoutMs = 5000,
+  closesAt?: ReadonlyMap<string, number>,
 ): Promise<{ byGoal: Map<string, GoalProgress>; complete: boolean }> {
   return new Promise((resolve) => {
     const byGoal = new Map<string, GoalProgress>();
@@ -1812,6 +1815,8 @@ export function fetchGoalProgress(
           seen.add(e.id);
           const goal = e.tags.find((t) => t[0] === "e" && wanted.has(t[1]))?.[1];
           if (!goal) return;
+          const closes = closesAt?.get(goal);
+          if (closes !== undefined && e.created_at > closes) return;
           const receipt = parseZapReceipt(e);
           const row = tally.get(goal) ?? { msats: 0, zappers: [] };
           if (receipt.msats) row.msats += receipt.msats;
@@ -1838,6 +1843,87 @@ export function fetchGoalProgress(
       resolve({ byGoal, complete });
     }
   });
+}
+
+/**
+ * The events an event page shows under a thing (a community's posts, a
+ * calendar's events, a badge's awards…): the given filters in one socket,
+ * under include:spam like every relay request here — the page is about one
+ * thing its reader chose, and the author's own trust is on the page. De-duped,
+ * newest first. EOSE on every filter or timeout resolves; never rejects.
+ */
+export function fetchFromSearch(
+  filters: Record<string, unknown>[],
+  { limit = 60, timeoutMs = 6000 }: { limit?: number; timeoutMs?: number } = {},
+): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay || filters.length === 0) return resolve([]);
+    const byId = new Map<string, NostrEvent>();
+    const subs: { unsubscribe(): void }[] = [];
+    let open = filters.length;
+    let done = false;
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      subs.forEach((s) => s.unsubscribe());
+      resolve([...byId.values()].sort((a, b) => b.created_at - a.created_at));
+    }
+    for (const f of filters) {
+      // A filter is settled by its EOSE, a CLOSED, or its stream failing — once.
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        if (--open <= 0) finish();
+      };
+      const sub = relay.req({ limit, ...f, search: "include:spam" }).subscribe({
+        next: (msg: { type: string; event?: NostrEvent }) => {
+          if (msg.type === "EVENT" && msg.event) byId.set(msg.event.id, msg.event);
+          else if (msg.type === "EOSE" || msg.type === "CLOSED") settle();
+        },
+        error: settle,
+      });
+      if (done) sub.unsubscribe();
+      else subs.push(sub);
+    }
+  });
+}
+
+/**
+ * Addressable events by coordinate (`kind:pubkey:d`) from the search relay —
+ * a calendar's events, a playlist's tracks, a rating's subject. The filter is
+ * a cross-product of the kinds, authors and d-tags asked, so it can match
+ * coordinates nobody asked for; only the asked ones come back, newest version
+ * of each, keyed by coordinate.
+ */
+export async function fetchByAddress(coords: string[], timeoutMs = 6000): Promise<Map<string, NostrEvent>> {
+  const parsed = [...new Set(coords)]
+    .map((c) => c.split(":"))
+    .filter((p) => p.length >= 3 && /^\d+$/.test(p[0]) && /^[0-9a-f]{64}$/i.test(p[1]))
+    .map((p) => ({ kind: Number(p[0]), pubkey: p[1].toLowerCase(), d: p.slice(2).join(":") }));
+  const out = new Map<string, NostrEvent>();
+  if (parsed.length === 0) return out;
+  const wanted = new Set(parsed.map((p) => `${p.kind}:${p.pubkey}:${p.d}`));
+  const events = await fetchFromSearch(
+    [
+      {
+        kinds: [...new Set(parsed.map((p) => p.kind))],
+        authors: [...new Set(parsed.map((p) => p.pubkey))],
+        "#d": [...new Set(parsed.map((p) => p.d))],
+      },
+    ],
+    { limit: Math.min(500, parsed.length * 3), timeoutMs },
+  );
+  for (const e of events) {
+    const key = `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
+    if (!wanted.has(key)) continue;
+    const held = out.get(key);
+    if (!held || e.created_at > held.created_at) out.set(key, e);
+  }
+  return out;
 }
 
 /**

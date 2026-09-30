@@ -65,6 +65,8 @@ import {
   fetchAppReviews,
   fetchAppZaps,
   fetchGoalProgress,
+  fetchFromSearch,
+  fetchByAddress,
   bolt11Msats,
   parseZapReceipt,
   fetchAppEndorsementCounts,
@@ -1897,6 +1899,16 @@ describe("fetchGoalProgress", () => {
     expect(byGoal.has("8".repeat(64))).toBe(false);
   });
 
+  it("leaves out receipts after the goal's closed_at (NIP-75)", async () => {
+    const { subject } = controllable();
+    const pending = fetchGoalProgress([goal], 5000, new Map([[goal, 1]]));
+    await tick();
+    subject.next(frame(receipt("r1", "a".repeat(64), "lnbc10u1pjx")));
+    subject.next(frame({ ...receipt("r2", "b".repeat(64), "lnbc20u1pjx"), created_at: 2 }));
+    subject.next(EOSE);
+    expect((await pending).byGoal.get(goal)).toEqual({ sats: 1_000, zappers: ["a".repeat(64)] });
+  });
+
   it("an answer cut short by the deadline is not complete", async () => {
     vi.useFakeTimers();
     try {
@@ -1907,6 +1919,48 @@ describe("fetchGoalProgress", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("fetchFromSearch", () => {
+  it("merges its filters, newest first, and a failing stream settles at once instead of at the deadline", async () => {
+    const { subject } = controllable();
+    const good = reqMock.getMockImplementation()!;
+    let call = 0;
+    reqMock.mockImplementation((...args: unknown[]) =>
+      call++ === 0 ? throwError(() => new Error("closed")) : (good as (...a: unknown[]) => unknown)(...args),
+    );
+    const started = Date.now();
+    const pending = fetchFromSearch([{ kinds: [1] }, { kinds: [7] }], { timeoutMs: 60_000 });
+    await tick();
+    subject.next(frame({ ...ev("old"), created_at: 1 }));
+    subject.next(frame({ ...ev("new"), created_at: 2 }));
+    subject.next(EOSE);
+    expect((await pending).map((e) => e.id)).toEqual(["new", "old"]);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
+describe("fetchByAddress", () => {
+  it("asks one cross-product filter and returns only the coordinates asked, newest version of each", async () => {
+    const { subject } = controllable();
+    const a = "a".repeat(64);
+    const b = "b".repeat(64);
+    const pending = fetchByAddress([`31923:${a}:x`, `36787:${b}:y`, "not:a:coord"]);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([31923, 36787]);
+    expect(filter.authors).toEqual([a, b]);
+    expect(filter["#d"]).toEqual(["x", "y"]);
+    const at = (id: string, kind: number, pubkey: string, d: string, created_at: number) =>
+      ({ id, kind, pubkey, created_at, sig: "s", content: "", tags: [["d", d]] }) as NostrEvent;
+    subject.next(frame(at("old", 31923, a, "x", 1)));
+    subject.next(frame(at("new", 31923, a, "x", 2)));
+    subject.next(frame(at("stray", 31923, b, "y", 3))); // matches the cross-product, asked by nobody
+    subject.next(EOSE);
+    const found = await pending;
+    expect([...found.keys()]).toEqual([`31923:${a}:x`]);
+    expect(found.get(`31923:${a}:x`)?.id).toBe("new");
   });
 });
 

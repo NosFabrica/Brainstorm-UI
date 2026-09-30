@@ -621,7 +621,8 @@ export function decodeEntities(text: string): string {
 /** A community's rules, unless they only repeat its description. */
 function rulesOf(ev: EventLike): string | null {
   const rules = tag(ev, "rules") ?? tag(ev, "guidelines");
-  return rules && rules !== tag(ev, "description") ? rules : null;
+  const same = (a: string, b: string | undefined) => a.replace(/\s+/g, " ") === b?.replace(/\s+/g, " ");
+  return rules && !same(rules, tag(ev, "description")) ? rules : null;
 }
 
 /** An event's `t` topics, lower-cased and de-duplicated. */
