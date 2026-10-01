@@ -69,6 +69,25 @@ class ReadFirstRelay extends Relay {
   ): ReturnType<Relay["subscription"]> {
     return super.subscription(filters, { waitForAuth: true, ...opts });
   }
+
+  /**
+   * Open the socket now, ahead of the first REQ. A brief look at the watch
+   * tower is what a REQ does to connect; letting go of it at once leaves the
+   * socket on the keep-alive timer, so a REQ that follows rides it.
+   */
+  warm(): void {
+    if (this.connected) return;
+    this.watchTower.subscribe().unsubscribe();
+  }
+}
+
+/**
+ * Connect to `relay` before anything is asked of it, so the first read skips
+ * the DNS + TCP + TLS + upgrade. A no-op when the socket is already open, or
+ * for a relay this pool did not build.
+ */
+export function warmRelay(relay: Relay): void {
+  if (relay instanceof ReadFirstRelay) relay.warm();
 }
 
 /**
