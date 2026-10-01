@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { Archive, BellOff, ChevronDown, EyeOff, Flag, Pin, Search, Settings2, SquarePen, Timer, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ import { MessageSearchResults } from "./MessageSearchResults";
 import { searchMessages } from "@/lib/dm/search";
 import { usePeopleSearch } from "./usePeopleSearch";
 import { useMyFollows } from "@/hooks/useMyFollows";
+import { useNearViewport } from "@/hooks/useNearViewport";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,9 @@ function preview(room: DmRoom, me: string, profiles: Profiles): string {
   if (!text) return last.subject ? `${who}Named the chat “${last.subject}”` : "";
   return who + text;
 }
+
+/** Told the people of each row as it comes near the screen, so their names and pictures load. */
+const RowNearContext = createContext<((pubkeys: string[]) => void) | null>(null);
 
 function RoomRow({
   room,
@@ -61,6 +65,12 @@ function RoomRow({
   const unread = selected || prefs.muted.includes(room.key) ? 0 : unreadIn(room, me, prefs);
   const timer = roomTimer(prefs, room.key) > 0;
   const others = room.participants.filter((pk) => pk !== me);
+  const onNear = useContext(RowNearContext);
+  const face = useRef<HTMLSpanElement>(null);
+  const near = useNearViewport(face, "800px");
+  useEffect(() => {
+    if (near) onNear?.(room.participants);
+  }, [near, onNear, room.participants]);
   return (
     <Link
       href={`/messages/${roomSlug(room.key, me)}`}
@@ -73,7 +83,9 @@ function RoomRow({
       aria-current={selected ? "page" : undefined}
       data-testid="dm-room-row"
     >
-      <RoomAvatar room={room} me={me} profiles={profiles} scoreOf={scoreOf} />
+      <span ref={face} className="shrink-0">
+        <RoomAvatar room={room} me={me} profiles={profiles} scoreOf={scoreOf} />
+      </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex items-center gap-1.5">
           <span className="truncate text-[15px] font-semibold">{roomTitle(room, me, profiles)}</span>
@@ -135,6 +147,7 @@ export function ConversationList({
   tab,
   onSignIn,
   notices,
+  onPeopleNear,
 }: {
   engine: DmEngine | null;
   state: DmEngineState;
@@ -147,6 +160,8 @@ export function ConversationList({
   onSignIn: () => void;
   /** Status and things waiting on the reader, pinned under the list. */
   notices?: React.ReactNode;
+  /** The people of rows coming near the screen. */
+  onPeopleNear?: (pubkeys: string[]) => void;
 }) {
   const [showLow, setShowLow] = useState(false);
   const [query, setQuery] = useState("");
@@ -202,221 +217,228 @@ export function ConversationList({
   const requestCount = shelves.requests.length + shelves.low.length;
 
   return (
-    <aside
-      aria-label="Conversations"
-      className="flex min-h-0 flex-1 flex-col border-border bg-card md:border-r"
-      data-testid="dm-conversation-list"
-    >
-      <div className="flex items-center justify-between px-4 pb-3 pt-4">
-        <h1 className="font-display text-[22px] font-bold tracking-tight">Messages</h1>
-        <Link
-          href="/settings?tab=trust&focus=messages"
-          aria-label="Message settings"
-          className="ml-auto mr-2 inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-        >
-          <Settings2 className="h-[18px] w-[18px]" />
-        </Link>
-        <Link
-          href="/messages/new"
-          aria-label="New message"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
-          data-testid="dm-new-message"
-        >
-          <SquarePen className="h-[18px] w-[18px]" />
-        </Link>
-      </div>
-
-      <div className="relative mx-4 mb-2">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-          placeholder="Search messages and people"
-          aria-label="Search messages and people"
-          className="h-10 rounded-full pl-9 pr-9"
-          data-testid="dm-search"
-        />
-        {searching && (
-          <button
-            type="button"
-            onClick={() => setQuery("")}
-            aria-label="Clear search"
-            className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+    <RowNearContext.Provider value={onPeopleNear ?? null}>
+      <aside
+        aria-label="Conversations"
+        className="flex min-h-0 flex-1 flex-col border-border bg-card md:border-r"
+        data-testid="dm-conversation-list"
+      >
+        <div className="flex items-center justify-between px-4 pb-3 pt-4">
+          <h1 className="font-display text-[22px] font-bold tracking-tight">Messages</h1>
+          <Link
+            href="/settings?tab=trust&focus=messages"
+            aria-label="Message settings"
+            className="ml-auto mr-2 inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
           >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-
-      {searching && results ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
-          <MessageSearchResults
-            results={results}
-            people={people}
-            searchingPeople={searchingPeople}
-            follows={follows}
-            me={me}
-            profiles={profiles}
-            scoreOf={shelves.scoreOf}
-          />
+            <Settings2 className="h-[18px] w-[18px]" />
+          </Link>
+          <Link
+            href="/messages/new"
+            aria-label="New message"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
+            data-testid="dm-new-message"
+          >
+            <SquarePen className="h-[18px] w-[18px]" />
+          </Link>
         </div>
-      ) : (
-        <>
-          <div
-            role="tablist"
-            aria-label="Inbox"
-            className="mx-4 mb-2 grid grid-cols-2 gap-1 rounded-full bg-slate-100 p-1 dark:bg-slate-800"
-          >
-            {(
-              [
-                ["chats", "Chats", "/messages"],
-                ["requests", "Requests", "/messages/requests"],
-              ] as const
-            ).map(([key, label, href]) => (
-              <Link
-                key={key}
-                href={href}
-                role="tab"
-                aria-selected={tab === key}
-                className={cn(
-                  "flex h-9 items-center justify-center gap-1.5 rounded-full text-sm font-semibold transition-colors",
-                  tab === key
-                    ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
-                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
-                )}
-                data-testid={`dm-tab-${key}`}
-              >
-                {label}
-                {key === "requests" && requestCount > 0 && (
-                  <Chip tone="brand" size="sm">
-                    {requestCount}
-                  </Chip>
-                )}
-              </Link>
-            ))}
-          </div>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3" data-testid="dm-room-scroll">
-            {tab === "requests" && rooms.length === 0 && shelves.low.length === 0 && (
-              <p className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">
-                No requests. People you don't follow land here, sorted by how your web of trust sees them.
-              </p>
-            )}
-            {tab === "chats" && rooms.length === 0 && state.status === "ready" && (
-              <p className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">
-                {state.history.loading || !state.liveSettled ? "Loading your messages…" : "No chats yet."}
-              </p>
-            )}
-            {pinned.map((room) => (
-              <RoomRow
-                key={room.key}
-                room={room}
-                me={me}
-                profiles={profiles}
-                scoreOf={shelves.scoreOf}
-                prefs={prefs}
-                selected={room.key === selectedKey}
-              />
-            ))}
-            {pinned.length > 0 && flowing.length > 0 && <div className="mx-3 my-1 border-t border-border" />}
-            {items.map((item) =>
-              item.kind === "room" ? (
+        <div className="relative mx-4 mb-2">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+            placeholder="Search messages and people"
+            aria-label="Search messages and people"
+            className="h-10 rounded-full pl-9 pr-9"
+            data-testid="dm-search"
+          />
+          {searching && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {searching && results ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
+            <MessageSearchResults
+              results={results}
+              people={people}
+              searchingPeople={searchingPeople}
+              follows={follows}
+              me={me}
+              profiles={profiles}
+              scoreOf={shelves.scoreOf}
+            />
+          </div>
+        ) : (
+          <>
+            <div
+              role="tablist"
+              aria-label="Inbox"
+              className="mx-4 mb-2 grid grid-cols-2 gap-1 rounded-full bg-slate-100 p-1 dark:bg-slate-800"
+            >
+              {(
+                [
+                  ["chats", "Chats", "/messages"],
+                  ["requests", "Requests", "/messages/requests"],
+                ] as const
+              ).map(([key, label, href]) => (
+                <Link
+                  key={key}
+                  href={href}
+                  role="tab"
+                  aria-selected={tab === key}
+                  className={cn(
+                    "flex h-9 items-center justify-center gap-1.5 rounded-full text-sm font-semibold transition-colors",
+                    tab === key
+                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-slate-100"
+                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
+                  )}
+                  data-testid={`dm-tab-${key}`}
+                >
+                  {label}
+                  {key === "requests" && requestCount > 0 && (
+                    <Chip tone="brand" size="sm">
+                      {requestCount}
+                    </Chip>
+                  )}
+                </Link>
+              ))}
+            </div>
+
+            <div
+              className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
+              data-testid="dm-room-scroll"
+            >
+              {tab === "requests" && rooms.length === 0 && shelves.low.length === 0 && (
+                <p className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">
+                  No requests. People you don't follow land here, sorted by how your web of trust sees them.
+                </p>
+              )}
+              {tab === "chats" && rooms.length === 0 && state.status === "ready" && (
+                <p className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">
+                  {state.history.loading || !state.liveSettled ? "Loading your messages…" : "No chats yet."}
+                </p>
+              )}
+              {pinned.map((room) => (
                 <RoomRow
-                  key={item.room.key}
-                  room={item.room}
+                  key={room.key}
+                  room={room}
                   me={me}
                   profiles={profiles}
                   scoreOf={shelves.scoreOf}
                   prefs={prefs}
-                  selected={item.room.key === selectedKey}
-                  showTrust={tab === "requests" && trustLines.has(item.room.key)}
+                  selected={room.key === selectedKey}
                 />
-              ) : (
-                <RelayMarker
-                  key={`m:${item.progress.url}`}
-                  progress={item.progress}
-                  variant="list"
-                  onAdvance={advance}
-                  onRetry={retry}
-                  onSignIn={onSignIn}
-                />
-              ),
-            )}
+              ))}
+              {pinned.length > 0 && flowing.length > 0 && <div className="mx-3 my-1 border-t border-border" />}
+              {items.map((item) =>
+                item.kind === "room" ? (
+                  <RoomRow
+                    key={item.room.key}
+                    room={item.room}
+                    me={me}
+                    profiles={profiles}
+                    scoreOf={shelves.scoreOf}
+                    prefs={prefs}
+                    selected={item.room.key === selectedKey}
+                    showTrust={tab === "requests" && trustLines.has(item.room.key)}
+                  />
+                ) : (
+                  <RelayMarker
+                    key={`m:${item.progress.url}`}
+                    progress={item.progress}
+                    variant="list"
+                    onAdvance={advance}
+                    onRetry={retry}
+                    onSignIn={onSignIn}
+                  />
+                ),
+              )}
 
-            {tab === "chats" && shelves.archived.length > 0 && (
-              <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowArchived((v) => !v)}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
-                  aria-expanded={showArchived}
-                  data-testid="dm-archived-toggle"
-                >
-                  <Archive className="h-4 w-4" />
-                  Archived · {shelves.archived.length}
-                  <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", !showArchived && "-rotate-90")} />
-                </button>
-                {showArchived &&
-                  shelves.archived.map((room) => (
-                    <RoomRow
-                      key={room.key}
-                      room={room}
-                      me={me}
-                      profiles={profiles}
-                      scoreOf={shelves.scoreOf}
-                      prefs={prefs}
-                      selected={room.key === selectedKey}
+              {tab === "chats" && shelves.archived.length > 0 && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowArchived((v) => !v)}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                    aria-expanded={showArchived}
+                    data-testid="dm-archived-toggle"
+                  >
+                    <Archive className="h-4 w-4" />
+                    Archived · {shelves.archived.length}
+                    <ChevronDown
+                      className={cn("ml-auto h-4 w-4 transition-transform", !showArchived && "-rotate-90")}
                     />
-                  ))}
-              </div>
-            )}
+                  </button>
+                  {showArchived &&
+                    shelves.archived.map((room) => (
+                      <RoomRow
+                        key={room.key}
+                        room={room}
+                        me={me}
+                        profiles={profiles}
+                        scoreOf={shelves.scoreOf}
+                        prefs={prefs}
+                        selected={room.key === selectedKey}
+                      />
+                    ))}
+                </div>
+              )}
 
-            {tab === "requests" && shelves.low.length > 0 && (
-              <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowLow((v) => !v)}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
-                  aria-expanded={showLow}
-                  data-testid="dm-low-trust-toggle"
-                >
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", !showLow && "-rotate-90")} />
-                  {shelves.low.length} below your trust threshold
-                </button>
-                {showLow &&
-                  shelves.low.map((room) => (
-                    <RoomRow
-                      key={room.key}
-                      room={room}
-                      me={me}
-                      profiles={profiles}
-                      scoreOf={shelves.scoreOf}
-                      prefs={prefs}
-                      selected={room.key === selectedKey}
-                      hidePreview
-                      showTrust={trustLines.has(room.key)}
-                    />
-                  ))}
-              </div>
-            )}
-            {tab === "requests" && shelves.flagged.length > 0 && (
-              <Alert variant="destructive" className="mx-2 mt-3 w-auto px-3 py-2.5 text-xs leading-relaxed">
-                <Flag className="h-3.5 w-3.5" />
-                <AlertDescription className="text-xs">
-                  {shelves.flagged.length}{" "}
-                  {shelves.flagged.length === 1 ? "request from a sender" : "requests from senders"} flagged by people
-                  you trust {shelves.flagged.length === 1 ? "is" : "are"} never shown.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-          {/* Pinned under the list, outside its scroll: coming and going, it never moves a row. */}
-          <div className="shrink-0 border-t border-border pt-2 empty:hidden" data-testid="dm-list-footer">
-            {notices}
-          </div>
-        </>
-      )}
-    </aside>
+              {tab === "requests" && shelves.low.length > 0 && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowLow((v) => !v)}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                    aria-expanded={showLow}
+                    data-testid="dm-low-trust-toggle"
+                  >
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", !showLow && "-rotate-90")} />
+                    {shelves.low.length} below your trust threshold
+                  </button>
+                  {showLow &&
+                    shelves.low.map((room) => (
+                      <RoomRow
+                        key={room.key}
+                        room={room}
+                        me={me}
+                        profiles={profiles}
+                        scoreOf={shelves.scoreOf}
+                        prefs={prefs}
+                        selected={room.key === selectedKey}
+                        hidePreview
+                        showTrust={trustLines.has(room.key)}
+                      />
+                    ))}
+                </div>
+              )}
+              {tab === "requests" && shelves.flagged.length > 0 && (
+                <Alert variant="destructive" className="mx-2 mt-3 w-auto px-3 py-2.5 text-xs leading-relaxed">
+                  <Flag className="h-3.5 w-3.5" />
+                  <AlertDescription className="text-xs">
+                    {shelves.flagged.length}{" "}
+                    {shelves.flagged.length === 1 ? "request from a sender" : "requests from senders"} flagged by people
+                    you trust {shelves.flagged.length === 1 ? "is" : "are"} never shown.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+            {/* Pinned under the list, outside its scroll: coming and going, it never moves a row. */}
+            <div className="shrink-0 border-t border-border pt-2 empty:hidden" data-testid="dm-list-footer">
+              {notices}
+            </div>
+          </>
+        )}
+      </aside>
+    </RowNearContext.Provider>
   );
 }

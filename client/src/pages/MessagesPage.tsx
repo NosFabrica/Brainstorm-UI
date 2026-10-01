@@ -41,9 +41,6 @@ function useRelayAuthAllowed(pubkey: string): boolean {
   return allowed;
 }
 
-/** Rows per list whose names and pictures are loaded. */
-const PROFILE_ROWS = 200;
-
 export default function MessagesPage() {
   const user = useActiveAccountDisplay();
   const me = user?.pubkey ?? "";
@@ -95,19 +92,19 @@ export default function MessagesPage() {
   // An open request keeps the Requests list beside it.
   const tab: InboxTab = slug === "requests" || (roomKey && shelf !== "chat" && !room?.hasMine) ? "requests" : "chats";
 
-  // Names and pictures for the rows the open tab lists, each list capped on its own.
-  // One cap over every list in order — chats, then archived, then requests — spent
-  // it all on chats in a big inbox, and requests showed no name or face until opened.
+  // Names and pictures for the rows on (or near) the screen: each row reports its
+  // people as it comes close (ConversationList), and they stay for the visit. A fixed
+  // cap over the lists left a big inbox's lower rows — requests first, then chats
+  // past the 200th — with no name or face until opened.
+  const [seen, setSeen] = useState<ReadonlySet<string>>(() => new Set());
+  const onPeopleNear = useCallback((pubkeys: string[]) => {
+    setSeen((prev) => (pubkeys.every((pk) => prev.has(pk)) ? prev : new Set([...prev, ...pubkeys])));
+  }, []);
   const people = useMemo(() => {
-    const set = new Set<string>();
-    const lists =
-      tab === "requests"
-        ? [shelves.requests, shelves.low]
-        : [shelves.chats, shelves.archived.slice(0, PROFILE_ROWS / 2)];
-    for (const list of lists) for (const r of list.slice(0, PROFILE_ROWS)) for (const pk of r.participants) set.add(pk);
+    const set = new Set(seen);
     if (roomKey) for (const pk of roomKey.split(",")) set.add(pk);
     return [...set];
-  }, [shelves, tab, roomKey]);
+  }, [seen, roomKey]);
   const profiles = useLiveProfiles(people);
 
   const allowAuth = useCallback(() => {
@@ -198,6 +195,7 @@ export default function MessagesPage() {
               selectedKey={roomKey}
               tab={tab}
               onSignIn={allowAuth}
+              onPeopleNear={onPeopleNear}
               notices={
                 <>
                   <InboxNotices engine={engine} state={state} authAllowed={authAllowed} onAllowAuth={allowAuth} />
