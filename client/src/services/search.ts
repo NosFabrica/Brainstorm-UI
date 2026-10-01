@@ -145,6 +145,27 @@ export const TAB_LABELS: Record<SearchTab, string> = {
 };
 export const tabLabel = (tab: string): string => TAB_LABELS[tab as SearchTab] ?? tab;
 
+const MINT_REVIEW_KIND = 38000;
+/** NIP-87's own `k` on a kind-38000: the mint it recommends is a Cashu mint (38172) or a Fedimint (38173). */
+const MINT_REVIEW_KS = ["38172", "38173"];
+
+/**
+ * Reviews asks the relay for NIP-87's mint reviews alone. Kind 38000 is shared — BAO's
+ * prediction markets, an election app's ballots, thousands of one-key test votes
+ * (lib/thing's kind38000Format) — and asked bare, they filled the page the tab then
+ * emptied: on the production relay, through the house lens, 29 of the first 100 Reviews
+ * hits were markets, and 87 of 100 on "bitcoin" (2026-10-01). So 38000 goes in a filter
+ * of its own, narrowed by `#k`, ORed with the other review kinds. The handful of old
+ * reviews published before NIP-87 had a `k` are left out.
+ */
+export function askMintReviewsOnly<F extends { kinds?: number[]; "#k"?: string[] }>(filters: F[]): F[] {
+  return filters.flatMap((f) => {
+    if (!f.kinds?.includes(MINT_REVIEW_KIND) || f["#k"]) return [f];
+    const rest = f.kinds.filter((k) => k !== MINT_REVIEW_KIND);
+    const mint = { ...f, kinds: [MINT_REVIEW_KIND], "#k": MINT_REVIEW_KS };
+    return rest.length ? [{ ...f, kinds: rest }, mint] : [mint];
+  });
+}
 export function kindsForTab(tab: SearchTab): number[] | undefined {
   return tab === "everything" ? undefined : TAB_KINDS[tab];
 }
@@ -490,7 +511,7 @@ export function searchStream(
     // On the Live tab the author question moves to `#p`, so the grammar's own `authors` is
     // dropped and the keys ride the base every filter carries.
     const askedBy = byHost ? query.replace(/(^|\s)from:\S+/gi, " ") : query;
-    const filters = searchFilters(askedBy, {
+    const built = searchFilters(askedBy, {
       kinds,
       limit,
       searchString: (terms) => withObserver(terms, observer),
@@ -504,6 +525,7 @@ export function searchStream(
       },
       since: params.since,
     });
+    const filters = params.tab === "reviews" ? askMintReviewsOnly(built) : built;
     // A scope asked of a tab that holds no comments has nothing to ask.
     if (filters.length === 0) {
       emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
@@ -552,13 +574,46 @@ export function searchStream(
     const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
     const pageSubs: { unsubscribe: () => void }[] = [];
 
-    const openPage = (page: import("nostr-tools").Filter[], closeAtEose: boolean) => {
+    // A union whose filters ask pairwise-disjoint kinds (Reviews: the ratings and relay
+    // reviews, and NIP-87's mint reviews narrowed by `#k`) can say, by an event's kind,
+    // which filter it answered — so each filter keeps a cursor of its own and runs short
+    // on its own, and the union walks back like one filter does.
+    const kindOwner = new Map<number, number>();
+    const disjoint =
+      filters.length > 1 &&
+      filters.every(
+        (f, i) =>
+          (f.kinds?.length ?? 0) > 0 &&
+          f.kinds!.every((k) => {
+            if (kindOwner.has(k)) return false;
+            kindOwner.set(k, i);
+            return true;
+          }),
+      );
+    const ownerOf = (event: NostrEvent): number => (filters.length === 1 ? 0 : (kindOwner.get(event.kind) ?? -1));
+    // How the next page is asked for. Walking back with `until` is only correct per filter:
+    // rewinding every filter of a union to the oldest second ANY of them returned skips what
+    // a filter had between its own oldest and that one — silently, and for good. A union
+    // that cannot route its events grows its limits instead and leans on the dedupe, which
+    // is what the ranked path has always done.
+    const walksBack = recent && (filters.length === 1 || disjoint);
+    const filterOldest = filters.map(() => Infinity);
+    const filterDone = filters.map(() => false);
+    for (const h of hits) {
+      const i = ownerOf(h.event);
+      if (i >= 0) filterOldest[i] = Math.min(filterOldest[i], h.event.created_at);
+    }
+    // Two filters answer one after the other; a list read newest-first stays in time order.
+    const byTime = walksBack && filters.length > 1 && !seed.length;
+
+    const openPage = (page: import("nostr-tools").Filter[], closeAtEose: boolean, members: number[]) => {
       // The page's own size, for the short-page test below. Only meaningful when ONE filter
       // was asked: a union's filters run short independently, and `#l` finding nothing says
       // nothing about whether `#t` has more.
       const single = page.length === 1;
       const pageLimit_ = page[0]?.limit ?? pageLimit;
       let received = 0;
+      const receivedBy = new Map<number, number>();
       let fresh = 0;
       // The first page of a seeded stream is a refresh: what it brings is
       // newer than the seed and goes in front of it, in arrival order.
@@ -612,6 +667,8 @@ export function searchStream(
           if (msg.type === "EVENT" && msg.event) {
             const event = msg.event;
             received++;
+            const owner = walksBack ? ownerOf(event) : -1;
+            if (owner >= 0) receivedBy.set(owner, (receivedBy.get(owner) ?? 0) + 1);
             if (!hostedByThem(event)) return;
             // A husk deleted by overwriting is not a result (lib/blankEvent).
             if (isBlankEvent(event)) return;
@@ -620,13 +677,17 @@ export function searchStream(
             seen.add(event.id);
             fresh++;
             oldest = Math.min(oldest, event.created_at);
+            if (owner >= 0) filterOldest[owner] = Math.min(filterOldest[owner], event.created_at);
             // Into the store the moment it arrives: the search relay's corpus is
             // wider than the content relays', so a clicked result must render
             // from what we already hold, not from relays that may lack it.
             eventStore.add(event);
             const hit = { event, author: noteAuthor(event), rank: null };
             if (!closeAtEose && seed.length) hits.splice(insertAt++, 0, hit);
-            else hits.push(hit);
+            else if (byTime) {
+              const at = hits.findIndex((h) => h.event.created_at < event.created_at);
+              hits.splice(at < 0 ? hits.length : at, 0, hit);
+            } else hits.push(hit);
             emit({});
           } else if (msg.type === "EOSE") {
             eose = true;
@@ -646,7 +707,13 @@ export function searchStream(
             // before dedupe: an `until` page always carries the boundary second again. A full
             // page with nothing new is the end too, and for a union it is the ONLY end: the
             // filters are short independently, so their total says nothing.
-            if (fresh === 0 || (single && received < pageLimit_)) exhausted = true;
+            // Walking back, each filter is short on its own and the list ends when all are.
+            if (walksBack) {
+              members.forEach((m, j) => {
+                if ((receivedBy.get(m) ?? 0) < (page[j].limit ?? pageLimit)) filterDone[m] = true;
+              });
+              if (fresh === 0 || filterDone.every(Boolean)) exhausted = true;
+            } else if (fresh === 0 || (single && received < pageLimit_)) exhausted = true;
             if (closeAtEose) sub.unsubscribe();
             emit({ timeMs: Date.now() - startedAt });
           } else if (msg.type === "CLOSED") {
@@ -662,13 +729,6 @@ export function searchStream(
         },
       });
     };
-
-    // How the next page is asked for. Walking back with `until` is only correct when ONE
-    // filter was asked: `oldest` is the oldest second ANY filter of a union returned, so
-    // rewinding them all to it skips whatever a filter had between its own oldest and that
-    // one — silently, and for good. A union grows its limits instead and leans on the dedupe,
-    // which is what the ranked path has always done.
-    const walksBack = recent && filters.length === 1;
 
     turnPage = () => {
       if (cancelled || !eose || loadingMore || exhausted) return;
@@ -687,14 +747,31 @@ export function searchStream(
       //
       // Every filter of the union turns together, and the side questions grow in proportion
       // so a wider page does not keep re-reading the same quarter of them.
-      const next = filters.map(({ since: _pageOneOnly, ...f }) =>
-        walksBack ? { ...f, until: oldest } : { ...f, limit: (f.limit ?? pageLimit) * factor },
-      );
+      // Walking back, only the filters still running turn, each from its own oldest second;
+      // one that brought nothing fresh has nothing to walk back from.
+      const members = filters
+        .map((_, i) => i)
+        .filter((i) => !walksBack || (!filterDone[i] && filterOldest[i] !== Infinity));
+      if (members.length === 0) {
+        loadingMore = false;
+        pagesTurned--;
+        exhausted = true;
+        emit({});
+        return;
+      }
+      const next = members.map((i) => {
+        const { since: _pageOneOnly, ...f } = filters[i];
+        return walksBack ? { ...f, until: filterOldest[i] } : { ...f, limit: (f.limit ?? pageLimit) * factor };
+      });
       emit({});
-      openPage(next, true);
+      openPage(next, true, members);
     };
 
-    openPage(filters, false);
+    openPage(
+      filters,
+      false,
+      filters.map((_, i) => i),
+    );
     unsubscribe = () => {
       for (const sub of pageSubs) sub.unsubscribe();
       wantedAuthors.forEach((withdraw) => withdraw());

@@ -55,6 +55,7 @@ vi.mock("@/hooks/useNip05", () => ({ useNip05: () => "none" }));
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: async () => null }));
 
 import { EmbeddedNoteCard } from "./EmbeddedNoteCard";
+import { NoteContent } from "./NoteContent";
 import { __resetLinkedArticles } from "@/hooks/useLinkedArticles";
 import { __resetQuotedNotes } from "@/hooks/useQuotedNotes";
 
@@ -173,6 +174,66 @@ const husk = (content: string, tags: string[][] = []) =>
     content,
     created_at: 1_700_000_000,
   }) as import("@/lib/noteRefs").MinimalEvent;
+
+const BAO = "9".repeat(64);
+const MARKET = {
+  id: "1".repeat(64),
+  kind: 38000,
+  pubkey: BAO,
+  created_at: 1_779_000_000,
+  sig: "",
+  content: "₿ Will the network mine fewer than 140 blocks today? #baomarkets #predictionmarkets",
+  tags: [
+    ["d", "59a3"],
+    ["market", "59a3"],
+    ["status", "resolved"],
+    ["network", "demo"],
+    ["outcome", "YES"],
+    ["outcome", "NO"],
+    ["resolution", "NO"],
+    ["data", JSON.stringify({ title: "Fewer than 140 blocks today?", description: "Target is 144 blocks per day." })],
+  ],
+};
+
+describe("EmbeddedNoteCard — kind-38000 markets and ballots", () => {
+  it("a quoted prediction market is the market — its question, status and winner — not BAO's post", () => {
+    renderWithProviders(<EmbeddedNoteCard event={MARKET} author={{ name: "BAO Markets" }} />);
+    const thing = screen.getByTestId("embedded-thing");
+    expect(thing).toHaveTextContent("Fewer than 140 blocks today?");
+    expect(thing).toHaveTextContent("Resolved");
+    expect(thing).toHaveTextContent("Demo · play money");
+    expect(screen.getByTestId("market-winner")).toHaveTextContent("NO");
+    expect(screen.getByTestId("embedded-note")).not.toHaveTextContent("#baomarkets");
+  });
+
+  it("a quoted ballot shows its answers, not its JSON", () => {
+    const ballot = {
+      id: "2".repeat(64),
+      kind: 38000,
+      pubkey: BAO,
+      created_at: 1_779_000_000,
+      content: JSON.stringify({ election_id: "spring", ballot: { funding_priority: "community-grants" } }),
+      tags: [["election", "spring"]],
+    };
+    renderWithProviders(<EmbeddedNoteCard event={ballot} />);
+    const thing = screen.getByTestId("embedded-thing");
+    expect(thing).toHaveTextContent("Ballot in spring");
+    expect(thing).toHaveTextContent("funding_prioritycommunity-grants");
+    expect(thing).not.toHaveTextContent("election_id");
+  });
+
+  it("a note's naddr to a market is drawn as the market at the top level, and stays a link one level down", async () => {
+    addressable.mockImplementation(async () => new Map([[`38000:${BAO}:59a3`, MARKET]]) as never);
+    const naddr = nip19.naddrEncode({ kind: 38000, pubkey: BAO, identifier: "59a3" });
+    const { unmount } = renderWithProviders(<NoteContent content={`Bet on this nostr:${naddr}`} embedThings />);
+    expect(await screen.findByTestId("embedded-thing")).toHaveTextContent("Fewer than 140 blocks today?");
+    unmount();
+    renderWithProviders(<NoteContent content={`Bet on this nostr:${naddr}`} />);
+    expect(screen.queryByTestId("embedded-thing")).toBeNull();
+    // A link to the shared kind says no more than it knows — never "mint review" for a market.
+    expect(screen.getByRole("button", { name: "↗ linked post" })).toBeInTheDocument();
+  });
+});
 
 describe("EmbeddedNoteCard — deleted by overwriting", () => {
   it("a quoted note deleted by overwriting is a quiet stub — named when we know who, generic when we don't", () => {

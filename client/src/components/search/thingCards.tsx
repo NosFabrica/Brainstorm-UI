@@ -5,6 +5,8 @@
  * - CommunityCard   NIP-72 communities, NIP-29 relay groups, NIP-28 channels
  * - FundraiserCard  NIP-75 zap goals (with what they have raised) and Agora campaigns
  * - ReviewCard      relay reviews, NIP-87 mint reviews, ratings of anything
+ * - MarketCard      BAO prediction markets (kind 38000, shared with mint reviews)
+ * - BallotCard      ballots cast in an auditable-voting app (kind 38000 too)
  * - ShopPlaceCard   NIP-15 stalls and marketplaces, shaped like a listing for the Shop grid
  * - AppThingCard    NIP-89 handlers, NIP-5A Nostr sites, NIP-5D mini apps, shaped like an app card
  * - CalendarCard    NIP-52 calendars
@@ -24,7 +26,9 @@ import {
   Archive,
   Award,
   CalendarDays,
+  Check,
   Disc3,
+  ExternalLink,
   File,
   Film,
   Globe,
@@ -39,7 +43,9 @@ import {
   ScrollText,
   Star,
   Store,
+  TrendingUp,
   Users,
+  Vote,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -54,7 +60,16 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { AuthorRow, CardShell, CuratorFooter, hostLabel, hostOf, useFaceProfiles } from "@/components/search/cards";
-import { describeThing, hostOfUrl, type Thing, type ThingDetail, type TorrentCategory } from "@/lib/thing";
+import {
+  describeThing,
+  hostOfUrl,
+  marketStatusNow,
+  type MarketStatus,
+  type Thing,
+  type ThingDetail,
+  type TorrentCategory,
+} from "@/lib/thing";
+import { tone as resolveTone, type Tone } from "@/lib/tones";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { formatBytes } from "@/lib/formatBytes";
 import { languageName } from "@/lib/translate";
@@ -102,6 +117,10 @@ export function ThingCard({
       return <FundraiserCard {...base} detail={d} progress={progress} />;
     case "review":
       return <ReviewCard {...base} detail={d} />;
+    case "market":
+      return <MarketCard {...base} detail={d} />;
+    case "ballot":
+      return <BallotCard {...base} detail={d} />;
     case "shop":
       return <ShopPlaceCard {...base} detail={d} />;
     case "app":
@@ -570,6 +589,285 @@ export function ReviewCard(props: CardProps<"review">) {
           at={event.created_at}
           linked={!!thing.link}
         />
+      </div>
+    </CardShell>
+  );
+}
+
+// ——— Prediction markets ———
+
+export const MARKET_STATUS_CHIP: Record<MarketStatus, { word: string; tone: Tone }> = {
+  open: { word: "Open", tone: "success" },
+  closed: { word: "Closed", tone: "slate" },
+  resolved: { word: "Resolved", tone: "info" },
+  cancelled: { word: "Cancelled", tone: "slate" },
+};
+
+export function marketCloseWords(closes: number, now = Date.now()): string {
+  const ms = closes * 1000 - now;
+  const date = new Date(closes * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (ms <= 0) return `Closed ${date}`;
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours < 24)
+    return hours === 0 ? "Closes within the hour" : `Closes in ${hours} ${hours === 1 ? "hour" : "hours"}`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `Closes in ${days} ${days === 1 ? "day" : "days"}`;
+  return `Closes ${date}`;
+}
+
+/** "YES", "No", "YES (stays online)" — the two sides of a yes/no market, whatever the app wrote after them. */
+const sideOf = (o: string): "yes" | "no" | null => {
+  const w = o.trim().toLowerCase();
+  return /^yes\b/.test(w) ? "yes" : /^no\b/.test(w) ? "no" : null;
+};
+
+/**
+ * What can be picked. A yes/no market is two sides, green and red, the way
+ * betting apps draw them; anything else is its outcomes in a row. Once it
+ * resolves, the winner keeps its colour and a check and the rest go quiet;
+ * a cancelled market's outcomes all go quiet.
+ */
+export function MarketOutcomes({
+  detail,
+  max = 5,
+  testId,
+}: {
+  detail: Detail<"market">;
+  max?: number;
+  testId?: string;
+}) {
+  if (detail.outcomes.length === 0) return null;
+  const won = detail.resolution?.trim().toLowerCase();
+  const binary = detail.outcomes.length === 2 && detail.outcomes.every((o) => sideOf(o) !== null);
+  const off = marketStatusNow(detail) === "cancelled";
+  const toneOf = (o: string): Tone => {
+    const isWinner = !!won && o.trim().toLowerCase() === won;
+    if (off || (won && !isWinner)) return "slate";
+    if (isWinner) return "success";
+    if (binary) return sideOf(o) === "yes" ? "success" : "danger";
+    return "slate";
+  };
+  if (binary)
+    // Two sides, side by side and full width — the way betting apps lay out Yes and No.
+    return (
+      <div className="grid grid-cols-2 gap-2" data-testid={testId}>
+        {detail.outcomes.map((o) => {
+          const isWinner = !!won && o.trim().toLowerCase() === won;
+          const quiet = off || (!!won && !isWinner);
+          const c = resolveTone(toneOf(o));
+          return (
+            <span
+              key={o}
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg border px-3 py-1.5 text-sm font-semibold ${c.bg} ${c.text} ${c.border} ${quiet ? "opacity-50" : ""}`}
+              data-testid={isWinner ? "market-winner" : undefined}
+            >
+              {isWinner && <Check className="h-3.5 w-3.5 shrink-0" aria-label="Won" />}
+              <span className="truncate">{o}</span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
+      {detail.outcomes.slice(0, max).map((o) => {
+        const isWinner = !!won && o.trim().toLowerCase() === won;
+        return (
+          <Chip
+            key={o}
+            size="sm"
+            tone={toneOf(o)}
+            icon={isWinner ? Check : undefined}
+            className={off || (won && !isWinner) ? "opacity-60" : undefined}
+            data-testid={isWinner ? "market-winner" : undefined}
+          >
+            {o}
+          </Chip>
+        );
+      })}
+      {detail.outcomes.length > max && (
+        <span className="text-[11px] text-slate-500 dark:text-slate-400">+{detail.outcomes.length - max} more</span>
+      )}
+    </div>
+  );
+}
+
+/** Where a market stands, in one row of chips: its status, play money, its category. */
+export function MarketStatusLine({ detail, testId }: { detail: Detail<"market">; testId?: string }) {
+  const now = marketStatusNow(detail);
+  const status = now ? MARKET_STATUS_CHIP[now] : null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
+      {status && (
+        <Chip size="sm" tone={status.tone} dot={now === "open"}>
+          {status.word}
+        </Chip>
+      )}
+      {detail.demo && (
+        <Chip size="sm" tone="warning">
+          Demo · play money
+        </Chip>
+      )}
+      {detail.category && (
+        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{detail.category}</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A market at a glance, for wherever one turns up — a card, a search row, a
+ * note that quotes it: where it stands, what can be picked, when it closes.
+ */
+export function MarketSummary({
+  detail,
+  max = 5,
+  link,
+  testId,
+}: {
+  detail: Detail<"market">;
+  max?: number;
+  /** The market's page on BAO Markets, offered beside the closing time. */
+  link?: string | null;
+  testId?: string;
+}) {
+  const status = marketStatusNow(detail);
+  const open = status === "open" || status === null;
+  return (
+    <div className="space-y-2" data-testid={testId}>
+      <MarketStatusLine detail={detail} />
+      <MarketOutcomes detail={detail} max={max} />
+      {((detail.closes !== null && open) || link) && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+          {detail.closes !== null && open && <span>{marketCloseWords(detail.closes)}</span>}
+          {link && <BaoMarketLink href={link} detail={detail} />}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** What the door to BAO says: bet while it is open, look once it is not. */
+export function baoMarketLinkLabel(detail: Detail<"market">): string {
+  const status = marketStatusNow(detail);
+  return status === "open" || status === null ? "Bet on BAO Markets" : "View on BAO Markets";
+}
+
+/** The market's page on BAO Markets — a quiet link that does not open the row or card around it. */
+export function BaoMarketLink({ href, detail }: { href: string; detail: Detail<"market"> }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener"
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1 font-medium text-brand-link hover:underline"
+      data-testid="bao-market-link"
+      data-noopen
+    >
+      {baoMarketLinkLabel(detail)}
+      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+    </a>
+  );
+}
+
+/**
+ * A question to bet on: the question, where it stands, what can be picked
+ * (and what won, once resolved), and when betting closes. A market on BAO's
+ * demo network says so — its stakes are play money.
+ */
+export function MarketCard(props: CardProps<"market">) {
+  const { event, thing, detail } = props;
+  return (
+    <CardShell
+      event={event}
+      openInUrl={thing.link ?? undefined}
+      openInLabel={baoMarketLinkLabel(detail)}
+      openInHost={thing.link ? "bao.markets" : undefined}
+      openInTestId={`thing-link-${event.id}`}
+      openInPlacement="footer"
+      fill
+      testId={`thing-card-${event.id}`}
+    >
+      <div className="flex h-full flex-col">
+        <div className="flex items-start gap-3">
+          <Picture src={null} icon={TrendingUp} size="sm" />
+          <div className="min-w-0 flex-1">
+            <Title event={event} thing={thing} clamp={2} />
+            <Description event={event} text={thing.description} />
+          </div>
+        </div>
+        <div className="mt-3">
+          <MarketSummary detail={detail} testId={`thing-market-${event.id}`} />
+        </div>
+        <Footer
+          kicker="Created by"
+          author={props.author}
+          score={props.score}
+          at={event.created_at}
+          linked={!!thing.link}
+        />
+      </div>
+    </CardShell>
+  );
+}
+
+// ——— Ballots ———
+
+/** A ballot's answers, question → answer, the first few and how many more. */
+export function BallotAnswers({
+  detail,
+  max = 3,
+  testId,
+}: {
+  detail: Detail<"ballot">;
+  max?: number;
+  testId?: string;
+}) {
+  if (detail.answers.length === 0) return null;
+  return (
+    <div data-testid={testId}>
+      <dl className="divide-y divide-slate-100 rounded-lg border border-slate-200 text-xs dark:divide-slate-800 dark:border-slate-800">
+        {detail.answers.slice(0, max).map((a, i) => (
+          <div key={i} className="flex min-w-0 items-baseline gap-2 px-2.5 py-1.5">
+            <dt className="max-w-[40%] shrink-0 truncate font-medium text-slate-500 dark:text-slate-400">
+              {a.question}
+            </dt>
+            <dd className="min-w-0 flex-1 truncate text-right text-slate-800 dark:text-slate-100">{a.answer}</dd>
+          </div>
+        ))}
+      </dl>
+      {detail.answers.length > max && (
+        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+          +{detail.answers.length - max} more {detail.answers.length - max === 1 ? "answer" : "answers"}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** A ballot: which election, and the voter's answers, a few lines of them. */
+export function BallotCard(props: CardProps<"ballot">) {
+  const { event, thing, detail } = props;
+  return (
+    <CardShell event={event} fill testId={`thing-card-${event.id}`}>
+      <div className="flex h-full flex-col">
+        <div className="flex items-start gap-3">
+          <Picture src={null} icon={Vote} size="sm" />
+          <div className="min-w-0 flex-1">
+            <Title event={event} thing={thing} />
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              {detail.answers.length
+                ? `${detail.answers.length} ${detail.answers.length === 1 ? "answer" : "answers"}`
+                : "Ballot"}
+              {detail.proofHash ? " · with proof" : ""}
+            </p>
+          </div>
+        </div>
+        <div className="mt-2.5">
+          <BallotAnswers detail={detail} testId={`thing-ballot-answers-${event.id}`} />
+        </div>
+        <Footer kicker="Cast by" author={props.author} score={props.score} at={event.created_at} />
       </div>
     </CardShell>
   );

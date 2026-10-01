@@ -98,7 +98,7 @@ import { EventDateTile } from "@/components/share/EventDateTile";
 import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
 import { isSellable, parseListing } from "@/lib/listing";
-import { describeThing, oneCardPerChannel, THING_KINDS } from "@/lib/thing";
+import { describeThing, oneCardPerChannel, THING_KINDS, type ThingDetail } from "@/lib/thing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { priceBands, priceInCurrency, toSats, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
@@ -161,6 +161,12 @@ const SHOP_PLACE_KINDS = new Set([30017, 30019]);
 const CALENDAR_KIND = 31924;
 /** The tabs made only of kinds lib/thing reads — one ThingCard each, in a grid. */
 const isThingTab = (tab: SearchTab) => tab === "communities" || tab === "fundraisers" || tab === "reviews";
+/** What a thing tab holds — kind 38000 also carries prediction markets and ballots, which are not reviews. */
+const THING_TAB_DETAIL: Partial<Record<SearchTab, ThingDetail["type"]>> = {
+  communities: "community",
+  fundraisers: "fundraiser",
+  reviews: "review",
+};
 
 /** What kind of article a hit is — the Articles tab's type chips narrow by this. */
 type ArticleType = "article" | "spec" | "wiki";
@@ -989,7 +995,8 @@ export function SearchResults({
     // Only what lib/thing can name is a result — decided here, like the Shop,
     // so "Nothing found" and the counts agree with the cards — and one card
     // per NIP-28 channel.
-    if (isThingTab(tab)) return oneCardPerChannel(base.filter((h) => describeThing(h.event) !== null));
+    if (isThingTab(tab))
+      return oneCardPerChannel(base.filter((h) => describeThing(h.event)?.detail.type === THING_TAB_DETAIL[tab]));
     if (tab === "events") return base.filter((h) => h.event.kind !== CALENDAR_KIND || describeThing(h.event) !== null);
     // A named person's own tracks join the Music tab's hits, once each.
     if (tab === "music") {
