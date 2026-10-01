@@ -308,6 +308,29 @@ export function ChatView({
     el.scrollIntoView({ block: "center" });
     setFlash(focusId);
   }, [focusId, byId]);
+  // A reply's quote jumps to the message it answers, lit like a search arrival. One
+  // older than what's loaded is paged in first: Keep looking stops at the first message
+  // for this chat, so it's asked again until the target appears or every relay is done.
+  const [jumpTo, setJumpTo] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState<ReadonlySet<string>>(() => new Set());
+  const { phase: historyPhase, keepLooking } = history;
+  useEffect(() => {
+    if (!jumpTo) return;
+    if (byId.has(jumpTo)) {
+      const el = scroller.current?.querySelector(`[data-message-id="${CSS.escape(jumpTo)}"]`);
+      if (!el) return;
+      atBottom.current = false;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      setFlash(jumpTo);
+      setJumpTo(null);
+    } else if (historyPhase === "end") {
+      setNotFound((prev) => new Set(prev).add(jumpTo));
+      setJumpTo(null);
+    } else if (historyPhase !== "search" && historyPhase !== "auto") {
+      keepLooking();
+    }
+  }, [jumpTo, byId, historyPhase, keepLooking]);
+  const onJumpTo = useCallback((id: string) => setJumpTo(id), []);
   // Its own effect: messages arriving meanwhile re-run the one above, and must not cancel this.
   useEffect(() => {
     if (!flash) return;
@@ -492,6 +515,16 @@ export function ChatView({
                 reactions={view.reactions.get(item.message.id) ?? NO_REACTIONS}
                 showAuthor={item.showAuthor}
                 onReply={setReplyTo}
+                onJumpTo={onJumpTo}
+                replyLookup={
+                  !item.message.replyTo
+                    ? undefined
+                    : jumpTo === item.message.replyTo
+                      ? "finding"
+                      : notFound.has(item.message.replyTo)
+                        ? "missing"
+                        : undefined
+                }
                 onReact={onReact}
                 onDetails={onDetails}
                 onResend={onResend}
