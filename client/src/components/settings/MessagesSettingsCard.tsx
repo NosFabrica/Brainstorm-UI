@@ -170,7 +170,8 @@ export function MessagesSettingsCard() {
             Private messages
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            End-to-end encrypted (NIP-17). Relays can't see who you talk to or when.
+            End-to-end encrypted (NIP-17). Relays can't see who you talk to or when — unless you sign in to someone's
+            inbox relay to deliver to it.
           </p>
         </div>
       </div>

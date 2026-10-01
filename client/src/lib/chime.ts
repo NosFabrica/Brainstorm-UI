@@ -7,8 +7,12 @@ export function playChime(): void {
       window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return;
     ctx ??= new Ctor();
-    // Browsers keep audio suspended until the page has had a user gesture; then this is a no-op.
-    void ctx.resume().catch(() => {});
+    // Browsers keep audio suspended until the page has had a user gesture. Notes
+    // scheduled meanwhile would all sound at once when it resumes: skip this one.
+    if (ctx.state === "suspended") {
+      void ctx.resume().catch(() => {});
+      return;
+    }
     const t = ctx.currentTime;
     for (const [i, freq] of [880, 1318.5].entries()) {
       const osc = ctx.createOscillator();

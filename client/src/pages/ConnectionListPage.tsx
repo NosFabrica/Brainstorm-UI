@@ -412,7 +412,12 @@ export default function ConnectionListPage() {
                   score={score}
                   pov={scorePov}
                   testId={`conn-row-${pk.slice(0, 8)}`}
-                  actions={<MessageButton compact pubkey={pk} name={p?.display_name || p?.name} />}
+                  // Only where there is a button: otherwise the row keeps its chevron.
+                  actions={
+                    me?.pubkey && me.pubkey !== pk ? (
+                      <MessageButton compact pubkey={pk} name={p?.display_name || p?.name} />
+                    ) : undefined
+                  }
                   meta={
                     rm && (
                       <div

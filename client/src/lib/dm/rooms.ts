@@ -41,7 +41,13 @@ export function roomSlug(key: string, me: string): string {
 /** The inverse of `roomSlug`; null when any part isn't an npub (or hex key). */
 export function roomKeyFromSlug(slug: string, me: string): string | null {
   const others: string[] = [];
-  for (const part of decodeURIComponent(slug).split("+")) {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(slug);
+  } catch {
+    return null; // "/messages/%zz" — a bad link, not a crash
+  }
+  for (const part of decoded.split("+")) {
     const p = part.trim();
     if (!p) continue;
     if (isHex64(p)) {
@@ -49,9 +55,9 @@ export function roomKeyFromSlug(slug: string, me: string): string | null {
       continue;
     }
     try {
-      const decoded = nip19.decode(p);
-      if (decoded.type === "npub") others.push(decoded.data);
-      else if (decoded.type === "nprofile") others.push(decoded.data.pubkey);
+      const id = nip19.decode(p);
+      if (id.type === "npub") others.push(id.data);
+      else if (id.type === "nprofile") others.push(id.data.pubkey);
       else return null;
     } catch {
       return null;

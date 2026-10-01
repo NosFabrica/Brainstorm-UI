@@ -18,9 +18,20 @@ export interface TrustLookup {
   mutedOf?(pubkey: string): boolean;
 }
 
+/**
+ * Who has written in a room, other than the reader — what trust is judged on.
+ * Anyone can name people in a message: a stranger who also tags someone the
+ * reader follows must not ride their reputation past Requests.
+ */
+export function writersOf(room: DmRoom, me: string): string[] {
+  const writers = new Set<string>();
+  for (const m of room.messages) if (m.author !== me) writers.add(m.author);
+  return writers.size ? [...writers] : room.participants.filter((pk) => pk !== me);
+}
+
 export function shelfOf(room: DmRoom, me: string, prefs: DmPrefs, trust: TrustLookup): RoomShelf {
   if (room.hasMine || prefs.accepted.includes(room.key) || prefs.reach === "everyone") return "chat";
-  const others = room.participants.filter((pk) => pk !== me);
+  const others = writersOf(room, me);
   if (!others.length) return "chat";
   if (others.some((pk) => trust.follows.has(pk))) return "chat";
   const scores = others.map((pk) => trust.scoreOf(pk));
@@ -36,7 +47,12 @@ export function shelfOf(room: DmRoom, me: string, prefs: DmPrefs, trust: TrustLo
 export function unreadIn(room: DmRoom, me: string, prefs: DmPrefs): number {
   const since = lastReadAt(prefs, room.key);
   let n = 0;
-  for (const m of room.messages) if (m.author !== me && m.createdAt > since) n++;
+  // Oldest first: walk back from the newest and stop at the read mark.
+  for (let i = room.messages.length - 1; i >= 0; i--) {
+    const m = room.messages[i];
+    if (m.createdAt <= since) break;
+    if (m.author !== me) n++;
+  }
   return n;
 }
 
@@ -88,7 +104,7 @@ export function shelve(rooms: DmRoom[], me: string, prefs: DmPrefs, trust: Trust
   out.pinnedCount = pinned.length;
   out.chats = [...pinned, ...out.chats];
   // Requests: the most trusted first, then the newest.
-  const best = (r: DmRoom) => Math.max(...r.participants.filter((pk) => pk !== me).map((pk) => trust.scoreOf(pk) ?? 0));
+  const best = (r: DmRoom) => Math.max(...writersOf(r, me).map((pk) => trust.scoreOf(pk) ?? 0));
   out.requests.sort((a, b) => best(b) - best(a) || b.lastAt - a.lastAt);
   return out;
 }

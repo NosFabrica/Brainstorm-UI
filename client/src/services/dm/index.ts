@@ -15,21 +15,28 @@ import { deviceSealer, dmCacheBackend } from "@/lib/dm/cache";
 import { DM_RELAY_LIST_KIND, dmRelayTags, loadDmRelays } from "@/lib/dm/inboxRelays";
 import { ensureReadFloor } from "@/lib/dm/prefs";
 import { publishToRelays } from "@/services/nostr";
-import { relayAuthAllowed, setRelayAuthAllowed } from "@/lib/relayAuthPref";
+import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/relayAuthPref";
 import { DmEngine, type DmAccount, type SendResult, type SignerFailure } from "./engine";
 import { encryptFile, fileTags } from "@/lib/dm/fileCrypto";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
 import { uploadToBlossom } from "@/services/blossom";
 import { poolTransport } from "./transport";
 
-function classify(error: unknown): SignerFailure {
-  if (isUnlockCancelled(error)) return "cancelled";
-  if (isRemoteSignerTimeout(error)) return "unreachable";
-  const message = error instanceof Error ? error.message : String(error);
-  // A payload that won't decrypt is broken for good; anything else is the
-  // signer saying no, which must never be remembered as "unreadable".
-  if (/invalid (mac|payload|padding|base64)|unknown version|invalid.*length/i.test(message)) return "broken";
-  return "refused";
+function classifyFor(account: BrainstormAccount) {
+  return (error: unknown): SignerFailure => {
+    if (isUnlockCancelled(error)) return "cancelled";
+    if (isRemoteSignerTimeout(error)) return "unreachable";
+    // A key held here can't say no: once unlocked, any failure is the payload's.
+    if (account instanceof LocalAccount) return "broken";
+    const message = error instanceof Error ? error.message : String(error);
+    // A payload that won't decrypt is broken for good; anything else is the
+    // signer saying no, which must never be remembered as "unreadable".
+    if (
+      /invalid (mac|payload|padding|base64)|unknown (encryption )?version|invalid.*length|payload must/i.test(message)
+    )
+      return "broken";
+    return "refused";
+  };
 }
 
 export function dmAccountFor(account: BrainstormAccount): DmAccount {
@@ -48,7 +55,7 @@ export function dmAccountFor(account: BrainstormAccount): DmAccount {
     // without the Recovery-password modal. Extensions and bunkers prompt in their
     // own app, so they wait until the reader opens Messages.
     canOpenInBackground: async () => account instanceof LocalAccount && (await canSignSilently(account)),
-    classify,
+    classify: classifyFor(account),
   };
 }
 
@@ -70,6 +77,14 @@ function startFor(account: BrainstormAccount | undefined) {
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
       cache: dmCacheBackend(),
       sealer: deviceSealer,
+      // Turning sign-in off drops the signed-in sockets (services/relayAuth):
+      // reconnect once it has, or the inbox goes quiet until a reload.
+      onAuthPrefChanged: (callback) => {
+        const sub = relayAuthChanged$.subscribe((pk) => {
+          if (pk === account.pubkey && !relayAuthAllowed(pk)) setTimeout(callback, 0);
+        });
+        return () => sub.unsubscribe();
+      },
     });
     void current.start();
   }
@@ -105,6 +120,14 @@ export function subscribeDmEngine(listener: () => void): () => void {
 export async function turnOnMessages(relays: string[]): Promise<PublishOutcome> {
   const account = accountManager.active;
   if (!account) return { success: false, error: "Sign in first." };
+  // "No inbox list" may only have been a slow lookup: never replace one the
+  // account already published (from another client) with our suggestions.
+  const existing = await loadDmRelays(account.pubkey, { fresh: true, timeoutMs: 6000 }).catch(() => null);
+  if (existing?.relays.length) {
+    setRelayAuthAllowed(account.pubkey, true);
+    if (current?.pubkey === account.pubkey) void current.refreshInbox();
+    return { success: true };
+  }
   const allowedBefore = relayAuthAllowed(account.pubkey);
   setRelayAuthAllowed(account.pubkey, true);
   const outcome = await publishInboxRelays(relays);

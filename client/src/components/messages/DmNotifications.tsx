@@ -8,7 +8,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { useDmEngine, useDmPrefs, useShelves } from "@/hooks/useDirectMessages";
 import { notifiable, notificationText, type NotifyContext } from "@/lib/dm/notify";
-import type { RoomShelf } from "@/lib/dm/inbox";
+import { writersOf, type RoomShelf } from "@/lib/dm/inbox";
+import { lastReadAt } from "@/lib/dm/prefs";
 import { roomKeyFromSlug, roomSlug } from "@/lib/dm/rooms";
 import { setTitleCount } from "@/lib/titleBadge";
 import { playChime } from "@/lib/chime";
@@ -20,6 +21,9 @@ function nameFromStore(pubkey: string): string {
   const p = profileContentOf(eventStore.getReplaceable(0, pubkey) as never);
   return (p?.display_name || p?.name || "").trim() || shortNpub(pubkey);
 }
+
+/** Someone is looking at this tab right now. */
+const attending = () => document.visibilityState === "visible" && document.hasFocus();
 
 export function DmNotifications() {
   const engine = useDmEngine();
@@ -46,41 +50,51 @@ export function DmNotifications() {
   const viewing = viewingSlug && me ? roomKeyFromSlug(viewingSlug, me) : null;
 
   // The store notifies on every change; read the latest of everything through a ref.
-  const latest = useRef({ shelfByRoom, prefs, viewing, navigate });
-  latest.current = { shelfByRoom, prefs, viewing, navigate };
+  const latest = useRef({ shelfByRoom, prefs, viewing, navigate, scoreOf: shelves.scoreOf });
+  latest.current = { shelfByRoom, prefs, viewing, navigate, scoreOf: shelves.scoreOf };
+  const recheck = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (!engine) return;
     const since = Math.floor(Date.now() / 1000);
     const seen = new Set<string>();
+    let ready = false;
     const check = () => {
-      const { shelfByRoom, prefs, viewing, navigate } = latest.current;
+      if (!ready) return;
+      const { shelfByRoom, prefs, viewing, navigate, scoreOf } = latest.current;
       const ctx: NotifyContext = {
         me: engine.pubkey,
         since,
         shelfOf: (room) => shelfByRoom.get(room),
         mutedRooms: new Set(prefs.muted),
-        viewing: document.visibilityState === "visible" ? viewing : null,
+        viewing: attending() ? viewing : null,
       };
       let chimed = false;
       for (const room of engine.store.rooms()) {
         if (room.lastAt < since - 300) break; // rooms come newest first
+        const shelf = shelfByRoom.get(room.key);
+        // Not shelved yet, or a request whose sender's trust is still loading:
+        // decide later — a flagged or low-trust stranger must not chime first.
+        const undecided =
+          !shelf || (shelf === "request" && writersOf(room, engine.pubkey).some((pk) => scoreOf(pk) === undefined));
         for (const m of room.messages.slice(-5)) {
           if (seen.has(m.id)) continue;
+          if (undecided && m.author !== engine.pubkey) continue;
           seen.add(m.id);
-          if (!notifiable(m, ctx)) continue;
+          if (m.createdAt <= lastReadAt(prefs, room.key) || !notifiable(m, ctx)) continue;
           if (prefs.notify.sound && !chimed) {
             playChime();
             chimed = true;
           }
+          // In the app and looking at it: the chime is enough.
+          if (attending()) continue;
           if (!prefs.notify.desktop || typeof Notification === "undefined" || Notification.permission !== "granted")
             continue;
-          if (document.visibilityState === "visible" && viewing) continue;
           const others = room.participants.filter((pk) => pk !== engine.pubkey);
           const text = notificationText(m, {
             sender: nameFromStore(m.author),
             group: others.length > 1 ? room.subject || `${others.length + 1} people` : undefined,
-            request: ctx.shelfOf(room.key) === "request",
+            request: shelf === "request",
             preview: prefs.notify.preview,
           });
           try {
@@ -96,22 +110,34 @@ export function DmNotifications() {
         }
       }
     };
-    // What's already here at mount is history.
-    for (const room of engine.store.rooms()) for (const m of room.messages) seen.add(m.id);
     // A new room's shelf comes from React (trust, follows): look once it has rendered.
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const stop = engine.store.subscribe(() => {
+    const soon = () => {
       if (timer === undefined)
         timer = setTimeout(() => {
           timer = undefined;
           check();
         }, 300);
+    };
+    recheck.current = soon;
+    let alive = true;
+    // What this device already had is history, including what the cache brings back.
+    void engine.hydrated().then(() => {
+      if (!alive) return;
+      for (const room of engine.store.rooms()) for (const m of room.messages) seen.add(m.id);
+      ready = true;
     });
+    const stop = engine.store.subscribe(soon);
     return () => {
+      alive = false;
+      recheck.current = () => {};
       stop();
       if (timer !== undefined) clearTimeout(timer);
     };
   }, [engine]);
+
+  // Trust settled or a room moved shelves: messages held back can be decided now.
+  useEffect(() => recheck.current(), [shelfByRoom]);
 
   return null;
 }

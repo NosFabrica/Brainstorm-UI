@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNearViewport } from "@/hooks/useNearViewport";
 import { Download, FileText, Loader2, Lock, AlertTriangle, Mic } from "lucide-react";
 import type { FileMeta } from "@/lib/dm/rooms";
-import { decryptFile, matchesHash } from "@/lib/dm/fileCrypto";
+import { MAX_ATTACHMENT_BYTES, decryptFile, matchesHash } from "@/lib/dm/fileCrypto";
 import { formatBytes } from "@/lib/formatBytes";
 
 /** The largest attachment we fetch and open without being asked. */
@@ -9,39 +10,83 @@ const AUTO_OPEN_BYTES = 8 * 1024 * 1024;
 
 type Opened = { url: string; mime: string } | { error: string } | null;
 
+/** Read a response body, refusing past `max` bytes — a size tag is only the sender's word. */
+async function readCapped(response: Response, max: number): Promise<Uint8Array> {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > max) throw new Error("The file is larger than it should be");
+  const reader = response.body?.getReader();
+  if (!reader) return new Uint8Array(await response.arrayBuffer());
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      void reader.cancel();
+      throw new Error("The file is larger than it should be");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.byteLength;
+  }
+  return bytes;
+}
+
 /**
  * A kind-15 attachment: downloaded, checked against its hash, and decrypted
- * here. Images open on their own when small; anything else waits for a tap.
+ * here. Small images and voice notes open on their own once near the screen —
+ * but only in chats: a request's file is on a host its sender chose, and
+ * fetching it unasked would tell them the request was opened, and when.
  */
-export function FileMessage({ meta, mine }: { meta: FileMeta; mine: boolean }) {
+export function FileMessage({ meta, mine, autoOpen = true }: { meta: FileMeta; mine: boolean; autoOpen?: boolean }) {
   const isImage = meta.mime?.startsWith("image/") ?? false;
   const isAudio = meta.mime?.startsWith("audio/") ?? false;
   const encrypted = meta.algorithm?.toLowerCase() === "aes-gcm" && !!meta.key && !!meta.nonce;
   const [opened, setOpened] = useState<Opened>(null);
   const [busy, setBusy] = useState(false);
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+  const box = useRef<HTMLDivElement>(null);
+  const near = useNearViewport(box, "400px");
 
   const open = async () => {
     setBusy(true);
     try {
-      const response = await fetch(meta.url);
+      const response = await fetch(meta.url, { referrerPolicy: "no-referrer" });
       if (!response.ok) throw new Error(`The file host answered ${response.status}`);
-      const bytes = new Uint8Array(await response.arrayBuffer());
+      // Ciphertext is the plaintext plus a 16-byte tag.
+      const bytes = await readCapped(response, MAX_ATTACHMENT_BYTES + 64);
       if (!(await matchesHash(bytes, meta.hash))) throw new Error("The file doesn't match what was sent");
       const plain = encrypted ? await decryptFile(bytes, meta.key!, meta.nonce!) : bytes;
       const mime = meta.mime || "application/octet-stream";
-      setOpened({ url: URL.createObjectURL(new Blob([plain], { type: mime })), mime });
+      const url = URL.createObjectURL(new Blob([plain], { type: mime }));
+      // Closed meanwhile: nothing will ever revoke it.
+      if (!alive.current) return URL.revokeObjectURL(url);
+      setOpened({ url, mime });
     } catch (error) {
-      setOpened({ error: error instanceof Error ? error.message : "Couldn't open the file" });
+      if (alive.current) setOpened({ error: error instanceof Error ? error.message : "Couldn't open the file" });
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
     }
   };
 
+  // Only a size the sender declared, and small: a missing size tag is not a promise of one.
+  const small = meta.size !== undefined && meta.size <= AUTO_OPEN_BYTES;
   useEffect(() => {
-    if ((isImage || isAudio) && (meta.size ?? 0) <= AUTO_OPEN_BYTES) void open();
-    // Opened once per message.
+    if (autoOpen && near && small && (isImage || isAudio) && !opened && !busy) void open();
+    // Opened once per message, when it comes near the screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta.url]);
+  }, [meta.url, near, autoOpen]);
 
   useEffect(
     () => () => {
@@ -61,6 +106,7 @@ export function FileMessage({ meta, mine }: { meta: FileMeta; mine: boolean }) {
   if (isAudio && !(opened && "error" in opened)) {
     return (
       <div
+        ref={box}
         className={`flex w-72 max-w-full flex-col gap-1.5 rounded-2xl p-2 ${mine ? "bg-white/10" : ""}`}
         data-testid="dm-voice-message"
       >
@@ -90,6 +136,7 @@ export function FileMessage({ meta, mine }: { meta: FileMeta; mine: boolean }) {
   const name = meta.url.split("/").pop()?.split("?")[0] || "Attachment";
   return (
     <div
+      ref={box}
       className={`flex w-72 max-w-full items-center gap-3 rounded-2xl border p-3 ${
         mine ? "border-white/25 bg-white/10" : "border-border bg-card"
       }`}

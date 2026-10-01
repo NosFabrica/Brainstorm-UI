@@ -14,6 +14,7 @@ import { AuthRequiredError, RelayClosedError } from "applesauce-relay";
 import { combineLatest, distinctUntilChanged, filter, firstValueFrom, map, of, timeout } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import { pool } from "@/lib/relayPool";
+import { allowWriteAuth } from "@/services/relayAuth";
 import type { DmTransport } from "./engine";
 
 /** How long a refused publish waits for services/relayAuth to sign in. */
@@ -35,9 +36,16 @@ export const poolTransport: DmTransport = {
         distinctUntilChanged(),
       )
       .subscribe((needs) => handlers.onAuthRequired(needs));
+    const drops = relay.connected$
+      .pipe(
+        distinctUntilChanged(),
+        filter((up) => !up),
+      )
+      .subscribe(() => handlers.onDisconnected?.());
     return () => {
       sub.unsubscribe();
       auth.unsubscribe();
+      drops.unsubscribe();
     };
   },
 
@@ -81,6 +89,8 @@ export const poolTransport: DmTransport = {
     };
     const first = await once();
     if (!first.auth) return first;
+    // This relay may now be answered (services/relayAuth) — for messages only.
+    allowWriteAuth(relay.url);
     // Refused although signed in: a login won't change that.
     if (relay.authenticated) return { ok: false, message: first.message };
     // Recipients' inbox relays often take wraps only from a signed-in sender.

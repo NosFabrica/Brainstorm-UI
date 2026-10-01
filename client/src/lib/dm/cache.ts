@@ -57,6 +57,8 @@ export interface DmCacheBackend {
   state(owner: string): Promise<DmState | undefined>;
   putState(state: DmState): Promise<void>;
   clear(): Promise<void>;
+  /** A check, taken now, that the cache hasn't been cleared since (sign-out). */
+  guard?(): () => boolean;
 }
 
 /** How opened messages are sealed at rest. */
@@ -135,6 +137,10 @@ export function indexedDbBackend(): DmCacheBackend | null {
       if (asked !== epoch) return;
       await transact(opened, STATE, "readwrite", (store) => store.put(state));
     },
+    guard() {
+      const asked = epoch;
+      return () => asked === epoch;
+    },
     async clear() {
       epoch++;
       const opened = await db();
@@ -163,6 +169,8 @@ export interface CachedOpen {
   wrapAt: number;
   relays: string[];
   sealAt?: number;
+  /** NIP-40, wherever it was (rumor or wrap): the wrap's tags aren't kept. */
+  expiresAt?: number;
 }
 
 /** Sign-out: every account's messages and paging state go. */

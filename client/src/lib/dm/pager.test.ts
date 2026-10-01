@@ -45,7 +45,7 @@ function harness(opts: { silenceMs?: number } = {}) {
 }
 
 describe("RelayCursors", () => {
-  it("starts at the floor and steps strictly older", () => {
+  it("starts at the floor and steps older, the oldest second included", () => {
     const c = new RelayCursors(FLOOR);
     expect(c.advance("r")).toBe(true);
     expect(c.requestedUntil("r")).toBe(FLOOR);
@@ -54,7 +54,34 @@ describe("RelayCursors", () => {
     expect(c.onEose("r")).toEqual({ done: false, count: 2 });
     expect(c.reachedUntil("r")).toBe(FLOOR - 50);
     c.advance("r");
-    expect(c.requestedUntil("r")).toBe(FLOOR - 51);
+    // Inclusive: wraps that share the oldest second with a full page aren't skipped.
+    expect(c.requestedUntil("r")).toBe(FLOOR - 50);
+  });
+
+  it("moves past a second shared across two pages, and is done when only it comes back", () => {
+    const c = new RelayCursors(FLOOR);
+    c.advance("r");
+    c.onEvent("r", FLOOR - 7);
+    c.onEvent("r", FLOOR - 7); // the page was cut inside this second
+    c.onEose("r");
+    c.advance("r");
+    c.onEvent("r", FLOOR - 7); // the rest of that second
+    c.onEvent("r", FLOOR - 9);
+    expect(c.onEose("r").done).toBe(false);
+    expect(c.reachedUntil("r")).toBe(FLOOR - 9);
+    c.advance("r");
+    c.onEvent("r", FLOOR - 9); // nothing older: the relay is finished
+    expect(c.onEose("r").done).toBe(true);
+  });
+
+  it("starts paging below what a capped live subscription reached", () => {
+    const c = new RelayCursors(FLOOR);
+    c.startBelow("capped", FLOOR + 3600);
+    c.advance("capped");
+    expect(c.requestedUntil("capped")).toBe(FLOOR + 3600);
+    c.startBelow("other", FLOOR - 10); // below the floor: nothing to fill
+    c.advance("other");
+    expect(c.requestedUntil("other")).toBe(FLOOR);
   });
 
   it("is done on an empty page, and on a page that brought nothing older", () => {
@@ -109,7 +136,7 @@ describe("BackwardPager", () => {
 
     // The fast relay moves on without waiting for the slow one.
     expect(pager.advance("fast")).toBe(true);
-    expect(pending.get("fast")!.until).toBe(FLOOR - 21);
+    expect(pending.get("fast")!.until).toBe(FLOOR - 20);
     expect(pager.advance("slow")).toBe(false);
     expect(wraps).toEqual([
       [FLOOR - 10, "fast"],

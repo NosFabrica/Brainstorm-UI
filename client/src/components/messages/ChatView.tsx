@@ -169,6 +169,8 @@ function HistoryCard({
   );
 }
 
+const NO_REACTIONS: DmMessage[] = [];
+
 export function ChatView({
   engine,
   state,
@@ -241,6 +243,13 @@ export function ChatView({
 
   const items = useMemo(() => threadItems(view.messages, state.history.relays), [view.messages, state.history.relays]);
   const byId = useMemo(() => new Map(view.messages.map((m) => [m.id, m])), [view.messages]);
+  // Stable, so a bubble re-renders only when its own message, reactions or reply do.
+  const onReact = useCallback(
+    (m: DmMessage, content: string) => void engine?.react(m, content).then((r) => !r.ok && sendError(r)),
+    [engine, sendError],
+  );
+  const onResend = useCallback((m: DmMessage) => void engine?.resend(m.id), [engine]);
+  const onDiscard = useCallback((m: DmMessage) => engine?.discard(m.id), [engine]);
 
   // Reading the chat marks it read.
   useEffect(() => {
@@ -266,9 +275,13 @@ export function ChatView({
     focused.current = focusId;
     el.scrollIntoView({ block: "center" });
     setFlash(focusId);
+  }, [focusId, byId]);
+  // Its own effect: messages arriving meanwhile re-run the one above, and must not cancel this.
+  useEffect(() => {
+    if (!flash) return;
     const t = setTimeout(() => setFlash(null), 2200);
     return () => clearTimeout(t);
-  }, [focusId, byId]);
+  }, [flash]);
 
   const isRequest = shelf !== "chat" && !view.hasMine;
   const pinned = prefs.pinned.includes(roomKey);
@@ -443,15 +456,16 @@ export function ChatView({
                 group={group}
                 profiles={profiles}
                 replyTo={item.message.replyTo ? (byId.get(item.message.replyTo) ?? null) : undefined}
-                reactions={view.reactions.get(item.message.id) ?? []}
+                reactions={view.reactions.get(item.message.id) ?? NO_REACTIONS}
                 showAuthor={item.showAuthor}
                 onReply={setReplyTo}
-                onReact={(m, content) => void engine?.react(m, content).then((r) => !r.ok && sendError(r))}
+                onReact={onReact}
                 onDetails={onDetails}
-                onResend={(m) => void engine?.resend(m.id)}
-                onDiscard={(m) => engine?.discard(m.id)}
+                onResend={onResend}
+                onDiscard={onDiscard}
                 highlight={flash === item.message.id}
                 linkPreviews={prefs.linkPreviews && !isRequest}
+                autoOpenFiles={!isRequest}
               />
             )}
           </Fragment>
@@ -466,7 +480,9 @@ export function ChatView({
           <span className="shrink-0">
             <KeyRound className="h-4 w-4" />
           </span>
-          <span className="flex-1">Their inbox relay takes messages only from senders who sign in.</span>
+          <span className="flex-1">
+            Their inbox relay takes messages only from senders who sign in — and then knows this one is from you.
+          </span>
           <Button size="sm" onClick={onSignIn} data-testid="dm-send-allow-auth">
             Allow sign-in
           </Button>

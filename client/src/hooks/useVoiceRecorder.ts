@@ -34,6 +34,8 @@ export function useVoiceRecorder({ onLimit }: { onLimit?: () => void } = {}) {
   const ticker = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const limit = useRef(onLimit);
   limit.current = onLimit;
+  /** Bumped by cancel and unmount: a start still waiting on the microphone prompt must not go on. */
+  const generation = useRef(0);
 
   const release = useCallback(() => {
     if (ticker.current !== undefined) clearInterval(ticker.current);
@@ -49,12 +51,18 @@ export function useVoiceRecorder({ onLimit }: { onLimit?: () => void } = {}) {
     if (!mime) return setError("This browser can't record audio.");
     setError(null);
     setState("starting");
+    const mine = ++generation.current;
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
-      setState("idle");
+      if (mine === generation.current) setState("idle");
       return setError("Microphone access was blocked.");
+    }
+    // Discarded, or the chat closed, while the permission prompt was up: never record.
+    if (mine !== generation.current) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
     }
     const rec = new MediaRecorder(stream, { mimeType: mime });
     chunks.current = [];
@@ -101,6 +109,7 @@ export function useVoiceRecorder({ onLimit }: { onLimit?: () => void } = {}) {
   );
 
   const cancel = useCallback(() => {
+    generation.current++;
     finish.current = null;
     if (recorder.current && recorder.current.state !== "inactive") recorder.current.stop();
     release();

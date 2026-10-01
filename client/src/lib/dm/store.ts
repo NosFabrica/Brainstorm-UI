@@ -83,8 +83,17 @@ const byTime = (a: DmMessage, b: DmMessage) => a.createdAt - b.createdAt || (a.i
 
 export class DmStore {
   private readonly byId = new Map<string, DmMessage>();
+  /** room key → ids of its messages and reactions. */
+  private readonly byRoom = new Map<string, Set<string>>();
   private readonly listeners = new Set<() => void>();
-  private roomCache: { version: number; rooms: Map<string, DmRoom>; list: DmRoom[] } | null = null;
+  /**
+   * Rooms are rebuilt only when one of their messages changed: an unchanged
+   * room keeps its identity, so lists and open chats downstream can skip it.
+   */
+  private readonly built = new Map<string, DmRoom>();
+  private readonly dirtyRooms = new Set<string>();
+  private list: DmRoom[] = [];
+  private builtVersion = -1;
   private holding = 0;
   private dirty = false;
   version = 0;
@@ -99,19 +108,30 @@ export class DmStore {
     return this.byId.get(id);
   }
 
+  private put(message: DmMessage) {
+    this.byId.set(message.id, message);
+    let ids = this.byRoom.get(message.room);
+    if (!ids) this.byRoom.set(message.room, (ids = new Set()));
+    ids.add(message.id);
+    this.dirtyRooms.add(message.room);
+  }
+
   /** Add or merge one message. Returns true when it is new. */
   add(message: DmMessage, now = Date.now() / 1000): boolean {
     if (message.expiresAt && message.expiresAt <= now) return false;
     const held = this.byId.get(message.id);
     if (held) {
       const relays = [...new Set([...held.relays, ...message.relays])];
-      const merged = { ...held, relays, outgoing: message.outgoing ?? held.outgoing };
-      if (!held.wrapId && message.wrapId) Object.assign(merged, { wrapId: message.wrapId, wrapAt: message.wrapAt });
-      this.byId.set(message.id, merged);
+      const outgoing = message.outgoing ?? held.outgoing;
+      const adopt = !held.wrapId && !!message.wrapId;
+      if (relays.length === held.relays.length && outgoing === held.outgoing && !adopt) return false;
+      const merged = { ...held, relays, outgoing };
+      if (adopt) Object.assign(merged, { wrapId: message.wrapId, wrapAt: message.wrapAt });
+      this.put(merged);
       this.bump();
       return false;
     }
-    this.byId.set(message.id, message);
+    this.put(message);
     this.bump();
     return true;
   }
@@ -120,13 +140,20 @@ export class DmStore {
   patch(id: string, patch: Partial<DmMessage>): void {
     const held = this.byId.get(id);
     if (!held) return;
-    this.byId.set(id, { ...held, ...patch });
+    this.put({ ...held, ...patch });
     this.bump();
   }
 
   remove(ids: string[]): void {
     let changed = false;
-    for (const id of ids) changed = this.byId.delete(id) || changed;
+    for (const id of ids) {
+      const held = this.byId.get(id);
+      if (!held) continue;
+      this.byId.delete(id);
+      this.byRoom.get(held.room)?.delete(id);
+      this.dirtyRooms.add(held.room);
+      changed = true;
+    }
     if (changed) this.bump();
   }
 
@@ -137,20 +164,19 @@ export class DmStore {
     return gone;
   }
 
-  private build() {
-    if (this.roomCache?.version === this.version) return this.roomCache;
-    const rooms = new Map<string, DmRoom>();
-    const get = (key: string) => {
-      let r = rooms.get(key);
-      if (!r) {
-        r = { key, participants: key.split(","), messages: [], reactions: new Map(), lastAt: 0, hasMine: false };
-        rooms.set(key, r);
-      }
-      return r;
+  private buildRoom(key: string): DmRoom | null {
+    const ids = this.byRoom.get(key);
+    if (!ids?.size) return null;
+    const room: DmRoom = {
+      key,
+      participants: key.split(","),
+      messages: [],
+      reactions: new Map(),
+      lastAt: 0,
+      hasMine: false,
     };
-    const sorted = [...this.byId.values()].sort(byTime);
+    const sorted = [...ids].map((id) => this.byId.get(id)!).sort(byTime);
     for (const m of sorted) {
-      const room = get(m.room);
       if (m.author === this.owner) room.hasMine = true;
       if (m.kind === REACTION_KIND) {
         if (!m.reactionTo) continue;
@@ -165,19 +191,33 @@ export class DmStore {
       if (m.subject) room.subject = m.subject;
     }
     // A room made only of reactions (its messages expired, or not loaded yet) has nothing to show.
-    for (const [key, room] of rooms) if (!room.messages.length) rooms.delete(key);
-    const list = [...rooms.values()].sort((a, b) => b.lastAt - a.lastAt);
-    this.roomCache = { version: this.version, rooms, list };
-    return this.roomCache;
+    return room.messages.length ? room : null;
+  }
+
+  private build() {
+    if (this.builtVersion === this.version) return;
+    if (this.dirtyRooms.size) {
+      for (const key of this.dirtyRooms) {
+        const room = this.buildRoom(key);
+        if (room) this.built.set(key, room);
+        else this.built.delete(key);
+        if (!this.byRoom.get(key)?.size) this.byRoom.delete(key);
+      }
+      this.dirtyRooms.clear();
+      this.list = [...this.built.values()].sort((a, b) => b.lastAt - a.lastAt);
+    }
+    this.builtVersion = this.version;
   }
 
   /** Every room with something to show, newest first. */
   rooms(): DmRoom[] {
-    return this.build().list;
+    this.build();
+    return this.list;
   }
 
   room(key: string): DmRoom | undefined {
-    return this.build().rooms.get(key);
+    this.build();
+    return this.built.get(key);
   }
 
   subscribe(listener: () => void): () => void {

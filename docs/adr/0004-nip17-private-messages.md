@@ -76,8 +76,10 @@ dead inbox relay doesn't hold the composer for its timeout.
 
 Many inbox relays (auth.nostr1.com among the suggested ones) take a wrap only
 from a signed-in sender. A refused publish (`auth-required`) is signed in
-through the same consent as reads (lib/relayAuthPref, services/relayAuth now
-also answers relays that refused a write), retried once, and otherwise held:
+through the same consent as reads (lib/relayAuthPref; services/relayAuth
+answers a refused write only on relays where a private message was refused,
+and never raises the Unlock modal for a login nobody asked for — a locked key
+signs in once the reader is in Messages), retried once, and otherwise held:
 the message shows "their relay wants you signed in", and goes out by itself
 when that relay signs the reader in. The trade-off is NIP-42's: signing in to
 a recipient's inbox relay tells that relay who is sending to its users. A
@@ -107,6 +109,21 @@ across devices would mean encrypted app data (NIP-78) — not done yet.
   own `/link-preview` (which doesn't log URLs), the picture only through our
   image proxy, no favicon, nothing for Requests. Off in Settings.
 - **Voice notes** are ordinary kind-15 files (audio), encrypted before upload.
+
+## Hardening (audit)
+
+- A wrap's payloads are checked for NIP-44 shape before any signer sees them,
+  and a wrap the signer turns down twice — while it opens others — is set
+  aside as unreadable: one stranger's malformed message can't pause the inbox.
+- A message that doesn't name the reader is dropped; requests are judged by
+  who wrote, not by who was tagged.
+- `lastSeen` never passes a wrap that arrived but isn't opened yet, nor a time
+  when a relay's socket was down; history pages with an inclusive `until`, and
+  starts below where a capped live REQ stopped.
+- The store rebuilds only the rooms that changed (~30× less work per incoming
+  message at 10k messages), so open chats and lists skip unchanged rooms.
+- Attachments in requests never load on their own (the host is the sender's);
+  elsewhere only small, declared-size ones near the screen do, read with a cap.
 
 ## Tested against production relays
 

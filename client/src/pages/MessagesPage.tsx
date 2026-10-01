@@ -16,6 +16,7 @@ import { useMyFollows } from "@/hooks/useMyFollows";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/relayAuthPref";
+import { setRelayAuthInteractive } from "@/services/relayAuth";
 import { roomKeyFromSlug } from "@/lib/dm/rooms";
 import { acceptRoom, archiveRoom, hideRoom } from "@/lib/dm/prefs";
 import type { DmMessage } from "@/lib/dm/store";
@@ -62,6 +63,11 @@ export default function MessagesPage() {
   useEffect(() => {
     engine?.allowDecrypt();
   }, [engine]);
+  // …and inbox relays waiting on a login may ask for one, even if that means unlocking.
+  useEffect(() => {
+    setRelayAuthInteractive(true);
+    return () => setRelayAuthInteractive(false);
+  }, []);
 
   const slug = params.slug;
   const composing = slug === "new";

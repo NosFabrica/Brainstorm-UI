@@ -504,4 +504,130 @@ describe("DmEngine", () => {
     engine.discard(sent.message!.id);
     expect(engine.store.room(room)).toBeUndefined();
   });
+
+  it("a wrap the signer keeps refusing can't hold the inbox shut", async () => {
+    const me = person();
+    const ana = person();
+    const troll = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(troll, me.pubkey, "poison", NOW - 10));
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "hello", NOW - 600));
+    const base = me.account();
+    const engine = new DmEngine(
+      me.account({
+        // An extension that errors on one sender's payload, opaquely.
+        decrypt: async (from, text) => {
+          if (from === troll.pubkey) throw new Error("something went wrong");
+          return base.decrypt!(from, text);
+        },
+        classify: () => "refused",
+      }),
+      { ...net, ...clock(), now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    engine.allowDecrypt();
+    await settle();
+    // Unlucky first: the newest wrap is the troll's, and the signer "refused".
+    // The seal decrypt is the troll's; the wrap decrypt (ephemeral key) works.
+    if (engine.state().paused) engine.allowDecrypt();
+    await settle();
+    await settle();
+    expect(engine.store.rooms().map((r) => r.last?.rumor.content)).toEqual(["hello"]);
+    expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 1 });
+  });
+
+  it("never hands a malformed payload to the signer", async () => {
+    const me = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    const eph = generateSecretKey();
+    net.hold(
+      "wss://in.example/",
+      finalizeEvent({ kind: 1059, created_at: NOW - 5, tags: [["p", me.pubkey]], content: "#" + "a".repeat(140) }, eph),
+    );
+    let asked = 0;
+    const base = me.account();
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          asked++;
+          return base.decrypt!(from, text);
+        },
+        classify: () => "refused",
+      }),
+      { ...net, ...clock(), now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    expect(asked).toBe(0);
+    expect(engine.state()).toMatchObject({ paused: undefined, failed: 1 });
+  });
+
+  it("drops a message that doesn't name the reader", async () => {
+    const me = person();
+    const ana = person();
+    const bob = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    const rumor = makeRumor({
+      pubkey: ana.pubkey,
+      kind: CHAT_KIND,
+      tags: [["p", bob.pubkey]],
+      content: "not for you",
+      created_at: NOW - 5,
+    });
+    net.hold("wss://in.example/", await wrapRumor(rumor, me.pubkey, ana.sealSigner, { at: NOW - 5, random: () => 0 }));
+    const engine = new DmEngine(me.account(), { ...net, ...clock(), now: () => NOW });
+    await engine.start();
+    await settle();
+    expect(engine.store.rooms()).toHaveLength(0);
+  });
+
+  it("registers nothing when stopped while the inbox list is loading", async () => {
+    const me = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let repeating = 0;
+    const engine = new DmEngine(me.account(), {
+      ...net,
+      ...clock(),
+      setRepeating: () => ++repeating,
+      loadInbox: async (pk) => {
+        await gate;
+        return net.loadInbox(pk);
+      },
+      now: () => NOW,
+    });
+    const started = engine.start();
+    await settle();
+    engine.stop();
+    release();
+    await started;
+    expect(repeating).toBe(0);
+    expect(net.live.size).toBe(0);
+  });
+
+  it("doesn't count wraps still waiting to be opened as caught up", async () => {
+    const me = person();
+    const ana = person();
+    const cache = memoryCache();
+    const time = clock();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    const waiting = await wrapFrom(ana, me.pubkey, "later", NOW - 3600, NOW - 3600);
+    net.hold("wss://in.example/", waiting);
+    // An extension: nothing opens until the reader opens Messages.
+    const engine = new DmEngine(me.account({ canOpenInBackground: async () => false }), {
+      ...net,
+      ...time,
+      cache,
+      sealer: plainSealer,
+      now: () => NOW,
+    });
+    await engine.start();
+    await settle();
+    expect(engine.state().queued).toBe(1);
+    time.flush();
+    await settle();
+    expect(cache.st.get(me.pubkey)?.lastSeen).toBe(waiting.created_at);
+  });
 });

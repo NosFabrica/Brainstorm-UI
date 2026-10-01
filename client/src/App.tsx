@@ -30,6 +30,7 @@ import { MobileTabBar } from "@/components/MobileTabBar";
 import { NowPlayingBar } from "@/components/search/NowPlayingBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { DmNotifications } from "@/components/messages/DmNotifications";
+import { DmShelvesProvider } from "@/hooks/useDirectMessages";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
 import { CrossTabIdentity } from "@/components/CrossTabIdentity";
@@ -292,24 +293,26 @@ function App() {
       <EventStoreProvider eventStore={eventStore}>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider delayDuration={300} skipDelayDuration={100}>
-            <Toaster />
-            <DemoScoreDisplaySwitcher />
-            <UnlockModal />
-            <SignerApprovalModal />
-            <CrossTabIdentity />
-            <PovAutoDefault />
-            <MobileTabBar />
-            <NowPlayingBar />
-            <CommandPalette />
-            <DmNotifications />
-            <MobileSearchOverlay />
-            <ScoringStatusBar />
-            <AutoScoreReturning />
-            <AutoActivateBrainstorm />
-            <AutoPublishAssistant />
-            <LightboxProvider>
-              <Router />
-            </LightboxProvider>
+            <DmShelvesProvider>
+              <Toaster />
+              <DemoScoreDisplaySwitcher />
+              <UnlockModal />
+              <SignerApprovalModal />
+              <CrossTabIdentity />
+              <PovAutoDefault />
+              <MobileTabBar />
+              <NowPlayingBar />
+              <CommandPalette />
+              <DmNotifications />
+              <MobileSearchOverlay />
+              <ScoringStatusBar />
+              <AutoScoreReturning />
+              <AutoActivateBrainstorm />
+              <AutoPublishAssistant />
+              <LightboxProvider>
+                <Router />
+              </LightboxProvider>
+            </DmShelvesProvider>
           </TooltipProvider>
         </QueryClientProvider>
       </EventStoreProvider>

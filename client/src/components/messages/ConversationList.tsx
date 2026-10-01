@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   Archive,
@@ -153,15 +153,22 @@ export function ConversationList({
 }) {
   const [showLow, setShowLow] = useState(false);
   const [query, setQuery] = useState("");
+  // Typing stays responsive; the search over every message runs behind it.
+  const deferredQuery = useDeferredValue(query);
   const searching = query.trim().length > 0;
   const results = useMemo(
     () =>
-      searching
-        ? searchMessages([...shelves.chats, ...shelves.requests, ...shelves.archived], query, {
+      deferredQuery.trim()
+        ? searchMessages([...shelves.chats, ...shelves.requests, ...shelves.archived], deferredQuery, {
             titleOf: (room) => roomTitle(room, me, profiles),
           })
         : null,
-    [searching, query, shelves, me, profiles],
+    [deferredQuery, shelves, me, profiles],
+  );
+  // Each trust line is a lookup: the first screenful of requests gets one, not a spam flood.
+  const trustLines = useMemo(
+    () => new Set([...shelves.requests.slice(0, 25), ...shelves.low.slice(0, 25)].map((r) => r.key)),
+    [shelves.requests, shelves.low],
   );
   const advance = useCallback((url: string) => engine?.advance(url), [engine]);
   const retry = useCallback((url: string) => engine?.retry(url), [engine]);
@@ -223,7 +230,7 @@ export function ConversationList({
         )}
       </div>
 
-      {results ? (
+      {searching && results ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
           <MessageSearchResults results={results} me={me} profiles={profiles} scoreOf={shelves.scoreOf} />
         </div>
@@ -296,7 +303,7 @@ export function ConversationList({
                   scoreOf={shelves.scoreOf}
                   prefs={prefs}
                   selected={item.room.key === selectedKey}
-                  showTrust={tab === "requests"}
+                  showTrust={tab === "requests" && trustLines.has(item.room.key)}
                 />
               ) : (
                 <RelayMarker
@@ -361,7 +368,7 @@ export function ConversationList({
                       prefs={prefs}
                       selected={room.key === selectedKey}
                       hidePreview
-                      showTrust
+                      showTrust={trustLines.has(room.key)}
                     />
                   ))}
               </div>

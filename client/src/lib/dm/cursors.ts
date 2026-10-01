@@ -71,6 +71,17 @@ export class RelayCursors {
     return Math.min(this.floor, c.reached + WRAP_JITTER_SECONDS);
   }
 
+  /**
+   * The live subscription's first answer reached down only to `at`, above the
+   * floor — a relay that caps an unlimited REQ. History starts there instead,
+   * so the band between is paged rather than skipped. Only before any page.
+   */
+  startBelow(relay: string, at: number): void {
+    const c = this.cursor(relay);
+    if (c.requested !== undefined || c.reached !== undefined || c.done || at <= this.floor) return;
+    c.reached = at;
+  }
+
   isDone(relay: string): boolean {
     return this.cursor(relay).done;
   }
@@ -79,7 +90,10 @@ export class RelayCursors {
   advance(relay: string): boolean {
     const c = this.cursor(relay);
     if (c.done) return false;
-    c.requested = c.reached !== undefined ? c.reached - 1 : this.floor;
+    // Inclusive: a full page cut in the middle of a second leaves the rest of
+    // that second for the next one. A relay with nothing older answers only
+    // what we already have, and `onEose` calls it done.
+    c.requested = c.reached !== undefined ? c.reached : this.floor;
     c.pageCount = 0;
     c.pageOldest = Number.POSITIVE_INFINITY;
     return true;

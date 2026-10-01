@@ -33,4 +33,13 @@ describe("message search", () => {
     expect(searchMessages(rooms, "+", { titleOf }).hits).toEqual([]);
     expect(searchMessages(rooms, "  ", { titleOf }).hits).toEqual([]);
   });
+
+  it("cuts the snippet in the right place where folding changes length", () => {
+    // Hangul decomposes under NFD: folded positions run ahead of the text's.
+    const long = "가".repeat(120) + " 안녕하세요 친구";
+    const r = searchMessages([room("ko", [msg("k", long, 1)])], "친구", { titleOf: () => "" });
+    const h = r.hits[0];
+    expect(h.snippet).toContain("친구");
+    expect(h.marks.map(([a, b]) => h.snippet.slice(a, b))).toEqual(["친구"]);
+  });
 });

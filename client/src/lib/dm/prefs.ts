@@ -72,16 +72,43 @@ const memo = new Map<string, DmPrefs>();
 
 const key = (pubkey: string) => accountKey("brainstorm_dm_prefs", pubkey);
 
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const numbers = (v: unknown): Record<string, number> =>
+  isRecord(v)
+    ? Object.fromEntries(Object.entries(v).filter((e): e is [string, number] => typeof e[1] === "number"))
+    : {};
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
+
+/** A stored row, field by field: a damaged or older shape falls back per field, never throws later. */
+function sanitize(raw: unknown): DmPrefs {
+  if (!isRecord(raw)) return DEFAULTS;
+  const notify = isRecord(raw.notify) ? raw.notify : {};
+  return {
+    readFloor: typeof raw.readFloor === "number" ? raw.readFloor : undefined,
+    read: numbers(raw.read),
+    accepted: strings(raw.accepted),
+    hidden: numbers(raw.hidden),
+    timers: numbers(raw.timers),
+    reach: raw.reach === "trusted" || raw.reach === "everyone" ? raw.reach : "follows",
+    defaultTimer: typeof raw.defaultTimer === "number" ? raw.defaultTimer : 0,
+    pinned: strings(raw.pinned),
+    muted: strings(raw.muted),
+    notify: {
+      desktop: typeof notify.desktop === "boolean" ? notify.desktop : DEFAULTS.notify.desktop,
+      sound: typeof notify.sound === "boolean" ? notify.sound : DEFAULTS.notify.sound,
+      preview: typeof notify.preview === "boolean" ? notify.preview : DEFAULTS.notify.preview,
+    },
+    linkPreviews: typeof raw.linkPreviews === "boolean" ? raw.linkPreviews : DEFAULTS.linkPreviews,
+  };
+}
+
 export function readDmPrefs(pubkey: string): DmPrefs {
   const held = memo.get(pubkey);
   if (held) return held;
   let prefs = DEFAULTS;
   try {
     const raw = localStorage.getItem(key(pubkey));
-    if (raw) {
-      const held = JSON.parse(raw) as Partial<DmPrefs>;
-      prefs = { ...DEFAULTS, ...held, notify: { ...DEFAULTS.notify, ...held.notify } };
-    }
+    if (raw) prefs = sanitize(JSON.parse(raw));
   } catch {
     /* private window or a damaged row — the defaults stand */
   }
@@ -89,8 +116,33 @@ export function readDmPrefs(pubkey: string): DmPrefs {
   return prefs;
 }
 
+/** Per-room maps keep their newest entries: every deleted spam request would otherwise stay forever. */
+const MAX_ROOM_ENTRIES = 2000;
+
+function newest(map: Record<string, number>): Record<string, number> {
+  const entries = Object.entries(map);
+  if (entries.length <= MAX_ROOM_ENTRIES) return map;
+  return Object.fromEntries(entries.sort((a, b) => b[1] - a[1]).slice(0, MAX_ROOM_ENTRIES));
+}
+
+// Another tab changed them: read again rather than overwrite its change with ours.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key && !e.key.startsWith("brainstorm_dm_prefs:")) return;
+    memo.clear();
+    for (const l of [...listeners]) l();
+  });
+}
+
+/** Sign-out removed the rows (lib/accountStorage): drop what this tab remembers of them. */
+export function forgetDmPrefs(): void {
+  memo.clear();
+  for (const l of [...listeners]) l();
+}
+
 export function updateDmPrefs(pubkey: string, change: (prefs: DmPrefs) => DmPrefs): DmPrefs {
-  const next = change(readDmPrefs(pubkey));
+  const changed = change(readDmPrefs(pubkey));
+  const next = { ...changed, read: newest(changed.read), hidden: newest(changed.hidden) };
   memo.set(pubkey, next);
   try {
     localStorage.setItem(key(pubkey), JSON.stringify(next));

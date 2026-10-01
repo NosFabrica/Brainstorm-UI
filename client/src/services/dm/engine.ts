@@ -37,6 +37,7 @@ import {
   type Rumor,
   type SealSigner,
 } from "@/lib/dm/giftWrap";
+import { Heap } from "@/lib/dm/heap";
 import { DmStore, messageFromRumor, type Delivery, type DmMessage, type OutgoingStatus } from "@/lib/dm/store";
 import { chatTags } from "@/lib/dm/rooms";
 import { MAX_INBOX_RELAYS, type DmRelayLookup } from "@/lib/dm/inboxRelays";
@@ -59,6 +60,8 @@ export interface LiveHandlers {
   onEose(): void;
   /** The relay wants a NIP-42 login before it will answer (true), or has one (false). */
   onAuthRequired(required: boolean): void;
+  /** The socket dropped; the subscription comes back (and EOSEs again) on reconnect. */
+  onDisconnected?(): void;
 }
 
 export type WrapFilter = { kinds: number[]; "#p": string[]; since?: number; until?: number; limit?: number };
@@ -100,6 +103,8 @@ export interface DmEngineDeps {
   online?: () => boolean;
   /** Calls back when the connection comes back; returns a stop function. */
   onOnline?: (callback: () => void) => () => void;
+  /** Calls back when the reader turns relay sign-in on or off; the inbox reconnects. */
+  onAuthPrefChanged?: (callback: () => void) => () => void;
 }
 
 /** A message waiting in the outbox: its signed wraps, so a retry needs no signer. */
@@ -148,7 +153,15 @@ export interface SendResult {
 interface Queued {
   wrap: NostrEvent;
   relays: Set<string>;
+  /** Times the signer turned this one down. */
+  refusals: number;
+  /** How many wraps had opened when it was last turned down. */
+  openedAtRefusal: number;
 }
+
+/** Newest first; a wrap the signer has turned down goes behind the rest. */
+const openFirst = (a: Queued, b: Queued) =>
+  a.refusals !== b.refusals ? a.refusals < b.refusals : a.wrap.created_at > b.wrap.created_at;
 
 interface OutgoingWrap {
   recipient: string;
@@ -178,6 +191,11 @@ export class DmEngine {
   /** wrap id → message id, to merge relays when the same wrap arrives again. */
   private readonly wrapToMessage = new Map<string, string>();
   private readonly queue = new Map<string, Queued>();
+  /** The queue in opening order; entries no longer in `queue` are skipped. */
+  private readonly order = new Heap<Queued>(openFirst);
+  /** Wraps being opened right now — a copy arriving meanwhile isn't opened twice. */
+  private readonly opening = new Map<string, Queued>();
+  private openedCount = 0;
   private running = 0;
   private allowed = false;
   private paused?: DmPause;
@@ -192,7 +210,15 @@ export class DmEngine {
   /** Automatic tries per message since the connection last came back. */
   private readonly attempts = new Map<string, number>();
   private stopOnline?: () => void;
+  private stopAuthPref?: () => void;
+  private starting?: Promise<void>;
+  private hydrating?: Promise<void>;
   private connecting?: Promise<void>;
+  private connectGen = 0;
+  private noInboxRetries = 0;
+  /** Live relays' oldest wrap before their first EOSE: a capped REQ leaves a band to page. */
+  private readonly liveOldest = new Map<string, number>();
+  private persistChain: Promise<void> = Promise.resolve();
   private writes: StoredWrap[] = [];
   private writeTimer: unknown;
   private stateTimer: unknown;
@@ -218,13 +244,27 @@ export class DmEngine {
 
   // ─── lifecycle ──────────────────────────────────────────────────────────
 
-  async start(): Promise<void> {
-    await this.hydrate();
+  start(): Promise<void> {
+    this.starting ??= this.run();
+    return this.starting;
+  }
+
+  /** Resolves once messages kept on this device are back in the store. */
+  hydrated(): Promise<void> {
+    return this.hydrating ?? Promise.resolve();
+  }
+
+  private async run(): Promise<void> {
+    this.hydrating = this.hydrate();
+    await this.hydrating;
     if (this.stopped) return;
     if (!this.account.decrypt) this.paused = "no-nip44";
     else void this.account.canOpenInBackground().then((yes) => yes && this.allowDecrypt());
     this.connecting = this.connect();
     await this.connecting;
+    // Stopped during the lookup (an account switch): register nothing that would outlive it.
+    if (this.stopped) return;
+    this.stopAuthPref = this.deps.onAuthPrefChanged?.(() => void this.refreshInbox());
     this.flushOutbox();
     this.stopOnline = (this.deps.onOnline ?? onWindowOnline)(() => {
       this.attempts.clear();
@@ -241,6 +281,12 @@ export class DmEngine {
     for (const stop of this.sendAuthWaits.values()) stop();
     this.sendAuthWaits.clear();
     this.stopOnline?.();
+    this.stopAuthPref?.();
+    const clearTimer = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
+    if (this.stateTimer !== undefined) clearTimer(this.stateTimer);
+    this.stateTimer = undefined;
+    this.queue.clear();
+    this.order.clear();
     const clearRepeat = this.deps.clearRepeating ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
     if (this.ticker !== undefined) clearRepeat(this.ticker);
     this.flushWrites();
@@ -251,7 +297,7 @@ export class DmEngine {
 
   /** Read the account's inbox list again — after setting it up, or changing it in Settings. */
   async refreshInbox(): Promise<void> {
-    this.disconnect();
+    if (this.stopped) return;
     this.connecting = this.connect({ fresh: true });
     await this.connecting;
   }
@@ -260,17 +306,30 @@ export class DmEngine {
     for (const stop of this.liveStops) stop();
     this.liveStops = [];
     this.live.clear();
+    this.liveOldest.clear();
+    // Keep how far history got, for the next connect and for what's saved.
+    if (this.pager) this.savedCursors = this.pager.cursors.snapshot();
     this.pager?.dispose();
     this.pager = null;
   }
 
   private async connect(opts: { fresh?: boolean } = {}) {
+    // Only the latest lookup counts: a slower, older one must not undo a newer list.
+    const gen = ++this.connectGen;
     const lookup = await this.deps.loadInbox(this.me, opts).catch((): DmRelayLookup => ({ relays: [], found: false }));
-    if (this.stopped) return;
+    if (this.stopped || gen !== this.connectGen) return;
+    this.disconnect();
     this.inbox = lookup.relays;
     if (!this.inbox.length) {
       this.status = "no-inbox";
       this.changed();
+      // Not found may be not found *yet* (relays slow at sign-in): look again, twice, before believing it.
+      if (this.noInboxRetries < NO_INBOX_RETRY_MS.length) {
+        const wait = NO_INBOX_RETRY_MS[this.noInboxRetries++];
+        (this.deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms)))(() => {
+          if (!this.stopped && this.status === "no-inbox") void this.refreshInbox();
+        }, wait);
+      }
       return;
     }
     this.startHistory();
@@ -317,11 +376,27 @@ export class DmEngine {
         relay,
         { kinds: [GIFT_WRAP_KIND], "#p": [this.me], since },
         {
-          onEvent: (event) => this.ingest(event, relay),
+          onEvent: (event) => {
+            if (this.live.get(relay) !== "synced") {
+              const oldest = this.liveOldest.get(relay);
+              if (oldest === undefined || event.created_at < oldest) this.liveOldest.set(relay, event.created_at);
+            }
+            this.ingest(event, relay);
+          },
           onEose: () => {
+            const oldest = this.liveOldest.get(relay);
+            if (oldest !== undefined) this.pager?.cursors.startBelow(relay, oldest);
+            this.liveOldest.delete(relay);
             this.live.set(relay, "synced");
             this.markSeenIfSynced();
             this.changed();
+          },
+          onDisconnected: () => {
+            // Not caught up while the socket is down: `lastSeen` must not move on.
+            if (this.live.get(relay) === "synced") {
+              this.live.set(relay, "connecting");
+              this.changed();
+            }
           },
           onAuthRequired: (required) => {
             const current = this.live.get(relay);
@@ -349,14 +424,24 @@ export class DmEngine {
     });
   }
 
-  private markSeenIfSynced() {
+  /**
+   * Caught up as of now — except for wraps that arrived but aren't opened yet
+   * (an extension waits for the reader): the queue isn't kept, so the next
+   * visit must ask for them again, and `lastSeen` stays at the oldest.
+   */
+  private markSeenIfSynced(throttle = false) {
     if (!this.liveSynced) return;
-    this.lastSeen = this.now();
+    let at = this.now();
+    for (const q of this.queue.values()) if (q.wrap.created_at < at) at = q.wrap.created_at;
+    for (const q of this.opening.values()) if (q.wrap.created_at < at) at = q.wrap.created_at;
+    // Saved every few minutes, not on every tick: a minute here is lost to the 2-day overlap anyway.
+    if (throttle && this.lastSeen !== undefined && at >= this.lastSeen && at - this.lastSeen < 300) return;
+    this.lastSeen = at;
     this.scheduleState();
   }
 
   private tick() {
-    this.markSeenIfSynced();
+    this.markSeenIfSynced(true);
     this.flushOutbox();
     const gone = this.store.sweepExpired(this.now());
     if (gone.length && this.cache)
@@ -379,35 +464,52 @@ export class DmEngine {
     } catch {
       return;
     }
+    // Newest first, so the inbox fills from the top.
+    rows.sort((a, b) => b.at - a.at);
     if (rows.length > MAX_CACHED_WRAPS) {
-      rows.sort((a, b) => b.at - a.at);
       const evicted = rows.splice(MAX_CACHED_WRAPS);
       void this.cache.deleteWraps(evicted.map((r) => r.key)).catch(() => {});
     }
     const sealer = this.deps.sealer;
-    const opened = await Promise.all(
-      rows.map(async (row) => {
-        this.seen.add(row.wrapId);
-        if (!row.envelope || !sealer?.supported()) return null;
-        try {
-          return JSON.parse(await sealer.open(row.envelope, this.me)) as CachedOpen;
-        } catch {
-          // A sealed copy this device can no longer open: forget it, and the wrap is opened again if met.
-          this.seen.delete(row.wrapId);
-          return null;
+    const expired: string[] = [];
+    // In slices, yielding between them: thousands of AES-GCM opens and JSON
+    // parses at once would hold the main thread on every page load.
+    for (let i = 0; i < rows.length; i += HYDRATE_SLICE) {
+      const slice = rows.slice(i, i + HYDRATE_SLICE);
+      const opened = await Promise.all(
+        slice.map(async (row) => {
+          this.seen.add(row.wrapId);
+          if (!row.envelope || !sealer?.supported()) return null;
+          try {
+            return { row, open: JSON.parse(await sealer.open(row.envelope, this.me)) as CachedOpen };
+          } catch {
+            // A sealed copy this device can no longer open: forget it, and the wrap is opened again if met.
+            this.seen.delete(row.wrapId);
+            return null;
+          }
+        }),
+      );
+      if (this.stopped) return;
+      const now = this.now();
+      this.store.batch(() => {
+        for (const o of opened) {
+          if (!o) continue;
+          const { open } = o;
+          const tags = open.expiresAt ? [["expiration", String(open.expiresAt)]] : undefined;
+          const message = messageFromRumor(open.rumor, { id: open.wrapId, created_at: open.wrapAt, tags }, open.relays);
+          if (!message) continue;
+          // Expired while the app was closed: gone from disk too.
+          if (message.expiresAt && message.expiresAt <= now) {
+            expired.push(o.row.key);
+            continue;
+          }
+          this.wrapToMessage.set(open.wrapId, message.id);
+          this.store.add(message, now);
         }
-      }),
-    );
-    const now = this.now();
-    this.store.batch(() => {
-      for (const o of opened) {
-        if (!o) continue;
-        const message = messageFromRumor(o.rumor, { id: o.wrapId, created_at: o.wrapAt }, o.relays);
-        if (!message) continue;
-        this.wrapToMessage.set(o.wrapId, message.id);
-        this.store.add(message, now);
-      }
-    });
+      });
+      if (i + HYDRATE_SLICE < rows.length) await yieldToMain();
+    }
+    if (expired.length) void this.cache.deleteWraps(expired).catch(() => {});
   }
 
   private keep(row: StoredWrap) {
@@ -442,6 +544,7 @@ export class DmEngine {
         wrapId: message.wrapId,
         wrapAt: message.wrapAt,
         relays: message.relays,
+        expiresAt: message.expiresAt,
       };
       this.keep({ ...base, envelope: await sealer.seal(JSON.stringify(payload), this.me) });
     } catch {
@@ -458,16 +561,26 @@ export class DmEngine {
     }, 1500);
   }
 
+  /**
+   * Writes go one after another, so a slow seal can't land an older state over
+   * a newer one; and a write asked for before sign-out cleared the cache is
+   * dropped, not replayed into the next account's session.
+   */
   private persistState() {
     if (!this.cache) return;
     const cache = this.cache;
+    const stillValid = cache.guard?.();
     const base = {
       owner: this.me,
       lastSeen: this.lastSeen,
       cursors: this.pager?.cursors.snapshot() ?? this.savedCursors,
     };
-    void this.sealOutbox()
-      .then((outbox) => cache.putState({ ...base, ...(outbox ? { outbox } : {}) }))
+    this.persistChain = this.persistChain
+      .then(async () => {
+        const outbox = await this.sealOutbox().catch(() => undefined);
+        if (stillValid && !stillValid()) return;
+        await cache.putState({ ...base, ...(outbox ? { outbox } : {}) });
+      })
       .catch(() => {});
   }
 
@@ -523,10 +636,18 @@ export class DmEngine {
 
   /** After a send settles: in the outbox until everyone has it. */
   private settleOutbox(messageId: string) {
-    const status = this.store.message(messageId)?.outgoing?.status;
+    const out = this.store.message(messageId)?.outgoing;
     const before = this.outbox.has(messageId);
-    if (status === "sent" || status === undefined) this.outbox.delete(messageId);
-    else this.outbox.add(messageId);
+    // "Sent" is about the recipients; the copy for the reader's other devices is retried too.
+    const mineMissing =
+      !!out?.deliveries.some((d) => d.recipient === this.me) &&
+      !out.deliveries.some((d) => d.recipient === this.me && d.ok);
+    if (!out || (out.status === "sent" && !mineMissing)) {
+      this.outbox.delete(messageId);
+      this.attempts.delete(messageId);
+      // Every relay took it: nothing will ever be resent.
+      if (out?.deliveries.every((d) => d.ok)) this.outgoing.delete(messageId);
+    } else this.outbox.add(messageId);
     if (before || this.outbox.has(messageId)) this.scheduleState();
   }
 
@@ -539,8 +660,7 @@ export class DmEngine {
       const tries = this.attempts.get(id) ?? 0;
       if (tries >= MAX_AUTO_RETRIES) continue;
       this.attempts.set(id, tries + 1);
-      this.retrying.add(id);
-      void this.resend(id).finally(() => this.retrying.delete(id));
+      void this.resend(id);
     }
   }
 
@@ -565,12 +685,14 @@ export class DmEngine {
       if (held && !held.relays.includes(relay)) this.store.add({ ...held, relays: [relay] });
       return;
     }
-    const queued = this.queue.get(wrap.id);
+    const queued = this.queue.get(wrap.id) ?? this.opening.get(wrap.id);
     if (queued) {
       queued.relays.add(relay);
       return;
     }
-    this.queue.set(wrap.id, { wrap, relays: new Set([relay]) });
+    const item: Queued = { wrap, relays: new Set([relay]), refusals: 0, openedAtRefusal: 0 };
+    this.queue.set(wrap.id, item);
+    this.order.push(item);
     this.changed();
     this.pump();
   }
@@ -589,20 +711,38 @@ export class DmEngine {
   }
 
   private pump() {
-    if (!this.allowed || this.paused || !this.account.decrypt) return;
-    while (this.running < this.concurrency && this.queue.size) {
+    if (this.stopped || !this.allowed || this.paused || !this.account.decrypt) return;
+    while (this.running < this.concurrency) {
       // Newest first, so the latest messages appear before the backlog.
-      let next: Queued | undefined;
-      for (const q of this.queue.values()) if (!next || q.wrap.created_at > next.wrap.created_at) next = q;
+      const next = this.takeNext();
       if (!next) break;
-      this.queue.delete(next.wrap.id);
+      this.opening.set(next.wrap.id, next);
       this.running++;
       void this.open(next).finally(() => {
+        this.opening.delete(next.wrap.id);
         this.running--;
+        if (this.stopped) return;
         this.changed();
         this.pump();
+        // The backlog is open: caught up to now, not to the oldest wrap that waited.
+        if (!this.running && !this.queue.size) this.markSeenIfSynced();
       });
     }
+  }
+
+  private takeNext(): Queued | undefined {
+    for (;;) {
+      const top = this.order.pop();
+      if (!top) return undefined;
+      if (this.queue.get(top.wrap.id) !== top) continue; // superseded or gone
+      this.queue.delete(top.wrap.id);
+      return top;
+    }
+  }
+
+  private requeue(item: Queued) {
+    this.queue.set(item.wrap.id, item);
+    this.order.push(item);
   }
 
   private async open(item: Queued) {
@@ -611,8 +751,16 @@ export class DmEngine {
       const { rumor } = await unwrapGiftWrap(wrap, this.account.decrypt!);
       if (this.stopped) return;
       this.seen.add(wrap.id);
-      const message = messageFromRumor(rumor, wrap, [...item.relays]);
-      if (!message) {
+      this.openedCount++;
+      const now = this.now();
+      // NIP-17: a message to the reader names them. One that doesn't would make
+      // a room without them in it — it can't be opened or answered.
+      const addressed = rumor.pubkey === this.me || rumor.tags.some((t) => t[0] === "p" && t[1] === this.me);
+      const message = addressed ? messageFromRumor(rumor, wrap, [...item.relays]) : null;
+      // A sender's clock in the future would pin their message to the top.
+      if (message && message.createdAt > now + FUTURE_SLACK_SECONDS) message.createdAt = now;
+      if (!message || (!this.store.add(message, now) && !this.store.message(message.id))) {
+        // Not a message, or already expired: remember the wrap, keep nothing of it.
         this.keep({
           key: wrapKey(this.me, wrap.id),
           owner: this.me,
@@ -623,11 +771,13 @@ export class DmEngine {
         return;
       }
       this.wrapToMessage.set(wrap.id, message.id);
-      this.store.add(message, this.now());
-      void this.keepOpened(message);
+      void this.keepOpened(this.store.message(message.id) ?? message);
     } catch (error) {
       if (this.stopped) return;
-      const kind = error instanceof UnwrapError ? "broken" : this.account.classify(error);
+      let kind = error instanceof UnwrapError ? "broken" : this.account.classify(error);
+      // Turned down again after the signer opened others in between: it's this
+      // wrap, not the signer — a stranger can't hold the whole inbox shut.
+      if (kind === "refused" && item.refusals > 0 && this.openedCount > item.openedAtRefusal) kind = "broken";
       if (kind === "broken") {
         this.seen.add(wrap.id);
         this.failed++;
@@ -640,8 +790,13 @@ export class DmEngine {
         });
         return;
       }
-      // The signer said no, or went quiet: hold everything until the reader acts.
-      this.queue.set(wrap.id, item);
+      // The signer said no, or went quiet: hold everything until the reader acts,
+      // and try this one after the rest next time.
+      this.requeue({
+        ...item,
+        refusals: item.refusals + (kind === "refused" ? 1 : 0),
+        openedAtRefusal: this.openedCount,
+      });
       this.paused = kind;
     }
   }
@@ -703,8 +858,8 @@ export class DmEngine {
   }
 
   private async deliver(rumor: Rumor, others: string[], expiration: number | undefined): Promise<SendResult> {
-    // Sent while the inbox list is still being looked up: wait for it.
-    if (this.status === "starting") await this.connecting?.catch(() => undefined);
+    // Sent while the cache or the inbox list is still loading: wait for them.
+    if (this.status === "starting") await this.starting?.catch(() => undefined);
     const signer = this.account.sealSigner;
     if (!signer) return { ok: false, error: "Your signer can't encrypt private messages (NIP-44)." };
     if (!this.inbox.length) return { ok: false, error: "Set up your inbox relays first." };
@@ -762,8 +917,15 @@ export class DmEngine {
   async resend(messageId: string): Promise<SendResult> {
     const wraps = this.outgoing.get(messageId);
     if (!wraps) return { ok: false, error: "Nothing to resend" };
-    const message = await this.publishWraps(messageId, wraps, true);
-    return { ok: message?.outgoing?.status !== "failed", message };
+    // One resend at a time per message: two would publish the same wraps and overwrite each other's results.
+    if (this.retrying.has(messageId)) return { ok: false, error: "Already sending" };
+    this.retrying.add(messageId);
+    try {
+      const message = await this.publishWraps(messageId, wraps, true);
+      return { ok: message?.outgoing?.status !== "failed", message };
+    } finally {
+      this.retrying.delete(messageId);
+    }
   }
 
   /**
@@ -892,6 +1054,16 @@ export class DmEngine {
     else this.notifyTimer = setTimeout(flush, wait);
   }
 }
+
+/** When to look for an inbox list again after finding none. */
+const NO_INBOX_RETRY_MS = [20_000, 120_000];
+
+/** Opened from the cache this many at a time, yielding between. */
+const HYDRATE_SLICE = 250;
+/** How far ahead of our clock a message may claim to be written. */
+const FUTURE_SLACK_SECONDS = 600;
+
+const yieldToMain = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 /** About ten minutes of once-a-minute retries. */
 const MAX_AUTO_RETRIES = 10;

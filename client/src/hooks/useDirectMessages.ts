@@ -2,7 +2,15 @@
  * React's view of private messages: the Active Account's DmEngine
  * (services/dm), its rooms, and the reader's shelving of them.
  */
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
 import { dmEngine, subscribeDmEngine } from "@/services/dm";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
@@ -87,8 +95,9 @@ export function useMutedPeople(me: string): (pk: string) => boolean {
   }, [data]);
 }
 
-/** Rooms sorted onto the shelves the inbox shows, with the trust that put them there. */
-export function useShelves(engine: DmEngine | null): Shelves & { scoreOf: (pk: string) => number | null | undefined } {
+export type ShelvesView = Shelves & { scoreOf: (pk: string) => number | null | undefined };
+
+function useComputedShelves(engine: DmEngine | null): ShelvesView {
   const rooms = useDmRooms(engine);
   const me = engine?.pubkey ?? "";
   const mutedOf = useMutedPeople(me);
@@ -99,19 +108,48 @@ export function useShelves(engine: DmEngine | null): Shelves & { scoreOf: (pk: s
     [rooms, me],
   );
   const scoreOf = useAuthorScores(people);
-  const shelves = useMemo(
-    () =>
-      shelve(rooms, me, prefs, {
+  // Loading, unrated and scored are three different answers: an unrated stranger
+  // settling must move them (to Low, or Flagged), so the key tells them apart.
+  const trustKey = people
+    .map((pk) => {
+      const s = scoreOf(pk);
+      return `${s === undefined ? "?" : s === null ? "-" : s}${settledTrustSignals(pk)?.flagged ? "!" : ""}`;
+    })
+    .join(",");
+  return useMemo(
+    () => ({
+      ...shelve(rooms, me, prefs, {
         follows,
         scoreOf,
         flaggedOf: (pk) => settledTrustSignals(pk)?.flagged ?? false,
         mutedOf,
       }),
-    // scoreOf is a fresh function each render once scores land; rooms/prefs/follows drive the rest.
+      scoreOf,
+    }),
+    // scoreOf is a fresh function each render once scores land; trustKey says when its answers changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rooms, me, prefs, follows, mutedOf, people.map((pk) => scoreOf(pk)).join(",")],
+    [rooms, me, prefs, follows, mutedOf, trustKey],
   );
-  return { ...shelves, scoreOf };
+}
+
+const ShelvesContext = createContext<ShelvesView | null>(null);
+
+/**
+ * Shelving once for the whole app: the header badge, the tab bar, notifications
+ * and Messages itself all read the same answer instead of each recomputing it
+ * (and each looking up every correspondent's trust) on every change.
+ */
+export function DmShelvesProvider({ children }: { children: ReactNode }) {
+  const value = useComputedShelves(useDmEngine());
+  return createElement(ShelvesContext.Provider, { value }, children);
+}
+
+/** Rooms sorted onto the shelves the inbox shows, with the trust that put them there. */
+export function useShelves(engine: DmEngine | null): ShelvesView {
+  const shared = useContext(ShelvesContext);
+  // Outside the provider (tests, a stray mount) compute here; inside, this costs nothing.
+  const local = useComputedShelves(shared ? null : engine);
+  return shared ?? local;
 }
 
 /**

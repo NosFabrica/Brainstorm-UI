@@ -129,6 +129,34 @@ function parseEvent(json: string, what: string): Record<string, unknown> {
 
 const isHex64 = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
 
+/** nostr-tools' verifyEvent throws (rather than answering false) on a malformed object. */
+function verified(event: unknown): boolean {
+  try {
+    return verifyEvent(event as NostrEvent);
+  } catch {
+    return false;
+  }
+}
+
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/**
+ * Whether `payload` is shaped like NIP-44 v2 — checked here, before a signer
+ * is asked. A stranger can put anything in a wrap; a malformed payload sent to
+ * an extension or bunker comes back as an error we can't tell from "the user
+ * said no", and that would pause opening every message behind it.
+ */
+export function looksLikeNip44(payload: unknown): boolean {
+  if (typeof payload !== "string") return false;
+  // 1 version + 32 nonce + ≥32 padded + 32 mac bytes, base64; at most 65535 + overhead.
+  if (payload.length < 132 || payload.length > 87472 || !BASE64.test(payload)) return false;
+  try {
+    return atob(payload.slice(0, 4)).charCodeAt(0) === 2;
+  } catch {
+    return false;
+  }
+}
+
 function asRumor(raw: Record<string, unknown>): Rumor {
   const { pubkey, created_at, kind, tags, content } = raw;
   if (!isHex64(pubkey) || typeof created_at !== "number" || typeof kind !== "number" || typeof content !== "string")
@@ -148,11 +176,14 @@ function asRumor(raw: Record<string, unknown>): Rumor {
  */
 export async function unwrapGiftWrap(wrap: NostrEvent, decrypt: Decrypt): Promise<Unwrapped> {
   if (wrap.kind !== GIFT_WRAP_KIND) throw new UnwrapError("not a gift wrap");
-  if (!verifyEvent(wrap)) throw new UnwrapError("gift wrap signature is invalid");
+  if (!verified(wrap)) throw new UnwrapError("gift wrap signature is invalid");
+  if (!looksLikeNip44(wrap.content)) throw new UnwrapError("gift wrap content is not NIP-44");
 
   const seal = parseEvent(await decrypt(wrap.pubkey, wrap.content), "seal") as unknown as NostrEvent;
   if (seal.kind !== SEAL_KIND) throw new UnwrapError("inner event is not a seal");
-  if (!verifyEvent(seal)) throw new UnwrapError("seal signature is invalid");
+  if (!verified(seal)) throw new UnwrapError("seal signature is invalid");
+  if (Array.isArray(seal.tags) && seal.tags.length) throw new UnwrapError("seal has tags");
+  if (!looksLikeNip44(seal.content)) throw new UnwrapError("seal content is not NIP-44");
 
   const rumor = asRumor(parseEvent(await decrypt(seal.pubkey, seal.content), "rumor"));
   // NIP-59: the seal's signature is the only proof of authorship, so the rumor

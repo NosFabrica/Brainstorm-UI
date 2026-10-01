@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { AlertTriangle, Check, CheckCheck, Info, Loader2, Reply, SmilePlus, Timer, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DmMessage } from "@/lib/dm/store";
@@ -106,7 +107,7 @@ function Status({
   );
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   message,
   me,
   group,
@@ -121,6 +122,7 @@ export function MessageBubble({
   onDiscard,
   highlight = false,
   linkPreviews = false,
+  autoOpenFiles = true,
 }: {
   message: DmMessage;
   me: string;
@@ -139,6 +141,8 @@ export function MessageBubble({
   highlight?: boolean;
   /** Show a preview card for the first link (Settings › Messages). */
   linkPreviews?: boolean;
+  /** Small images and voice notes load on their own — not in requests. */
+  autoOpenFiles?: boolean;
 }) {
   const mine = message.author === me;
   const file = message.kind === FILE_KIND ? fileMetaOf(message.rumor) : undefined;
@@ -246,7 +250,7 @@ export function MessageBubble({
               </div>
             )}
             {file ? (
-              <FileMessage meta={file} mine={mine} />
+              <FileMessage meta={file} mine={mine} autoOpen={autoOpenFiles} />
             ) : (
               <>
                 <p className="whitespace-pre-wrap break-words">
@@ -292,4 +296,4 @@ export function MessageBubble({
       </div>
     </div>
   );
-}
+});

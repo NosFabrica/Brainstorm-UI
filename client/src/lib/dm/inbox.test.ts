@@ -101,4 +101,21 @@ describe("shelving rooms", () => {
 
     expect(shelve([ana], ME, prefs({ muted: [ana.key] }), trust()).badge).toBe(0);
   });
+
+  it("judges a room by who wrote in it, not by who was named", () => {
+    // A stranger's group that also names Ana (whom I follow): still a request.
+    const key = [ME, ANA, EVE].sort().join(",");
+    const r = {
+      key,
+      participants: key.split(","),
+      messages: [{ id: "x", author: EVE, createdAt: 100 }] as DmMessage[],
+      reactions: new Map(),
+      lastAt: 100,
+      hasMine: false,
+    } as DmRoom;
+    expect(shelfOf(r, ME, prefs(), trust())).toBe("low");
+    // Once Ana writes there, it is a chat.
+    r.messages.push({ id: "y", author: ANA, createdAt: 101 } as DmMessage);
+    expect(shelfOf(r, ME, prefs(), trust())).toBe("chat");
+  });
 });

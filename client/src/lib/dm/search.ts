@@ -35,28 +35,56 @@ function terms(query: string): string[] {
 
 const RADIUS = 48;
 
+/** Messages are immutable once opened: fold each one's text once, not per keystroke. */
+const foldedText = new WeakMap<DmMessage, string>();
+function foldedOf(message: DmMessage): string {
+  let f = foldedText.get(message);
+  if (f === undefined) {
+    f = fold(message.rumor.content);
+    foldedText.set(message, f);
+  }
+  return f;
+}
+
+/**
+ * The folded text with, for each of its characters, the index of the original
+ * character it came from — folding changes length (Hangul, decomposed accents),
+ * and positions found in one must be cut from the other.
+ */
+function foldWithMap(text: string): { folded: string; origin: number[] } {
+  let folded = "";
+  const origin: number[] = [];
+  let i = 0;
+  for (const ch of text) {
+    const f = fold(ch);
+    folded += f;
+    for (let k = 0; k < f.length; k++) origin.push(i);
+    i += ch.length;
+  }
+  return { folded, origin };
+}
+
 function snippetOf(text: string, words: string[]): { snippet: string; marks: [number, number][] } {
   const flat = text.replace(/\s+/g, " ").trim();
-  const folded = fold(flat);
-  // Folding can change length outside Latin scripts; fall back to unmarked text then.
-  const aligned = folded.length === flat.length;
-  const first = Math.min(...words.map((w) => folded.indexOf(w)).filter((i) => i >= 0));
-  const start = Number.isFinite(first) ? Math.max(0, first - RADIUS) : 0;
-  const end = Math.min(flat.length, (Number.isFinite(first) ? first : 0) + RADIUS * 2);
+  const { folded, origin } = foldWithMap(flat);
+  const at = (f: number) => (f >= origin.length ? flat.length : origin[f]);
+  const hits = words.map((w) => folded.indexOf(w)).filter((i) => i >= 0);
+  const first = hits.length ? at(Math.min(...hits)) : 0;
+  const start = Math.max(0, first - RADIUS);
+  const end = Math.min(flat.length, first + RADIUS * 2);
   const head = start > 0 ? "…" : "";
   const snippet = head + flat.slice(start, end) + (end < flat.length ? "…" : "");
   const marks: [number, number][] = [];
-  if (aligned) {
-    const window = folded.slice(start, end);
-    for (const w of words) {
-      let i = window.indexOf(w);
-      while (i >= 0) {
-        marks.push([i + head.length, i + head.length + w.length]);
-        i = window.indexOf(w, i + w.length);
-      }
+  for (const w of words) {
+    let f = folded.indexOf(w);
+    while (f >= 0) {
+      const a = at(f);
+      const b = at(f + w.length);
+      if (a >= start && b <= end) marks.push([a - start + head.length, b - start + head.length]);
+      f = folded.indexOf(w, f + w.length);
     }
-    marks.sort((a, b) => a[0] - b[0]);
   }
+  marks.sort((x, y) => x[0] - y[0]);
   return { snippet, marks };
 }
 
@@ -75,10 +103,9 @@ export function searchMessages(
     for (const message of room.messages) {
       if (message.kind !== CHAT_KIND && message.kind !== FILE_KIND) continue;
       out.searched++;
-      const text = message.rumor.content;
-      const folded = fold(text);
+      const folded = foldedOf(message);
       if (!words.every((w) => folded.includes(w))) continue;
-      out.hits.push({ room, message, ...snippetOf(text, words) });
+      out.hits.push({ room, message, ...snippetOf(message.rumor.content, words) });
     }
   }
   out.hits.sort((a, b) => b.message.createdAt - a.message.createdAt);
