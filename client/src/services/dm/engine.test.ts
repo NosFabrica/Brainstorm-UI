@@ -748,4 +748,37 @@ describe("DmEngine", () => {
     expect(engine.state().paused).toBeUndefined();
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("slow signer");
   });
+
+  it("takes back a decrypt slot the signer never answers, instead of freezing every later message", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "first", NOW - 60));
+    let hang = true;
+    const base = me.account();
+    const time = clock();
+    const engine = new DmEngine(
+      me.account({
+        // An extension that silently drops its first requests.
+        decrypt: (from, text) => (hang ? new Promise<string>(() => {}) : base.decrypt!(from, text)),
+        classify: () => "refused",
+      }),
+      { ...net, ...time, concurrency: 1, now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    expect(engine.state().queued).toBe(1);
+    hang = false;
+    time.flush(); // the deadline passes: the slot is taken back and opening pauses briefly
+    await settle();
+    expect(engine.state().paused).toBe("unreachable");
+    time.flush(); // and resumes by itself
+    for (let i = 0; i < 5; i++) await settle();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("first");
+    // A new message arriving live opens too.
+    const later = await wrapFrom(ana, me.pubkey, "second", NOW - 5);
+    net.live.get("wss://in.example/")!.h.onEvent(later);
+    for (let i = 0; i < 5; i++) await settle();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("second");
+  });
 });

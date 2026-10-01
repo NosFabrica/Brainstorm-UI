@@ -103,6 +103,8 @@ export interface DmEngineDeps {
   online?: () => boolean;
   /** Calls back when the connection comes back; returns a stop function. */
   onOnline?: (callback: () => void) => () => void;
+  /** How long one wrap may take to open before its slot is taken back (default 45s). */
+  decryptTimeoutMs?: number;
   /** Calls back when the reader turns relay sign-in on or off; the inbox reconnects. */
   onAuthPrefChanged?: (callback: () => void) => () => void;
 }
@@ -812,7 +814,7 @@ export class DmEngine {
   private async open(item: Queued) {
     const { wrap } = item;
     try {
-      const { rumor } = await unwrapGiftWrap(wrap, this.account.decrypt!);
+      const { rumor } = await this.withDeadline(unwrapGiftWrap(wrap, this.account.decrypt!));
       if (this.stopped) return;
       this.seen.add(wrap.id);
       this.openedCount++;
@@ -840,7 +842,12 @@ export class DmEngine {
       void this.keepOpened(this.store.message(message.id) ?? message);
     } catch (error) {
       if (this.stopped) return;
-      const kind = error instanceof UnwrapError ? "broken" : this.account.classify(error);
+      const kind =
+        error instanceof UnwrapError
+          ? "broken"
+          : error instanceof DecryptTimeout
+            ? "unreachable"
+            : this.account.classify(error);
       if (kind === "broken") {
         // The payload itself can't open, ever: remembered, so it isn't asked again.
         this.seen.add(wrap.id);
@@ -876,6 +883,31 @@ export class DmEngine {
       // again by itself, waiting longer each time, before asking the reader.
       if (kind === "unreachable") this.scheduleResume();
     }
+  }
+
+  /**
+   * An extension can drop a request and never answer it. Opening runs a few at
+   * a time, so two such calls would hold every slot for good — wraps keep
+   * arriving and nothing opens. Past the deadline the slot is taken back, the
+   * wrap goes back in the queue, and opening resumes after a pause.
+   */
+  private withDeadline<T>(work: Promise<T>): Promise<T> {
+    const ms = this.deps.decryptTimeoutMs ?? DECRYPT_TIMEOUT_MS;
+    const set = this.deps.setTimer ?? ((fn, wait) => setTimeout(fn, wait));
+    const clear = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
+    return new Promise<T>((resolve, reject) => {
+      const timer = set(() => reject(new DecryptTimeout()), ms);
+      work.then(
+        (v) => {
+          clear(timer);
+          resolve(v);
+        },
+        (e) => {
+          clear(timer);
+          reject(e);
+        },
+      );
+    });
   }
 
   private scheduleResume() {
@@ -1187,7 +1219,8 @@ export class DmEngine {
       liveSettled: this.liveSettled,
       sendAuth: [...this.sendAuthWaits.keys()],
       floor: this.floor,
-      queued: this.queue.size,
+      // In flight too: a wrap being opened is still waiting, as far as the reader can tell.
+      queued: this.queue.size + this.opening.size,
       paused: this.paused ?? (!this.allowed && this.queue.size ? "waiting" : undefined),
       failed: this.failed,
       setAside: this.setAsideItems.size,
@@ -1220,6 +1253,15 @@ export class DmEngine {
     };
     if (wait <= 0) flush();
     else this.notifyTimer = setTimeout(flush, wait);
+  }
+}
+
+/** One wrap's two decrypts may take this long; then the signer is taken to be stuck. */
+const DECRYPT_TIMEOUT_MS = 45_000;
+
+class DecryptTimeout extends Error {
+  constructor() {
+    super("The signer didn't answer in time");
   }
 }
 
