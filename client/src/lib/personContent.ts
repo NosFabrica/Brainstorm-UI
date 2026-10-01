@@ -169,6 +169,30 @@ export function searchIntent(query: string): { name: string; key: PersonContentK
   return { name: words.slice(0, -1).join(" "), key };
 }
 
+/** The words that say "I am shopping": the shop category words, and the plain ways of asking. */
+const SHOP_WORDS = new Set([
+  ...Object.keys(CATEGORY_WORDS).filter((w) => CATEGORY_WORDS[w] === "shop"),
+  "buy",
+  "price",
+]);
+
+/**
+ * What a shopping query is shopping for: its words with the shop word taken
+ * out ("drone shop" → "drone", "bikes for sale" → "bikes"). Null when the
+ * words do not ask to shop, or the shop word is all there is — the search
+ * box lists products only for a query that asked for them.
+ */
+export function shopWords(query: string): string | null {
+  const words = query
+    .replace(/\bfor\s+sale\b/gi, " \u0000 ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const rest = words.filter((w) => w !== "\u0000" && !SHOP_WORDS.has(w.toLowerCase()));
+  if (rest.length === words.length || rest.length === 0) return null;
+  return rest.join(" ");
+}
+
 /**
  * The intent row's target: "staci shop" and a suggested person whose chips say shop —
  * the first such person in the list, with the chip to land on. Null when nobody

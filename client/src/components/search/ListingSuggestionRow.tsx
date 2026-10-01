@@ -21,7 +21,8 @@ export function ListingSuggestionRow({
   const l = parseListing(hit.event);
   if (!l) return null;
   const seller = hit.author?.displayName || hit.author?.name || null;
-  const detail = [l.price ? formatListingPrice(l.price) : null, seller].filter(Boolean).join(" · ");
+  // The kind first, like every row in the dropdown: "Shop · $21 · Black Sheep".
+  const detail = ["Shop", l.price ? formatListingPrice(l.price) : null, seller].filter(Boolean).join(" · ");
   return (
     <button
       type="button"
@@ -40,7 +41,7 @@ export function ListingSuggestionRow({
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{l.title}</p>
-        {detail && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{detail}</p>}
+        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{detail}</p>
       </div>
       <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" aria-hidden="true" />
     </button>

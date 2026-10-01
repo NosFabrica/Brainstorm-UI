@@ -39,7 +39,8 @@ export function TagSuggestionRow({
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{tag.name}</p>
-        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{people} tagged this</p>
+        {/* The kind first — a tag named like a person is still plainly a tag. */}
+        <p className="truncate text-xs text-slate-500 dark:text-slate-400">Tag · {people}</p>
       </div>
       <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" aria-hidden="true" />
     </button>

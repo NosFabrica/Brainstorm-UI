@@ -348,7 +348,8 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
       },
     ]);
     render(<Landing />);
-    typeInBox("satoshi smiley");
+    // Products show for words that ask to shop; the lookup is for the thing itself.
+    typeInBox("satoshi smiley shop");
     const row = await screen.findByTestId("home-product-suggestion-0", {}, { timeout: 3000 });
     expect(row).toHaveTextContent("Satoshi Smiley T-shirt");
     expect(row).toHaveTextContent("$21");

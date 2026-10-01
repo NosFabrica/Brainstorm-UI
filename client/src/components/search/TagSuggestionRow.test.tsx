@@ -24,8 +24,18 @@ describe("TagSuggestionRow", () => {
     const row = screen.getByTestId("tag-suggestion");
 
     expect(row).toHaveTextContent("lfo");
-    expect(row).toHaveTextContent("54 people tagged this");
+    expect(row).toHaveTextContent("Tag · 54 people");
     expect(row.textContent).not.toMatch(/unknown creator/i);
     expect(screen.queryByTestId("tag-unverified")).toBeNull();
+  });
+
+  // The grey line's first word is the kind of thing the row is — Google's
+  // "Poodle · Dog breed" — so a tag is never mistaken for a person named the same.
+  it("says it is a tag before it says how many", () => {
+    const { rerender } = render(<TagSuggestionRow tag={{ ...lfo, people: 1 }} />);
+    expect(screen.getByTestId("tag-suggestion")).toHaveTextContent("Tag · 1 person");
+    rerender(<TagSuggestionRow tag={{ ...lfo, people: 5 }} />);
+    expect(screen.getByTestId("tag-suggestion")).toHaveTextContent("Tag · 5 people");
+    expect(screen.getByTestId("tag-suggestion").textContent).not.toMatch(/tagged this/);
   });
 });
