@@ -44,7 +44,7 @@ prefers the runtime value and falls back to the build-time one.
 | ------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `VITE_API_URL`                  | Base URL of the brainstorm_server API                                                              |
 | `VITE_NIP85_RELAY_URL`          | Relay where the deployment's Trusted Assertions live                                               |
-| `VITE_WOT_SEARCH_RELAY`         | NIP-50 relay backing nostr profile search — unset disables search                                  |
+| `VITE_SEARCH_RELAY_URL`         | SearchOverTrust relay (NIP-50) behind search and admin people search — unset disables both         |
 | `VITE_TAG_RELAY_URLS`           | Comma-separated tag relays; unset falls back to the hub in `client/src/config/tagging.config.json` |
 | `VITE_FEATURE_AGENT_SUITE`      | Feature flag — agent suite (default off)                                                           |
 | `VITE_FEATURE_ASSISTANTS_ADMIN` | Feature flag — assistants admin (default off)                                                      |

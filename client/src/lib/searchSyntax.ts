@@ -262,6 +262,16 @@ export function typeaheadWords(query: string): string | null {
   return words.split(/\s+/).some((w) => OPERATOR_WORD.test(w)) ? null : words;
 }
 
+/** Append our lens unless the query already names one. The SearchOverTrust relay refuses a
+ *  read with neither `observer:` nor `include:spam` (`auth-required:`), so every search the UI
+ *  sends carries one; with no observer to name, the waiver is the only way to be answered. */
+export function withObserver(query: string, observer: string | null): string {
+  const q = query.trim();
+  if (/(^|\s)(observer:|include:spam)/.test(q)) return q;
+  if (!observer) return q ? `${q} include:spam` : "include:spam";
+  return q ? `${q} observer:${observer}` : `observer:${observer}`;
+}
+
 /** The panel's state, read back out of the query. */
 export function readFilters(query: string): SearchFilterState {
   const q = parseQuery(query);

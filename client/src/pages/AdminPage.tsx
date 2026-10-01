@@ -1144,7 +1144,7 @@ function UserHistoryRow({
   schedulingName?: string;
 }) {
   const historyQuery = useQuery<AdminUserHistoryPage>({
-    queryKey: ["/api/admin/users", pubkey, "history"],
+    queryKey: ["/api/admin/users", pubkey, "history", 10],
     queryFn: () => apiClient.getAdminUserHistory(pubkey, { page: 1, size: 10 }),
     staleTime: 30_000,
   });

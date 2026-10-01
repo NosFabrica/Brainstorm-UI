@@ -22,7 +22,7 @@ import { reportSearchFailure } from "@/lib/serverStatus";
 import { searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
-import { liftQuery, searchFilters, typeaheadWords } from "@/lib/searchSyntax";
+import { liftQuery, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
 import { isSellable, parseListing } from "@/lib/listing";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { wantProfile } from "@/services/authorProfileQueue";
@@ -318,14 +318,6 @@ export function kind0ToSearchResult(event: NostrEvent): SearchResult {
     wotRank: null,
     wotFollowers: null,
   };
-}
-
-/** Append our lens unless the query already names one. */
-function withObserver(query: string, observer: string | null): string {
-  const q = query.trim();
-  if (/(^|\s)(observer:|include:spam)/.test(q)) return q;
-  if (!observer) return q ? `${q} include:spam` : "include:spam";
-  return q ? `${q} observer:${observer}` : `observer:${observer}`;
 }
 
 async function resolveObserver(params: SearchParams): Promise<string | null> {
