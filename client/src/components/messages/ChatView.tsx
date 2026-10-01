@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Ban, Check, History, Info, Loader2, ShieldCheck, Timer, Trash2 } from "lucide-react";
+import { ArrowLeft, Ban, Check, History, Info, KeyRound, Loader2, ShieldCheck, Timer, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,6 +154,7 @@ export function ChatView({
   onDetails,
   onToggleInfo,
   onSignIn,
+  authAllowed,
   sendError,
   initialSubject,
 }: {
@@ -172,6 +174,8 @@ export function ChatView({
   onDetails: (m: DmMessage) => void;
   onToggleInfo: () => void;
   onSignIn: () => void;
+  /** The reader lets relays that ask sign them in (lib/relayAuthPref). */
+  authAllowed: boolean;
   sendError: (result: SendResult) => void;
   /** A group's name, chosen when it was started, sent with its first message. */
   initialSubject?: string;
@@ -317,7 +321,7 @@ export function ChatView({
         />
         {!view.messages.length && history.phase === "idle" && (
           <p className="mx-auto max-w-sm py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-            {state.liveSynced ? `Say hi to ${first}.` : "Loading this conversation…"}
+            {state.liveSettled ? `Say hi to ${first}.` : "Loading this conversation…"}
           </p>
         )}
         <p className="mx-auto flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs text-slate-600 dark:text-slate-300">
@@ -356,6 +360,21 @@ export function ChatView({
           </Fragment>
         ))}
       </div>
+
+      {state.sendAuth.length > 0 && !authAllowed && !isRequest && (
+        <Alert
+          variant="warning"
+          className="mx-4 mb-2 flex w-auto items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] sm:mx-6"
+        >
+          <span className="shrink-0">
+            <KeyRound className="h-4 w-4" />
+          </span>
+          <span className="flex-1">Their inbox relay takes messages only from senders who sign in.</span>
+          <Button size="sm" onClick={onSignIn} data-testid="dm-send-allow-auth">
+            Allow sign-in
+          </Button>
+        </Alert>
+      )}
 
       {isRequest ? (
         <div className="shrink-0 border-t border-border bg-card px-4 pb-5 pt-4 sm:px-6" data-testid="dm-request-bar">

@@ -330,4 +330,102 @@ describe("DmEngine", () => {
     await settle();
     expect(engine.store.rooms()).toHaveLength(1);
   });
+
+  it("sends again once a relay that wanted a login signs the sender in", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://gated.example/"] });
+    const signedIn = new Set<string>();
+    const onLogin = new Map<string, () => void>();
+    const publish = net.transport.publish;
+    const transport: DmTransport = {
+      ...net.transport,
+      publish: async (relay, event) =>
+        relay === "wss://gated.example/" && !signedIn.has(relay)
+          ? { ok: false, message: "auth-required: you must auth", auth: true }
+          : publish(relay, event),
+      onAuthenticated: (relay, cb) => {
+        onLogin.set(relay, cb);
+        return () => onLogin.delete(relay);
+      },
+    };
+    const engine = new DmEngine(me.account(), { ...net, transport, ...clock(), now: () => NOW });
+    await engine.start();
+    await settle();
+
+    const room = roomKey([me.pubkey, ana.pubkey]);
+    const result = await engine.send(room, "hi");
+    expect(result.ok).toBe(false);
+    const refused = result.message!.outgoing!.deliveries.find((d) => d.relay === "wss://gated.example/");
+    expect(refused).toMatchObject({ ok: false, auth: true });
+    expect(engine.state().sendAuth).toEqual(["wss://gated.example/"]);
+
+    signedIn.add("wss://gated.example/");
+    onLogin.get("wss://gated.example/")!();
+    await settle();
+    await settle();
+    expect(engine.state().sendAuth).toEqual([]);
+    expect(net.published.some((p) => p.relay === "wss://gated.example/")).toBe(true);
+    expect(engine.store.room(room)!.last?.outgoing?.status).toBe("sent");
+  });
+
+  it("holds a message sent while the inbox list is still loading, instead of failing it", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const loadInbox = async (pk: string) => {
+      if (pk === me.pubkey) await gate;
+      return net.loadInbox(pk);
+    };
+    const engine = new DmEngine(me.account(), { ...net, loadInbox, ...clock(), now: () => NOW });
+    const started = engine.start();
+    await settle();
+    expect(engine.state().status).toBe("starting");
+    const sending = engine.send(roomKey([me.pubkey, ana.pubkey]), "early");
+    release();
+    await started;
+    expect((await sending).ok).toBe(true);
+  });
+
+  it("doesn't keep a chat loading on a relay that stopped answering", async () => {
+    const me = person();
+    const net = network({ [me.pubkey]: ["wss://up.example/", "wss://down.example/"] });
+    const transport: DmTransport = {
+      ...net.transport,
+      live: (relay, f, h) => (relay === "wss://down.example/" ? () => {} : net.transport.live(relay, f, h)),
+      page: (relay, f, h) => (relay === "wss://down.example/" ? () => {} : net.transport.page(relay, f, h)),
+    };
+    const time = clock();
+    const engine = new DmEngine(me.account(), { ...net, transport, ...time, now: () => NOW });
+    await engine.start();
+    await settle();
+    engine.advanceAll();
+    await settle();
+    expect(engine.state()).toMatchObject({ liveSynced: false, liveSettled: false });
+    time.flush(); // the pager's silence timer: down.example has said nothing
+    await settle();
+    expect(engine.state()).toMatchObject({ liveSynced: false, liveSettled: true });
+  });
+
+  it("answers once everyone is reached, without waiting on a relay that never does", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({
+      [me.pubkey]: ["wss://mine.example/"],
+      [ana.pubkey]: ["wss://ana.example/", "wss://dead.example/"],
+    });
+    const transport: DmTransport = {
+      ...net.transport,
+      publish: (relay, event) =>
+        relay === "wss://dead.example/" ? new Promise(() => {}) : net.transport.publish(relay, event),
+    };
+    const engine = new DmEngine(me.account(), { ...net, transport, ...clock(), now: () => NOW });
+    await engine.start();
+    await settle();
+    const result = await engine.send(roomKey([me.pubkey, ana.pubkey]), "quick");
+    expect(result).toMatchObject({ ok: true });
+    expect(result.message!.outgoing!.status).toBe("sent");
+  });
 });

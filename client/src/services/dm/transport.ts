@@ -6,13 +6,18 @@
  * (NIP-42) — that is what keeps someone else from downloading your inbox. The
  * live subscription waits for that login (the pool's subscriptions do); history
  * pages don't, and report `auth` instead so the pager can park the relay until
- * services/relayAuth signs in, with the reader's consent.
+ * services/relayAuth signs in, with the reader's consent. Publishing is the
+ * same: many inbox relays only take a wrap from a signed-in sender, so a send
+ * refused with `auth-required` waits briefly for that login and tries again.
  */
 import { AuthRequiredError, RelayClosedError } from "applesauce-relay";
-import { combineLatest, distinctUntilChanged, filter, map } from "rxjs";
+import { combineLatest, distinctUntilChanged, filter, firstValueFrom, map, of, timeout } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import { pool } from "@/lib/relayPool";
 import type { DmTransport } from "./engine";
+
+/** How long a refused publish waits for services/relayAuth to sign in. */
+const AUTH_WAIT_MS = 6000;
 
 const reasonOf = (error: unknown) =>
   error instanceof RelayClosedError ? error.reason : error instanceof Error ? error.message : String(error);
@@ -63,12 +68,31 @@ export const poolTransport: DmTransport = {
   },
 
   async publish(url, event) {
-    try {
-      const result = await pool.relay(url).publish(event, { timeout: 10_000 });
-      return { ok: result.ok, message: result.message };
-    } catch (error) {
-      return { ok: false, message: reasonOf(error) };
-    }
+    const relay = pool.relay(url);
+    const once = async () => {
+      try {
+        // No library retry: an `auth-required` answer has to come back to us as
+        // one, not as a "Timeout" after the retries wait on a login.
+        const result = await relay.publish(event, { timeout: 10_000, retries: false });
+        return { ok: result.ok, message: result.message };
+      } catch (error) {
+        return { ok: false, message: reasonOf(error), auth: error instanceof AuthRequiredError };
+      }
+    };
+    const first = await once();
+    if (!first.auth) return first;
+    // Refused although signed in: a login won't change that.
+    if (relay.authenticated) return { ok: false, message: first.message };
+    // Recipients' inbox relays often take wraps only from a signed-in sender.
+    // services/relayAuth answers the challenge if the reader allowed it; give
+    // that a moment, then try once more.
+    const signedIn = await firstValueFrom(
+      relay.authenticated$.pipe(
+        filter((yes) => yes),
+        timeout({ first: AUTH_WAIT_MS, with: () => of(false) }),
+      ),
+    );
+    return signedIn ? once() : first;
   },
 
   onAuthenticated(url, callback) {

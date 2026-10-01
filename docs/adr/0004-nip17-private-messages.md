@@ -69,3 +69,25 @@ sender's own, so their other devices see it. A recipient with no kind-10050 is
 not sent to — NIP-17 says not to guess. Seals carry no tags, so `signAs` leaves
 the client tag off kind 13; remote signers are asked for kinds 13 and 10050 at
 pairing.
+
+The send answers once every recipient has a relay that took their wrap; slower
+relays keep going in the background and fill in the delivery details, so a
+dead inbox relay doesn't hold the composer for its timeout.
+
+Many inbox relays (auth.nostr1.com among the suggested ones) take a wrap only
+from a signed-in sender. A refused publish (`auth-required`) is signed in
+through the same consent as reads (lib/relayAuthPref, services/relayAuth now
+also answers relays that refused a write), retried once, and otherwise held:
+the message shows "their relay wants you signed in", and goes out by itself
+when that relay signs the reader in. The trade-off is NIP-42's: signing in to
+a recipient's inbox relay tells that relay who is sending to its users. A
+reader who hasn't allowed sign-in keeps that private and can't reach those
+inboxes.
+
+## Tested against production relays
+
+Two throwaway accounts, the production build, real relays: setup, request,
+accept, reply arriving live, reactions, reload from the device cache, and
+interop with nostr-tools' NIP-17/NIP-59 in both directions. A read-only soak
+paged a real inbox of ~1,600 wraps in five pages, and matched an independent
+12-hour-window scan wrap for wrap.

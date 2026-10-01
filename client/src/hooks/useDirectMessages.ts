@@ -21,6 +21,8 @@ const IDLE: DmEngineState = {
   inboxRelays: [],
   live: {},
   liveSynced: false,
+  liveSettled: false,
+  sendAuth: [],
   floor: 0,
   queued: 0,
   failed: 0,

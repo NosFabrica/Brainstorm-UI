@@ -110,7 +110,8 @@ export async function publishInboxRelays(relays: string[]): Promise<PublishOutco
     return signingFailure(error);
   }
   eventStore.add(signed);
-  const outcome = await publishToRelays(signed, relays);
+  // One relay taking it is enough to start; a dead one shouldn't hold up setup.
+  const outcome = await publishToRelays(signed, relays, { need: 1, timeoutMs: 8000 });
   if (current?.pubkey === account.pubkey) void current.refreshInbox();
   return outcome;
 }

@@ -138,7 +138,12 @@ export function MessageDetailsDialog({
                               className="inline-flex items-center gap-1 font-semibold text-red-600 dark:text-red-400"
                               title={d.message}
                             >
-                              <XIcon className="h-3.5 w-3.5" /> {d.message ? "Refused" : "No answer"}
+                              <XIcon className="h-3.5 w-3.5" />{" "}
+                              {d.auth
+                                ? "Needs sign-in"
+                                : !d.message || /timeout|timed out/i.test(d.message)
+                                  ? "No answer"
+                                  : "Refused"}
                             </span>
                           )}
                         </span>

@@ -3,7 +3,8 @@
  * said yes.
  *
  * A relay in the reader's own relay list can answer reads with
- * `auth-required`. The pool never waits for that (lib/relayPool) — nothing on
+ * `auth-required`, and a private-message inbox relay can refuse a write the
+ * same way (services/dm/transport). The pool never waits for that (lib/relayPool) — nothing on
  * a screen is held by one relay's login. This is the other half: once such a
  * relay has refused a read, answer its challenge with the account's signer,
  * only with consent (lib/relayAuthPref), never for a signed-out reader — so
@@ -15,8 +16,8 @@
  * waiting. A relay signed in as someone who may no longer sign — the switch
  * turned off, another account, signed out — is dropped from the pool: NIP-42
  * has no sign-out, so a fresh, anonymous connection is the only way back, and
- * the next read opens one. Relays that challenge without refusing a read are
- * left alone: no prompt, and no pubkey handed to a relay that did not need it.
+ * the next read opens one. Relays that challenge without refusing a read or a
+ * write are left alone: no prompt, and no pubkey handed to a relay that did not need it.
  */
 import { Subscription, combineLatest, distinctUntilChanged, map, shareReplay, startWith, type Observable } from "rxjs";
 import type { Relay, RelayPool } from "applesauce-relay";
@@ -52,7 +53,14 @@ export function startRelayAuth({
     const sub = new Subscription();
     watched.set(relay, sub);
     sub.add(
-      combineLatest([relay.challenge$, relay.authRequiredForRead$, signer$]).subscribe(([challenge, gated, signer]) => {
+      combineLatest([
+        relay.challenge$,
+        combineLatest([relay.authRequiredForRead$, relay.authRequiredForPublish$]).pipe(
+          map(([read, publish]) => read || publish),
+          distinctUntilChanged(),
+        ),
+        signer$,
+      ]).subscribe(([challenge, gated, signer]) => {
         const signedInAs = relay.authenticatedAs;
         if (signedInAs && signedInAs !== signer?.pubkey) {
           forget(relay);

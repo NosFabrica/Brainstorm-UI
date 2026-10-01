@@ -32,7 +32,7 @@ export function useChatHistory(
   const relays = state.history.relays;
   const busy = relays.some((r) => r.state === "loading");
   const open = relays.filter((r) => r.state === "idle" || r.state === "loading");
-  const ready = state.status === "ready" && state.liveSynced;
+  const ready = state.status === "ready" && state.liveSettled;
   const progressKey = relays.map((r) => `${r.state}:${r.reachedUntil}`).join("|");
 
   useEffect(() => {

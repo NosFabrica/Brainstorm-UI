@@ -51,7 +51,8 @@ function Status({ message, onDetails, onResend }: { message: DmMessage; onDetail
   if (out.status === "failed")
     return (
       <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400">
-        <AlertTriangle className="h-3 w-3" /> Not delivered
+        <AlertTriangle className="h-3 w-3" />
+        {out.deliveries.some((d) => d.auth) ? "Not delivered · their relay wants you signed in" : "Not delivered"}
         <button type="button" onClick={onResend} className="font-semibold underline underline-offset-2">
           Retry
         </button>

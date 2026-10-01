@@ -75,8 +75,9 @@ export function InboxNotices({
   authAllowed: boolean;
   onAllowAuth: () => void;
 }) {
-  const waitingAuth =
+  const readAuth =
     Object.values(state.live).some((s) => s === "auth") || state.history.relays.some((r) => r.state === "auth");
+  const waitingAuth = readAuth || state.sendAuth.length > 0;
   const notices: {
     key: string;
     icon: React.ReactNode;
@@ -88,7 +89,9 @@ export function InboxNotices({
     notices.push({
       key: "auth",
       icon: <KeyRound className="h-4 w-4" />,
-      text: "Your inbox relays ask you to sign in before they hand over your messages.",
+      text: readAuth
+        ? "Your inbox relays ask you to sign in before they hand over your messages."
+        : "Some inbox relays only take your messages once you sign in to them. Unsent messages go out when you do.",
       action: (
         <Button size="sm" onClick={onAllowAuth} data-testid="dm-allow-auth">
           Allow sign-in

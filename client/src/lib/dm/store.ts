@@ -12,6 +12,8 @@ export interface Delivery {
   relay: string;
   ok?: boolean;
   message?: string;
+  /** Refused until the sender signs in to the relay (NIP-42). */
+  auth?: boolean;
 }
 
 export type OutgoingStatus = "sending" | "sent" | "partial" | "failed";

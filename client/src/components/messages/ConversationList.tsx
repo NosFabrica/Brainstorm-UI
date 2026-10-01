@@ -196,7 +196,7 @@ export function ConversationList({
         )}
         {tab === "chats" && rooms.length === 0 && state.status === "ready" && (
           <p className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">
-            {state.history.loading || !state.liveSynced ? "Loading your messages…" : "No chats yet."}
+            {state.history.loading || !state.liveSettled ? "Loading your messages…" : "No chats yet."}
           </p>
         )}
         {items.map((item) =>

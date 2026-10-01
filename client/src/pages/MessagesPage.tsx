@@ -136,6 +136,11 @@ export default function MessagesPage() {
         data-testid="page-messages"
       >
         <div className={cn("min-h-0 min-w-0 flex-col md:flex", showChat ? "hidden" : "flex")}>
+          {setup && (
+            <div className="flex md:hidden">
+              <InboxSetup />
+            </div>
+          )}
           <InboxNotices engine={engine} state={state} authAllowed={authAllowed} onAllowAuth={allowAuth} />
           <ConversationList
             engine={engine}
@@ -175,6 +180,7 @@ export default function MessagesPage() {
             onDetails={setDetails}
             onToggleInfo={() => setInfoOpen((v) => !v)}
             onSignIn={allowAuth}
+            authAllowed={authAllowed}
             sendError={sendError}
           />
         ) : setup ? (

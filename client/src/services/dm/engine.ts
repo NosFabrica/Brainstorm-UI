@@ -66,7 +66,8 @@ export type WrapFilter = { kinds: number[]; "#p": string[]; since?: number; unti
 export interface DmTransport {
   live(relay: string, filter: WrapFilter, handlers: LiveHandlers): () => void;
   page(relay: string, filter: WrapFilter, handlers: PageHandlers): () => void;
-  publish(relay: string, event: NostrEvent): Promise<{ ok: boolean; message?: string }>;
+  /** `auth`: refused until the sender signs in (NIP-42). */
+  publish(relay: string, event: NostrEvent): Promise<{ ok: boolean; message?: string; auth?: boolean }>;
   /** Calls back each time the relay completes a NIP-42 login. */
   onAuthenticated(relay: string, callback: () => void): () => void;
 }
@@ -105,6 +106,14 @@ export interface DmEngineState {
   live: Record<string, LiveRelayState>;
   /** Every inbox relay has answered the live subscription at least once. */
   liveSynced: boolean;
+  /**
+   * Enough to show what's here: a relay has answered, and the rest have too,
+   * or are waiting on a login, or stopped responding. One dead relay doesn't
+   * keep a chat "loading" forever.
+   */
+  liveSettled: boolean;
+  /** Relays that refused a message until the reader signs in to them. */
+  sendAuth: string[];
   floor: number;
   /** Wraps waiting to be opened. */
   queued: number;
@@ -162,6 +171,9 @@ export class DmEngine {
   private failed = 0;
 
   private readonly outgoing = new Map<string, OutgoingWrap[]>();
+  /** Relay → stop watching for its login; sends refused there resend on login. */
+  private readonly sendAuthWaits = new Map<string, () => void>();
+  private connecting?: Promise<void>;
   private writes: StoredWrap[] = [];
   private writeTimer: unknown;
   private stateTimer: unknown;
@@ -192,7 +204,8 @@ export class DmEngine {
     if (this.stopped) return;
     if (!this.account.decrypt) this.paused = "no-nip44";
     else void this.account.canOpenInBackground().then((yes) => yes && this.allowDecrypt());
-    await this.connect();
+    this.connecting = this.connect();
+    await this.connecting;
     const repeat = this.deps.setRepeating ?? ((fn, ms) => setInterval(fn, ms));
     this.ticker = repeat(() => this.tick(), 60_000);
   }
@@ -201,6 +214,8 @@ export class DmEngine {
     this.stopped = true;
     this.status = "stopped";
     this.disconnect();
+    for (const stop of this.sendAuthWaits.values()) stop();
+    this.sendAuthWaits.clear();
     const clearRepeat = this.deps.clearRepeating ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
     if (this.ticker !== undefined) clearRepeat(this.ticker);
     this.flushWrites();
@@ -212,7 +227,8 @@ export class DmEngine {
   /** Read the account's inbox list again — after setting it up, or changing it in Settings. */
   async refreshInbox(): Promise<void> {
     this.disconnect();
-    await this.connect({ fresh: true });
+    this.connecting = this.connect({ fresh: true });
+    await this.connecting;
   }
 
   private disconnect() {
@@ -297,6 +313,15 @@ export class DmEngine {
 
   private get liveSynced(): boolean {
     return this.inbox.length > 0 && this.inbox.every((r) => this.live.get(r) === "synced");
+  }
+
+  private get liveSettled(): boolean {
+    if (!this.inbox.some((r) => this.live.get(r) === "synced")) return false;
+    const history = new Map(this.pager?.snapshot().relays.map((r) => [r.url, r.state]) ?? []);
+    return this.inbox.every((r) => {
+      const page = history.get(r);
+      return this.live.get(r) === "synced" || this.live.get(r) === "auth" || page === "stalled" || page === "auth";
+    });
   }
 
   private markSeenIfSynced() {
@@ -565,6 +590,8 @@ export class DmEngine {
   }
 
   private async deliver(rumor: Rumor, others: string[], expiration: number | undefined): Promise<SendResult> {
+    // Sent while the inbox list is still being looked up: wait for it.
+    if (this.status === "starting") await this.connecting?.catch(() => undefined);
     const signer = this.account.sealSigner;
     if (!signer) return { ok: false, error: "Your signer can't encrypt private messages (NIP-44)." };
     if (!this.inbox.length) return { ok: false, error: "Set up your inbox relays first." };
@@ -624,40 +651,77 @@ export class DmEngine {
     return { ok: message?.outgoing?.status !== "failed", message };
   }
 
+  /**
+   * Publish every wrap to its relays. Answers as soon as each recipient has a
+   * relay that took theirs (or every relay has answered): a dead relay's
+   * timeout shouldn't hold the composer. The rest land in the store as they come.
+   */
   private async publishWraps(messageId: string, wraps: OutgoingWrap[], onlyFailed = false) {
     const previous = this.store.message(messageId)?.outgoing?.deliveries ?? [];
     const accepted = (recipient: string, relay: string) =>
       previous.some((d) => d.recipient === recipient && d.relay === relay && d.ok);
     const deliveries: Delivery[] = [];
-    const update = (status: OutgoingStatus) =>
-      this.store.patch(messageId, { outgoing: { status, deliveries: [...deliveries] } });
+    const recipients = wraps.filter((w) => w.recipient !== this.me || wraps.length === 1).map((w) => w.recipient);
+    const allReached = () => recipients.every((r) => deliveries.some((d) => d.recipient === r && d.ok));
+    const update = (final: boolean) => {
+      const reached = recipients.filter((r) => deliveries.some((d) => d.recipient === r && d.ok));
+      const status: OutgoingStatus =
+        reached.length === recipients.length ? "sent" : !final ? "sending" : reached.length ? "partial" : "failed";
+      const relays = deliveries.filter((d) => d.ok && d.recipient === this.me).map((d) => d.relay);
+      this.store.patch(messageId, { outgoing: { status, deliveries: [...deliveries] }, relays });
+    };
 
-    await Promise.all(
+    let reachedAll!: () => void;
+    const early = new Promise<void>((resolve) => (reachedAll = resolve));
+    const settled = Promise.all(
       wraps.flatMap((w) =>
         w.relays.map(async (relay) => {
           if (onlyFailed && accepted(w.recipient, relay)) {
             deliveries.push({ recipient: w.recipient, relay, ok: true });
             return;
           }
-          const result = await this.deps.transport
+          const result: Awaited<ReturnType<DmTransport["publish"]>> = await this.deps.transport
             .publish(relay, w.wrap)
             .catch((e: unknown) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
-          deliveries.push({ recipient: w.recipient, relay, ok: result.ok, message: result.message });
-          update("sending");
+          deliveries.push({
+            recipient: w.recipient,
+            relay,
+            ok: result.ok,
+            message: result.message,
+            ...(result.ok || !result.auth ? {} : { auth: true }),
+          });
+          if (!result.ok && result.auth) this.awaitSendAuth(relay);
+          update(false);
+          if (allReached()) reachedAll();
         }),
       ),
-    );
-
-    const recipients = wraps.filter((w) => w.recipient !== this.me || wraps.length === 1).map((w) => w.recipient);
-    const reached = recipients.filter((r) => deliveries.some((d) => d.recipient === r && d.ok));
-    const status: OutgoingStatus =
-      reached.length === recipients.length ? "sent" : reached.length ? "partial" : "failed";
-    const relays = deliveries.filter((d) => d.ok && d.recipient === this.me).map((d) => d.relay);
-    this.store.patch(messageId, {
-      outgoing: { status, deliveries },
-      relays,
-    });
+    ).then(() => update(true));
+    await Promise.race([early, settled]);
     return this.store.message(messageId);
+  }
+
+  /** Once `relay` signs us in, send again whatever it refused for want of a login. */
+  private awaitSendAuth(relay: string) {
+    if (this.sendAuthWaits.has(relay) || this.stopped) return;
+    let fired = false;
+    const stop = this.deps.transport.onAuthenticated(relay, () => {
+      if (fired) return;
+      fired = true;
+      queueMicrotask(() => {
+        stop();
+        this.sendAuthWaits.delete(relay);
+        this.changed();
+        for (const id of this.outgoing.keys()) {
+          const refused = this.store
+            .message(id)
+            ?.outgoing?.deliveries.some((d) => d.relay === relay && !d.ok && d.auth);
+          if (refused) void this.resend(id);
+        }
+      });
+    });
+    if (fired) return;
+    this.sendAuthWaits.set(relay, stop);
+    this.changed();
   }
 
   // ─── state ──────────────────────────────────────────────────────────────
@@ -669,6 +733,8 @@ export class DmEngine {
       inboxRelays: this.inbox,
       live: Object.fromEntries(this.live),
       liveSynced: this.liveSynced,
+      liveSettled: this.liveSettled,
+      sendAuth: [...this.sendAuthWaits.keys()],
       floor: this.floor,
       queued: this.queue.size,
       paused: this.paused ?? (!this.allowed && this.queue.size ? "waiting" : undefined),
