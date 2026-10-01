@@ -42,10 +42,12 @@ vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
 vi.mock("@/components/billing/PlanCard", () => ({ PlanCard: () => null }));
 vi.mock("@/components/DeferredSession", () => ({ DeferredSessionNotice: () => null }));
-vi.mock("@/lib/scoreJournal", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/scoreJournal")>()),
-  hydrateScoreJournal: async () => [],
-}));
+// No published journal: hydrating keeps the local one, as the real merge does.
+// Resolving [] here would wipe a seeded journal whenever it lands after render.
+vi.mock("@/lib/scoreJournal", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/scoreJournal")>();
+  return { ...actual, hydrateScoreJournal: async (pubkey: string) => actual.getScoreJournal(pubkey) };
+});
 
 import InsightsPage from "./InsightsPage";
 
