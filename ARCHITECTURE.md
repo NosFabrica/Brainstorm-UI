@@ -40,6 +40,13 @@ the relays they **read** from; stamp `e`/`a`/`p` tags with a relay hint.
 answer. `publishRelaysFor()` composes a publish's destination set, and
 `publishToRelays(event, extraRelays)` unions anything a call site adds.
 
+Our search relay (`VITE_SEARCH_RELAY_URL`, `wss://search.brainstorm.world/`) is
+in both read floors (`PROFILE_RELAYS`, `CONTENT_RELAYS`): it indexes far more
+than the public relays. It refuses a plain read without sign-in, so the pool's
+relay adds the NIP-50 `include:spam` token to any filter sent there that has no
+`search` of its own (`withSearchToken`, `lib/relayPool.ts`). It is an index, not
+a publish target: publishes leave it out.
+
 A read with many authors goes through `planOutboxReads()` + `requestAllByRelay()`
 instead, so each relay is asked only about the authors it serves, under a
 connection budget chosen by set cover.

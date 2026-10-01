@@ -30,6 +30,7 @@ vi.mock("@/lib/loaders", () => ({
 vi.mock("@/lib/relays", () => ({
   PROFILE_RELAYS: ["wss://default.one/"],
   CONTENT_RELAYS: ["wss://default.one/"],
+  SEARCH_RELAY: "wss://search.example/",
 }));
 
 import { publishRelaysFor, publishToRelays } from "./nostr";
@@ -242,5 +243,9 @@ describe("routing a publish", () => {
     ]);
 
     expect(await publishToRelays(event(1))).toMatchObject({ success: true, accepted: 1, total: 2 });
+  });
+
+  it("leaves our search relay out of a publish — it is a read fallback, not a publish target", async () => {
+    expect(await publishRelaysFor(event(1), ["wss://search.example/"])).not.toContain("wss://search.example/");
   });
 });

@@ -23,6 +23,7 @@ import { Relay, RelayGroup, RelayPool, type GroupRequestCompleteOperator, type R
 import { normalizeURL } from "applesauce-core/helpers/url";
 import { filter, isObservable, map, scan, type Observable } from "rxjs";
 import { isUnreachableLocalRelay, onConsentChange } from "./localNetwork";
+import { SEARCH_RELAY, SEARCH_RELAY_READ_TOKEN } from "./relays";
 
 /**
  * How long an idle socket stays open. The library's 30s means a pause between
@@ -37,9 +38,29 @@ const KEEP_ALIVE_MS = 5 * 60_000;
  * anyone is looking at a spinner for: it waits for services/relayAuth to
  * sign in, then resumes, as the library intends. Only one-shot reads skip.
  */
+type ReqFilters = Parameters<Relay["req"]>[0];
+type OneFilter = Exclude<ReqFilters, unknown[] | Observable<unknown>>;
+
+/**
+ * Our search relay answers a read only when it carries a NIP-50 `search`
+ * token; a filter without one (every fallback lookup) gets the whole-corpus
+ * token. Filters that already search — the typeahead, an observer's ranking —
+ * pass through as they are.
+ */
+export function withSearchToken(filters: ReqFilters): ReqFilters {
+  const one = (f: OneFilter): OneFilter =>
+    (f as { search?: string }).search ? f : ({ ...f, search: SEARCH_RELAY_READ_TOKEN } as OneFilter);
+  if (isObservable(filters))
+    return (filters as Observable<OneFilter | OneFilter[]>).pipe(
+      map((f) => (Array.isArray(f) ? f.map(one) : one(f))),
+    ) as ReqFilters;
+  return (Array.isArray(filters) ? (filters as OneFilter[]).map(one) : one(filters as OneFilter)) as ReqFilters;
+}
+
 class ReadFirstRelay extends Relay {
-  req(filters: Parameters<Relay["req"]>[0], opts?: Parameters<Relay["req"]>[1]): ReturnType<Relay["req"]> {
-    return super.req(filters, { waitForAuth: false, ...opts });
+  /** Every read — `request` and `subscription` included — comes through here. */
+  req(filters: ReqFilters, opts?: Parameters<Relay["req"]>[1]): ReturnType<Relay["req"]> {
+    return super.req(this.url === SEARCH_RELAY ? withSearchToken(filters) : filters, { waitForAuth: false, ...opts });
   }
 
   subscription(
@@ -120,7 +141,15 @@ class ReadFirstPool extends RelayPool {
     event: Parameters<RelayPool["publish"]>[1],
     opts?: Parameters<RelayPool["publish"]>[2],
   ): ReturnType<RelayPool["publish"]> {
-    return super.publish(reachableRelays(relays), event, opts);
+    // The search relay is in the read fallbacks (lib/relays) but is an index, not a publish target.
+    const targets = reachableRelays(relays);
+    return super.publish(
+      isObservable(targets)
+        ? targets.pipe(map((urls) => urls.filter((u) => normalizeURL(u) !== SEARCH_RELAY)))
+        : targets.filter((u) => normalizeURL(u) !== SEARCH_RELAY),
+      event,
+      opts,
+    );
   }
 
   /**
