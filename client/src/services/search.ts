@@ -145,6 +145,27 @@ export const TAB_LABELS: Record<SearchTab, string> = {
 };
 export const tabLabel = (tab: string): string => TAB_LABELS[tab as SearchTab] ?? tab;
 
+const MINT_REVIEW_KIND = 38000;
+/** NIP-87's own `k` on a kind-38000: the mint it recommends is a Cashu mint (38172) or a Fedimint (38173). */
+const MINT_REVIEW_KS = ["38172", "38173"];
+
+/**
+ * Reviews asks the relay for NIP-87's mint reviews alone. Kind 38000 is shared — BAO's
+ * prediction markets, an election app's ballots, thousands of one-key test votes
+ * (lib/thing's kind38000Format) — and asked bare, they filled the page the tab then
+ * emptied: on the production relay, through the house lens, 29 of the first 100 Reviews
+ * hits were markets, and 87 of 100 on "bitcoin" (2026-10-01). So 38000 goes in a filter
+ * of its own, narrowed by `#k`, ORed with the other review kinds. The handful of old
+ * reviews published before NIP-87 had a `k` are left out.
+ */
+export function askMintReviewsOnly<F extends { kinds?: number[]; "#k"?: string[] }>(filters: F[]): F[] {
+  return filters.flatMap((f) => {
+    if (!f.kinds?.includes(MINT_REVIEW_KIND) || f["#k"]) return [f];
+    const rest = f.kinds.filter((k) => k !== MINT_REVIEW_KIND);
+    const mint = { ...f, kinds: [MINT_REVIEW_KIND], "#k": MINT_REVIEW_KS };
+    return rest.length ? [{ ...f, kinds: rest }, mint] : [mint];
+  });
+}
 export function kindsForTab(tab: SearchTab): number[] | undefined {
   return tab === "everything" ? undefined : TAB_KINDS[tab];
 }
@@ -498,7 +519,7 @@ export function searchStream(
     // On the Live tab the author question moves to `#p`, so the grammar's own `authors` is
     // dropped and the keys ride the base every filter carries.
     const askedBy = byHost ? query.replace(/(^|\s)from:\S+/gi, " ") : query;
-    const filters = searchFilters(askedBy, {
+    const built = searchFilters(askedBy, {
       kinds,
       limit,
       searchString: (terms) => withObserver(terms, observer),
@@ -512,6 +533,7 @@ export function searchStream(
       },
       since: params.since,
     });
+    const filters = params.tab === "reviews" ? askMintReviewsOnly(built) : built;
     // A scope asked of a tab that holds no comments has nothing to ask.
     if (filters.length === 0) {
       emit({ hits: [], eose: true, timeMs: 0, exhausted: true });

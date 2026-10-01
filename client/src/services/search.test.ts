@@ -194,6 +194,27 @@ describe("searchStream", () => {
     expect(filter.search).toMatch(/^observer:/);
   });
 
+  /**
+   * Kind 38000 is shared with BAO's prediction markets and an election app's ballots;
+   * asked bare, they filled the Reviews page (87 of 100 on "bitcoin", production,
+   * 2026-10-01) and the tab, which shows reviews only, came up empty. NIP-87's own
+   * reviews carry `k` — the mint's kind — so 38000 is asked in a filter of its own,
+   * narrowed by it, beside the other review kinds.
+   */
+  it("on Reviews, asks kind 38000 only for NIP-87 mint reviews, by `#k`, beside the other review kinds", async () => {
+    controllable();
+
+    searchStream("bitcoin", { tab: "reviews", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filters = askedFilters() as { kinds?: number[]; "#k"?: string[]; search: string }[];
+    expect(filters).toHaveLength(2);
+    expect(filters[0].kinds).toEqual([34259, 31987]);
+    expect(filters[0]["#k"]).toBeUndefined();
+    expect(filters[1]).toMatchObject({ kinds: [38000], "#k": ["38172", "38173"] });
+    for (const f of filters) expect(f.search).toMatch(/^bitcoin observer:/);
+  });
+
   // Zap Cooking's overwritten recipes (2026-09-24): the search relay still
   // holds the husks — content "", a tombstone tag, a "[Deleted]" title — and
   // they were "[Deleted]" cards on every tab. A husk never becomes a hit.
