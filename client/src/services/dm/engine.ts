@@ -803,16 +803,50 @@ export class DmEngine {
 
   // ─── history ────────────────────────────────────────────────────────────
 
+  /** Wraps waiting to be opened (queued or opening now), by the relays that delivered them. */
+  private unopenedByRelay(): Map<string, number> {
+    const counts = new Map<string, number>();
+    const count = (item: Queued) => {
+      for (const relay of item.relays) counts.set(relay, (counts.get(relay) ?? 0) + 1);
+    };
+    for (const item of this.queue.values()) count(item);
+    for (const item of this.opening.values()) count(item);
+    return counts;
+  }
+
+  /**
+   * Fetching runs ahead of opening otherwise: a marker on screen asks for page
+   * after page while the wraps of the last one are still sealed — no rows
+   * arrive to push it off screen — and the relay reaches "all history loaded"
+   * with thousands unread. A relay waits until its last page is nearly open.
+   */
+  private canPage(relay: string, unopened = this.unopenedByRelay()): boolean {
+    return (unopened.get(relay) ?? 0) < PAGE_BACKLOG;
+  }
+
   advance(relay: string): boolean {
+    if (!this.canPage(relay)) return false;
     return this.pager?.advance(relay) ?? false;
   }
 
   advanceAll(): boolean {
-    return this.pager?.advanceAll() ?? false;
+    if (!this.pager) return false;
+    const unopened = this.unopenedByRelay();
+    let any = false;
+    for (const relay of this.inbox) if (this.canPage(relay, unopened)) any = this.pager.advance(relay) || any;
+    return any;
   }
 
   retry(relay: string): boolean {
     return this.pager?.retry(relay) ?? false;
+  }
+
+  private historyWithBacklog(): PagerSnapshot {
+    const snap = this.pager?.snapshot();
+    if (!snap) return EMPTY_HISTORY;
+    const unopened = this.unopenedByRelay();
+    if (!unopened.size) return snap;
+    return { ...snap, relays: snap.relays.map((r) => ({ ...r, opening: unopened.get(r.url) ?? 0 })) };
   }
 
   // ─── sending ────────────────────────────────────────────────────────────
@@ -1027,7 +1061,7 @@ export class DmEngine {
       queued: this.queue.size,
       paused: this.paused ?? (!this.allowed && this.queue.size ? "waiting" : undefined),
       failed: this.failed,
-      history: this.pager?.snapshot() ?? EMPTY_HISTORY,
+      history: this.historyWithBacklog(),
     };
     return this.snap;
   }
@@ -1054,6 +1088,9 @@ export class DmEngine {
     else this.notifyTimer = setTimeout(flush, wait);
   }
 }
+
+/** A relay's next history page waits until fewer than this many of its wraps are still unopened. */
+const PAGE_BACKLOG = 50;
 
 /** When to look for an inbox list again after finding none. */
 const NO_INBOX_RETRY_MS = [20_000, 120_000];

@@ -30,10 +30,12 @@ export function useChatHistory(
   if (memo.current.room !== room) memo.current = { room, phase: "idle", baseline: 0 };
 
   const relays = state.history.relays;
-  const busy = relays.some((r) => r.state === "loading");
-  const open = relays.filter((r) => r.state === "idle" || r.state === "loading");
+  // A page isn't in until its wraps are opened: judging "nothing for this chat"
+  // before then would offer Keep looking — or call it the start — too early.
+  const busy = relays.some((r) => r.state === "loading" || (r.opening ?? 0) > 0);
+  const open = relays.filter((r) => r.state === "idle" || r.state === "loading" || (r.opening ?? 0) > 0);
   const ready = state.status === "ready" && state.liveSettled;
-  const progressKey = relays.map((r) => `${r.state}:${r.reachedUntil}`).join("|");
+  const progressKey = relays.map((r) => `${r.state}:${r.reachedUntil}:${r.opening ?? 0}`).join("|");
 
   useEffect(() => {
     const m = memo.current;

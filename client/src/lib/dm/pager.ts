@@ -34,6 +34,11 @@ export interface RelayProgress {
   pages: number;
   /** Why it stalled, when it did. */
   reason?: string;
+  /**
+   * Wraps this relay delivered that aren't opened yet (services/dm/engine).
+   * Paging waits on them: a page isn't loaded until it can be read.
+   */
+  opening?: number;
 }
 
 export interface PagerSnapshot {

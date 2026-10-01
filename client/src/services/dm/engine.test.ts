@@ -630,4 +630,37 @@ describe("DmEngine", () => {
     await settle();
     expect(cache.st.get(me.pubkey)?.lastSeen).toBe(waiting.created_at);
   });
+
+  it("doesn't fetch a relay's next page until the last one has been opened", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    const old = NOW - LIVE_TAIL_SECONDS - 30 * 86400;
+    for (let i = 0; i < 60; i++)
+      net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, `old ${i}`, old - i * 60, old - i * 60));
+    // An extension: nothing opens until the reader opens Messages.
+    const engine = new DmEngine(me.account({ canOpenInBackground: async () => false }), {
+      ...net,
+      ...clock(),
+      now: () => NOW,
+    });
+    await engine.start();
+    await settle();
+    expect(engine.advanceAll()).toBe(true);
+    await settle();
+    await settle();
+    const relay = engine.state().history.relays[0];
+    expect(relay).toMatchObject({ state: "idle", opening: 60 });
+    const asked = net.pages.length;
+    // Sealed wraps on hand: no new page, however often the marker asks.
+    expect(engine.advanceAll()).toBe(false);
+    expect(engine.advance("wss://in.example/")).toBe(false);
+    expect(net.pages.length).toBe(asked);
+
+    engine.allowDecrypt();
+    for (let i = 0; i < 40 && engine.state().queued; i++) await settle();
+    expect(engine.state().history.relays[0].opening ?? 0).toBe(0);
+    expect(engine.store.rooms()[0].messages).toHaveLength(60);
+    expect(engine.advanceAll()).toBe(true);
+  });
 });

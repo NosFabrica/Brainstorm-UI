@@ -124,6 +124,11 @@ across devices would mean encrypted app data (NIP-78) — not done yet.
 - `lastSeen` never passes a wrap that arrived but isn't opened yet, nor a time
   when a relay's socket was down; history pages with an inclusive `until`, and
   starts below where a capped live REQ stopped.
+- Paging waits for opening: a relay's next page is fetched only once fewer
+  than 50 of the wraps it delivered are still sealed, and its marker reads
+  "opening N messages…" until they are — a marker on screen used to fetch
+  page after page (no rows arrived to push it away) and say "all history
+  loaded" with thousands still unread.
 - The store rebuilds only the rooms that changed (~30× less work per incoming
   message at 10k messages), so open chats and lists skip unchanged rooms.
 - Attachments in requests never load on their own (the host is the sender's);

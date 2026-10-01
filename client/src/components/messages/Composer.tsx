@@ -87,6 +87,13 @@ export function Composer({
   const showMic = !text.trim() && !disabled && canRecordVoice();
   const clock = `${Math.floor(voice.seconds / 60)}:${String(voice.seconds % 60).padStart(2, "0")}`;
 
+  // Pressing Send (or attach, or the mic) must not take focus from the field.
+  // The page grows into the tab bar's space while a field has focus
+  // (MessagesPage); a press that moved focus here would shrink it back between
+  // pointer-down and -up, the button would move out from under the finger, and
+  // the tap would be lost. Keeping focus also keeps the phone keyboard up.
+  const keepFocus = (e: React.MouseEvent) => e.preventDefault();
+
   const timerLabel = TIMER_CHOICES.find((c) => c.seconds === timer)?.label;
   return (
     <div className="shrink-0 border-t border-border bg-card px-4 pb-3 pt-3 sm:px-6 sm:pb-4">
@@ -143,6 +150,7 @@ export function Composer({
             aria-label="Attach an encrypted file"
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-200/60 disabled:opacity-50 dark:hover:bg-slate-800"
             data-testid="dm-attach"
+            onMouseDown={keepFocus}
           >
             <Paperclip className="h-[19px] w-[19px]" />
           </button>
@@ -174,6 +182,7 @@ export function Composer({
               aria-label="Record a voice message"
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-200/60 dark:hover:bg-slate-800"
               data-testid="dm-voice"
+              onMouseDown={keepFocus}
             >
               <Mic className="h-[19px] w-[19px]" />
             </button>
@@ -185,6 +194,7 @@ export function Composer({
               aria-label="Send"
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-primary text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
               data-testid="dm-send"
+              onMouseDown={keepFocus}
             >
               {busy ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <Send className="h-[18px] w-[18px]" />}
             </button>
