@@ -38,6 +38,7 @@ import {
 import type { DmEngine, DmEngineState, SendResult } from "@/services/dm/engine";
 import { sendFile } from "@/services/dm";
 import type { DmMessage, DmRoom } from "@/lib/dm/store";
+import { FILE_KIND } from "@/lib/dm/giftWrap";
 import type { RoomShelf } from "@/lib/dm/inbox";
 import {
   TIMER_CHOICES,
@@ -81,6 +82,11 @@ function threadItems(messages: DmMessage[], relays: RelayProgress[]): Item[] {
       m++;
       lastAuthor = "";
     }
+    // Nothing to read (some clients send a blank message to rename a chat):
+    // no bubble. A rename still gets its line below.
+    const empty = message.kind !== FILE_KIND && !message.rumor.content.trim();
+    const renames = !!message.subject && message.subject !== lastSubject;
+    if (empty && !renames) continue;
     const day = new Date(message.createdAt * 1000).toDateString();
     if (day !== lastDay) {
       items.push({ kind: "day", key: `d:${day}`, label: dayLabel(message.createdAt) });
@@ -88,11 +94,12 @@ function threadItems(messages: DmMessage[], relays: RelayProgress[]): Item[] {
       lastAuthor = "";
     }
     // NIP-17: a message carrying a new subject renames the chat.
-    if (message.subject && message.subject !== lastSubject) {
-      items.push({ kind: "subject", key: `s:${message.id}`, author: message.author, subject: message.subject });
-      lastSubject = message.subject;
+    if (renames) {
+      items.push({ kind: "subject", key: `s:${message.id}`, author: message.author, subject: message.subject! });
+      lastSubject = message.subject!;
       lastAuthor = "";
     }
+    if (empty) continue;
     items.push({ kind: "message", key: message.id, message, showAuthor: message.author !== lastAuthor });
     lastAuthor = message.author;
   }

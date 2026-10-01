@@ -32,7 +32,10 @@ function preview(room: DmRoom, me: string, profiles: Profiles): string {
     last.author === me ? "You: " : room.participants.length > 2 ? `${firstName(last.author, profiles)}: ` : "";
   const body =
     last.kind === FILE_KIND ? fileLabel(last.rumor) : last.kind === REACTION_KIND ? "Reacted" : last.rumor.content;
-  return who + body.replace(/\s+/g, " ").trim();
+  const text = body.replace(/\s+/g, " ").trim();
+  // A blank message (a rename from some clients) previews as what it did.
+  if (!text) return last.subject ? `${who}Named the chat “${last.subject}”` : "";
+  return who + text;
 }
 
 function RoomRow({
