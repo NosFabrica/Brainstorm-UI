@@ -1137,6 +1137,21 @@ describe("suggestListings", () => {
     expect((await pending).map((h) => h.event.id)).toEqual(["t1", "t5"]);
   });
 
+  // "hon" is the start of "Honey", not the middle of "Phone": letters found
+  // anywhere in a title counted listings that had nothing to do with the words.
+  it("matches a typed word at the start of a title word, not in the middle of one", async () => {
+    const { subject } = controllable();
+    const pending = suggestListings("hon", { pov: "nosfabrica" }, { limit: 9 });
+    await tick();
+    subject.next(frame(listing("h1", "Honey")));
+    subject.next(frame(listing("h2", "Raw wildflower honey, 4oz")));
+    subject.next(frame(listing("h3", "Phone case")));
+    subject.next(frame(listing("h4", "Hand-made (honeycomb) candle")));
+    subject.next(frame(listing("h5", "Saxophone lessons")));
+    subject.next(EOSE);
+    expect((await pending).map((h) => h.event.id)).toEqual(["h1", "h2", "h4"]);
+  });
+
   it("one product is one row, and the limit holds", async () => {
     const { subject } = controllable();
     const pending = suggestListings("soap", { pov: "nosfabrica" }, { limit: 2 });
