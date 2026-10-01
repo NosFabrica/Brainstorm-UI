@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
 import { turnOnMessages } from "@/services/dm";
 import { SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
+import { ENCRYPTED_BLOSSOM_SERVERS } from "@/lib/blossomServers";
 import { relayHost } from "./people";
 
 /** First visit: publish a kind-10050 before anything can arrive. */
@@ -56,8 +57,9 @@ export function InboxSetup() {
           Turn on private messages
         </Button>
         <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-          Publishes your kind 10050 list and lets these relays sign you in. Change either any time in Settings › Trust &
-          search.
+          Publishes your kind 10050 list and lets these relays sign you in. With no kind 10063 file server list yet,
+          also publishes one ({ENCRYPTED_BLOSSOM_SERVERS.map((u) => u.replace(/^https?:\/\//, "")).join(", ")}) for the
+          files you send. Change any of it in Settings › Trust & search.
         </p>
       </Card>
     </div>

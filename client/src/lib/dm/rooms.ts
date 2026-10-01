@@ -111,6 +111,39 @@ export interface FileMeta {
   size?: number;
   dim?: string;
   blurhash?: string;
+  /** The sender's file name (a "name" tag; inside the encrypted message, so only the chat sees it). */
+  name?: string;
+}
+
+const EXTENSIONS: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/zip": "zip",
+  "application/json": "json",
+  "text/plain": "txt",
+  "text/csv": "csv",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/webm": "weba",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+};
+
+/**
+ * What to call a file: the sender's name for it, else its URL's last segment with an
+ * extension the file type agrees with. Blossom names blobs by hash, and encrypted ones
+ * come back as "<hash>.bin", which tells the reader nothing.
+ */
+export function fileDisplayName(meta: Pick<FileMeta, "url" | "mime" | "name">): string {
+  if (meta.name) return meta.name;
+  const last = meta.url.split("/").pop()?.split(/[?#]/)[0] || "";
+  const base = last.replace(/\.[a-z0-9]{1,5}$/i, "") || "Attachment";
+  const ext = (meta.mime && EXTENSIONS[meta.mime.toLowerCase()]) || last.match(/\.([a-z0-9]{1,5})$/i)?.[1];
+  const shortBase = /^[0-9a-f]{64}$/i.test(base) ? `File ${base.slice(0, 8)}` : base;
+  return ext && ext !== "bin" ? `${shortBase}.${ext}` : shortBase;
 }
 
 export function fileMetaOf(rumor: Pick<Rumor, "kind" | "tags" | "content">): FileMeta | undefined {
@@ -128,6 +161,7 @@ export function fileMetaOf(rumor: Pick<Rumor, "kind" | "tags" | "content">): Fil
     size: Number.isFinite(size) && size > 0 ? size : undefined,
     dim: tagValue(rumor, "dim"),
     blurhash: tagValue(rumor, "blurhash"),
+    name: tagValue(rumor, "name")?.trim() || undefined,
   };
 }
 

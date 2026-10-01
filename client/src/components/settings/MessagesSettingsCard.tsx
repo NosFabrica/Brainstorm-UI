@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useDmPrefs } from "@/hooks/useDirectMessages";
 import { publishInboxRelays } from "@/services/dm";
+import { FileServersSection } from "@/components/settings/FileServersSection";
 import { MAX_INBOX_RELAYS, SUGGESTED_INBOX_RELAYS, loadDmRelays } from "@/lib/dm/inboxRelays";
 import { TIMER_CHOICES, setNotifyPrefs, updateDmPrefs, type DmNotifyPrefs, type DmReach } from "@/lib/dm/prefs";
 import { Switch } from "@/components/ui/switch";
@@ -256,6 +257,9 @@ export function MessagesSettingsCard() {
               {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Publish relay list
             </Button>
+          </div>
+          <div className="mt-5 border-t border-border pt-5">
+            <FileServersSection pubkey={pubkey} />
           </div>
         </section>
 
