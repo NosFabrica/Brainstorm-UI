@@ -109,8 +109,7 @@ import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
 import { useTaggedMusicians } from "@/hooks/useTaggedMusicians";
-import { useTagMatches } from "@/hooks/useTags";
-import { useTagCarriers } from "@/hooks/useTagCarriers";
+import { useSearchTags } from "@/hooks/useSearchTags";
 import {
   leadCarriersByRank,
   leadingCarriers,
@@ -948,9 +947,14 @@ export function SearchResults({
   );
 
   // Words that name a tag find the people on it (the team, 2026-09-29): they
-  // lead the People tab wearing the tag; the relay's name matches follow.
-  const tagMatches = useTagMatches(tab === "people" && !scopeOf(query) ? query : "", 3, { fetch: false });
-  const carriers = useTagCarriers(tagMatches, { pov, viewerPubkey: userPubkey });
+  // lead the People tab wearing the tag; the relay's name matches follow. The
+  // tag and its people come from the search relay in one ask — a page opened
+  // from a link has them too, without walking the hub's catalogue.
+  const { tags: tagMatches, carriers } = useSearchTags(tab === "people" && !scopeOf(query) ? query : "", {
+    pov,
+    viewerPubkey: userPubkey,
+    members: true,
+  });
   // Only a tag the words name outright, with weight behind it, leads (lib/tagMatch).
   const leadPeople = useMemo(
     () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, query)),
