@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { MessageButton } from "@/components/messages/MessageButton";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useRoute, Redirect, Link } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
@@ -411,6 +412,7 @@ export default function ConnectionListPage() {
                   score={score}
                   pov={scorePov}
                   testId={`conn-row-${pk.slice(0, 8)}`}
+                  actions={<MessageButton compact pubkey={pk} name={p?.display_name || p?.name} />}
                   meta={
                     rm && (
                       <div

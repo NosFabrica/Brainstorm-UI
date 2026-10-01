@@ -113,6 +113,23 @@ How far back one inbox relay is guaranteed to have delivered every message —
 two days newer than the oldest wrap it returned, because wraps are back-dated.
 _Avoid_: synced until, loaded until
 
+**Archived**:
+A Chat put away by the User. It leaves Chats until someone writes in it again.
+A deleted Request is gone instead — only Chats archive.
+_Avoid_: hidden chat
+
+**Muted chat**:
+A Chat that neither notifies nor counts toward the unread badge, but stays in
+Chats. Not the same as muting a person (NIP-51), which takes every Chat with
+them away.
+_Avoid_: silenced
+
+**Outbox**:
+Sent messages not yet delivered to every recipient: kept sealed on the device
+with their signed wraps and sent again on their own — on start, every minute
+for a while, and when the connection returns.
+_Avoid_: pending queue, drafts
+
 ### Not to be confused
 
 **Perspective**:

@@ -10,6 +10,7 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { ListsUpdateLine } from "@/components/ListsUpdate";
+import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
 
 /**
  * /setup — the "Finish setting up your account" checklist hub. Replaces the
@@ -195,6 +196,7 @@ export default function FinishSetupPage() {
           )}
           {/* Activated already: new lists are an update under the ✓, never a step to redo. */}
           {activateDone && listsPending && <ListsUpdateLine />}
+          <MessagesSetupRow />
         </div>
 
         {allDone && (

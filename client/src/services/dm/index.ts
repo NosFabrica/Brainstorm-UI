@@ -15,6 +15,7 @@ import { deviceSealer, dmCacheBackend } from "@/lib/dm/cache";
 import { DM_RELAY_LIST_KIND, dmRelayTags, loadDmRelays } from "@/lib/dm/inboxRelays";
 import { ensureReadFloor } from "@/lib/dm/prefs";
 import { publishToRelays } from "@/services/nostr";
+import { relayAuthAllowed, setRelayAuthAllowed } from "@/lib/relayAuthPref";
 import { DmEngine, type DmAccount, type SendResult, type SignerFailure } from "./engine";
 import { encryptFile, fileTags } from "@/lib/dm/fileCrypto";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
@@ -93,6 +94,23 @@ export function dmEngine(): DmEngine | null {
 export function subscribeDmEngine(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/**
+ * Turn private messages on in one step: publish the inbox list, and let the
+ * inbox relays sign the reader in (NIP-42) — they won't hand over an inbox
+ * otherwise, and many won't take a message from a sender who hasn't. Asking
+ * for both separately left people with an inbox that never loaded.
+ */
+export async function turnOnMessages(relays: string[]): Promise<PublishOutcome> {
+  const account = accountManager.active;
+  if (!account) return { success: false, error: "Sign in first." };
+  const allowedBefore = relayAuthAllowed(account.pubkey);
+  setRelayAuthAllowed(account.pubkey, true);
+  const outcome = await publishInboxRelays(relays);
+  // Nothing turned on: leave the sign-in choice as it was.
+  if (!outcome.success && !allowedBefore) setRelayAuthAllowed(account.pubkey, false);
+  return outcome;
 }
 
 /**

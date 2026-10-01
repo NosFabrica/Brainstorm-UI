@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, CheckCheck, Info, Loader2, Reply, SmilePlus, Timer } from "lucide-react";
+import { AlertTriangle, Check, CheckCheck, Info, Loader2, Reply, SmilePlus, Timer, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DmMessage } from "@/lib/dm/store";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FileMessage } from "./FileMessage";
+import { DmLinkPreview, firstPreviewableLink } from "./DmLinkPreview";
 import { PersonAvatar, clockTime, firstName, type Profiles } from "./people";
 
 const URL_RE = /(https?:\/\/[^\s<>"')\]]+)/g;
@@ -39,9 +40,30 @@ function Linked({ text }: { text: string }) {
 
 export const QUICK_REACTIONS = ["+", "😂", "🙏", "🔥", "😮"];
 
-function Status({ message, onDetails, onResend }: { message: DmMessage; onDetails: () => void; onResend: () => void }) {
+function Status({
+  message,
+  onDetails,
+  onResend,
+  onDiscard,
+}: {
+  message: DmMessage;
+  onDetails: () => void;
+  onResend: () => void;
+  onDiscard: () => void;
+}) {
   const out = message.outgoing;
   if (!out) return null;
+  const discard = (
+    <button type="button" onClick={onDiscard} className="font-semibold underline underline-offset-2">
+      Discard
+    </button>
+  );
+  if (out.status === "queued")
+    return (
+      <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300" data-testid="dm-queued">
+        <Clock className="h-3 w-3" /> Sends when you're back online · {discard}
+      </span>
+    );
   if (out.status === "sending")
     return (
       <span className="inline-flex items-center gap-1">
@@ -56,6 +78,7 @@ function Status({ message, onDetails, onResend }: { message: DmMessage; onDetail
         <button type="button" onClick={onResend} className="font-semibold underline underline-offset-2">
           Retry
         </button>
+        · {discard}
       </span>
     );
   const recipients = new Set(out.deliveries.map((d) => d.recipient));
@@ -95,6 +118,9 @@ export function MessageBubble({
   onReact,
   onDetails,
   onResend,
+  onDiscard,
+  highlight = false,
+  linkPreviews = false,
 }: {
   message: DmMessage;
   me: string;
@@ -108,9 +134,15 @@ export function MessageBubble({
   onReact: (m: DmMessage, content: string) => void;
   onDetails: (m: DmMessage) => void;
   onResend: (m: DmMessage) => void;
+  onDiscard: (m: DmMessage) => void;
+  /** Just jumped to from search. */
+  highlight?: boolean;
+  /** Show a preview card for the first link (Settings › Messages). */
+  linkPreviews?: boolean;
 }) {
   const mine = message.author === me;
   const file = message.kind === FILE_KIND ? fileMetaOf(message.rumor) : undefined;
+  const previewUrl = !file && linkPreviews ? firstPreviewableLink(message.rumor.content) : null;
   const grouped = new Map<string, { count: number; mine: boolean }>();
   for (const r of reactions) {
     const label = reactionLabel(r.rumor.content);
@@ -161,8 +193,13 @@ export function MessageBubble({
 
   return (
     <div
-      className={cn("group flex gap-2.5", mine ? "justify-end" : "justify-start")}
+      className={cn(
+        "group -mx-2 flex gap-2.5 rounded-2xl px-2 py-0.5 transition-colors duration-700",
+        mine ? "justify-end" : "justify-start",
+        highlight && "bg-amber-200/50 dark:bg-amber-400/15",
+      )}
       data-testid="dm-message"
+      data-message-id={message.id}
       data-mine={mine ? "true" : undefined}
     >
       {!mine && group && (
@@ -211,9 +248,12 @@ export function MessageBubble({
             {file ? (
               <FileMessage meta={file} mine={mine} />
             ) : (
-              <p className="whitespace-pre-wrap break-words">
-                <Linked text={message.rumor.content} />
-              </p>
+              <>
+                <p className="whitespace-pre-wrap break-words">
+                  <Linked text={message.rumor.content} />
+                </p>
+                {previewUrl && <DmLinkPreview url={previewUrl} mine={mine} />}
+              </>
             )}
           </div>
           {mine ? null : actions}
@@ -240,7 +280,14 @@ export function MessageBubble({
         <span className="flex items-center gap-2 px-1.5 text-xs text-slate-500 dark:text-slate-400">
           {message.expiresAt && <Timer className="h-3 w-3" aria-label="Disappears" />}
           {clockTime(message.createdAt)}
-          {mine && <Status message={message} onDetails={() => onDetails(message)} onResend={() => onResend(message)} />}
+          {mine && (
+            <Status
+              message={message}
+              onDetails={() => onDetails(message)}
+              onResend={() => onResend(message)}
+              onDiscard={() => onDiscard(message)}
+            />
+          )}
         </span>
       </div>
     </div>

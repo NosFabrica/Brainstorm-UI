@@ -3,6 +3,7 @@
  * (services/dm), its rooms, and the reader's shelving of them.
  */
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { dmEngine, subscribeDmEngine } from "@/services/dm";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
 import type { DmRoom } from "@/lib/dm/store";
@@ -11,6 +12,7 @@ import { shelve, type Shelves } from "@/lib/dm/inbox";
 import { settledTrustSignals } from "@/services/trustSignals";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useMyFollows } from "@/hooks/useMyFollows";
+import { fetchMuteList, getMutedPubkeys } from "@/services/socialActions";
 
 export function useDmEngine(): DmEngine | null {
   return useSyncExternalStore(subscribeDmEngine, dmEngine, () => null);
@@ -67,13 +69,29 @@ export function useDmPrefs(pubkey: string | undefined): DmPrefs {
   );
 }
 
+/**
+ * People on the reader's mute list — the same query (and optimistic updates)
+ * as useSocialActions, so muting someone anywhere takes their chats away here.
+ */
+export function useMutedPeople(me: string): (pk: string) => boolean {
+  const { data } = useQuery({
+    queryKey: ["nostr-mutes", me],
+    queryFn: () => fetchMuteList(me),
+    enabled: !!me,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  return useMemo(() => {
+    const set = getMutedPubkeys(data ?? null);
+    return (pk: string) => set.has(pk);
+  }, [data]);
+}
+
 /** Rooms sorted onto the shelves the inbox shows, with the trust that put them there. */
-export function useShelves(
-  engine: DmEngine | null,
-  mutedOf?: (pk: string) => boolean,
-): Shelves & { scoreOf: (pk: string) => number | null | undefined } {
+export function useShelves(engine: DmEngine | null): Shelves & { scoreOf: (pk: string) => number | null | undefined } {
   const rooms = useDmRooms(engine);
   const me = engine?.pubkey ?? "";
+  const mutedOf = useMutedPeople(me);
   const prefs = useDmPrefs(me || undefined);
   const { follows } = useMyFollows();
   const people = useMemo(

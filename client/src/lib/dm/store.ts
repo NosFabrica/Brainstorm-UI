@@ -16,7 +16,8 @@ export interface Delivery {
   auth?: boolean;
 }
 
-export type OutgoingStatus = "sending" | "sent" | "partial" | "failed";
+/** `queued`: not delivered, and the device is offline — it goes out on its own when back. */
+export type OutgoingStatus = "sending" | "sent" | "partial" | "failed" | "queued";
 
 export interface DmMessage {
   id: string;

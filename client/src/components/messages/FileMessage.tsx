@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Download, FileText, Loader2, Lock, AlertTriangle } from "lucide-react";
+import { Download, FileText, Loader2, Lock, AlertTriangle, Mic } from "lucide-react";
 import type { FileMeta } from "@/lib/dm/rooms";
 import { decryptFile, matchesHash } from "@/lib/dm/fileCrypto";
 import { formatBytes } from "@/lib/formatBytes";
@@ -15,6 +15,7 @@ type Opened = { url: string; mime: string } | { error: string } | null;
  */
 export function FileMessage({ meta, mine }: { meta: FileMeta; mine: boolean }) {
   const isImage = meta.mime?.startsWith("image/") ?? false;
+  const isAudio = meta.mime?.startsWith("audio/") ?? false;
   const encrypted = meta.algorithm?.toLowerCase() === "aes-gcm" && !!meta.key && !!meta.nonce;
   const [opened, setOpened] = useState<Opened>(null);
   const [busy, setBusy] = useState(false);
@@ -37,7 +38,7 @@ export function FileMessage({ meta, mine }: { meta: FileMeta; mine: boolean }) {
   };
 
   useEffect(() => {
-    if (isImage && (meta.size ?? 0) <= AUTO_OPEN_BYTES) void open();
+    if ((isImage || isAudio) && (meta.size ?? 0) <= AUTO_OPEN_BYTES) void open();
     // Opened once per message.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.url]);
@@ -54,6 +55,35 @@ export function FileMessage({ meta, mine }: { meta: FileMeta; mine: boolean }) {
       <a href={opened.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-2xl">
         <img src={opened.url} alt="Attachment" className="max-h-80 max-w-full object-contain" />
       </a>
+    );
+  }
+
+  if (isAudio && !(opened && "error" in opened)) {
+    return (
+      <div
+        className={`flex w-72 max-w-full flex-col gap-1.5 rounded-2xl p-2 ${mine ? "bg-white/10" : ""}`}
+        data-testid="dm-voice-message"
+      >
+        <span
+          className={`flex items-center gap-1.5 px-1 text-xs ${mine ? "text-white/85" : "text-slate-500 dark:text-slate-400"}`}
+        >
+          <Mic className="h-3.5 w-3.5" /> Voice message
+          {encrypted && <Lock className="ml-auto h-3 w-3" aria-label="Encrypted" />}
+        </span>
+        {opened && "url" in opened ? (
+          <audio controls preload="metadata" src={opened.url} className="h-10 w-full" />
+        ) : (
+          <button
+            type="button"
+            onClick={() => void open()}
+            disabled={busy}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border text-sm font-semibold disabled:opacity-60"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {busy ? "Opening…" : "Load"}
+          </button>
+        )}
+      </div>
     );
   }
 

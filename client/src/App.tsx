@@ -29,6 +29,7 @@ import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { NowPlayingBar } from "@/components/search/NowPlayingBar";
 import { CommandPalette } from "@/components/CommandPalette";
+import { DmNotifications } from "@/components/messages/DmNotifications";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
 import { CrossTabIdentity } from "@/components/CrossTabIdentity";
@@ -300,6 +301,7 @@ function App() {
             <MobileTabBar />
             <NowPlayingBar />
             <CommandPalette />
+            <DmNotifications />
             <MobileSearchOverlay />
             <ScoringStatusBar />
             <AutoScoreReturning />

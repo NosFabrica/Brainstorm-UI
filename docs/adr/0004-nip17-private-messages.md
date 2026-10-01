@@ -84,6 +84,30 @@ a recipient's inbox relay tells that relay who is sending to its users. A
 reader who hasn't allowed sign-in keeps that private and can't reach those
 inboxes.
 
+## Everything else stays on the device
+
+NIP-17 carries messages, not settings, so the reader's own choices about their
+chats — pinned, muted, archived, read up to, link previews, notifications — are
+kept per account on this device (lib/dm/prefs), not published. Syncing them
+across devices would mean encrypted app data (NIP-78) — not done yet.
+
+- **Search** runs over the messages this device has opened (lib/dm/search).
+  Relays hold only ciphertext, so there is nothing to search remotely; the
+  results say how many messages were searched.
+- **Notifications** are the browser's, while a tab is open: a chime and a
+  Notification for new messages in Chats and Requests, never for muted chats,
+  low-trust or flagged senders, or the chat on screen. Requests never show their
+  text. Push for a closed tab needs a server that knows when a message arrives
+  — the Brainstorm inbox relay, when there is one.
+- **The outbox** keeps undelivered messages sealed (the same device key as the
+  message cache) with their signed wraps, so a retry after a reload needs no
+  signer. Offline, a message is `queued` and goes out when the connection
+  returns; automatic retries stop after about ten minutes.
+- **Link previews** never let the linked site see the reader: metadata from our
+  own `/link-preview` (which doesn't log URLs), the picture only through our
+  image proxy, no favicon, nothing for Requests. Off in Settings.
+- **Voice notes** are ordinary kind-15 files (audio), encrypted before upload.
+
 ## Tested against production relays
 
 Two throwaway accounts, the production build, real relays: setup, request,

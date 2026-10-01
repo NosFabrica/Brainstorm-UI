@@ -36,9 +36,36 @@ export interface DmPrefs {
   reach: DmReach;
   /** Timer for new chats. */
   defaultTimer: number;
+  /** Rooms kept at the top of Chats, most recently pinned first. */
+  pinned: string[];
+  /** Rooms that don't count toward the badge or notify. */
+  muted: string[];
+  notify: DmNotifyPrefs;
+  /** Preview cards for links, fetched privately (components/messages/DmLinkPreview). */
+  linkPreviews: boolean;
 }
 
-const DEFAULTS: DmPrefs = { read: {}, accepted: [], hidden: {}, timers: {}, reach: "follows", defaultTimer: 0 };
+export interface DmNotifyPrefs {
+  /** Browser notifications while Brainstorm is open in a tab. */
+  desktop: boolean;
+  /** A short chime. */
+  sound: boolean;
+  /** Say what the message says, not only who sent it. */
+  preview: boolean;
+}
+
+const DEFAULTS: DmPrefs = {
+  read: {},
+  accepted: [],
+  hidden: {},
+  timers: {},
+  reach: "follows",
+  defaultTimer: 0,
+  pinned: [],
+  muted: [],
+  notify: { desktop: false, sound: true, preview: true },
+  linkPreviews: true,
+};
 
 const listeners = new Set<() => void>();
 const memo = new Map<string, DmPrefs>();
@@ -51,7 +78,10 @@ export function readDmPrefs(pubkey: string): DmPrefs {
   let prefs = DEFAULTS;
   try {
     const raw = localStorage.getItem(key(pubkey));
-    if (raw) prefs = { ...DEFAULTS, ...(JSON.parse(raw) as Partial<DmPrefs>) };
+    if (raw) {
+      const held = JSON.parse(raw) as Partial<DmPrefs>;
+      prefs = { ...DEFAULTS, ...held, notify: { ...DEFAULTS.notify, ...held.notify } };
+    }
   } catch {
     /* private window or a damaged row — the defaults stand */
   }
@@ -103,6 +133,41 @@ export function acceptRoom(pubkey: string, room: string): void {
 /** Hide a room until something newer than `at` arrives in it. */
 export function hideRoom(pubkey: string, room: string, at: number): void {
   updateDmPrefs(pubkey, (p) => ({ ...p, hidden: { ...p.hidden, [room]: at } }));
+}
+
+/** Archive: out of Chats into Archived, until something newer arrives. */
+export function archiveRoom(pubkey: string, room: string, at: number): void {
+  updateDmPrefs(pubkey, (p) => ({
+    ...p,
+    hidden: { ...p.hidden, [room]: at },
+    pinned: p.pinned.filter((k) => k !== room),
+  }));
+}
+
+export function unarchiveRoom(pubkey: string, room: string): void {
+  updateDmPrefs(pubkey, (p) => {
+    const hidden = { ...p.hidden };
+    delete hidden[room];
+    return { ...p, hidden };
+  });
+}
+
+export function setRoomPinned(pubkey: string, room: string, on: boolean): void {
+  updateDmPrefs(pubkey, (p) => ({
+    ...p,
+    pinned: on ? [room, ...p.pinned.filter((k) => k !== room)] : p.pinned.filter((k) => k !== room),
+  }));
+}
+
+export function setRoomMuted(pubkey: string, room: string, on: boolean): void {
+  updateDmPrefs(pubkey, (p) => ({
+    ...p,
+    muted: on ? [...new Set([...p.muted, room])] : p.muted.filter((k) => k !== room),
+  }));
+}
+
+export function setNotifyPrefs(pubkey: string, change: Partial<DmNotifyPrefs>): void {
+  updateDmPrefs(pubkey, (p) => ({ ...p, notify: { ...p.notify, ...change } }));
 }
 
 export function setRoomTimer(pubkey: string, room: string, seconds: number): void {

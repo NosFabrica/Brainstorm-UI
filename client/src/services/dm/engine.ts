@@ -96,6 +96,19 @@ export interface DmEngineDeps {
   clearTimer?: (handle: unknown) => void;
   setRepeating?: (fn: () => void, ms: number) => unknown;
   clearRepeating?: (handle: unknown) => void;
+  /** Whether the device has a connection (navigator.onLine). */
+  online?: () => boolean;
+  /** Calls back when the connection comes back; returns a stop function. */
+  onOnline?: (callback: () => void) => () => void;
+}
+
+/** A message waiting in the outbox: its signed wraps, so a retry needs no signer. */
+interface OutboxEntry {
+  rumor: Rumor;
+  wrapId: string;
+  wrapAt: number;
+  wraps: OutgoingWrap[];
+  deliveries: Delivery[];
 }
 
 export type DmPause = "waiting" | "cancelled" | "unreachable" | "refused" | "no-nip44";
@@ -173,6 +186,12 @@ export class DmEngine {
   private readonly outgoing = new Map<string, OutgoingWrap[]>();
   /** Relay → stop watching for its login; sends refused there resend on login. */
   private readonly sendAuthWaits = new Map<string, () => void>();
+  /** Messages not yet delivered to everyone; kept across reloads and retried. */
+  private readonly outbox = new Set<string>();
+  private readonly retrying = new Set<string>();
+  /** Automatic tries per message since the connection last came back. */
+  private readonly attempts = new Map<string, number>();
+  private stopOnline?: () => void;
   private connecting?: Promise<void>;
   private writes: StoredWrap[] = [];
   private writeTimer: unknown;
@@ -206,6 +225,11 @@ export class DmEngine {
     else void this.account.canOpenInBackground().then((yes) => yes && this.allowDecrypt());
     this.connecting = this.connect();
     await this.connecting;
+    this.flushOutbox();
+    this.stopOnline = (this.deps.onOnline ?? onWindowOnline)(() => {
+      this.attempts.clear();
+      this.flushOutbox();
+    });
     const repeat = this.deps.setRepeating ?? ((fn, ms) => setInterval(fn, ms));
     this.ticker = repeat(() => this.tick(), 60_000);
   }
@@ -216,6 +240,7 @@ export class DmEngine {
     this.disconnect();
     for (const stop of this.sendAuthWaits.values()) stop();
     this.sendAuthWaits.clear();
+    this.stopOnline?.();
     const clearRepeat = this.deps.clearRepeating ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
     if (this.ticker !== undefined) clearRepeat(this.ticker);
     this.flushWrites();
@@ -332,6 +357,7 @@ export class DmEngine {
 
   private tick() {
     this.markSeenIfSynced();
+    this.flushOutbox();
     const gone = this.store.sweepExpired(this.now());
     if (gone.length && this.cache)
       void this.cache.deleteWraps(gone.map((m) => wrapKey(this.me, m.wrapId))).catch(() => {});
@@ -349,6 +375,7 @@ export class DmEngine {
       this.lastSeen = state?.lastSeen;
       this.savedCursors = state?.cursors;
       rows = stored;
+      if (state?.outbox) await this.restoreOutbox(state.outbox);
     } catch {
       return;
     }
@@ -433,13 +460,99 @@ export class DmEngine {
 
   private persistState() {
     if (!this.cache) return;
-    void this.cache
-      .putState({
-        owner: this.me,
-        lastSeen: this.lastSeen,
-        cursors: this.pager?.cursors.snapshot() ?? this.savedCursors,
-      })
+    const cache = this.cache;
+    const base = {
+      owner: this.me,
+      lastSeen: this.lastSeen,
+      cursors: this.pager?.cursors.snapshot() ?? this.savedCursors,
+    };
+    void this.sealOutbox()
+      .then((outbox) => cache.putState({ ...base, ...(outbox ? { outbox } : {}) }))
       .catch(() => {});
+  }
+
+  // ─── the outbox ─────────────────────────────────────────────────────────
+
+  private get online(): boolean {
+    return (this.deps.online ?? onlineNow)();
+  }
+
+  /** The outbox, sealed like opened messages. Nothing kept where the device can't seal. */
+  private async sealOutbox(): Promise<string | undefined> {
+    const sealer = this.deps.sealer;
+    if (!this.outbox.size || !sealer?.supported()) return undefined;
+    const entries: OutboxEntry[] = [];
+    for (const id of this.outbox) {
+      const message = this.store.message(id);
+      const wraps = this.outgoing.get(id);
+      if (!message || !wraps) continue;
+      entries.push({
+        rumor: message.rumor,
+        wrapId: message.wrapId,
+        wrapAt: message.wrapAt,
+        wraps,
+        deliveries: message.outgoing?.deliveries ?? [],
+      });
+    }
+    return entries.length ? sealer.seal(JSON.stringify(entries), this.me) : undefined;
+  }
+
+  private async restoreOutbox(sealed: string) {
+    const sealer = this.deps.sealer;
+    if (!sealer?.supported()) return;
+    let entries: OutboxEntry[];
+    try {
+      entries = JSON.parse(await sealer.open(sealed, this.me)) as OutboxEntry[];
+    } catch {
+      return;
+    }
+    const now = this.now();
+    this.store.batch(() => {
+      for (const e of entries) {
+        const message = messageFromRumor(e.rumor, { id: e.wrapId, created_at: e.wrapAt }, []);
+        if (!message) continue;
+        message.outgoing = { status: this.online ? "failed" : "queued", deliveries: e.deliveries };
+        this.store.add(message, now);
+        this.seen.add(e.wrapId);
+        this.wrapToMessage.set(e.wrapId, message.id);
+        this.outgoing.set(message.id, e.wraps);
+        this.outbox.add(message.id);
+      }
+    });
+  }
+
+  /** After a send settles: in the outbox until everyone has it. */
+  private settleOutbox(messageId: string) {
+    const status = this.store.message(messageId)?.outgoing?.status;
+    const before = this.outbox.has(messageId);
+    if (status === "sent" || status === undefined) this.outbox.delete(messageId);
+    else this.outbox.add(messageId);
+    if (before || this.outbox.has(messageId)) this.scheduleState();
+  }
+
+  /** Send again whatever the outbox holds — on start, every minute, and when the connection returns. */
+  flushOutbox(): void {
+    if (this.stopped || this.status !== "ready" || !this.online) return;
+    for (const id of this.outbox) {
+      if (this.retrying.has(id) || this.store.message(id)?.outgoing?.status === "sending") continue;
+      // A relay that keeps refusing isn't asked forever; Retry, or the connection coming back, starts over.
+      const tries = this.attempts.get(id) ?? 0;
+      if (tries >= MAX_AUTO_RETRIES) continue;
+      this.attempts.set(id, tries + 1);
+      this.retrying.add(id);
+      void this.resend(id).finally(() => this.retrying.delete(id));
+    }
+  }
+
+  /** Give up on an undelivered message: gone from here, and from the outbox. */
+  discard(messageId: string): void {
+    const status = this.store.message(messageId)?.outgoing?.status;
+    if (status !== "failed" && status !== "queued") return;
+    this.outbox.delete(messageId);
+    this.attempts.delete(messageId);
+    this.outgoing.delete(messageId);
+    this.store.remove([messageId]);
+    this.scheduleState();
   }
 
   // ─── opening wraps ──────────────────────────────────────────────────────
@@ -600,6 +713,8 @@ export class DmEngine {
       others.map((pk) => this.deps.loadInbox(pk).catch(() => ({ relays: [], found: false }))),
     );
     const missing = others.filter((_, i) => !lookups[i].relays.length);
+    if (missing.length && !this.online)
+      return { ok: false, error: "You're offline, and this chat's inbox relays aren't known yet." };
     if (missing.length) return { ok: false, missing, error: "Some people have no inbox relays yet." };
 
     const placeholder = messageFromRumor(rumor, { id: "", created_at: this.now() }, [])!;
@@ -666,7 +781,15 @@ export class DmEngine {
     const update = (final: boolean) => {
       const reached = recipients.filter((r) => deliveries.some((d) => d.recipient === r && d.ok));
       const status: OutgoingStatus =
-        reached.length === recipients.length ? "sent" : !final ? "sending" : reached.length ? "partial" : "failed";
+        reached.length === recipients.length
+          ? "sent"
+          : !final
+            ? "sending"
+            : reached.length
+              ? "partial"
+              : this.online
+                ? "failed"
+                : "queued";
       const relays = deliveries.filter((d) => d.ok && d.recipient === this.me).map((d) => d.relay);
       this.store.patch(messageId, { outgoing: { status, deliveries: [...deliveries] }, relays });
     };
@@ -695,7 +818,10 @@ export class DmEngine {
           if (allReached()) reachedAll();
         }),
       ),
-    ).then(() => update(true));
+    ).then(() => {
+      update(true);
+      this.settleOutbox(messageId);
+    });
     await Promise.race([early, settled]);
     return this.store.message(messageId);
   }
@@ -765,4 +891,15 @@ export class DmEngine {
     if (wait <= 0) flush();
     else this.notifyTimer = setTimeout(flush, wait);
   }
+}
+
+/** About ten minutes of once-a-minute retries. */
+const MAX_AUTO_RETRIES = 10;
+
+const onlineNow = () => (typeof navigator === "undefined" ? true : navigator.onLine !== false);
+
+function onWindowOnline(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("online", callback);
+  return () => window.removeEventListener("online", callback);
 }

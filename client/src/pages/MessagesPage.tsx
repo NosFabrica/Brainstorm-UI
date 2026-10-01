@@ -17,7 +17,7 @@ import { useSocialActions } from "@/hooks/useSocialActions";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/relayAuthPref";
 import { roomKeyFromSlug } from "@/lib/dm/rooms";
-import { acceptRoom, hideRoom } from "@/lib/dm/prefs";
+import { acceptRoom, archiveRoom, hideRoom } from "@/lib/dm/prefs";
 import type { DmMessage } from "@/lib/dm/store";
 import type { SendResult } from "@/services/dm/engine";
 import { ConversationList, type InboxTab } from "@/components/messages/ConversationList";
@@ -51,7 +51,7 @@ export default function MessagesPage() {
   const state = useDmState(engine);
   const prefs = useDmPrefs(me || undefined);
   const social = useSocialActions(me || undefined);
-  const shelves = useShelves(engine, social.isMuted);
+  const shelves = useShelves(engine);
   const { follows } = useMyFollows();
   const authAllowed = useRelayAuthAllowed(me);
   const [details, setDetails] = useState<DmMessage | null>(null);
@@ -64,13 +64,12 @@ export default function MessagesPage() {
   }, [engine]);
 
   const slug = params.slug;
-  const tab: InboxTab = slug === "requests" ? "requests" : "chats";
   const composing = slug === "new";
   const roomKey = slug && !composing && slug !== "requests" && me ? roomKeyFromSlug(slug, me) : null;
   const subject = new URLSearchParams(search).get("subject") ?? undefined;
 
   const allRooms = useMemo(
-    () => [...shelves.chats, ...shelves.requests, ...shelves.low, ...shelves.flagged],
+    () => [...shelves.chats, ...shelves.archived, ...shelves.requests, ...shelves.low, ...shelves.flagged],
     [shelves],
   );
   const room = roomKey ? allRooms.find((r) => r.key === roomKey) : undefined;
@@ -83,6 +82,8 @@ export default function MessagesPage() {
         : shelves.flagged.some((r) => r.key === roomKey)
           ? "flagged"
           : "chat";
+  // An open request keeps the Requests list beside it.
+  const tab: InboxTab = slug === "requests" || (roomKey && shelf !== "chat" && !room?.hasMine) ? "requests" : "chats";
 
   const people = useMemo(() => {
     const set = new Set<string>();
@@ -111,6 +112,13 @@ export default function MessagesPage() {
     },
     [profiles, toast],
   );
+
+  const archive = () => {
+    if (!roomKey) return;
+    archiveRoom(me, roomKey, room?.lastAt ?? Math.floor(Date.now() / 1000));
+    toast({ title: "Chat archived", description: "It comes back when someone writes." });
+    navigate("/messages");
+  };
 
   const block = async (pubkey: string) => {
     const outcome = await social.mute(pubkey);
@@ -179,6 +187,7 @@ export default function MessagesPage() {
             onBlock={() => void block(roomKey.split(",").find((pk) => pk !== me) ?? "")}
             onDetails={setDetails}
             onToggleInfo={() => setInfoOpen((v) => !v)}
+            onArchive={archive}
             onSignIn={allowAuth}
             authAllowed={authAllowed}
             sendError={sendError}
@@ -203,10 +212,7 @@ export default function MessagesPage() {
               profiles={profiles}
               scoreOf={shelves.scoreOf}
               follows={follows}
-              onArchive={() => {
-                hideRoom(me, roomKey, room?.lastAt ?? 0);
-                navigate("/messages");
-              }}
+              onArchive={archive}
               onBlock={(pk) => void block(pk)}
             />
           </div>

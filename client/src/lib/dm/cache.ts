@@ -46,6 +46,8 @@ export interface DmState {
   /** When the live subscription last had every inbox relay caught up. */
   lastSeen?: number;
   cursors?: CursorSnapshot;
+  /** Sent messages not yet delivered everywhere, sealed (services/dm/engine's outbox). */
+  outbox?: string;
 }
 
 export interface DmCacheBackend {

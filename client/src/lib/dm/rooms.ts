@@ -136,3 +136,12 @@ export function chatTags(
   if (opts.expiration) tags.push(["expiration", String(opts.expiration)]);
   return tags;
 }
+
+/** How a kind-15 reads in a preview or a notification: "Voice message", "Photo", "File". */
+export function fileLabel(rumor: Pick<Rumor, "kind" | "tags">): string {
+  const mime = tagValue(rumor, "file-type") ?? "";
+  if (mime.startsWith("audio/")) return "Voice message";
+  if (mime.startsWith("image/")) return "Photo";
+  if (mime.startsWith("video/")) return "Video";
+  return "File";
+}

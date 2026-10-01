@@ -11,7 +11,7 @@ import { Alert } from "@/components/ui/alert";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useToast } from "@/hooks/use-toast";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
-import { publishInboxRelays } from "@/services/dm";
+import { turnOnMessages } from "@/services/dm";
 import { SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
 import { relayHost } from "./people";
 
@@ -22,7 +22,7 @@ export function InboxSetup() {
   const [busy, setBusy] = useState(false);
   const publish = async () => {
     setBusy(true);
-    const outcome = await publishInboxRelays(chosen);
+    const outcome = await turnOnMessages(chosen);
     setBusy(false);
     if (outcome.cancelled) return;
     if (!outcome.success)
@@ -34,8 +34,8 @@ export function InboxSetup() {
         <SectionHeader kicker="Private messages" icon={Inbox} />
         <h2 className="font-display text-xl font-bold">Turn on private messages</h2>
         <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-          Tell people where to send you messages. These relays keep your inbox behind a login, so only you can download
-          it.
+          Tell people where to send you messages. These relays keep your inbox behind a sign-in, so only you can
+          download it — Brainstorm signs you in to them for you.
         </p>
         <fieldset className="flex flex-col gap-2">
           <legend className="sr-only">Inbox relays</legend>
@@ -53,10 +53,11 @@ export function InboxSetup() {
         </fieldset>
         <Button onClick={() => void publish()} disabled={!chosen.length || busy} data-testid="dm-setup-publish">
           {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Publish and start messaging
+          Turn on private messages
         </Button>
         <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-          Publishes your kind 10050 list. Change it any time in Settings › Trust & search.
+          Publishes your kind 10050 list and lets these relays sign you in. Change either any time in Settings › Trust &
+          search.
         </p>
       </Card>
     </div>

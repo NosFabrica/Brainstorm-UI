@@ -16,6 +16,10 @@ const prefs = (over: Partial<DmPrefs> = {}): DmPrefs => ({
   timers: {},
   reach: "follows",
   defaultTimer: 0,
+  pinned: [],
+  muted: [],
+  notify: { desktop: false, sound: true, preview: true },
+  linkPreviews: true,
   ...over,
 });
 
@@ -82,5 +86,19 @@ describe("shelving rooms", () => {
       1,
     );
     expect(shelve([room(ANA)], ME, prefs(), trust({ mutedOf: (pk) => pk === ANA })).chats).toHaveLength(0);
+  });
+
+  it("archives chats (a deleted request is just gone), pins to the top, and keeps muted chats off the badge", () => {
+    const ana = room(ANA, { at: 100, count: 2 });
+    const old = room(BOB, { at: 50, mine: true });
+    const archived = shelve([ana, old], ME, prefs({ hidden: { [ana.key]: 101 } }), trust());
+    expect(archived.archived.map((r) => r.key)).toEqual([ana.key]);
+    expect(archived.chats.map((r) => r.key)).toEqual([old.key]);
+
+    const pinned = shelve([ana, old], ME, prefs({ pinned: [old.key] }), trust());
+    expect(pinned.chats.map((r) => r.key)).toEqual([old.key, ana.key]);
+    expect(pinned.pinnedCount).toBe(1);
+
+    expect(shelve([ana], ME, prefs({ muted: [ana.key] }), trust()).badge).toBe(0);
   });
 });

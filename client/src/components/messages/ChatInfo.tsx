@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
 import { loadDmRelays } from "@/lib/dm/inboxRelays";
+import { FollowedByLine } from "@/components/search/EndorsementLine";
+import { useHasMywot } from "@/hooks/useHasMywot";
 import { npubFromPubkey } from "@/lib/shareId";
 import { tierForScore01 } from "@/components/score/VerificationCoin";
 import { TIER_LABELS } from "@/services/trustThreshold";
@@ -60,6 +62,7 @@ export function ChatInfo({
   onArchive: () => void;
   onBlock: (pubkey: string) => void;
 }) {
+  const { hasMywot } = useHasMywot();
   const others = roomKey.split(",").filter((pk) => pk !== me);
   if (others.length > 1) {
     return (
@@ -94,7 +97,7 @@ export function ChatInfo({
           starts a new chat; this one keeps its history.
         </p>
         <Button variant="outline" onClick={onArchive} className="mt-auto justify-start">
-          <Archive className="mr-2 h-4 w-4" /> Hide this chat
+          <Archive className="mr-2 h-4 w-4" /> Archive chat
         </Button>
       </aside>
     );
@@ -121,6 +124,7 @@ export function ChatInfo({
             (follows.has(pk) ? <Chip tone="brand">You follow</Chip> : <Chip tone="slate">Not in your follows</Chip>)}
           {tier && <Chip tone="slate">{TIER_LABELS[tier]}</Chip>}
         </span>
+        {pk !== me && <FollowedByLine pubkey={pk} npub={npub} personal={hasMywot} className="mt-1" />}
       </div>
       {pk !== me && (
         <Link
@@ -133,7 +137,7 @@ export function ChatInfo({
       <TheirInbox pubkey={pk} name={name} />
       <div className="mt-auto flex flex-col gap-1">
         <Button variant="ghost" onClick={onArchive} className="justify-start">
-          <Archive className="mr-2 h-4 w-4" /> Hide chat
+          <Archive className="mr-2 h-4 w-4" /> Archive chat
         </Button>
         {pk !== me && (
           <Button variant="ghost" onClick={() => onBlock(pk)} className="justify-start text-red-600 dark:text-red-400">

@@ -16,6 +16,8 @@ import {
   Monitor,
   Sun,
   Moon,
+  MessageCircle,
+  SquarePen,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -87,6 +89,14 @@ export function CommandPaletteDialog({ open, onOpenChange }: { open: boolean; on
               </CommandItem>
             )}
             {user && (
+              <CommandItem
+                keywords={["dm", "chat", "inbox", "private", "nip-17"]}
+                onSelect={() => run(() => navigate("/messages"))}
+              >
+                <MessageCircle /> Messages
+              </CommandItem>
+            )}
+            {user && (
               <CommandItem keywords={["public", "me"]} onSelect={() => run(() => navigate(`/p/${user.npub}`))}>
                 <UserCircle /> View profile
               </CommandItem>
@@ -114,6 +124,12 @@ export function CommandPaletteDialog({ open, onOpenChange }: { open: boolean; on
             <>
               <CommandSeparator />
               <CommandGroup heading="Actions">
+                <CommandItem
+                  keywords={["dm", "chat", "write", "compose", "send"]}
+                  onSelect={() => run(() => navigate("/messages/new"))}
+                >
+                  <SquarePen /> New message
+                </CommandItem>
                 <CommandItem keywords={["share", "colleagues"]} onSelect={() => run(() => setInviteOpen(true))}>
                   <UserPlus /> Invite friends
                 </CommandItem>

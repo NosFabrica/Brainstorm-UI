@@ -428,4 +428,80 @@ describe("DmEngine", () => {
     expect(result).toMatchObject({ ok: true });
     expect(result.message!.outgoing!.status).toBe("sent");
   });
+
+  it("keeps an undelivered message through a reload and sends it when the connection is back", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    const cache = memoryCache();
+    let online = false;
+    const offline: DmTransport = {
+      ...net.transport,
+      publish: async (relay, event) =>
+        online ? net.transport.publish(relay, event) : { ok: false, message: "offline" },
+    };
+    const time = clock();
+    const first = new DmEngine(me.account(), {
+      ...net,
+      transport: offline,
+      cache,
+      sealer: plainSealer,
+      ...time,
+      online: () => online,
+      now: () => NOW,
+    });
+    await first.start();
+    await settle();
+    const room = roomKey([me.pubkey, ana.pubkey]);
+    const sent = await first.send(room, "on the train");
+    expect(sent.message?.outgoing?.status).toBe("queued");
+    time.flush(); // persist state
+    await settle();
+    expect(cache.st.get(me.pubkey)?.outbox).toMatch(/^sealed:/);
+    first.stop();
+    await settle();
+
+    // Next visit, still offline: the message is there, waiting.
+    let reconnect!: () => void;
+    const second = new DmEngine(me.account(), {
+      ...net,
+      transport: offline,
+      cache,
+      sealer: plainSealer,
+      ...clock(),
+      online: () => online,
+      onOnline: (cb) => {
+        reconnect = cb;
+        return () => {};
+      },
+      now: () => NOW,
+    });
+    await second.start();
+    await settle();
+    expect(second.store.room(room)?.last?.rumor.content).toBe("on the train");
+    expect(second.store.room(room)?.last?.outgoing?.status).toBe("queued");
+    expect(net.published).toHaveLength(0);
+
+    online = true;
+    reconnect();
+    await settle();
+    await settle();
+    expect(net.published.map((p) => p.relay).sort()).toEqual(["wss://ana.example/", "wss://mine.example/"]);
+    expect(second.store.room(room)?.last?.outgoing?.status).toBe("sent");
+  });
+
+  it("discards an undelivered message on request", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    const transport: DmTransport = { ...net.transport, publish: async () => ({ ok: false, message: "blocked" }) };
+    const engine = new DmEngine(me.account(), { ...net, transport, ...clock(), now: () => NOW });
+    await engine.start();
+    await settle();
+    const room = roomKey([me.pubkey, ana.pubkey]);
+    const sent = await engine.send(room, "nope");
+    expect(sent.message?.outgoing?.status).toBe("failed");
+    engine.discard(sent.message!.id);
+    expect(engine.store.room(room)).toBeUndefined();
+  });
 });

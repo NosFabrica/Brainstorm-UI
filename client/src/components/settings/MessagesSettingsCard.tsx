@@ -15,7 +15,9 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useDmPrefs } from "@/hooks/useDirectMessages";
 import { publishInboxRelays } from "@/services/dm";
 import { MAX_INBOX_RELAYS, SUGGESTED_INBOX_RELAYS, loadDmRelays } from "@/lib/dm/inboxRelays";
-import { TIMER_CHOICES, updateDmPrefs, type DmReach } from "@/lib/dm/prefs";
+import { TIMER_CHOICES, setNotifyPrefs, updateDmPrefs, type DmNotifyPrefs, type DmReach } from "@/lib/dm/prefs";
+import { Switch } from "@/components/ui/switch";
+import { playChime } from "@/lib/chime";
 import { dedupeRelays } from "@/lib/relayRouting";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +28,89 @@ const REACH: { value: DmReach; label: string; hint: string }[] = [
 ];
 
 const host = (url: string) => url.replace(/^wss?:\/\//, "").replace(/\/$/, "");
+
+function permissionNow(): NotificationPermission | "unsupported" {
+  return typeof Notification === "undefined" ? "unsupported" : Notification.permission;
+}
+
+function ToggleRow({
+  id,
+  label,
+  hint,
+  checked,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <label htmlFor={id} className="min-w-0">
+        <span className="block text-sm font-medium">{label}</span>
+        {hint && <span className="text-xs text-slate-500 dark:text-slate-400">{hint}</span>}
+      </label>
+      <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} data-testid={id} />
+    </div>
+  );
+}
+
+function NotificationSettings({ pubkey, notify }: { pubkey: string; notify: DmNotifyPrefs }) {
+  const [permission, setPermission] = useState(permissionNow);
+  const desktopOn = notify.desktop && permission === "granted";
+  const setDesktop = async (on: boolean) => {
+    if (!on) return setNotifyPrefs(pubkey, { desktop: false });
+    if (permission === "unsupported") return;
+    const result = permission === "granted" ? "granted" : await Notification.requestPermission();
+    setPermission(result);
+    setNotifyPrefs(pubkey, { desktop: result === "granted" });
+  };
+  return (
+    <section className="flex flex-col gap-3">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</h3>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          While Brainstorm is open in a tab. Muted chats, and requests below your trust threshold, stay quiet.
+        </p>
+      </div>
+      <ToggleRow
+        id="dm-notify-desktop"
+        label="Browser notifications"
+        hint={
+          permission === "denied"
+            ? "Blocked in your browser's site settings."
+            : permission === "unsupported"
+              ? "This browser doesn't offer them."
+              : undefined
+        }
+        checked={desktopOn}
+        disabled={permission === "denied" || permission === "unsupported"}
+        onChange={(on) => void setDesktop(on)}
+      />
+      <ToggleRow
+        id="dm-notify-preview"
+        label="Show message text"
+        hint="Off: only who wrote. Requests never show their text."
+        checked={notify.preview}
+        disabled={!desktopOn}
+        onChange={(on) => setNotifyPrefs(pubkey, { preview: on })}
+      />
+      <ToggleRow
+        id="dm-notify-sound"
+        label="Sound"
+        checked={notify.sound}
+        onChange={(on) => {
+          setNotifyPrefs(pubkey, { sound: on });
+          if (on) playChime();
+        }}
+      />
+    </section>
+  );
+}
 
 export function MessagesSettingsCard() {
   const pubkey = useActiveAccountDisplay()?.pubkey ?? "";
@@ -199,6 +284,18 @@ export function MessagesSettingsCard() {
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Senders flagged by people you trust never reach your inbox, whatever this is set to.
             </p>
+          </section>
+
+          <NotificationSettings pubkey={pubkey} notify={prefs.notify} />
+
+          <section className="flex flex-col gap-3">
+            <ToggleRow
+              id="dm-link-previews"
+              label="Link previews"
+              hint="Fetched by Brainstorm's own server, which doesn't log them, and pictures through our image proxy — the linked site never sees you. Never for requests."
+              checked={prefs.linkPreviews}
+              onChange={(on) => updateDmPrefs(pubkey, (p) => ({ ...p, linkPreviews: on }))}
+            />
           </section>
 
           <section className="flex flex-col gap-3">

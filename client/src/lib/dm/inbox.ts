@@ -47,7 +47,12 @@ export function isHidden(room: DmRoom, prefs: DmPrefs): boolean {
 }
 
 export interface Shelves {
+  /** Pinned chats first (in pin order), then the rest newest first. */
   chats: DmRoom[];
+  /** How many of `chats` are pinned — they lead the list. */
+  pinnedCount: number;
+  /** Chats the reader archived, newest first. */
+  archived: DmRoom[];
   requests: DmRoom[];
   low: DmRoom[];
   flagged: DmRoom[];
@@ -56,15 +61,22 @@ export interface Shelves {
 }
 
 export function shelve(rooms: DmRoom[], me: string, prefs: DmPrefs, trust: TrustLookup): Shelves {
-  const out: Shelves = { chats: [], requests: [], low: [], flagged: [], badge: 0 };
+  const out: Shelves = { chats: [], pinnedCount: 0, archived: [], requests: [], low: [], flagged: [], badge: 0 };
+  const pinned: DmRoom[] = [];
+  const muted = new Set(prefs.muted);
   for (const room of rooms) {
-    if (isHidden(room, prefs)) continue;
     const others = room.participants.filter((pk) => pk !== me);
     if (trust.mutedOf && others.length && others.every((pk) => trust.mutedOf!(pk))) continue;
     const shelf = shelfOf(room, me, prefs, trust);
-    const unread = unreadIn(room, me, prefs);
+    if (isHidden(room, prefs)) {
+      // A chat put away is archived; a deleted request is simply gone.
+      if (shelf === "chat") out.archived.push(room);
+      continue;
+    }
+    const unread = muted.has(room.key) ? 0 : unreadIn(room, me, prefs);
     if (shelf === "chat") {
-      out.chats.push(room);
+      if (prefs.pinned.includes(room.key)) pinned.push(room);
+      else out.chats.push(room);
       out.badge += unread;
     } else if (shelf === "request") {
       out.requests.push(room);
@@ -72,6 +84,9 @@ export function shelve(rooms: DmRoom[], me: string, prefs: DmPrefs, trust: Trust
     } else if (shelf === "low") out.low.push(room);
     else out.flagged.push(room);
   }
+  pinned.sort((a, b) => prefs.pinned.indexOf(a.key) - prefs.pinned.indexOf(b.key));
+  out.pinnedCount = pinned.length;
+  out.chats = [...pinned, ...out.chats];
   // Requests: the most trusted first, then the newest.
   const best = (r: DmRoom) => Math.max(...r.participants.filter((pk) => pk !== me).map((pk) => trust.scoreOf(pk) ?? 0));
   out.requests.sort((a, b) => best(b) - best(a) || b.lastAt - a.lastAt);

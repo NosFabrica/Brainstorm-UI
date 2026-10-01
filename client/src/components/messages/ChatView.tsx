@@ -1,11 +1,32 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Ban, Check, History, Info, KeyRound, Loader2, ShieldCheck, Timer, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
+  Ban,
+  Bell,
+  BellOff,
+  Check,
+  History,
+  Info,
+  KeyRound,
+  Loader2,
+  MoreVertical,
+  Pin,
+  PinOff,
+  ShieldCheck,
+  Timer,
+  Trash2,
+  UserRound,
+} from "lucide-react";
+import { Link, useSearch } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -16,8 +37,19 @@ import type { DmEngine, DmEngineState, SendResult } from "@/services/dm/engine";
 import { sendFile } from "@/services/dm";
 import type { DmMessage, DmRoom } from "@/lib/dm/store";
 import type { RoomShelf } from "@/lib/dm/inbox";
-import { TIMER_CHOICES, roomTimer, setRoomTimer, markRoomRead, type DmPrefs } from "@/lib/dm/prefs";
+import {
+  TIMER_CHOICES,
+  roomTimer,
+  setRoomTimer,
+  markRoomRead,
+  setRoomMuted,
+  setRoomPinned,
+  unarchiveRoom,
+  type DmPrefs,
+} from "@/lib/dm/prefs";
+import { npubFromPubkey } from "@/lib/shareId";
 import { RelayMarker } from "./RelayMarker";
+import { RequestTrustPanel } from "./RequestTrust";
 import { MessageBubble } from "./MessageBubble";
 import { Composer } from "./Composer";
 import { useChatHistory, type ChatHistoryPhase } from "./useChatHistory";
@@ -153,6 +185,7 @@ export function ChatView({
   onBlock,
   onDetails,
   onToggleInfo,
+  onArchive,
   onSignIn,
   authAllowed,
   sendError,
@@ -173,6 +206,7 @@ export function ChatView({
   onBlock: () => void;
   onDetails: (m: DmMessage) => void;
   onToggleInfo: () => void;
+  onArchive: () => void;
   onSignIn: () => void;
   /** The reader lets relays that ask sign them in (lib/relayAuthPref). */
   authAllowed: boolean;
@@ -221,7 +255,26 @@ export function ChatView({
     if (el) el.scrollTop = el.scrollHeight;
   }, [lastId, roomKey]);
 
+  // Arrived from search (?m=<id>): bring that message to the middle, briefly lit.
+  const focusId = new URLSearchParams(useSearch()).get("m");
+  const focused = useRef<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusId || focused.current === focusId || !byId.has(focusId)) return;
+    const el = scroller.current?.querySelector(`[data-message-id="${CSS.escape(focusId)}"]`);
+    if (!el) return;
+    focused.current = focusId;
+    el.scrollIntoView({ block: "center" });
+    setFlash(focusId);
+    const t = setTimeout(() => setFlash(null), 2200);
+    return () => clearTimeout(t);
+  }, [focusId, byId]);
+
   const isRequest = shelf !== "chat" && !view.hasMine;
+  const pinned = prefs.pinned.includes(roomKey);
+  const muted = prefs.muted.includes(roomKey);
+  const hiddenAt = prefs.hidden[roomKey];
+  const archived = hiddenAt !== undefined && view.lastAt <= hiddenAt;
   const inboxMissing = state.status === "no-inbox";
 
   const send = async (text: string) => {
@@ -303,6 +356,47 @@ export function ChatView({
           >
             <Info className="h-[19px] w-[19px]" />
           </button>
+          {!isRequest && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                aria-label="More"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                data-testid="dm-chat-more"
+              >
+                <MoreVertical className="h-[19px] w-[19px]" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onSelect={() => setRoomPinned(me, roomKey, !pinned)} data-testid="dm-pin">
+                  {pinned ? <PinOff className="mr-2 h-4 w-4" /> : <Pin className="mr-2 h-4 w-4" />}
+                  {pinned ? "Unpin" : "Pin to top"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setRoomMuted(me, roomKey, !muted)} data-testid="dm-mute">
+                  {muted ? <Bell className="mr-2 h-4 w-4" /> : <BellOff className="mr-2 h-4 w-4" />}
+                  {muted ? "Unmute" : "Mute notifications"}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => (archived ? unarchiveRoom(me, roomKey) : onArchive())}
+                  data-testid="dm-archive"
+                >
+                  {archived ? <ArchiveRestore className="mr-2 h-4 w-4" /> : <Archive className="mr-2 h-4 w-4" />}
+                  {archived ? "Unarchive" : "Archive"}
+                </DropdownMenuItem>
+                {!group && others[0] && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href={`/p/${npubFromPubkey(others[0])}`}>
+                        <UserRound className="mr-2 h-4 w-4" /> View profile
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={onBlock} className="text-red-600 focus:text-red-600 dark:text-red-400">
+                      <Ban className="mr-2 h-4 w-4" /> Block
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </span>
       </header>
 
@@ -355,6 +449,9 @@ export function ChatView({
                 onReact={(m, content) => void engine?.react(m, content).then((r) => !r.ok && sendError(r))}
                 onDetails={onDetails}
                 onResend={(m) => void engine?.resend(m.id)}
+                onDiscard={(m) => engine?.discard(m.id)}
+                highlight={flash === item.message.id}
+                linkPreviews={prefs.linkPreviews && !isRequest}
               />
             )}
           </Fragment>
@@ -384,6 +481,11 @@ export function ChatView({
             </strong>{" "}
             They can't tell whether you've opened this — NIP-17 sends no read receipts. Deleting it doesn't notify them.
           </p>
+          {!group && (
+            <div className="mt-3">
+              <RequestTrustPanel pubkey={others[0]} name={nameOf(others[0], profiles)} score={scoreOf(others[0])} />
+            </div>
+          )}
           <div className="mt-3 flex flex-wrap gap-2">
             {!group && (
               <Button
