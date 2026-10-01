@@ -400,6 +400,8 @@ describe("a query that matches a tag", () => {
     vouches: 2,
     sharesName: 0,
     unverified: false,
+    // As the relay's list carries them; empty unless a test says who.
+    members: [] as Array<{ pubkey: string; endorsements: number; disputes: number; score: number }>,
   });
   const human = tagOf("verified-human", "Verified Human");
   const pk = (c: string) => c.repeat(64);
@@ -435,6 +437,42 @@ describe("a query that matches a tag", () => {
     expect(screen.getByTestId("home-suggestion-name-0")).toHaveTextContent("Human Verifier");
     expect(screen.queryByTestId("home-suggestion-1")).toBeNull();
     expect(within(dropdown()!).queryAllByTestId(/^person-tag-chip-/)).toHaveLength(0);
+  });
+
+  // The team, 2026-10-01: the tag should still be visible by the people who
+  // carry it — one tag, the one the words matched — only quieter than a pill.
+  // The relay's list names its members, so the box marks them without asking again.
+  it("marks the listed people who carry the matched tag, quietly, and pulls nobody in", async () => {
+    const members = [pk("a"), pk("b")].map((pubkey) => ({ pubkey, endorsements: 1, disputes: 0, score: 50 }));
+    tagMatchesMock.mockReturnValue([{ ...human, members }]);
+    suggestMock.mockResolvedValue([person("c", "Human Verifier"), person("a", "Avi")]);
+    await open("verified human");
+
+    // Bill (b) carries the tag but his name did not match: he is behind the tag row.
+    expect(screen.getByTestId("home-suggestion-name-1")).toHaveTextContent("Avi");
+    expect(screen.queryByTestId("home-suggestion-2")).toBeNull();
+
+    const label = within(screen.getByTestId("home-suggestion-1")).getByTestId("person-tag-label");
+    expect(label).toHaveTextContent("Verified Human");
+    expect(label).toHaveAttribute("title", "Tagged Verified Human");
+    // A label, not a control: the tag row above is the way to the tag page.
+    expect(label.closest("a")).toBeNull();
+    expect(within(label).queryByRole("link")).toBeNull();
+    expect(within(screen.getByTestId("home-suggestion-0")).queryByTestId("person-tag-label")).toBeNull();
+    expect(within(dropdown()!).queryAllByTestId(/^person-tag-chip-/)).toHaveLength(0);
+  });
+
+  it("gives a person who carries two matched tags the better match only", async () => {
+    const member = [{ pubkey: pk("a"), endorsements: 1, disputes: 0, score: 50 }];
+    tagMatchesMock.mockReturnValue([
+      { ...tagOf("dev", "Dev"), members: member },
+      { ...tagOf("developer", "Developer"), members: member },
+    ]);
+    suggestMock.mockResolvedValue([person("a", "Avi")]);
+    await open("dev");
+
+    const labels = within(screen.getByTestId("home-suggestion-0")).getAllByTestId("person-tag-label");
+    expect(labels.map((l) => l.textContent)).toEqual(["Dev"]);
   });
 
   // A popup is read in a glance, above a phone keyboard: two tags, six people.
