@@ -67,37 +67,41 @@ export function HeaderBar({
     >
       <div
         className={
+          // Full bleed, the search box sits in the middle of the window — as wide
+          // a gap on either side whatever the right-hand cluster holds.
           fullBleed
-            ? "flex min-h-14 items-center gap-3 px-4"
+            ? "grid min-h-14 grid-cols-[1fr_minmax(0,42rem)_1fr] items-center gap-3 px-4"
             : `${maxWidthClass} mx-auto flex min-h-14 items-center gap-3 px-4 sm:px-6`
         }
       >
-        {back && (
-          <button
-            type="button"
-            onClick={back.onClick}
-            aria-label={back.label}
-            title={back.label}
-            className="-ml-2 shrink-0 rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
-            data-testid="header-back"
+        <div className="flex shrink-0 items-center gap-3">
+          {back && (
+            <button
+              type="button"
+              onClick={back.onClick}
+              aria-label={back.label}
+              title={back.label}
+              className="-ml-2 shrink-0 rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+              data-testid="header-back"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          )}
+          <Link
+            href="/"
+            className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+            aria-label="Brainstorm home"
+            data-testid="header-brand"
           >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-        )}
-        <Link
-          href="/"
-          className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
-          aria-label="Brainstorm home"
-          data-testid="header-brand"
-        >
-          {/* Gradient mark on light, white on dark. */}
-          <BrainLogo size={26} className="dark:hidden" />
-          <BrainLogo size={26} mono className="hidden text-white dark:block" />
-        </Link>
+            {/* Gradient mark on light, white on dark. */}
+            <BrainLogo size={26} className="dark:hidden" />
+            <BrainLogo size={26} mono className="hidden text-white dark:block" />
+          </Link>
+        </div>
 
-        {search && !isPhone && <HeaderSearchBox className="min-w-0 max-w-2xl flex-1" />}
+        {search && !isPhone ? <HeaderSearchBox className="min-w-0 max-w-2xl flex-1" /> : fullBleed && <div />}
 
-        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-2 justify-self-end sm:gap-3">
           {/* Opens search OVER the page — search is a lookup, not a destination. */}
           {search && isPhone && (
             <button
