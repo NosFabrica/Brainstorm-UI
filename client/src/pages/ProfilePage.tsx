@@ -1352,8 +1352,8 @@ export default function ProfilePage() {
   const isAdmin = user?.isAdmin === true;
 
   const adminHistoryQuery = useQuery<{ items: AdminHistoryItem[]; total: number; page: number; pages: number }>({
-    queryKey: ["/api/admin/users", hexPubkey, "history"],
-    queryFn: () => apiClient.getAdminUserHistory(hexPubkey),
+    queryKey: ["/api/admin/users", hexPubkey, "history", 50],
+    queryFn: () => apiClient.getAdminUserHistory(hexPubkey, { size: 50 }),
     enabled: isAdmin && !!hexPubkey,
     staleTime: 60_000,
     retry: false,
