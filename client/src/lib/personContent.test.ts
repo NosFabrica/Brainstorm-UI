@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  shopWords,
   categoriesOf,
   chipAriaLabel,
   personContentFilters,
@@ -240,5 +241,33 @@ describe("searchIntent — a name plus a category word", () => {
     expect(searchIntent("shop staci")).toBeNull();
     expect(searchIntent("  ")).toBeNull();
     expect(searchIntent("staci soap")).toBeNull();
+  });
+});
+
+// The team, 2026-10-01: a search for "developer" ended in two shop listings
+// nobody asked for. The popup shows listings only when the words say so.
+describe("shopWords — the words a shopping query is shopping for", () => {
+  it("is null for words that do not ask to shop", () => {
+    expect(shopWords("developer")).toBeNull();
+    expect(shopWords("mobile developer")).toBeNull();
+    expect(shopWords("")).toBeNull();
+  });
+
+  it("is what remains once the shop word is taken out, wherever it sits", () => {
+    expect(shopWords("drone shop")).toBe("drone");
+    expect(shopWords("buy satoshi t-shirt")).toBe("satoshi t-shirt");
+    expect(shopWords("bikes for sale")).toBe("bikes");
+    expect(shopWords("Coffee Store")).toBe("Coffee");
+    expect(shopWords("espresso price")).toBe("espresso");
+  });
+
+  it("is null when the shop word is all there is — nothing to look for yet", () => {
+    expect(shopWords("shop")).toBeNull();
+    expect(shopWords("for sale")).toBeNull();
+  });
+
+  it("does not read a shop word inside another word", () => {
+    expect(shopWords("bishop")).toBeNull();
+    expect(shopWords("workshop notes")).toBeNull();
   });
 });

@@ -150,7 +150,8 @@ describe("typing in the mobile search sheet", () => {
       },
     ]);
     renderOpen();
-    type("satoshi");
+    // Products show for words that ask to shop.
+    type("satoshi shop");
     act(() => {
       vi.advanceTimersByTime(400);
     });

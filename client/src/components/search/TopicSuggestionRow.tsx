@@ -39,7 +39,7 @@ export function TopicSuggestionRow({
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">#{tag}</p>
-        <p className="truncate text-xs text-slate-500 dark:text-slate-400">Trusted posts and articles on this topic</p>
+        <p className="truncate text-xs text-slate-500 dark:text-slate-400">Topic · Trusted posts and articles</p>
       </div>
       <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" aria-hidden="true" />
     </button>
