@@ -19,7 +19,8 @@ import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/
 import { DmEngine, type DmAccount, type SendResult, type SignerFailure } from "./engine";
 import { encryptFile, fileTags } from "@/lib/dm/fileCrypto";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
-import { uploadToBlossom } from "@/services/blossom";
+import { publishBlossomServers, uploadToBlossom } from "@/services/blossom";
+import { ENCRYPTED_BLOSSOM_SERVERS, encryptedUploadServers, loadBlossomServers } from "@/lib/blossomServers";
 import { poolTransport } from "./transport";
 
 function classifyFor(account: BrainstormAccount) {
@@ -122,6 +123,24 @@ export function subscribeDmEngine(listener: () => void): () => void {
 export async function turnOnMessages(relays: string[]): Promise<PublishOutcome> {
   const account = accountManager.active;
   if (!account) return { success: false, error: "Sign in first." };
+  const outcome = await turnOnInbox(account, relays);
+  if (outcome.success) await ensureBlossomServers(account.pubkey);
+  return outcome;
+}
+
+/**
+ * Attachments need somewhere to go: someone with no Blossom server list (kind 10063)
+ * gets one naming servers that take encrypted files. Never replaces a list they have,
+ * and a failure here doesn't undo turning messages on — uploads fall back to the
+ * same servers anyway.
+ */
+async function ensureBlossomServers(pubkey: string): Promise<void> {
+  const existing = await loadBlossomServers(pubkey, { fresh: true, timeoutMs: 6000 }).catch(() => null);
+  if (!existing || existing.found) return;
+  await publishBlossomServers(ENCRYPTED_BLOSSOM_SERVERS).catch(() => {});
+}
+
+async function turnOnInbox(account: { pubkey: string }, relays: string[]): Promise<PublishOutcome> {
   // "No inbox list" may only have been a slow lookup: never replace one the
   // account already published (from another client) with our suggestions.
   const existing = await loadDmRelays(account.pubkey, { fresh: true, timeoutMs: 6000 }).catch(() => null);
@@ -190,7 +209,14 @@ export async function sendFile(
   const enc = await encryptFile(new Uint8Array(await file.arrayBuffer()));
   let url: string;
   try {
-    url = await uploadToBlossom(new Blob([enc.cipher], { type: "application/octet-stream" }), "Upload encrypted file");
+    // Their own servers (kind 10063) first; ones known to take ciphertext after.
+    const me = accountManager.active?.pubkey;
+    const own = me ? ((await loadBlossomServers(me, { timeoutMs: 2500 }).catch(() => null))?.servers ?? []) : [];
+    url = await uploadToBlossom(
+      new Blob([enc.cipher], { type: "application/octet-stream" }),
+      "Upload encrypted file",
+      encryptedUploadServers(own),
+    );
   } catch (error) {
     if (isUnlockCancelled(error)) return { ok: false, error: "Cancelled" };
     return { ok: false, error: "Couldn't upload the file. Please try again." };
