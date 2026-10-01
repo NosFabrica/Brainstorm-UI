@@ -22,13 +22,23 @@ const SM = 640;
 export function HeaderBar({
   maxWidthClass = "max-w-4xl",
   search = true,
+  fullBleed = false,
   back,
   children,
   testId,
 }: {
   maxWidthClass?: string;
-  /** False on a page whose own content is a search box, or a flow a search would abandon. */
-  search?: boolean;
+  /**
+   * True: the search box (a magnifier on phones). "button": a magnifier at every
+   * width, opening the search sheet — for a screen with a search box of its own.
+   * False: no search, for a flow a search would abandon.
+   */
+  search?: boolean | "button";
+  /**
+   * For a full-screen app view (Messages): edge to edge and a solid surface,
+   * so the bar lines up with the panes under it and reads as their frame.
+   */
+  fullBleed?: boolean;
   /** A way back up — the /p sub-pages' "Back to <name>". */
   back?: { label: string; onClick: () => void };
   /** The right-hand cluster. */
@@ -51,13 +61,21 @@ export function HeaderBar({
   return (
     <header
       className={`sticky top-0 z-40 transition-[background-color,box-shadow,border-color] duration-300 ${
-        scrolled
-          ? "border-b border-slate-200/70 bg-white/80 shadow-sm backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-950/80 dark:shadow-none"
-          : "border-b border-transparent bg-transparent"
+        fullBleed
+          ? "border-b border-border bg-card"
+          : scrolled
+            ? "border-b border-slate-200/70 bg-white/80 shadow-sm backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-950/80 dark:shadow-none"
+            : "border-b border-transparent bg-transparent"
       }`}
       data-testid={testId}
     >
-      <div className={`${maxWidthClass} mx-auto flex min-h-14 items-center gap-3 px-4 sm:px-6`}>
+      <div
+        className={
+          fullBleed
+            ? "flex min-h-14 items-center gap-3 px-4"
+            : `${maxWidthClass} mx-auto flex min-h-14 items-center gap-3 px-4 sm:px-6`
+        }
+      >
         {back && (
           <button
             type="button"
@@ -81,15 +99,16 @@ export function HeaderBar({
           <BrainLogo size={26} mono className="hidden text-white dark:block" />
         </Link>
 
-        {search && !isPhone && <HeaderSearchBox className="min-w-0 max-w-2xl flex-1" />}
+        {search === true && !isPhone && <HeaderSearchBox className="min-w-0 max-w-2xl flex-1" />}
 
         <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           {/* Opens search OVER the page — search is a lookup, not a destination. */}
-          {search && isPhone && (
+          {((search === true && isPhone) || search === "button") && (
             <button
               type="button"
               onClick={openMobileSearch}
-              aria-label="Search"
+              aria-label="Search Brainstorm"
+              title="Search Brainstorm"
               className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-deep dark:text-slate-400 dark:hover:bg-slate-800"
               data-testid="header-search-mobile"
             >

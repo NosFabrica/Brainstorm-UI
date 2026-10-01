@@ -154,7 +154,7 @@ export default function MessagesPage() {
           : "h-[calc(100dvh-var(--bs-bottom-chrome,0px))]",
       )}
     >
-      {user && <AppHeader user={user} onLogout={() => logout()} />}
+      {user && <AppHeader user={user} onLogout={() => logout()} layout="app" />}
       <main
         className={cn(
           "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)]",
