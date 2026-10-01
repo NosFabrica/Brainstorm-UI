@@ -64,7 +64,31 @@ export function InboxSetup() {
   );
 }
 
-/** One line above the list when something waits on the reader. */
+/**
+ * Progress, not a problem: a slim line pinned under the list while wraps are
+ * being opened — a count and how far along this visit is.
+ */
+export function OpeningStatus({ state }: { state: DmEngineState }) {
+  if (state.paused || state.queued <= 0) return null;
+  const done = state.sync.opened;
+  const share = done + state.queued > 0 ? done / (done + state.queued) : 0;
+  return (
+    <div className="mx-4 mb-2 flex flex-col gap-1.5" role="status" data-testid="dm-notice-opening">
+      <span className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+        Opening {state.queued.toLocaleString()} message{state.queued === 1 ? "" : "s"}…
+      </span>
+      <span className="h-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <span
+          className="block h-full rounded-full bg-brand-primary transition-[width] duration-500"
+          style={{ width: `${Math.max(2, Math.round(share * 100))}%` }}
+        />
+      </span>
+    </div>
+  );
+}
+
+/** What waits on the reader — a login, an unlock, a signer that can't — pinned under the list. */
 export function InboxNotices({
   engine,
   state,
@@ -121,16 +145,9 @@ export function InboxNotices({
         </Button>
       ),
     });
-  if (!state.paused && state.queued > 0)
-    notices.push({
-      key: "opening",
-      icon: <Loader2 className="h-4 w-4 animate-spin" />,
-      text: `Opening ${state.queued} message${state.queued === 1 ? "" : "s"} on this device…`,
-      variant: "default",
-    });
   if (!notices.length) return null;
   return (
-    <div className="flex flex-col gap-2 px-3 pb-2">
+    <div className="flex flex-col gap-2 px-4 pb-2">
       {notices.map((n) => (
         <Alert
           key={n.key}

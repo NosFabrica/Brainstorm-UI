@@ -134,6 +134,7 @@ export function ConversationList({
   selectedKey,
   tab,
   onSignIn,
+  notices,
 }: {
   engine: DmEngine | null;
   state: DmEngineState;
@@ -144,6 +145,8 @@ export function ConversationList({
   selectedKey: string | null;
   tab: InboxTab;
   onSignIn: () => void;
+  /** Status and things waiting on the reader, pinned under the list. */
+  notices?: React.ReactNode;
 }) {
   const [showLow, setShowLow] = useState(false);
   const [query, setQuery] = useState("");
@@ -407,6 +410,10 @@ export function ConversationList({
                 </AlertDescription>
               </Alert>
             )}
+          </div>
+          {/* Pinned under the list, outside its scroll: coming and going, it never moves a row. */}
+          <div className="shrink-0 border-t border-border pt-2 empty:hidden" data-testid="dm-list-footer">
+            {notices}
           </div>
         </>
       )}

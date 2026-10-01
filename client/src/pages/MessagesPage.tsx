@@ -27,7 +27,7 @@ import { ChatView } from "@/components/messages/ChatView";
 import { ChatInfo } from "@/components/messages/ChatInfo";
 import { NewMessage } from "@/components/messages/NewMessage";
 import { MessageDetailsDialog } from "@/components/messages/MessageDetailsDialog";
-import { InboxNotices, InboxSetup } from "@/components/messages/InboxStatus";
+import { InboxNotices, InboxSetup, OpeningStatus } from "@/components/messages/InboxStatus";
 import { nameOf } from "@/components/messages/people";
 import { cn } from "@/lib/utils";
 
@@ -178,7 +178,6 @@ export default function MessagesPage() {
               relays nothing can arrive and nothing can be sent, and card plus list don't
               fit one screen — the list's tabs ended up under the tab bar. */}
           <div className={setup ? "hidden md:contents" : "contents"}>
-            <InboxNotices engine={engine} state={state} authAllowed={authAllowed} onAllowAuth={allowAuth} />
             <ConversationList
               engine={engine}
               state={state}
@@ -189,6 +188,12 @@ export default function MessagesPage() {
               selectedKey={roomKey}
               tab={tab}
               onSignIn={allowAuth}
+              notices={
+                <>
+                  <InboxNotices engine={engine} state={state} authAllowed={authAllowed} onAllowAuth={allowAuth} />
+                  <OpeningStatus state={state} />
+                </>
+              }
             />
           </div>
         </div>
