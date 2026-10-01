@@ -20,6 +20,16 @@ export function SyncDetails() {
   const state = useDmState(engine);
   if (!engine || state.status !== "ready") return null;
   const history = new Map(state.history.relays.map((r) => [r.url, r]));
+  // Why opening, and so the download, has stopped.
+  const heldBy =
+    state.paused &&
+    {
+      waiting: "your signer is waiting for you to start opening them",
+      cancelled: "your signer is locked",
+      unreachable: "your signer isn't answering",
+      refused: "your signer declined to open them",
+      "no-nip44": "your signer can't open private messages (no NIP-44)",
+    }[state.paused];
   const more = state.history.relays.some((r) => r.state === "idle" || r.state === "loading" || r.retrying);
   return (
     <section className="flex flex-col gap-3" data-testid="dm-sync-details">
@@ -103,6 +113,22 @@ export function SyncDetails() {
           Downloading every relay to its first message — each page waits for the last to be opened, so it goes at your
           signer's pace. It keeps going while you use the app.
         </p>
+      )}
+      {state.downloading && heldBy && state.queued > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-2 text-xs text-amber-800 dark:text-amber-200"
+          data-testid="dm-sync-held"
+        >
+          <span>
+            On hold: {state.queued.toLocaleString()} {state.queued === 1 ? "message" : "messages"} to open first, and{" "}
+            {heldBy}.
+          </span>
+          {state.paused !== "no-nip44" && (
+            <Button size="sm" variant="outline" onClick={() => engine.allowDecrypt()}>
+              {state.paused === "cancelled" ? "Unlock" : state.paused === "waiting" ? "Open them" : "Try again"}
+            </Button>
+          )}
+        </div>
       )}
       <p className="text-xs text-slate-500 dark:text-slate-400">
         {state.setAside > 0 && "Set aside: your signer kept declining these while it opened others. "}
