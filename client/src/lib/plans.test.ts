@@ -144,7 +144,12 @@ describe("nextScheduledLabel — the holder's own cadence, never a constant", ()
   it("says due now once the interval has passed, and never goes negative", () => {
     // The worst failure here would be "in -4 days" on someone's account page.
     expect(nextScheduledLabel(daysAgo(64), 60, NOW)).toBe("due now");
-    expect(nextScheduledLabel(daysAgo(60), 60, NOW)).toBe("due now");
+  });
+
+  it("says due today on the day it falls due — the scheduler has it, nothing is wrong", () => {
+    // "due now" under a card that says Complete read like a fault (Benjamin, 2026-10-01).
+    expect(nextScheduledLabel(daysAgo(60), 60, NOW)).toBe("due today");
+    expect(nextScheduledLabel(daysAgo(7) - 3 * 3_600_000, 7, NOW)).toBe("due today");
   });
 
   it("singularises one day", () => {

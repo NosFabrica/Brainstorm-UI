@@ -7,11 +7,12 @@
  * undefined and the label could only ever say "In progress".
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 
 const PUBKEY = "a".repeat(64);
 const runMock = vi.fn<() => Promise<unknown>>();
+const triggerMock = vi.fn<() => Promise<unknown>>();
 vi.mock("@/services/api", () => ({
   apiClient: new Proxy(
     {},
@@ -19,9 +20,11 @@ vi.mock("@/services/api", () => ({
       get: (_t, prop) =>
         prop === "getGrapeRankResult"
           ? () => runMock()
-          : prop === "getHouseInfluence"
-            ? async () => 0.42
-            : async () => null,
+          : prop === "triggerGrapeRank"
+            ? () => triggerMock()
+            : prop === "getHouseInfluence"
+              ? async () => 0.42
+              : async () => null,
     },
   ),
   isAuthRedirecting: () => false,
@@ -64,16 +67,46 @@ const cell = (label: string) => screen.getByText(label, { selector: "dt" }).next
 
 beforeEach(() => {
   runMock.mockReset();
+  triggerMock.mockReset();
   localStorage.clear();
 });
 
 describe("Insights → Calculation", () => {
-  it("a finished run reads Complete, with how long it took and that it published", async () => {
+  const label = (text: string) => screen.queryByText(text, { selector: "dt" });
+
+  it("a finished, published run is one line — Complete · published — with nothing left over", async () => {
     runMock.mockResolvedValue(envelope(run()));
     renderWithProviders(<InsightsPage />);
+    await waitFor(() => expect(cell("Status")).toHaveTextContent("Complete · published"));
+    // No second row repeating it, no queue for a run that is over, no row-lifetime "Took".
+    expect(label("Published")).toBeNull();
+    expect(label("Queue")).toBeNull();
+    expect(label("Took")).toBeNull();
+  });
+
+  it("says so while the scores are still being published, and when publishing failed", async () => {
+    runMock.mockResolvedValue(envelope(run({ ta_status: "ongoing" })));
+    const first = renderWithProviders(<InsightsPage />);
+    await waitFor(() => expect(cell("Status")).toHaveTextContent("Complete · publishing…"));
+    first.unmount();
+    runMock.mockResolvedValue(envelope(run({ ta_status: "failure" })));
+    renderWithProviders(<InsightsPage />);
+    await waitFor(() => expect(cell("Status")).toHaveTextContent("Complete · not published"));
+  });
+
+  it("says how many people the run scored", async () => {
+    runMock.mockResolvedValue(
+      envelope(run({ count_values: JSON.stringify({ "1": { high: 40, medium: 10 }, "2": { high: 1200, low: 984 } }) })),
+    );
+    renderWithProviders(<InsightsPage />);
+    await waitFor(() => expect(cell("People scored")).toHaveTextContent("2,234"));
+  });
+
+  it("leaves the people-scored row out when the run does not say", async () => {
+    runMock.mockResolvedValue(envelope(run({ count_values: "" })));
+    renderWithProviders(<InsightsPage />);
     await waitFor(() => expect(cell("Status")).toHaveTextContent("Complete"));
-    expect(cell("Took")).toHaveTextContent(/9m|9 min/);
-    expect(cell("Published")).toHaveTextContent("Published");
+    expect(label("People scored")).toBeNull();
   });
 
   it("a failed run reads Failed", async () => {
@@ -106,9 +139,59 @@ describe("Insights → Calculation", () => {
     expect(cell("Status")).not.toHaveTextContent("In progress");
   });
 
+  it("folds the runs that changed nothing into one line of the history", async () => {
+    const DAY = 86_400_000;
+    const t0 = Date.UTC(2026, 8, 1);
+    localStorage.setItem(
+      `brainstorm_score_journal:${PUBKEY}`,
+      JSON.stringify([0, 7, 14, 21].map((d) => ({ t: t0 + d * DAY, score: 0.5 }))),
+    );
+    runMock.mockResolvedValue(envelope(run()));
+    renderWithProviders(<InsightsPage />);
+    const fold = await screen.findByTestId("insights-score-fold");
+    expect(fold).toHaveTextContent(/2 runs, no change/);
+    // Newest and first stay as rows; the two between them are the fold.
+    expect(screen.getAllByTestId("insights-score-row").length).toBeGreaterThanOrEqual(2);
+  });
+
   it("reads a bare run too, as the page's own poll already does", async () => {
     runMock.mockResolvedValue(run());
     renderWithProviders(<InsightsPage />);
     await waitFor(() => expect(cell("Status")).toHaveTextContent("Complete"));
+  });
+});
+
+describe("Insights → Recalculate", () => {
+  const waiting = () => run({ status: "waiting", internal_publication_status: "waiting", ta_status: "waiting" });
+
+  it("starts a run from the card, and the card says In progress at once", async () => {
+    runMock.mockResolvedValue(envelope(run()));
+    triggerMock.mockResolvedValue(envelope(waiting()));
+    renderWithProviders(<InsightsPage />);
+    await waitFor(() => expect(cell("Status")).toHaveTextContent("Complete"));
+    runMock.mockResolvedValue(envelope(waiting()));
+    fireEvent.click(screen.getByTestId("insights-recalculate"));
+    await waitFor(() => expect(cell("Status")).toHaveTextContent("In progress"));
+    expect(triggerMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("insights-recalculate")).toBeDisabled();
+  });
+
+  it("says the server's own words when it is too soon, and leaves the status alone", async () => {
+    runMock.mockResolvedValue(envelope(run()));
+    triggerMock.mockRejectedValue(
+      new Error("Please wait a few minutes before recalculating. The server needs time between requests."),
+    );
+    renderWithProviders(<InsightsPage />);
+    await waitFor(() => expect(cell("Status")).toHaveTextContent("Complete"));
+    fireEvent.click(screen.getByTestId("insights-recalculate"));
+    expect(await screen.findByTestId("insights-recalculate-error")).toHaveTextContent(/Please wait a few minutes/);
+    expect(cell("Status")).toHaveTextContent("Complete");
+    expect(screen.getByTestId("insights-recalculate")).not.toBeDisabled();
+  });
+
+  it("keeps the way to the preset one tap away", async () => {
+    runMock.mockResolvedValue(envelope(run()));
+    renderWithProviders(<InsightsPage />);
+    expect(await screen.findByTestId("insights-preset-settings")).toHaveTextContent(/preset/i);
   });
 });
