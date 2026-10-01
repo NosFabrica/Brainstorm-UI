@@ -11,7 +11,7 @@ import {
 } from "./engine";
 import { CHAT_KIND, WRAP_JITTER_SECONDS, makeRumor, wrapRumor, type SealSigner } from "@/lib/dm/giftWrap";
 import type { PageHandlers } from "@/lib/dm/pager";
-import type { DmCacheBackend, DmState, Sealer, StoredWrap } from "@/lib/dm/cache";
+import { wrapKey, type DmCacheBackend, type DmState, type Sealer, type StoredWrap } from "@/lib/dm/cache";
 import { roomKey } from "@/lib/dm/rooms";
 
 const NOW = 1_800_000_000;
@@ -303,6 +303,31 @@ describe("DmEngine", () => {
     expect(second.store.rooms()[0].last?.rumor.content).toBe("first");
     expect(decrypts).toHaveLength(0);
     expect(quiet.live.get("wss://in.example/")!.filter.since).toBe(NOW - WRAP_JITTER_SECONDS);
+  });
+
+  it("opens again a wrap it gave up on under older, stricter rules", async () => {
+    const me = person();
+    const ana = person();
+    const cache = memoryCache();
+    const wrap = await wrapFrom(ana, me.pubkey, "from amethyst", NOW - 60);
+    // Judged broken before seals with tags were accepted: a reason, but no rules stamp.
+    await cache.putWraps([
+      {
+        key: wrapKey(me.pubkey, wrap.id),
+        owner: me.pubkey,
+        wrapId: wrap.id,
+        at: wrap.created_at,
+        failed: true,
+        reason: "broken",
+      },
+    ]);
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", wrap);
+    const engine = new DmEngine(me.account(), { ...net, ...clock(), cache, sealer: plainSealer, now: () => NOW });
+    await engine.start();
+    await settle();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("from amethyst");
+    engine.stop();
   });
 
   it("holds the queue when the signer refuses, rather than forgetting the message", async () => {

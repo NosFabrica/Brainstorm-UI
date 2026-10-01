@@ -46,7 +46,15 @@ export interface StoredWrap {
    * opened again once.
    */
   reason?: "broken" | "skipped";
+  /** The unwrap rules a failure was judged by (FAILED_RULES); one judged by older rules is opened again. */
+  rules?: number;
 }
+
+/**
+ * Bump when unwrapping starts accepting something it used to reject, so wraps this
+ * device gave up on are opened again. 2: seals with tags (Amethyst's client tag).
+ */
+export const FAILED_RULES = 2;
 
 export interface DmState {
   owner: string;

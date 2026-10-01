@@ -120,6 +120,10 @@ across devices would mean encrypted app data (NIP-78) — not done yet.
 
 ## Hardening (audit)
 
+- Seals we send carry no tags; seals we receive may. Amethyst puts its
+  `["client", …]` tag on the seal, and rejecting that dropped every message
+  from it. A seal's tags are ignored. Wraps judged unreadable under older,
+  stricter rules are opened again (`FAILED_RULES` in `lib/dm/cache`).
 - A wrap's payloads are checked for NIP-44 shape before any signer sees them,
   and a wrap the signer turns down twice — while it opens others — is set
   aside as unreadable: one stranger's malformed message can't pause the inbox.
