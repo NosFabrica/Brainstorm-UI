@@ -2382,8 +2382,8 @@ export default function SettingsPage() {
             <div className="space-y-6" data-testid="tab-content-trust">
               {presetsCard}
               <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
-              {networkAlertsCard}
               <MessagesSettingsCard />
+              {networkAlertsCard}
               {advancedSection}
             </div>
           )}
