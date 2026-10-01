@@ -1,10 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BillingReturnPage from "./BillingReturnPage";
 import { apiClient } from "@/services/api";
 
-vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
+const who = vi.hoisted(() => ({ session: true, account: true }));
+vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => who.session }));
+vi.mock("@/hooks/useHasAccount", () => ({ useHasAccount: () => who.account }));
+const resume = vi.fn();
+vi.mock("@/hooks/useResumeSession", () => ({ useResumeSession: () => ({ resume, busy: false }) }));
 const startCheckoutPoll = vi.fn();
 vi.mock("@/lib/checkoutPoll", () => ({ startCheckoutPoll: (...a: unknown[]) => startCheckoutPoll(...a) }));
 vi.mock("@/services/api", () => ({
@@ -155,5 +159,48 @@ describe("BillingReturnPage verification states", () => {
     renderAt("?status=active&subscriptionId=7d3b&ref=abc");
     await waitFor(() => expect(screen.getByTestId("billing-return-pending")).toBeInTheDocument());
     expect(startCheckoutPoll).toHaveBeenCalledTimes(3);
+  });
+});
+
+// The worst moment to look signed out: someone who has just paid, whose
+// account is here but whose Session is not (a signer yet to approve the
+// renewal). Not a stranger to send to the login page.
+describe("BillingReturnPage without a session", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    api.getSubscription.mockResolvedValue(PAID);
+    api.refreshSubscription.mockResolvedValue(PAID);
+    who.session = false;
+    who.account = true;
+  });
+  afterEach(() => {
+    who.session = true;
+    who.account = true;
+  });
+
+  it("offers a returning buyer Reconnect, then confirms the payment once the session is back", async () => {
+    const view = renderAt("?status=active&subscriptionId=x&ref=y");
+
+    expect(screen.queryByTestId("billing-return-signin")).toBeNull();
+    expect(api.refreshSubscription).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("billing-return-reconnect"));
+    expect(resume).toHaveBeenCalledTimes(1);
+
+    who.session = true;
+    view.rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <BillingReturnPage />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("billing-return-success")).toBeInTheDocument());
+    expect(api.refreshSubscription).toHaveBeenCalledWith("x");
+  });
+
+  it("still sends someone with no account at all to sign in", () => {
+    who.account = false;
+    renderAt("?status=active&subscriptionId=x&ref=y");
+
+    expect(screen.getByTestId("billing-return-signin")).toBeInTheDocument();
+    expect(screen.queryByTestId("billing-return-reconnect")).toBeNull();
   });
 });
