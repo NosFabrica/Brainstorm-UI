@@ -3,12 +3,42 @@
  * house-perspective trust signals every ring and flag chip reads.
  */
 
-import { authenticatedFetch, fetch, getBrainstormApi } from "./core";
+import { authenticatedFetch, fetch, getBrainstormApi, optionalAuthFetch } from "./core";
 
 /** An author's Influence and Flagged verdict, as a ring and a flag chip draw them. */
 export interface TrustSignals {
   influence: number | null;
   flagged: boolean;
+}
+
+async function postTrustSignals(
+  send: (url: string, options: RequestInit) => Promise<Response>,
+  pubkeys: string[],
+  timeoutMs: number,
+): Promise<Map<string, TrustSignals>> {
+  const out = new Map<string, TrustSignals>();
+  try {
+    const response = await send(`${getBrainstormApi()}/user/trustSignals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pubkeys }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) return out;
+    const json = (await response.json()) as {
+      data?: { results?: { pubkey?: unknown; influence?: unknown; flagged?: unknown }[] };
+    };
+    for (const r of json.data?.results ?? []) {
+      if (typeof r.pubkey !== "string") continue;
+      out.set(r.pubkey, {
+        influence: typeof r.influence === "number" && Number.isFinite(r.influence) ? r.influence : null,
+        flagged: r.flagged === true,
+      });
+    }
+  } catch {
+    // unrated, like a failed overview
+  }
+  return out;
 }
 
 export const grapeRankApi = {
@@ -78,29 +108,12 @@ export const grapeRankApi = {
    * Perspective). Never throws: a failed batch answers an empty map.
    */
   async getTrustSignals(pubkeys: string[], timeoutMs: number = 8000): Promise<Map<string, TrustSignals>> {
-    const out = new Map<string, TrustSignals>();
-    try {
-      const response = await fetch(`${getBrainstormApi()}/user/trustSignals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pubkeys }),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!response.ok) return out;
-      const json = (await response.json()) as {
-        data?: { results?: { pubkey?: unknown; influence?: unknown; flagged?: unknown }[] };
-      };
-      for (const r of json.data?.results ?? []) {
-        if (typeof r.pubkey !== "string") continue;
-        out.set(r.pubkey, {
-          influence: typeof r.influence === "number" && Number.isFinite(r.influence) ? r.influence : null,
-          flagged: r.flagged === true,
-        });
-      }
-    } catch {
-      // unrated, like a failed overview
-    }
-    return out;
+    return postTrustSignals(fetch, pubkeys, timeoutMs);
+  },
+
+  /** The same batch from the signed-in viewer's Perspective (house when signed out). */
+  async getMyTrustSignals(pubkeys: string[], timeoutMs: number = 8000): Promise<Map<string, TrustSignals>> {
+    return postTrustSignals(optionalAuthFetch, pubkeys, timeoutMs);
   },
 
   async getGrapeRankPreset(): Promise<{

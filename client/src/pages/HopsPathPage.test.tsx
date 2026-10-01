@@ -37,17 +37,20 @@ let origin = { origin: ME, originPov: "global" as "global" | "personalized", isF
 const api = vi.hoisted(() => ({
   getShortestPath: vi.fn(),
   getShortestHops: vi.fn(),
-  getHouseInfluence: async () => null,
-  getUserOverview: async () => null,
+  getMyTrustSignals: vi.fn(async () => new Map()),
+  getHouseInfluence: vi.fn(async () => null),
+  getUserOverview: vi.fn(async () => null),
 }));
+const fetchProfileMap = vi.hoisted(() => vi.fn(async () => new Map()));
 vi.mock("@/services/api", () => ({ apiClient: api }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => (pk: string) => scores[pk] }));
 vi.mock("@/hooks/useAuthorFlags", () => ({ useAuthorFlags: () => (pk: string) => flags[pk] }));
 vi.mock("@/hooks/useHopsOrigin", () => ({ useHopsOrigin: () => origin }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
-vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => false }));
+let signedIn = false;
+vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => signedIn }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
-vi.mock("@/services/nostr", () => ({ fetchProfileMap: async () => new Map(), fetchProfileForShare: async () => null }));
+vi.mock("@/services/nostr", () => ({ fetchProfileMap, fetchProfileForShare: async () => null }));
 vi.mock("@/services/socialActions", () => ({
   fetchContactList: async () => null,
   getFollowedPubkeys: () => new Set(),
@@ -77,6 +80,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   served = diamond;
   to = T;
+  signedIn = false;
   scores = { ...clean };
   flags = {};
   origin = { origin: ME, originPov: "global", isFallback: false, loading: false };
@@ -122,6 +126,32 @@ describe("the Connection page", () => {
     expect(shownConnectors()).toEqual(npubs(C2, C5)); // flagged, weakest link last
     fireEvent.click(screen.getByTestId("hops-next"));
     expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 1 of 5");
+  });
+
+  it("stepping between paths asks the network for nothing — no per-account overview, no refetch", async () => {
+    flags = { [C5]: true };
+    signedIn = true;
+    open();
+    await waitFor(() => expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 1 of 5"));
+    await waitFor(() => expect(fetchProfileMap).toHaveBeenCalled());
+    // Your own scores: one batch for every account in the network.
+    await waitFor(() => expect(api.getMyTrustSignals).toHaveBeenCalledTimes(1));
+    expect(new Set(api.getMyTrustSignals.mock.calls[0][0] as string[])).toEqual(new Set([ME, C1, C2, C3, C4, C5, T]));
+    const before = {
+      paths: api.getShortestPath.mock.calls.length,
+      profiles: fetchProfileMap.mock.calls.length,
+      mine: api.getMyTrustSignals.mock.calls.length,
+    };
+    fireEvent.click(screen.getByTestId("hops-next"));
+    fireEvent.click(screen.getByTestId("hops-next"));
+    expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 3 of 5");
+    expect({
+      paths: api.getShortestPath.mock.calls.length,
+      profiles: fetchProfileMap.mock.calls.length,
+      mine: api.getMyTrustSignals.mock.calls.length,
+    }).toEqual(before);
+    expect(api.getUserOverview).not.toHaveBeenCalled();
+    expect(api.getHouseInfluence).not.toHaveBeenCalled();
   });
 
   it("names the unverified accounts on their own line", async () => {

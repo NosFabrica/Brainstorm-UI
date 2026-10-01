@@ -95,7 +95,9 @@ export default function HopsPathPage() {
   const reach = tooLarge ? hopsOnly : network;
 
   const connectors = useMemo(() => network?.layers.flat() ?? [], [network]);
-  const scoreOf = useAuthorScores(connectors);
+  // Every account the card can show, fetched once per network so stepping asks for nothing.
+  const accounts = useMemo(() => (network ? [network.from, ...connectors, network.to] : []), [network, connectors]);
+  const scoreOf = useAuthorScores(accounts);
   const flaggedOf = useAuthorFlags(connectors);
   // Not memoised on the hook closures — that would freeze the page at "checking".
   const signals = { flaggedOf, scoreOf };
@@ -135,49 +137,30 @@ export default function HopsPathPage() {
   const subject = useLiveProfile(toPubkey, relayHints).profile;
 
   const profilesQuery = useQuery({
-    queryKey: ["hops-profiles", shown.join(",")],
-    queryFn: () => fetchProfileMap(shown),
-    enabled: shown.length > 0,
+    queryKey: ["hops-profiles", networkKey],
+    queryFn: () => fetchProfileMap(accounts),
+    enabled: accounts.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
   });
 
-  // Each node's trust score (0–1) from BOTH views — yours (authed overview) and
-  // everyone's (house). Fetching both makes the POV toggle instant and lets the
-  // pill hint when the two views disagree. Short paths → few calls.
-  const scoresQuery = useQuery({
-    queryKey: ["hops-scores-both", signedIn, shown.join(",")],
-    queryFn: async () => {
-      const entries = await Promise.all(
-        shown.map(async (pk) => {
-          const [mine, house] = await Promise.all([
-            signedIn
-              ? apiClient
-                  .getUserOverview(pk)
-                  .then((r) => {
-                    const inf = r?.data?.influence;
-                    return typeof inf === "number" ? inf : null;
-                  })
-                  .catch(() => null)
-              : Promise.resolve(null),
-            apiClient.getHouseInfluence(pk).catch(() => null),
-          ]);
-          return [pk, { mine, house }] as const;
-        }),
-      );
-      return new Map(entries);
-    },
-    enabled: shown.length > 0,
+  // Your own scores for the same accounts, in one batch; the house's come from useAuthorScores.
+  const myScoresQuery = useQuery({
+    queryKey: ["hops-my-scores", myPubkey, networkKey],
+    queryFn: () => apiClient.getMyTrustSignals(accounts),
+    enabled: signedIn && accounts.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
   });
+  const scoresOf = (pk: string) => {
+    const house = scoreOf(pk);
+    return { mine: myScoresQuery.data?.get(pk)?.influence ?? null, house: typeof house === "number" ? house : null };
+  };
   // The ACTIVE view's number per node (drives tiers + the weak-link pick).
-  const scores = useMemo(() => {
-    if (!scoresQuery.data) return undefined;
-    const m = new Map<string, number | null>();
-    scoresQuery.data.forEach((v, pk) => m.set(pk, scorePov === "personalized" ? (v.mine ?? v.house) : v.house));
-    return m;
-  }, [scoresQuery.data, scorePov]);
+  const activeScore = (pk: string) => {
+    const both = scoresOf(pk);
+    return scorePov === "personalized" ? (both.mine ?? both.house) : both.house;
+  };
 
   // My own follow list once → know which path nodes I already follow.
   const followingQuery = useQuery({
@@ -366,7 +349,7 @@ export default function HopsPathPage() {
                           : isSubject
                             ? "Them"
                             : "Connector";
-                      const score = scores?.get(pk);
+                      const score = activeScore(pk);
                       // The network's standing of a connector — the same rule that
                       // sorted the paths. The origin and the target are never marked.
                       const risk = !isOrigin && !isSubject ? nodeRisk(pk, marks) : "verified";
@@ -485,7 +468,7 @@ export default function HopsPathPage() {
                                     {(() => {
                                       // Subtle hint when the OTHER view disagrees (after
                                       // rounding): its number + which way it moves.
-                                      const both = scoresQuery.data?.get(pk);
+                                      const both = scoresOf(pk);
                                       const other = scorePov === "personalized" ? both?.house : both?.mine;
                                       if (typeof other !== "number") return null;
                                       if (displayMode !== "number") return null;
