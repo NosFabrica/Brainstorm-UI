@@ -13,6 +13,7 @@ import {
   roomKeyFromSlug,
   roomSlug,
   subjectOf,
+  fileDisplayName,
 } from "./rooms";
 
 const A = "a".repeat(64);
@@ -93,5 +94,25 @@ describe("rooms", () => {
       size: 1024,
     });
     expect(fileMetaOf({ kind: 15, content: "javascript:alert(1)", tags: [] })).toBeUndefined();
+  });
+});
+
+describe("fileDisplayName", () => {
+  const hash = "d88b15d59dc4efe796acb73f2daf1da8457191f006a0a98b7f18c9f60dcfd671";
+  it("uses the sender's name for the file", () => {
+    expect(
+      fileDisplayName({ url: `https://nostr.download/${hash}.bin`, mime: "application/pdf", name: "plan.pdf" }),
+    ).toBe("plan.pdf");
+  });
+  it("names a hash-named blob by its type when the sender gave no name", () => {
+    expect(fileDisplayName({ url: `https://nostr.download/${hash}.bin`, mime: "application/pdf" })).toBe(
+      "File d88b15d5.pdf",
+    );
+    expect(fileDisplayName({ url: `https://nostr.download/${hash}`, mime: "application/x-unknown" })).toBe(
+      "File d88b15d5",
+    );
+  });
+  it("keeps a readable URL name", () => {
+    expect(fileDisplayName({ url: "https://example.com/files/report.pdf?dl=1" })).toBe("report.pdf");
   });
 });

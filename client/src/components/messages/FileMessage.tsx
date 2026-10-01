@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNearViewport } from "@/hooks/useNearViewport";
 import { Download, FileText, Loader2, Lock, AlertTriangle, Mic } from "lucide-react";
-import type { FileMeta } from "@/lib/dm/rooms";
+import { fileDisplayName, type FileMeta } from "@/lib/dm/rooms";
 import { MAX_ATTACHMENT_BYTES, decryptFile, matchesHash } from "@/lib/dm/fileCrypto";
 import { formatBytes } from "@/lib/formatBytes";
 
@@ -133,7 +133,7 @@ export function FileMessage({ meta, mine, autoOpen = true }: { meta: FileMeta; m
     );
   }
 
-  const name = meta.url.split("/").pop()?.split("?")[0] || "Attachment";
+  const name = fileDisplayName(meta);
   return (
     <div
       ref={box}

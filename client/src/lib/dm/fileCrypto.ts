@@ -56,7 +56,11 @@ export async function matchesHash(cipher: Uint8Array, hash: string | undefined):
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 /** The kind-15 tags for an encrypted upload. */
-export function fileTags(file: { type: string; size: number }, enc: EncryptedFile, dim?: string): string[][] {
+export function fileTags(
+  file: { type: string; size: number; name?: string },
+  enc: EncryptedFile,
+  dim?: string,
+): string[][] {
   const tags = [
     ["file-type", file.type || "application/octet-stream"],
     ["encryption-algorithm", "aes-gcm"],
@@ -67,5 +71,7 @@ export function fileTags(file: { type: string; size: number }, enc: EncryptedFil
     ["size", String(file.size)],
   ];
   if (dim) tags.push(["dim", dim]);
+  // Not in NIP-17, which names nothing; the message is encrypted, so only the chat sees it.
+  if (file.name) tags.push(["name", file.name]);
   return tags;
 }
