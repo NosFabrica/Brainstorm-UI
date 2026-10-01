@@ -14,6 +14,7 @@ import {
   Loader2,
   MoreVertical,
   Pin,
+  Pencil,
   PinOff,
   ShieldCheck,
   Timer,
@@ -53,6 +54,7 @@ import { RelayMarker } from "./RelayMarker";
 import { RequestTrustPanel } from "./RequestTrust";
 import { MessageBubble } from "./MessageBubble";
 import { Composer } from "./Composer";
+import { RenameChatDialog, renameText } from "./RenameChatDialog";
 import { useChatHistory, type ChatHistoryPhase } from "./useChatHistory";
 import { RoomAvatar, dayLabel, firstName, nameOf, roomTitle, shortDate, shortNpub, type Profiles } from "./people";
 import type { RelayProgress } from "@/lib/dm/pager";
@@ -60,7 +62,8 @@ import type { RelayProgress } from "@/lib/dm/pager";
 type Item =
   | { kind: "day"; key: string; label: string }
   | { kind: "marker"; key: string; progress: RelayProgress }
-  | { kind: "message"; key: string; message: DmMessage; showAuthor: boolean };
+  | { kind: "message"; key: string; message: DmMessage; showAuthor: boolean }
+  | { kind: "subject"; key: string; author: string; subject: string };
 
 /** Oldest first, a divider per day, each relay's marker where its history is complete. */
 function threadItems(messages: DmMessage[], relays: RelayProgress[]): Item[] {
@@ -71,6 +74,7 @@ function threadItems(messages: DmMessage[], relays: RelayProgress[]): Item[] {
   let m = 0;
   let lastDay = "";
   let lastAuthor = "";
+  let lastSubject = "";
   for (const message of messages) {
     while (m < markers.length && markers[m].at <= message.createdAt) {
       items.push({ kind: "marker", key: `m:${markers[m].progress.url}`, progress: markers[m].progress });
@@ -81,6 +85,12 @@ function threadItems(messages: DmMessage[], relays: RelayProgress[]): Item[] {
     if (day !== lastDay) {
       items.push({ kind: "day", key: `d:${day}`, label: dayLabel(message.createdAt) });
       lastDay = day;
+      lastAuthor = "";
+    }
+    // NIP-17: a message carrying a new subject renames the chat.
+    if (message.subject && message.subject !== lastSubject) {
+      items.push({ kind: "subject", key: `s:${message.id}`, author: message.author, subject: message.subject });
+      lastSubject = message.subject;
       lastAuthor = "";
     }
     items.push({ kind: "message", key: message.id, message, showAuthor: message.author !== lastAuthor });
@@ -346,6 +356,17 @@ export function ChatView({
   const archived = hiddenAt !== undefined && view.lastAt <= hiddenAt;
   const inboxMissing = state.status === "no-inbox";
 
+  const [renaming, setRenaming] = useState(false);
+  const rename = async (subject: string) => {
+    if (!engine) return false;
+    const result = await engine.send(roomKey, renameText(subject), { subject, timer });
+    if (!result.ok && !result.message) {
+      sendError(result);
+      return false;
+    }
+    return true;
+  };
+
   const send = async (text: string) => {
     if (!engine) return false;
     const subject = !view.messages.length ? initialSubject : undefined;
@@ -435,6 +456,9 @@ export function ChatView({
                 <MoreVertical className="h-[19px] w-[19px]" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onSelect={() => setRenaming(true)} data-testid="dm-rename">
+                  <Pencil className="mr-2 h-4 w-4" /> Rename chat
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setRoomPinned(me, roomKey, !pinned)} data-testid="dm-pin">
                   {pinned ? <PinOff className="mr-2 h-4 w-4" /> : <Pin className="mr-2 h-4 w-4" />}
                   {pinned ? "Unpin" : "Pin to top"}
@@ -493,7 +517,16 @@ export function ChatView({
         </p>
         {items.map((item) => (
           <Fragment key={item.key}>
-            {item.kind === "day" ? (
+            {item.kind === "subject" ? (
+              <p
+                className="mx-auto max-w-md text-center text-xs text-slate-500 dark:text-slate-400"
+                data-testid="dm-subject-change"
+              >
+                <span className="font-semibold">{item.author === me ? "You" : firstName(item.author, profiles)}</span>{" "}
+                named the chat{" "}
+                <span className="font-semibold text-slate-700 dark:text-slate-200">“{item.subject}”</span>
+              </p>
+            ) : item.kind === "day" ? (
               <p className="mx-auto mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
                 {item.label}
               </p>
@@ -617,6 +650,12 @@ export function ChatView({
           autoFocus={focusComposer}
         />
       )}
+      <RenameChatDialog
+        open={renaming}
+        current={view.subject ?? initialSubject}
+        onOpenChange={setRenaming}
+        onRename={rename}
+      />
     </section>
   );
 }

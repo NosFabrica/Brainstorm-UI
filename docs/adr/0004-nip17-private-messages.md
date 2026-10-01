@@ -113,6 +113,10 @@ across devices would mean encrypted app data (NIP-78) — not done yet.
   own `/link-preview` (which doesn't log URLs), the picture only through our
   image proxy, no favicon, nothing for Requests. Off in Settings.
 - **Voice notes** are ordinary kind-15 files (audio), encrypted before upload.
+- **Renaming a chat** is NIP-17's (and Amethyst's): a message with a new
+  `subject` tag, sent to every member; the newest subject is the name. Its
+  text says "Renamed the chat to …" for clients that don't show subjects, and
+  the thread marks each change.
 
 ## Hardening (audit)
 
