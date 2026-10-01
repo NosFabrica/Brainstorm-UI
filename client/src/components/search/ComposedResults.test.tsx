@@ -55,15 +55,11 @@ vi.mock("@/hooks/useAuthorScores", () => ({
 }));
 // Tags the words match, and the people on them — the People strip leads with those people.
 const tagMatchesMock = vi.fn((_q: string): unknown[] => []);
-// The hub's catalogue: search must not read it (it takes half a minute to walk).
-const hubMatchesMock = vi.fn((_q: string): unknown[] => []);
-vi.mock("@/hooks/useTags", () => ({ useTagMatches: (q: string) => hubMatchesMock(q) }));
 const carriersMock = vi.fn((_tags: unknown[]) => ({
   byPubkey: new Map<string, unknown[]>(),
   people: [] as unknown[],
   settled: true,
 }));
-vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
 // The search relay's answer: the tags the words matched and who carries them.
 const searchTagsAsked = vi.fn((_q: string, _opts: unknown) => {});
 vi.mock("@/hooks/useSearchTags", () => ({
@@ -1572,13 +1568,11 @@ describe("ComposedResults — a query that matches a tag", () => {
     carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: true });
   });
 
-  it("asks the search relay for the tags and their people, and never the hub's catalogue", async () => {
-    hubMatchesMock.mockClear();
+  it("asks the search relay for the tags and their people", async () => {
     searchTagsAsked.mockClear();
     render(<ComposedResults query="aos" pov="nosfabrica" onTabChange={vi.fn()} />);
     await act(async () => {});
     expect(searchTagsAsked).toHaveBeenCalledWith("aos", expect.objectContaining({ pov: "nosfabrica", members: true }));
-    expect(hubMatchesMock).not.toHaveBeenCalled();
   });
 
   it("a face card wears a tag only when it is the one searched", async () => {

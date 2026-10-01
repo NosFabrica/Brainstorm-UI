@@ -67,7 +67,7 @@ import { eventPath, npubFromPubkey } from "@/lib/shareId";
 import { useConnectionSpeed } from "@/lib/connection";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { usePersonContent } from "@/hooks/usePersonContent";
-import { useTagMatches } from "@/hooks/useTags";
+import { useSearchTags } from "@/hooks/useSearchTags";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useSearchPov } from "@/hooks/useSearchPov";
 import { useOpenProfile } from "@/hooks/useOpenProfile";
@@ -242,10 +242,16 @@ export function SearchBox({
   // suggestion dropdown stands down rather than stacking two lists on one square.
   const [fieldPicking, setFieldPicking] = useState(false);
   const topicMatch = useMemo(() => parseTopicQuery(value), [value]);
-  // Tags the query matches. Skipped entirely for `#topic` queries — those are
-  // already routed at the hashtag feed and shouldn't offer a second answer.
-  // Only while suggestions show — a query restored from the URL mustn't pull the whole catalogue.
-  const tagMatches = useTagMatches(topicMatch.isTopic || !showSuggestions ? "" : value, MAX_TAG_ROWS);
+  // Tags the query matches, from the search relay — one ask once the typing
+  // pauses, through the perspective the box is showing. Skipped for `#topic`
+  // queries (already routed at the hashtag feed) and while no suggestions
+  // show, so a query restored from the URL asks nothing.
+  const { tags: tagMatches } = useSearchTags(topicMatch.isTopic || !showSuggestions ? "" : value, {
+    pov: effectivePov,
+    viewerPubkey: user?.pubkey,
+    max: MAX_TAG_ROWS,
+    pauseMs: typeaheadPause(speed),
+  });
   // Relay hits carry no rank numbers (order-only wire) — the dropdown's rings
   // and coins feed from the shared author-score cache, like every card.
   const suggestScoreOf = useAuthorScores(useMemo(() => suggestions.map((x) => x.pubkey), [suggestions]));

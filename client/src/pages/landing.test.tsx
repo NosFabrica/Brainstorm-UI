@@ -110,7 +110,9 @@ vi.mock("@/hooks/useNetworkReach", () => ({
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
 vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ isSearchObserver: false }) }));
-vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
+vi.mock("@/hooks/useSearchTags", () => ({
+  useSearchTags: () => ({ tags: [], carriers: { byPubkey: new Map(), people: [], settled: true }, settled: true }),
+}));
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   searchWavlakeTracks: async () => [],

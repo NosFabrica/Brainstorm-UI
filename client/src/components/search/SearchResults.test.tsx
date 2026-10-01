@@ -115,15 +115,11 @@ const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
 vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 // Tags the words match, and the people on them — the People tab leads with those people.
 const tagMatchesMock = vi.fn((_q: string): unknown[] => []);
-// The hub's catalogue: search must not read it (it takes half a minute to walk).
-const hubMatchesMock = vi.fn((_q: string): unknown[] => []);
-vi.mock("@/hooks/useTags", () => ({ useTagMatches: (q: string) => hubMatchesMock(q) }));
 const carriersMock = vi.fn((_tags: unknown[]) => ({
   byPubkey: new Map<string, unknown[]>(),
   people: [] as unknown[],
   settled: true,
 }));
-vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
 // The search relay's answer: the tags the words matched and who carries them.
 const searchTagsAsked = vi.fn((_q: string, _opts: unknown) => {});
 vi.mock("@/hooks/useSearchTags", () => ({
@@ -4308,15 +4304,13 @@ describe("a People search whose words match a tag", () => {
 // Tags used to come from walking the hub's whole catalogue — about 25 seconds,
 // and never on a page opened from a link. The search relay answers in one ask.
 describe("where a People search reads its tags", () => {
-  it("asks the search relay for the tags and their people, and never the hub's catalogue", async () => {
-    hubMatchesMock.mockClear();
+  it("asks the search relay for the tags and their people", async () => {
     searchTagsAsked.mockClear();
     setUrlTab("people");
     render(<SearchResults query="aos" pov="nosfabrica" />);
     emit({ hits: [], eose: true, timeMs: 100 });
     await act(async () => {});
     expect(searchTagsAsked).toHaveBeenCalledWith("aos", expect.objectContaining({ pov: "nosfabrica", members: true }));
-    expect(hubMatchesMock).not.toHaveBeenCalled();
   });
 });
 

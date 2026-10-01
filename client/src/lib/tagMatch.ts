@@ -35,19 +35,6 @@ export function withinOneEdit(a: string, b: string): boolean {
 
 const words = (s: string) => s.toLowerCase().split(/\s+/).filter(Boolean);
 
-/** A typed word names a word: as a prefix, or one edit away when long enough to carry a typo. */
-const nearly = (typed: string, word: string) =>
-  word.startsWith(typed) || (typed.length >= 4 && withinOneEdit(typed, word));
-
-/**
- * Every typed word finds a word of the name: as a prefix ("ven" → "vendor"),
- * or, for a word long enough to carry a typo, one edit away ("verfied").
- */
-export function wordsNearlyMatch(query: string, name: string): boolean {
-  const nameWords = words(name);
-  return words(query).every((w) => nameWords.some((n) => nearly(w, n)));
-}
-
 export type TagMatchStrength = "strong" | "weak";
 
 /** Strong: the words are the tag's name, word for word, a typo forgiven. Weak: anything less. */
