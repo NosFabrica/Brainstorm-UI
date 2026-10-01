@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { AlertTriangle, Check, CheckCheck, Info, Loader2, Reply, SmilePlus, Timer, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DmMessage } from "@/lib/dm/store";
@@ -116,6 +116,8 @@ export const MessageBubble = memo(function MessageBubble({
   reactions,
   showAuthor,
   onReply,
+  onJumpTo,
+  replyLookup,
   onReact,
   onDetails,
   onResend,
@@ -133,6 +135,10 @@ export const MessageBubble = memo(function MessageBubble({
   reactions: DmMessage[];
   showAuthor: boolean;
   onReply: (m: DmMessage) => void;
+  /** Bring the message with this id into view — what a reply's quote does. */
+  onJumpTo?: (id: string) => void;
+  /** While the quoted message is being paged in, or once no relay had it. */
+  replyLookup?: "finding" | "missing";
   onReact: (m: DmMessage, content: string) => void;
   onDetails: (m: DmMessage) => void;
   onResend: (m: DmMessage) => void;
@@ -154,10 +160,16 @@ export const MessageBubble = memo(function MessageBubble({
     grouped.set(label, { count: g.count + 1, mine: g.mine || r.author === me });
   }
 
+  const [actionsShown, setActionsShown] = useState(false);
   const actions = (
     <span
       className={cn(
-        "flex shrink-0 items-center gap-0.5 self-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100",
+        // Revealed on hover only where there is hover: iOS Safari treats a tap that would
+        // reveal content through :hover as hover alone and drops the click, so every link,
+        // preview and reply quote in a bubble took two taps. Touch reveals them by tapping
+        // the bubble instead.
+        "flex shrink-0 items-center gap-0.5 self-center opacity-0 transition-opacity focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100",
+        actionsShown && "opacity-100",
         mine ? "order-first" : "",
       )}
     >
@@ -202,6 +214,10 @@ export const MessageBubble = memo(function MessageBubble({
         mine ? "justify-end" : "justify-start",
         highlight && "bg-amber-200/50 dark:bg-amber-400/15",
       )}
+      onClick={(e) => {
+        // A tap on the bubble itself (not a link, button or the actions) shows its actions on touch.
+        if (!(e.target as HTMLElement).closest("a,button,[role=menu],input,textarea")) setActionsShown((v) => !v);
+      }}
       data-testid="dm-message"
       data-message-id={message.id}
       data-mine={mine ? "true" : undefined}
@@ -229,11 +245,18 @@ export const MessageBubble = memo(function MessageBubble({
             )}
           >
             {message.replyTo && (
-              <div
+              <button
+                type="button"
+                onClick={() => message.replyTo && onJumpTo?.(message.replyTo)}
+                disabled={!onJumpTo || replyLookup === "missing"}
+                aria-label={replyTo ? "Go to the message this replies to" : "Find the message this replies to"}
                 className={cn(
-                  "mb-1.5 rounded-xl px-2.5 py-1.5 text-[13px] leading-snug",
-                  mine ? "bg-white/15" : "bg-slate-100 dark:bg-slate-800",
+                  "mb-1.5 block w-full rounded-xl border-l-[3px] px-2.5 py-1.5 text-left text-[13px] leading-snug transition-colors disabled:cursor-default",
+                  mine
+                    ? "border-white/70 bg-white/15 [@media(hover:hover)]:enabled:hover:bg-white/25"
+                    : "border-brand-primary bg-slate-100 dark:bg-slate-800 [@media(hover:hover)]:enabled:hover:bg-slate-200 [@media(hover:hover)]:dark:enabled:hover:bg-slate-700",
                 )}
+                data-testid="dm-reply-quote"
               >
                 {replyTo ? (
                   <>
@@ -245,9 +268,16 @@ export const MessageBubble = memo(function MessageBubble({
                     </span>
                   </>
                 ) : (
-                  <span className="opacity-80">Replying to an earlier message</span>
+                  <span className="flex items-center gap-1.5 opacity-80">
+                    {replyLookup === "finding" && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {replyLookup === "finding"
+                      ? "Looking for the message this replies to…"
+                      : replyLookup === "missing"
+                        ? "The message this replies to isn't in your inbox"
+                        : "Replying to an earlier message · Show it"}
+                  </span>
                 )}
-              </div>
+              </button>
             )}
             {file ? (
               <FileMessage meta={file} mine={mine} autoOpen={autoOpenFiles} />
