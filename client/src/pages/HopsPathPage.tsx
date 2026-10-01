@@ -21,12 +21,23 @@ import { shareTierFor } from "@/components/share/TrustScoreBadge";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TrustScoreModal, PovIcon, povChrome, useScorePov } from "@/components/score/TrustScorePov";
 import { useHasSession } from "@/hooks/useHasSession";
-import { usePathSet } from "@/hooks/usePathSet";
+import { usePathNetwork } from "@/hooks/usePathNetwork";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useAuthorFlags } from "@/hooks/useAuthorFlags";
-import { classifyPath, groupPaths, nodeRisk, orderedPaths } from "@/lib/hopsPaths";
-import { PathFootnote, PathRiskLine, PathStepper, type PathGroupKey } from "@/components/hops/PathSummary";
+import {
+  firstRiskyIndex,
+  networkJudged,
+  nodeRisk,
+  pathAt,
+  riskyAccounts,
+  type RiskKind,
+  type RiskSignals,
+} from "@/lib/hopsPaths";
+import { PathChecking, PathRiskLine, PathStepper } from "@/components/hops/PathSummary";
 import { Chip } from "@/components/ui/chip";
+
+/** Signals that judge nothing, so the order falls back to pubkey. */
+const UNJUDGED: RiskSignals = { flaggedOf: () => false, scoreOf: () => 1 };
 
 function shortNpub(npub: string): string {
   return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
@@ -35,10 +46,10 @@ function shortNpub(npub: string): string {
 /**
  * The Connection page (`/p/:id/hops`): explains the degree metric and walks
  * the shortest follow-paths from the origin (you, or Brainstorm) to this
- * profile. The safest path leads; the counts of verified, unverified and
- * flagged paths are buttons that narrow to that group, and "Next path" steps
- * through it in a fixed order (hooks/usePathSet gathers the set, lib/hopsPaths
- * judges it). Each node links to that person's profile — the core use case
+ * profile. The safest path leads and a stepper walks every path in a fixed
+ * order; the risk lines name the flagged and unverified accounts and step
+ * through them (hooks/usePathSet fetches the Path network, lib/hopsPaths
+ * judges and orders it). Each node links to that person's profile — the core use case
  * being to spot the one weak-link account to report so a whole swarm
  * downstream of it drops out of your trust network.
  */
@@ -66,46 +77,56 @@ export default function HopsPathPage() {
   // usable start (falling back to House), and the endpoint is public.
   const eligible = !!fromPubkey && !!toPubkey && fromPubkey !== toPubkey;
 
-  // Which group the reader narrowed to, and where they are in it. The pick
-  // belongs to one connection: this component stays mounted from one
-  // target's page to the next, and a pick that outlived its target opened
-  // jack's page on "flagged · 1 of 1" because Jon's had been tapped.
-  const connection = `${fromPubkey}/${toPubkey}`;
-  const [picked, setPicked] = useState<{ of: string; group: PathGroupKey | null; pos: number }>({
-    of: connection,
+  // Which risk group the reader narrowed to, and where they are. Keyed to
+  // from/to: the page stays mounted across targets, so a stale pick resets.
+  const networkKey = `${fromPubkey}/${toPubkey}`;
+  const [picked, setPicked] = useState<{ of: string; group: RiskKind | null; pos: number }>({
+    of: networkKey,
     group: null,
     pos: 0,
   });
-  const pick = picked.of === connection ? picked : { group: null, pos: 0 };
+  const pick = picked.of === networkKey ? picked : { group: null, pos: 0 };
+  const choose = (group: RiskKind | null, pos: number) => setPicked({ of: networkKey, group, pos });
   // Sitewide score-POV (personalized vs global) + the shared explainer modal.
   const { pov: scorePov } = useScorePov();
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
 
-  const set = usePathSet(fromPubkey, toPubkey, { enabled: eligible, nonce: 0 });
-  const d = set.head;
+  const { network, tooLarge, hops: hopsOnly, isPending } = usePathNetwork(fromPubkey, toPubkey, { enabled: eligible });
+  const reach = tooLarge ? hopsOnly : network;
 
-  // Every account on every path, judged in one batched request. The groups
-  // are recomputed each render on purpose — memoising on the hook closures
-  // would freeze the page at "checking".
-  const allNodes = useMemo(() => [...new Set(set.paths.flat())].sort(), [set.paths]);
-  const scoreOf = useAuthorScores(allNodes);
-  const flaggedOf = useAuthorFlags(allNodes);
+  const connectors = useMemo(() => network?.layers.flat() ?? [], [network]);
+  const scoreOf = useAuthorScores(connectors);
+  const flaggedOf = useAuthorFlags(connectors);
+  // Not memoised on the hook closures — that would freeze the page at "checking".
   const signals = { flaggedOf, scoreOf };
-  const groups = groupPaths(set.paths, (p) => classifyPath(p, signals));
-  const list = pick.group ? groups[pick.group] : orderedPaths(groups);
-  // Nothing judged yet → the probe path, unmarked, while the signals land.
-  const shown: string[] = list.length ? list[pick.pos % list.length] : (set.paths[0] ?? []);
-  const checked = groups.verified.length + groups.unverified.length + groups.flagged.length;
+  const judged = !!network && networkJudged(network, signals);
+  // Until every connector is judged the card stays unmarked, in pubkey order.
+  const marks = judged ? signals : UNJUDGED;
+  const total = network?.pathCount ?? 0;
+  const riskGroups =
+    network && judged
+      ? {
+          flagged: riskyAccounts(network, "flagged", signals),
+          unverified: riskyAccounts(network, "unverified", signals),
+        }
+      : null;
+  const narrowed = pick.group && riskGroups?.[pick.group].accounts.length ? riskGroups[pick.group].accounts : null;
+  const steps = narrowed ? narrowed.length : total;
+  const pos = steps ? pick.pos % steps : 0;
+  const focus = narrowed ? narrowed[pos].pubkey : null;
+  // Rebuilt only when the network, a verdict or the position changes.
+  const verdicts = connectors.map((pk) => `${flaggedOf(pk)}:${scoreOf(pk)}`).join();
+  const shown: string[] = useMemo(
+    () => (network ? (pathAt(network, marks, focus ? 0 : pos, focus ?? undefined) ?? []) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [network, judged, verdicts, pos, focus],
+  );
+  const stepTo = (next: number) => choose(pick.group, (next + steps) % steps);
   // "…through 1 person, 130 different ways." — the count rides on the sentence.
   const ways =
-    d && d.pathCount > 1 ? (
+    !tooLarge && total > 1 ? (
       <>
-        ,{" "}
-        <span className="font-semibold">
-          {d.pathCount.toLocaleString()}
-          {d.pathCountCapped ? "+" : ""}
-        </span>{" "}
-        different ways.
+        , <span className="font-semibold">{total.toLocaleString()}</span> different ways.
       </>
     ) : (
       "."
@@ -194,7 +215,9 @@ export default function HopsPathPage() {
   // If YOU follow the first bad node directly, there's no intermediate decision-maker.
   // Weak-link analysis is a personalized promise ("report it and it drops out
   // of YOUR network") — under House the path is explanatory, nothing more.
-  const entryBadIndex = originPov === "personalized" ? classifyPath(shown, signals).riskyIndex : -1;
+  // While stepping through risky accounts, the one stepped to is the one to report.
+  const focusIndex = focus ? shown.indexOf(focus) : -1;
+  const entryBadIndex = originPov === "personalized" ? (focus ? focusIndex : firstRiskyIndex(shown, marks)) : -1;
   const weakLinkIndex = entryBadIndex > 1 ? entryBadIndex - 1 : -1; // -1 ⇒ it's You, or none
   const youFollowBadDirectly = entryBadIndex === 1;
 
@@ -237,14 +260,14 @@ export default function HopsPathPage() {
           <span className="text-brand-link">{subjectName}</span>
         </h1>
 
-        {set.isPending ? (
+        {isPending ? (
           <div className="mt-8 flex items-center gap-2 text-slate-400 dark:text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />{" "}
             {originPov === "personalized" ? "Finding your connection…" : "Finding the connection…"}
           </div>
-        ) : !d || !d.reachable || d.hops === 0 ? (
+        ) : !reach || !reach.reachable || !reach.hops ? (
           <p className="mt-4 text-slate-600 dark:text-slate-300" data-testid="hops-unreachable">
-            {d && d.hops === 0
+            {reach?.hops === 0
               ? "That's you."
               : originPov === "personalized"
                 ? `Not connected — ${subjectName} can't be reached through the people you follow.`
@@ -256,8 +279,8 @@ export default function HopsPathPage() {
               className="mt-3 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300"
               data-testid="hops-degree"
             >
-              <span className="font-semibold text-slate-900 dark:text-slate-100">{ordinal(d.hops)} degree</span> —{" "}
-              {d.hops === 1 ? (
+              <span className="font-semibold text-slate-900 dark:text-slate-100">{ordinal(reach.hops)} degree</span> —{" "}
+              {reach.hops === 1 ? (
                 originPov === "personalized" ? (
                   <>you follow {subjectName} directly.</>
                 ) : (
@@ -265,237 +288,249 @@ export default function HopsPathPage() {
                 )
               ) : originPov === "personalized" ? (
                 <>
-                  you're connected to {subjectName} through <span className="font-semibold">{d.hops - 1}</span>{" "}
-                  {d.hops - 1 === 1 ? "person" : "people"}
+                  you're connected to {subjectName} through <span className="font-semibold">{reach.hops - 1}</span>{" "}
+                  {reach.hops - 1 === 1 ? "person" : "people"}
                   {ways}
                 </>
               ) : (
                 <>
-                  Brainstorm reaches {subjectName} through <span className="font-semibold">{d.hops - 1}</span>{" "}
-                  {d.hops - 1 === 1 ? "person" : "people"}
+                  Brainstorm reaches {subjectName} through <span className="font-semibold">{reach.hops - 1}</span>{" "}
+                  {reach.hops - 1 === 1 ? "person" : "people"}
                   {ways}
                 </>
               )}
             </p>
 
-            {/* Loud only for risk: a line per kind, and only when there is one. */}
-            {(["flagged", "unverified"] as const).map((kind) => (
-              <PathRiskLine
-                key={kind}
-                kind={kind}
-                count={groups[kind].length}
-                checked={checked}
-                complete={set.complete}
-                pressed={pick.group === kind}
-                onToggle={() => setPicked({ of: connection, group: pick.group === kind ? null : kind, pos: 0 })}
-              />
-            ))}
+            {tooLarge ? (
+              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400" data-testid="hops-too-large">
+                This connection is too large to map right now, so the paths aren't shown.
+              </p>
+            ) : (
+              <>
+                {/* Loud only for risk: a line per kind, and only when there is one. */}
+                {riskGroups &&
+                  (["flagged", "unverified"] as const).map((kind) => (
+                    <PathRiskLine
+                      key={kind}
+                      kind={kind}
+                      accountCount={riskGroups[kind].accounts.length}
+                      paths={riskGroups[kind].paths}
+                      total={total}
+                      pressed={pick.group === kind}
+                      onToggle={() => choose(pick.group === kind ? null : kind, 0)}
+                    />
+                  ))}
 
-            {/* The path — each node links to their profile. The weak-link explanation
+                {/* The path — each node links to their profile. The weak-link explanation
                 lives INSIDE the weak-link card (progressive disclosure), not up here. */}
-            {/* The route — one connected timeline. A rail threads through the avatars
+                {/* The route — one connected timeline. A rail threads through the avatars
                 so it reads as a single path (you → them), not a stack of cards. Uniform
                 across mobile / desktop / PWA — no breakpoint reflow. */}
-            <div className="mt-4 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-800/60 dark:bg-slate-900 sm:p-4">
-              {list.length > 1 && (
-                <div className="-mt-1 mb-1 flex justify-end">
-                  <PathStepper
-                    position={(pick.pos % list.length) + 1}
-                    total={list.length}
-                    onNext={() => setPicked({ of: connection, group: pick.group, pos: pick.pos + 1 })}
-                  />
-                </div>
-              )}
-              <ol data-testid="hops-path">
-                {shown.map((pk, i) => {
-                  const p = profs?.get(pk);
-                  const npub = npubFromPubkey(pk);
-                  const isOrigin = i === 0;
-                  const isMe = pk === myPubkey;
-                  const isSubject = i === shown.length - 1;
-                  // The target's kind-0 usually lives on its own relays, which the
-                  // bulk profile map (fixed relay set) misses — so for the subject
-                  // reuse the relay-hint-resolved profile the page title already
-                  // fetched. Keeps name + avatar consistent with the header/SharePage.
-                  const subj = isSubject ? subject : undefined;
-                  const picture = subj?.picture || p?.picture;
-                  // Node 0 under House is named by OUR copy — the fetched kind-0
-                  // says "nosfabrica", which would contradict the rest of the UI.
-                  const name =
-                    isOrigin && originPov === "global"
-                      ? "Brainstorm"
-                      : subj?.display_name || subj?.name || p?.display_name || p?.name || shortNpub(npub);
-                  const roleLabel = isOrigin
-                    ? originPov === "personalized"
-                      ? "You"
-                      : "Brainstorm"
-                    : isMe
-                      ? "You"
-                      : isSubject
-                        ? "Them"
-                        : "Connector";
-                  const score = scores?.get(pk);
-                  // The network's standing of a connector — the same rule that
-                  // sorted the paths. The origin and the target are never marked.
-                  const risk = !isOrigin && !isSubject ? nodeRisk(pk, signals) : "verified";
-                  const tier = typeof score === "number" ? shareTierFor(score, granularity, risk === "flagged") : null;
-                  const isWeakLink = i === weakLinkIndex; // decision-maker (authentic)
-                  const isEntryBad = i === entryBadIndex; // the risky connector to report (personalized only)
-                  const tint = isWeakLink
-                    ? "bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/25"
-                    : isEntryBad
-                      ? "bg-rose-50 dark:bg-rose-500/10 ring-1 ring-rose-200 dark:ring-rose-500/25"
-                      : "";
-                  return (
-                    <li key={`${pk}-${i}`} className="flex gap-3" data-testid={`hops-node-${i}`}>
-                      {/* Rail column: avatar sits on the thread; the line fills the rest of
+                <div className="mt-4 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-800/60 dark:bg-slate-900 sm:p-4">
+                  {judged && steps > 1 && (
+                    <div className="-mt-1 mb-1 flex justify-end">
+                      <PathStepper
+                        label={narrowed ? `${pick.group === "flagged" ? "Flagged" : "Unverified"} account` : "Path"}
+                        position={pos + 1}
+                        total={steps}
+                        onPrevious={() => stepTo(pos - 1)}
+                        onNext={() => stepTo(pos + 1)}
+                      />
+                    </div>
+                  )}
+                  <ol data-testid="hops-path">
+                    {shown.map((pk, i) => {
+                      const p = profs?.get(pk);
+                      const npub = npubFromPubkey(pk);
+                      const isOrigin = i === 0;
+                      const isMe = pk === myPubkey;
+                      const isSubject = i === shown.length - 1;
+                      // The target's kind-0 usually lives on its own relays, which the
+                      // bulk profile map (fixed relay set) misses — so for the subject
+                      // reuse the relay-hint-resolved profile the page title already
+                      // fetched. Keeps name + avatar consistent with the header/SharePage.
+                      const subj = isSubject ? subject : undefined;
+                      const picture = subj?.picture || p?.picture;
+                      // Node 0 under House is named by OUR copy — the fetched kind-0
+                      // says "nosfabrica", which would contradict the rest of the UI.
+                      const name =
+                        isOrigin && originPov === "global"
+                          ? "Brainstorm"
+                          : subj?.display_name || subj?.name || p?.display_name || p?.name || shortNpub(npub);
+                      const roleLabel = isOrigin
+                        ? originPov === "personalized"
+                          ? "You"
+                          : "Brainstorm"
+                        : isMe
+                          ? "You"
+                          : isSubject
+                            ? "Them"
+                            : "Connector";
+                      const score = scores?.get(pk);
+                      // The network's standing of a connector — the same rule that
+                      // sorted the paths. The origin and the target are never marked.
+                      const risk = !isOrigin && !isSubject ? nodeRisk(pk, marks) : "verified";
+                      const tier =
+                        typeof score === "number" ? shareTierFor(score, granularity, risk === "flagged") : null;
+                      const isWeakLink = i === weakLinkIndex; // decision-maker (authentic)
+                      const isEntryBad = i === entryBadIndex; // the risky connector to report (personalized only)
+                      const isFocus = i === focusIndex;
+                      const tint = isWeakLink
+                        ? "bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/25"
+                        : isEntryBad || isFocus
+                          ? "bg-rose-50 dark:bg-rose-500/10 ring-1 ring-rose-200 dark:ring-rose-500/25"
+                          : "";
+                      return (
+                        <li
+                          key={`${pk}-${i}`}
+                          className="flex gap-3"
+                          data-testid={`hops-node-${i}`}
+                          data-focus={isFocus || undefined}
+                        >
+                          {/* Rail column: avatar sits on the thread; the line fills the rest of
                         the row height, connecting down to the next avatar. */}
-                      <div className="flex shrink-0 flex-col items-center">
-                        <Link href={`/p/${npub}`} className="group">
-                          <Avatar
-                            className={`h-10 w-10 ${tierRing(score) ?? "ring-1 ring-slate-200 dark:ring-slate-800"}`}
-                          >
-                            {picture ? <AvatarImage src={picture} alt="" className="object-cover" /> : null}
-                            <AvatarFallback className="bg-transparent p-0">
-                              <DefaultAvatarImg flagged={risk === "flagged"} />
-                            </AvatarFallback>
-                          </Avatar>
-                        </Link>
-                        {!isSubject && (
-                          <div className="mt-1.5 w-px flex-1 bg-slate-200 dark:bg-slate-700" aria-hidden />
-                        )}
-                      </div>
-
-                      {/* Content, tinted for weak-link / flagged; pb creates the rail gap. */}
-                      <div className={`min-w-0 flex-1 ${isSubject ? "" : "pb-4"}`}>
-                        <div className={`rounded-xl px-2.5 py-1.5 transition-colors ${tint}`}>
-                          <div className="flex items-start justify-between gap-2">
-                            <Link href={`/p/${npub}`} className="group min-w-0">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="truncate text-sm font-semibold text-slate-800 transition-colors group-hover:text-brand-deep dark:text-slate-200">
-                                  {name}
-                                </span>
-                                {isWeakLink && (
-                                  <span
-                                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300"
-                                    data-testid={`hops-weaklink-${i}`}
-                                    title="The trusted account whose follow let a low-trust account into your network"
-                                  >
-                                    Weak link
-                                  </span>
-                                )}
-                                {risk === "flagged" && (
-                                  <Chip
-                                    tone="danger"
-                                    size="sm"
-                                    title="Flagged by the network"
-                                    data-testid={`hops-flagged-${i}`}
-                                  >
-                                    Flagged
-                                  </Chip>
-                                )}
-                                {risk === "unverified" && (
-                                  <Chip
-                                    tone="warning"
-                                    size="sm"
-                                    title="Not yet verified by the network"
-                                    data-testid={`hops-unverified-${i}`}
-                                  >
-                                    Unverified
-                                  </Chip>
-                                )}
-                              </div>
-                              <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                                {roleLabel}
-                              </div>
-                            </Link>
-                            {/* Off means off — no score chip at all, same as the
-                              coin everywhere else. The path itself stays: degree
-                              is connection distance, not a verification score. */}
-                            {displayMode !== "off" && !isOrigin && tier && (
-                              <button
-                                type="button"
-                                onClick={() => setScoreExplainOpen(true)}
-                                className={`min-w-[64px] shrink-0 rounded-lg border px-2 py-1 text-right transition-colors hover:brightness-[0.98] ${povChrome(scorePov)}`}
-                                title="What does this score mean?"
-                                data-testid={`hops-score-${i}`}
+                          <div className="flex shrink-0 flex-col items-center">
+                            <Link href={`/p/${npub}`} className="group">
+                              <Avatar
+                                className={`h-10 w-10 ${tierRing(score) ?? "ring-1 ring-slate-200 dark:ring-slate-800"}`}
                               >
-                                {displayMode === "number" ? (
-                                  <>
-                                    <div
-                                      className={`flex items-center justify-end gap-1 text-sm font-bold tabular-nums leading-tight ${tier.text}`}
-                                    >
-                                      <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
-                                      {`${Math.round((score as number) * 100)}%`}
-                                    </div>
-                                    <div className="text-[10px] leading-tight text-slate-500 dark:text-slate-400">
-                                      {tier.name}
-                                    </div>
-                                  </>
-                                ) : (
-                                  // No digits, no two-storey layout: one line, the
-                                  // word in the tier's own color.
-                                  <div
-                                    className="flex items-center justify-end gap-1.5 text-xs font-semibold leading-tight"
-                                    style={{ color: tier.color }}
-                                  >
-                                    <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
-                                    {tier.name}
-                                  </div>
-                                )}
-                                {(() => {
-                                  // Subtle hint when the OTHER view disagrees (after
-                                  // rounding): its number + which way it moves.
-                                  const both = scoresQuery.data?.get(pk);
-                                  const other = scorePov === "personalized" ? both?.house : both?.mine;
-                                  if (typeof other !== "number") return null;
-                                  if (displayMode !== "number") return null;
-                                  const shownPct = Math.round((score as number) * 100);
-                                  const otherPct = Math.round(other * 100);
-                                  if (otherPct === shownPct) return null;
-                                  const mine = scorePov === "global";
-                                  return (
-                                    <div
-                                      className={`mt-0.5 flex items-center justify-end gap-0.5 text-[9px] font-semibold tabular-nums leading-tight ${mine ? "text-brand-primary" : "text-slate-400 dark:text-slate-500"}`}
-                                      data-testid={`hops-score-delta-${i}`}
-                                    >
-                                      <PovIcon pov={mine ? "personalized" : "global"} className="h-2 w-2" />
-                                      {otherPct > shownPct ? "▲" : "▼"} {otherPct} {mine ? "for you" : "everyone"}
-                                    </div>
-                                  );
-                                })()}
-                              </button>
+                                {picture ? <AvatarImage src={picture} alt="" className="object-cover" /> : null}
+                                <AvatarFallback className="bg-transparent p-0">
+                                  <DefaultAvatarImg flagged={risk === "flagged"} />
+                                </AvatarFallback>
+                              </Avatar>
+                            </Link>
+                            {!isSubject && (
+                              <div className="mt-1.5 w-px flex-1 bg-slate-200 dark:bg-slate-700" aria-hidden />
                             )}
                           </div>
 
-                          {/* Follow is meaningful in both modes for signed-in viewers;
-                            Report belongs to the personalized promise only. */}
-                          {!isOrigin && !isMe && signedIn && (
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <NodeFollow pubkey={pk} name={name} alreadyFollowing={myFollows?.has(pk) ?? false} />
-                              {originPov === "personalized" && (
-                                <NodeReport pubkey={pk} name={name} emphasize={isEntryBad} />
-                              )}
-                            </div>
-                          )}
+                          {/* Content, tinted for weak-link / flagged; pb creates the rail gap. */}
+                          <div className={`min-w-0 flex-1 ${isSubject ? "" : "pb-4"}`}>
+                            <div className={`rounded-xl px-2.5 py-1.5 transition-colors ${tint}`}>
+                              <div className="flex items-start justify-between gap-2">
+                                <Link href={`/p/${npub}`} className="group min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="truncate text-sm font-semibold text-slate-800 transition-colors group-hover:text-brand-deep dark:text-slate-200">
+                                      {name}
+                                    </span>
+                                    {isWeakLink && (
+                                      <span
+                                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300"
+                                        data-testid={`hops-weaklink-${i}`}
+                                        title="The trusted account whose follow let a low-trust account into your network"
+                                      >
+                                        Weak link
+                                      </span>
+                                    )}
+                                    {risk === "flagged" && (
+                                      <Chip
+                                        tone="danger"
+                                        size="sm"
+                                        title="Flagged by the network"
+                                        data-testid={`hops-flagged-${i}`}
+                                      >
+                                        Flagged
+                                      </Chip>
+                                    )}
+                                    {risk === "unverified" && (
+                                      <Chip
+                                        tone="warning"
+                                        size="sm"
+                                        title="Not yet verified by the network"
+                                        data-testid={`hops-unverified-${i}`}
+                                      >
+                                        Unverified
+                                      </Chip>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                    {roleLabel}
+                                  </div>
+                                </Link>
+                                {/* Off means off — no score chip at all, same as the
+                              coin everywhere else. The path itself stays: degree
+                              is connection distance, not a verification score. */}
+                                {displayMode !== "off" && !isOrigin && tier && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setScoreExplainOpen(true)}
+                                    className={`min-w-[64px] shrink-0 rounded-lg border px-2 py-1 text-right transition-colors hover:brightness-[0.98] ${povChrome(scorePov)}`}
+                                    title="What does this score mean?"
+                                    data-testid={`hops-score-${i}`}
+                                  >
+                                    {displayMode === "number" ? (
+                                      <>
+                                        <div
+                                          className={`flex items-center justify-end gap-1 text-sm font-bold tabular-nums leading-tight ${tier.text}`}
+                                        >
+                                          <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
+                                          {`${Math.round((score as number) * 100)}%`}
+                                        </div>
+                                        <div className="text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                                          {tier.name}
+                                        </div>
+                                      </>
+                                    ) : (
+                                      // No digits, no two-storey layout: one line, the
+                                      // word in the tier's own color.
+                                      <div
+                                        className="flex items-center justify-end gap-1.5 text-xs font-semibold leading-tight"
+                                        style={{ color: tier.color }}
+                                      >
+                                        <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
+                                        {tier.name}
+                                      </div>
+                                    )}
+                                    {(() => {
+                                      // Subtle hint when the OTHER view disagrees (after
+                                      // rounding): its number + which way it moves.
+                                      const both = scoresQuery.data?.get(pk);
+                                      const other = scorePov === "personalized" ? both?.house : both?.mine;
+                                      if (typeof other !== "number") return null;
+                                      if (displayMode !== "number") return null;
+                                      const shownPct = Math.round((score as number) * 100);
+                                      const otherPct = Math.round(other * 100);
+                                      if (otherPct === shownPct) return null;
+                                      const mine = scorePov === "global";
+                                      return (
+                                        <div
+                                          className={`mt-0.5 flex items-center justify-end gap-0.5 text-[9px] font-semibold tabular-nums leading-tight ${mine ? "text-brand-primary" : "text-slate-400 dark:text-slate-500"}`}
+                                          data-testid={`hops-score-delta-${i}`}
+                                        >
+                                          <PovIcon pov={mine ? "personalized" : "global"} className="h-2 w-2" />
+                                          {otherPct > shownPct ? "▲" : "▼"} {otherPct} {mine ? "for you" : "everyone"}
+                                        </div>
+                                      );
+                                    })()}
+                                  </button>
+                                )}
+                              </div>
 
-                          {/* Weak-link explanation — unlocked in place. */}
-                          {isWeakLink && <WeakLinkNote scammerName={nameAt(entryBadIndex)} />}
-                          {isEntryBad && youFollowBadDirectly && <DirectFollowNote name={name} />}
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
-            <PathFootnote
-              pathCount={d.pathCount}
-              pathCountCapped={d.pathCountCapped}
-              checked={checked}
-              complete={set.complete}
-              checking={list.length === 0}
-            />
+                              {/* Follow is meaningful in both modes for signed-in viewers;
+                            Report belongs to the personalized promise only. */}
+                              {!isOrigin && !isMe && signedIn && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <NodeFollow pubkey={pk} name={name} alreadyFollowing={myFollows?.has(pk) ?? false} />
+                                  {originPov === "personalized" && (
+                                    <NodeReport pubkey={pk} name={name} emphasize={isEntryBad} />
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Weak-link explanation — unlocked in place. */}
+                              {isWeakLink && <WeakLinkNote scammerName={nameAt(entryBadIndex)} />}
+                              {isEntryBad && youFollowBadDirectly && <DirectFollowNote name={name} />}
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+                {!judged && <PathChecking />}
+              </>
+            )}
           </>
         )}
 

@@ -13,8 +13,8 @@ export function ordinal(n: number): string {
 
 /**
  * The follows-graph "degree" chip (LinkedIn-style "2nd degree"), shown in the
- * profile stats row alongside Following / Verified Followers. Reads the shortest
- * path from the viewer (`fromPubkey`) to the profile (`toPubkey`). Hover (desktop)
+ * profile stats row alongside Following / Verified Followers. Reads the hop count
+ * from the viewer (`fromPubkey`) to the profile (`toPubkey`). Hover (desktop)
  * explains it; tapping opens the full path page. Renders nothing until loaded, or
  * when viewing your own profile (from === to). Parent gates on signed-in + scored.
  */
@@ -35,8 +35,8 @@ export function DegreeChip({
 }) {
   const enabled = !!fromPubkey && !!toPubkey && fromPubkey !== toPubkey;
   const query = useQuery({
-    queryKey: ["shortestPath", fromPubkey, toPubkey],
-    queryFn: () => apiClient.getShortestPath({ from: fromPubkey, to: toPubkey }),
+    queryKey: ["shortestHops", fromPubkey, toPubkey],
+    queryFn: () => apiClient.getShortestHops({ from: fromPubkey, to: toPubkey }),
     enabled,
     staleTime: 5 * 60_000,
     retry: false,
@@ -45,16 +45,17 @@ export function DegreeChip({
   const d = query.data;
   if (!enabled || !d) return null;
 
-  const reachable = d.reachable && d.hops > 0;
+  const hops = d.reachable ? (d.hops ?? 0) : 0;
+  const reachable = hops > 0;
   const personal = pov === "personalized";
   const tip = reachable
-    ? d.hops === 1
+    ? hops === 1
       ? personal
         ? "You follow this person directly (1st degree). Tap to see the connection."
         : "Brainstorm follows this person directly (1st degree). Tap to see the connection."
       : personal
-        ? `${ordinal(d.hops)} degree — you're connected through ${d.hops - 1} ${d.hops - 1 === 1 ? "person" : "people"}. Tap to see how.`
-        : `${ordinal(d.hops)} degree — Brainstorm reaches them through ${d.hops - 1} ${d.hops - 1 === 1 ? "person" : "people"}. Tap to see how.`
+        ? `${ordinal(hops)} degree — you're connected through ${hops - 1} ${hops - 1 === 1 ? "person" : "people"}. Tap to see how.`
+        : `${ordinal(hops)} degree — Brainstorm reaches them through ${hops - 1} ${hops - 1 === 1 ? "person" : "people"}. Tap to see how.`
     : personal
       ? "Not reachable through the people you follow."
       : "Brainstorm can't reach them through the accounts it follows.";
@@ -77,7 +78,7 @@ export function DegreeChip({
           <PovIcon pov={pov} className="h-2.5 w-2.5" />
           {reachable ? (
             <>
-              <span className={numCls}>{ordinal(d.hops)}</span>
+              <span className={numCls}>{ordinal(hops)}</span>
               <span className={labelCls || undefined}> degree</span>
             </>
           ) : (
