@@ -185,7 +185,7 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
 
 function DeletedEvent() {
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-page bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <PublicPageHeader />
       <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
         <div className="py-10" data-testid="event-deleted">
@@ -364,7 +364,7 @@ function EventView({
   const showSetupNudge = useBackupNeed() !== null && !setupDismissed;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950">
+    <div className="min-h-page bg-[#F8FAFC] dark:bg-slate-950">
       <PublicPageHeader
         maxWidthClass="max-w-2xl"
         actions={

@@ -176,7 +176,7 @@ export default function HashtagPage() {
 
   return (
     <ShareNavProvider>
-      <div className="flex min-h-screen flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <PublicPageHeader
           maxWidthClass="max-w-2xl"
           actions={<ShareButton url={shareUrl} title={`#${tag} · Brainstorm`} />}

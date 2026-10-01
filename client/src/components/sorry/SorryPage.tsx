@@ -199,7 +199,7 @@ export function SorryFrame({
 }) {
   return (
     <div
-      className="relative flex min-h-[100dvh] flex-col bg-white text-slate-900 [overflow-x:clip] dark:bg-slate-950 dark:text-slate-100"
+      className="relative flex min-h-page flex-col bg-white text-slate-900 [overflow-x:clip] dark:bg-slate-950 dark:text-slate-100"
       data-testid={testId}
     >
       <GlossBackground />
