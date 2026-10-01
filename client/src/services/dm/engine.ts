@@ -683,8 +683,20 @@ export class DmEngine {
     return () => this.listeners.delete(listener);
   }
 
+  private notifyTimer: unknown = null;
+  private lastNotify = 0;
+
+  /** Same coalescing as the store: a burst of arrivals is one re-render, not hundreds. */
   private changed() {
     this.snap = null;
-    for (const l of [...this.listeners]) l();
+    if (this.notifyTimer !== null) return;
+    const wait = this.lastNotify + 80 - Date.now();
+    const flush = () => {
+      this.notifyTimer = null;
+      this.lastNotify = Date.now();
+      for (const l of [...this.listeners]) l();
+    };
+    if (wait <= 0) flush();
+    else this.notifyTimer = setTimeout(flush, wait);
   }
 }

@@ -47,6 +47,7 @@ const AlertsPage = lazyWithReload(() => import("@/pages/AlertsPage"));
 const BillingReturnPage = lazyWithReload(() => import("@/pages/BillingReturnPage"));
 const ConnectionListPage = lazyWithReload(() => import("@/pages/ConnectionListPage"));
 const DashboardPage = lazyWithReload(() => import("@/pages/DashboardPage"));
+const MessagesPage = lazyWithReload(() => import("@/pages/MessagesPage"));
 const DeveloperNip50Page = lazyWithReload(() => import("@/pages/DeveloperNip50Page"));
 const DeveloperOpenRankingPage = lazyWithReload(() => import("@/pages/DeveloperOpenRankingPage"));
 const DeveloperTrustedAssertionsPage = lazyWithReload(() => import("@/pages/DeveloperTrustedAssertionsPage"));
@@ -224,6 +225,8 @@ function Router() {
             <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
             <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
             <Route path="/support">{() => <RequireAuth component={SupportPage} />}</Route>
+            <Route path="/messages">{() => <RequireAuth component={MessagesPage} />}</Route>
+            <Route path="/messages/:slug">{() => <RequireAuth component={MessagesPage} />}</Route>
             <Route path="/search" component={SearchRedirect} />
             {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
             <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>

@@ -15,7 +15,10 @@ import { deviceSealer, dmCacheBackend } from "@/lib/dm/cache";
 import { DM_RELAY_LIST_KIND, dmRelayTags, loadDmRelays } from "@/lib/dm/inboxRelays";
 import { ensureReadFloor } from "@/lib/dm/prefs";
 import { publishToRelays } from "@/services/nostr";
-import { DmEngine, type DmAccount, type SignerFailure } from "./engine";
+import { DmEngine, type DmAccount, type SendResult, type SignerFailure } from "./engine";
+import { encryptFile, fileTags } from "@/lib/dm/fileCrypto";
+import { FILE_KIND } from "@/lib/dm/giftWrap";
+import { uploadToBlossom } from "@/services/blossom";
 import { poolTransport } from "./transport";
 
 function classify(error: unknown): SignerFailure {
@@ -110,4 +113,49 @@ export async function publishInboxRelays(relays: string[]): Promise<PublishOutco
   const outcome = await publishToRelays(signed, relays);
   if (current?.pubkey === account.pubkey) void current.refreshInbox();
   return outcome;
+}
+
+/** Image dimensions, for the `dim` tag (best effort). */
+function imageDim(file: File): Promise<string | undefined> {
+  if (!file.type.startsWith("image/")) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      resolve(`${img.naturalWidth}x${img.naturalHeight}`);
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      resolve(undefined);
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Send a file (NIP-17 kind 15): encrypted here with a fresh AES-GCM key,
+ * uploaded as ciphertext, and the key sent only inside the wrapped message.
+ */
+export async function sendFile(
+  engine: DmEngine,
+  room: string,
+  file: File,
+  opts: { replyTo?: string; timer?: number } = {},
+): Promise<SendResult> {
+  const enc = await encryptFile(new Uint8Array(await file.arrayBuffer()));
+  let url: string;
+  try {
+    url = await uploadToBlossom(new Blob([enc.cipher], { type: "application/octet-stream" }), "Upload encrypted file");
+  } catch (error) {
+    if (isUnlockCancelled(error)) return { ok: false, error: "Cancelled" };
+    return { ok: false, error: "Couldn't upload the file. Please try again." };
+  }
+  const tags = fileTags(file, enc, await imageDim(file));
+  return engine.send(room, url, { ...opts, kind: FILE_KIND, tags });
+}
+
+// Development only: lets a console (or a browser test) look at the engine.
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { __dm?: unknown }).__dm = { dmEngine };
 }

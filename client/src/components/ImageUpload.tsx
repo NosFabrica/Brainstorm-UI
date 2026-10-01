@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, type ReactNode } from "react";
 import { Upload, X, Loader2, ImageIcon, Camera } from "lucide-react";
-import { activeAccount, signAs } from "@/accounts/signing";
 import { isUnlockCancelled } from "@/accounts/local-signer";
+import { nostrAuthHeader, uploadToBlossom } from "@/services/blossom";
 
 interface ImageUploadProps {
   value?: string;
@@ -73,21 +73,6 @@ function resizeImage(file: File, maxW: number, maxH: number, quality: number): P
 // Build an `Authorization: Nostr <base64-signed-event>` header (used by both
 // NIP-98 — nostr.build — and Blossom). Signed by the active account's signer, so
 // uploads work whether the key is in the app, an extension or a remote signer.
-async function nostrAuthHeader(template: { kind: number; tags: string[][]; content: string }): Promise<string> {
-  const account = activeAccount();
-  if (!account) throw new Error("Sign in to upload an image.");
-  const signed = await signAs(account, template);
-  return `Nostr ${btoa(JSON.stringify(signed))}`;
-}
-
-async function sha256Hex(blob: Blob): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-// nostr.build v2 now requires a NIP-98 (kind 27235) auth token.
 async function uploadToNostrBuild(blob: Blob): Promise<string> {
   const url = "https://nostr.build/api/v2/upload/files";
   const auth = await nostrAuthHeader({
@@ -112,31 +97,6 @@ async function uploadToNostrBuild(blob: Blob): Promise<string> {
 }
 
 // Blossom (BUD-02) fallback: PUT the raw blob with a kind-24242 auth event.
-const BLOSSOM_SERVER = "https://blossom.primal.net";
-async function uploadToBlossom(blob: Blob): Promise<string> {
-  const hash = await sha256Hex(blob);
-  const auth = await nostrAuthHeader({
-    kind: 24242,
-    tags: [
-      ["t", "upload"],
-      ["x", hash],
-      ["expiration", String(Math.floor(Date.now() / 1000) + 600)],
-    ],
-    content: "Upload image",
-  });
-
-  const response = await fetch(`${BLOSSOM_SERVER}/upload`, {
-    method: "PUT",
-    headers: { Authorization: auth, "Content-Type": blob.type || "application/octet-stream" },
-    body: blob,
-  });
-  if (response.ok) {
-    const data = await response.json();
-    if (data?.url) return data.url as string;
-  }
-  throw new Error("blossom failed");
-}
-
 async function uploadImage(blob: Blob): Promise<string> {
   // Blossom (primal) is the reliable primary; nostr.build is the fallback (it was
   // returning 500s under test even with valid NIP-98 auth). Both are signed.

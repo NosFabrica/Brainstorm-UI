@@ -3,6 +3,7 @@ import { AdminBadge } from "@/components/AdminBadge";
 import { type AppKey } from "@/components/AppsLauncher";
 import { AccountMenu } from "@/components/AccountMenu";
 import { FinishSetupBanner } from "@/components/FinishSetupBanner";
+import { MessagesNavButton } from "@/components/messages/MessagesNavButton";
 import { type AccountDisplay } from "@/accounts/display";
 import { type ReactNode } from "react";
 
@@ -35,6 +36,7 @@ export function AppHeader({ user, onLogout, active, actions, search }: AppHeader
       <FinishSetupBanner labelFrom="xl" />
       {actions && <div className="mr-1 hidden items-center lg:flex">{actions}</div>}
       {user.isAdmin && <AdminBadge />}
+      <MessagesNavButton />
       <AccountMenu user={user} onLogout={onLogout} active={active} />
     </HeaderBar>
   );

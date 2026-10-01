@@ -1,7 +1,8 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { registerBottomChrome } from "@/lib/bottomChrome";
 import { useLocation } from "wouter";
-import { Search, Home, Users, LogIn } from "lucide-react";
+import { Search, Home, Users, LogIn, MessageCircle } from "lucide-react";
+import { DmBadge } from "@/components/messages/MessagesNavButton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -116,6 +117,14 @@ export function MobileTabBar() {
                 onClick={() => go("/network")}
                 testId="tab-network"
               />
+              <TabButton
+                label="Messages"
+                icon={MessageCircle}
+                active={isActive("/messages")}
+                onClick={() => go("/messages")}
+                testId="tab-messages"
+                badge={<DmBadge className="left-[calc(50%+4px)] top-1.5" />}
+              />
               <YouTab user={user} active={sheetOpen} onClick={openAccountSheet} />
             </>
           ) : (
@@ -158,12 +167,14 @@ function TabButton({
   active,
   onClick,
   testId,
+  badge,
 }: {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   active: boolean;
   onClick: () => void;
   testId?: string;
+  badge?: React.ReactNode;
 }) {
   return (
     <button
@@ -171,7 +182,7 @@ function TabButton({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 outline-none transition-colors",
+        "relative flex flex-1 flex-col items-center justify-center gap-1 py-2.5 outline-none transition-colors",
         active
           ? "text-brand-primary dark:text-brand-link"
           : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
@@ -180,6 +191,7 @@ function TabButton({
     >
       <Icon className="h-[22px] w-[22px]" />
       <span className="text-[10px] font-medium leading-none">{label}</span>
+      {badge}
     </button>
   );
 }

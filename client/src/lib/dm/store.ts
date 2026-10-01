@@ -74,6 +74,8 @@ export function messageFromRumor(
   };
 }
 
+const NOTIFY_MS = 80;
+
 const byTime = (a: DmMessage, b: DmMessage) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1);
 
 export class DmStore {
@@ -200,7 +202,27 @@ export class DmStore {
     else this.notify();
   }
 
+  /**
+   * Listeners hear about a burst at most every `NOTIFY_MS`: a page of history
+   * opens hundreds of messages one by one, and re-rendering the inbox for each
+   * of them starves the very decrypts that are filling it.
+   */
+  private notifyTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastNotify = 0;
+
   private notify() {
+    if (this.notifyTimer) return;
+    const wait = this.lastNotify + NOTIFY_MS - Date.now();
+    if (wait <= 0) {
+      this.flushNotify();
+      return;
+    }
+    this.notifyTimer = setTimeout(() => this.flushNotify(), wait);
+  }
+
+  private flushNotify() {
+    this.notifyTimer = null;
+    this.lastNotify = Date.now();
     for (const l of [...this.listeners]) l();
   }
 }
