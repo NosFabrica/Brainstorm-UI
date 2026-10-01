@@ -277,6 +277,32 @@
     --tw-enter-opacity: 0;
   }
 
+  /* A soft wash of colour fading to nothing — what a blur-[130px] blob looked like,
+     drawn as a gradient. iOS Safari stalled the page for seconds re-rendering
+     those blurs while search results streamed in. The stops follow a Gaussian
+     (exp(-3x²)). Set --wash (an "r g b" triple) and --wash-a (its alpha); the
+     box should extend ~1.75× the old blur radius past the blob's edges. Small
+     screens get a lower peak: there the old blob was barely wider than its blur,
+     so the blur spread it thin. */
+  .gloss-wash {
+    --wash-peak: 0.4;
+    background-image: radial-gradient(
+      closest-side,
+      rgb(var(--wash) / calc(var(--wash-a) * var(--wash-peak))) 0%,
+      rgb(var(--wash) / calc(var(--wash-a) * var(--wash-peak) * 0.887)) 20%,
+      rgb(var(--wash) / calc(var(--wash-a) * var(--wash-peak) * 0.619)) 40%,
+      rgb(var(--wash) / calc(var(--wash-a) * var(--wash-peak) * 0.34)) 60%,
+      rgb(var(--wash) / calc(var(--wash-a) * var(--wash-peak) * 0.146)) 80%,
+      transparent 100%
+    );
+  }
+
+  @media (min-width: 768px) {
+    .gloss-wash {
+      --wash-peak: 0.85;
+    }
+  }
+
   .glass {
     backdrop-filter: blur(12px) saturate(180%);
     background-color: rgba(255, 255, 255, 0.7);
