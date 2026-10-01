@@ -76,6 +76,7 @@ import { ShopSuggestionRow } from "@/components/search/ShopSuggestionRow";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
+import { PersonTagLabel } from "@/components/search/PersonTagLabel";
 import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
 import { SEARCH_BOX_CLASS, SEARCH_CLEAR_CLASS, SEARCH_ICON_CLASS } from "@/components/search/searchBoxChrome";
 
@@ -255,6 +256,16 @@ export function SearchBox({
     max: MAX_TAG_ROWS,
     pauseMs: typeaheadPause(speed),
   });
+  // Who among the listed people carries a matched tag — the relay's list names
+  // its members, so marking them costs no further ask. The best match wins:
+  // one tag per person. Nobody is pulled into the list for carrying one.
+  const tagByPerson = useMemo(() => {
+    const byPerson = new Map<string, string>();
+    for (const tag of tagMatches) {
+      for (const member of tag.members) if (!byPerson.has(member.pubkey)) byPerson.set(member.pubkey, tag.name);
+    }
+    return byPerson;
+  }, [tagMatches]);
   // Relay hits carry no rank numbers (order-only wire) — the dropdown's rings
   // and coins feed from the shared author-score cache, like every card.
   const suggestScoreOf = useAuthorScores(useMemo(() => suggestions.map((x) => x.pubkey), [suggestions]));
@@ -872,6 +883,9 @@ export function SearchBox({
                         linkTabIndex={-1}
                         className="hidden sm:inline-flex sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100"
                       />
+                      {/* The tag the words matched, when this person carries it: always
+                          there, so nothing moves when the chips appear beside it. */}
+                      {tagByPerson.has(s.pubkey) && <PersonTagLabel name={tagByPerson.get(s.pubkey)!} />}
                       {/* Same coin as the results list and every people list. */}
                       {rank != null && (
                         <VerificationCoin
