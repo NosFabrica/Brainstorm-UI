@@ -13,7 +13,6 @@
  * `services/api.ts`: `/p/:id` is anon-viewable and `authenticatedFetch` wipes
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
-import { wordsNearlyMatch } from "@/lib/tagMatch";
 import { pool, fetchEventsByFilter, publishToRelays } from "./nostr";
 import { dedupeRelays, outboxRelays, readRelaysFor, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -1456,39 +1455,6 @@ export async function fetchPickerTags(viewerPubkey?: string, observer: TrustObse
   return banded.sort(
     (a, b) =>
       (a.band === b.band ? 0 : a.band === "profile" ? -1 : 1) || b.people - a.people || a.name.localeCompare(b.name),
-  );
-}
-
-/**
- * Filter the catalogue by what someone typed. Exact match first, then
- * starts-with, then contains — inside each band the catalogue's own
- * usage ordering carries through.
- */
-export function matchTags(index: TagSummary[], query: string, max = 5): TagSummary[] {
-  const q = query.trim().toLowerCase();
-  if (q.length < 2) return [];
-  const band = (t: TagSummary) => {
-    const n = t.name.toLowerCase();
-    if (n === q) return 0;
-    if (n.startsWith(q)) return 1;
-    if (n.includes(q)) return 2;
-    // A typo must not hide a tag the person plainly meant (Benjamin, 2026-09-29:
-    // "verfied human" showed nothing).
-    if (wordsNearlyMatch(q, n)) return 3;
-    return 4;
-  };
-  return (
-    index
-      .map((t) => ({ t, b: band(t) }))
-      .filter((x) => x.b < 4)
-      // How well the name matches outranks who made the tag — an exact hit on an
-      // unverified tag is still what the person typed, and burying it under
-      // loose contains-matches is how `lfo` became unfindable. Creator standing
-      // only breaks ties inside a band; usage order survives beneath that,
-      // because the sort is stable.
-      .sort((x, y) => x.b - y.b || Number(x.t.unverified) - Number(y.t.unverified))
-      .slice(0, max)
-      .map((x) => x.t)
   );
 }
 

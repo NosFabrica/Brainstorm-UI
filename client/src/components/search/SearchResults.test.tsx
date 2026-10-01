@@ -115,13 +115,21 @@ const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
 vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 // Tags the words match, and the people on them — the People tab leads with those people.
 const tagMatchesMock = vi.fn((_q: string): unknown[] => []);
-vi.mock("@/hooks/useTags", () => ({ useTagMatches: (q: string) => tagMatchesMock(q) }));
 const carriersMock = vi.fn((_tags: unknown[]) => ({
   byPubkey: new Map<string, unknown[]>(),
   people: [] as unknown[],
   settled: true,
 }));
-vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
+// The search relay's answer: the tags the words matched and who carries them.
+const searchTagsAsked = vi.fn((_q: string, _opts: unknown) => {});
+vi.mock("@/hooks/useSearchTags", () => ({
+  useSearchTags: (q: string, opts: unknown) => {
+    searchTagsAsked(q, opts);
+    const tags = tagMatchesMock(q);
+    const carriers = carriersMock(tags);
+    return { tags, carriers, settled: carriers.settled };
+  },
+}));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 // One Bitcoin price for the Shop page — fixed here so a sats price converts to round money.
 const TEST_RATES = { USD: 100_000, EUR: 90_000, GBP: 80_000, CAD: 140_000, CHF: 85_000, AUD: 150_000, JPY: 15_000_000 };
@@ -4290,6 +4298,19 @@ describe("a People search whose words match a tag", () => {
     fireEvent.click(chip);
     expect(onOpenProfile).not.toHaveBeenCalled();
     expect(window.location.pathname).toBe(`/tags/${nip19.npubEncode(TAG_AUTHOR)}/verified-human`);
+  });
+});
+
+// Tags used to come from walking the hub's whole catalogue — about 25 seconds,
+// and never on a page opened from a link. The search relay answers in one ask.
+describe("where a People search reads its tags", () => {
+  it("asks the search relay for the tags and their people", async () => {
+    searchTagsAsked.mockClear();
+    setUrlTab("people");
+    render(<SearchResults query="aos" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 100 });
+    await act(async () => {});
+    expect(searchTagsAsked).toHaveBeenCalledWith("aos", expect.objectContaining({ pov: "nosfabrica", members: true }));
   });
 });
 

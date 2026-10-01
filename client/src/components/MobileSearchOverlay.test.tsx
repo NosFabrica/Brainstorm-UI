@@ -40,7 +40,9 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () 
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
 vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ isSearchObserver: false }) }));
-vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
+vi.mock("@/hooks/useSearchTags", () => ({
+  useSearchTags: () => ({ tags: [], carriers: { byPubkey: new Map(), people: [], settled: true }, settled: true }),
+}));
 
 import { MobileSearchOverlay, openMobileSearch } from "./MobileSearchOverlay";
 import { clearRecentSearches, pushRecentScoped } from "@/lib/recentSearches";

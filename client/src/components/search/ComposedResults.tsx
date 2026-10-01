@@ -67,8 +67,7 @@ import {
   type SearchTab,
 } from "@/services/search";
 import { Chip } from "@/components/ui/chip";
-import { useTagMatches } from "@/hooks/useTags";
-import { useTagCarriers } from "@/hooks/useTagCarriers";
+import { useSearchTags } from "@/hooks/useSearchTags";
 import {
   matchedTagChip,
   leadCarriersByRank,
@@ -436,8 +435,12 @@ function ComposedResultsBody({
 
   // Words that name a tag find the people on it (the team, 2026-09-29): they
   // lead the strip wearing the tag; the relay's matches follow.
-  const tagMatches = useTagMatches(scopeOf(query) ? "" : query, 3, { fetch: false });
-  const carriers = useTagCarriers(tagMatches, { pov, viewerPubkey: userPubkey });
+  // Both come from the search relay in one ask (hooks/useSearchTags).
+  const { tags: tagMatches, carriers } = useSearchTags(scopeOf(query) ? "" : query, {
+    pov,
+    viewerPubkey: userPubkey,
+    members: true,
+  });
   // Only a tag the words name outright, with weight behind it, leads (lib/tagMatch).
   const leadPeople = useMemo(
     () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, query)),

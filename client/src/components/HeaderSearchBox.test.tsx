@@ -42,14 +42,20 @@ vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["n
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
 vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ isSearchObserver: false }) }));
 const tagMatchesMock = vi.fn((_q: string): unknown[] => []);
-// The real hook caps its own answer; the mock honours the cap it is asked for.
-vi.mock("@/hooks/useTags", () => ({ useTagMatches: (q: string, max = 3) => tagMatchesMock(q).slice(0, max) }));
+// The search relay's answer. The real hook caps its own answer; the mock honours the cap it is asked for.
 const carriersMock = vi.fn((_tags: unknown[]) => ({
   byPubkey: new Map<string, unknown[]>(),
   people: [] as unknown[],
   settled: true,
 }));
-vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
+const searchTagsAsked = vi.fn((_q: string, _opts: unknown) => {});
+vi.mock("@/hooks/useSearchTags", () => ({
+  useSearchTags: (q: string, opts: { max?: number }) => {
+    searchTagsAsked(q, opts);
+    const tags = q ? tagMatchesMock(q).slice(0, opts.max ?? 3) : [];
+    return { tags, carriers: carriersMock(tags), settled: true };
+  },
+}));
 
 import { HeaderSearchBox } from "./HeaderSearchBox";
 import { nip19 } from "nostr-tools";
@@ -443,6 +449,22 @@ describe("a query that matches a tag", () => {
     ]);
     expect(screen.getByTestId("home-suggestion-5")).toBeInTheDocument();
     expect(screen.queryByTestId("home-suggestion-6")).toBeNull();
+  });
+
+  // Tag rows used to wait on a walk of the hub's whole catalogue, about 25
+  // seconds. The search relay answers by the words, after the typing pause.
+  it("asks the search relay for the tags, lists only, once the typing pauses", async () => {
+    searchTagsAsked.mockClear();
+    tagMatchesMock.mockReturnValue([human]);
+    suggestMock.mockResolvedValue([]);
+    await open("verified human");
+
+    expect(screen.getByTestId("home-tag-suggestion")).toHaveTextContent("Verified Human");
+    const [words, opts] = searchTagsAsked.mock.calls.at(-1)!;
+    expect(words).toBe("verified human");
+    expect(opts).toMatchObject({ pov: "nosfabrica", max: 2 });
+    expect((opts as { members?: boolean }).members ?? false).toBe(false);
+    expect((opts as { pauseMs?: number }).pauseMs).toBeGreaterThan(0);
   });
 
   it("the tag row opens the tag's page — everyone who carries it", async () => {
