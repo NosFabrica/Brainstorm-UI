@@ -693,6 +693,42 @@ describe("DmEngine", () => {
     expect(engine.advanceAll()).toBe(true);
   });
 
+  it("downloads every relay to its end on request, then stops by itself", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://a.example/", "wss://b.example/"] });
+    for (const months of [1, 6, 18])
+      net.hold("wss://a.example/", await wrapFrom(ana, me.pubkey, `${months} months ago`, NOW - months * 30 * 86400));
+    net.hold("wss://b.example/", await wrapFrom(ana, me.pubkey, "two years ago", NOW - 730 * 86400));
+    const engine = new DmEngine(me.account(), { ...net, ...clock(), now: () => NOW });
+    await engine.start();
+    await settle();
+    expect(net.pages).toHaveLength(0);
+
+    engine.downloadAll();
+    expect(engine.state().downloading).toBe(true);
+    for (let i = 0; i < 100 && engine.state().downloading; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(engine.state().downloading).toBe(false);
+    expect(engine.state().history.relays.map((r) => r.state)).toEqual(["done", "done"]);
+    expect(engine.store.rooms()[0].messages).toHaveLength(4);
+    engine.stop();
+  });
+
+  it("stops downloading when asked", async () => {
+    const me = person();
+    const net = network({ [me.pubkey]: ["wss://a.example/"] });
+    const engine = new DmEngine(me.account(), { ...net, ...clock(), now: () => NOW });
+    await engine.start();
+    await settle();
+    engine.downloadAll();
+    engine.stopDownload();
+    expect(engine.state().downloading).toBe(false);
+    const asked = net.pages.length;
+    await new Promise((r) => setTimeout(r, 200));
+    expect(net.pages.length).toBe(asked);
+    engine.stop();
+  });
+
   it("pages the band a capped live window left, starting below it — not from the floor", async () => {
     const me = person();
     const ana = person();

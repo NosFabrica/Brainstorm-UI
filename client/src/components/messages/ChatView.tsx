@@ -114,6 +114,7 @@ function HistoryCard({
   first,
   onKeepLooking,
   onStop,
+  onResume,
   onRetry,
 }: {
   phase: ChatHistoryPhase;
@@ -121,6 +122,7 @@ function HistoryCard({
   first: string;
   onKeepLooking: () => void;
   onStop: () => void;
+  onResume: () => void;
   onRetry: (url: string) => void;
 }) {
   const relays = state.history.relays;
@@ -138,6 +140,14 @@ function HistoryCard({
     icon = <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-brand-deep" />;
     title = "Looking for older messages";
     body = "Loading one more page from each of your inbox relays.";
+  } else if (phase === "paused") {
+    title = "Older messages aren't loaded yet";
+    body = deepest ? `Loaded back to ${shortDate(deepest)}.` : "Your inbox relays have more history.";
+    action = (
+      <Button size="sm" onClick={onResume} data-testid="dm-history-continue">
+        Continue
+      </Button>
+    );
   } else if (phase === "button") {
     title = `No older messages with ${first} yet`;
     body = deepest ? `Your relays are complete to ${shortDate(deepest)}. Older messages may be further back.` : "";
@@ -255,7 +265,8 @@ export function ChatView({
     (url: string, v: boolean) => setVisible((cur) => (cur[url] === v ? cur : { ...cur, [url]: v })),
     [],
   );
-  const markersVisible = Object.values(visible).some(Boolean);
+  const reported = Object.values(visible);
+  const markersVisible = reported.length ? reported.some(Boolean) : null;
   const count = view.messages.length;
   const history = useChatHistory(engine, state, roomKey, count, markersVisible);
 
@@ -511,6 +522,7 @@ export function ChatView({
           first={first}
           onKeepLooking={history.keepLooking}
           onStop={history.stop}
+          onResume={history.resume}
           onRetry={(url) => engine?.retry(url)}
         />
         {!view.messages.length && history.phase === "idle" && (

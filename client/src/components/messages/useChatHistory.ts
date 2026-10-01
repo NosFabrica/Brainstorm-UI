@@ -12,22 +12,33 @@
  *  3. if it brought nothing, stop and offer "Keep looking", which pages every
  *     relay, round after round, until a message for this chat appears or
  *     every relay is done.
+ *
+ * Only when the reader scrolled up to them. A chat that opens with the markers
+ * already in view (a short chat, history incomplete) starts `paused` and
+ * fetches nothing until Continue — so moving between chats doesn't pull
+ * another page from every relay each time one is opened. After Continue the
+ * chat pages as above until the reader leaves it.
  */
 import { useEffect, useReducer, useRef } from "react";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
 
-export type ChatHistoryPhase = "idle" | "auto" | "button" | "search" | "end";
+export type ChatHistoryPhase = "idle" | "auto" | "button" | "search" | "end" | "paused";
 
 export function useChatHistory(
   engine: DmEngine | null,
   state: DmEngineState,
   room: string | null,
   count: number,
-  markersVisible: boolean,
-): { phase: ChatHistoryPhase; keepLooking: () => void; stop: () => void } {
-  const memo = useRef({ room, phase: "idle" as ChatHistoryPhase, baseline: 0 });
+  /** `null` until the markers have reported in. */
+  markersVisible: boolean | null,
+): { phase: ChatHistoryPhase; keepLooking: () => void; stop: () => void; resume: () => void } {
+  // `armed`: the markers have been out of view (or Continue was pressed), so
+  // seeing them now means the reader went looking.
+  const fresh = () => ({ room, phase: "idle" as ChatHistoryPhase, baseline: 0, armed: false });
+  const memo = useRef(fresh());
   const [, rerender] = useReducer((n: number) => n + 1, 0);
-  if (memo.current.room !== room) memo.current = { room, phase: "idle", baseline: 0 };
+  if (memo.current.room !== room) memo.current = fresh();
+  if (markersVisible === false) memo.current.armed = true;
 
   const relays = state.history.relays;
   // A page isn't in until its wraps are opened: judging "nothing for this chat"
@@ -51,9 +62,18 @@ export function useChatHistory(
       case "idle":
         if (!open.length && !busy) set("end");
         else if (markersVisible && !busy) {
-          m.baseline = count;
-          if (engine.advanceAll()) set("auto");
+          if (!m.armed) set("paused");
+          else {
+            m.baseline = count;
+            if (engine.advanceAll()) set("auto");
+          }
         }
+        break;
+      case "paused":
+        // Waits for Continue — or for the reader to scroll away, after which
+        // scrolling back up is a request.
+        if (!open.length && !busy) set("end");
+        else if (m.armed) set("idle");
         break;
       case "auto":
         if (busy) break;
@@ -85,6 +105,12 @@ export function useChatHistory(
     },
     stop: () => {
       memo.current.phase = "button";
+      rerender();
+    },
+    resume: () => {
+      memo.current.armed = true;
+      memo.current.baseline = count;
+      memo.current.phase = engine?.advanceAll() ? "auto" : "idle";
       rerender();
     },
   };

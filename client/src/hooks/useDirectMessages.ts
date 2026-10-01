@@ -37,6 +37,7 @@ const IDLE: DmEngineState = {
   queued: 0,
   failed: 0,
   setAside: 0,
+  downloading: false,
   sync: { received: {}, opened: 0 },
   history: { floor: 0, relays: [], loading: false, exhausted: true, complete: false },
 };

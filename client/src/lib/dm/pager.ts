@@ -34,6 +34,8 @@ export interface RelayProgress {
   pages: number;
   /** Why it stalled, when it did. */
   reason?: string;
+  /** Stalled, but about to be asked again by itself. */
+  retrying?: boolean;
   /**
    * Wraps this relay delivered that aren't opened yet (services/dm/engine).
    * Paging waits on them: a page isn't loaded until it can be read.
@@ -270,6 +272,7 @@ export class BackwardPager {
         requestedUntil: e.state === "loading" ? cursors.requestedUntil(url) : undefined,
         pages: e.pages,
         reason: e.reason,
+        ...(e.retryTimer !== undefined ? { retrying: true } : {}),
       };
     });
     this.snap = {

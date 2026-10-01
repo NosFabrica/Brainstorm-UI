@@ -10,9 +10,12 @@ import { cn } from "@/lib/utils";
 import type { RelayProgress } from "@/lib/dm/pager";
 import { relayHost, shortDate } from "./people";
 
-/** Whether `ref` is on screen. False where IntersectionObserver doesn't exist. */
-export function useInView(ref: RefObject<Element>): boolean {
-  const [visible, setVisible] = useState(false);
+/**
+ * Whether `ref` is on screen; `null` until the observer has said (and where
+ * IntersectionObserver doesn't exist).
+ */
+export function useInView(ref: RefObject<Element>): boolean | null {
+  const [visible, setVisible] = useState<boolean | null>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
@@ -80,7 +83,7 @@ export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry, 
   const backlog = progress.opening ?? 0;
 
   useEffect(() => {
-    onVisible?.(url, inView);
+    if (inView !== null) onVisible?.(url, inView);
   }, [url, inView, onVisible]);
 
   // In the list: keep paging while the marker stays in view. Re-armed every

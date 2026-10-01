@@ -149,6 +149,8 @@ export interface DmEngineState {
   setAside: number;
   /** What each inbox relay has delivered this visit, and how much this visit opened — the sync view. */
   sync: { received: Record<string, number>; opened: number };
+  /** Paging every relay to its end on its own (`downloadAll`), not waiting to be scrolled. */
+  downloading: boolean;
   history: PagerSnapshot;
 }
 
@@ -206,6 +208,7 @@ export class DmEngine {
   /** Wraps being opened right now — a copy arriving meanwhile isn't opened twice. */
   private readonly opening = new Map<string, Queued>();
   private openedCount = 0;
+  private downloading = false;
   private running = 0;
   private allowed = false;
   private paused?: DmPause;
@@ -936,7 +939,37 @@ export class DmEngine {
     this.savedCursors = undefined;
     this.startHistory();
     // Below the live window's oldest on each relay, as on a first visit.
+    this.downloadAll();
+  }
+
+  /**
+   * Page every relay to its end without waiting to be scrolled — the sync
+   * view's button. Each relay's next page still waits for the last one to be
+   * nearly open (canPage), so this runs at the signer's pace; it ends when no
+   * relay has more, or on `stopDownload()`. For this visit only.
+   */
+  downloadAll(): void {
+    if (this.stopped || !this.pager) return;
+    this.downloading = true;
     this.changed();
+    this.keepDownloading();
+  }
+
+  stopDownload(): void {
+    if (!this.downloading) return;
+    this.downloading = false;
+    this.changed();
+  }
+
+  /** Runs with every (throttled) state change while downloading. */
+  private keepDownloading(): void {
+    if (!this.downloading || this.stopped || !this.pager) return;
+    const relays = this.pager.snapshot().relays;
+    if (!relays.some((r) => r.state === "idle" || r.state === "loading" || r.retrying)) {
+      this.downloading = false;
+      this.changed();
+      return;
+    }
     this.advanceAll();
   }
 
@@ -1229,6 +1262,7 @@ export class DmEngine {
       paused: this.paused ?? (!this.allowed && this.queue.size ? "waiting" : undefined),
       failed: this.failed,
       setAside: this.setAsideItems.size,
+      downloading: this.downloading,
       sync: {
         received: Object.fromEntries([...this.receivedBy].map(([url, ids]) => [url, ids.size])),
         opened: this.openedCount,
@@ -1255,6 +1289,7 @@ export class DmEngine {
       this.notifyTimer = null;
       this.lastNotify = Date.now();
       for (const l of [...this.listeners]) l();
+      this.keepDownloading();
     };
     if (wait <= 0) flush();
     else this.notifyTimer = setTimeout(flush, wait);
