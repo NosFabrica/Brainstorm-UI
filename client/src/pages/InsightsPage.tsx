@@ -16,6 +16,7 @@ import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { logout } from "@/accounts/login-flow";
 import { apiClient } from "@/services/api";
+import { runOf } from "@/lib/graperankRun";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { presetToBackend } from "@/services/trustThreshold";
 import { getScoreJournal, hydrateScoreJournal, recordScore, withDeltas, type ScoreEntry } from "@/lib/scoreJournal";
@@ -121,8 +122,7 @@ export default function InsightsPage() {
     // card said "In progress" forever after the server had finished. Poll only
     // while a run is actually in flight; go quiet the moment it settles.
     refetchInterval: (query) => {
-      const raw = query.state.data as (GrapeRankRun & { data?: GrapeRankRun }) | undefined;
-      const g = raw?.internal_publication_status !== undefined ? raw : raw?.data;
+      const g = runOf<GrapeRankRun>(query.state.data);
       if (!g) return false;
       const settled =
         isDone(g.internal_publication_status) || isFail(g.status) || isFail(g.internal_publication_status);
@@ -148,7 +148,11 @@ export default function InsightsPage() {
   const overview = overviewQuery.data?.data ?? null;
   const stats = statsQuery.data?.data ?? null;
   const history = historyQuery.data?.data ?? null;
-  const grapeRank = grapeRankQuery.data as GrapeRankRun | undefined;
+  // The run sits inside the server's envelope; read at the top it has no
+  // status at all, and the card said "In progress" for every finished run.
+  // Null: the server answered and there is no run. Undefined: no answer yet.
+  const latestRun = runOf<GrapeRankRun>(grapeRankQuery.data);
+  const grapeRank = latestRun ?? undefined;
 
   const globalInfluence = houseQuery.data ?? null;
   const tier = globalInfluence != null ? tierForScore01(globalInfluence) : null;
@@ -315,6 +319,10 @@ export default function InsightsPage() {
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />{" "}
                     <span className="text-emerald-600 dark:text-emerald-400">Complete</span>
                   </>
+                ) : latestRun === null ? (
+                  <span className="text-slate-500 dark:text-slate-400">Not calculated yet</span>
+                ) : latestRun === undefined ? (
+                  <span className="text-slate-500 dark:text-slate-400">Checking…</span>
                 ) : (
                   <span className="text-amber-600 dark:text-amber-400">In progress</span>
                 )}
