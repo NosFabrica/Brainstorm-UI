@@ -336,6 +336,7 @@ export function ShareNoteCard({
           imageOpensThread={!!href}
           tags={event.tags}
           embeddedIds={new Set(quoted.map((q) => q.id))}
+          embedThings
           authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name}
         />
         {/* X's "Translate post" for notes in another language — on-device, quiet. */}

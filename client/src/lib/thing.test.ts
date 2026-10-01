@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   kind38000Format,
+  marketStatus,
   decodeEntities,
   describeThing,
   hostOfUrl,
@@ -609,7 +610,8 @@ describe("describeThing — prediction markets", () => {
     );
     expect(first).toMatchObject({
       title: "Will it happen?",
-      detail: { outcomes: ["Yes", "No"], status: "open", closes: 1769256240, demo: false },
+      // "funding", but its betting closed in January: closed, as Amethyst reads it too.
+      detail: { outcomes: ["Yes", "No"], status: "closed", closes: 1769256240, demo: false },
     });
   });
 
@@ -675,5 +677,28 @@ describe("describeThing — ballots", () => {
     });
     const choice = describeThing(ev(38000, [["election", "e1"]], JSON.stringify({ vote_choice: "B" })));
     expect(choice?.detail).toMatchObject({ answers: [{ question: "Vote", answer: "B" }] });
+  });
+});
+
+describe("marketStatus — the rules Amethyst keeps too", () => {
+  const now = 1_790_000_000_000;
+  const none = { resolution: null, cancelled: false, closes: null };
+  it("keeps a declared resolved or cancelled, whatever else the market says", () => {
+    expect(marketStatus("resolved", { ...none, closes: 1 }, now)).toBe("resolved");
+    expect(marketStatus("voided", { ...none, resolution: "YES" }, now)).toBe("cancelled");
+  });
+  it("lets a resolution settle an open or unmarked market, and a cancel reason cancel an unmarked one", () => {
+    expect(marketStatus("active", { ...none, resolution: "NO" }, now)).toBe("resolved");
+    expect(marketStatus(undefined, { ...none, resolution: "NO" }, now)).toBe("resolved");
+    expect(marketStatus(undefined, { ...none, cancelled: true }, now)).toBe("cancelled");
+    expect(marketStatus("active", { ...none, cancelled: true }, now)).toBe("open");
+  });
+  it("closes an 'active' market whose betting has ended — BAO leaves the word in place", () => {
+    expect(marketStatus("active", { ...none, closes: 1_780_000_000 }, now)).toBe("closed");
+    expect(marketStatus("active", { ...none, closes: 1_800_000_000 }, now)).toBe("open");
+    expect(marketStatus(undefined, { ...none, closes: 1_800_000_000 }, now)).toBe("open");
+    expect(marketStatus("resolving", { ...none, closes: 1_800_000_000 }, now)).toBe("closed");
+    expect(marketStatus("active", none, now)).toBe("open");
+    expect(marketStatus(undefined, none, now)).toBeNull();
   });
 });

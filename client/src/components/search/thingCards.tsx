@@ -67,7 +67,7 @@ import {
   type ThingDetail,
   type TorrentCategory,
 } from "@/lib/thing";
-import type { Tone } from "@/lib/tones";
+import { tone as resolveTone, type Tone } from "@/lib/tones";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { formatBytes } from "@/lib/formatBytes";
 import { languageName } from "@/lib/translate";
@@ -613,7 +613,18 @@ export function marketCloseWords(closes: number, now = Date.now()): string {
   return `Closes ${date}`;
 }
 
-/** The answers as chips, the one it resolved to marked. */
+/** "YES", "No", "YES (stays online)" — the two sides of a yes/no market, whatever the app wrote after them. */
+const sideOf = (o: string): "yes" | "no" | null => {
+  const w = o.trim().toLowerCase();
+  return /^yes\b/.test(w) ? "yes" : /^no\b/.test(w) ? "no" : null;
+};
+
+/**
+ * What can be picked. A yes/no market is two sides, green and red, the way
+ * betting apps draw them; anything else is its outcomes in a row. Once it
+ * resolves, the winner keeps its colour and a check and the rest go quiet;
+ * a cancelled market's outcomes all go quiet.
+ */
 export function MarketOutcomes({
   detail,
   max = 5,
@@ -624,21 +635,103 @@ export function MarketOutcomes({
   testId?: string;
 }) {
   if (detail.outcomes.length === 0) return null;
-  const won = detail.resolution?.toLowerCase();
+  const won = detail.resolution?.trim().toLowerCase();
+  const binary = detail.outcomes.length === 2 && detail.outcomes.every((o) => sideOf(o) !== null);
+  const off = detail.status === "cancelled";
+  const toneOf = (o: string): Tone => {
+    const isWinner = !!won && o.trim().toLowerCase() === won;
+    if (off || (won && !isWinner)) return "slate";
+    if (isWinner) return "success";
+    if (binary) return sideOf(o) === "yes" ? "success" : "danger";
+    return "slate";
+  };
+  if (binary)
+    // Two sides, side by side and full width — the way betting apps lay out Yes and No.
+    return (
+      <div className="grid grid-cols-2 gap-2" data-testid={testId}>
+        {detail.outcomes.map((o) => {
+          const isWinner = !!won && o.trim().toLowerCase() === won;
+          const quiet = off || (!!won && !isWinner);
+          const c = resolveTone(toneOf(o));
+          return (
+            <span
+              key={o}
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg border px-3 py-1.5 text-sm font-semibold ${c.bg} ${c.text} ${c.border} ${quiet ? "opacity-50" : ""}`}
+              data-testid={isWinner ? "market-winner" : undefined}
+            >
+              {isWinner && <Check className="h-3.5 w-3.5 shrink-0" aria-label="Won" />}
+              <span className="truncate">{o}</span>
+            </span>
+          );
+        })}
+      </div>
+    );
   return (
-    <div className="flex flex-wrap gap-1.5" data-testid={testId}>
-      {detail.outcomes.slice(0, max).map((o) => (
-        <Chip
-          key={o}
-          size="sm"
-          tone={o.toLowerCase() === won ? "success" : "slate"}
-          icon={o.toLowerCase() === won ? Check : undefined}
-        >
-          {o}
-        </Chip>
-      ))}
+    <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
+      {detail.outcomes.slice(0, max).map((o) => {
+        const isWinner = !!won && o.trim().toLowerCase() === won;
+        return (
+          <Chip
+            key={o}
+            size="sm"
+            tone={toneOf(o)}
+            icon={isWinner ? Check : undefined}
+            className={off || (won && !isWinner) ? "opacity-60" : undefined}
+            data-testid={isWinner ? "market-winner" : undefined}
+          >
+            {o}
+          </Chip>
+        );
+      })}
       {detail.outcomes.length > max && (
-        <span className="text-[11px] text-slate-500 dark:text-slate-400">+{detail.outcomes.length - max}</span>
+        <span className="text-[11px] text-slate-500 dark:text-slate-400">+{detail.outcomes.length - max} more</span>
+      )}
+    </div>
+  );
+}
+
+/** Where a market stands, in one row of chips: its status, play money, its category. */
+export function MarketStatusLine({ detail, testId }: { detail: Detail<"market">; testId?: string }) {
+  const status = detail.status ? MARKET_STATUS_CHIP[detail.status] : null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
+      {status && (
+        <Chip size="sm" tone={status.tone} dot={detail.status === "open"}>
+          {status.word}
+        </Chip>
+      )}
+      {detail.demo && (
+        <Chip size="sm" tone="warning">
+          Demo · play money
+        </Chip>
+      )}
+      {detail.category && (
+        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{detail.category}</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A market at a glance, for wherever one turns up — a card, a search row, a
+ * note that quotes it: where it stands, what can be picked, when it closes.
+ */
+export function MarketSummary({
+  detail,
+  max = 5,
+  testId,
+}: {
+  detail: Detail<"market">;
+  max?: number;
+  testId?: string;
+}) {
+  const open = detail.status === "open" || detail.status === null;
+  return (
+    <div className="space-y-2" data-testid={testId}>
+      <MarketStatusLine detail={detail} />
+      <MarketOutcomes detail={detail} max={max} />
+      {detail.closes !== null && open && (
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">{marketCloseWords(detail.closes)}</p>
       )}
     </div>
   );
@@ -651,7 +744,6 @@ export function MarketOutcomes({
  */
 export function MarketCard(props: CardProps<"market">) {
   const { event, thing, detail } = props;
-  const status = detail.status ? MARKET_STATUS_CHIP[detail.status] : null;
   return (
     <CardShell event={event} fill testId={`thing-card-${event.id}`}>
       <div className="flex h-full flex-col">
@@ -659,30 +751,12 @@ export function MarketCard(props: CardProps<"market">) {
           <Picture src={null} icon={TrendingUp} size="sm" />
           <div className="min-w-0 flex-1">
             <Title event={event} thing={thing} clamp={2} />
-            <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid={`thing-market-status-${event.id}`}>
-              {status && (
-                <Chip size="sm" tone={status.tone}>
-                  {status.word}
-                </Chip>
-              )}
-              {detail.demo && (
-                <Chip size="sm" tone="warning">
-                  Demo
-                </Chip>
-              )}
-              {detail.category && (
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">{detail.category}</span>
-              )}
-            </div>
+            <Description event={event} text={thing.description} />
           </div>
         </div>
-        <Description event={event} text={thing.description} />
-        <div className="mt-2.5">
-          <MarketOutcomes detail={detail} testId={`thing-market-outcomes-${event.id}`} />
+        <div className="mt-3">
+          <MarketSummary detail={detail} testId={`thing-market-${event.id}`} />
         </div>
-        {detail.closes !== null && detail.status !== "resolved" && detail.status !== "cancelled" && (
-          <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">{marketCloseWords(detail.closes)}</p>
-        )}
         <Footer kicker="Created by" author={props.author} score={props.score} at={event.created_at} />
       </div>
     </CardShell>
@@ -690,6 +764,38 @@ export function MarketCard(props: CardProps<"market">) {
 }
 
 // ——— Ballots ———
+
+/** A ballot's answers, question → answer, the first few and how many more. */
+export function BallotAnswers({
+  detail,
+  max = 3,
+  testId,
+}: {
+  detail: Detail<"ballot">;
+  max?: number;
+  testId?: string;
+}) {
+  if (detail.answers.length === 0) return null;
+  return (
+    <div data-testid={testId}>
+      <dl className="divide-y divide-slate-100 rounded-lg border border-slate-200 text-xs dark:divide-slate-800 dark:border-slate-800">
+        {detail.answers.slice(0, max).map((a, i) => (
+          <div key={i} className="flex min-w-0 items-baseline gap-2 px-2.5 py-1.5">
+            <dt className="max-w-[40%] shrink-0 truncate font-medium text-slate-500 dark:text-slate-400">
+              {a.question}
+            </dt>
+            <dd className="min-w-0 flex-1 truncate text-right text-slate-800 dark:text-slate-100">{a.answer}</dd>
+          </div>
+        ))}
+      </dl>
+      {detail.answers.length > max && (
+        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+          +{detail.answers.length - max} more {detail.answers.length - max === 1 ? "answer" : "answers"}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /** A ballot: which election, and the voter's answers, a few lines of them. */
 export function BallotCard(props: CardProps<"ballot">) {
@@ -705,19 +811,13 @@ export function BallotCard(props: CardProps<"ballot">) {
               {detail.answers.length
                 ? `${detail.answers.length} ${detail.answers.length === 1 ? "answer" : "answers"}`
                 : "Ballot"}
+              {detail.proofHash ? " · with proof" : ""}
             </p>
           </div>
         </div>
-        {detail.answers.length > 0 && (
-          <dl className="mt-2.5 space-y-0.5 text-xs" data-testid={`thing-ballot-answers-${event.id}`}>
-            {detail.answers.slice(0, 3).map((a, i) => (
-              <div key={i} className="flex min-w-0 gap-1.5">
-                <dt className="shrink-0 text-slate-500 dark:text-slate-400">{a.question}</dt>
-                <dd className="min-w-0 truncate text-slate-800 dark:text-slate-100">{a.answer}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
+        <div className="mt-2.5">
+          <BallotAnswers detail={detail} testId={`thing-ballot-answers-${event.id}`} />
+        </div>
         <Footer kicker="Cast by" author={props.author} score={props.score} at={event.created_at} />
       </div>
     </CardShell>

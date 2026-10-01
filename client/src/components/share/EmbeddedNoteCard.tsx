@@ -15,6 +15,8 @@ import { useQuotedNotes } from "@/hooks/useQuotedNotes";
 import { nip19 } from "nostr-tools";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { DeletedStub } from "@/components/share/DeletedStub";
+import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
+import { describeThing, THING_KINDS } from "@/lib/thing";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -97,6 +99,11 @@ export function EmbeddedNoteCard({
       }
     : undefined;
 
+  // A quoted prediction market or ballot (kind 38000) is drawn as what it is:
+  // a market's content is BAO's social post, a ballot's is raw JSON.
+  const thing = THING_KINDS.has(event.kind) ? describeThing(event) : null;
+  const shaped = thing?.detail.type === "market" || thing?.detail.type === "ballot" ? thing : null;
+
   if (blank)
     return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
   return (
@@ -148,18 +155,36 @@ export function EmbeddedNoteCard({
           {replyTargets.length > 2 && <span>+{replyTargets.length - 2}</span>}
         </p>
       )}
-      <div className="line-clamp-5 text-[14px]">
-        <NoteContent
-          content={event.content}
-          compact
-          profiles={profiles}
-          imageOpensThread={!!href}
-          tags={event.tags}
-          authorName={author?.display_name || author?.name}
-          embeddedCoords={linked.coords}
-          embeddedIds={quoted.ids}
-        />
-      </div>
+      {shaped ? (
+        <div data-testid="embedded-thing">
+          <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100">
+            {shaped.title}
+          </p>
+          {shaped.detail.type === "market" && shaped.description && (
+            <p className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{shaped.description}</p>
+          )}
+          <div className="mt-2">
+            {shaped.detail.type === "market" ? (
+              <MarketSummary detail={shaped.detail} />
+            ) : shaped.detail.type === "ballot" ? (
+              <BallotAnswers detail={shaped.detail} />
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="line-clamp-5 text-[14px]">
+          <NoteContent
+            content={event.content}
+            compact
+            profiles={profiles}
+            imageOpensThread={!!href}
+            tags={event.tags}
+            authorName={author?.display_name || author?.name}
+            embeddedCoords={linked.coords}
+            embeddedIds={quoted.ids}
+          />
+        </div>
+      )}
       {quoted.notes.map((q) => (
         <div key={q.event.id} data-testid="embedded-quote">
           <EmbeddedNoteCard

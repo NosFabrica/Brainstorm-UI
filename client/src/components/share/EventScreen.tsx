@@ -604,6 +604,7 @@ function EventView({
                         linkCard
                         tags={note.tags}
                         authorName={profile.display_name || profile.name}
+                        embedThings
                       />
                     </div>
                   )}

@@ -710,6 +710,27 @@ const MARKET_STATUS: Record<string, MarketStatus> = {
   canceled: "cancelled",
 };
 
+/**
+ * Where a market stands — the same rules Amethyst's PredictionMarketEvent
+ * keeps, so the two apps agree: a declared resolved or cancelled is final; a
+ * `resolution` settles one still marked open (or unmarked); a `cancel_reason`
+ * cancels an unmarked one; and BAO leaves "active" on markets whose betting
+ * has closed, so an open one past its `end` is closed.
+ */
+export function marketStatus(
+  said: string | undefined,
+  { resolution, cancelled, closes }: { resolution: string | null; cancelled: boolean; closes: number | null },
+  now = Date.now(),
+): MarketStatus | null {
+  const declared = said ? MARKET_STATUS[said] : undefined;
+  if (declared === "resolved" || declared === "cancelled") return declared;
+  if (resolution) return "resolved";
+  if (!declared && cancelled) return "cancelled";
+  const ended = closes !== null && closes * 1000 <= now;
+  if (declared === "open" || !declared) return closes === null ? (declared ?? null) : ended ? "closed" : "open";
+  return declared;
+}
+
 /** Unix seconds from seconds, milliseconds or an ISO date; null for anything else. */
 function unixSeconds(v: unknown): number | null {
   if (typeof v === "string" && !/^\d+$/.test(v.trim())) {
@@ -746,10 +767,10 @@ function readMarket(ev: EventLike): Thing | null {
   const outcomes = [...new Set(tagged.length ? tagged : listed)];
   const resolution = tag(ev, "resolution") ?? null;
   const closes = unixSeconds(tag(ev, "end") ?? data?.endTime ?? data?.endDate);
-  const said = (tag(ev, "status") ?? tag(ev, "state") ?? str(data?.status) ?? str(data?.state))?.toLowerCase();
-  const status: MarketStatus | null =
-    (said && MARKET_STATUS[said]) ||
-    (resolution ? "resolved" : closes !== null ? (closes * 1000 <= Date.now() ? "closed" : "open") : null);
+  const status = marketStatus(
+    (tag(ev, "status") ?? tag(ev, "state") ?? tag(ev, "s") ?? str(data?.status) ?? str(data?.state))?.toLowerCase(),
+    { resolution, cancelled: !!tag(ev, "cancel_reason"), closes },
+  );
   const demo = (tag(ev, "network") ?? tag(ev, "n"))?.toLowerCase() === "demo";
   const category = tag(ev, "category") ?? tag(ev, "c") ?? null;
   // The current shape's content is a social post of the same words, emoji and hashtags added.

@@ -157,6 +157,41 @@ describe("SerpRow — link metadata", () => {
     expect(row.textContent).not.toContain("AgkXT1NCh");
   });
 
+  // Kind 38000 is shared: a BAO market's row shows the market — where it
+  // stands, its two sides, play money — and a ballot's its answers, never JSON.
+  it("a prediction market's row shows its status, sides and demo network; a ballot's row its answers", () => {
+    const market = {
+      ...note("₿ Will it happen? 📈 🟢 YES | 🔴 NO #baomarkets"),
+      id: "1".repeat(64),
+      kind: 38000,
+      tags: [
+        ["market", "m1"],
+        ["status", "resolved"],
+        ["network", "demo"],
+        ["outcome", "YES"],
+        ["outcome", "NO"],
+        ["resolution", "YES"],
+        ["data", JSON.stringify({ title: "Will it happen?", description: "Resolves YES if it does." })],
+      ],
+    };
+    render(<SerpRow event={market} author={author} score={0.7} query="" />);
+    const summary = screen.getByTestId(`serp-market-${market.id}`);
+    expect(summary).toHaveTextContent("Resolved");
+    expect(summary).toHaveTextContent("Demo · play money");
+    expect(screen.getByTestId("market-winner")).toHaveTextContent("YES");
+    expect(screen.getByTestId(`serp-row-${market.id}`)).not.toHaveTextContent("#baomarkets");
+
+    const ballot = {
+      ...note(JSON.stringify({ election_id: "e1", responses: [{ question_id: "q1", value: "Yes" }] })),
+      id: "2".repeat(64),
+      kind: 38000,
+      tags: [["election", "e1"]],
+    };
+    render(<SerpRow event={ballot} author={author} score={0.7} query="" />);
+    expect(screen.getByTestId(`serp-ballot-${ballot.id}`)).toHaveTextContent("q1Yes");
+    expect(screen.getByTestId(`serp-row-${ballot.id}`)).not.toHaveTextContent("election_id");
+  });
+
   it("says structured content is structured, with its size", () => {
     const ev = { ...note('{"theme":"dark","lang":"en"}'), kind: 30078, tags: [["d", "armada/settings"]] };
     render(<SerpRow event={ev} author={author} score={0.7} query="" />);

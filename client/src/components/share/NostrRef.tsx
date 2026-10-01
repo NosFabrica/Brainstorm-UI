@@ -11,6 +11,7 @@ import { nip19 } from "nostr-tools";
 import { MentionChip } from "@/components/share/MentionChip";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
+import { EMBEDDED_THING_KINDS, ThingAddressRef } from "@/components/share/ThingAddressRef";
 import { addressLabel, addressLink } from "@/components/share/ReadingText";
 import { useQuotedNotes } from "@/hooks/useQuotedNotes";
 import { READER_KINDS, useArticlesByRefs } from "@/hooks/useLinkedArticles";
@@ -63,6 +64,7 @@ export function NostrRef({
   if (id) return <QuotedNoteRef id={id} bech32={bech32} />;
   if (address) {
     if (READER_KINDS.has(address.kind)) return <ArticleRef address={address} bech32={bech32} />;
+    if (EMBEDDED_THING_KINDS.has(address.kind)) return <ThingAddressRef address={address} bech32={bech32} />;
     // Only articles, wiki pages and specs have a reader here; any other
     // address opens where every client can show it.
     return addressLink(bech32, bech32, url) ?? <PageLink bech32={bech32}>{addressLabel(bech32)}</PageLink>;
