@@ -9,6 +9,7 @@ import { useLocation, useParams, useSearch } from "wouter";
 import { MessageSquare } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useEditingText } from "@/hooks/useEditingText";
 import { useToast } from "@/hooks/use-toast";
 import { logout } from "@/accounts/login-flow";
 import { useDmEngine, useDmPrefs, useDmState, useShelves } from "@/hooks/useDirectMessages";
@@ -138,9 +139,21 @@ export default function MessagesPage() {
 
   const showChat = !!roomKey || composing;
   const setup = state.status === "no-inbox";
+  const editing = useEditingText();
 
   return (
-    <div className="flex h-[calc(100dvh-var(--bs-bottom-chrome,0px))] flex-col bg-background text-foreground">
+    <div
+      className={cn(
+        "flex flex-col bg-background text-foreground",
+        // The phone tab bar steps aside while a field has focus but keeps its share of the
+        // bottom chrome (MobileTabBar). This page is one screen tall with the composer at
+        // its foot, so take that share back while typing — else it's an empty band under
+        // the composer. The negative margin cancels the body padding still reserved for it.
+        editing
+          ? "mb-[calc(-1*var(--bs-chrome-tabbar,0px))] h-[calc(100dvh-var(--bs-bottom-chrome,0px)+var(--bs-chrome-tabbar,0px))]"
+          : "h-[calc(100dvh-var(--bs-bottom-chrome,0px))]",
+      )}
+    >
       {user && <AppHeader user={user} onLogout={() => logout()} />}
       <main
         className={cn(
@@ -151,22 +164,27 @@ export default function MessagesPage() {
       >
         <div className={cn("min-h-0 min-w-0 flex-col md:flex", showChat ? "hidden" : "flex")}>
           {setup && (
-            <div className="flex md:hidden">
+            <div className="flex min-h-0 flex-1 overflow-y-auto md:hidden">
               <InboxSetup />
             </div>
           )}
-          <InboxNotices engine={engine} state={state} authAllowed={authAllowed} onAllowAuth={allowAuth} />
-          <ConversationList
-            engine={engine}
-            state={state}
-            shelves={shelves}
-            prefs={prefs}
-            profiles={profiles}
-            me={me}
-            selectedKey={roomKey}
-            tab={tab}
-            onSignIn={allowAuth}
-          />
+          {/* On a phone the setup card is the whole screen until it's done: with no inbox
+              relays nothing can arrive and nothing can be sent, and card plus list don't
+              fit one screen — the list's tabs ended up under the tab bar. */}
+          <div className={setup ? "hidden md:contents" : "contents"}>
+            <InboxNotices engine={engine} state={state} authAllowed={authAllowed} onAllowAuth={allowAuth} />
+            <ConversationList
+              engine={engine}
+              state={state}
+              shelves={shelves}
+              prefs={prefs}
+              profiles={profiles}
+              me={me}
+              selectedKey={roomKey}
+              tab={tab}
+              onSignIn={allowAuth}
+            />
+          </div>
         </div>
 
         {composing ? (
@@ -224,11 +242,6 @@ export default function MessagesPage() {
           </div>
         )}
       </main>
-      {setup && !showChat && (
-        <div className="md:hidden">
-          <InboxSetup />
-        </div>
-      )}
       <MessageDetailsDialog message={details} me={me} profiles={profiles} onClose={() => setDetails(null)} />
     </div>
   );

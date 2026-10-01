@@ -13,8 +13,14 @@ import { dedupeRelays, outboxRelays } from "@/lib/relayRouting";
 
 export const DM_RELAY_LIST_KIND = 10050;
 
-/** What we offer someone setting up: relays that hold inboxes behind a login. */
-export const SUGGESTED_INBOX_RELAYS = ["wss://auth.nostr1.com/", "wss://relay.0xchat.com/"];
+/**
+ * What we offer someone setting up. auth.nostr1.com hands an inbox only to its
+ * owner (NIP-42); nos.lol serves wraps to anyone, so it shows who receives
+ * messages, though never their content or sender. Tested 2026-10-01:
+ * relay.0xchat.com no longer resolves (NXDOMAIN), and nip17.com took wraps but
+ * never answered the #p + limit query history paging sends.
+ */
+export const SUGGESTED_INBOX_RELAYS = ["wss://auth.nostr1.com/", "wss://nos.lol/"];
 
 /** At most this many inbox relays are used per person, as NIP-17 recommends keeping the list small. */
 export const MAX_INBOX_RELAYS = 3;

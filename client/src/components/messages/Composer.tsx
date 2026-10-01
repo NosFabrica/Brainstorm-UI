@@ -1,5 +1,5 @@
-import { useRef, useState, type KeyboardEvent } from "react";
-import { Gift, Loader2, Mic, Paperclip, Send, Timer, Trash2, X } from "lucide-react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Loader2, Mic, Paperclip, Send, Timer, Trash2, X } from "lucide-react";
 import { canRecordVoice, useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import type { DmMessage } from "@/lib/dm/store";
 import { TIMER_CHOICES } from "@/lib/dm/prefs";
@@ -14,10 +14,10 @@ export function Composer({
   replyTo,
   onCancelReply,
   timer,
-  recipients,
   disabled,
   onSend,
   onSendFile,
+  autoFocus,
 }: {
   placeholder: string;
   me: string;
@@ -26,16 +26,23 @@ export function Composer({
   onCancelReply: () => void;
   /** Disappearing timer in seconds, 0 for off. */
   timer: number;
-  recipients: number;
   disabled?: string;
   onSend: (text: string) => Promise<boolean>;
   onSendFile: (file: File) => Promise<boolean>;
+  /** Focus the field on mount — after Accept and reply. */
+  autoFocus?: boolean;
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
+
+  // A layout effect, so a mount inside the tap's flushSync focuses within that tap:
+  // iOS Safari only raises the keyboard for a focus made during the gesture.
+  useLayoutEffect(() => {
+    if (autoFocus) area.current?.focus();
+  }, [autoFocus]);
 
   const send = async () => {
     const value = text.trim();
@@ -81,9 +88,8 @@ export function Composer({
   const clock = `${Math.floor(voice.seconds / 60)}:${String(voice.seconds % 60).padStart(2, "0")}`;
 
   const timerLabel = TIMER_CHOICES.find((c) => c.seconds === timer)?.label;
-  const others = recipients === 1 ? "them" : `${recipients} people`;
   return (
-    <div className="shrink-0 border-t border-border bg-card px-4 pb-4 pt-3 sm:px-6">
+    <div className="shrink-0 border-t border-border bg-card px-4 pb-3 pt-3 sm:px-6 sm:pb-4">
       {replyTo && (
         <div className="mb-2 flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-[13px] dark:bg-slate-800">
           <span className="min-w-0 flex-1 truncate">
@@ -188,12 +194,11 @@ export function Composer({
       {(fileError ?? voice.error) && (
         <p className="mt-2 text-xs text-red-600 dark:text-red-400">{fileError ?? voice.error}</p>
       )}
-      <p className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-        {timer > 0 ? <Timer className="h-3 w-3" /> : <Gift className="h-3 w-3" />}
-        {timer > 0
-          ? `Disappears after ${timerLabel ?? "a while"} · gift-wrapped for ${others} and a copy for you`
-          : `Gift-wrapped for ${others} and a copy for you`}
-      </p>
+      {timer > 0 && (
+        <p className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+          <Timer className="h-3 w-3" /> Disappears after {timerLabel ?? "a while"}
+        </p>
+      )}
     </div>
   );
 }
