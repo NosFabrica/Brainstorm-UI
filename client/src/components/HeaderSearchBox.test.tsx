@@ -49,9 +49,6 @@ const carriersMock = vi.fn((_tags: unknown[]) => ({
   settled: true,
 }));
 vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
-// Each person's own tags — quiet chips on every row.
-const personTagsMock = vi.fn((_pks: readonly string[]) => new Map<string, unknown[] | undefined>());
-vi.mock("@/hooks/usePersonTags", () => ({ usePersonTags: (pks: readonly string[]) => personTagsMock(pks) }));
 
 import { HeaderSearchBox } from "./HeaderSearchBox";
 import { nip19 } from "nostr-tools";
@@ -90,8 +87,6 @@ beforeEach(() => {
   tagMatchesMock.mockReturnValue([]);
   carriersMock.mockReset();
   carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: true });
-  personTagsMock.mockReset();
-  personTagsMock.mockImplementation((pks) => new Map(pks.map((pk) => [pk, []])));
   contentMock.mockImplementation(() => new Map());
   clearRecentSearches();
   window.history.replaceState({}, "", "/p/somebody");
@@ -433,10 +428,7 @@ describe("a query that matches a tag", () => {
       "Aos Lopez",
       "Alice",
     ]);
-    expect(within(screen.getByTestId("home-suggestion-1")).getByTestId("person-tag-chip-aos-2026")).toHaveAttribute(
-      "data-emphasis",
-      "loud",
-    );
+    expect(within(screen.getByTestId("home-suggestion-1")).getByTestId("person-tag-chip-aos-2026")).toBeInTheDocument();
     expect(within(screen.getByTestId("home-suggestion-0")).queryByTestId("person-tag-chip-aos-2026")).toBeNull();
   });
 
@@ -474,74 +466,52 @@ describe("a query that matches a tag", () => {
   });
 });
 
-describe("a person's own tags on their row", () => {
+// Team feedback (2026-10-01): an "LFO" pill on an "AOS" search told the reader
+// nothing, and three pills was a lot for someone who has never seen a tag. A
+// row wears the one tag the words matched, or none.
+describe("the tag pill on a suggested person's row", () => {
   const AUTHOR = "9".repeat(64);
   const pk = (c: string) => c.repeat(64);
-  const own = (slug: string, applications: number) => ({
-    key: `${AUTHOR}|${slug}`,
+  const tagOf = (slug: string, name: string) => ({
+    key: `39999:${AUTHOR}:${slug}`,
     authorPubkey: AUTHOR,
     slug,
-    name: slug,
-    applications,
-    disputes: 0,
-    asserters: [],
-    selfDeclared: false,
-    subjectDisagreed: false,
-    counted: true,
-    sharesName: 1,
-    addedAt: 0,
-  });
-  const human = {
-    key: `39999:${AUTHOR}:verified-human`,
-    authorPubkey: AUTHOR,
-    slug: "verified-human",
-    name: "Verified Human",
+    name,
     people: 5,
     vouches: 2,
     sharesName: 0,
     unverified: false,
-  };
+  });
+  const nathan = { pubkey: pk("a"), npub: nip19.npubEncode(pk("a")), name: "Nathan Day" };
 
-  it("a name search shows the person's tags quietly, most applied first", async () => {
-    suggestMock.mockResolvedValue([{ pubkey: pk("a"), npub: nip19.npubEncode(pk("a")), name: "Nathan Day" }]);
-    personTagsMock.mockImplementation(
-      (pks) => new Map(pks.map((p) => [p, p === pk("a") ? [own("verified-human", 3), own("author", 1)] : []])),
-    );
+  it("a name search that matches no tag shows no pill", async () => {
+    suggestMock.mockResolvedValue([nathan]);
     render(<HeaderSearchBox />);
     type("nathan");
     act(() => {
       vi.advanceTimersByTime(400);
     });
     await act(async () => {});
-    const chips = within(screen.getByTestId("home-suggestion-0")).getAllByTestId(/^person-tag-chip-/);
-    expect(chips.map((c) => c.getAttribute("data-testid"))).toEqual([
-      "person-tag-chip-verified-human",
-      "person-tag-chip-author",
-    ]);
-    for (const chip of chips) expect(chip).toHaveAttribute("data-emphasis", "quiet");
+    expect(within(screen.getByTestId("home-suggestion-0")).queryAllByTestId(/^person-tag-chip-/)).toHaveLength(0);
   });
 
-  it("a tag search says the matched tag loudly and the rest quietly", async () => {
-    tagMatchesMock.mockReturnValue([human]);
+  it("a tag search shows one pill, the best match, however many matched tags they carry", async () => {
+    const aos = tagOf("aos", "AOS");
+    const lfo = tagOf("lfo", "LFO");
+    tagMatchesMock.mockReturnValue([aos, lfo]);
     carriersMock.mockReturnValue({
-      byPubkey: new Map([[pk("a"), [human]]]),
-      people: [{ pubkey: pk("a"), npub: nip19.npubEncode(pk("a")), name: "Nathan Day", applications: 3, addedAt: 0 }],
+      byPubkey: new Map([[pk("a"), [aos, lfo]]]),
+      people: [{ ...nathan, applications: 3, addedAt: 0 }],
       settled: true,
     });
-    personTagsMock.mockImplementation(
-      (pks) => new Map(pks.map((p) => [p, p === pk("a") ? [own("author", 5), own("verified-human", 3)] : []])),
-    );
     suggestMock.mockResolvedValue([]);
     render(<HeaderSearchBox />);
-    type("verified human");
+    type("aos");
     act(() => {
       vi.advanceTimersByTime(400);
     });
     await act(async () => {});
     const chips = within(screen.getByTestId("home-suggestion-0")).getAllByTestId(/^person-tag-chip-/);
-    expect(chips.map((c) => [c.getAttribute("data-testid"), c.getAttribute("data-emphasis")])).toEqual([
-      ["person-tag-chip-verified-human", "loud"],
-      ["person-tag-chip-author", "quiet"],
-    ]);
+    expect(chips.map((c) => c.getAttribute("data-testid"))).toEqual(["person-tag-chip-aos"]);
   });
 });

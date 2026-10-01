@@ -5,7 +5,6 @@ import { TagsPageShell } from "@/components/tags/TagsPageShell";
 import { TagsCrossLink } from "@/components/tags/TagsCrossLink";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
-import { UnverifiedTagChip } from "@/components/search/UnverifiedTagChip";
 import { useTagIndex } from "@/hooks/useTags";
 
 import { npubFromPubkey } from "@/lib/shareId";
@@ -172,7 +171,6 @@ function TagIndexRow({ tag }: { tag: TagSummary }) {
               1 of {tag.sharesName}
             </Chip>
           )}
-          {tag.unverified && <UnverifiedTagChip />}
         </div>
         {tag.description && (
           <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{tag.description}</p>

@@ -42,8 +42,7 @@ export function PersonCard({
   onPrefetchEnter,
   onPrefetchLeave,
   showFollowedBy = false,
-  tags,
-  tagEmphasis,
+  tag,
 }: {
   result: SearchResult;
   idx: number;
@@ -53,10 +52,8 @@ export function PersonCard({
   onPrefetchLeave?: (result: SearchResult) => void;
   /** The "Followed by …" line costs a server call — the top of the page earns it. */
   showFollowedBy?: boolean;
-  /** This person's tags — the chips at the card's right edge; undefined while the lookup is out. */
-  tags?: readonly TagChip[];
-  /** The tags to say loudly (the ones the words matched), by `tagChipId`. */
-  tagEmphasis?: ReadonlySet<string>;
+  /** The tag the words matched, if this person carries it — the pill at the card's right edge. */
+  tag?: TagChip;
 }) {
   const tierRing = useTierRing();
   const quiet = useQuietTrustChrome();
@@ -199,14 +196,7 @@ export function PersonCard({
           </div>
         </div>
         <div className="ml-auto flex shrink-0 flex-col items-end gap-1">
-          {tags && (
-            <PersonTagChips
-              tags={tags}
-              emphasis={tagEmphasis}
-              testId={`person-tag-chips-${idx}`}
-              className="h-auto flex-wrap"
-            />
-          )}
+          {tag && <PersonTagChips tag={tag} testId={`person-tag-chips-${idx}`} className="h-auto flex-wrap" />}
           <span className="mt-1 hidden shrink-0 text-[11px] font-medium text-slate-300 transition-colors group-hover:text-brand-primary dark:text-slate-600 sm:inline">
             View →
           </span>
