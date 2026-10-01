@@ -161,6 +161,9 @@ export const MessageBubble = memo(function MessageBubble({
   }
 
   const [actionsShown, setActionsShown] = useState(false);
+  // The reaction menu renders in a portal and takes focus, so focus-within no longer
+  // holds the row visible: track it, or the row fades and leaves the menu under nothing.
+  const [reactOpen, setReactOpen] = useState(false);
   const actions = (
     <span
       className={cn(
@@ -169,7 +172,7 @@ export const MessageBubble = memo(function MessageBubble({
         // preview and reply quote in a bubble took two taps. Touch reveals them by tapping
         // the bubble instead.
         "flex shrink-0 items-center gap-0.5 self-center opacity-0 transition-opacity focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100",
-        actionsShown && "opacity-100",
+        (actionsShown || reactOpen) && "opacity-100",
         mine ? "order-first" : "",
       )}
     >
@@ -181,7 +184,7 @@ export const MessageBubble = memo(function MessageBubble({
       >
         <Reply className="h-4 w-4" />
       </button>
-      <DropdownMenu>
+      <DropdownMenu open={reactOpen} onOpenChange={setReactOpen}>
         <DropdownMenuTrigger
           aria-label="React"
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
