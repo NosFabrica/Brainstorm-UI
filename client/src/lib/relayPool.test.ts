@@ -14,7 +14,7 @@ import { BehaviorSubject, combineLatest, filter, firstValueFrom, take, toArray }
 import type { NostrEvent } from "nostr-tools";
 import { RelayPool } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
-import { createPool } from "./relayPool";
+import { createPool, warmRelay } from "./relayPool";
 
 /**
  * A relay on a fake socket. `answer` is what it says to any REQ: an event
@@ -219,4 +219,35 @@ describe("the app's relay pool", () => {
     await Promise.all([read(pool), read(pool, [OPEN, DEAD]), read(pool, [OPEN, SLOW])]);
     expect(Date.now() - started).toBeGreaterThan(4500);
   }, 9000);
+});
+
+describe("warming a relay", () => {
+  it("opens the socket before any REQ, and the first read rides it", async () => {
+    const opened: string[] = [];
+    const sent: unknown[][] = [];
+    class CountingSocket extends FakeSocket {
+      constructor(url: string) {
+        super(url);
+        opened.push(url);
+      }
+      send(data: string) {
+        sent.push(JSON.parse(data) as unknown[]);
+        super.send(data);
+      }
+    }
+    const pool = createPool({ WebSocket: CountingSocket as unknown as typeof WebSocket });
+    const relay = pool.relay(OPEN);
+    warmRelay(relay);
+    await firstValueFrom(relay.connected$.pipe(filter(Boolean)));
+    expect(opened).toHaveLength(1);
+    expect(sent).toEqual([]);
+
+    // Warming again while connected does nothing.
+    warmRelay(relay);
+    const events = await read(pool, [OPEN]);
+    expect(events.map((e) => e.id)).toEqual([EVENT.id]);
+    expect(opened).toHaveLength(1);
+    // Still open after the read: the keep-alive holds it for the next one.
+    expect(relay.connected).toBe(true);
+  });
 });

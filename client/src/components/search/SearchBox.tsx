@@ -31,6 +31,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { warmSearchRelay } from "@/lib/searchRelay";
 import { CATEGORY_ICON } from "@/lib/dlists";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -664,6 +665,7 @@ export function SearchBox({
           onRemoveToken={onRemoveToken}
           onFocus={() => {
             setFocused(true);
+            warmSearchRelay();
             if (typedSinceSearchRef.current && rows.length > 0 && value.trim().length >= 2) setShowSuggestions(true);
           }}
           onBlur={() => setFocused(false)}
