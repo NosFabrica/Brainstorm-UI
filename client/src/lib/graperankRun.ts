@@ -21,3 +21,47 @@ export function runOf<T extends RunLike>(raw: unknown): T | null | undefined {
   const inner = top.data;
   return inner && typeof inner === "object" ? (inner as T) : null;
 }
+
+/**
+ * A run's network in two numbers: how many people came out verified from
+ * this point of view, and how many it reached at all.
+ *
+ * The total alone says little — follow graphs converge, so most connected
+ * accounts reach about the same few hundred thousand people. The verified
+ * count is the personal one: it moves with the reader's preset and network.
+ *
+ * `count_values` is tier → hops → count. The server buckets a person above
+ * the run's own verified line into high, medium_high, medium or medium_low,
+ * and at or below it into low, or the flagged tier with two trusted reports
+ * (`classify_tier`). Null when the run does not say, or says it in a shape
+ * that cannot be split that way.
+ */
+const VERIFIED_TIERS = ["high", "medium_high", "medium", "medium_low"] as const;
+const UNVERIFIED_TIERS = ["low", "low_and_reported_by_2_or_more_trusted_pubkeys"] as const;
+
+export function networkOfRun(raw: unknown): { verified: number; reached: number } | null {
+  if (!raw) return null;
+  let parsed: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+  const tiers = parsed as Record<string, unknown>;
+  const known = [...VERIFIED_TIERS, ...UNVERIFIED_TIERS].filter((t) => t in tiers);
+  if (known.length === 0) return null;
+  const sum = (tier: string) => {
+    const byHops = tiers[tier];
+    if (!byHops || typeof byHops !== "object") return 0;
+    return Object.values(byHops as Record<string, unknown>).reduce<number>(
+      (n, v) => (typeof v === "number" ? n + v : n),
+      0,
+    );
+  };
+  const verified = VERIFIED_TIERS.reduce((n, t) => n + sum(t), 0);
+  const reached = verified + UNVERIFIED_TIERS.reduce((n, t) => n + sum(t), 0);
+  return reached > 0 ? { verified, reached } : null;
+}

@@ -94,19 +94,29 @@ describe("Insights → Calculation", () => {
     await waitFor(() => expect(cell("Status")).toHaveTextContent("Complete · not published"));
   });
 
-  it("says how many people the run scored", async () => {
+  it("says how many came out verified from your point of view, of everyone the run reached", async () => {
     runMock.mockResolvedValue(
-      envelope(run({ count_values: JSON.stringify({ "1": { high: 40, medium: 10 }, "2": { high: 1200, low: 984 } }) })),
+      envelope(
+        run({
+          count_values: JSON.stringify({
+            high: { "1": 40 },
+            medium_low: { "2": 1210 },
+            low: { "2": 984 },
+            low_and_reported_by_2_or_more_trusted_pubkeys: { "2": 3 },
+          }),
+        }),
+      ),
     );
     renderWithProviders(<InsightsPage />);
-    await waitFor(() => expect(cell("People scored")).toHaveTextContent("2,234"));
+    await waitFor(() => expect(cell("Your network")).toHaveTextContent("1,250 verified of 2,237 reached"));
+    expect(label("People scored")).toBeNull();
   });
 
-  it("leaves the people-scored row out when the run does not say", async () => {
+  it("leaves the network row out when the run does not say", async () => {
     runMock.mockResolvedValue(envelope(run({ count_values: "" })));
     renderWithProviders(<InsightsPage />);
     await waitFor(() => expect(cell("Status")).toHaveTextContent("Complete"));
-    expect(label("People scored")).toBeNull();
+    expect(label("Your network")).toBeNull();
   });
 
   it("a failed run reads Failed", async () => {

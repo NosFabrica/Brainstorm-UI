@@ -18,7 +18,7 @@ import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { logout } from "@/accounts/login-flow";
 import { apiClient } from "@/services/api";
-import { runOf } from "@/lib/graperankRun";
+import { networkOfRun, runOf } from "@/lib/graperankRun";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { presetToBackend } from "@/services/trustThreshold";
 import {
@@ -54,29 +54,9 @@ type GrapeRankRun = {
   updated_at?: string | null;
   trigger_source?: string | null;
   how_many_others_with_priority?: number;
-  /** Scorecards per hop per confidence bucket, as JSON — every person the run scored, once. */
+  /** Scorecards per tier per hop, as JSON — every person the run reached, once. */
   count_values?: string | Record<string, Record<string, number>> | null;
 };
-
-/** How many people a run scored: every count in its per-hop buckets, or null when it does not say. */
-function peopleScored(raw: GrapeRankRun["count_values"]): number | null {
-  if (!raw) return null;
-  let parsed: unknown = raw;
-  if (typeof raw === "string") {
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
-  if (!parsed || typeof parsed !== "object") return null;
-  let total = 0;
-  for (const hop of Object.values(parsed as Record<string, unknown>)) {
-    if (!hop || typeof hop !== "object") continue;
-    for (const n of Object.values(hop as Record<string, unknown>)) if (typeof n === "number") total += n;
-  }
-  return total > 0 ? total : null;
-}
 
 const isDone = (s: unknown) => typeof s === "string" && s.toLowerCase() === "success";
 const isFail = (s: unknown) => typeof s === "string" && s.toLowerCase() === "failure";
@@ -247,7 +227,7 @@ export default function InsightsPage() {
   const calcComplete = isDone(grapeRank?.internal_publication_status);
   const publishComplete = calcComplete && isDone(grapeRank?.ta_status);
   const publishFailed = calcComplete && isFail(grapeRank?.ta_status);
-  const scored = peopleScored(grapeRank?.count_values);
+  const network = networkOfRun(grapeRank?.count_values);
   const calcFailed = isFail(grapeRank?.status) || isFail(grapeRank?.internal_publication_status);
   const queueAhead =
     typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
@@ -388,11 +368,16 @@ export default function InsightsPage() {
                 )}
               </dd>
             </div>
-            {scored != null && (
+            {/* The total alone is about the same for every connected account; the
+                verified count is the reader's own, and moves with their preset. */}
+            {network && (
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500 dark:text-slate-400">People scored</dt>
-                <dd className="font-medium tabular-nums text-slate-900 dark:text-slate-100">
-                  {scored.toLocaleString("en-US")}
+                <dt className="text-slate-500 dark:text-slate-400">Your network</dt>
+                <dd className="text-right tabular-nums text-slate-500 dark:text-slate-400">
+                  <span className="font-medium text-slate-900 dark:text-slate-100">
+                    {network.verified.toLocaleString("en-US")} verified
+                  </span>{" "}
+                  of {network.reached.toLocaleString("en-US")} reached
                 </dd>
               </div>
             )}
