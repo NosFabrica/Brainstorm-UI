@@ -48,3 +48,25 @@ describe("getShortestPath", () => {
     expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.has("maxPaths")).toBe(false);
   });
 });
+
+describe("getShortestHops", () => {
+  it("asks for hops only and reads reachable/hops back", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: { from: "a", to: "b", reachable: true, hops: 2, pathCount: null, layers: [], links: [], maxHops: 30 },
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const r = await apiClient.getShortestHops({ from: "a", to: "b" });
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.pathname).toBe("/shortestPath");
+    expect(url.searchParams.get("only")).toBe("hops");
+    expect(url.searchParams.get("from")).toBe("a");
+    expect(url.searchParams.get("to")).toBe("b");
+    expect(r).toMatchObject({ reachable: true, hops: 2 });
+  });
+});

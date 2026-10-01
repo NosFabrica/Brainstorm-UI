@@ -22,6 +22,23 @@ export interface ShortestPath {
   paths?: string[][];
 }
 
+/** Follows-graph distance alone, from `GET /shortestPath?only=hops`. */
+export type ShortestHops = Pick<ShortestPath, "from" | "to" | "reachable" | "maxHops"> & {
+  /** `null` when unreachable within `maxHops`; 0 for the same account. */
+  hops: number | null;
+};
+
+async function fetchShortestPath<T>(params: Record<string, string>): Promise<T> {
+  const response = await fetch(`${getBrainstormApi()}/shortestPath?${new URLSearchParams(params).toString()}`, {
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch shortest path (${response.status})`);
+  }
+  const json = await response.json();
+  return json?.data as T;
+}
+
 /** One account in the observer's network, with its verified trust signals. */
 export interface NetworkAlertEntry {
   pubkey: string;
@@ -128,9 +145,14 @@ export const usersApi = {
     return await response.json();
   },
 
+  /** Follows-graph distance from `from` to `to`, and nothing else. For the degree chip. */
+  async getShortestHops(opts: { from: string; to: string }): Promise<ShortestHops> {
+    return fetchShortestPath<ShortestHops>({ from: opts.from, to: opts.to, only: "hops" });
+  },
+
   /**
-   * Follows-graph distance from `from` to `to` (the "hops" / degree metric):
-   * `{ reachable, hops, path[], pathCount, pathCountCapped, maxHops }`. `from`/`to`
+   * Shortest follow-paths from `from` to `to` (for the hops alone, use
+   * `getShortestHops`): `{ reachable, hops, path[], pathCount, pathCountCapped, maxHops }`. `from`/`to`
    * are hex pubkeys or npubs; the endpoint returns ONE randomly-chosen shortest
    * path per call (re-call for a different one). `from` is required — there is no
    * house default, so callers pass an explicit pubkey (the logged-in viewer's).
@@ -140,15 +162,9 @@ export const usersApi = {
    * list, rides along.
    */
   async getShortestPath(opts: { from: string; to: string; maxPaths?: number }): Promise<ShortestPath> {
-    const params = new URLSearchParams({ from: opts.from, to: opts.to });
-    if (opts.maxPaths) params.set("maxPaths", String(opts.maxPaths));
-    const url = `${getBrainstormApi()}/shortestPath?${params.toString()}`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch shortest path (${response.status})`);
-    }
-    const json = await response.json();
-    return json?.data as ShortestPath;
+    const params: Record<string, string> = { from: opts.from, to: opts.to };
+    if (opts.maxPaths) params.maxPaths = String(opts.maxPaths);
+    return fetchShortestPath<ShortestPath>(params);
   },
 
   async getUserConnections(
