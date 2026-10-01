@@ -16,7 +16,6 @@ import {
   Pin,
   Pencil,
   PinOff,
-  ShieldCheck,
   Timer,
   Trash2,
   UserRound,
@@ -518,10 +517,6 @@ export function ChatView({
             {state.liveSettled ? `Say hi to ${first}.` : "Loading this conversation…"}
           </p>
         )}
-        <p className="mx-auto flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs text-slate-600 dark:text-slate-300">
-          <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-          End-to-end encrypted. Relays see neither who sent a message nor when.
-        </p>
         {items.map((item) => (
           <Fragment key={item.key}>
             {item.kind === "subject" ? (
