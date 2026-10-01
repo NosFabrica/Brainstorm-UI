@@ -4,8 +4,8 @@ import { ArrowRight, ShoppingBag } from "lucide-react";
  * The Shop page for the words, as a row in the search dropdown — "honey /
  * Shop · 6+ listings". Shopping is a place to land with everything for the
  * word, the way Google's is a tab and a marketplace offers "honey in Grocery":
- * the box offers the wider search first, and a single product only as a
- * shortcut beneath it. Same shape as the tag and topic rows.
+ * the box offers the wider search and never a single product (Benjamin,
+ * 2026-10-01). Same shape as the tag and topic rows.
  */
 export function ShopSuggestionRow({
   words,

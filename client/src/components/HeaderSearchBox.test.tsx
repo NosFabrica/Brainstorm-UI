@@ -230,28 +230,32 @@ describe("typing in the header search", () => {
     expect(window.location.search).toBe("?q=honey&t=shop");
   });
 
-  it("adds one product as a shortcut only when its title starts with the words", async () => {
+  // Someone who typed "shop" asked for the shop: it leads, like a tag row
+  // does, and is not left under six people (Benjamin, 2026-10-01).
+  it("puts the Shop row at the top, above the people", async () => {
+    suggestMock.mockResolvedValue([
+      { pubkey: "a".repeat(64), npub: "npub1a", name: "Honey Badger" },
+      { pubkey: "b".repeat(64), npub: "npub1b", name: "honeybadger" },
+    ]);
+    listingsMock.mockResolvedValue([listing("a", "Raw honey")]);
+    await shopFor("honey shop");
+    const rows = within(dropdown()!).getAllByRole("option");
+    expect(rows.slice(0, 3).map((r) => r.getAttribute("data-testid"))).toEqual([
+      "home-shop-row",
+      "home-suggestion-0",
+      "home-suggestion-1",
+    ]);
+  });
+
+  // Benjamin, 2026-10-01: only the shop, not the listings. A product whose
+  // title is exactly the words still gets no row of its own — it is on the page.
+  it("shows the Shop row alone, never a single product, and nothing when nothing is for sale", async () => {
     suggestMock.mockResolvedValue([]);
     listingsMock.mockResolvedValue([listing("a", "Raw honey"), listing("b", "Honey", "10000")]);
     await shopFor("buy honey");
-
-    const product = screen.getByTestId("home-product-suggestion-0");
-    expect(product).toHaveTextContent("Honey");
-    expect(product).toHaveTextContent("Listing · ");
-    expect(screen.queryByTestId("home-product-suggestion-1")).toBeNull();
-    // The Shop page comes first: browsing is the default, the product the shortcut.
     const rows = within(screen.getByTestId("home-product-suggestions")).getAllByRole("option");
-    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual(["home-shop-row", "home-product-suggestion-0"]);
-    fireEvent.click(product);
-    expect(window.location.pathname).toMatch(/^\/e\//);
-  });
-
-  it("offers no product when none is named by the words, and no Shop row when nothing is for sale", async () => {
-    suggestMock.mockResolvedValue([]);
-    listingsMock.mockResolvedValue([listing("a", "Raw honey")]);
-    await shopFor("honey shop");
-    expect(screen.getByTestId("home-shop-row")).toBeInTheDocument();
-    expect(screen.queryByTestId("home-product-suggestion-0")).toBeNull();
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual(["home-shop-row"]);
+    expect(screen.getByTestId("home-product-suggestions").textContent).not.toMatch(/10,000|Listing/);
     cleanup();
 
     listingsMock.mockResolvedValue([]);

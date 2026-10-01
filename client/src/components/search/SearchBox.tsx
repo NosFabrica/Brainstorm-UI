@@ -63,7 +63,7 @@ import type { SearchFieldHandle } from "@/lib/searchFieldDom";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { intentTarget, searchIntent, shopWords } from "@/lib/personContent";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
-import { eventPath, npubFromPubkey } from "@/lib/shareId";
+import { npubFromPubkey } from "@/lib/shareId";
 import { useConnectionSpeed } from "@/lib/connection";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { usePersonContent } from "@/hooks/usePersonContent";
@@ -72,8 +72,6 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useSearchPov } from "@/hooks/useSearchPov";
 import { useOpenProfile } from "@/hooks/useOpenProfile";
 import { SearchField } from "@/components/search/SearchField";
-import { parseListing } from "@/lib/listing";
-import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
 import { ShopSuggestionRow } from "@/components/search/ShopSuggestionRow";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
@@ -228,9 +226,9 @@ export function SearchBox({
 
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   // Product titles under the people — "Satoshi Smiley T-shirt", straight to it.
-  // The Shop page for a query that asked to shop: how many listings its words
-  // found, and the one product they name outright, if any — a shortcut under it.
-  const [shop, setShop] = useState<{ words: string; count: number; product: SearchHit | null } | null>(null);
+  // The Shop page for a query that asked to shop, and how many listings its
+  // words name. The page, never a single product: shopping is a place to land.
+  const [shop, setShop] = useState<{ words: string; count: number } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -376,17 +374,7 @@ export function SearchBox({
               { limit: SHOP_ASK, signal },
             ).then((hits) => {
               if (suggestAbortRef.current !== reqId) return;
-              const named = shopping.toLowerCase();
-              setShop(
-                hits.length
-                  ? {
-                      words: shopping,
-                      count: hits.length,
-                      product:
-                        hits.find((h) => parseListing(h.event)?.title.trim().toLowerCase().startsWith(named)) ?? null,
-                    }
-                  : null,
-              );
+              setShop(hits.length ? { words: shopping, count: hits.length } : null);
               if (hits.length) setShowSuggestions(true);
             });
           } else {
@@ -785,6 +773,22 @@ export function SearchBox({
                   />
                 </div>
               )}
+              {/* The Shop page leads when the words asked to shop: it is the
+                  answer to the question they typed, so it is not left under
+                  the people. Everything for sale for these words. */}
+              {shop && (
+                <div
+                  className="shrink-0 border-b border-slate-100 dark:border-slate-800/60"
+                  data-testid="home-product-suggestions"
+                >
+                  <ShopSuggestionRow
+                    words={shop.words}
+                    count={shop.count}
+                    onSelect={() => leave(`/?q=${encodeURIComponent(shop.words)}&t=shop`)}
+                    testId="home-shop-row"
+                  />
+                </div>
+              )}
               {/* Tags first: far fewer of them than people, and they're a
                   different kind of answer — "who is known for this"
                   rather than "who is called this". */}
@@ -881,29 +885,6 @@ export function SearchBox({
                   );
                 })}
               </div>
-              {/* Products under the people: the thing itself, one tap away. */}
-              {shop && (
-                <div
-                  className="shrink-0 border-t border-slate-100 dark:border-slate-800/60"
-                  data-testid="home-product-suggestions"
-                >
-                  {/* The wider search first: everything for sale for these words. */}
-                  <ShopSuggestionRow
-                    words={shop.words}
-                    count={shop.count}
-                    onSelect={() => leave(`/?q=${encodeURIComponent(shop.words)}&t=shop`)}
-                    testId="home-shop-row"
-                  />
-                  {/* And the one product the words name outright, as a shortcut. */}
-                  {shop.product && (
-                    <ListingSuggestionRow
-                      hit={shop.product}
-                      onSelect={() => leave(eventPath(shop.product!.event))}
-                      testId="home-product-suggestion-0"
-                    />
-                  )}
-                </div>
-              )}
               <button
                 type="button"
                 className={`flex w-full shrink-0 items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-left text-[12px] font-medium transition-colors dark:border-slate-800/60 sm:px-4 ${activeSuggestion === -1 ? "bg-slate-50 text-brand-primary dark:bg-slate-800" : "text-slate-500 hover:bg-slate-50 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"}`}
