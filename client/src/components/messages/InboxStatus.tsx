@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Inbox, KeyRound, Loader2, Lock, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Alert } from "@/components/ui/alert";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useToast } from "@/hooks/use-toast";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
@@ -55,7 +56,7 @@ export function InboxSetup() {
           Publish and start messaging
         </Button>
         <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-          Publishes your kind 10050 list. Change it any time in Settings › Messages.
+          Publishes your kind 10050 list. Change it any time in Settings › Trust & search.
         </p>
       </Card>
     </div>
@@ -76,7 +77,13 @@ export function InboxNotices({
 }) {
   const waitingAuth =
     Object.values(state.live).some((s) => s === "auth") || state.history.relays.some((r) => r.state === "auth");
-  const notices: { key: string; icon: React.ReactNode; text: string; action?: React.ReactNode }[] = [];
+  const notices: {
+    key: string;
+    icon: React.ReactNode;
+    text: string;
+    action?: React.ReactNode;
+    variant?: "warning" | "default";
+  }[] = [];
   if (waitingAuth && !authAllowed)
     notices.push({
       key: "auth",
@@ -115,14 +122,16 @@ export function InboxNotices({
       key: "opening",
       icon: <Loader2 className="h-4 w-4 animate-spin" />,
       text: `Opening ${state.queued} message${state.queued === 1 ? "" : "s"} on this device…`,
+      variant: "default",
     });
   if (!notices.length) return null;
   return (
     <div className="flex flex-col gap-2 px-3 pb-2">
       {notices.map((n) => (
-        <div
+        <Alert
           key={n.key}
-          className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] leading-relaxed text-amber-900 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-200"
+          variant={n.variant ?? "warning"}
+          className="flex flex-col gap-2 rounded-xl px-3 py-2.5 text-[13px] leading-relaxed"
           data-testid={`dm-notice-${n.key}`}
         >
           <span className="flex gap-2">
@@ -130,7 +139,7 @@ export function InboxNotices({
             {n.text}
           </span>
           {n.action && <span className="pl-6">{n.action}</span>}
-        </div>
+        </Alert>
       ))}
     </div>
   );

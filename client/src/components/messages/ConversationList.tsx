@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { ChevronDown, EyeOff, Flag, Lock, SquarePen, Timer } from "lucide-react";
+import { ChevronDown, EyeOff, Flag, Lock, Settings2, SquarePen, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
 import type { DmRoom } from "@/lib/dm/store";
@@ -10,6 +10,8 @@ import { roomSlug } from "@/lib/dm/rooms";
 import { roomTimer, type DmPrefs } from "@/lib/dm/prefs";
 import { REACTION_KIND, FILE_KIND } from "@/lib/dm/giftWrap";
 import type { RelayProgress } from "@/lib/dm/pager";
+import { Chip } from "@/components/ui/chip";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RelayMarker } from "./RelayMarker";
 import { RoomAvatar, firstName, listTime, roomTitle, type Profiles } from "./people";
 
@@ -136,6 +138,13 @@ export function ConversationList({
       <div className="flex items-center justify-between px-4 pb-3 pt-4">
         <h1 className="font-display text-[22px] font-bold tracking-tight">Messages</h1>
         <Link
+          href="/settings?tab=trust&focus=messages"
+          aria-label="Message settings"
+          className="ml-auto mr-2 inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          <Settings2 className="h-[18px] w-[18px]" />
+        </Link>
+        <Link
           href="/messages/new"
           aria-label="New message"
           className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
@@ -171,9 +180,9 @@ export function ConversationList({
           >
             {label}
             {key === "requests" && requestCount > 0 && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-primary/15 px-1.5 text-[11px] font-bold text-brand-deep dark:bg-brand-primary/30">
+              <Chip tone="brand" size="sm">
                 {requestCount}
-              </span>
+              </Chip>
             )}
           </Link>
         ))}
@@ -241,11 +250,14 @@ export function ConversationList({
           </div>
         )}
         {tab === "requests" && shelves.flagged.length > 0 && (
-          <p className="mx-2 mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs leading-relaxed text-red-800 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300">
-            <Flag className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            {shelves.flagged.length} {shelves.flagged.length === 1 ? "request from a sender" : "requests from senders"}{" "}
-            flagged by people you trust {shelves.flagged.length === 1 ? "is" : "are"} never shown.
-          </p>
+          <Alert variant="destructive" className="mx-2 mt-3 w-auto px-3 py-2.5 text-xs leading-relaxed">
+            <Flag className="h-3.5 w-3.5" />
+            <AlertDescription className="text-xs">
+              {shelves.flagged.length}{" "}
+              {shelves.flagged.length === 1 ? "request from a sender" : "requests from senders"} flagged by people you
+              trust {shelves.flagged.length === 1 ? "is" : "are"} never shown.
+            </AlertDescription>
+          </Alert>
         )}
       </div>
 

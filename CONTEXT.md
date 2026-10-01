@@ -90,6 +90,29 @@ User's own follows first, then verified accounts, then everyone else, and the
 UI says which ("people you follow", "verified accounts").
 _Avoid_: rating, stars, likes, social proof
 
+### Private messages
+
+**Chat**:
+A NIP-17 conversation, identified by the set of people in it — there is no
+room id on the wire. Adding or removing someone is a different Chat.
+_Avoid_: room, thread, DM channel
+
+**Request**:
+A Chat from someone the User neither follows nor has written to, waiting to be
+accepted. Requests are ordered by Verification Score; low scorers are collapsed
+and flagged senders never shown.
+_Avoid_: message request inbox, spam folder
+
+**Inbox relays**:
+The relays a person names in their kind-10050 list: the only place anyone may
+deliver them a private message. Someone without one cannot receive.
+_Avoid_: DM relays, read relays (those are NIP-65)
+
+**Complete to**:
+How far back one inbox relay is guaranteed to have delivered every message —
+two days newer than the oldest wrap it returned, because wraps are back-dated.
+_Avoid_: synced until, loaded until
+
 ### Not to be confused
 
 **Perspective**:

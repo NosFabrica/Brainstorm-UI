@@ -86,6 +86,20 @@ without a refresh would pin a user to a stale relay list forever); and the
 cache is **dropped on sign-out**. Rationale:
 [docs/adr/0003-nip65-outbox-routing.md](docs/adr/0003-nip65-outbox-routing.md).
 
+## Private messages (NIP-17)
+
+`services/dm/` runs one `DmEngine` per Active Account from sign-in: a live
+subscription for wraps since the last visit (minus NIP-59's two-day back-dating,
+at most a week) and a per-relay history pager below it, driven by on-screen
+relay markers (`lib/dm/pager.ts`, ported from Amethyst). Wraps are opened by the
+account's signer — in the background only for a local key; extensions and
+bunkers wait for Messages to open — and kept sealed with the device key in
+IndexedDB (`lib/dm/cache.ts`), dropped on sign-out. The store groups messages
+into Chats by participant set; `lib/dm/inbox.ts` shelves them into Chats and
+trust-sorted Requests. UI: `pages/MessagesPage.tsx` and `components/messages/`;
+inbox relays (kind 10050) and preferences: Settings › Trust & search.
+Rationale: [docs/adr/0004-nip17-private-messages.md](docs/adr/0004-nip17-private-messages.md).
+
 ## External Dependencies
 
 - **Nostr Protocol:** Interacts with various Nostr relays (e.g., damus, nostr.band, nos.lol) for metadata fetching and event publishing.
