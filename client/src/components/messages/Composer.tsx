@@ -89,7 +89,7 @@ export function Composer({
 
   const timerLabel = TIMER_CHOICES.find((c) => c.seconds === timer)?.label;
   return (
-    <div className="shrink-0 border-t border-border bg-card px-4 pb-4 pt-3 sm:px-6">
+    <div className="shrink-0 border-t border-border bg-card px-4 pb-3 pt-3 sm:px-6 sm:pb-4">
       {replyTo && (
         <div className="mb-2 flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-[13px] dark:bg-slate-800">
           <span className="min-w-0 flex-1 truncate">

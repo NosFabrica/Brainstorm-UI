@@ -93,7 +93,9 @@ export function MobileTabBar() {
         data-testid="mobile-tab-bar"
         data-editing={editing ? "true" : undefined}
       >
-        <div className="mx-auto flex max-w-lg items-stretch">
+        {/* Exactly the 4rem registered in the bottom-chrome ledger above: content-sized,
+            the row came to 60px and left a 4px strip of page between it and the page. */}
+        <div className="mx-auto flex h-16 max-w-lg items-stretch">
           {user ? (
             <>
               <TabButton
