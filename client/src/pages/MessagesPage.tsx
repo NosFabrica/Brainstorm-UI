@@ -41,6 +41,9 @@ function useRelayAuthAllowed(pubkey: string): boolean {
   return allowed;
 }
 
+/** Rows per list whose names and pictures are loaded. */
+const PROFILE_ROWS = 200;
+
 export default function MessagesPage() {
   const user = useActiveAccountDisplay();
   const me = user?.pubkey ?? "";
@@ -92,12 +95,19 @@ export default function MessagesPage() {
   // An open request keeps the Requests list beside it.
   const tab: InboxTab = slug === "requests" || (roomKey && shelf !== "chat" && !room?.hasMine) ? "requests" : "chats";
 
+  // Names and pictures for the rows the open tab lists, each list capped on its own.
+  // One cap over every list in order — chats, then archived, then requests — spent
+  // it all on chats in a big inbox, and requests showed no name or face until opened.
   const people = useMemo(() => {
     const set = new Set<string>();
-    for (const r of allRooms.slice(0, 200)) for (const pk of r.participants) set.add(pk);
+    const lists =
+      tab === "requests"
+        ? [shelves.requests, shelves.low]
+        : [shelves.chats, shelves.archived.slice(0, PROFILE_ROWS / 2)];
+    for (const list of lists) for (const r of list.slice(0, PROFILE_ROWS)) for (const pk of r.participants) set.add(pk);
     if (roomKey) for (const pk of roomKey.split(",")) set.add(pk);
     return [...set];
-  }, [allRooms, roomKey]);
+  }, [shelves, tab, roomKey]);
   const profiles = useLiveProfiles(people);
 
   const allowAuth = useCallback(() => {
