@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { renderWithProviders, timeZoneSetter } from "@/test/utils";
 import { PlanCard } from "./PlanCard";
 import type { BillingPlan, Subscription } from "@/services/subscription";
@@ -8,8 +8,11 @@ import { DEFAULT_SUBSCRIPTION } from "@/services/subscription";
 
 let sub: Subscription;
 let plans: BillingPlan[] | undefined;
-// The hook's two ways of not knowing yet: the read is still out, or it failed.
-let unknown: "loading" | "error" | null = null;
+// The hook's ways of not knowing: the read is still out, it failed, or it was
+// never made because the account has no Session.
+let unknown: "loading" | "error" | "session" | null = null;
+const resume = vi.fn();
+vi.mock("@/hooks/useResumeSession", () => ({ useResumeSession: () => ({ resume, busy: false }) }));
 
 vi.mock("@/hooks/useSubscription", () => ({
   useSubscription: () => ({
@@ -27,6 +30,7 @@ vi.mock("@/hooks/useSubscription", () => ({
     isFree: (sub.policy === null || sub.policy.isDefault) && unknown === null,
     isLoading: unknown === "loading",
     isError: unknown === "error",
+    needsSession: unknown === "session",
     refetch: () => {},
   }),
 }));
@@ -248,5 +252,20 @@ describe("PlanCard while it doesn't know what they hold", () => {
 
     expect(screen.queryByTestId("insights-plan-link")).toBeNull();
     expect(screen.queryByTestId("insights-plan-status")).toBeNull();
+  });
+
+  // The same customer's Insights: every row a dash, a "None" badge's worth of
+  // nothing, and "Priority recalculates every 7 days" pitched at a subscriber.
+  it("offers to reconnect, not a plan, when the account has no session", () => {
+    sub = { ...DEFAULT_SUBSCRIPTION };
+    plans = [PAID_ROW];
+    unknown = "session";
+    renderWithProviders(<PlanCard lastCalculatedMs={null} />);
+
+    expect(screen.queryByTestId("insights-plan-link")).toBeNull();
+    expect(screen.queryByTestId("insights-plan-status")).toBeNull();
+    resume.mockClear();
+    fireEvent.click(screen.getByTestId("insights-plan-reconnect"));
+    expect(resume).toHaveBeenCalledTimes(1);
   });
 });

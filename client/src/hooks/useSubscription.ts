@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useHasAccount } from "@/hooks/useHasAccount";
 import { useHasSession } from "@/hooks/useHasSession";
 import { fetchSubscription, DEFAULT_SUBSCRIPTION, type Subscription } from "@/services/subscription";
 
@@ -27,8 +28,9 @@ export function useSubscription(): {
   isPaid: boolean;
   /**
    * True only when we KNOW they hold the default policy, or are signed out —
-   * the gate for every upsell. False while loading and when the read failed,
-   * so a question nobody has answered never reads as "Free".
+   * the gate for every upsell. False while loading, when the read failed and
+   * when it was never made (`needsSession`), so a question nobody has answered
+   * never reads as "Free".
    */
   isFree: boolean;
   status: Subscription["status"];
@@ -47,9 +49,17 @@ export function useSubscription(): {
    * it had, so someone already shown as Priority stays Priority through a blip.
    */
   isError: boolean;
+  /**
+   * There is an Active Account but no Session, so the read was never made: a
+   * signer that hasn't approved the renewal, or a locked key. Not signed out,
+   * and not an answer — the surfaces offer to sign back in instead of claiming
+   * anything.
+   */
+  needsSession: boolean;
   refetch: () => void;
 } {
   const signedIn = useHasSession();
+  const needsSession = useHasAccount() && !signedIn;
   const query = useQuery({
     queryKey: ["/user/subscription"],
     queryFn: fetchSubscription,
@@ -73,7 +83,7 @@ export function useSubscription(): {
     policy: subscription.policy,
     plan: subscription.plan,
     isPaid,
-    isFree: !isPaid && !isLoading && !isError,
+    isFree: !isPaid && !isLoading && !isError && !needsSession,
     status: subscription.status,
     currentPeriodStart: subscription.currentPeriodStart,
     currentPeriodEnd: subscription.currentPeriodEnd,
@@ -85,6 +95,7 @@ export function useSubscription(): {
     isActive: subscription.status === "active" || subscription.status === "grace",
     isLoading,
     isError,
+    needsSession,
     refetch: () => void query.refetch(),
   };
 }

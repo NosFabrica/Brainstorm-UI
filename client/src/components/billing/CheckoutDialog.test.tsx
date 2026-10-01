@@ -8,6 +8,7 @@ import type { BillingPlan } from "@/services/subscription";
 const PUBKEY = "a".repeat(64);
 
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
+vi.mock("@/hooks/useHasAccount", () => ({ useHasAccount: () => true }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ pubkey: PUBKEY, name: "Test", npub: "npub1test", picture: null, nip05: null }),
 }));

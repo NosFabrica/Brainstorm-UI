@@ -15,6 +15,7 @@ import {
   type SubscriptionStatus,
 } from "@/lib/plans";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
+import { ReconnectButton } from "@/components/billing/ReconnectButton";
 
 /**
  * "What plan am I on, and when do my scores update next?" — on /insights,
@@ -49,6 +50,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
     isFree,
     isLoading,
     isError,
+    needsSession,
   } = useSubscription();
   const { plans, billingAvailable, solePurchasableName, recalcDaysFor } = useBillingPlans();
 
@@ -81,7 +83,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
         >
           Your plan
         </span>
-        {!isLoading && !isError && status !== "active" && (
+        {!isLoading && !isError && !needsSession && status !== "active" && (
           <Chip tone={statusTone(status)} size="sm" data-testid="insights-plan-status">
             {SUBSCRIPTION_STATUS_LABEL[status]}
           </Chip>
@@ -120,6 +122,18 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
           </Row>
         )}
       </dl>
+
+      {/* The account is here and its Session is not: nothing above was asked,
+          so say why it is blank and offer the way back, rather than a plan. */}
+      {needsSession && (
+        <div
+          className="mt-3.5 flex flex-wrap items-center justify-between gap-3 text-[13px] text-slate-500 dark:text-slate-400"
+          data-testid="insights-plan-needs-session"
+        >
+          <span>Your plan shows once your account reconnects. It hasn't changed.</span>
+          <ReconnectButton testId="insights-plan-reconnect" />
+        </div>
+      )}
 
       {/* Only to someone we KNOW is free — a read that's out or failed is not "no plan". */}
       {isFree && billingAvailable !== false && (

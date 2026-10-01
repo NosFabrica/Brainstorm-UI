@@ -10,8 +10,9 @@ vi.mock("@/services/subscription", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/subscription")>()),
   fetchSubscription: () => fetchSubscription(),
 }));
-const session = vi.hoisted(() => ({ signedIn: true }));
+const session = vi.hoisted(() => ({ signedIn: true, account: true }));
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => session.signedIn }));
+vi.mock("@/hooks/useHasAccount", () => ({ useHasAccount: () => session.account }));
 
 import { useSubscription } from "./useSubscription";
 
@@ -36,6 +37,7 @@ describe("useSubscription — a failed read is not an answer", () => {
     vi.useFakeTimers();
     fetchSubscription.mockReset();
     session.signedIn = true;
+    session.account = true;
   });
   afterEach(() => vi.useRealTimers());
 
@@ -92,6 +94,7 @@ describe("useSubscription — a failed read is not an answer", () => {
   // Signed out, nothing is asked and nothing is bought, so pitches are fair game.
   it("treats a signed-out visitor as free without asking", async () => {
     session.signedIn = false;
+    session.account = false;
     const { result } = renderHook(() => useSubscription(), { wrapper });
 
     await settle();
@@ -99,6 +102,22 @@ describe("useSubscription — a failed read is not an answer", () => {
     expect(fetchSubscription).not.toHaveBeenCalled();
     expect(result.current.isLoading).toBe(false);
     expect(result.current.isFree).toBe(true);
+    expect(result.current.needsSession).toBe(false);
+  });
+
+  // Reported by a paying customer (2026-09-30): their phone held the Account but
+  // no Session — a signer that hadn't approved the renewal yet — so the read was
+  // never made, and the question nobody asked was answered "Free plan".
+  it("doesn't call someone free when their account is here but its session is not", async () => {
+    session.signedIn = false;
+    const { result } = renderHook(() => useSubscription(), { wrapper });
+
+    await settle();
+
+    expect(fetchSubscription).not.toHaveBeenCalled();
+    expect(result.current.needsSession).toBe(true);
+    expect(result.current.isFree).toBe(false);
+    expect(result.current.isPaid).toBe(false);
   });
 
   // A refocus refetch that fails keeps the answer it had.
