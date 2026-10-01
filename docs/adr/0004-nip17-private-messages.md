@@ -129,6 +129,14 @@ across devices would mean encrypted app data (NIP-78) — not done yet.
   "opening N messages…" until they are — a marker on screen used to fetch
   page after page (no rows arrived to push it away) and say "all history
   loaded" with thousands still unread.
+- Nothing is forgotten for the signer's sake: only a payload that can never
+  open is cached as unreadable. A wrap the signer keeps declining is set aside
+  for the visit (retryable in Settings › Private messages › Sync), a timeout
+  resumes by itself with backoff, and "failed" rows from before failures had
+  a reason are opened once more. A stalled history page is asked again by
+  itself, smaller each time; history waits for each relay's live answer so it
+  starts below a capped live window; saved cursors from older versions are
+  dropped once and history fetched again (opened wraps aren't reopened).
 - The store rebuilds only the rooms that changed (~30× less work per incoming
   message at 10k messages), so open chats and lists skip unchanged rooms.
 - Attachments in requests never load on their own (the host is the sender's);

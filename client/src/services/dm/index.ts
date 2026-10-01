@@ -26,6 +26,8 @@ function classifyFor(account: BrainstormAccount) {
   return (error: unknown): SignerFailure => {
     if (isUnlockCancelled(error)) return "cancelled";
     if (isRemoteSignerTimeout(error)) return "unreachable";
+    // An extension or bunker that ran out of time: not a "no", and not the message's fault.
+    if (/time(d)?[\s-]?out/i.test(error instanceof Error ? error.message : String(error))) return "unreachable";
     // A key held here can't say no: once unlocked, any failure is the payload's.
     if (account instanceof LocalAccount) return "broken";
     const message = error instanceof Error ? error.message : String(error);

@@ -160,11 +160,49 @@ describe("BackwardPager", () => {
     pager.setRelays(["quiet"]);
     pager.advance("quiet");
     fireTimers();
-    expect(state("quiet")).toMatchObject({ state: "stalled", reason: "no answer" });
+    expect(state("quiet")).toMatchObject({ state: "stalled", reason: "no answer — trying again" });
     expect(pager.snapshot()).toMatchObject({ exhausted: true, complete: false });
     expect(pager.retry("quiet")).toBe(true);
     answer("quiet", [FLOOR - 1]);
     expect(state("quiet").state).toBe("idle");
+  });
+
+  it("asks a stalled relay again by itself, with smaller pages, then leaves it to the reader", () => {
+    const pending = new Map<string, { limit: number }>();
+    const timers: { fn: () => void; cleared: boolean }[] = [];
+    const pager = new BackwardPager({
+      cursors: new RelayCursors(FLOOR),
+      limit: 400,
+      silenceMs: 1000,
+      fetchPage: (relay, filter) => {
+        pending.set(relay, filter);
+        return () => {};
+      },
+      onWrap: () => {},
+      setTimer: (fn) => {
+        const t = { fn, cleared: false };
+        timers.push(t);
+        return t;
+      },
+      clearTimer: (t) => void ((t as { cleared: boolean }).cleared = true),
+    });
+    const tick = () => {
+      const due = timers.filter((t) => !t.cleared);
+      due.forEach((t) => (t.cleared = true));
+      due.forEach((t) => t.fn());
+    };
+    pager.setRelays(["slow"]);
+    pager.advance("slow");
+    const limits = [pending.get("slow")!.limit];
+    for (let i = 0; i < 3; i++) {
+      tick(); // goes silent: stalled, a retry scheduled
+      tick(); // the retry asks again
+      limits.push(pending.get("slow")!.limit);
+    }
+    expect(limits).toEqual([400, 200, 100, 100]);
+    tick(); // silent a fourth time: no more automatic tries
+    expect(timers.filter((t) => !t.cleared)).toHaveLength(0);
+    expect(pager.snapshot().relays[0]).toMatchObject({ state: "stalled", reason: "no answer" });
   });
 
   it("waits for a login when the relay asks for one", () => {

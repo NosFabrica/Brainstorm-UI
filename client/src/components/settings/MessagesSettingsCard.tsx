@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, MessageCircle, Plus, Server, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { SyncDetails } from "@/components/messages/SyncDetails";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -332,6 +333,9 @@ export function MessagesSettingsCard() {
             </div>
           </section>
         </div>
+      </div>
+      <div className="border-t border-border p-5">
+        <SyncDetails />
       </div>
     </Card>
   );

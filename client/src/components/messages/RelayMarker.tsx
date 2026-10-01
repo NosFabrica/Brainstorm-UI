@@ -27,6 +27,7 @@ export function useInView(ref: RefObject<Element>): boolean {
 const isOpening = (p: RelayProgress) => (p.opening ?? 0) > 0 && p.state !== "stalled" && p.state !== "auth";
 
 export function markerLabel(p: RelayProgress): string {
+  if (p.waiting && p.state === "idle") return "catching up…";
   if (isOpening(p)) return `opening ${p.opening!.toLocaleString()} message${p.opening === 1 ? "" : "s"}…`;
   switch (p.state) {
     case "loading":
@@ -90,7 +91,7 @@ export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry, 
     if (variant !== "list" || !inView || progress.state !== "idle" || !onAdvance) return;
     const t = setTimeout(() => onAdvance(url), 250);
     return () => clearTimeout(t);
-  }, [variant, inView, progress.state, reachedUntil, backlog, url, onAdvance]);
+  }, [variant, inView, progress.state, progress.waiting, reachedUntil, backlog, url, onAdvance]);
 
   const action =
     state === "stalled" && onRetry ? (

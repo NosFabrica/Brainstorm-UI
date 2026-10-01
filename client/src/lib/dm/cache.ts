@@ -28,7 +28,7 @@ const WRAPS = "wraps";
 const STATE = "state";
 
 /** Bounded per account; the oldest go first. */
-export const MAX_CACHED_WRAPS = 10_000;
+export const MAX_CACHED_WRAPS = 30_000;
 
 /** One wrap as kept: sealed contents, or a note that it could not be opened. */
 export interface StoredWrap {
@@ -39,6 +39,13 @@ export interface StoredWrap {
   at: number;
   envelope?: string;
   failed?: true;
+  /**
+   * Why it's kept unopened: "broken" (the payload can never open) or "skipped"
+   * (opened, but not a message for the reader). A `failed` row without a
+   * reason predates this field and may have been a signer hiccup — it is
+   * opened again once.
+   */
+  reason?: "broken" | "skipped";
 }
 
 export interface DmState {
@@ -46,6 +53,8 @@ export interface DmState {
   /** When the live subscription last had every inbox relay caught up. */
   lastSeen?: number;
   cursors?: CursorSnapshot;
+  /** How `cursors`/`lastSeen` were made; older ones are dropped and history fetched again. */
+  syncVersion?: number;
   /** Sent messages not yet delivered everywhere, sealed (services/dm/engine's outbox). */
   outbox?: string;
 }

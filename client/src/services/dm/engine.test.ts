@@ -404,6 +404,9 @@ describe("DmEngine", () => {
     engine.advanceAll();
     await settle();
     expect(engine.state()).toMatchObject({ liveSynced: false, liveSettled: false });
+    time.flush(); // history stops waiting for down.example's live answer
+    engine.advanceAll();
+    await settle();
     time.flush(); // the pager's silence timer: down.example has said nothing
     await settle();
     expect(engine.state()).toMatchObject({ liveSynced: false, liveSettled: true });
@@ -534,7 +537,8 @@ describe("DmEngine", () => {
     await settle();
     await settle();
     expect(engine.store.rooms().map((r) => r.last?.rumor.content)).toEqual(["hello"]);
-    expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 1 });
+    // Set aside for this visit — not remembered as unreadable, and retried on request.
+    expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0, setAside: 1 });
   });
 
   it("never hands a malformed payload to the signer", async () => {
@@ -662,5 +666,86 @@ describe("DmEngine", () => {
     expect(engine.state().history.relays[0].opening ?? 0).toBe(0);
     expect(engine.store.rooms()[0].messages).toHaveLength(60);
     expect(engine.advanceAll()).toBe(true);
+  });
+
+  it("pages the band a capped live window left, starting below it — not from the floor", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    // 60 wraps inside the live window; the relay answers a REQ with at most 50.
+    const times: number[] = [];
+    for (let i = 0; i < 60; i++) times.push(NOW - 60 - i * 7200);
+    for (const t of times) net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, `m${t}`, t, t));
+    const capped: DmTransport = {
+      ...net.transport,
+      live(relay, f, h) {
+        const all = (net.held.get(relay) ?? []).filter((e) => e.created_at >= (f.since ?? 0));
+        all
+          .sort((a, b) => b.created_at - a.created_at)
+          .slice(0, 50)
+          .forEach((e) => h.onEvent(e));
+        h.onEose();
+        return () => {};
+      },
+    };
+    const engine = new DmEngine(me.account(), { ...net, transport: capped, ...clock(), now: () => NOW });
+    await engine.start();
+    for (let i = 0; i < 30 && engine.state().queued; i++) await settle();
+    expect(engine.store.size).toBe(50);
+    expect(engine.advanceAll()).toBe(true);
+    // The first page asks from just below the live window's oldest wrap, not from the floor.
+    const oldestLive = times[49];
+    expect(net.pages.at(-1)!.filter.until).toBe(oldestLive);
+    for (let i = 0; i < 30 && (engine.state().queued || engine.state().history.loading); i++) await settle();
+    expect(engine.store.size).toBe(60);
+  });
+
+  it("opens again a wrap an older version cached as failed without a reason", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    const wrap = await wrapFrom(ana, me.pubkey, "came back", NOW - 120);
+    net.hold("wss://in.example/", wrap);
+    const cache = memoryCache();
+    cache.rows.set(`${me.pubkey}:${wrap.id}`, {
+      key: `${me.pubkey}:${wrap.id}`,
+      owner: me.pubkey,
+      wrapId: wrap.id,
+      at: wrap.created_at,
+      failed: true,
+    });
+    cache.st.set(me.pubkey, { owner: me.pubkey, lastSeen: NOW - 30, cursors: { floor: NOW - 30, relays: {} } });
+    const engine = new DmEngine(me.account(), { ...net, cache, sealer: plainSealer, ...clock(), now: () => NOW });
+    await engine.start();
+    await settle();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("came back");
+  });
+
+  it("resumes by itself after the signer times out", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "slow signer", NOW - 60));
+    let timeouts = 1;
+    const base = me.account();
+    const time = clock();
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          if (timeouts-- > 0) throw new Error("request timed out");
+          return base.decrypt!(from, text);
+        },
+        classify: () => "unreachable",
+      }),
+      { ...net, ...time, now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    expect(engine.state().paused).toBe("unreachable");
+    time.flush(); // the backoff elapses
+    await settle();
+    await settle();
+    expect(engine.state().paused).toBeUndefined();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("slow signer");
   });
 });

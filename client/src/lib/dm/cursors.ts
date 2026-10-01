@@ -82,6 +82,24 @@ export class RelayCursors {
     c.reached = at;
   }
 
+  /**
+   * Start this relay over just below `at`: its live window came back capped,
+   * and the cursors restored from the last visit sit below the band it left.
+   * Paging from `at` fetches that band; what was already opened is skipped.
+   */
+  restartBelow(relay: string, at: number): void {
+    const c = this.cursor(relay);
+    c.reached = at;
+    c.requested = undefined;
+    c.done = false;
+  }
+
+  /** Has paged before (this visit, or restored from the last): it has a place in history. */
+  hasPosition(relay: string): boolean {
+    const c = this.cursor(relay);
+    return c.reached !== undefined || c.done;
+  }
+
   isDone(relay: string): boolean {
     return this.cursor(relay).done;
   }
@@ -148,7 +166,8 @@ export class RelayCursors {
     const cursors = new RelayCursors(snapshot.floor);
     for (const [url, saved] of Object.entries(snapshot.relays ?? {})) {
       const c = cursors.cursor(url);
-      if (typeof saved.reached === "number" && saved.reached <= snapshot.floor) c.reached = saved.reached;
+      // Above the floor too: that's where a capped live window left history to start.
+      if (typeof saved.reached === "number") c.reached = saved.reached;
       c.done = !!saved.done;
     }
     return cursors;

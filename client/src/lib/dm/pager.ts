@@ -39,6 +39,8 @@ export interface RelayProgress {
    * Paging waits on them: a page isn't loaded until it can be read.
    */
   opening?: number;
+  /** Holding its first page until the live subscription has answered (services/dm/engine). */
+  waiting?: boolean;
 }
 
 export interface PagerSnapshot {
@@ -69,6 +71,8 @@ export interface PagerOptions {
   onWrap: (event: NostrEvent, relay: string) => void;
   limit?: number;
   silenceMs?: number;
+  /** How long a page waits for its first event or EOSE. */
+  firstAnswerMs?: number;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
 }
@@ -77,6 +81,12 @@ export interface PagerOptions {
 export const PAGE_LIMIT = 500;
 /** No event and no EOSE for this long: the relay is stalled (per relay, unlike Amethyst's global clock). */
 export const SILENCE_MS = 15_000;
+/** The first answer to a page gets longer: a big inbox's 500-wrap query can take a while to start. */
+export const FIRST_ANSWER_MS = 30_000;
+/** A stalled page is asked again on its own this many times, each smaller and after a longer wait. */
+export const AUTO_RETRIES = 3;
+const RETRY_AFTER_MS = [3_000, 10_000, 30_000];
+const MIN_PAGE = 100;
 
 interface Live {
   cancel: () => void;
@@ -85,19 +95,33 @@ interface Live {
 
 export class BackwardPager {
   private relays: string[] = [];
-  private readonly state = new Map<string, { state: RelayPagingState; pages: number; reason?: string }>();
+  private readonly state = new Map<
+    string,
+    {
+      state: RelayPagingState;
+      pages: number;
+      reason?: string;
+      /** This relay's page size — halved each time it stalls, so a slow relay gets pages it can answer. */
+      limit?: number;
+      /** Automatic retries since its last answered page. */
+      retries: number;
+      retryTimer?: unknown;
+    }
+  >();
   private readonly live = new Map<string, Live>();
   private readonly listeners = new Set<() => void>();
   private snap: PagerSnapshot | null = null;
   private disposed = false;
   private readonly limit: number;
   private readonly silenceMs: number;
+  private readonly firstAnswerMs: number;
   private readonly setTimer: (fn: () => void, ms: number) => unknown;
   private readonly clearTimer: (handle: unknown) => void;
 
   constructor(private readonly opts: PagerOptions) {
     this.limit = opts.limit ?? PAGE_LIMIT;
     this.silenceMs = opts.silenceMs ?? SILENCE_MS;
+    this.firstAnswerMs = opts.firstAnswerMs ?? (opts.silenceMs !== undefined ? opts.silenceMs : FIRST_ANSWER_MS);
     this.setTimer = opts.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
     this.clearTimer = opts.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
   }
@@ -117,7 +141,7 @@ export class BackwardPager {
   private entry(url: string) {
     let e = this.state.get(url);
     if (!e) {
-      e = { state: this.opts.cursors.isDone(url) ? "done" : "idle", pages: 0 };
+      e = { state: this.opts.cursors.isDone(url) ? "done" : "idle", pages: 0, retries: 0 };
       this.state.set(url, e);
     }
     return e;
@@ -139,14 +163,17 @@ export class BackwardPager {
     e.reason = undefined;
     const live: Live = { cancel: () => {} };
     this.live.set(url, live);
-    const arm = () => {
+    const arm = (first = false) => {
       if (live.timer !== undefined) this.clearTimer(live.timer);
-      live.timer = this.setTimer(() => this.finish(url, live, "stalled", "no answer"), this.silenceMs);
+      live.timer = this.setTimer(
+        () => this.finish(url, live, "stalled", "no answer"),
+        first ? Math.max(this.silenceMs, this.firstAnswerMs) : this.silenceMs,
+      );
     };
-    arm();
+    arm(true);
     live.cancel = this.opts.fetchPage(
       url,
-      { until, limit: this.limit },
+      { until, limit: e.limit ?? this.limit },
       {
         onEvent: (event) => {
           if (this.live.get(url) !== live) return;
@@ -180,6 +207,10 @@ export class BackwardPager {
   retry(url: string): boolean {
     const e = this.entry(url);
     if (e.state !== "stalled" && e.state !== "auth") return false;
+    if (e.retryTimer !== undefined) {
+      this.clearTimer(e.retryTimer);
+      e.retryTimer = undefined;
+    }
     e.state = "idle";
     e.reason = undefined;
     return this.advance(url);
@@ -198,6 +229,21 @@ export class BackwardPager {
     const e = this.entry(url);
     e.state = state;
     e.reason = reason;
+    if (state === "idle" || state === "done") e.retries = 0;
+    // A relay that stalls is asked again by itself — a smaller page, a longer
+    // wait — before it's left for the reader's Retry: a big inbox shouldn't stop
+    // halfway on one slow answer.
+    if (state === "stalled" && e.retries < AUTO_RETRIES) {
+      const wait = RETRY_AFTER_MS[e.retries] ?? RETRY_AFTER_MS[RETRY_AFTER_MS.length - 1];
+      e.retries++;
+      const current = e.limit ?? this.limit;
+      e.limit = Math.max(Math.min(MIN_PAGE, current), Math.floor(current / 2));
+      e.reason = `${reason ?? "no answer"} — trying again`;
+      e.retryTimer = this.setTimer(() => {
+        e.retryTimer = undefined;
+        if (!this.disposed && e.state === "stalled") this.retry(url);
+      }, wait);
+    }
     this.changed();
   }
 
@@ -248,6 +294,11 @@ export class BackwardPager {
 
   dispose(): void {
     this.disposed = true;
+    for (const e of this.state.values())
+      if (e.retryTimer !== undefined) {
+        this.clearTimer(e.retryTimer);
+        e.retryTimer = undefined;
+      }
     for (const url of [...this.live.keys()]) this.stop(url);
     this.listeners.clear();
   }
