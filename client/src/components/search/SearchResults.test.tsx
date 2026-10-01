@@ -122,9 +122,6 @@ const carriersMock = vi.fn((_tags: unknown[]) => ({
   settled: true,
 }));
 vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
-// Each person's own tags — quiet chips on every row.
-const personTagsMock = vi.fn((_pks: readonly string[]) => new Map<string, unknown[] | undefined>());
-vi.mock("@/hooks/usePersonTags", () => ({ usePersonTags: (pks: readonly string[]) => personTagsMock(pks) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 // One Bitcoin price for the Shop page — fixed here so a sats price converts to round money.
 const TEST_RATES = { USD: 100_000, EUR: 90_000, GBP: 80_000, CAD: 140_000, CHF: 85_000, AUD: 150_000, JPY: 15_000_000 };
@@ -261,8 +258,6 @@ beforeEach(() => {
   tagMatchesMock.mockReturnValue([]);
   carriersMock.mockReset();
   carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: true });
-  personTagsMock.mockReset();
-  personTagsMock.mockImplementation((pks) => new Map(pks.map((pk) => [pk, []])));
   ratesMock.mockReset();
   ratesMock.mockReturnValue(TEST_RATES);
   wavlakeCatalogueMock.mockResolvedValue({ artists: [], albums: [], songs: [] });
@@ -4221,10 +4216,7 @@ describe("a People search whose words match a tag", () => {
     });
     await screen.findByTestId("result-profile-1");
     expect([0, 1].map(nameOf)).toEqual(["Aos Lopez", "Alice"]);
-    expect(within(screen.getByTestId("result-profile-1")).getByTestId("person-tag-chip-aos-2026")).toHaveAttribute(
-      "data-emphasis",
-      "loud",
-    );
+    expect(within(screen.getByTestId("result-profile-1")).getByTestId("person-tag-chip-aos-2026")).toBeInTheDocument();
   });
 
   it("shows a person the relay also found once, in the tag's place, with the relay's fuller profile", async () => {
@@ -4301,29 +4293,12 @@ describe("a People search whose words match a tag", () => {
   });
 });
 
-describe("a person's own tags on their People card", () => {
-  const AUTHOR = "9".repeat(64);
-  const own = (slug: string, applications: number) => ({
-    key: `${AUTHOR}|${slug}`,
-    authorPubkey: AUTHOR,
-    slug,
-    name: slug,
-    applications,
-    disputes: 0,
-    asserters: [],
-    selfDeclared: false,
-    subjectDisagreed: false,
-    counted: true,
-    sharesName: 1,
-    addedAt: 0,
-  });
-
-  it("a name search wears the person's tags quietly at the card's right edge", async () => {
+describe("the tag pill on a People card", () => {
+  // The team, 2026-10-01: a card wears the tag the words matched, never the
+  // person's other tags — so a plain name search shows none.
+  it("a name search that matches no tag shows no pill", async () => {
     setUrlTab("people");
     const nathan = "a".repeat(64);
-    personTagsMock.mockImplementation(
-      (pks) => new Map(pks.map((pk) => [pk, pk === nathan ? [own("verified-human", 3)] : []])),
-    );
     render(<SearchResults query="nathan" pov="nosfabrica" />);
     emit({
       hits: [{ event: person("p1", nathan, "Nathan Day"), author: author(nathan, "Nathan Day"), rank: null }],
@@ -4331,7 +4306,7 @@ describe("a person's own tags on their People card", () => {
       timeMs: 100,
     });
     const card = await screen.findByTestId("result-profile-0");
-    expect(within(card).getByTestId("person-tag-chip-verified-human")).toHaveAttribute("data-emphasis", "quiet");
+    expect(within(card).queryAllByTestId(/^person-tag-chip-/)).toHaveLength(0);
   });
 });
 

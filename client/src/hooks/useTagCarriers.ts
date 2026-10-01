@@ -35,7 +35,7 @@ export function useTagCarriers(
   const answers = useRef(new Map<string, CarrierPerson[]>());
   const askedRef = useRef(new Set<string>());
   // Answers are wanted for as long as this component lives, not just until
-  // the matched tags change again (see usePersonTags).
+  // the matched tags change again.
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;

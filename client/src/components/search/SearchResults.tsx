@@ -115,12 +115,11 @@ import {
   leadCarriersByRank,
   leadingCarriers,
   mergeCarrierHits,
-  personTagChips,
+  matchedTagChip,
   rankCarriers,
   tagsCarriedBy,
 } from "@/lib/tagCarrierPeople";
 import { leadingTags } from "@/lib/tagMatch";
-import { usePersonTags } from "@/hooks/usePersonTags";
 import { usePersonFountain } from "@/hooks/usePersonFountain";
 import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
@@ -1162,14 +1161,6 @@ export function SearchResults({
   const extraCount =
     (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) +
     (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
-  // Each person's own tags — quiet chips on every People card; the matched tag is the loud one.
-  const personTags = usePersonTags(
-    useMemo(
-      () => (tab === "people" ? hits.flatMap((h) => (h.event.kind === 0 ? [h.event.pubkey] : [])) : []),
-      [tab, hits],
-    ),
-    { pov, viewerPubkey: userPubkey },
-  );
   const peopleIdx = useRef(0);
   peopleIdx.current = 0;
 
@@ -2431,12 +2422,11 @@ export function SearchResults({
                         );
                         if (event.kind === 0 && hit.author) {
                           const idx = peopleIdx.current++;
-                          const cardTags = personTagChips(
-                            personTags.get(event.pubkey),
+                          // The one tag the words matched, if this person carries it.
+                          const cardTag =
                             tagMatches.length > 0 && carriers.settled
-                              ? tagsCarriedBy(event.pubkey, carrierSets, tagMatches)
-                              : [],
-                          );
+                              ? matchedTagChip(tagsCarriedBy(event.pubkey, carrierSets, tagMatches))
+                              : undefined;
                           const scored =
                             hit.author.wotRank == null
                               ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
@@ -2450,8 +2440,7 @@ export function SearchResults({
                               onPrefetchEnter={onPrefetchEnter}
                               onPrefetchLeave={onPrefetchLeave}
                               showFollowedBy={idx < 3}
-                              tags={cardTags?.chips}
-                              tagEmphasis={cardTags?.emphasis}
+                              tag={cardTag}
                             />,
                           );
                         }

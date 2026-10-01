@@ -7,12 +7,11 @@ import { describe, expect, it } from "vitest";
 import {
   leadingCarriers,
   mergeCarrierPeople,
-  personTagChips,
+  matchedTagChip,
   tagsCarriedBy,
   toCarrierHit,
   type CarrierPerson,
 } from "./tagCarrierPeople";
-import type { ProfileTag } from "@/services/tags";
 import type { SearchResult } from "./profileSearch";
 import type { TagSummary } from "@/services/tags";
 
@@ -118,44 +117,22 @@ describe("toCarrierHit", () => {
   });
 });
 
-describe("personTagChips", () => {
-  const own = (slug: string, applications: number): ProfileTag => ({
-    key: `${pk("9")}|${slug}`,
-    authorPubkey: pk("9"),
-    slug,
-    name: slug,
-    applications,
-    disputes: 0,
-    asserters: [],
-    selfDeclared: false,
-    subjectDisagreed: false,
-    counted: true,
-    sharesName: 1,
-    addedAt: 0,
+describe("matchedTagChip", () => {
+  // Team feedback (2026-10-01): an "LFO" pill on an "AOS" search told the
+  // reader nothing. A row wears the tag the words matched, and only that.
+  it("is the best matched tag the person carries, and only that one", () => {
+    const chip = matchedTagChip([tag("aos"), tag("developer")]);
+    expect(chip?.slug).toBe("aos");
+    expect(chip?.people).toBe(1);
   });
 
-  it("leads with the matched tags the person carries, then their own, once each", () => {
-    const human = tag("verified-human");
-    const { chips, emphasis } = personTagChips([own("author", 5), own("verified-human", 3), own("dev", 1)], [human]);
-    expect(chips.map((c) => c.slug)).toEqual(["verified-human", "author", "dev"]);
-    expect(chips[0].people).toBe(1);
-    expect(chips[1].people).toBe(5);
-    expect([...emphasis]).toEqual([`${pk("9")}:verified-human`]);
+  it("is nothing when the words matched no tag they carry", () => {
+    expect(matchedTagChip([])).toBeUndefined();
   });
 
-  it("is the person's own tags, none loud, when nothing matched", () => {
-    const { chips, emphasis } = personTagChips([own("author", 5)], []);
-    expect(chips.map((c) => c.slug)).toEqual(["author"]);
-    expect(emphasis.size).toBe(0);
-  });
-
-  it("is a matched tag the row already knows they carry, even before their own tags land", () => {
-    const { chips } = personTagChips(undefined, [tag("verified-human")]);
-    expect(chips.map((c) => c.slug)).toEqual(["verified-human"]);
-  });
-
-  it("is nothing yet while their own tags are out and nothing matched", () => {
-    expect(personTagChips(undefined, [])).toBeUndefined();
+  // Who made a tag is not what trust scores, so the chip does not carry it.
+  it("says nothing about who made the tag", () => {
+    expect(matchedTagChip([{ ...tag("lfo"), unverified: true }])).not.toHaveProperty("unverified");
   });
 });
 

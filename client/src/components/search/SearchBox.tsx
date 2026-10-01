@@ -69,9 +69,8 @@ import { useProfileMap } from "@/hooks/useProfileMap";
 import { usePersonContent } from "@/hooks/usePersonContent";
 import { useTagMatches } from "@/hooks/useTags";
 import { useTagCarriers } from "@/hooks/useTagCarriers";
-import { leadingCarriers, mergeCarrierPeople, personTagChips, tagsCarriedBy } from "@/lib/tagCarrierPeople";
+import { leadingCarriers, mergeCarrierPeople, matchedTagChip, tagsCarriedBy } from "@/lib/tagCarrierPeople";
 import { leadingTags } from "@/lib/tagMatch";
-import { usePersonTags } from "@/hooks/usePersonTags";
 import { PersonTagChips } from "@/components/search/PersonTagChips";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useSearchPov } from "@/hooks/useSearchPov";
@@ -589,13 +588,6 @@ export function SearchBox({
       [rows, recent, showRecent],
     ),
   );
-  // Each person's own tags — quiet chips on every row (the team, 2026-09-29:
-  // tags are important to see when searching for people); the tag the words
-  // matched is the loud one.
-  const personTags = usePersonTags(
-    useMemo(() => rows.map((s) => s.pubkey), [rows]),
-    { pov: effectivePov, viewerPubkey: user?.pubkey },
-  );
   // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
   const intent = useMemo(() => intentTarget(searchIntent(value), rows, personContent), [value, rows, personContent]);
 
@@ -826,10 +818,11 @@ export function SearchBox({
               >
                 {rows.map((s, i) => {
                   const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
-                  const rowTags = personTagChips(
-                    personTags.get(s.pubkey),
-                    tagMatches.length > 0 && carriers.settled ? tagsCarriedBy(s.pubkey, carrierSets, tagMatches) : [],
-                  );
+                  // The one tag the words matched, if this person carries it (the team, 2026-10-01).
+                  const tagsPending = tagMatches.length > 0 && !carriers.settled;
+                  const rowTag = tagsPending
+                    ? undefined
+                    : matchedTagChip(tagsCarriedBy(s.pubkey, carrierSets, tagMatches));
                   const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
                   return (
                     // A div, not a button: the chips inside are links, and the
@@ -887,14 +880,13 @@ export function SearchBox({
                         className={cn(
                           "sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100",
                           // On a phone the tag is the chip that matters on this row; the rest wait for a wider screen.
-                          (rowTags?.chips.length ?? 0) > 0 && "hidden sm:inline-flex",
+                          rowTag && "hidden sm:inline-flex",
                         )}
                       />
-                      {/* Their tags, at the right edge where a list scans: the matched one loud, the rest quiet. */}
+                      {/* The tag the words matched, at the right edge where a list scans. */}
                       <PersonTagChips
-                        tags={rowTags?.chips}
-                        emphasis={rowTags?.emphasis}
-                        max={2}
+                        tag={rowTag}
+                        pending={tagsPending}
                         onNavigate={() => {
                           setShowSuggestions(false);
                           onLeave?.();

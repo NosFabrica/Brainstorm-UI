@@ -62,10 +62,6 @@ const carriersMock = vi.fn((_tags: unknown[]) => ({
   settled: true,
 }));
 vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
-const personTagsMock = vi.fn(
-  (pks: readonly string[]) => new Map<string, unknown[] | undefined>(pks.map((pk) => [pk, []])),
-);
-vi.mock("@/hooks/usePersonTags", () => ({ usePersonTags: (pks: readonly string[]) => personTagsMock(pks) }));
 const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({
   direct: new Set(),
   friends: new Set(),
@@ -1562,31 +1558,9 @@ describe("ComposedResults — a query that matches a tag", () => {
     tagMatchesMock.mockReturnValue([]);
     carriersMock.mockReset();
     carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: true });
-    personTagsMock.mockReset();
-    personTagsMock.mockImplementation((pks) => new Map(pks.map((pk) => [pk, []])));
   });
 
-  it("a face card wears a tag only when it is the one searched — no room for a truncated own tag", async () => {
-    personTagsMock.mockImplementation(
-      (pks) =>
-        new Map(
-          pks.map((pk) => [
-            pk,
-            pk === FRESH
-              ? [
-                  {
-                    key: "k|author",
-                    authorPubkey: TAG_AUTHOR,
-                    slug: "author",
-                    name: "Author",
-                    applications: 2,
-                    counted: true,
-                  },
-                ]
-              : [],
-          ]),
-        ),
-    );
+  it("a face card wears a tag only when it is the one searched", async () => {
     render(<ComposedResults query="human verifier" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("people").emit({
       hits: [hitOf(ev("p1", 0, FRESH, JSON.stringify({ name: "Human Verifier" })), "Human Verifier")],
