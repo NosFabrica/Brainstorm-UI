@@ -2026,8 +2026,8 @@ export function suggestProfileHits(
 
 /**
  * Product titles in the typeahead — "Satoshi Smiley T-shirt", straight to
- * the listing. Only listings for sale now, only titles that hold every
- * typed word, one row per product (a seller's same-title copies count
+ * the listing. Only listings for sale now, only titles with a word that
+ * starts with each typed word, one row per product (a seller's same-title copies count
  * once). A query with no plain words asks nothing.
  */
 export function suggestListings(
@@ -2041,7 +2041,9 @@ export function suggestListings(
     const l = parseListing(hit.event);
     if (!l || !isSellable(l)) return null;
     const title = l.title.toLowerCase();
-    if (!words.every((w) => title.includes(w))) return null;
+    // A typed word names a title word from its start: "hon" is "Honey", not "Phone".
+    const titleWords = title.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    if (!words.every((w) => titleWords.some((t) => t.startsWith(w)))) return null;
     return `${hit.event.pubkey}|${title.replace(/\s+/g, " ").trim()}`;
   });
 }
