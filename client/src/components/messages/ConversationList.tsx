@@ -1,19 +1,6 @@
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { Link } from "wouter";
-import {
-  Archive,
-  BellOff,
-  ChevronDown,
-  EyeOff,
-  Flag,
-  Lock,
-  Pin,
-  Search,
-  Settings2,
-  SquarePen,
-  Timer,
-  X,
-} from "lucide-react";
+import { Archive, BellOff, ChevronDown, EyeOff, Flag, Pin, Search, Settings2, SquarePen, Timer, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
 import type { DmRoom } from "@/lib/dm/store";
@@ -420,10 +407,6 @@ export function ConversationList({
           </div>
         </>
       )}
-
-      <div className="flex items-center gap-2 border-t border-border px-4 py-2.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-        <Lock className="h-3 w-3" /> NIP-17 · relays can't see who you talk to
-      </div>
     </aside>
   );
 }

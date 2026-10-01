@@ -34,8 +34,8 @@ export function InboxSetup() {
         <SectionHeader kicker="Private messages" icon={Inbox} />
         <h2 className="font-display text-xl font-bold">Turn on private messages</h2>
         <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-          Tell people where to send you messages. These relays keep your inbox behind a sign-in, so only you can
-          download it — Brainstorm signs you in to them for you.
+          Tell people where to send you messages. Your messages are end-to-end encrypted: relays can't read them or see
+          who sent them. Brainstorm signs you in to relays that ask for it.
         </p>
         <fieldset className="flex flex-col gap-2">
           <legend className="sr-only">Inbox relays</legend>

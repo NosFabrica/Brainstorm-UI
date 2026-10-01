@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   Archive,
   ArchiveRestore,
@@ -256,13 +257,43 @@ export function ChatView({
     if (room?.lastAt) markRoomRead(me, roomKey, room.lastAt);
   }, [me, roomKey, room?.lastAt]);
 
-  // Keep the newest message in view as messages arrive at the bottom.
+  // Keep the newest message in view: a new message scrolls to it, and while the reader
+  // is at the bottom the thread stays pinned there through anything else that changes its
+  // height — the history card and relay markers above the messages, link previews, images.
+  // Opening a chat used to land at the top once those rendered after the first scroll.
   const scroller = useRef<HTMLDivElement>(null);
+  const atBottom = useRef(true);
   const lastId = view.messages.at(-1)?.id;
+  useEffect(() => {
+    atBottom.current = true;
+  }, [roomKey]);
   useEffect(() => {
     const el = scroller.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [lastId, roomKey]);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const stick = () => {
+      if (atBottom.current) el.scrollTop = el.scrollHeight;
+    };
+    const onScroll = () => {
+      atBottom.current = el.scrollHeight - el.clientHeight - el.scrollTop < 48;
+    };
+    const resized = new ResizeObserver(stick);
+    resized.observe(el);
+    const changed = new MutationObserver(stick);
+    changed.observe(el, { childList: true, subtree: true, characterData: true });
+    el.addEventListener("scroll", onScroll, { passive: true });
+    // An image or preview finishing its load grows the thread without a DOM change.
+    el.addEventListener("load", stick, true);
+    return () => {
+      resized.disconnect();
+      changed.disconnect();
+      el.removeEventListener("scroll", onScroll);
+      el.removeEventListener("load", stick, true);
+    };
+  }, [roomKey]);
 
   // Arrived from search (?m=<id>): bring that message to the middle, briefly lit.
   const focusId = new URLSearchParams(useSearch()).get("m");
@@ -273,6 +304,7 @@ export function ChatView({
     const el = scroller.current?.querySelector(`[data-message-id="${CSS.escape(focusId)}"]`);
     if (!el) return;
     focused.current = focusId;
+    atBottom.current = false;
     el.scrollIntoView({ block: "center" });
     setFlash(focusId);
   }, [focusId, byId]);
@@ -284,6 +316,7 @@ export function ChatView({
   }, [flash]);
 
   const isRequest = shelf !== "chat" && !view.hasMine;
+  const [focusComposer, setFocusComposer] = useState(false);
   const pinned = prefs.pinned.includes(roomKey);
   const muted = prefs.muted.includes(roomKey);
   const hiddenAt = prefs.hidden[roomKey];
@@ -516,7 +549,17 @@ export function ChatView({
             <Button variant="outline" onClick={onDelete} data-testid="dm-delete">
               <Trash2 className="mr-1.5 h-4 w-4" /> Delete
             </Button>
-            <Button onClick={onAccept} className="ml-auto" data-testid="dm-accept">
+            <Button
+              onClick={() =>
+                // Synchronous, so the composer mounts and takes focus inside this tap.
+                flushSync(() => {
+                  setFocusComposer(true);
+                  onAccept();
+                })
+              }
+              className="ml-auto"
+              data-testid="dm-accept"
+            >
               <Check className="mr-1.5 h-4 w-4" /> Accept and reply
             </Button>
           </div>
@@ -529,7 +572,6 @@ export function ChatView({
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
           timer={timer}
-          recipients={Math.max(1, others.length)}
           disabled={
             inboxMissing
               ? "Set up your inbox relays to send messages"
@@ -539,6 +581,7 @@ export function ChatView({
           }
           onSend={send}
           onSendFile={attach}
+          autoFocus={focusComposer}
         />
       )}
     </section>
