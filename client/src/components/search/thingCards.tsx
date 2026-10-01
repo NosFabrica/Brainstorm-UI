@@ -63,6 +63,7 @@ import { AuthorRow, CardShell, CuratorFooter, hostLabel, hostOf, useFaceProfiles
 import {
   describeThing,
   hostOfUrl,
+  marketStatusNow,
   type MarketStatus,
   type Thing,
   type ThingDetail,
@@ -638,7 +639,7 @@ export function MarketOutcomes({
   if (detail.outcomes.length === 0) return null;
   const won = detail.resolution?.trim().toLowerCase();
   const binary = detail.outcomes.length === 2 && detail.outcomes.every((o) => sideOf(o) !== null);
-  const off = detail.status === "cancelled";
+  const off = marketStatusNow(detail) === "cancelled";
   const toneOf = (o: string): Tone => {
     const isWinner = !!won && o.trim().toLowerCase() === won;
     if (off || (won && !isWinner)) return "slate";
@@ -693,11 +694,12 @@ export function MarketOutcomes({
 
 /** Where a market stands, in one row of chips: its status, play money, its category. */
 export function MarketStatusLine({ detail, testId }: { detail: Detail<"market">; testId?: string }) {
-  const status = detail.status ? MARKET_STATUS_CHIP[detail.status] : null;
+  const now = marketStatusNow(detail);
+  const status = now ? MARKET_STATUS_CHIP[now] : null;
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
       {status && (
-        <Chip size="sm" tone={status.tone} dot={detail.status === "open"}>
+        <Chip size="sm" tone={status.tone} dot={now === "open"}>
           {status.word}
         </Chip>
       )}
@@ -729,7 +731,8 @@ export function MarketSummary({
   link?: string | null;
   testId?: string;
 }) {
-  const open = detail.status === "open" || detail.status === null;
+  const status = marketStatusNow(detail);
+  const open = status === "open" || status === null;
   return (
     <div className="space-y-2" data-testid={testId}>
       <MarketStatusLine detail={detail} />
@@ -746,7 +749,8 @@ export function MarketSummary({
 
 /** What the door to BAO says: bet while it is open, look once it is not. */
 export function baoMarketLinkLabel(detail: Detail<"market">): string {
-  return detail.status === "open" || detail.status === null ? "Bet on BAO Markets" : "View on BAO Markets";
+  const status = marketStatusNow(detail);
+  return status === "open" || status === null ? "Bet on BAO Markets" : "View on BAO Markets";
 }
 
 /** The market's page on BAO Markets — a quiet link that does not open the row or card around it. */

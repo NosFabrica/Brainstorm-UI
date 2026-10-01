@@ -927,6 +927,40 @@ describe("paging a union", () => {
     expect(asked(1).until).toBe(900);
   });
 
+  // Reviews asks two filters of disjoint kinds (ratings + relay reviews; NIP-87 mint reviews
+  // by `#k`). By an event's kind the page knows which filter it answered, so each walks back
+  // from its own oldest second, stops when it runs short, and the list reads newest-first.
+  it("a union of disjoint kinds walks each filter back from its own oldest, and ends when all run short", async () => {
+    const [first, second] = pages(3);
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream("sort:recent", { tab: "reviews", pov: "nosfabrica", limit: 2 }, (s) => snaps.push(s));
+    await tick();
+    expect(askedFilters()).toHaveLength(2);
+    const rating = (id: string, at: number) => ({ ...note(id, at), kind: 34259 }) as NostrEvent;
+    const mint = (id: string, at: number) => ({ ...note(id, at), kind: 38000 }) as NostrEvent;
+    // The relay answers filter by filter; the mint reviews are newer than the second rating.
+    first.next(frame(rating("r1", 5000)));
+    first.next(frame(rating("r2", 1000)));
+    first.next(frame(mint("m1", 4000)));
+    first.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["r1", "m1", "r2"]);
+    // The mint filter came back short (1 of 2): it is done; ratings walk back from 1000.
+    expect(snaps.at(-1)!.exhausted).toBeFalsy();
+
+    handle.more();
+    await tick();
+    const page2 = askedFilters(1);
+    expect(page2).toHaveLength(1);
+    expect(page2[0]).toMatchObject({ kinds: [34259, 31987], until: 1000, limit: 2 });
+
+    second.next(frame(rating("r3", 900)));
+    second.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.exhausted).toBe(true);
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["r1", "m1", "r2", "r3"]);
+  });
+
   it("a union is exhausted when a page brings nothing new, not when its total runs short", async () => {
     const [first] = pages(3);
     const snaps: SearchSnapshot[] = [];

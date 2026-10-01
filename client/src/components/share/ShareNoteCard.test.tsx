@@ -46,6 +46,37 @@ describe("ShareNoteCard", () => {
     expect(screen.getByTestId("note-repost")).toBeInTheDocument();
   });
 
+  // A note that names a BAO market by naddr drew it twice: as the market card where it is
+  // named (NoteContent's ThingAddressRef) and again below as an "article" card.
+  it("draws a market it names once, where it is named — not again as an article card", async () => {
+    const BAO = "9".repeat(64);
+    const market: MinimalEvent = {
+      id: "1".repeat(64),
+      kind: 38000,
+      pubkey: BAO,
+      created_at: 1_779_000_000,
+      content: "₿ Will it? #baomarkets",
+      tags: [
+        ["d", "m1"],
+        ["market", "m1"],
+        ["outcome", "YES"],
+        ["outcome", "NO"],
+        ["title", "Will it?"],
+      ],
+    };
+    const naddr = nip19.naddrEncode({ kind: 38000, pubkey: BAO, identifier: "m1" });
+    const bet: MinimalEvent = { ...base, id: "b".repeat(64), kind: 1, content: `Bet: nostr:${naddr}` };
+    renderWithProviders(
+      <ShareNoteCard
+        event={bet}
+        profiles={new Map()}
+        eventsById={new Map()}
+        addrByCoord={new Map([[`38000:${BAO}:m1`, market]])}
+      />,
+    );
+    expect(screen.queryByTestId("embedded-article")).toBeNull();
+  });
+
   // Like Wavlake and YouTube, a Fountain link plays where it sits in the text.
   // It used to get an inline chip and a second player card below the note.
   it("renders a Fountain link once, inline, not as chip plus card", () => {

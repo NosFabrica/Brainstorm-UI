@@ -202,7 +202,7 @@ export function NoteContent({
           // Shown as a card by the caller? Then the card IS the link.
           if (embeddedCoords?.has(addrCoord(address))) return null;
           if (embedThings && EMBEDDED_THING_KINDS.has(address.kind))
-            return <ThingAddressRef key={i} address={address} bech32={token.bech32} />;
+            return <ThingAddressRef key={i} address={address} bech32={token.bech32} url={token.url} />;
           const other = reading ? addressLink(token.bech32, i, token.url) : null;
           if (other) return other;
           // Links to its on-site page (/e/ renders every kind); an article

@@ -8,31 +8,46 @@
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
-import { addressLabel } from "@/components/share/ReadingText";
+import { addressLabel, addressLink } from "@/components/share/ReadingText";
 import { useFaceProfiles } from "@/components/search/cards";
 import { useArticlesByRefs } from "@/hooks/useLinkedArticles";
 import { describeThing } from "@/lib/thing";
-import type { AddressRef } from "@/lib/noteRefs";
+import { eventStore } from "@/lib/eventStore";
+import type { AddressRef, MinimalEvent } from "@/lib/noteRefs";
 
 /** The address kinds drawn as a card in place of their link. */
 export const EMBEDDED_THING_KINDS: ReadonlySet<number> = new Set([38000]);
 
-export function ThingAddressRef({ address, bech32 }: { address: AddressRef; bech32: string }) {
+export function ThingAddressRef({
+  address,
+  bech32,
+  url,
+}: {
+  address: AddressRef;
+  bech32: string;
+  /** The author's own link around the reference, kept when it is not drawn as a card. */
+  url?: string;
+}) {
   const [, navigate] = useLocation();
   // The resolver is the articles' one — one ask per coordinate, kept — whatever the kind.
+  // A copy the store already holds (a feed fetched it) draws at once; the ask only replaces it.
   const { articles } = useArticlesByRefs([address]);
-  const ev = articles[0];
+  const ev =
+    articles[0] ??
+    (eventStore.getReplaceable(address.kind, address.pubkey, address.identifier) as MinimalEvent | undefined);
   const type = ev ? describeThing(ev)?.detail.type : undefined;
   const profiles = useFaceProfiles(ev ? [ev.pubkey] : []);
   if (!ev || (type !== "market" && type !== "ballot"))
     return (
-      <button
-        type="button"
-        onClick={() => navigate(`/e/${bech32}`)}
-        className="font-medium text-brand-link hover:underline"
-      >
-        {addressLabel(bech32)}
-      </button>
+      addressLink(bech32, bech32, url) ?? (
+        <button
+          type="button"
+          onClick={() => navigate(`/e/${bech32}`)}
+          className="font-medium text-brand-link hover:underline"
+        >
+          {addressLabel(bech32)}
+        </button>
+      )
     );
   return (
     <EmbeddedNoteCard

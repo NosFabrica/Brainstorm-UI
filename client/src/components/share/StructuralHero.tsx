@@ -10,7 +10,7 @@ import { Link } from "wouter";
 import { Braces, ChevronDown, ChevronRight, Lock } from "lucide-react";
 import { useSpecsForKind } from "@/hooks/useSpecsForKind";
 import { contentShape } from "@/lib/contentShape";
-import { kindTypeLabel } from "@/lib/kindLabel";
+import { kindLabel } from "@/lib/kindLabel";
 import { ReadingText } from "@/components/share/ReadingText";
 
 type StructuralEvent = {
@@ -29,7 +29,7 @@ export function StructuralHero({ event }: { event: StructuralEvent }) {
       .slice(0, 2)
       .map((sp) => sp.tags.find((t) => t[0] === "title")?.[1] ?? "a spec")
       .join(", ") + (specs.length > 2 ? ` +${specs.length - 2}` : "");
-  const label = kindTypeLabel(event.kind);
+  const label = kindLabel(event);
   const named = !label.startsWith("Kind ");
   const shape = contentShape(event.content);
   const alt = event.tags.find((t) => t[0] === "alt" && t[1]?.trim())?.[1];

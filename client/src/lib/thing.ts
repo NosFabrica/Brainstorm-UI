@@ -722,7 +722,7 @@ export function marketStatus(
   { resolution, cancelled, closes }: { resolution: string | null; cancelled: boolean; closes: number | null },
   now = Date.now(),
 ): MarketStatus | null {
-  const declared = said ? MARKET_STATUS[said] : undefined;
+  const declared = said && Object.hasOwn(MARKET_STATUS, said) ? MARKET_STATUS[said] : undefined;
   if (declared === "resolved" || declared === "cancelled") return declared;
   if (resolution) return "resolved";
   if (!declared && cancelled) return "cancelled";
@@ -730,6 +730,21 @@ export function marketStatus(
   if (declared === "open" || !declared) return closes === null ? (declared ?? null) : ended ? "closed" : "open";
   return declared;
 }
+
+/**
+ * Where a market stands NOW. describeThing reads an event once and keeps the read for the
+ * session, so the one rule that moves with the clock — an open market whose betting has
+ * closed is closed — is applied again wherever a status is drawn.
+ */
+export function marketStatusNow(
+  detail: { status: MarketStatus | null; closes: number | null },
+  now = Date.now(),
+): MarketStatus | null {
+  return detail.status === "open" && detail.closes !== null && detail.closes * 1000 <= now ? "closed" : detail.status;
+}
+
+/** The last second a Date can show — anything past it reads "Invalid Date". */
+const MAX_UNIX_SECONDS = 8.64e12;
 
 /** Unix seconds from seconds, milliseconds or an ISO date; null for anything else. */
 function unixSeconds(v: unknown): number | null {
@@ -739,7 +754,8 @@ function unixSeconds(v: unknown): number | null {
   }
   const n = Number(v);
   if (!Number.isFinite(n) || n <= 0) return null;
-  return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
+  const sec = n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
+  return sec <= MAX_UNIX_SECONDS ? sec : null;
 }
 
 /** BAO's networks, as its site names them in its paths (bao.markets' router, 2026-10-01). */
@@ -754,7 +770,8 @@ const BAO_NETWORK_PATH: Record<string, string> = { demo: "demo", testnet: "testn
  */
 export function baoMarketUrl(ev: EventLike): string | null {
   const d = tag(ev, "d");
-  const network = BAO_NETWORK_PATH[(tag(ev, "network") ?? tag(ev, "n") ?? "").toLowerCase()];
+  const named = (tag(ev, "network") ?? tag(ev, "n") ?? "").toLowerCase();
+  const network = Object.hasOwn(BAO_NETWORK_PATH, named) ? BAO_NETWORK_PATH[named] : undefined;
   if (!d || !network || !tag(ev, "market")) return null;
   return `https://bao.markets/${network}/market/${encodeURIComponent(d)}`;
 }
@@ -783,7 +800,11 @@ function readMarket(ev: EventLike): Thing | null {
     : [];
   const outcomes = [...new Set(tagged.length ? tagged : listed)];
   const resolution = tag(ev, "resolution") ?? null;
-  const closes = unixSeconds(tag(ev, "end") ?? data?.endTime ?? data?.endDate);
+  // The first of them that reads as a time — a junk `end` tag does not hide a good `endTime`.
+  const closes = [tag(ev, "end"), data?.endTime, data?.endDate].reduce<number | null>(
+    (found, v) => found ?? (v === undefined ? null : unixSeconds(v)),
+    null,
+  );
   const status = marketStatus(
     (tag(ev, "status") ?? tag(ev, "state") ?? tag(ev, "s") ?? str(data?.status) ?? str(data?.state))?.toLowerCase(),
     { resolution, cancelled: !!tag(ev, "cancel_reason"), closes },
@@ -832,6 +853,10 @@ function readBallot(ev: EventLike): Thing | null {
   }
   const choice = answerWords(json?.vote_choice);
   if (choice) answers.push({ question: "Vote", answer: choice });
+  // One answer per question — the first cast — so a ballot that repeats one draws it once.
+  const asked = new Set<string>();
+  const unique = answers.filter((a) => !asked.has(a.question) && !!asked.add(a.question));
+  answers.splice(0, answers.length, ...unique);
   const proofHash = tag(ev, "proof-hash") ?? tag(ev, "proof_hash") ?? str(json?.proof_hash) ?? null;
   return thing({
     title: `Ballot in ${election}`,

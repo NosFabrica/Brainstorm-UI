@@ -230,7 +230,8 @@ describe("EmbeddedNoteCard — kind-38000 markets and ballots", () => {
     unmount();
     renderWithProviders(<NoteContent content={`Bet on this nostr:${naddr}`} />);
     expect(screen.queryByTestId("embedded-thing")).toBeNull();
-    expect(screen.getByRole("button", { name: /prediction market|mint review|kind 38000/i })).toBeInTheDocument();
+    // A link to the shared kind says no more than it knows — never "mint review" for a market.
+    expect(screen.getByRole("button", { name: "↗ linked post" })).toBeInTheDocument();
   });
 });
 

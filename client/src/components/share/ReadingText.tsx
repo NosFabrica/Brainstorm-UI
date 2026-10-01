@@ -161,10 +161,14 @@ function addressKind(bech32: string): number | null {
   }
 }
 
+const SHARED_KINDS: ReadonlySet<number> = new Set([38000]);
+
 /** What an address names, for its link: "📄 article", "↗ track". */
 export function addressLabel(bech32: string): string {
   const kind = addressKind(bech32);
   if (kind === null || READER_KINDS.has(kind)) return "📄 article";
+  // A kind several apps share (38000: mint reviews, markets, ballots) has no one word to give.
+  if (SHARED_KINDS.has(kind)) return "↗ linked post";
   const label = kindTypeLabel(kind);
   return `↗ ${label.startsWith("Kind ") ? "linked post" : label.toLowerCase()}`;
 }

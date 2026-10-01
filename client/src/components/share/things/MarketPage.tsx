@@ -20,7 +20,7 @@ import {
   marketCloseWords,
 } from "@/components/search/thingCards";
 import { fetchFromSearch } from "@/services/search";
-import { describeThing, type Thing } from "@/lib/thing";
+import { describeThing, marketStatusNow, type Thing } from "@/lib/thing";
 import { eventPath } from "@/lib/shareId";
 import type { Detail } from "./types";
 import {
@@ -44,7 +44,8 @@ const sats = (v: string | undefined) => {
 };
 
 export function MarketHero({ event, thing, detail }: { event: PageEvent; thing: Thing; detail: Detail<"market"> }) {
-  const status = detail.status ? MARKET_STATUS_CHIP[detail.status] : null;
+  const now = marketStatusNow(detail);
+  const status = now ? MARKET_STATUS_CHIP[now] : null;
   const source = tagOf(event, "resolution_source");
   const min = sats(tagOf(event, "min_bet"));
   const max = sats(tagOf(event, "max_bet"));
@@ -79,7 +80,7 @@ export function MarketHero({ event, thing, detail }: { event: PageEvent; thing: 
       {thing.link && (
         <>
           <Actions testId="thing-page-actions">
-            <ActionLink href={thing.link} primary={detail.status === "open"} testId="thing-page-bao-link">
+            <ActionLink href={thing.link} primary={now === "open"} testId="thing-page-bao-link">
               {baoMarketLinkLabel(detail)}
             </ActionLink>
           </Actions>
@@ -146,7 +147,8 @@ export function MarketSections({ event, detail }: { event: PageEvent; detail: De
       ) : (
         <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
           {others.map(({ e, thing }) => {
-            const status = thing.detail.status ? MARKET_STATUS_CHIP[thing.detail.status] : null;
+            const now = marketStatusNow(thing.detail);
+            const status = now ? MARKET_STATUS_CHIP[now] : null;
             return (
               <li key={e.id}>
                 <Link
@@ -157,7 +159,7 @@ export function MarketSections({ event, detail }: { event: PageEvent; detail: De
                     <span className="line-clamp-2 text-sm font-medium text-slate-900 dark:text-slate-100">
                       {thing.title}
                     </span>
-                    {thing.detail.closes !== null && thing.detail.status === "open" && (
+                    {thing.detail.closes !== null && now === "open" && (
                       <span className="text-[11px] text-slate-500 dark:text-slate-400">
                         {marketCloseWords(thing.detail.closes)}
                       </span>

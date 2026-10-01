@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   baoMarketUrl,
+  marketStatusNow,
   kind38000Format,
   marketStatus,
   decodeEntities,
@@ -734,5 +735,69 @@ describe("baoMarketUrl — a market's page on bao.markets", () => {
         ]),
       ),
     ).toBeNull();
+  });
+});
+
+describe("kind 38000 — audit fixes", () => {
+  it("re-applies the clock where a status is drawn: an open market past its end is closed now", () => {
+    const now = 1_790_000_000_000;
+    expect(marketStatusNow({ status: "open", closes: 1_780_000_000 }, now)).toBe("closed");
+    expect(marketStatusNow({ status: "open", closes: 1_800_000_000 }, now)).toBe("open");
+    expect(marketStatusNow({ status: "resolved", closes: 1_780_000_000 }, now)).toBe("resolved");
+  });
+
+  it("never reads a status or network word off Object.prototype", () => {
+    const t = describeThing(
+      ev(38000, [
+        ["d", "x"],
+        ["market", "x"],
+        ["status", "constructor"],
+        ["network", "constructor"],
+        ["title", "Q?"],
+        ["outcome", "YES"],
+        ["outcome", "NO"],
+      ]),
+    );
+    // An unknown word is no status at all — not the Object function.
+    expect(t?.detail).toMatchObject({ status: null });
+    expect(t?.link).toBeNull();
+    expect(
+      baoMarketUrl(
+        ev(38000, [
+          ["d", "x"],
+          ["market", "x"],
+          ["network", "toString"],
+        ]),
+      ),
+    ).toBeNull();
+  });
+
+  it("falls back past a junk `end` to the JSON's own time, and drops a time no Date can show", () => {
+    const at = (end: string, data: Record<string, unknown>) =>
+      describeThing(
+        ev(38000, [
+          ["market", "m"],
+          ["end", end],
+          ["data", JSON.stringify({ title: "Q?", ...data })],
+        ]),
+      )?.detail;
+    expect(at("soon", { endTime: 1769256240 })).toMatchObject({ closes: 1769256240 });
+    expect(at("1e30", {})).toMatchObject({ closes: null });
+  });
+
+  it("draws a question a ballot repeats once — the first answer cast", () => {
+    const t = describeThing(
+      ev(
+        38000,
+        [["election", "e"]],
+        JSON.stringify({ responses: [{ question_id: "q1", value: "a" }], ballot: { q1: "b", q2: "c" } }),
+      ),
+    );
+    expect(t?.detail).toMatchObject({
+      answers: [
+        { question: "q1", answer: "a" },
+        { question: "q2", answer: "c" },
+      ],
+    });
   });
 });

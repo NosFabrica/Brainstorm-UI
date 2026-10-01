@@ -76,9 +76,14 @@ export function EmbeddedNoteCard({
   const nip05Verified = useNip05(author?.nip05, event.pubkey) === "verified";
   // An article the note links is shown as its own card — the note's full
   // page does the same — and not as a bare "📄 article" link.
-  const linked = useLinkedArticles(nested ? EMPTY_NOTE : event);
+  // A quoted prediction market or ballot (kind 38000) is drawn as what it is:
+  // a market's content is BAO's social post, a ballot's is raw JSON.
+  const thing = THING_KINDS.has(event.kind) ? describeThing(event) : null;
+  const shaped = thing?.detail.type === "market" || thing?.detail.type === "ballot" ? thing : null;
+  // Neither shows its content, so nothing it names is looked up.
+  const linked = useLinkedArticles(nested || shaped ? EMPTY_NOTE : event);
   // Likewise a note it quotes: the quoted note, with its author, one level deep.
-  const quoted = useQuotedNotes(nested ? [] : analyzeNote(event).quoteIds);
+  const quoted = useQuotedNotes(nested || shaped ? [] : analyzeNote(event).quoteIds);
   let npub = "";
   try {
     npub = npubFromPubkey(event.pubkey);
@@ -98,11 +103,6 @@ export function EmbeddedNoteCard({
         navigate(href);
       }
     : undefined;
-
-  // A quoted prediction market or ballot (kind 38000) is drawn as what it is:
-  // a market's content is BAO's social post, a ballot's is raw JSON.
-  const thing = THING_KINDS.has(event.kind) ? describeThing(event) : null;
-  const shaped = thing?.detail.type === "market" || thing?.detail.type === "ballot" ? thing : null;
 
   if (blank)
     return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
