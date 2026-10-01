@@ -176,10 +176,14 @@ const SHOP_WORDS = new Set([
   "price",
 ]);
 
+/** The shortest word that can name a thing to shop for. */
+const MIN_SHOP_WORD = 3;
+
 /**
  * What a shopping query is shopping for: its words with the shop word taken
  * out ("drone shop" → "drone", "bikes for sale" → "bikes"). Null when the
- * words do not ask to shop, or the shop word is all there is — the search
+ * words do not ask to shop, the shop word is all there is, or what is left is
+ * too short to name anything — the search
  * box lists products only for a query that asked for them.
  */
 export function shopWords(query: string): string | null {
@@ -190,6 +194,9 @@ export function shopWords(query: string): string | null {
     .filter(Boolean);
   const rest = words.filter((w) => w !== "\u0000" && !SHOP_WORDS.has(w.toLowerCase()));
   if (rest.length === words.length || rest.length === 0) return null;
+  // A word has to be long enough to name something: "buy a" would match every
+  // listing with an "a" in its title.
+  if (!rest.some((w) => w.length >= MIN_SHOP_WORD)) return null;
   return rest.join(" ");
 }
 
