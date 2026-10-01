@@ -95,7 +95,11 @@ across devices would mean encrypted app data (NIP-78) — not done yet.
 
 - **Search** runs over the messages this device has opened (lib/dm/search).
   Relays hold only ciphertext, so there is nothing to search remotely; the
-  results say how many messages were searched.
+  results say how many messages were searched. The same box also asks the
+  search relay for people (kind 0, the SearchBox's people search through the
+  reader's Perspective) and lists those not yet in a chat, one tap from a new
+  one; the New message "To" field uses the same search. Network results show
+  their trust coin and a NIP-05 only once it verifies.
 - **Notifications** are the browser's, while a tab is open: a chime and a
   Notification for new messages in Chats and Requests, never for muted chats,
   low-trust or flagged senders, or the chat on screen. Requests never show their

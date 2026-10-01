@@ -29,6 +29,10 @@ import { RelayMarker } from "./RelayMarker";
 import { RequestTrustLine } from "./RequestTrust";
 import { MessageSearchResults } from "./MessageSearchResults";
 import { searchMessages } from "@/lib/dm/search";
+import { usePeopleSearch } from "./usePeopleSearch";
+import { useMyFollows } from "@/hooks/useMyFollows";
+import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
+import type { SearchResult } from "@/lib/profileSearch";
 import { Input } from "@/components/ui/input";
 import { RoomAvatar, firstName, listTime, roomTitle, type Profiles } from "./people";
 
@@ -165,6 +169,28 @@ export function ConversationList({
         : null,
     [deferredQuery, shelves, me, profiles],
   );
+  // People to start a chat with: the network's people search, plus a pasted npub —
+  // minus anyone the reader already has a one-to-one chat with (that's in Chats).
+  const { follows } = useMyFollows();
+  const { people: found, searching: searchingPeople } = usePeopleSearch(deferredQuery, me, {
+    limit: 12,
+    enabled: searching,
+  });
+  const people = useMemo(() => {
+    if (!results) return [];
+    const inChat = new Set(
+      [...shelves.chats, ...shelves.requests, ...shelves.archived]
+        .filter((r) => r.participants.length === 2)
+        .flatMap((r) => r.participants),
+    );
+    const listed = new Set(results.rooms.flatMap((r) => r.participants));
+    const direct = decodeShareId(deferredQuery.trim())?.pubkey;
+    const pasted: SearchResult[] = direct && direct !== me ? [{ pubkey: direct, npub: npubFromPubkey(direct) }] : [];
+    return [...pasted, ...found]
+      .filter((p, i, all) => all.findIndex((q) => q.pubkey === p.pubkey) === i)
+      .filter((p) => !inChat.has(p.pubkey) && !listed.has(p.pubkey))
+      .slice(0, 8);
+  }, [results, found, shelves, deferredQuery, me]);
   // Each trust line is a lookup: the first screenful of requests gets one, not a spam flood.
   const trustLines = useMemo(
     () => new Set([...shelves.requests.slice(0, 25), ...shelves.low.slice(0, 25)].map((r) => r.key)),
@@ -213,8 +239,8 @@ export function ConversationList({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-          placeholder="Search messages"
-          aria-label="Search messages"
+          placeholder="Search messages and people"
+          aria-label="Search messages and people"
           className="h-10 rounded-full pl-9 pr-9"
           data-testid="dm-search"
         />
@@ -232,7 +258,15 @@ export function ConversationList({
 
       {searching && results ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-3">
-          <MessageSearchResults results={results} me={me} profiles={profiles} scoreOf={shelves.scoreOf} />
+          <MessageSearchResults
+            results={results}
+            people={people}
+            searchingPeople={searchingPeople}
+            follows={follows}
+            me={me}
+            profiles={profiles}
+            scoreOf={shelves.scoreOf}
+          />
         </div>
       ) : (
         <>

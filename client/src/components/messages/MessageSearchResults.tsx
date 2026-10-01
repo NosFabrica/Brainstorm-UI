@@ -1,7 +1,13 @@
-/** Search results in the conversation column: matching chats, then matching messages. */
+/**
+ * Search results in the conversation column: matching chats, people on Nostr
+ * to start a chat with (the SearchBox's people search), then matching messages.
+ */
 import { Fragment } from "react";
 import { Link } from "wouter";
-import { Lock } from "lucide-react";
+import { Loader2, Lock, SquarePen } from "lucide-react";
+import type { SearchResult } from "@/lib/profileSearch";
+import { npubFromPubkey } from "@/lib/shareId";
+import { NetworkPersonRow } from "./usePeopleSearch";
 import type { SearchResults } from "@/lib/dm/search";
 import { roomSlug } from "@/lib/dm/rooms";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -26,11 +32,18 @@ function Marked({ text, marks }: { text: string; marks: [number, number][] }) {
 
 export function MessageSearchResults({
   results,
+  people,
+  searchingPeople,
+  follows,
   me,
   profiles,
   scoreOf,
 }: {
   results: SearchResults;
+  /** People to start a chat with — already without anyone in a chat above. */
+  people: SearchResult[];
+  searchingPeople: boolean;
+  follows: ReadonlySet<string>;
   me: string;
   profiles: Profiles;
   scoreOf: (pk: string) => number | null | undefined;
@@ -50,6 +63,33 @@ export function MessageSearchResults({
             >
               <RoomAvatar room={room} me={me} profiles={profiles} scoreOf={scoreOf} size={36} />
               <span className="truncate text-sm font-semibold">{roomTitle(room, me, profiles)}</span>
+            </Link>
+          ))}
+        </>
+      )}
+      {(people.length > 0 || searchingPeople) && (
+        <>
+          <SectionHeader
+            kicker={
+              <span className="flex items-center gap-1.5">
+                People {searchingPeople && <Loader2 className="h-3 w-3 animate-spin" aria-label="Searching" />}
+              </span>
+            }
+            className="px-2 pt-3"
+          />
+          {people.map((person) => (
+            <Link
+              key={person.pubkey}
+              href={`/messages/${npubFromPubkey(person.pubkey)}`}
+              className="flex items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              data-testid="dm-search-person"
+            >
+              <NetworkPersonRow
+                person={person}
+                follows={follows.has(person.pubkey)}
+                size={36}
+                trailing={<SquarePen className="h-4 w-4 text-slate-400" aria-label="Start a chat" />}
+              />
             </Link>
           ))}
         </>
