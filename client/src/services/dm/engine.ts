@@ -42,6 +42,7 @@ import { DmStore, messageFromRumor, type Delivery, type DmMessage, type Outgoing
 import { chatTags } from "@/lib/dm/rooms";
 import { MAX_INBOX_RELAYS, type DmRelayLookup } from "@/lib/dm/inboxRelays";
 import {
+  FAILED_RULES,
   MAX_CACHED_WRAPS,
   wrapKey,
   type CachedOpen,
@@ -525,11 +526,13 @@ export class DmEngine {
       const evicted = rows.splice(MAX_CACHED_WRAPS);
       void this.cache.deleteWraps(evicted.map((r) => r.key)).catch(() => {});
     }
-    // "Failed" rows from before failures carried a reason may have been a
-    // signer's hiccup, not a broken message: open those once more.
-    const legacy = rows.filter((r) => r.failed && !r.reason);
+    // Open once more: "failed" rows from before failures carried a reason (maybe a
+    // signer's hiccup, not a broken message), and failures judged by older, stricter
+    // unwrap rules (FAILED_RULES) — a seal with tags used to count as broken.
+    const retry = (r: StoredWrap) => !!r.failed && (!r.reason || r.rules !== FAILED_RULES);
+    const legacy = rows.filter(retry);
     if (legacy.length) {
-      rows = rows.filter((r) => !(r.failed && !r.reason));
+      rows = rows.filter((r) => !retry(r));
       void this.cache.deleteWraps(legacy.map((r) => r.key)).catch(() => {});
     }
     const sealer = this.deps.sealer;
@@ -835,6 +838,7 @@ export class DmEngine {
           at: wrap.created_at,
           failed: true,
           reason: "skipped",
+          rules: FAILED_RULES,
         });
         return;
       }
@@ -859,6 +863,7 @@ export class DmEngine {
           at: wrap.created_at,
           failed: true,
           reason: "broken",
+          rules: FAILED_RULES,
         });
         return;
       }

@@ -182,7 +182,9 @@ export async function unwrapGiftWrap(wrap: NostrEvent, decrypt: Decrypt): Promis
   const seal = parseEvent(await decrypt(wrap.pubkey, wrap.content), "seal") as unknown as NostrEvent;
   if (seal.kind !== SEAL_KIND) throw new UnwrapError("inner event is not a seal");
   if (!verified(seal)) throw new UnwrapError("seal signature is invalid");
-  if (Array.isArray(seal.tags) && seal.tags.length) throw new UnwrapError("seal has tags");
+  // NIP-59 seals carry no tags, but some clients add one (Amethyst: ["client", …]). Only
+  // the recipient ever sees a seal, and its signature, not its tags, proves who wrote it,
+  // so tags are ignored rather than the message being dropped.
   if (!looksLikeNip44(seal.content)) throw new UnwrapError("seal content is not NIP-44");
 
   const rumor = asRumor(parseEvent(await decrypt(seal.pubkey, seal.content), "rumor"));

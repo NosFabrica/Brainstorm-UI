@@ -84,6 +84,19 @@ describe("gift wrap", () => {
     await expect(unwrapGiftWrap(wrap, eve.decrypt)).rejects.toThrow();
   });
 
+  it("opens a seal that carries tags, as Amethyst's does", async () => {
+    const alice = person();
+    const bob = person();
+    const amethyst: SealSigner = {
+      ...alice.signer,
+      signSeal: async (t) => finalizeEvent({ ...t, tags: [["client", "Amethyst"]] }, alice.sk),
+    };
+    const rumor = makeRumor({ pubkey: alice.pubkey, kind: CHAT_KIND, tags: [["p", bob.pubkey]], content: "Hi" });
+    const opened = await unwrapGiftWrap(await wrapRumor(rumor, bob.pubkey, amethyst), bob.decrypt);
+    expect(opened.rumor.content).toBe("Hi");
+    expect(opened.seal.tags).toEqual([["client", "Amethyst"]]);
+  });
+
   it("refuses a rumor that claims an author other than the seal's", async () => {
     const mallory = person();
     const alice = person();
