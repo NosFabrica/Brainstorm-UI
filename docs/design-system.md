@@ -74,6 +74,21 @@ The rows on the Everything page and the home feed follow Google's result proport
 | Row                                            | `py-3.5`, lists are `space-y-1` — whitespace before dividers, no rules between rows |
 | Section title                                  | 16px (`SectionHeader variant="title"`); "See all" 13px; "+N more from" 12px         |
 
+### The search popup — `components/search/SearchBox.tsx`
+
+The popup offers **destinations**; the results page explains and previews. We cannot know
+whether "developer" means the tag or a person, so each reading is one row of its own kind and
+the reader picks (the team, 2026-10-01, after Google's "Poodle · Dog breed").
+
+- Fixed order: completion or `#topic` → tags (2) → people (6) → shop (2) → "See all results".
+- The grey line's first word is the kind: `Tag · 5 people`, `Topic · …`, `Shop · $21 · seller`.
+  People keep their handle.
+- A people row is someone whose **name or handle** matched. A tag's people are behind the tag
+  row, which opens the tag page; no tag pill in the popup (the results page has it).
+- Shop rows only when the words ask to shop — shop, store, buy, price, "for sale"
+  (`shopWords` in `lib/personContent.ts`).
+- What a person publishes (Articles, Media, …) shows on hover or the arrowed row, desktop only.
+
 ### KindPill — `components/ui/kind-pill.tsx`
 
 The Chip that says what a content item _is_ — Spec, Article, Listing, App, Event, Stream, Track… —
