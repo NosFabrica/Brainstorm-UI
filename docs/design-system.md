@@ -80,16 +80,20 @@ The popup offers **destinations**; the results page explains and previews. We ca
 whether "developer" means the tag or a person, so each reading is one row of its own kind and
 the reader picks (the team, 2026-10-01, after Google's "Poodle · Dog breed").
 
-- Fixed order: completion or `#topic` → tags (2) → people (6) → shop (2) → "See all results".
-- The grey line's first word is the kind: `Tag · 5 people`, `Topic · …`, `Shop · $21 · seller`.
+- Fixed order: completion or `#topic` → shop (the page, when the words ask to shop) → tags (2)
+  → people (6) → "See all results".
+- The grey line's first word is the kind: `Tag · 5 people`, `Topic · …`, `Shop · 4+ listings`.
   People keep their handle.
 - A people row is someone whose **name or handle** matched. A tag's people are behind the tag
   row, which opens the tag page; nobody is pulled into the list for carrying a tag.
 - A listed person who carries the matched tag wears it quietly: grey text with a small tag
   icon (`PersonTagLabel`), one tag per person, a label and not a link, clipped before the name
   is, icon only on a phone. The coloured pill is for the results page.
-- Shop rows only when the words ask to shop — shop, store, buy, price, "for sale"
-  (`shopWords` in `lib/personContent.ts`).
+- Shop only when the words ask to shop — shop, store, buy, price, "for sale" — and name
+  something of at least three letters (`shopWords` in `lib/personContent.ts`). The Shop
+  **page** for the words comes first (`honey` / `Shop · 4+ listings` → `/?q=honey&t=shop`):
+  shopping is a place to land, as Google's is a tab. The count is a floor — listings named by
+  the words; the page also finds mentions. No single product gets a row.
 - What a person publishes (Articles, Media, …) shows on hover or the arrowed row, desktop only.
 
 ### KindPill — `components/ui/kind-pill.tsx`

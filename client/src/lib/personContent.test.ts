@@ -266,6 +266,16 @@ describe("shopWords — the words a shopping query is shopping for", () => {
     expect(shopWords("for sale")).toBeNull();
   });
 
+  // Benjamin, 2026-10-01: "buy a" offered a Shop row — every listing has an
+  // "a" in its title. A word has to be long enough to name something.
+  it("is null until there is a word of three letters to shop for", () => {
+    expect(shopWords("buy a")).toBeNull();
+    expect(shopWords("buy tv")).toBeNull();
+    expect(shopWords("a b shop")).toBeNull();
+    expect(shopWords("buy tea")).toBe("tea");
+    expect(shopWords("buy a drone")).toBe("a drone");
+  });
+
   it("does not read a shop word inside another word", () => {
     expect(shopWords("bishop")).toBeNull();
     expect(shopWords("workshop notes")).toBeNull();

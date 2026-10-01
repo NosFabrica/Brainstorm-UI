@@ -5,7 +5,7 @@
  * box, and sends a search to the home results.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, act, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 // People the typeahead offers — `suggestProfileHits` wraps each in the kind-0 it arrived as.
@@ -184,41 +184,84 @@ describe("typing in the header search", () => {
     expect(dropdown()).toBeNull();
   });
 
-  it("a product title under the people opens the listing itself", async () => {
-    suggestMock.mockResolvedValue([]);
-    listingsMock.mockResolvedValue([
-      {
-        event: {
-          id: "t".repeat(64),
-          kind: 30402,
-          pubkey: "e".repeat(64),
-          tags: [
-            ["d", "smiley"],
-            ["title", "Satoshi Smiley T-shirt"],
-            ["price", "21", "USD"],
-          ],
-          content: "",
-          created_at: 1,
-          sig: "s",
-        },
-        author: null,
-        rank: null,
-      },
-    ]);
+  const listing = (id: string, title: string, price = "21") => ({
+    event: {
+      id: id.repeat(64).slice(0, 64),
+      kind: 30402,
+      pubkey: "e".repeat(64),
+      tags: [
+        ["d", id],
+        ["title", title],
+        ["price", price, "USD"],
+      ],
+      content: "",
+      created_at: 1,
+      sig: "s",
+    },
+    author: null,
+    rank: null,
+  });
+  async function shopFor(words: string) {
     render(<HeaderSearchBox />);
-    type("satoshi shop");
+    type(words);
     act(() => {
       vi.advanceTimersByTime(400);
     });
     await act(async () => {});
-    // Asked for the thing, not the word that said "shop", and for two at most.
-    expect(listingsMock.mock.calls[0]?.[0]).toBe("satoshi");
-    expect(listingsMock.mock.calls[0]?.[2]).toMatchObject({ limit: 2 });
-    const row = screen.getByTestId("home-product-suggestion-0");
-    expect(row).toHaveTextContent("Satoshi Smiley T-shirt");
-    expect(row).toHaveTextContent("Shop · $21");
+  }
+
+  // Google never lists single products in its suggestions — shopping is a
+  // place you land on with everything for the word. So the box offers the
+  // Shop page first (Benjamin, 2026-10-01: "a wider search and not a specific").
+  it("offers the Shop page for the words, saying how many listings there are", async () => {
+    suggestMock.mockResolvedValue([]);
+    listingsMock.mockResolvedValue([listing("a", "Raw honey"), listing("b", "Honey soap"), listing("c", "Honeycomb")]);
+    await shopFor("shop honey");
+
+    // Asked for the thing, not the word that said "shop".
+    expect(listingsMock.mock.calls[0]?.[0]).toBe("honey");
+    const row = screen.getByTestId("home-shop-row");
+    expect(row).toHaveTextContent("honey");
+    // "3+": the box counts the listings NAMED by the words; the Shop page also
+    // finds the ones that only mention them, so the number is a floor.
+    expect(row).toHaveTextContent("Shop · 3+ listings");
     fireEvent.click(row);
-    expect(window.location.pathname).toMatch(/^\/e\/(nevent1|t{64})/);
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("?q=honey&t=shop");
+  });
+
+  // Someone who typed "shop" asked for the shop: it leads, like a tag row
+  // does, and is not left under six people (Benjamin, 2026-10-01).
+  it("puts the Shop row at the top, above the people", async () => {
+    suggestMock.mockResolvedValue([
+      { pubkey: "a".repeat(64), npub: "npub1a", name: "Honey Badger" },
+      { pubkey: "b".repeat(64), npub: "npub1b", name: "honeybadger" },
+    ]);
+    listingsMock.mockResolvedValue([listing("a", "Raw honey")]);
+    await shopFor("honey shop");
+    const rows = within(dropdown()!).getAllByRole("option");
+    expect(rows.slice(0, 3).map((r) => r.getAttribute("data-testid"))).toEqual([
+      "home-shop-row",
+      "home-suggestion-0",
+      "home-suggestion-1",
+    ]);
+  });
+
+  // Benjamin, 2026-10-01: only the shop, not the listings. A product whose
+  // title is exactly the words still gets no row of its own — it is on the page.
+  it("shows the Shop row alone, never a single product, and nothing when nothing is for sale", async () => {
+    suggestMock.mockResolvedValue([]);
+    listingsMock.mockResolvedValue([listing("a", "Raw honey"), listing("b", "Honey", "10000")]);
+    await shopFor("buy honey");
+    const rows = within(screen.getByTestId("home-product-suggestions")).getAllByRole("option");
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual(["home-shop-row"]);
+    expect(screen.getByTestId("home-product-suggestions").textContent).not.toMatch(/10,000|Listing/);
+    cleanup();
+
+    listingsMock.mockResolvedValue([]);
+    await shopFor("unicorn shop");
+    expect(screen.queryByTestId("home-shop-row")).toBeNull();
+    expect(screen.queryByTestId("home-product-suggestions")).toBeNull();
   });
 
   // The team, 2026-10-01: "developer" ended in two shop listings nobody asked
