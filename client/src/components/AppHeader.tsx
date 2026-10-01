@@ -20,8 +20,7 @@ interface AppHeaderProps {
   search?: boolean;
   /**
    * "app" for a full-screen tool (Messages): the bar spans the window as the
-   * frame of the panes under it, search becomes a magnifier (the screen has its
-   * own search box) and the setup nudge shrinks to its chip.
+   * frame of the panes under it, and the setup nudge shrinks to its chip.
    */
   layout?: "page" | "app";
   /** Retained for API compatibility — headers are now uniformly transparent. */
@@ -37,12 +36,7 @@ interface AppHeaderProps {
 export function AppHeader({ user, onLogout, active, actions, search, layout = "page" }: AppHeaderProps) {
   const app = layout === "app";
   return (
-    <HeaderBar
-      maxWidthClass="max-w-7xl"
-      search={app ? (search === false ? false : "button") : search}
-      fullBleed={app}
-      testId="nav-app-header"
-    >
+    <HeaderBar maxWidthClass="max-w-7xl" search={search} fullBleed={app} testId="nav-app-header">
       {/* The nudge's words only once there is room for them beside the search box;
           narrower, it is the "Finish setup" chip alone. */}
       <FinishSetupBanner labelFrom={app ? "never" : "xl"} />

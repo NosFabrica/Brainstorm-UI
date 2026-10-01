@@ -28,12 +28,8 @@ export function HeaderBar({
   testId,
 }: {
   maxWidthClass?: string;
-  /**
-   * True: the search box (a magnifier on phones). "button": a magnifier at every
-   * width, opening the search sheet — for a screen with a search box of its own.
-   * False: no search, for a flow a search would abandon.
-   */
-  search?: boolean | "button";
+  /** False on a page whose own content is a search box, or a flow a search would abandon. */
+  search?: boolean;
   /**
    * For a full-screen app view (Messages): edge to edge and a solid surface,
    * so the bar lines up with the panes under it and reads as their frame.
@@ -99,11 +95,11 @@ export function HeaderBar({
           <BrainLogo size={26} mono className="hidden text-white dark:block" />
         </Link>
 
-        {search === true && !isPhone && <HeaderSearchBox className="min-w-0 max-w-2xl flex-1" />}
+        {search && !isPhone && <HeaderSearchBox className="min-w-0 max-w-2xl flex-1" />}
 
         <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           {/* Opens search OVER the page — search is a lookup, not a destination. */}
-          {((search === true && isPhone) || search === "button") && (
+          {search && isPhone && (
             <button
               type="button"
               onClick={openMobileSearch}
