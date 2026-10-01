@@ -1526,9 +1526,6 @@ export async function fetchMuteListTimestamp(
   return undefined;
 }
 
-// One search relay for the whole UI: the SearchOverTrust relay behind the search page.
-const SEARCH_RELAY = env.VITE_SEARCH_RELAY_URL.trim();
-
 export interface NostrSearchResult {
   pubkey: string;
   npub: string;
@@ -1539,104 +1536,33 @@ export interface NostrSearchResult {
   nip05?: string;
 }
 
-export function searchNostrProfiles(
+export async function searchNostrProfiles(
   query: string,
   options: { limit?: number; timeoutMs?: number } = {},
 ): Promise<NostrSearchResult[]> {
   const { limit = 10, timeoutMs = 5000 } = options;
-  if (!SEARCH_RELAY) {
-    console.error(
-      "[nostr] VITE_SEARCH_RELAY_URL is not set — Nostr profile search is disabled. " +
-        "Set VITE_SEARCH_RELAY_URL at build/deploy time (see README and Dockerfile).",
-    );
-    return Promise.resolve([]);
+  const relay = searchRelay();
+  if (!relay) return [];
+  // The relay refuses a read naming no observer (`auth-required:`).
+  const observer = await resolveHouseObserver().catch(() => null);
+  const events = await requestAll([relay.url], { kinds: [0], search: withObserver(query, observer), limit }, timeoutMs);
+  const seen = new Set<string>();
+  const results: NostrSearchResult[] = [];
+  for (const event of events) {
+    if (event.kind !== 0 || seen.has(event.pubkey)) continue;
+    seen.add(event.pubkey);
+    const content = getProfileContent(event);
+    results.push({
+      pubkey: event.pubkey,
+      npub: nip19.npubEncode(event.pubkey),
+      name: content?.name || undefined,
+      displayName: content?.display_name || content?.displayName || undefined,
+      picture: content?.picture || undefined,
+      about: content?.about || undefined,
+      nip05: content?.nip05 || undefined,
+    });
   }
-  return new Promise((resolve) => {
-    const results: NostrSearchResult[] = [];
-    const seen = new Set<string>();
-    let ws: WebSocket | null = null;
-    let settled = false;
-
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      try {
-        ws?.close();
-      } catch {}
-      resolve(results);
-    };
-
-    const timeout = setTimeout(finish, timeoutMs);
-
-    // The SearchOverTrust relay refuses a read that names no lens (`auth-required:`); the
-    // house observer is the default point of view brainstorm-server used to fill in itself.
-    // Resolved inside the timeout: an unreachable nostr.json costs the search, not a hang.
-    const lens = resolveHouseObserver().catch(() => null);
-
-    try {
-      ws = new WebSocket(SEARCH_RELAY);
-
-      ws.onopen = async () => {
-        const observer = await lens;
-        if (settled) return;
-        const req = JSON.stringify([
-          "REQ",
-          "search-1",
-          {
-            kinds: [0],
-            search: withObserver(query, observer),
-            limit,
-          },
-        ]);
-        ws!.send(req);
-      };
-
-      ws.onmessage = (msg) => {
-        try {
-          const data = JSON.parse(msg.data);
-          // Kind 0 only: the relay may serve records a hit points at beside the hit.
-          if (data[0] === "EVENT" && data[2]?.kind === 0) {
-            const event = data[2];
-            const pubkey = event.pubkey;
-            if (pubkey && !seen.has(pubkey)) {
-              seen.add(pubkey);
-              try {
-                const content = JSON.parse(event.content || "{}");
-                results.push({
-                  pubkey,
-                  npub: nip19.npubEncode(pubkey),
-                  name: content.name || undefined,
-                  displayName: content.display_name || content.displayName || undefined,
-                  picture: content.picture || undefined,
-                  about: content.about || undefined,
-                  nip05: content.nip05 || undefined,
-                });
-              } catch {
-                results.push({ pubkey, npub: nip19.npubEncode(pubkey) });
-              }
-            }
-          } else if (data[0] === "EOSE" || data[0] === "CLOSED") {
-            if (data[0] === "CLOSED") console.warn("[nostr] profile search refused:", data[2]);
-            clearTimeout(timeout);
-            finish();
-          }
-        } catch {}
-      };
-
-      ws.onerror = () => {
-        clearTimeout(timeout);
-        finish();
-      };
-
-      ws.onclose = () => {
-        clearTimeout(timeout);
-        finish();
-      };
-    } catch {
-      clearTimeout(timeout);
-      finish();
-    }
-  });
+  return results;
 }
 
 export { eventStore, pool };
