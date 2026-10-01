@@ -21,8 +21,9 @@ export function ListingSuggestionRow({
   const l = parseListing(hit.event);
   if (!l) return null;
   const seller = hit.author?.displayName || hit.author?.name || null;
-  // The kind first, like every row in the dropdown: "Shop · $21 · Black Sheep".
-  const detail = ["Shop", l.price ? formatListingPrice(l.price) : null, seller].filter(Boolean).join(" · ");
+  // The kind first, like every row in the dropdown: "Listing · $21 · Black Sheep".
+  // "Shop" is the row above it — the place; this is one thing in it.
+  const detail = ["Listing", l.price ? formatListingPrice(l.price) : null, seller].filter(Boolean).join(" · ");
   return (
     <button
       type="button"

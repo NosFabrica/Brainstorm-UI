@@ -72,7 +72,9 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useSearchPov } from "@/hooks/useSearchPov";
 import { useOpenProfile } from "@/hooks/useOpenProfile";
 import { SearchField } from "@/components/search/SearchField";
+import { parseListing } from "@/lib/listing";
 import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
+import { ShopSuggestionRow } from "@/components/search/ShopSuggestionRow";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
@@ -135,7 +137,8 @@ export interface SearchBoxHandle {
 /** A popup is read in a glance, above a phone keyboard: this many rows of each kind. */
 const MAX_TAG_ROWS = 2;
 const MAX_PEOPLE_ROWS = 6;
-const MAX_PRODUCT_ROWS = 2;
+/** How many listings the shop row counts up to. */
+const SHOP_ASK = 9;
 
 /**
  * THE search box — the home hero, the results band, every header (the public pages' and
@@ -225,7 +228,9 @@ export function SearchBox({
 
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   // Product titles under the people — "Satoshi Smiley T-shirt", straight to it.
-  const [productSuggestions, setProductSuggestions] = useState<SearchHit[]>([]);
+  // The Shop page for a query that asked to shop: how many listings its words
+  // found, and the one product they name outright, if any — a shortcut under it.
+  const [shop, setShop] = useState<{ words: string; count: number; product: SearchHit | null } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -321,7 +326,7 @@ export function SearchBox({
           } catch {
             if (suggestAbortRef.current !== reqId) return;
             setSuggestions([]);
-            setProductSuggestions([]);
+            setShop(null);
           } finally {
             if (suggestAbortRef.current === reqId) setIsSuggesting(false);
           }
@@ -332,7 +337,7 @@ export function SearchBox({
       if (parseTopicQuery(next).isTopic) {
         typedSinceSearchRef.current = true;
         setSuggestions([]);
-        setProductSuggestions([]);
+        setShop(null);
         setIsSuggesting(false);
         setShowSuggestions(true);
         return;
@@ -348,7 +353,7 @@ export function SearchBox({
       ) {
         typedSinceSearchRef.current = false;
         setSuggestions([]);
-        setProductSuggestions([]);
+        setShop(null);
         setShowSuggestions(false);
         setIsSuggesting(false);
         return;
@@ -368,14 +373,24 @@ export function SearchBox({
             void suggestListings(
               shopping,
               { pov: effectivePov, userPubkey: user?.pubkey },
-              { limit: MAX_PRODUCT_ROWS, signal },
+              { limit: SHOP_ASK, signal },
             ).then((hits) => {
               if (suggestAbortRef.current !== reqId) return;
-              setProductSuggestions(hits.slice(0, MAX_PRODUCT_ROWS));
+              const named = shopping.toLowerCase();
+              setShop(
+                hits.length
+                  ? {
+                      words: shopping,
+                      count: hits.length,
+                      product:
+                        hits.find((h) => parseListing(h.event)?.title.trim().toLowerCase().startsWith(named)) ?? null,
+                    }
+                  : null,
+              );
               if (hits.length) setShowSuggestions(true);
             });
           } else {
-            setProductSuggestions([]);
+            setShop(null);
           }
           // "staci shop" looks up "staci"; the category word becomes the intent row.
           const lookup = searchIntent(q)?.name ?? shopping ?? q;
@@ -398,7 +413,7 @@ export function SearchBox({
         } catch {
           if (suggestAbortRef.current !== reqId) return;
           setSuggestions([]);
-          setProductSuggestions([]);
+          setShop(null);
         } finally {
           if (suggestAbortRef.current === reqId) setIsSuggesting(false);
         }
@@ -456,7 +471,7 @@ export function SearchBox({
     (opts?: { refocus?: boolean }) => {
       cancelSuggest();
       setSuggestions([]);
-      setProductSuggestions([]);
+      setShop(null);
       setActiveSuggestion(-1);
       // Clearing is a gesture: the box refocuses and recents may show (Google's X). The
       // home's wordmark is a "refresh", not an invitation, and passes refocus: false.
@@ -550,11 +565,7 @@ export function SearchBox({
       ? // The sheet keeps its list up while there are words: "See all" is never a dead end.
         value.trim().length > 0
       : showSuggestions &&
-        (rows.length > 0 ||
-          productSuggestions.length > 0 ||
-          isSuggesting ||
-          topicMatch.isTopic ||
-          tagMatches.length > 0));
+        (rows.length > 0 || shop !== null || isSuggesting || topicMatch.isTopic || tagMatches.length > 0));
   // "Recent" shows under an empty, focused box — never alongside the suggestions. The sheet
   // was opened to search, so it shows them at once.
   const showRecent = recentsAllowed && value.trim() === "" && !dropdownOpen && (sheet || (engaged && focused));
@@ -871,19 +882,26 @@ export function SearchBox({
                 })}
               </div>
               {/* Products under the people: the thing itself, one tap away. */}
-              {productSuggestions.length > 0 && (
+              {shop && (
                 <div
                   className="shrink-0 border-t border-slate-100 dark:border-slate-800/60"
                   data-testid="home-product-suggestions"
                 >
-                  {productSuggestions.map((h, i) => (
+                  {/* The wider search first: everything for sale for these words. */}
+                  <ShopSuggestionRow
+                    words={shop.words}
+                    count={shop.count}
+                    onSelect={() => leave(`/?q=${encodeURIComponent(shop.words)}&t=shop`)}
+                    testId="home-shop-row"
+                  />
+                  {/* And the one product the words name outright, as a shortcut. */}
+                  {shop.product && (
                     <ListingSuggestionRow
-                      key={h.event.id}
-                      hit={h}
-                      onSelect={() => leave(eventPath(h.event))}
-                      testId={`home-product-suggestion-${i}`}
+                      hit={shop.product}
+                      onSelect={() => leave(eventPath(shop.product!.event))}
+                      testId="home-product-suggestion-0"
                     />
-                  ))}
+                  )}
                 </div>
               )}
               <button
