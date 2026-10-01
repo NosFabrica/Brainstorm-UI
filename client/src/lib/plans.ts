@@ -336,7 +336,9 @@ export function nextScheduledLabel(
   if (!lastRunMs || !intervalDays || intervalDays <= 0) return null;
   const dueMs = lastRunMs + intervalDays * 86_400_000;
   const days = Math.round((dueMs - nowMs) / 86_400_000);
-  if (days <= 0) return "due now";
+  // On the day it falls due the scheduler simply has not reached it yet; only a
+  // run more than a day late is "due now".
+  if (days <= 0) return dueMs > nowMs - 86_400_000 ? "due today" : "due now";
   return days === 1 ? "in 1 day" : `in ${days} days`;
 }
 

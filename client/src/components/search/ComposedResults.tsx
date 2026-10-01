@@ -67,9 +67,9 @@ import {
   type SearchTab,
 } from "@/services/search";
 import { Chip } from "@/components/ui/chip";
-import { useTagMatches } from "@/hooks/useTags";
-import { useTagCarriers } from "@/hooks/useTagCarriers";
+import { useSearchTags } from "@/hooks/useSearchTags";
 import {
+  matchedTagChip,
   leadCarriersByRank,
   leadingCarriers,
   mergeCarrierHits,
@@ -91,8 +91,8 @@ function PersonChip({
   person: SearchResult;
   score: number | null;
   visited: boolean;
-  /** Their tag for the strip: the matched one, loud, else their most-applied, quiet. */
-  tag?: { chip: TagChip; loud: boolean };
+  /** The tag the words matched, if this person carries it. */
+  tag?: TagChip;
   onOpen: (p: SearchResult) => void;
 }) {
   const tierRing = useTierRing();
@@ -134,15 +134,14 @@ function PersonChip({
           the tag row above are the way in. */}
       {tag && (
         <Chip
-          tone={tag.loud && !tag.chip.unverified ? "brand" : "slate"}
+          tone="brand"
           size="sm"
           icon={Tag}
           className="max-w-full"
-          title={`Tagged ${tag.chip.name} by ${tag.chip.people === 1 ? "1 person" : `${tag.chip.people ?? 0} people`}`}
-          data-emphasis={tag.loud ? "loud" : "quiet"}
+          title={`Tagged ${tag.name} by ${tag.people === 1 ? "1 person" : `${tag.people ?? 0} people`}`}
           data-testid={`strip-person-tag-${pk8}`}
         >
-          <span className="truncate">{tag.chip.name}</span>
+          <span className="truncate">{tag.name}</span>
         </Chip>
       )}
       {visited && (
@@ -436,8 +435,12 @@ function ComposedResultsBody({
 
   // Words that name a tag find the people on it (the team, 2026-09-29): they
   // lead the strip wearing the tag; the relay's matches follow.
-  const tagMatches = useTagMatches(scopeOf(query) ? "" : query, 3, { fetch: false });
-  const carriers = useTagCarriers(tagMatches, { pov, viewerPubkey: userPubkey });
+  // Both come from the search relay in one ask (hooks/useSearchTags).
+  const { tags: tagMatches, carriers } = useSearchTags(scopeOf(query) ? "" : query, {
+    pov,
+    viewerPubkey: userPubkey,
+    members: true,
+  });
   // Only a tag the words name outright, with weight behind it, leads (lib/tagMatch).
   const leadPeople = useMemo(
     () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, query)),
@@ -570,7 +573,6 @@ function ComposedResultsBody({
     return [...merged.slice(0, end), ...tail];
   }, [peopleF, visited, leadPeople, carrierRank]);
 
-  // Each person's own tags — a quiet one under the name; the matched tag is the loud one.
   const articleClusters = useMemo(
     () => (articlesF ? peopleFirst(collapseHits(articlesF.hits, undefined, { maxPerAuthor: 2 })) : []),
     [articlesF],
@@ -708,21 +710,8 @@ function ComposedResultsBody({
                   person={h.author!}
                   score={h.author!.wotRank ?? scoreOf(h.event.pubkey) ?? null}
                   visited={visited.has(h.event.pubkey)}
-                  tag={(() => {
-                    // A face card wears a tag only when it is the one searched: no room for a truncated own tag.
-                    const t =
-                      tagMatches.length > 0 ? tagsCarriedBy(h.event.pubkey, carrierSets, tagMatches)[0] : undefined;
-                    if (!t) return undefined;
-                    const chip: TagChip = {
-                      key: t.key,
-                      authorPubkey: t.authorPubkey,
-                      slug: t.slug,
-                      name: t.name,
-                      people: t.people,
-                      unverified: t.unverified,
-                    };
-                    return { chip, loud: true };
-                  })()}
+                  // A face card wears a tag only when it is the one searched.
+                  tag={matchedTagChip(tagsCarriedBy(h.event.pubkey, carrierSets, tagMatches))}
                   onOpen={(p) => onOpenProfile?.(p)}
                 />
               ))}

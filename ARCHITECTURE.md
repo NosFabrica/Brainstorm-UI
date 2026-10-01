@@ -86,6 +86,23 @@ without a refresh would pin a user to a stale relay list forever); and the
 cache is **dropped on sign-out**. Rationale:
 [docs/adr/0003-nip65-outbox-routing.md](docs/adr/0003-nip65-outbox-routing.md).
 
+## Where tags are read from
+
+Two sources, by what the surface needs:
+
+- **Search** (the popup's tag rows, the People tab and the Everything strip) reads the
+  **search relay**. Each tag is a kind-30392 list of the people who carry it, per
+  perspective: `title`, `description`, `observer`, `source-tag` (`[id, tag author, slug]`)
+  and, in the content, `members: [{pubkey, endorsements, disputes, score}]`, best first. One
+  ask by the words answers in well under a second (`services/searchTags.ts`,
+  `hooks/useSearchTags.ts`). A lists-only ask (`kinds:[30392]`) returns every observer's copy,
+  so the client keeps the one whose `observer` is the perspective it asked through; asking for
+  `kinds:[0,30392]` also returns each list's people right behind it. The relay matches words
+  and prefixes, not typos.
+- **Browsing and tagging** (the tags page, a tag's page, a profile's tags, the tag picker) read
+  the **tag hub** (`services/tags.ts`), because they need every tag and who applied it. That
+  is a walk of the whole catalogue and is slow; search must not depend on it.
+
 ## Private messages (NIP-17)
 
 `services/dm/` runs one `DmEngine` per Active Account from sign-in: a live

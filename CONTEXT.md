@@ -90,6 +90,10 @@ User's own follows first, then verified accounts, then everyone else, and the
 UI says which ("people you follow", "verified accounts").
 _Avoid_: rating, stars, likes, social proof
 
+**Unverified**:
+An account whose house score is under the verified line, or that has no score at all.
+_Avoid_: untrusted, low trust, unknown
+
 ### Private messages
 
 **Chat**:

@@ -1,4 +1,5 @@
 import { useState, useMemo, type MouseEvent } from "react";
+import { EMBEDDED_THING_KINDS } from "@/components/share/ThingAddressRef";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TierTile } from "@/components/score/TierTile";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
@@ -157,6 +158,8 @@ export function ShareNoteCard({
     const seen = new Set<string>();
     for (const ad of a.addrs) {
       const key = addrCoord(ad);
+      // A market or ballot is drawn where it is named (NoteContent's ThingAddressRef), not again below.
+      if (EMBEDDED_THING_KINDS.has(ad.kind)) continue;
       if (seen.has(key)) continue;
       seen.add(key);
       const ev = addrByCoord.get(key);
@@ -336,6 +339,7 @@ export function ShareNoteCard({
           imageOpensThread={!!href}
           tags={event.tags}
           embeddedIds={new Set(quoted.map((q) => q.id))}
+          embedThings
           authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name}
         />
         {/* X's "Translate post" for notes in another language — on-device, quiet. */}

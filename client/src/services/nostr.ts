@@ -8,6 +8,8 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { withObserver } from "@/lib/searchSyntax";
+import { resolveHouseObserver } from "@/services/trustSource";
 import { publishUntilEnough } from "@/lib/publishQuorum";
 import { loadReplaceable } from "@/lib/loaders";
 import { profileContentOf } from "@/lib/profileContent";
@@ -1524,8 +1526,6 @@ export async function fetchMuteListTimestamp(
   return undefined;
 }
 
-const WOT_SEARCH_RELAY = env.VITE_WOT_SEARCH_RELAY.trim();
-
 export interface NostrSearchResult {
   pubkey: string;
   npub: string;
@@ -1536,95 +1536,33 @@ export interface NostrSearchResult {
   nip05?: string;
 }
 
-export function searchNostrProfiles(
+export async function searchNostrProfiles(
   query: string,
   options: { limit?: number; timeoutMs?: number } = {},
 ): Promise<NostrSearchResult[]> {
   const { limit = 10, timeoutMs = 5000 } = options;
-  if (!WOT_SEARCH_RELAY) {
-    console.error(
-      "[nostr] VITE_WOT_SEARCH_RELAY is not set — Nostr profile search is disabled. " +
-        "Set VITE_WOT_SEARCH_RELAY at build/deploy time (see README and Dockerfile).",
-    );
-    return Promise.resolve([]);
+  const relay = searchRelay();
+  if (!relay) return [];
+  // The relay refuses a read naming no observer (`auth-required:`).
+  const observer = await resolveHouseObserver().catch(() => null);
+  const events = await requestAll([relay.url], { kinds: [0], search: withObserver(query, observer), limit }, timeoutMs);
+  const seen = new Set<string>();
+  const results: NostrSearchResult[] = [];
+  for (const event of events) {
+    if (event.kind !== 0 || seen.has(event.pubkey)) continue;
+    seen.add(event.pubkey);
+    const content = getProfileContent(event);
+    results.push({
+      pubkey: event.pubkey,
+      npub: nip19.npubEncode(event.pubkey),
+      name: content?.name || undefined,
+      displayName: content?.display_name || content?.displayName || undefined,
+      picture: content?.picture || undefined,
+      about: content?.about || undefined,
+      nip05: content?.nip05 || undefined,
+    });
   }
-  return new Promise((resolve) => {
-    const results: NostrSearchResult[] = [];
-    const seen = new Set<string>();
-    let ws: WebSocket | null = null;
-    let settled = false;
-
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      try {
-        ws?.close();
-      } catch {}
-      resolve(results);
-    };
-
-    const timeout = setTimeout(finish, timeoutMs);
-
-    try {
-      ws = new WebSocket(WOT_SEARCH_RELAY);
-
-      ws.onopen = () => {
-        const req = JSON.stringify([
-          "REQ",
-          "search-1",
-          {
-            kinds: [0],
-            search: query,
-            limit,
-          },
-        ]);
-        ws!.send(req);
-      };
-
-      ws.onmessage = (msg) => {
-        try {
-          const data = JSON.parse(msg.data);
-          if (data[0] === "EVENT" && data[2]) {
-            const event = data[2];
-            const pubkey = event.pubkey;
-            if (pubkey && !seen.has(pubkey)) {
-              seen.add(pubkey);
-              try {
-                const content = JSON.parse(event.content || "{}");
-                results.push({
-                  pubkey,
-                  npub: nip19.npubEncode(pubkey),
-                  name: content.name || undefined,
-                  displayName: content.display_name || content.displayName || undefined,
-                  picture: content.picture || undefined,
-                  about: content.about || undefined,
-                  nip05: content.nip05 || undefined,
-                });
-              } catch {
-                results.push({ pubkey, npub: nip19.npubEncode(pubkey) });
-              }
-            }
-          } else if (data[0] === "EOSE") {
-            clearTimeout(timeout);
-            finish();
-          }
-        } catch {}
-      };
-
-      ws.onerror = () => {
-        clearTimeout(timeout);
-        finish();
-      };
-
-      ws.onclose = () => {
-        clearTimeout(timeout);
-        finish();
-      };
-    } catch {
-      clearTimeout(timeout);
-      finish();
-    }
-  });
+  return results;
 }
 
 export { eventStore, pool };

@@ -169,6 +169,37 @@ export function searchIntent(query: string): { name: string; key: PersonContentK
   return { name: words.slice(0, -1).join(" "), key };
 }
 
+/** The words that say "I am shopping": the shop category words, and the plain ways of asking. */
+const SHOP_WORDS = new Set([
+  ...Object.keys(CATEGORY_WORDS).filter((w) => CATEGORY_WORDS[w] === "shop"),
+  "buy",
+  "price",
+]);
+
+/** The shortest word that can name a thing to shop for. */
+const MIN_SHOP_WORD = 3;
+
+/**
+ * What a shopping query is shopping for: its words with the shop word taken
+ * out ("drone shop" → "drone", "bikes for sale" → "bikes"). Null when the
+ * words do not ask to shop, the shop word is all there is, or what is left is
+ * too short to name anything — the search
+ * box lists products only for a query that asked for them.
+ */
+export function shopWords(query: string): string | null {
+  const words = query
+    .replace(/\bfor\s+sale\b/gi, " \u0000 ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const rest = words.filter((w) => w !== "\u0000" && !SHOP_WORDS.has(w.toLowerCase()));
+  if (rest.length === words.length || rest.length === 0) return null;
+  // A word has to be long enough to name something: "buy a" would match every
+  // listing with an "a" in its title.
+  if (!rest.some((w) => w.length >= MIN_SHOP_WORD)) return null;
+  return rest.join(" ");
+}
+
 /**
  * The intent row's target: "staci shop" and a suggested person whose chips say shop —
  * the first such person in the list, with the chip to land on. Null when nobody

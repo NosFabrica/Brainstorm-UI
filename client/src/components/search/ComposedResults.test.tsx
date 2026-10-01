@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTechnicalView } from "@/lib/technicalView";
 // The technical view is a signed-in reader's — the device row the accounts module keeps says so here.
 beforeEach(() => localStorage.setItem("brainstorm_active_account", "acct-1"));
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
 import { __resetHeadStart } from "@/lib/headStart";
@@ -55,17 +55,21 @@ vi.mock("@/hooks/useAuthorScores", () => ({
 }));
 // Tags the words match, and the people on them — the People strip leads with those people.
 const tagMatchesMock = vi.fn((_q: string): unknown[] => []);
-vi.mock("@/hooks/useTags", () => ({ useTagMatches: (q: string) => tagMatchesMock(q) }));
 const carriersMock = vi.fn((_tags: unknown[]) => ({
   byPubkey: new Map<string, unknown[]>(),
   people: [] as unknown[],
   settled: true,
 }));
-vi.mock("@/hooks/useTagCarriers", () => ({ useTagCarriers: (tags: unknown[]) => carriersMock(tags) }));
-const personTagsMock = vi.fn(
-  (pks: readonly string[]) => new Map<string, unknown[] | undefined>(pks.map((pk) => [pk, []])),
-);
-vi.mock("@/hooks/usePersonTags", () => ({ usePersonTags: (pks: readonly string[]) => personTagsMock(pks) }));
+// The search relay's answer: the tags the words matched and who carries them.
+const searchTagsAsked = vi.fn((_q: string, _opts: unknown) => {});
+vi.mock("@/hooks/useSearchTags", () => ({
+  useSearchTags: (q: string, opts: unknown) => {
+    searchTagsAsked(q, opts);
+    const tags = tagMatchesMock(q);
+    const carriers = carriersMock(tags);
+    return { tags, carriers, settled: carriers.settled };
+  },
+}));
 const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({
   direct: new Set(),
   friends: new Set(),
@@ -1562,31 +1566,16 @@ describe("ComposedResults — a query that matches a tag", () => {
     tagMatchesMock.mockReturnValue([]);
     carriersMock.mockReset();
     carriersMock.mockReturnValue({ byPubkey: new Map(), people: [], settled: true });
-    personTagsMock.mockReset();
-    personTagsMock.mockImplementation((pks) => new Map(pks.map((pk) => [pk, []])));
   });
 
-  it("a face card wears a tag only when it is the one searched — no room for a truncated own tag", async () => {
-    personTagsMock.mockImplementation(
-      (pks) =>
-        new Map(
-          pks.map((pk) => [
-            pk,
-            pk === FRESH
-              ? [
-                  {
-                    key: "k|author",
-                    authorPubkey: TAG_AUTHOR,
-                    slug: "author",
-                    name: "Author",
-                    applications: 2,
-                    counted: true,
-                  },
-                ]
-              : [],
-          ]),
-        ),
-    );
+  it("asks the search relay for the tags and their people", async () => {
+    searchTagsAsked.mockClear();
+    render(<ComposedResults query="aos" pov="nosfabrica" onTabChange={vi.fn()} />);
+    await act(async () => {});
+    expect(searchTagsAsked).toHaveBeenCalledWith("aos", expect.objectContaining({ pov: "nosfabrica", members: true }));
+  });
+
+  it("a face card wears a tag only when it is the one searched", async () => {
     render(<ComposedResults query="human verifier" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("people").emit({
       hits: [hitOf(ev("p1", 0, FRESH, JSON.stringify({ name: "Human Verifier" })), "Human Verifier")],

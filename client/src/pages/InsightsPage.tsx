@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { ArrowLeft, Clock, Gauge, ShieldCheck, RefreshCw, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PresetBadge } from "@/components/PresetBadge";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
@@ -16,9 +18,17 @@ import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { logout } from "@/accounts/login-flow";
 import { apiClient } from "@/services/api";
+import { networkOfRun, runOf } from "@/lib/graperankRun";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { presetToBackend } from "@/services/trustThreshold";
-import { getScoreJournal, hydrateScoreJournal, recordScore, withDeltas, type ScoreEntry } from "@/lib/scoreJournal";
+import {
+  foldUnchanged,
+  getScoreJournal,
+  hydrateScoreJournal,
+  recordScore,
+  withDeltas,
+  type ScoreEntry,
+} from "@/lib/scoreJournal";
 import { readPublishedAssistant, readAssistantProfile } from "@/lib/assistantStorage";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -44,6 +54,8 @@ type GrapeRankRun = {
   updated_at?: string | null;
   trigger_source?: string | null;
   how_many_others_with_priority?: number;
+  /** Scorecards per tier per hop, as JSON — every person the run reached, once. */
+  count_values?: string | Record<string, Record<string, number>> | null;
 };
 
 const isDone = (s: unknown) => typeof s === "string" && s.toLowerCase() === "success";
@@ -73,15 +85,6 @@ function fmtWhen(iso?: string | null): string | null {
     hour: "numeric",
     minute: "2-digit",
   });
-}
-
-function fmtDuration(startIso?: string | null, endIso?: string | null): string | null {
-  if (!startIso || !endIso) return null;
-  const a = new Date(withZ(startIso)).getTime();
-  const b = new Date(withZ(endIso)).getTime();
-  if (isNaN(a) || isNaN(b) || b <= a) return null;
-  const s = Math.round((b - a) / 1000);
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
 function Stat({ label, value }: { label: string; value: number | string }) {
@@ -121,8 +124,7 @@ export default function InsightsPage() {
     // card said "In progress" forever after the server had finished. Poll only
     // while a run is actually in flight; go quiet the moment it settles.
     refetchInterval: (query) => {
-      const raw = query.state.data as (GrapeRankRun & { data?: GrapeRankRun }) | undefined;
-      const g = raw?.internal_publication_status !== undefined ? raw : raw?.data;
+      const g = runOf<GrapeRankRun>(query.state.data);
       if (!g) return false;
       const settled =
         isDone(g.internal_publication_status) || isFail(g.status) || isFail(g.internal_publication_status);
@@ -148,7 +150,11 @@ export default function InsightsPage() {
   const overview = overviewQuery.data?.data ?? null;
   const stats = statsQuery.data?.data ?? null;
   const history = historyQuery.data?.data ?? null;
-  const grapeRank = grapeRankQuery.data as GrapeRankRun | undefined;
+  // The run sits inside the server's envelope; read at the top it has no
+  // status at all, and the card said "In progress" for every finished run.
+  // Null: the server answered and there is no run. Undefined: no answer yet.
+  const latestRun = runOf<GrapeRankRun>(grapeRankQuery.data);
+  const grapeRank = latestRun ?? undefined;
 
   const globalInfluence = houseQuery.data ?? null;
   const tier = globalInfluence != null ? tierForScore01(globalInfluence) : null;
@@ -184,13 +190,29 @@ export default function InsightsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pubkey, lastCalcMs, globalInfluence]);
   const scoreHistory = useMemo(() => withDeltas(journal), [journal]);
+  // What is worth reading: the newest run, every run that moved the score, and
+  // each quiet stretch between them as one line.
+  // A change is what the reader can see: the number in number mode, the tier
+  // word otherwise — a run that nudged a hidden number is not news.
+  const historyRows = useMemo(
+    () =>
+      displayMode === "number"
+        ? foldUnchanged(scoreHistory)
+        : foldUnchanged(
+            scoreHistory,
+            // The same rung the row prints, at the reader's granularity.
+            (e) =>
+              e.previous !== null &&
+              rungFor(e.score, false, granularity).key !== rungFor(e.previous, false, granularity).key,
+          ),
+    [scoreHistory, displayMode, granularity],
+  );
 
   const assistant = useMemo(() => readPublishedAssistant(), []);
   const assistantProfile = useMemo(() => (assistant ? readAssistantProfile() : null), [assistant]);
   const assistantName = assistantProfile?.display_name || assistantProfile?.name || "Brainstorm assistant";
 
   const calculatedAt = fmtWhen(history?.last_time_calculated_graperank);
-  const duration = fmtDuration(grapeRank?.created_at, grapeRank?.updated_at);
   const preset = grapeRank?.graperank_preset_used as string | undefined;
   const presetForBadge = preset ?? (activePreset ? presetToBackend(activePreset) : undefined);
   // Two INDEPENDENT steps, matching useScoringStatus (the app-wide source of truth):
@@ -204,6 +226,8 @@ export default function InsightsPage() {
   // rendering a failed run as eternally optimistic.
   const calcComplete = isDone(grapeRank?.internal_publication_status);
   const publishComplete = calcComplete && isDone(grapeRank?.ta_status);
+  const publishFailed = calcComplete && isFail(grapeRank?.ta_status);
+  const network = networkOfRun(grapeRank?.count_values);
   const calcFailed = isFail(grapeRank?.status) || isFail(grapeRank?.internal_publication_status);
   const queueAhead =
     typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
@@ -223,6 +247,18 @@ export default function InsightsPage() {
     wasComplete.current = calcComplete;
   }, [calcComplete, qc]);
 
+  // Recalculate from the card itself. The customer who asked "too soon" got a
+  // toast elsewhere and a card that looked stuck; here the server's own answer
+  // sits under the button, and a run that did start shows as In progress at once.
+  const recalc = useMutation({
+    mutationFn: () => apiClient.triggerGrapeRank(),
+    onSuccess: (data) => {
+      if (runOf<GrapeRankRun>(data)) qc.setQueryData(["/user/graperankResult"], data);
+      void qc.invalidateQueries({ queryKey: ["/user/graperankResult"] });
+    },
+  });
+  const runInFlight = !!latestRun && !calcComplete && !calcFailed;
+
   // Self-scoped calculation history — renders only when /user/history exposes a
   // records array (admins get the full table via /admin/users/:pubkey/history;
   // the user endpoint currently returns a summary, so this needs a small backend
@@ -237,7 +273,7 @@ export default function InsightsPage() {
   const handleLogout = () => logout();
 
   return (
-    <div className="flex min-h-screen flex-col bg-white dark:bg-slate-950">
+    <div className="flex min-h-page flex-col bg-white dark:bg-slate-950">
       {user && <AppHeader user={user} onLogout={handleLogout} />}
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
         <button
@@ -298,12 +334,6 @@ export default function InsightsPage() {
                 )}
               </dd>
             </div>
-            {duration && (
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500 dark:text-slate-400">Took</dt>
-                <dd className="font-medium tabular-nums text-slate-900 dark:text-slate-100">{duration}</dd>
-              </div>
-            )}
             {/* The CALCULATION — what this card is actually about. */}
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate-500 dark:text-slate-400">Status</dt>
@@ -311,40 +341,51 @@ export default function InsightsPage() {
                 {calcFailed ? (
                   <span className="text-red-600 dark:text-red-400">Failed</span>
                 ) : calcComplete ? (
+                  // One line for both steps: the calculation, then whether the
+                  // Trusted Assertions publish has caught up. A second row that
+                  // read "Published: Published" said the same word twice.
                   <>
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />{" "}
-                    <span className="text-emerald-600 dark:text-emerald-400">Complete</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">Complete</span>{" "}
+                    <span
+                      className={
+                        publishFailed
+                          ? "text-amber-600 dark:text-amber-400"
+                          : publishComplete
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-slate-500 dark:text-slate-400"
+                      }
+                    >
+                      · {publishFailed ? "not published" : publishComplete ? "published" : "publishing…"}
+                    </span>
                   </>
+                ) : latestRun === null ? (
+                  <span className="text-slate-500 dark:text-slate-400">Not calculated yet</span>
+                ) : latestRun === undefined ? (
+                  <span className="text-slate-500 dark:text-slate-400">Checking…</span>
                 ) : (
                   <span className="text-amber-600 dark:text-amber-400">In progress</span>
                 )}
               </dd>
             </div>
-            {/* Publication is a SEPARATE step (ta_status): the calculation can be
-                finished while the Trusted Assertions publish is still catching up.
-                Only worth a row once the calculation is actually done — before that
-                it's not pending, it simply hasn't started. */}
-            {calcComplete && (
+            {/* The total alone is about the same for every connected account; the
+                verified count is the reader's own, and moves with their preset. */}
+            {network && (
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-slate-500 dark:text-slate-400">Published</dt>
-                <dd className="flex items-center justify-end gap-1.5 font-medium">
-                  {publishComplete ? (
-                    <>
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />{" "}
-                      <span className="text-emerald-600 dark:text-emerald-400">Published</span>
-                    </>
-                  ) : (
-                    <span className="text-slate-500 dark:text-slate-400">Publishing…</span>
-                  )}
+                <dt className="text-slate-500 dark:text-slate-400">Your network</dt>
+                <dd className="text-right tabular-nums text-slate-500 dark:text-slate-400">
+                  <span className="font-medium text-slate-900 dark:text-slate-100">
+                    {network.verified.toLocaleString("en-US")} verified
+                  </span>{" "}
+                  of {network.reached.toLocaleString("en-US")} reached
                 </dd>
               </div>
             )}
-            {queueAhead != null && (
+            {/* The queue only means something while a run is waiting its turn. */}
+            {latestRun && !calcComplete && !calcFailed && queueAhead != null && queueAhead > 0 && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-slate-500 dark:text-slate-400">Queue</dt>
-                <dd className="font-medium text-slate-900 dark:text-slate-100">
-                  {queueAhead === 0 ? "Idle" : `${queueAhead} ahead`}
-                </dd>
+                <dd className="font-medium text-slate-900 dark:text-slate-100">{queueAhead} ahead</dd>
               </div>
             )}
           </dl>
@@ -381,14 +422,33 @@ export default function InsightsPage() {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => navigate("/settings?tab=trust")}
-            className="mt-3 inline-flex items-center gap-1.5 rounded text-xs font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-            data-testid="insights-recalculate"
-          >
-            <RefreshCw className="h-3 w-3" /> Recalculate or change preset in settings
-          </button>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => recalc.mutate()}
+              disabled={recalc.isPending || runInFlight}
+              className="h-8 gap-1.5 text-xs"
+              data-testid="insights-recalculate"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${recalc.isPending || runInFlight ? "animate-spin" : ""}`} />
+              {runInFlight ? "Calculating…" : "Recalculate"}
+            </Button>
+            <button
+              type="button"
+              onClick={() => navigate("/settings?tab=trust")}
+              className="inline-flex items-center gap-1 rounded text-xs font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+              data-testid="insights-preset-settings"
+            >
+              Change preset in settings <ArrowRight className="h-3 w-3" />
+            </button>
+          </div>
+          {recalc.isError && (
+            <Alert className="mt-3" data-testid="insights-recalculate-error">
+              <AlertDescription>{recalc.error?.message || "Something went wrong. Please try again."}</AlertDescription>
+            </Alert>
+          )}
         </Card>
 
         {/* Score history — outcome-first: what each calculation DID to your score.
@@ -422,7 +482,24 @@ export default function InsightsPage() {
             </p>
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {scoreHistory.slice(0, 12).map((e, i) => {
+              {historyRows.slice(0, 12).map((row, i) => {
+                if (row.kind === "fold") {
+                  const day = (ms: number) =>
+                    new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                  return (
+                    <li
+                      key={`fold-${row.toMs}`}
+                      className="flex items-center justify-between gap-3 py-2 text-xs text-slate-400 dark:text-slate-500"
+                      data-testid="insights-score-fold"
+                    >
+                      <span>
+                        {row.count} runs, no change ·{" "}
+                        {day(row.fromMs) === day(row.toMs) ? day(row.toMs) : `${day(row.fromMs)} – ${day(row.toMs)}`}
+                      </span>
+                    </li>
+                  );
+                }
+                const e = row.entry;
                 const up = (e.delta ?? 0) > 0;
                 const flat = e.delta === 0 || e.delta == null;
                 // The newest run is the one behind your CURRENT score — it gets the

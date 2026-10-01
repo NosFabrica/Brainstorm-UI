@@ -122,3 +122,40 @@ export function withDeltas(entries: ScoreEntry[]): ScoreChange[] {
     };
   });
 }
+
+/** A row of the history as shown: one run, or a stretch of runs that changed nothing. */
+export type HistoryRow =
+  { kind: "run"; entry: ScoreChange } | { kind: "fold"; count: number; fromMs: number; toMs: number };
+
+/** Below half a point on the 0–100 scale the number on screen does not move. */
+const NO_VISIBLE_CHANGE = 0.005;
+
+/**
+ * The history worth reading: the newest run (the one behind the current
+ * score), every run that moved the score, the first run on record — and each
+ * stretch of runs between them that changed nothing folded into one line.
+ * A lone quiet run is not worth a fold; it stays a row.
+ */
+export function foldUnchanged(
+  changes: readonly ScoreChange[],
+  /** What the surface shows as a change; default: the 0–100 number moved. In tier words, only a new tier does. */
+  changed: (e: ScoreChange) => boolean = (e) => e.delta !== null && Math.abs(e.delta) >= NO_VISIBLE_CHANGE,
+): HistoryRow[] {
+  const quiet = (e: ScoreChange, i: number) => i !== 0 && e.previous !== null && !changed(e);
+  const rows: HistoryRow[] = [];
+  let run: ScoreChange[] = [];
+  const flush = () => {
+    if (run.length >= 2) rows.push({ kind: "fold", count: run.length, fromMs: run[run.length - 1].t, toMs: run[0].t });
+    else for (const entry of run) rows.push({ kind: "run", entry });
+    run = [];
+  };
+  changes.forEach((e, i) => {
+    if (quiet(e, i)) run.push(e);
+    else {
+      flush();
+      rows.push({ kind: "run", entry: e });
+    }
+  });
+  flush();
+  return rows;
+}

@@ -131,8 +131,7 @@ export default function HowTagsWorkPage() {
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 Search finds every tag, including those.
               </span>{" "}
-              If you know the name, type it anywhere you can search and you'll get it, marked "Unknown creator" so you
-              know what we can and can't tell you.
+              If you know the name, type it anywhere you can search and you'll get it.
             </p>
             <p>Tags left off the list still work in every other way:</p>
             <ul className="ml-1 space-y-1.5">

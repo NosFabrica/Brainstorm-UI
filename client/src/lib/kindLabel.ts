@@ -8,6 +8,7 @@
  * `kind:` finds structural events, and the number is the honest name.
  */
 import { sourceAppFor } from "@/lib/sourceApp";
+import { kind38000Format } from "@/lib/thing";
 
 /** The structural minimum every caller has — a hit, a share card, a page's event. */
 export type KindEvent = {
@@ -197,12 +198,23 @@ export function kindTypeLabel(kind: number): string {
   }
 }
 
+const KIND_38000_LABEL = {
+  "mint-review": "Mint review",
+  market: "Prediction market",
+  ballot: "Ballot",
+  none: "Kind 38000",
+} as const;
+
 /**
  * What this event calls itself, when the app that published it has a better
  * word than the kind's: a kind-30023 on zap.cooking is a "Recipe".
  */
 export function kindLabel(event: KindEvent): string {
-  return sourceAppFor(event)?.noun ?? kindTypeLabel(event.kind);
+  const noun = sourceAppFor(event)?.noun;
+  if (noun) return noun;
+  // 38000 is shared by mint reviews, prediction markets and ballots: the event says which.
+  if (event.kind === 38000) return KIND_38000_LABEL[kind38000Format(event) ?? "none"];
+  return kindTypeLabel(event.kind);
 }
 
 /** The kinds a spec covers — its numeric `k` tags, de-duped, in order, each with the name its author gave. */

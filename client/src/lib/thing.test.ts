@@ -5,6 +5,10 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  baoMarketUrl,
+  marketStatusNow,
+  kind38000Format,
+  marketStatus,
   decodeEntities,
   describeThing,
   hostOfUrl,
@@ -250,6 +254,32 @@ describe("describeThing — reviews", () => {
     expect(t).toMatchObject({ title: "mint.lnpay.cz", stars: 5, link: "https://mint.lnpay.cz" });
   });
 
+  it("reads a NIP-87 Fedimint recommendation named by its `k`, even with no `u`", () => {
+    const t = describeThing(
+      ev(
+        38000,
+        [
+          ["k", "38173"],
+          ["d", "fedmint.example"],
+        ],
+        "Solid guardians",
+      ),
+    );
+    expect(t).toMatchObject({ title: "fedmint.example", description: "Solid guardians", facts: ["Ecash mint"] });
+  });
+
+  it("leaves out the kind-38000s with no format of their own: a test vote, an unknown `k`", () => {
+    expect(describeThing(ev(38000, [["d", "b21068c8"]], "[1/5] sybil test vote, safe to delete"))).toBeNull();
+    expect(
+      describeThing(
+        ev(38000, [
+          ["k", "38177"],
+          ["d", "8404582ef72b077c9e1926d3a6d86563959e5f7505b56a3ebdebaefb99887f5d"],
+        ]),
+      ),
+    ).toBeNull();
+  });
+
   it("says an unknown mark as written", () => {
     expect(
       describeThing(
@@ -457,5 +487,317 @@ describe("licenseLabel", () => {
     expect(licenseLabel("https://creativecommons.org/publicdomain/zero/1.0/")).toBe("CC0");
     expect(licenseLabel("MIT")).toBe("MIT");
     expect(licenseLabel(undefined)).toBeNull();
+  });
+});
+
+// Kind 38000's formats, as the production relay holds them (2026-09-30).
+const BAO_MARKET = [
+  ["d", "59a3b0cda6c25472714327435b0e8190"],
+  ["market", "59a3b0cda6c25472714327435b0e8190"],
+  ["type", "binary"],
+  ["category", "bitcoin"],
+  ["c", "bitcoin"],
+  ["status", "resolved"],
+  ["end", "1778716800"],
+  ["network", "demo"],
+  ["client", "BAO Markets"],
+  ["outcome", "YES"],
+  ["outcome", "NO"],
+  ["resolution", "NO"],
+  [
+    "data",
+    JSON.stringify({
+      title: "Will the Bitcoin network mine fewer than 140 blocks today?",
+      description: "Target is 144 blocks per day.",
+      outcomes: ["YES", "NO"],
+    }),
+  ],
+];
+
+describe("kind38000Format", () => {
+  it("tells a mint review, a prediction market and a ballot apart by the tags each app writes", () => {
+    expect(
+      kind38000Format({
+        tags: [
+          ["k", "38172"],
+          ["u", "https://mint.example"],
+        ],
+      }),
+    ).toBe("mint-review");
+    expect(kind38000Format({ tags: [["u", "https://mint.example"]] })).toBe("mint-review");
+    expect(kind38000Format({ tags: BAO_MARKET })).toBe("market");
+    expect(
+      kind38000Format({
+        tags: [
+          ["d", "baofund-x"],
+          ["title", "T"],
+          ["outcome", "YES"],
+          ["outcome", "NO"],
+        ],
+      }),
+    ).toBe("market");
+    expect(
+      kind38000Format({
+        tags: [
+          ["d", "baoMarkets-mkt-1"],
+          ["type", "binary"],
+          ["end", "1769256240"],
+        ],
+      }),
+    ).toBe("market");
+    expect(kind38000Format({ tags: [["election", "spring-2026-council"]] })).toBe("ballot");
+    expect(kind38000Format({ tags: [["d", "b21068c8"]] })).toBeNull();
+    expect(kind38000Format({ tags: [["equitas_class", "PAT"]] })).toBeNull();
+  });
+});
+
+describe("describeThing — prediction markets", () => {
+  it("reads BAO's current shape: the words from `data`, the outcomes, the winner, the demo network", () => {
+    const t = describeThing(ev(38000, BAO_MARKET, "₿ Will the Bitcoin network mine… #baomarkets"));
+    expect(t).toMatchObject({
+      title: "Will the Bitcoin network mine fewer than 140 blocks today?",
+      description: "Target is 144 blocks per day.",
+      stars: null,
+      facts: ["Prediction market", "Demo"],
+      detail: {
+        type: "market",
+        outcomes: ["YES", "NO"],
+        status: "resolved",
+        resolution: "NO",
+        closes: 1778716800,
+        category: "bitcoin",
+        demo: true,
+      },
+    });
+  });
+
+  it("reads BAO Fund's shape (a `title` tag, JSON content) and the first shape (outcome objects, a `state`)", () => {
+    const fund = describeThing(
+      ev(
+        38000,
+        [
+          ["d", "baofund-fr_980ed00afda2a574-0"],
+          ["title", "Will the room deliver by the deadline?"],
+          ["c", "bao-fund"],
+          ["n", "demo"],
+          ["outcome", "YES", "YES"],
+          ["outcome", "NO", "NO"],
+        ],
+        JSON.stringify({ title: "Will the room deliver by the deadline?", description: "CRITERIA: a milestone" }),
+      ),
+    );
+    expect(fund).toMatchObject({
+      title: "Will the room deliver by the deadline?",
+      description: "CRITERIA: a milestone",
+      detail: { outcomes: ["YES", "NO"], category: "bao-fund", demo: true },
+    });
+    const first = describeThing(
+      ev(
+        38000,
+        [
+          ["d", "baoMarkets-mkt-1769205950092-0b985e090"],
+          ["type", "binary"],
+          ["category", "nostr"],
+          ["end", "1769256240"],
+          ["state", "funding"],
+        ],
+        JSON.stringify({
+          title: "Will it happen?",
+          outcomes: [
+            { id: "YES", label: "Yes" },
+            { id: "NO", label: "No" },
+          ],
+        }),
+      ),
+    );
+    expect(first).toMatchObject({
+      title: "Will it happen?",
+      // "funding", but its betting closed in January: closed, as Amethyst reads it too.
+      detail: { outcomes: ["Yes", "No"], status: "closed", closes: 1769256240, demo: false },
+    });
+  });
+
+  it("calls voided markets cancelled, and a market with no question is nothing", () => {
+    expect(
+      describeThing(ev(38000, [...BAO_MARKET.filter((t) => t[0] !== "status"), ["status", "voided"]]))?.detail,
+    ).toMatchObject({ status: "cancelled" });
+    expect(
+      describeThing(
+        ev(38000, [
+          ["market", "x"],
+          ["outcome", "YES"],
+          ["outcome", "NO"],
+        ]),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("describeThing — ballots", () => {
+  it("reads each ballot shape's answers: `responses`, a `ballot` object, a lone `vote_choice`", () => {
+    const responses = describeThing(
+      ev(
+        38000,
+        [["election", "sec06-feedback"]],
+        JSON.stringify({
+          election_id: "sec06-feedback",
+          responses: [
+            { question_id: "q1", value: "Yes" },
+            { question_id: "q3", value: 5 },
+            { question_id: "q4", value: { nested: true } },
+          ],
+        }),
+      ),
+    );
+    expect(responses).toMatchObject({
+      title: "Ballot in sec06-feedback",
+      facts: ["Ballot", "2 answers"],
+      detail: {
+        type: "ballot",
+        election: "sec06-feedback",
+        answers: [
+          { question: "q1", answer: "Yes" },
+          { question: "q3", answer: "5" },
+        ],
+        proofHash: null,
+      },
+    });
+    const ballot = describeThing(
+      ev(
+        38000,
+        [
+          ["election", "spring-2026-council"],
+          ["proof_hash", "bb64"],
+          ["mint", "http://localhost:8787/mock-mint"],
+        ],
+        JSON.stringify({ election_id: "spring-2026-council", ballot: { funding_priority: "community-grants" } }),
+      ),
+    );
+    expect(ballot?.detail).toMatchObject({
+      answers: [{ question: "funding_priority", answer: "community-grants" }],
+      proofHash: "bb64",
+    });
+    const choice = describeThing(ev(38000, [["election", "e1"]], JSON.stringify({ vote_choice: "B" })));
+    expect(choice?.detail).toMatchObject({ answers: [{ question: "Vote", answer: "B" }] });
+  });
+});
+
+describe("marketStatus — the rules Amethyst keeps too", () => {
+  const now = 1_790_000_000_000;
+  const none = { resolution: null, cancelled: false, closes: null };
+  it("keeps a declared resolved or cancelled, whatever else the market says", () => {
+    expect(marketStatus("resolved", { ...none, closes: 1 }, now)).toBe("resolved");
+    expect(marketStatus("voided", { ...none, resolution: "YES" }, now)).toBe("cancelled");
+  });
+  it("lets a resolution settle an open or unmarked market, and a cancel reason cancel an unmarked one", () => {
+    expect(marketStatus("active", { ...none, resolution: "NO" }, now)).toBe("resolved");
+    expect(marketStatus(undefined, { ...none, resolution: "NO" }, now)).toBe("resolved");
+    expect(marketStatus(undefined, { ...none, cancelled: true }, now)).toBe("cancelled");
+    expect(marketStatus("active", { ...none, cancelled: true }, now)).toBe("open");
+  });
+  it("closes an 'active' market whose betting has ended — BAO leaves the word in place", () => {
+    expect(marketStatus("active", { ...none, closes: 1_780_000_000 }, now)).toBe("closed");
+    expect(marketStatus("active", { ...none, closes: 1_800_000_000 }, now)).toBe("open");
+    expect(marketStatus(undefined, { ...none, closes: 1_800_000_000 }, now)).toBe("open");
+    expect(marketStatus("resolving", { ...none, closes: 1_800_000_000 }, now)).toBe("closed");
+    expect(marketStatus("active", none, now)).toBe("open");
+    expect(marketStatus(undefined, none, now)).toBeNull();
+  });
+});
+
+describe("baoMarketUrl — a market's page on bao.markets", () => {
+  const market = (network: string, extra: string[][] = [["market", "59a3"]]) =>
+    ev(38000, [["d", "59a3"], ["network", network], ...extra]);
+  it("is keyed by `d`, under the network's own path — mainnet is BAO's alpha mainnet", () => {
+    expect(baoMarketUrl(market("demo"))).toBe("https://bao.markets/demo/market/59a3");
+    expect(baoMarketUrl(market("testnet"))).toBe("https://bao.markets/testnet/market/59a3");
+    expect(baoMarketUrl(market("mainnet"))).toBe("https://bao.markets/alphamainnet/market/59a3");
+    expect(describeThing(ev(38000, BAO_MARKET))?.link).toBe(
+      "https://bao.markets/demo/market/59a3b0cda6c25472714327435b0e8190",
+    );
+  });
+  it("is nothing for a BAO Fund market or the first shape (no `market` id), or a network the site doesn't serve", () => {
+    expect(
+      baoMarketUrl(
+        market("demo", [
+          ["c", "bao-fund"],
+          ["outcome", "YES"],
+          ["outcome", "NO"],
+        ]),
+      ),
+    ).toBeNull();
+    expect(baoMarketUrl(market("signet"))).toBeNull();
+    expect(
+      baoMarketUrl(
+        ev(38000, [
+          ["d", "x"],
+          ["market", "x"],
+        ]),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("kind 38000 — audit fixes", () => {
+  it("re-applies the clock where a status is drawn: an open market past its end is closed now", () => {
+    const now = 1_790_000_000_000;
+    expect(marketStatusNow({ status: "open", closes: 1_780_000_000 }, now)).toBe("closed");
+    expect(marketStatusNow({ status: "open", closes: 1_800_000_000 }, now)).toBe("open");
+    expect(marketStatusNow({ status: "resolved", closes: 1_780_000_000 }, now)).toBe("resolved");
+  });
+
+  it("never reads a status or network word off Object.prototype", () => {
+    const t = describeThing(
+      ev(38000, [
+        ["d", "x"],
+        ["market", "x"],
+        ["status", "constructor"],
+        ["network", "constructor"],
+        ["title", "Q?"],
+        ["outcome", "YES"],
+        ["outcome", "NO"],
+      ]),
+    );
+    // An unknown word is no status at all — not the Object function.
+    expect(t?.detail).toMatchObject({ status: null });
+    expect(t?.link).toBeNull();
+    expect(
+      baoMarketUrl(
+        ev(38000, [
+          ["d", "x"],
+          ["market", "x"],
+          ["network", "toString"],
+        ]),
+      ),
+    ).toBeNull();
+  });
+
+  it("falls back past a junk `end` to the JSON's own time, and drops a time no Date can show", () => {
+    const at = (end: string, data: Record<string, unknown>) =>
+      describeThing(
+        ev(38000, [
+          ["market", "m"],
+          ["end", end],
+          ["data", JSON.stringify({ title: "Q?", ...data })],
+        ]),
+      )?.detail;
+    expect(at("soon", { endTime: 1769256240 })).toMatchObject({ closes: 1769256240 });
+    expect(at("1e30", {})).toMatchObject({ closes: null });
+  });
+
+  it("draws a question a ballot repeats once — the first answer cast", () => {
+    const t = describeThing(
+      ev(
+        38000,
+        [["election", "e"]],
+        JSON.stringify({ responses: [{ question_id: "q1", value: "a" }], ballot: { q1: "b", q2: "c" } }),
+      ),
+    );
+    expect(t?.detail).toMatchObject({
+      answers: [
+        { question: "q1", answer: "a" },
+        { question: "q2", answer: "c" },
+      ],
+    });
   });
 });

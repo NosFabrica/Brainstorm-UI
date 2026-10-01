@@ -1353,8 +1353,8 @@ export default function ProfilePage() {
   const isAdmin = user?.isAdmin === true;
 
   const adminHistoryQuery = useQuery<{ items: AdminHistoryItem[]; total: number; page: number; pages: number }>({
-    queryKey: ["/api/admin/users", hexPubkey, "history"],
-    queryFn: () => apiClient.getAdminUserHistory(hexPubkey),
+    queryKey: ["/api/admin/users", hexPubkey, "history", 50],
+    queryFn: () => apiClient.getAdminUserHistory(hexPubkey, { size: 50 }),
     enabled: isAdmin && !!hexPubkey,
     staleTime: 60_000,
     retry: false,
@@ -2478,7 +2478,7 @@ export default function ProfilePage() {
 
   return (
     <div
-      className="relative flex min-h-screen flex-col overflow-hidden bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
+      className="relative flex min-h-page flex-col overflow-hidden bg-[#F8FAFC] font-sans text-slate-900 selection:bg-brand-primary/[0.3] dark:bg-slate-950 dark:text-slate-100"
       data-testid="page-profile"
     >
       <GlossBackground />

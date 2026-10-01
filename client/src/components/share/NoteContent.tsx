@@ -9,6 +9,7 @@ import {
   type NoteToken,
 } from "@/lib/noteContent";
 import { ReadingText, ReadingLink, addressLink, addressLabel } from "@/components/share/ReadingText";
+import { EMBEDDED_THING_KINDS, ThingAddressRef } from "@/components/share/ThingAddressRef";
 import { normalizeMarkup } from "@/lib/htmlText";
 import { addrCoord, decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
@@ -87,6 +88,7 @@ export function NoteContent({
   authorName,
   embeddedIds,
   embeddedCoords,
+  embedThings = false,
 }: {
   content: string;
   compact?: boolean;
@@ -100,6 +102,9 @@ export function NoteContent({
   embeddedIds?: ReadonlySet<string>;
   /** Articles (by coordinate) the caller shows as cards: their inline link is not repeated. */
   embeddedCoords?: ReadonlySet<string>;
+  /** Draw an `naddr` to a prediction market or ballot as its card (ThingAddressRef).
+   *  Top-level notes only — a quoted card's references stay links, one level deep. */
+  embedThings?: boolean;
   /** Render a rich preview card for the primary link below the body. */
   linkCard?: boolean;
   /** In a clickable feed card: render images as cropped thumbnails whose click
@@ -196,6 +201,8 @@ export function NoteContent({
         if (address) {
           // Shown as a card by the caller? Then the card IS the link.
           if (embeddedCoords?.has(addrCoord(address))) return null;
+          if (embedThings && EMBEDDED_THING_KINDS.has(address.kind))
+            return <ThingAddressRef key={i} address={address} bech32={token.bech32} url={token.url} />;
           const other = reading ? addressLink(token.bech32, i, token.url) : null;
           if (other) return other;
           // Links to its on-site page (/e/ renders every kind); an article

@@ -4,7 +4,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useHasAccount } from "@/hooks/useHasAccount";
 import { useHasSession } from "@/hooks/useHasSession";
+import { ReconnectButton } from "@/components/billing/ReconnectButton";
 import { useSubscription } from "@/hooks/useSubscription";
 import { refreshSubscription } from "@/services/subscription";
 import { startCheckoutPoll } from "@/lib/checkoutPoll";
@@ -30,6 +32,10 @@ import { startCheckoutPoll } from "@/lib/checkoutPoll";
  */
 export default function BillingReturnPage() {
   const signedIn = useHasSession();
+  // Their account is here and its Session is not — a signer yet to approve the
+  // renewal, or a locked key. Someone who just paid is not a stranger: offer
+  // the way back, and the refresh below runs the moment the Session lands.
+  const needsSession = useHasAccount() && !signedIn;
   const { policy, isPaid, status } = useSubscription();
   const qc = useQueryClient();
   // `mismatch` and `unknown` are the two refusals the refresh can report
@@ -104,9 +110,20 @@ export default function BillingReturnPage() {
   }, [phase, isPaid, status]);
 
   return (
-    <div className="flex min-h-screen items-start justify-center bg-slate-50 px-4 pt-24 dark:bg-slate-950">
+    <div className="flex min-h-page items-start justify-center bg-slate-50 px-4 pt-24 dark:bg-slate-950">
       <Card className="w-full max-w-md p-6 sm:p-7" data-testid="billing-return">
-        {!signedIn ? (
+        {needsSession ? (
+          <>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Almost there</h1>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-needs-session">
+              Your account needs to reconnect before we can confirm your payment. Nothing is lost — it's checked the
+              moment you're back.
+            </p>
+            <div className="mt-4">
+              <ReconnectButton testId="billing-return-reconnect" />
+            </div>
+          </>
+        ) : !signedIn ? (
           <>
             <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Almost there</h1>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">

@@ -40,7 +40,9 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () 
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
 vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ isSearchObserver: false }) }));
-vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
+vi.mock("@/hooks/useSearchTags", () => ({
+  useSearchTags: () => ({ tags: [], carriers: { byPubkey: new Map(), people: [], settled: true }, settled: true }),
+}));
 
 import { MobileSearchOverlay, openMobileSearch } from "./MobileSearchOverlay";
 import { clearRecentSearches, pushRecentScoped } from "@/lib/recentSearches";
@@ -128,7 +130,7 @@ describe("typing in the mobile search sheet", () => {
     expect(signalOf(0)?.aborted).toBe(true);
   });
 
-  it("a product title under the people opens the listing itself", async () => {
+  it("a shopping query offers the Shop page under the people, and opens it", async () => {
     suggestMock.mockResolvedValue([]);
     listingsMock.mockResolvedValue([
       {
@@ -150,17 +152,18 @@ describe("typing in the mobile search sheet", () => {
       },
     ]);
     renderOpen();
-    type("satoshi");
+    // The Shop row shows for words that ask to shop.
+    type("satoshi shop");
     act(() => {
       vi.advanceTimersByTime(400);
     });
     await act(async () => {});
-    const row = screen.getByTestId("home-product-suggestion-0");
-    expect(row).toHaveTextContent("Satoshi Smiley T-shirt");
-    expect(row).toHaveTextContent("$21");
+    const row = screen.getByTestId("home-shop-row");
+    expect(row).toHaveTextContent("satoshi");
+    expect(row).toHaveTextContent("Shop · 1+ listings");
     fireEvent.click(row);
     expect(sheetOpen()).toBe(false);
-    expect(window.location.pathname).toMatch(/^\/e\/(nevent1|t{64})/);
+    expect(window.location.search).toBe("?q=satoshi&t=shop");
   });
 
   it("goes to the results right away on Enter, and closes", () => {

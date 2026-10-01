@@ -47,7 +47,6 @@ vi.mock("@/lib/runtimeEnv", () => ({
     VITE_NIP85_RELAY_URL: "wss://nip85-staging.example",
     VITE_API_URL: "",
     VITE_TAG_RELAY_URLS: "",
-    VITE_WOT_SEARCH_RELAY: "",
     VITE_SEARCH_RELAY_URL: "",
     VITE_FEATURE_AGENT_SUITE: "",
     VITE_FEATURE_ASSISTANTS_ADMIN: "",

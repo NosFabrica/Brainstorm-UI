@@ -13,7 +13,6 @@
  * `services/api.ts`: `/p/:id` is anon-viewable and `authenticatedFetch` wipes
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
-import { wordsNearlyMatch } from "@/lib/tagMatch";
 import { pool, fetchEventsByFilter, publishToRelays } from "./nostr";
 import { dedupeRelays, outboxRelays, readRelaysFor, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -819,53 +818,6 @@ export async function fetchProfileTags(
   return profileTagsFromCandidates(candidates, viewerPubkey, observer);
 }
 
-/** The `p` tag an assertion is about — the person it tags. */
-function targetPubkeyOf(ev: NostrEvent): string | undefined {
-  return ev.tags.find((t) => t[0] === "p")?.[1];
-}
-
-/**
- * The tags on many people at once — the rows of a search page. One REQ per
- * chunk, never per person: a page of thirty rows as thirty subscriptions is
- * more than a relay keeps open, and the late ones simply never answer. The
- * SDK owns the filter's shape; we only widen `#p` from one pubkey to the
- * chunk. Each person's answer is then exactly what `fetchProfileTags` says.
- */
-export async function fetchProfileTagsBatch(
-  pubkeys: readonly string[],
-  viewerPubkey?: string,
-  observer: TrustObserver = "house",
-): Promise<Map<string, ProfileTagsResult>> {
-  const out = new Map<string, ProfileTagsResult>();
-  const targets = Array.from(new Set(pubkeys.filter(Boolean)));
-  if (!targets.length) return out;
-  const candidates: NostrEvent[] = [];
-  for (let i = 0; i < targets.length; i += 50) {
-    const chunk = targets.slice(i, i + 50);
-    const filter = filterTagsAppliedToPubkey({ targetPubkey: chunk[0], zHandlePubkeys: Z_HANDLE_PUBKEYS }) as Record<
-      string,
-      unknown
-    >;
-    try {
-      candidates.push(...(await fetchTagEvents({ ...filter, "#p": chunk })));
-    } catch {
-      // Partial results beat none; the people we couldn't ask about show no
-      // chips, which is what an untagged person looks like anyway.
-    }
-  }
-  const byTarget = new Map<string, NostrEvent[]>();
-  for (const ev of candidates) {
-    const target = targetPubkeyOf(ev);
-    if (!target) continue;
-    if (!byTarget.has(target)) byTarget.set(target, []);
-    byTarget.get(target)!.push(ev);
-  }
-  for (const target of targets) {
-    out.set(target, await profileTagsFromCandidates(byTarget.get(target) ?? [], viewerPubkey, observer));
-  }
-  return out;
-}
-
 async function profileTagsFromCandidates(
   candidates: NostrEvent[],
   viewerPubkey: string | undefined,
@@ -1503,39 +1455,6 @@ export async function fetchPickerTags(viewerPubkey?: string, observer: TrustObse
   return banded.sort(
     (a, b) =>
       (a.band === b.band ? 0 : a.band === "profile" ? -1 : 1) || b.people - a.people || a.name.localeCompare(b.name),
-  );
-}
-
-/**
- * Filter the catalogue by what someone typed. Exact match first, then
- * starts-with, then contains — inside each band the catalogue's own
- * usage ordering carries through.
- */
-export function matchTags(index: TagSummary[], query: string, max = 5): TagSummary[] {
-  const q = query.trim().toLowerCase();
-  if (q.length < 2) return [];
-  const band = (t: TagSummary) => {
-    const n = t.name.toLowerCase();
-    if (n === q) return 0;
-    if (n.startsWith(q)) return 1;
-    if (n.includes(q)) return 2;
-    // A typo must not hide a tag the person plainly meant (Benjamin, 2026-09-29:
-    // "verfied human" showed nothing).
-    if (wordsNearlyMatch(q, n)) return 3;
-    return 4;
-  };
-  return (
-    index
-      .map((t) => ({ t, b: band(t) }))
-      .filter((x) => x.b < 4)
-      // How well the name matches outranks who made the tag — an exact hit on an
-      // unverified tag is still what the person typed, and burying it under
-      // loose contains-matches is how `lfo` became unfindable. Creator standing
-      // only breaks ties inside a band; usage order survives beneath that,
-      // because the sort is stable.
-      .sort((x, y) => x.b - y.b || Number(x.t.unverified) - Number(y.t.unverified))
-      .slice(0, max)
-      .map((x) => x.t)
   );
 }
 

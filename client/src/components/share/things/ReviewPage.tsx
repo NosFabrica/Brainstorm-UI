@@ -175,7 +175,10 @@ export function ReviewSections({ event, detail }: { event: PageEvent; detail: De
     const held = byAuthor.get(e.pubkey);
     if (!held || e.created_at > held.created_at) byAuthor.set(e.pubkey, e);
   }
-  const reviews = [...byAuthor.values()].map((e) => ({ event: e, thing: describeThing(e) }));
+  // A kind shared with other apps (38000) can match the subject's `d` without being a review.
+  const reviews = [...byAuthor.values()]
+    .map((e) => ({ event: e, thing: describeThing(e) }))
+    .filter((r) => r.event.id === event.id || r.thing?.detail.type === "review");
   const scored = reviews.filter((r) => r.thing?.stars !== null && r.thing?.stars !== undefined);
   const average = scored.length ? scored.reduce((n, r) => n + (r.thing!.stars as number), 0) / scored.length : null;
   const spread = [5, 4, 3, 2, 1].map((s) => ({

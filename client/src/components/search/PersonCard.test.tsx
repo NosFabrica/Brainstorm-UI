@@ -70,9 +70,9 @@ describe("PersonCard tags", () => {
     unverified: false,
   };
 
-  it("wears the matched tags at its right edge, and nothing when there are none", () => {
+  it("wears the matched tag at its right edge, and nothing when there is none", () => {
     const { rerender } = render(
-      <PersonCard result={person(HZRD)} idx={0} pov="nosfabrica" onOpen={() => {}} tags={[human]} />,
+      <PersonCard result={person(HZRD)} idx={0} pov="nosfabrica" onOpen={() => {}} tag={human} />,
     );
     expect(screen.getByTestId("person-tag-chips-0")).toHaveAttribute("data-state", "ready");
     expect(screen.getByTestId("person-tag-chip-verified-human")).toHaveTextContent("Verified Human");

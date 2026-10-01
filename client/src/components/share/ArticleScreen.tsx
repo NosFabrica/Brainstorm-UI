@@ -281,7 +281,7 @@ export type ArticleEvent = {
 /** The article layout's page: header, column, footer. */
 export function ArticleShell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
+    <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       <PublicPageHeader
         maxWidthClass="max-w-3xl"
         actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={title} />}

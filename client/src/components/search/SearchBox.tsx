@@ -61,26 +61,22 @@ import {
 } from "@/lib/searchSyntax";
 import type { SearchFieldHandle } from "@/lib/searchFieldDom";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
-import { intentTarget, searchIntent } from "@/lib/personContent";
+import { intentTarget, searchIntent, shopWords } from "@/lib/personContent";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
-import { eventPath, npubFromPubkey } from "@/lib/shareId";
+import { npubFromPubkey } from "@/lib/shareId";
 import { useConnectionSpeed } from "@/lib/connection";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { usePersonContent } from "@/hooks/usePersonContent";
-import { useTagMatches } from "@/hooks/useTags";
-import { useTagCarriers } from "@/hooks/useTagCarriers";
-import { leadingCarriers, mergeCarrierPeople, personTagChips, tagsCarriedBy } from "@/lib/tagCarrierPeople";
-import { leadingTags } from "@/lib/tagMatch";
-import { usePersonTags } from "@/hooks/usePersonTags";
-import { PersonTagChips } from "@/components/search/PersonTagChips";
+import { useSearchTags } from "@/hooks/useSearchTags";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useSearchPov } from "@/hooks/useSearchPov";
 import { useOpenProfile } from "@/hooks/useOpenProfile";
 import { SearchField } from "@/components/search/SearchField";
-import { ListingSuggestionRow } from "@/components/search/ListingSuggestionRow";
+import { ShopSuggestionRow } from "@/components/search/ShopSuggestionRow";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
+import { PersonTagLabel } from "@/components/search/PersonTagLabel";
 import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
 import { SEARCH_BOX_CLASS, SEARCH_CLEAR_CLASS, SEARCH_ICON_CLASS } from "@/components/search/searchBoxChrome";
 
@@ -136,6 +132,12 @@ export interface SearchBoxHandle {
   /** Back to an empty box. `refocus` (default) puts the caret in it, and recents may show. */
   reset: (opts?: { refocus?: boolean }) => void;
 }
+
+/** A popup is read in a glance, above a phone keyboard: this many rows of each kind. */
+const MAX_TAG_ROWS = 2;
+const MAX_PEOPLE_ROWS = 6;
+/** How many listings the shop row counts up to. */
+const SHOP_ASK = 9;
 
 /**
  * THE search box — the home hero, the results band, every header (the public pages' and
@@ -225,7 +227,9 @@ export function SearchBox({
 
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   // Product titles under the people — "Satoshi Smiley T-shirt", straight to it.
-  const [productSuggestions, setProductSuggestions] = useState<SearchHit[]>([]);
+  // The Shop page for a query that asked to shop, and how many listings its
+  // words name. The page, never a single product: shopping is a place to land.
+  const [shop, setShop] = useState<{ words: string; count: number } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -242,51 +246,34 @@ export function SearchBox({
   // suggestion dropdown stands down rather than stacking two lists on one square.
   const [fieldPicking, setFieldPicking] = useState(false);
   const topicMatch = useMemo(() => parseTopicQuery(value), [value]);
-  // Tags the query matches. Skipped entirely for `#topic` queries — those are
-  // already routed at the hashtag feed and shouldn't offer a second answer.
-  // Only while suggestions show — a query restored from the URL mustn't pull the whole catalogue.
-  const tagMatches = useTagMatches(topicMatch.isTopic || !showSuggestions ? "" : value);
-  // The people those tags are on — they wear the tag (the team, 2026-09-29),
-  // and lead the list only when the words ARE a tag's name and the tag carries
-  // weight (lib/tagMatch): a prefix is an offer, not a ranking.
-  const carriers = useTagCarriers(tagMatches, { pov: effectivePov, viewerPubkey: user?.pubkey });
-  const leadPeople = useMemo(
-    () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, value)),
-    [carriers.people, carriers.byPubkey, tagMatches, value],
-  );
+  // Tags the query matches, from the search relay — one ask once the typing
+  // pauses, through the perspective the box is showing. Skipped for `#topic`
+  // queries (already routed at the hashtag feed) and while no suggestions
+  // show, so a query restored from the URL asks nothing.
+  const { tags: tagMatches } = useSearchTags(topicMatch.isTopic || !showSuggestions ? "" : value, {
+    pov: effectivePov,
+    viewerPubkey: user?.pubkey,
+    max: MAX_TAG_ROWS,
+    pauseMs: typeaheadPause(speed),
+  });
+  // Who among the listed people carries a matched tag — the relay's list names
+  // its members, so marking them costs no further ask. The best match wins:
+  // one tag per person. Nobody is pulled into the list for carrying one.
+  const tagByPerson = useMemo(() => {
+    const byPerson = new Map<string, string>();
+    for (const tag of tagMatches) {
+      for (const member of tag.members) if (!byPerson.has(member.pubkey)) byPerson.set(member.pubkey, tag.name);
+    }
+    return byPerson;
+  }, [tagMatches]);
   // Relay hits carry no rank numbers (order-only wire) — the dropdown's rings
   // and coins feed from the shared author-score cache, like every card.
-  const suggestScoreOf = useAuthorScores(
-    useMemo(
-      () => [...suggestions.map((x) => x.pubkey), ...carriers.people.map((x) => x.pubkey)],
-      [suggestions, carriers.people],
-    ),
-  );
-  const carrierSets = useMemo(() => {
-    const sets = new Map<string, Set<string>>();
-    for (const [pubkey, tags] of carriers.byPubkey) {
-      for (const tag of tags) {
-        const set = sets.get(tag.key) ?? new Set<string>();
-        set.add(pubkey);
-        sets.set(tag.key, set);
-      }
-    }
-    return sets;
-  }, [carriers.byPubkey]);
-  // The rows: the tag's people first, best-scored first, then the names the
-  // relay found. A few carriers at most lead, so a name match is never hidden
-  // behind a tag that happens to share its words.
-  const rows = useMemo(
-    () =>
-      mergeCarrierPeople({
-        relay: suggestions,
-        carriers: leadPeople,
-        scoreOf: suggestScoreOf,
-        leadCap: 4,
-        limit: 7,
-      }),
-    [suggestions, leadPeople, suggestScoreOf],
-  );
+  const suggestScoreOf = useAuthorScores(useMemo(() => suggestions.map((x) => x.pubkey), [suggestions]));
+  // The rows are the people whose name or handle matched, in the relay's
+  // order. A tag the words match is its own row above them, and the way in to
+  // everyone who carries it — the box offers each reading of the words once
+  // and does not guess which was meant (the team, 2026-10-01).
+  const rows = suggestions;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<SearchFieldHandle | null>(null);
@@ -341,14 +328,14 @@ export function SearchBox({
               { signal: suggestRequestRef.current.signal },
             );
             if (suggestAbortRef.current !== reqId) return;
-            setSuggestions(people.slice(0, 7));
+            setSuggestions(people.slice(0, MAX_PEOPLE_ROWS));
             setActiveSuggestion(-1);
             kbdNavRef.current = false;
             setShowSuggestions(true);
           } catch {
             if (suggestAbortRef.current !== reqId) return;
             setSuggestions([]);
-            setProductSuggestions([]);
+            setShop(null);
           } finally {
             if (suggestAbortRef.current === reqId) setIsSuggesting(false);
           }
@@ -359,7 +346,7 @@ export function SearchBox({
       if (parseTopicQuery(next).isTopic) {
         typedSinceSearchRef.current = true;
         setSuggestions([]);
-        setProductSuggestions([]);
+        setShop(null);
         setIsSuggesting(false);
         setShowSuggestions(true);
         return;
@@ -375,7 +362,7 @@ export function SearchBox({
       ) {
         typedSinceSearchRef.current = false;
         setSuggestions([]);
-        setProductSuggestions([]);
+        setShop(null);
         setShowSuggestions(false);
         setIsSuggesting(false);
         return;
@@ -387,16 +374,25 @@ export function SearchBox({
         try {
           suggestRequestRef.current = new AbortController();
           const signal = suggestRequestRef.current.signal;
-          // Products ask beside the people, on the same cancel; they land when they land.
-          void suggestListings(q, { pov: effectivePov, userPubkey: user?.pubkey }, { limit: 3, signal }).then(
-            (hits) => {
+          // Products only for words that asked to shop ("drone shop", "buy drone"):
+          // a listing under "developer" previews a result nobody asked for. They ask
+          // beside the people, on the same cancel, and land when they land.
+          const shopping = shopWords(q);
+          if (shopping) {
+            void suggestListings(
+              shopping,
+              { pov: effectivePov, userPubkey: user?.pubkey },
+              { limit: SHOP_ASK, signal },
+            ).then((hits) => {
               if (suggestAbortRef.current !== reqId) return;
-              setProductSuggestions(hits);
+              setShop(hits.length ? { words: shopping, count: hits.length } : null);
               if (hits.length) setShowSuggestions(true);
-            },
-          );
+            });
+          } else {
+            setShop(null);
+          }
           // "staci shop" looks up "staci"; the category word becomes the intent row.
-          const lookup = searchIntent(q)?.name ?? q;
+          const lookup = searchIntent(q)?.name ?? shopping ?? q;
           const suggestHits = await suggestProfileHits(
             lookup,
             { pov: effectivePov, userPubkey: user?.pubkey },
@@ -408,7 +404,7 @@ export function SearchBox({
             suggestHits
               .map((h) => h.author)
               .filter((a): a is SearchResult => !!a)
-              .slice(0, 7),
+              .slice(0, MAX_PEOPLE_ROWS),
           );
           setActiveSuggestion(-1);
           kbdNavRef.current = false;
@@ -416,7 +412,7 @@ export function SearchBox({
         } catch {
           if (suggestAbortRef.current !== reqId) return;
           setSuggestions([]);
-          setProductSuggestions([]);
+          setShop(null);
         } finally {
           if (suggestAbortRef.current === reqId) setIsSuggesting(false);
         }
@@ -474,7 +470,7 @@ export function SearchBox({
     (opts?: { refocus?: boolean }) => {
       cancelSuggest();
       setSuggestions([]);
-      setProductSuggestions([]);
+      setShop(null);
       setActiveSuggestion(-1);
       // Clearing is a gesture: the box refocuses and recents may show (Google's X). The
       // home's wordmark is a "refresh", not an invitation, and passes refocus: false.
@@ -568,11 +564,7 @@ export function SearchBox({
       ? // The sheet keeps its list up while there are words: "See all" is never a dead end.
         value.trim().length > 0
       : showSuggestions &&
-        (rows.length > 0 ||
-          productSuggestions.length > 0 ||
-          isSuggesting ||
-          topicMatch.isTopic ||
-          tagMatches.length > 0));
+        (rows.length > 0 || shop !== null || isSuggesting || topicMatch.isTopic || tagMatches.length > 0));
   // "Recent" shows under an empty, focused box — never alongside the suggestions. The sheet
   // was opened to search, so it shows them at once.
   const showRecent = recentsAllowed && value.trim() === "" && !dropdownOpen && (sheet || (engaged && focused));
@@ -588,13 +580,6 @@ export function SearchBox({
       ],
       [rows, recent, showRecent],
     ),
-  );
-  // Each person's own tags — quiet chips on every row (the team, 2026-09-29:
-  // tags are important to see when searching for people); the tag the words
-  // matched is the loud one.
-  const personTags = usePersonTags(
-    useMemo(() => rows.map((s) => s.pubkey), [rows]),
-    { pov: effectivePov, viewerPubkey: user?.pubkey },
   );
   // The intent row's target: "staci shop" and a suggested Staci whose chips say shop.
   const intent = useMemo(() => intentTarget(searchIntent(value), rows, personContent), [value, rows, personContent]);
@@ -799,6 +784,22 @@ export function SearchBox({
                   />
                 </div>
               )}
+              {/* The Shop page leads when the words asked to shop: it is the
+                  answer to the question they typed, so it is not left under
+                  the people. Everything for sale for these words. */}
+              {shop && (
+                <div
+                  className="shrink-0 border-b border-slate-100 dark:border-slate-800/60"
+                  data-testid="home-product-suggestions"
+                >
+                  <ShopSuggestionRow
+                    words={shop.words}
+                    count={shop.count}
+                    onSelect={() => leave(`/?q=${encodeURIComponent(shop.words)}&t=shop`)}
+                    testId="home-shop-row"
+                  />
+                </div>
+              )}
               {/* Tags first: far fewer of them than people, and they're a
                   different kind of answer — "who is known for this"
                   rather than "who is called this". */}
@@ -826,10 +827,6 @@ export function SearchBox({
               >
                 {rows.map((s, i) => {
                   const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
-                  const rowTags = personTagChips(
-                    personTags.get(s.pubkey),
-                    tagMatches.length > 0 && carriers.settled ? tagsCarriedBy(s.pubkey, carrierSets, tagMatches) : [],
-                  );
                   const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
                   return (
                     // A div, not a button: the chips inside are links, and the
@@ -874,7 +871,7 @@ export function SearchBox({
                         )}
                       </div>
                       {/* What they publish, one tap to it. Desktop reveals on
-                          hover or the arrowed row; phones always show it. */}
+                          hover or the arrowed row; a phone row stays a name. */}
                       <PersonContentChips
                         pubkey={s.pubkey}
                         name={getDisplayLabel(s)}
@@ -884,23 +881,11 @@ export function SearchBox({
                           onLeave?.();
                         }}
                         linkTabIndex={-1}
-                        className={cn(
-                          "sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100",
-                          // On a phone the tag is the chip that matters on this row; the rest wait for a wider screen.
-                          (rowTags?.chips.length ?? 0) > 0 && "hidden sm:inline-flex",
-                        )}
+                        className="hidden sm:inline-flex sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100"
                       />
-                      {/* Their tags, at the right edge where a list scans: the matched one loud, the rest quiet. */}
-                      <PersonTagChips
-                        tags={rowTags?.chips}
-                        emphasis={rowTags?.emphasis}
-                        max={2}
-                        onNavigate={() => {
-                          setShowSuggestions(false);
-                          onLeave?.();
-                        }}
-                        linkTabIndex={-1}
-                      />
+                      {/* The tag the words matched, when this person carries it: always
+                          there, so nothing moves when the chips appear beside it. */}
+                      {tagByPerson.has(s.pubkey) && <PersonTagLabel name={tagByPerson.get(s.pubkey)!} />}
                       {/* Same coin as the results list and every people list. */}
                       {rank != null && (
                         <VerificationCoin
@@ -914,22 +899,6 @@ export function SearchBox({
                   );
                 })}
               </div>
-              {/* Products under the people: the thing itself, one tap away. */}
-              {productSuggestions.length > 0 && (
-                <div
-                  className="shrink-0 border-t border-slate-100 dark:border-slate-800/60"
-                  data-testid="home-product-suggestions"
-                >
-                  {productSuggestions.map((h, i) => (
-                    <ListingSuggestionRow
-                      key={h.event.id}
-                      hit={h}
-                      onSelect={() => leave(eventPath(h.event))}
-                      testId={`home-product-suggestion-${i}`}
-                    />
-                  ))}
-                </div>
-              )}
               <button
                 type="button"
                 className={`flex w-full shrink-0 items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-left text-[12px] font-medium transition-colors dark:border-slate-800/60 sm:px-4 ${activeSuggestion === -1 ? "bg-slate-50 text-brand-primary dark:bg-slate-800" : "text-slate-500 hover:bg-slate-50 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"}`}

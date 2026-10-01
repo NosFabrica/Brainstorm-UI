@@ -12,7 +12,7 @@
  */
 import type { NostrEvent } from "nostr-tools";
 import type { SearchResult } from "./profileSearch";
-import type { ProfileTag, TagSummary } from "@/services/tags";
+import type { TagSummary } from "@/services/tags";
 
 /** A tag's carrier as a person, with what the tag page knows about the tag on them. */
 export type CarrierPerson = SearchResult & {
@@ -132,40 +132,19 @@ export interface TagChip {
   authorPubkey: string;
   slug: string;
   name: string;
-  /** People carrying it (a catalogue tag) or asserters applying it to this person (their own). */
+  /** People carrying it. */
   people?: number;
-  unverified?: boolean;
 }
 
-/** One identity for a tag whatever list it came from — the catalogue and a profile key it differently. */
-export const tagChipId = (t: { authorPubkey: string; slug: string }) => `${t.authorPubkey}:${t.slug}`;
-
 /**
- * The chips for one person's row: the matched tags the row knows they carry
- * lead, loud; their own counted tags follow, quiet, once each. Undefined
- * while their own tags are still out and nothing matched — the slot waits.
+ * The one tag a person's row wears in search: the best of the matched tags
+ * they carry, or nothing. Never their other tags — a pill is there because it
+ * is what the words asked for — and nothing about who made it, which is not
+ * what trust scores.
  */
-export function personTagChips(
-  own: readonly ProfileTag[] | undefined,
-  matchedCarried: readonly TagSummary[],
-): { chips: TagChip[]; emphasis: Set<string> } | undefined {
-  if (own === undefined && matchedCarried.length === 0) return undefined;
-  const emphasis = new Set(matchedCarried.map(tagChipId));
-  const chips: TagChip[] = matchedCarried.map((t) => ({
-    key: t.key,
-    authorPubkey: t.authorPubkey,
-    slug: t.slug,
-    name: t.name,
-    people: t.people,
-    unverified: t.unverified,
-  }));
-  const seen = new Set(chips.map(tagChipId));
-  for (const t of own ?? []) {
-    if (seen.has(tagChipId(t))) continue;
-    seen.add(tagChipId(t));
-    chips.push({ key: t.key, authorPubkey: t.authorPubkey, slug: t.slug, name: t.name, people: t.applications });
-  }
-  return { chips, emphasis };
+export function matchedTagChip(matchedCarried: readonly TagSummary[]): TagChip | undefined {
+  const t = matchedCarried[0];
+  return t && { key: t.key, authorPubkey: t.authorPubkey, slug: t.slug, name: t.name, people: t.people };
 }
 
 /** The people on the tags that may lead the list, once each, in the carriers' order. */

@@ -98,7 +98,7 @@ import { EventDateTile } from "@/components/share/EventDateTile";
 import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
 import { isSellable, parseListing } from "@/lib/listing";
-import { describeThing, oneCardPerChannel, THING_KINDS } from "@/lib/thing";
+import { describeThing, oneCardPerChannel, THING_KINDS, type ThingDetail } from "@/lib/thing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { priceBands, priceInCurrency, toSats, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
@@ -109,18 +109,16 @@ import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
 import { useTaggedMusicians } from "@/hooks/useTaggedMusicians";
-import { useTagMatches } from "@/hooks/useTags";
-import { useTagCarriers } from "@/hooks/useTagCarriers";
+import { useSearchTags } from "@/hooks/useSearchTags";
 import {
   leadCarriersByRank,
   leadingCarriers,
   mergeCarrierHits,
-  personTagChips,
+  matchedTagChip,
   rankCarriers,
   tagsCarriedBy,
 } from "@/lib/tagCarrierPeople";
 import { leadingTags } from "@/lib/tagMatch";
-import { usePersonTags } from "@/hooks/usePersonTags";
 import { usePersonFountain } from "@/hooks/usePersonFountain";
 import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
@@ -161,6 +159,12 @@ const SHOP_PLACE_KINDS = new Set([30017, 30019]);
 const CALENDAR_KIND = 31924;
 /** The tabs made only of kinds lib/thing reads — one ThingCard each, in a grid. */
 const isThingTab = (tab: SearchTab) => tab === "communities" || tab === "fundraisers" || tab === "reviews";
+/** What a thing tab holds — kind 38000 also carries prediction markets and ballots, which are not reviews. */
+const THING_TAB_DETAIL: Partial<Record<SearchTab, ThingDetail["type"]>> = {
+  communities: "community",
+  fundraisers: "fundraiser",
+  reviews: "review",
+};
 
 /** What kind of article a hit is — the Articles tab's type chips narrow by this. */
 type ArticleType = "article" | "spec" | "wiki";
@@ -943,9 +947,14 @@ export function SearchResults({
   );
 
   // Words that name a tag find the people on it (the team, 2026-09-29): they
-  // lead the People tab wearing the tag; the relay's name matches follow.
-  const tagMatches = useTagMatches(tab === "people" && !scopeOf(query) ? query : "", 3, { fetch: false });
-  const carriers = useTagCarriers(tagMatches, { pov, viewerPubkey: userPubkey });
+  // lead the People tab wearing the tag; the relay's name matches follow. The
+  // tag and its people come from the search relay in one ask — a page opened
+  // from a link has them too, without walking the hub's catalogue.
+  const { tags: tagMatches, carriers } = useSearchTags(tab === "people" && !scopeOf(query) ? query : "", {
+    pov,
+    viewerPubkey: userPubkey,
+    members: true,
+  });
   // Only a tag the words name outright, with weight behind it, leads (lib/tagMatch).
   const leadPeople = useMemo(
     () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, query)),
@@ -989,7 +998,8 @@ export function SearchResults({
     // Only what lib/thing can name is a result — decided here, like the Shop,
     // so "Nothing found" and the counts agree with the cards — and one card
     // per NIP-28 channel.
-    if (isThingTab(tab)) return oneCardPerChannel(base.filter((h) => describeThing(h.event) !== null));
+    if (isThingTab(tab))
+      return oneCardPerChannel(base.filter((h) => describeThing(h.event)?.detail.type === THING_TAB_DETAIL[tab]));
     if (tab === "events") return base.filter((h) => h.event.kind !== CALENDAR_KIND || describeThing(h.event) !== null);
     // A named person's own tracks join the Music tab's hits, once each.
     if (tab === "music") {
@@ -1155,14 +1165,6 @@ export function SearchResults({
   const extraCount =
     (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) +
     (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
-  // Each person's own tags — quiet chips on every People card; the matched tag is the loud one.
-  const personTags = usePersonTags(
-    useMemo(
-      () => (tab === "people" ? hits.flatMap((h) => (h.event.kind === 0 ? [h.event.pubkey] : [])) : []),
-      [tab, hits],
-    ),
-    { pov, viewerPubkey: userPubkey },
-  );
   const peopleIdx = useRef(0);
   peopleIdx.current = 0;
 
@@ -2424,12 +2426,11 @@ export function SearchResults({
                         );
                         if (event.kind === 0 && hit.author) {
                           const idx = peopleIdx.current++;
-                          const cardTags = personTagChips(
-                            personTags.get(event.pubkey),
+                          // The one tag the words matched, if this person carries it.
+                          const cardTag =
                             tagMatches.length > 0 && carriers.settled
-                              ? tagsCarriedBy(event.pubkey, carrierSets, tagMatches)
-                              : [],
-                          );
+                              ? matchedTagChip(tagsCarriedBy(event.pubkey, carrierSets, tagMatches))
+                              : undefined;
                           const scored =
                             hit.author.wotRank == null
                               ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
@@ -2443,8 +2444,7 @@ export function SearchResults({
                               onPrefetchEnter={onPrefetchEnter}
                               onPrefetchLeave={onPrefetchLeave}
                               showFollowedBy={idx < 3}
-                              tags={cardTags?.chips}
-                              tagEmphasis={cardTags?.emphasis}
+                              tag={cardTag}
                             />,
                           );
                         }
