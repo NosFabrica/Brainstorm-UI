@@ -71,9 +71,14 @@ Reports or questions are welcome through the contact above.
 | Host                                      | Role           |
 | ----------------------------------------- | -------------- |
 | `api.brainstorm.world`                    | Production API |
-| `search.brainstorm.world`                 | Search API     |
 | `brainstormserver.nosfabrica.com`         | Production API |
 | `brainstormserver-staging.nosfabrica.com` | Staging API    |
+
+### Search relay — [`NosFabrica/vespa-relay`](https://github.com/NosFabrica/vespa-relay)
+
+| Host                      | Role                           |
+| ------------------------- | ------------------------------ |
+| `search.brainstorm.world` | SearchOverTrust relay (NIP-50) |
 
 ### nostr relays — [strfry](https://github.com/hoytech/strfry)
 

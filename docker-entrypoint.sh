@@ -4,7 +4,7 @@ set -e
 CONFIG_FILE="/usr/share/nginx/html/config.js"
 
 if [ -f "$CONFIG_FILE" ]; then
-  for var in VITE_API_URL VITE_NIP85_RELAY_URL VITE_WOT_SEARCH_RELAY VITE_SEARCH_RELAY_URL VITE_TAG_RELAY_URLS VITE_FEATURE_AGENT_SUITE VITE_FEATURE_ASSISTANTS_ADMIN VITE_IMG_PROXY; do
+  for var in VITE_API_URL VITE_NIP85_RELAY_URL VITE_SEARCH_RELAY_URL VITE_TAG_RELAY_URLS VITE_FEATURE_AGENT_SUITE VITE_FEATURE_ASSISTANTS_ADMIN VITE_IMG_PROXY; do
     eval value=\"\$$var\"
     # Escape sed delimiters in value
     escaped=$(printf '%s' "$value" | sed -e 's/[\/&|]/\\&/g')
@@ -17,7 +17,7 @@ fi
 # so index.html carries a marker the build cannot fill. Same env as config.js;
 # wss:// origins preconnect over https:// — same host, same TCP + TLS.
 PRECONNECT=""
-for url in "$VITE_API_URL" "$VITE_SEARCH_RELAY_URL" "$VITE_NIP85_RELAY_URL" "$VITE_WOT_SEARCH_RELAY"; do
+for url in "$VITE_API_URL" "$VITE_SEARCH_RELAY_URL" "$VITE_NIP85_RELAY_URL"; do
   [ -n "$url" ] || continue
   origin=$(printf '%s' "$url" | sed -e 's|^ws|http|' -e 's|\(https\{0,1\}://[^/]*\).*|\1|')
   case "$PRECONNECT" in *"\"$origin\""*) continue ;; esac

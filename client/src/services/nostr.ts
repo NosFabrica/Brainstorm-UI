@@ -8,6 +8,8 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { withObserver } from "@/lib/searchSyntax";
+import { resolveHouseObserver } from "@/services/trustSource";
 import { publishUntilEnough } from "@/lib/publishQuorum";
 import { loadReplaceable } from "@/lib/loaders";
 import { profileContentOf } from "@/lib/profileContent";
@@ -1524,7 +1526,8 @@ export async function fetchMuteListTimestamp(
   return undefined;
 }
 
-const WOT_SEARCH_RELAY = env.VITE_WOT_SEARCH_RELAY.trim();
+// One search relay for the whole UI: the SearchOverTrust relay behind the search page.
+const SEARCH_RELAY = env.VITE_SEARCH_RELAY_URL.trim();
 
 export interface NostrSearchResult {
   pubkey: string;
@@ -1541,10 +1544,10 @@ export function searchNostrProfiles(
   options: { limit?: number; timeoutMs?: number } = {},
 ): Promise<NostrSearchResult[]> {
   const { limit = 10, timeoutMs = 5000 } = options;
-  if (!WOT_SEARCH_RELAY) {
+  if (!SEARCH_RELAY) {
     console.error(
-      "[nostr] VITE_WOT_SEARCH_RELAY is not set — Nostr profile search is disabled. " +
-        "Set VITE_WOT_SEARCH_RELAY at build/deploy time (see README and Dockerfile).",
+      "[nostr] VITE_SEARCH_RELAY_URL is not set — Nostr profile search is disabled. " +
+        "Set VITE_SEARCH_RELAY_URL at build/deploy time (see README and Dockerfile).",
     );
     return Promise.resolve([]);
   }
@@ -1565,16 +1568,23 @@ export function searchNostrProfiles(
 
     const timeout = setTimeout(finish, timeoutMs);
 
-    try {
-      ws = new WebSocket(WOT_SEARCH_RELAY);
+    // The SearchOverTrust relay refuses a read that names no lens (`auth-required:`); the
+    // house observer is the default point of view brainstorm-server used to fill in itself.
+    // Resolved inside the timeout: an unreachable nostr.json costs the search, not a hang.
+    const lens = resolveHouseObserver().catch(() => null);
 
-      ws.onopen = () => {
+    try {
+      ws = new WebSocket(SEARCH_RELAY);
+
+      ws.onopen = async () => {
+        const observer = await lens;
+        if (settled) return;
         const req = JSON.stringify([
           "REQ",
           "search-1",
           {
             kinds: [0],
-            search: query,
+            search: withObserver(query, observer),
             limit,
           },
         ]);
@@ -1584,7 +1594,8 @@ export function searchNostrProfiles(
       ws.onmessage = (msg) => {
         try {
           const data = JSON.parse(msg.data);
-          if (data[0] === "EVENT" && data[2]) {
+          // Kind 0 only: the relay may serve records a hit points at beside the hit.
+          if (data[0] === "EVENT" && data[2]?.kind === 0) {
             const event = data[2];
             const pubkey = event.pubkey;
             if (pubkey && !seen.has(pubkey)) {
@@ -1604,7 +1615,8 @@ export function searchNostrProfiles(
                 results.push({ pubkey, npub: nip19.npubEncode(pubkey) });
               }
             }
-          } else if (data[0] === "EOSE") {
+          } else if (data[0] === "EOSE" || data[0] === "CLOSED") {
+            if (data[0] === "CLOSED") console.warn("[nostr] profile search refused:", data[2]);
             clearTimeout(timeout);
             finish();
           }

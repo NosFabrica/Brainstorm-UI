@@ -197,7 +197,7 @@ function isAllowed(key: string): boolean {
 
 /** The deployment's own relays are the operator's choice. */
 allowLocalRelay(
-  [env.VITE_NIP85_RELAY_URL, env.VITE_WOT_SEARCH_RELAY, env.VITE_SEARCH_RELAY_URL, env.VITE_TAG_RELAY_URLS]
+  [env.VITE_NIP85_RELAY_URL, env.VITE_SEARCH_RELAY_URL, env.VITE_TAG_RELAY_URLS]
     .flatMap((value) => (value ?? "").split(","))
     .map((url) => url.trim())
     .filter(Boolean),

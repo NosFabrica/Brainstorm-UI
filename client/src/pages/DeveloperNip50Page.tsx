@@ -15,35 +15,50 @@ import {
 } from "@/components/developers/DevShared";
 
 // Per-env public search relay; no in-source fallback (see runtimeEnv).
-const RELAY_URL = env.VITE_WOT_SEARCH_RELAY;
+const RELAY_URL = env.VITE_SEARCH_RELAY_URL;
 
 const QUICK_START_SNIPPET = `["REQ", "search-1", {
   "kinds": [0],
-  "search": "jack"
+  "limit": 20,
+  "search": "jack observer:<hex-pubkey>"
 }]`;
 
 const PERSONALIZED_SNIPPET = `["REQ", "search-1", {
   "kinds": [0],
   "limit": 20,
-  "search": "jack observer:<your-pubkey> sort:followers:desc filter:rank:gte:2"
+  "search": "jack observer:<your-pubkey> sort:rank filter:rank:gte:10"
 }]`;
 
+const REFUSAL_SNIPPET = `["CLOSED", "search-1", "auth-required: this relay answers through a web of trust …"]`;
+
+// The SearchOverTrust grammar, as the relay documents it (NosFabrica/vespa-relay README, "Search").
+// Tokens are stripped from the query before matching, so they never become search terms.
 const EXTENSIONS: { name: string; format: string; description: string }[] = [
   {
     name: "observer",
     format: "observer:<hex-pubkey>",
     description:
-      "The user's pubkey. Results are processed by that user's community. Omit to use the relay's default point of view.",
+      "Rank as seen by that pubkey's web of trust. Scores are public, so any client may rank through any observer — no signature needed.",
   },
   {
     name: "sort",
-    format: "sort:<metric>:<asc|desc>",
-    description: "Sort by a trust metric. Common metrics: followers, rank",
+    format: "sort:rank | sort:recent",
+    description: "rank: most trusted first (also rank:asc, followers, text). recent: newest first, still trust-gated.",
   },
   {
-    name: "filter",
-    format: "filter:<metric>:<op>:<value>",
-    description: "Filter by a trust metric threshold. Operators: gte, lte, gt, lt, eq",
+    name: "filter:rank",
+    format: "filter:rank:gte:<0-100>",
+    description: "Drop results below that trust rank.",
+  },
+  {
+    name: "include:spam",
+    format: "include:spam",
+    description: "Lift the default trust floor: the whole corpus, unranked. Also satisfies the lens requirement.",
+  },
+  {
+    name: "query",
+    format: '-word  "exact phrase"',
+    description: "Google-style exclusions and phrase matching.",
   },
 ];
 
@@ -86,8 +101,8 @@ export default function DeveloperNip50Page() {
               className="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600 dark:text-slate-300"
               data-testid="text-dev-subtitle"
             >
-              This relay supports NIP-50 full-text profile search. Any nostr client can query it over a standard
-              WebSocket connection.
+              This relay supports NIP-50 full-text search, ranked through a web of trust. Any nostr client can query it
+              over a standard WebSocket connection.
             </p>
           </header>
 
@@ -120,25 +135,24 @@ export default function DeveloperNip50Page() {
             testId="card-dev-quickstart"
           >
             <p className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
-              Connect via WebSocket and send a standard NIP-50 search REQ:
+              Connect via WebSocket and send a NIP-50 search REQ that names whose eyes to read through:
             </p>
             <CodeBlock code={QUICK_START_SNIPPET} testId="quickstart" />
             <p className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
-              This returns kind 0 profile events filtered and sorted by the community of the relay's default nostr
-              profile. All standard nostr traffic (non-search REQs, EVENT publishing) passes through to the underlying
-              strfry relay transparently.
+              This returns kind 0 profile events ranked by that pubkey's web of trust. Every read must declare a lens —
+              see below.
             </p>
           </SectionCard>
 
           {/* Personalized Results */}
           <SectionCard
             icon={<BrainLogo size={20} className="text-brand-deep" />}
-            title="Personalized Results with WoT Extensions"
+            title="Search Extensions"
             testId="card-dev-personalized"
           >
             <p className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
-              Add custom extensions to the search string to get results personalized to a specific user (filtered and
-              sorted by that user's community):
+              Add extensions to the search string to shape the results — for example, most trusted first, above a trust
+              floor:
             </p>
             <CodeBlock code={PERSONALIZED_SNIPPET} testId="personalized" />
 
@@ -185,13 +199,19 @@ export default function DeveloperNip50Page() {
           {/* Automatic Score Provisioning */}
           <SectionCard
             icon={<FavoriteChartIcon className="h-5 w-5 text-brand-deep" />}
-            title="Automatic Score Provisioning"
-            testId="card-dev-provisioning"
+            title="Every Read Names a Lens"
+            testId="card-dev-lens"
           >
             <p className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
-              The first time you search with a new observer, the relay automatically loads that user's Brainstorm data
-              in the background if it is available. In the meantime, the search returns results using the relay's
-              default perspective. Once loaded, subsequent searches will return results that are fully personalized.
+              The relay has no default point of view. Before a NIP-42 login, a REQ or COUNT is answered only if each
+              filter's search names an <code className="font-mono text-[13px]">observer:</code> or waives one with{" "}
+              <code className="font-mono text-[13px]">include:spam</code>. Anything else is refused:
+            </p>
+            <CodeBlock code={REFUSAL_SNIPPET} testId="refusal" />
+            <p className="text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
+              A NIP-42 login counts as an implicit <code className="font-mono text-[13px]">observer:</code> on every
+              query: searches rank through the signed-in key's web of trust. Clients that already retry through{" "}
+              <code className="font-mono text-[13px]">auth-required:</code> need nothing else.
             </p>
           </SectionCard>
 
