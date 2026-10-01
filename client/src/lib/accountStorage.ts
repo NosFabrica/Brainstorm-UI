@@ -54,6 +54,8 @@ const NAMESPACES = {
   brainstorm_nip85_consent: "device",
   brainstorm_assistant: "device",
   brainstorm_relay_auth: "device",
+  // What the reader read, accepted and hid in Messages, and their timers.
+  brainstorm_dm_prefs: "device",
 } as const satisfies Record<string, Lifetime>;
 
 export type AccountNamespace = keyof typeof NAMESPACES;

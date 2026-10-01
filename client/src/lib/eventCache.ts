@@ -8,7 +8,8 @@
  *   relay for sixty kind-0s it already had. A young copy answers on its own;
  *   an older one — however old — is still shown while the relay is asked as
  *   well. Any name beats a spinner, and the relay's answer replaces it.
- * - **Routing (kinds 3, 10002, 10040).** Where reads and publishes GO. Kept,
+ * - **Routing (kinds 3, 10002, 10040, 10050).** Where reads and publishes GO —
+ *   10050 being where a private message to someone may go at all. Kept,
  *   like profiles, until evicted: a young copy answers alone, an older one
  *   answers while the relays are asked after it. This is
  *   the half that has to be here BEFORE a signature: routing is needed the
@@ -62,7 +63,7 @@ const WRITE_BATCH_MS = 2000;
 export const MAX_CACHED = 2000;
 
 /** Kinds worth a disk read. Everything else is unbounded or nobody waits on it. */
-export const CACHED_KINDS = [0, 3, 10002, 10040];
+export const CACHED_KINDS = [0, 3, 10002, 10040, 10050];
 const CACHED = new Set(CACHED_KINDS);
 
 /** NIP-65, restated so this module needs no import from the routing one. */

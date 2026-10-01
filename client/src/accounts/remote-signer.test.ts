@@ -25,10 +25,10 @@ describe("what we ask a signer for", () => {
   it("names every kind the app signs, so nothing becomes a later prompt", () => {
     // NIP-46 has no way to ask for more later, and under Amber's default policy
     // an omitted kind is a notification its owner may never see.
-    for (const kind of [0, 3, 5, 1984, 9734, 10000, 10002, 10040, 22242, 24242, 27235, 30078]) {
+    for (const kind of [0, 3, 5, 13, 1984, 9734, 10000, 10002, 10040, 10050, 22242, 24242, 27235, 30078]) {
       expect(NIP46_PERMISSIONS).toContain(`sign_event:${kind}`);
     }
-    expect(SIGNED_KINDS).toHaveLength(12);
+    expect(SIGNED_KINDS).toHaveLength(14);
   });
 
   it("asks for NIP-44 explicitly — buildSigningPermissions never does", () => {
