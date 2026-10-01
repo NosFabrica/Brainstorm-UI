@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 /**
- * The shortest-path request: the page now asks the server to send its list
- * of paths, bounded, and reads it back when a server does.
+ * The shortest-path requests: the full Path network, and hops alone.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/services/api";
+import { PathNetworkTooLargeError } from "@/services/api/users";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("getShortestPath", () => {
-  it("bounds the list it asks for with maxPaths, and reads the paths a server sends back", async () => {
+  it("asks for the Path network and reads layers and links back", async () => {
     const fetchMock = vi.fn(
       async () =>
         new Response(
@@ -18,34 +18,36 @@ describe("getShortestPath", () => {
               from: "a",
               to: "b",
               reachable: true,
-              hops: 2,
-              path: ["a", "c", "b"],
+              hops: 3,
               pathCount: 2,
-              pathCountCapped: false,
-              maxHops: 6,
-              paths: [
-                ["a", "c", "b"],
-                ["a", "d", "b"],
-              ],
+              layers: [["c", "d"], ["e"]],
+              links: [[[0], [0]]],
+              maxHops: 30,
             },
           }),
           { status: 200 },
         ),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const r = await apiClient.getShortestPath({ from: "a", to: "b", maxPaths: 50 });
-    expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.get("maxPaths")).toBe("50");
-    expect(r.paths).toEqual([
-      ["a", "c", "b"],
-      ["a", "d", "b"],
-    ]);
+    const r = await apiClient.getShortestPath({ from: "a", to: "b" });
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect([...url.searchParams.keys()].sort()).toEqual(["from", "to"]);
+    expect(r).toMatchObject({ pathCount: 2, layers: [["c", "d"], ["e"]], links: [[[0], [0]]] });
   });
 
-  it("asks as before when no bound is given", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: { path: [] } }), { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-    await apiClient.getShortestPath({ from: "a", to: "b" });
-    expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.has("maxPaths")).toBe(false);
+  it("a 504 means the network is too large to compute, told apart from other failures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 504 })),
+    );
+    await expect(apiClient.getShortestPath({ from: "a", to: "b" })).rejects.toBeInstanceOf(PathNetworkTooLargeError);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 500 })),
+    );
+    await expect(apiClient.getShortestPath({ from: "a", to: "b" })).rejects.not.toBeInstanceOf(
+      PathNetworkTooLargeError,
+    );
   });
 });
 

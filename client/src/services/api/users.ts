@@ -5,33 +5,41 @@
 
 import { authenticatedFetch, fetch, getBrainstormApi, optionalAuthFetch } from "./core";
 
-/** Follows-graph shortest-path result from `GET /shortestPath`. */
+/**
+ * The Path network from `GET /shortestPath`: every Connector on any shortest
+ * path, by hop. `layers` leaves out both ends; `links[i][j]` are the indexes
+ * into `layers[i + 1]` that `layers[i][j]` follows. `from` follows all of
+ * `layers[0]`, and all of the last layer follows `to`.
+ */
 export interface ShortestPath {
   from: string;
   to: string;
   reachable: boolean;
-  hops: number;
-  /** Ordered hex pubkeys from `from` to `to` (inclusive); one random shortest path. */
-  path: string[];
-  /** Total number of shortest paths of this length. */
+  /** `null` when unreachable within `maxHops`; 0 for the same account. */
+  hops: number | null;
+  /** Exact number of shortest paths. */
   pathCount: number;
-  /** True when `pathCount` hit the server cap (show as "N+"). */
-  pathCountCapped: boolean;
+  layers: string[][];
+  links: number[][][];
   maxHops: number;
-  /** Every shortest path, when the server sends them (bounded by `maxPaths`); absent today. */
-  paths?: string[][];
+}
+
+/** The server gave up on a Path network too large to compute in time (504). */
+export class PathNetworkTooLargeError extends Error {
+  constructor() {
+    super("Path network too large to compute");
+    this.name = "PathNetworkTooLargeError";
+  }
 }
 
 /** Follows-graph distance alone, from `GET /shortestPath?only=hops`. */
-export type ShortestHops = Pick<ShortestPath, "from" | "to" | "reachable" | "maxHops"> & {
-  /** `null` when unreachable within `maxHops`; 0 for the same account. */
-  hops: number | null;
-};
+export type ShortestHops = Pick<ShortestPath, "from" | "to" | "reachable" | "hops" | "maxHops">;
 
 async function fetchShortestPath<T>(params: Record<string, string>): Promise<T> {
   const response = await fetch(`${getBrainstormApi()}/shortestPath?${new URLSearchParams(params).toString()}`, {
     signal: AbortSignal.timeout(30000),
   });
+  if (response.status === 504) throw new PathNetworkTooLargeError();
   if (!response.ok) {
     throw new Error(`Failed to fetch shortest path (${response.status})`);
   }
@@ -151,20 +159,12 @@ export const usersApi = {
   },
 
   /**
-   * Shortest follow-paths from `from` to `to` (for the hops alone, use
-   * `getShortestHops`): `{ reachable, hops, path[], pathCount, pathCountCapped, maxHops }`. `from`/`to`
-   * are hex pubkeys or npubs; the endpoint returns ONE randomly-chosen shortest
-   * path per call (re-call for a different one). `from` is required — there is no
-   * house default, so callers pass an explicit pubkey (the logged-in viewer's).
-   * `maxPaths` (server default and ceiling 1000) caps the paths the server
-   * materialises — and with them `pathCount`, which turns "119" into "50+" —
-   * so the Connection page leaves it unset. `paths`, when a server sends the
-   * list, rides along.
+   * The Path network from `from` to `to` (hex or npub; `from` is required —
+   * callers pass the origin). Throws `PathNetworkTooLargeError` on a server
+   * timeout; fall back to `getShortestHops`.
    */
-  async getShortestPath(opts: { from: string; to: string; maxPaths?: number }): Promise<ShortestPath> {
-    const params: Record<string, string> = { from: opts.from, to: opts.to };
-    if (opts.maxPaths) params.maxPaths = String(opts.maxPaths);
-    return fetchShortestPath<ShortestPath>(params);
+  async getShortestPath(opts: { from: string; to: string }): Promise<ShortestPath> {
+    return fetchShortestPath<ShortestPath>({ from: opts.from, to: opts.to });
   },
 
   async getUserConnections(
