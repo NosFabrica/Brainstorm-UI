@@ -84,7 +84,10 @@ the reader picks (the team, 2026-10-01, after Google's "Poodle · Dog breed").
 - The grey line's first word is the kind: `Tag · 5 people`, `Topic · …`, `Shop · $21 · seller`.
   People keep their handle.
 - A people row is someone whose **name or handle** matched. A tag's people are behind the tag
-  row, which opens the tag page; no tag pill in the popup (the results page has it).
+  row, which opens the tag page; nobody is pulled into the list for carrying a tag.
+- A listed person who carries the matched tag wears it quietly: grey text with a small tag
+  icon (`PersonTagLabel`), one tag per person, a label and not a link, clipped before the name
+  is, icon only on a phone. The coloured pill is for the results page.
 - Shop rows only when the words ask to shop — shop, store, buy, price, "for sale"
   (`shopWords` in `lib/personContent.ts`).
 - What a person publishes (Articles, Media, …) shows on hover or the arrowed row, desktop only.
