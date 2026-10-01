@@ -13,12 +13,28 @@ import { TrendingUp, Vote } from "lucide-react";
 import { Link } from "wouter";
 import { Chip } from "@/components/ui/chip";
 import { ReadingText } from "@/components/share/ReadingText";
-import { MARKET_STATUS_CHIP, MarketOutcomes, marketCloseWords } from "@/components/search/thingCards";
+import {
+  MARKET_STATUS_CHIP,
+  MarketOutcomes,
+  baoMarketLinkLabel,
+  marketCloseWords,
+} from "@/components/search/thingCards";
 import { fetchFromSearch } from "@/services/search";
 import { describeThing, type Thing } from "@/lib/thing";
 import { eventPath } from "@/lib/shareId";
 import type { Detail } from "./types";
-import { FactRows, InfoBox, Kicker, PageTitle, Section, SectionNote, useFetched, type PageEvent } from "./shared";
+import {
+  ActionLink,
+  Actions,
+  FactRows,
+  InfoBox,
+  Kicker,
+  PageTitle,
+  Section,
+  SectionNote,
+  useFetched,
+  type PageEvent,
+} from "./shared";
 
 const tagOf = (e: PageEvent, k: string) => e.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
 
@@ -59,6 +75,21 @@ export function MarketHero({ event, thing, detail }: { event: PageEvent; thing: 
           </p>
           <MarketOutcomes detail={detail} max={12} testId="thing-page-outcomes" />
         </div>
+      )}
+      {thing.link && (
+        <>
+          <Actions testId="thing-page-actions">
+            <ActionLink href={thing.link} primary={detail.status === "open"} testId="thing-page-bao-link">
+              {baoMarketLinkLabel(detail)}
+            </ActionLink>
+          </Actions>
+          {/* BAO's own FAQ (2026-10-01): demo is open to anyone, free play sats, no KYC. */}
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="thing-page-bao-note">
+            {detail.demo
+              ? "Anyone can join on BAO's demo network: sign in with Nostr or a guest account and claim free play sats. No KYC."
+              : "Trades real bitcoin on BAO's alpha network, over Lightning, Liquid or ecash. No KYC."}
+          </p>
+        </>
       )}
       <div className="mt-4">
         <InfoBox label="Terms" icon={TrendingUp} testId="thing-page-terms">

@@ -28,6 +28,7 @@ import {
   CalendarDays,
   Check,
   Disc3,
+  ExternalLink,
   File,
   Film,
   Globe,
@@ -719,10 +720,13 @@ export function MarketStatusLine({ detail, testId }: { detail: Detail<"market">;
 export function MarketSummary({
   detail,
   max = 5,
+  link,
   testId,
 }: {
   detail: Detail<"market">;
   max?: number;
+  /** The market's page on BAO Markets, offered beside the closing time. */
+  link?: string | null;
   testId?: string;
 }) {
   const open = detail.status === "open" || detail.status === null;
@@ -730,10 +734,36 @@ export function MarketSummary({
     <div className="space-y-2" data-testid={testId}>
       <MarketStatusLine detail={detail} />
       <MarketOutcomes detail={detail} max={max} />
-      {detail.closes !== null && open && (
-        <p className="text-[11px] text-slate-500 dark:text-slate-400">{marketCloseWords(detail.closes)}</p>
+      {((detail.closes !== null && open) || link) && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+          {detail.closes !== null && open && <span>{marketCloseWords(detail.closes)}</span>}
+          {link && <BaoMarketLink href={link} detail={detail} />}
+        </p>
       )}
     </div>
+  );
+}
+
+/** What the door to BAO says: bet while it is open, look once it is not. */
+export function baoMarketLinkLabel(detail: Detail<"market">): string {
+  return detail.status === "open" || detail.status === null ? "Bet on BAO Markets" : "View on BAO Markets";
+}
+
+/** The market's page on BAO Markets — a quiet link that does not open the row or card around it. */
+export function BaoMarketLink({ href, detail }: { href: string; detail: Detail<"market"> }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener"
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1 font-medium text-brand-link hover:underline"
+      data-testid="bao-market-link"
+      data-noopen
+    >
+      {baoMarketLinkLabel(detail)}
+      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+    </a>
   );
 }
 
@@ -745,7 +775,16 @@ export function MarketSummary({
 export function MarketCard(props: CardProps<"market">) {
   const { event, thing, detail } = props;
   return (
-    <CardShell event={event} fill testId={`thing-card-${event.id}`}>
+    <CardShell
+      event={event}
+      openInUrl={thing.link ?? undefined}
+      openInLabel={baoMarketLinkLabel(detail)}
+      openInHost={thing.link ? "bao.markets" : undefined}
+      openInTestId={`thing-link-${event.id}`}
+      openInPlacement="footer"
+      fill
+      testId={`thing-card-${event.id}`}
+    >
       <div className="flex h-full flex-col">
         <div className="flex items-start gap-3">
           <Picture src={null} icon={TrendingUp} size="sm" />
@@ -757,7 +796,13 @@ export function MarketCard(props: CardProps<"market">) {
         <div className="mt-3">
           <MarketSummary detail={detail} testId={`thing-market-${event.id}`} />
         </div>
-        <Footer kicker="Created by" author={props.author} score={props.score} at={event.created_at} />
+        <Footer
+          kicker="Created by"
+          author={props.author}
+          score={props.score}
+          at={event.created_at}
+          linked={!!thing.link}
+        />
       </div>
     </CardShell>
   );

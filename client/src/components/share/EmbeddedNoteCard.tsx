@@ -165,7 +165,7 @@ export function EmbeddedNoteCard({
           )}
           <div className="mt-2">
             {shaped.detail.type === "market" ? (
-              <MarketSummary detail={shaped.detail} />
+              <MarketSummary detail={shaped.detail} link={shaped.link} />
             ) : shaped.detail.type === "ballot" ? (
               <BallotAnswers detail={shaped.detail} />
             ) : null}

@@ -680,7 +680,7 @@ export function SerpRow({
         )}
         {thing?.detail.type === "market" && (
           <div className="mt-2.5 max-w-md">
-            <MarketSummary detail={thing.detail} testId={`serp-market-${event.id}`} />
+            <MarketSummary detail={thing.detail} link={thing.link} testId={`serp-market-${event.id}`} />
           </div>
         )}
         {thing?.detail.type === "ballot" && (

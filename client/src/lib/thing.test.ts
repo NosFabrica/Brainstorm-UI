@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  baoMarketUrl,
   kind38000Format,
   marketStatus,
   decodeEntities,
@@ -700,5 +701,38 @@ describe("marketStatus — the rules Amethyst keeps too", () => {
     expect(marketStatus("resolving", { ...none, closes: 1_800_000_000 }, now)).toBe("closed");
     expect(marketStatus("active", none, now)).toBe("open");
     expect(marketStatus(undefined, none, now)).toBeNull();
+  });
+});
+
+describe("baoMarketUrl — a market's page on bao.markets", () => {
+  const market = (network: string, extra: string[][] = [["market", "59a3"]]) =>
+    ev(38000, [["d", "59a3"], ["network", network], ...extra]);
+  it("is keyed by `d`, under the network's own path — mainnet is BAO's alpha mainnet", () => {
+    expect(baoMarketUrl(market("demo"))).toBe("https://bao.markets/demo/market/59a3");
+    expect(baoMarketUrl(market("testnet"))).toBe("https://bao.markets/testnet/market/59a3");
+    expect(baoMarketUrl(market("mainnet"))).toBe("https://bao.markets/alphamainnet/market/59a3");
+    expect(describeThing(ev(38000, BAO_MARKET))?.link).toBe(
+      "https://bao.markets/demo/market/59a3b0cda6c25472714327435b0e8190",
+    );
+  });
+  it("is nothing for a BAO Fund market or the first shape (no `market` id), or a network the site doesn't serve", () => {
+    expect(
+      baoMarketUrl(
+        market("demo", [
+          ["c", "bao-fund"],
+          ["outcome", "YES"],
+          ["outcome", "NO"],
+        ]),
+      ),
+    ).toBeNull();
+    expect(baoMarketUrl(market("signet"))).toBeNull();
+    expect(
+      baoMarketUrl(
+        ev(38000, [
+          ["d", "x"],
+          ["market", "x"],
+        ]),
+      ),
+    ).toBeNull();
   });
 });

@@ -742,6 +742,23 @@ function unixSeconds(v: unknown): number | null {
   return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
 }
 
+/** BAO's networks, as its site names them in its paths (bao.markets' router, 2026-10-01). */
+const BAO_NETWORK_PATH: Record<string, string> = { demo: "demo", testnet: "testnet", mainnet: "alphamainnet" };
+
+/**
+ * A market's own page on BAO Markets: `bao.markets/<network>/market/<d>` —
+ * BAO keys a market by its `d` (its MARKET_ID). Only BAO's current shape
+ * carries the `market` id that says the event is one of bao.markets' own
+ * (BAO Fund's and the first shape's pages live elsewhere, or nowhere), and
+ * only a network the site serves has a page.
+ */
+export function baoMarketUrl(ev: EventLike): string | null {
+  const d = tag(ev, "d");
+  const network = BAO_NETWORK_PATH[(tag(ev, "network") ?? tag(ev, "n") ?? "").toLowerCase()];
+  if (!d || !network || !tag(ev, "market")) return null;
+  return `https://bao.markets/${network}/market/${encodeURIComponent(d)}`;
+}
+
 /**
  * A BAO prediction market, in any of its three shapes: the current one
  * (everything in tags, the market's words as JSON in a `data` tag, a post in
@@ -778,6 +795,7 @@ function readMarket(ev: EventLike): Thing | null {
   return thing({
     title,
     description,
+    link: baoMarketUrl(ev),
     facts: ["Prediction market", ...(demo ? ["Demo"] : [])],
     detail: { type: "market", outcomes, status, resolution, closes, category, demo },
   });

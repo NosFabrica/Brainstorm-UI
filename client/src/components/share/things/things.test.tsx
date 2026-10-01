@@ -300,6 +300,26 @@ describe("Kind-38000 pages: prediction market, ballot", () => {
     expect(terms).toHaveTextContent("4.21%");
     expect(within(terms).getByRole("link")).toHaveAttribute("href", "https://mempool.space/api/v1/blocks");
     await screen.findByText("No other markets in this category.");
+    // Its page on BAO Markets, and who can take part there.
+    expect(screen.getByTestId("thing-page-bao-link")).toHaveAttribute("href", "https://bao.markets/demo/market/59a3");
+    expect(screen.getByTestId("thing-page-bao-link")).toHaveTextContent("View on BAO Markets");
+    expect(screen.getByTestId("thing-page-bao-note")).toHaveTextContent("free play sats");
+  });
+
+  it("an open market invites a bet", () => {
+    page(
+      ev(38000, [
+        ["d", "op1"],
+        ["market", "op1"],
+        ["network", "demo"],
+        ["status", "active"],
+        ["end", "4102444800"],
+        ["outcome", "YES"],
+        ["outcome", "NO"],
+        ["title", "Open question?"],
+      ]),
+    );
+    expect(screen.getAllByTestId("thing-page-bao-link")[0]).toHaveTextContent("Bet on BAO Markets");
   });
 
   it("lists the creator's other markets in the same category, never the mint reviews on the same kind", async () => {

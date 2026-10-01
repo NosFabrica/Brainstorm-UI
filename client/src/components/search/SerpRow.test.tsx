@@ -165,6 +165,7 @@ describe("SerpRow — link metadata", () => {
       id: "1".repeat(64),
       kind: 38000,
       tags: [
+        ["d", "m1"],
         ["market", "m1"],
         ["status", "resolved"],
         ["network", "demo"],
@@ -179,6 +180,10 @@ describe("SerpRow — link metadata", () => {
     expect(summary).toHaveTextContent("Resolved");
     expect(summary).toHaveTextContent("Demo · play money");
     expect(screen.getByTestId("market-winner")).toHaveTextContent("YES");
+    // Resolved: a look, not a bet — and following it does not open the row.
+    const bao = screen.getByTestId("bao-market-link");
+    expect(bao).toHaveTextContent("View on BAO Markets");
+    expect(bao).toHaveAttribute("href", "https://bao.markets/demo/market/m1");
     expect(screen.getByTestId(`serp-row-${market.id}`)).not.toHaveTextContent("#baomarkets");
 
     const ballot = {
