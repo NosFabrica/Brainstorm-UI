@@ -181,7 +181,7 @@ export function MessagesSettingsCard() {
       <div className="grid gap-8 p-5 lg:grid-cols-2">
         <section className="flex flex-col gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Inbox relays</h3>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">DM inbox relays</h3>
             <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
               Everyone who messages you sends to these, and only these. Pick one to {MAX_INBOX_RELAYS} that ask you to
               log in before handing out messages. Published as your kind 10050 list.
