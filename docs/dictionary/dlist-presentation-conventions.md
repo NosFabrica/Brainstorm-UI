@@ -1,7 +1,6 @@
 # Rendering concepts and DList items: what a UI can read and write
 
 **For:** anyone building a UI for Decentralized Lists (DCoSL) or Tapestry concepts:
-David's DList UI, tapestry, Brainstorm, and others.
 **From:** Brainstorm-UI, which implements all of this (PR #151, 2026-10-02).
 **Status:** a working description, not a ratified spec. Each convention below is marked:
 
@@ -42,9 +41,7 @@ colons.
 ```
 
 - **NIP:** `required`, `recommended`, `allowed`, `disallowed`.
-- **Convention:** `optional` isn't in the NIP. dlist-ui writes it, and Tapestry's and
-  Brainstorm's readers read it. Brainstorm's own copies write `optional` for a field that
-  isn't required.
+- **Convention:** `optional` isn't in the NIP.
 - **Reader choices (Convention, from Tapestry's `dlistFields.js`; Brainstorm does the
   same):**
   - `allowed` reads as optional;
@@ -352,8 +349,8 @@ podcastindex.org.
 1. **Names.** `display`, its five roles, the header's `image`, `link`, `url-template`: are
    these the right names, and do they belong in the DList NIP, in
    `decentralized-lists-compat.md` beside `item-kind`, or in a separate draft?
-2. **Element 3 of a field declaration:** a description (the NIP working copy) or a source
-   list (dlist-ui)?
+2. **Element 3 of a field declaration:** a description or a source
+   list?
 3. **`field-type`** graduating into the NIP, and whether `url` is the only type that
    changes rendering.
 4. **Template on the header vs. on the field's type.** Tapestry's worksheet item "Field
