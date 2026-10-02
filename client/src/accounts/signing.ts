@@ -87,8 +87,12 @@ export function requireActiveAccount(): BrainstormAccount {
 /** NIP-89: which app published an event. */
 const CLIENT_TAG = ["client", "Brainstorm"];
 
-/** Auth proofs (NIP-98, Blossom, NIP-42) are never published, so they carry no client tag. */
-const UNTAGGED_KINDS = new Set([22242, 24242, 27235]);
+/**
+ * Auth proofs (NIP-98, Blossom, NIP-42) are never published, so they carry no
+ * client tag. Nor does a NIP-59 seal (13): its tags MUST be empty, because
+ * anything in them travels to the recipient beside the message.
+ */
+const UNTAGGED_KINDS = new Set([13, 22242, 24242, 27235]);
 
 /** Replace any existing client tag with ours. */
 function withClientTag(tags: string[][]): string[][] {

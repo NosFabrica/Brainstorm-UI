@@ -18,6 +18,7 @@ import {
   Tag as TagIcon,
   CalendarClock,
   Gauge,
+  MessageCircle,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
@@ -67,6 +68,7 @@ export const NAV_TILES: {
   { key: "home", label: "Search", path: "/", icon: Search },
   { key: "dashboard", label: "Dashboard", path: "/dashboard", icon: Home },
   { key: "network", label: "Network", path: "/network", icon: Users },
+  { key: "messages", label: "Messages", path: "/messages", icon: MessageCircle },
 ];
 
 /**
@@ -400,7 +402,7 @@ export function AccountMenuBody({
       </div>
 
       {/* Primary destinations as tiles */}
-      <div className="grid grid-cols-3 gap-2 px-3 pb-3">
+      <div className="grid grid-cols-4 gap-2 px-3 pb-3">
         {NAV_TILES.map((t) => {
           const Icon = t.icon;
           const isActive = active === t.key;

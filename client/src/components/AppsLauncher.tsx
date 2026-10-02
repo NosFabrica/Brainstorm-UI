@@ -11,6 +11,7 @@ export type AppKey =
   | "home"
   | "dashboard"
   | "network"
+  | "messages"
   | "settings"
   | "faq"
   | "agentsuite"

@@ -126,11 +126,13 @@ export const SIGNED_KINDS = [
   0, // profile
   3, // follows
   5, // deletion, for undoing a report
+  13, // NIP-59 seal: every private message is one, signed per recipient
   1984, // report
   9734, // zap request
   10000, // mute list
   10002, // relay list
   10040, // NIP-85 provider declaration
+  10050, // NIP-17 inbox relays for private messages
   22242, // Brainstorm login challenge
   24242, // Blossom upload auth
   27235, // NIP-98 HTTP auth

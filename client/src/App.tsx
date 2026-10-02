@@ -29,6 +29,8 @@ import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { NowPlayingBar } from "@/components/search/NowPlayingBar";
 import { CommandPalette } from "@/components/CommandPalette";
+import { DmNotifications } from "@/components/messages/DmNotifications";
+import { DmShelvesProvider } from "@/hooks/useDirectMessages";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
 import { CrossTabIdentity } from "@/components/CrossTabIdentity";
@@ -47,6 +49,7 @@ const AlertsPage = lazyWithReload(() => import("@/pages/AlertsPage"));
 const BillingReturnPage = lazyWithReload(() => import("@/pages/BillingReturnPage"));
 const ConnectionListPage = lazyWithReload(() => import("@/pages/ConnectionListPage"));
 const DashboardPage = lazyWithReload(() => import("@/pages/DashboardPage"));
+const MessagesPage = lazyWithReload(() => import("@/pages/MessagesPage"));
 const DeveloperNip50Page = lazyWithReload(() => import("@/pages/DeveloperNip50Page"));
 const DeveloperOpenRankingPage = lazyWithReload(() => import("@/pages/DeveloperOpenRankingPage"));
 const DeveloperTrustedAssertionsPage = lazyWithReload(() => import("@/pages/DeveloperTrustedAssertionsPage"));
@@ -226,6 +229,8 @@ function Router() {
             <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
             <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
             <Route path="/support">{() => <RequireAuth component={SupportPage} />}</Route>
+            <Route path="/messages">{() => <RequireAuth component={MessagesPage} />}</Route>
+            <Route path="/messages/:slug">{() => <RequireAuth component={MessagesPage} />}</Route>
             <Route path="/search" component={SearchRedirect} />
             {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
             <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
@@ -291,23 +296,26 @@ function App() {
       <EventStoreProvider eventStore={eventStore}>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider delayDuration={300} skipDelayDuration={100}>
-            <Toaster />
-            <DemoScoreDisplaySwitcher />
-            <UnlockModal />
-            <SignerApprovalModal />
-            <CrossTabIdentity />
-            <PovAutoDefault />
-            <MobileTabBar />
-            <NowPlayingBar />
-            <CommandPalette />
-            <MobileSearchOverlay />
-            <ScoringStatusBar />
-            <AutoScoreReturning />
-            <AutoActivateBrainstorm />
-            <AutoPublishAssistant />
-            <LightboxProvider>
-              <Router />
-            </LightboxProvider>
+            <DmShelvesProvider>
+              <Toaster />
+              <DemoScoreDisplaySwitcher />
+              <UnlockModal />
+              <SignerApprovalModal />
+              <CrossTabIdentity />
+              <PovAutoDefault />
+              <MobileTabBar />
+              <NowPlayingBar />
+              <CommandPalette />
+              <DmNotifications />
+              <MobileSearchOverlay />
+              <ScoringStatusBar />
+              <AutoScoreReturning />
+              <AutoActivateBrainstorm />
+              <AutoPublishAssistant />
+              <LightboxProvider>
+                <Router />
+              </LightboxProvider>
+            </DmShelvesProvider>
           </TooltipProvider>
         </QueryClientProvider>
       </EventStoreProvider>

@@ -124,6 +124,46 @@ copy, else their Assistant's, else Brainstorm's, else the community's. Renderers
 read only this (ADR 0004).
 _Avoid_: effective schema, resolved header
 
+### Private messages
+
+**Chat**:
+A NIP-17 conversation, identified by the set of people in it — there is no
+room id on the wire. Adding or removing someone is a different Chat.
+_Avoid_: room, thread, DM channel
+
+**Request**:
+A Chat from someone the User neither follows nor has written to, waiting to be
+accepted. Requests are ordered by Verification Score; low scorers are collapsed
+and flagged senders never shown.
+_Avoid_: message request inbox, spam folder
+
+**Inbox relays**:
+The relays a person names in their kind-10050 list: the only place anyone may
+deliver them a private message. Someone without one cannot receive.
+_Avoid_: DM relays, read relays (those are NIP-65)
+
+**Complete to**:
+How far back one inbox relay is guaranteed to have delivered every message —
+two days newer than the oldest wrap it returned, because wraps are back-dated.
+_Avoid_: synced until, loaded until
+
+**Archived**:
+A Chat put away by the User. It leaves Chats until someone writes in it again.
+A deleted Request is gone instead — only Chats archive.
+_Avoid_: hidden chat
+
+**Muted chat**:
+A Chat that neither notifies nor counts toward the unread badge, but stays in
+Chats. Not the same as muting a person (NIP-51), which takes every Chat with
+them away.
+_Avoid_: silenced
+
+**Outbox**:
+Sent messages not yet delivered to every recipient: kept sealed on the device
+with their signed wraps and sent again on their own — on start, every minute
+for a while, and when the connection returns.
+_Avoid_: pending queue, drafts
+
 ### Not to be confused
 
 **Perspective**:

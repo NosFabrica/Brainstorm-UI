@@ -5,7 +5,7 @@ import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
 import { wantProfile } from "@/services/authorProfileQueue";
-import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
+import { CONTENT_RELAYS, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { withObserver } from "@/lib/searchSyntax";
@@ -1251,7 +1251,8 @@ export async function publishRelaysFor(signedEvent: NostrEvent, extraRelays: str
   // Seeded here rather than at the call sites: activate, update, republish and
   // deactivate all publish through this one function.
   const seed = signedEvent.kind === 10040 ? nip85RelaySeed() : [];
-  return dedupeRelays([...own, ...inboxes, ...seed, ...extraRelays]);
+  // The search relay rides in PROFILE_RELAYS as a read fallback; it is an index, not a publish target.
+  return dedupeRelays([...own, ...inboxes, ...seed, ...extraRelays]).filter((url) => url !== SEARCH_RELAY);
 }
 
 /**
