@@ -76,18 +76,19 @@ dead inbox relay doesn't hold the composer for its timeout.
 
 Many inbox relays (auth.nostr1.com among the suggested ones) hand over an
 inbox, or take a wrap, only from a signed-in reader (NIP-42). services/relayAuth
-signs in to the reader's own relays — those in their kind-10002 or kind-10050 —
-without asking, once one refuses a read or a write. Anyone else's relay is
-signed in to only with consent (lib/relayAuthPref): a refused publish
-(`auth-required`) on a recipient's inbox relay is retried once and otherwise
-held, the chat asks "Allow sign-in", and the message goes out by itself when
-that relay signs the reader in. The answer is remembered per account on the
-device and can be turned off in Settings. Neither kind of login ever raises the
-Unlock modal for a login nobody asked for — a locked key signs in once the
-reader is in Messages. A login that doesn't happen is recorded per account and relay, saying why:
-the reader's signer saying no shows "Rejected - Ask again", which asks for a
-fresh approval; the relay answering the login with a refusal shows its reason
-and "Try again"; a login that simply didn't go through (no signer, no answer in
+signs in, without asking, to any relay that refuses a read or a write — the
+reader's own inbox relays and a recipient's alike. A refused publish
+(`auth-required`) waits briefly for that login and is retried once, then held;
+the message goes out by itself when that relay signs the reader in. The
+trade-off is NIP-42's: signing in to a recipient's inbox relay tells it who is
+sending to its users. The signer keeps the last word — it may prompt, and the
+reader may say no there — and no login ever raises the Unlock modal for a login
+nobody asked for: a locked key signs in once the reader is in Messages.
+
+A login that doesn't happen is recorded per account and relay, saying why: the
+reader's signer saying no shows "Rejected - Ask again", which asks for a fresh
+approval; the relay answering the login with a refusal shows its reason and
+"Try again"; a login that simply didn't go through (no signer, no answer in
 time) shows "Try again" and is also tried again when the reader next opens
 Messages. While a record stands the relay is not asked again — not on its next
 refused read, and not after a reconnect.

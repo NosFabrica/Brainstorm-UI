@@ -15,8 +15,8 @@ import { turnOnMessages } from "@/services/dm";
 import { SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
 import { ENCRYPTED_BLOSSOM_SERVERS } from "@/lib/blossomServers";
 import { relayHost } from "./people";
-import { askRelayAuthAgain, isOwnRelay } from "@/services/relayAuth";
-import { useOwnRelays, useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { askRelayAuthAgain } from "@/services/relayAuth";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
 import { authProblemLabel, refusedAmong } from "./RelayMarker";
 
 /** First visit: publish a kind-10050 before anything can arrive. */
@@ -94,17 +94,7 @@ export function OpeningStatus({ state }: { state: DmEngineState }) {
 }
 
 /** What waits on the reader — a login, an unlock, a signer that can't — pinned under the list. */
-export function InboxNotices({
-  engine,
-  state,
-  authAllowed,
-  onAllowAuth,
-}: {
-  engine: DmEngine | null;
-  state: DmEngineState;
-  authAllowed: boolean;
-  onAllowAuth: () => void;
-}) {
+export function InboxNotices({ engine, state }: { engine: DmEngine | null; state: DmEngineState }) {
   const notices: {
     key: string;
     icon: React.ReactNode;
@@ -113,13 +103,9 @@ export function InboxNotices({
     variant?: "warning" | "default";
   }[] = [];
   const problems = useRelayAuthProblems();
-  const own = useOwnRelays();
-  // Your inbox, and your own copy of what you send: who turned the login down, and another go at it.
-  // A recipient's relay is the chat's to say (ChatView's SendAuthBanner), not repeated here.
-  const refused = refusedAmong(problems, [
-    ...state.inboxRelays,
-    ...state.sendAuth.filter((relay) => isOwnRelay(relay, own)),
-  ]);
+  // Your inbox relays — which also hold your own copy of what you send. A
+  // recipient's relay is the chat's to say (ChatView's SendAuthBanner).
+  const refused = refusedAmong(problems, state.inboxRelays);
   if (refused.signer.length)
     notices.push({
       key: "auth-signer",
@@ -143,18 +129,6 @@ export function InboxNotices({
       action: (
         <Button size="sm" variant="outline" onClick={() => askRelayAuthAgain(url)} data-testid="dm-auth-try-again">
           Try again
-        </Button>
-      ),
-    });
-  // Your own relays sign you in by themselves (services/relayAuth); a recipient's asks first.
-  if (!authAllowed && state.sendAuth.some((relay) => !isOwnRelay(relay, own)))
-    notices.push({
-      key: "auth",
-      icon: <KeyRound className="h-4 w-4" />,
-      text: "Some recipients' inbox relays only take your messages once you sign in to them. Unsent messages go out when you do.",
-      action: (
-        <Button size="sm" onClick={onAllowAuth} data-testid="dm-allow-auth">
-          Allow sign-in
         </Button>
       ),
     });

@@ -16,7 +16,6 @@ import { useDmEngine, useDmPrefs, useDmState, useShelves } from "@/hooks/useDire
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
-import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/relayAuthPref";
 import { setRelayAuthInteractive } from "@/services/relayAuth";
 import { roomKeyFromSlug } from "@/lib/dm/rooms";
 import { acceptRoom, archiveRoom, hideRoom } from "@/lib/dm/prefs";
@@ -30,16 +29,6 @@ import { MessageDetailsDialog } from "@/components/messages/MessageDetailsDialog
 import { InboxNotices, InboxSetup, OpeningStatus } from "@/components/messages/InboxStatus";
 import { nameOf } from "@/components/messages/people";
 import { cn } from "@/lib/utils";
-
-function useRelayAuthAllowed(pubkey: string): boolean {
-  const [allowed, setAllowed] = useState(() => (pubkey ? relayAuthAllowed(pubkey) : false));
-  useEffect(() => {
-    setAllowed(pubkey ? relayAuthAllowed(pubkey) : false);
-    const sub = relayAuthChanged$.subscribe(() => setAllowed(pubkey ? relayAuthAllowed(pubkey) : false));
-    return () => sub.unsubscribe();
-  }, [pubkey]);
-  return allowed;
-}
 
 export default function MessagesPage() {
   const user = useActiveAccountDisplay();
@@ -55,7 +44,6 @@ export default function MessagesPage() {
   const social = useSocialActions(me || undefined);
   const shelves = useShelves(engine);
   const { follows } = useMyFollows();
-  const authAllowed = useRelayAuthAllowed(me);
   const [details, setDetails] = useState<DmMessage | null>(null);
   const [infoOpen, setInfoOpen] = useState(true);
 
@@ -106,12 +94,6 @@ export default function MessagesPage() {
     return [...set];
   }, [seen, roomKey]);
   const profiles = useLiveProfiles(people);
-
-  const allowAuth = useCallback(() => {
-    if (!me) return;
-    setRelayAuthAllowed(me, true);
-    toast({ title: "Signing in to their inbox relays", description: "Your signer may ask you to approve each one." });
-  }, [me, toast]);
 
   const sendError = useCallback(
     (result: SendResult) => {
@@ -197,7 +179,7 @@ export default function MessagesPage() {
               onPeopleNear={onPeopleNear}
               notices={
                 <>
-                  <InboxNotices engine={engine} state={state} authAllowed={authAllowed} onAllowAuth={allowAuth} />
+                  <InboxNotices engine={engine} state={state} />
                   <OpeningStatus state={state} />
                 </>
               }
@@ -230,8 +212,6 @@ export default function MessagesPage() {
             onDetails={setDetails}
             onToggleInfo={() => setInfoOpen((v) => !v)}
             onArchive={archive}
-            onSignIn={allowAuth}
-            authAllowed={authAllowed}
             sendError={sendError}
           />
         ) : setup ? (

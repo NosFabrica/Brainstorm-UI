@@ -68,8 +68,8 @@ import {
   type Profiles,
 } from "./people";
 import type { RelayProgress } from "@/lib/dm/pager";
-import { askRelayAuthAgain, isOwnRelay } from "@/services/relayAuth";
-import { useOwnRelays, useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { askRelayAuthAgain } from "@/services/relayAuth";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
 import { authProblemLabel, refusedAmong } from "./RelayMarker";
 
 type Item =
@@ -228,8 +228,6 @@ export function ChatView({
   onDetails,
   onToggleInfo,
   onArchive,
-  onSignIn,
-  authAllowed,
   sendError,
   initialSubject,
 }: {
@@ -249,9 +247,6 @@ export function ChatView({
   onDetails: (m: DmMessage) => void;
   onToggleInfo: () => void;
   onArchive: () => void;
-  onSignIn: () => void;
-  /** The reader lets other people's relays that ask sign them in (lib/relayAuthPref); their own always do. */
-  authAllowed: boolean;
   sendError: (result: SendResult) => void;
   /** A group's name, chosen when it was started, sent with its first message. */
   initialSubject?: string;
@@ -597,7 +592,7 @@ export function ChatView({
         ))}
       </div>
 
-      {!isRequest && <SendAuthBanner state={state} authAllowed={authAllowed} onSignIn={onSignIn} />}
+      {!isRequest && <SendAuthBanner state={state} />}
 
       {isRequest ? (
         <div className="shrink-0 border-t border-border bg-card px-4 pb-5 pt-4 sm:px-6" data-testid="dm-request-bar">
@@ -672,55 +667,39 @@ export function ChatView({
 }
 
 /**
- * A message held by a recipient's inbox relay that wants the sender signed in
- * (the reader's own relays sign in by themselves): ask for consent, or — once
- * given — say who turned the login down and offer another go.
+ * A message held by a recipient's inbox relay whose login didn't happen
+ * (services/relayAuth signs in by itself): say who turned it down, and offer
+ * another go. The reader's own inbox relays are InboxNotices' to say.
  */
-function SendAuthBanner({
-  state,
-  authAllowed,
-  onSignIn,
-}: {
-  state: DmEngineState;
-  authAllowed: boolean;
-  onSignIn: () => void;
-}) {
+function SendAuthBanner({ state }: { state: DmEngineState }) {
   const problems = useRelayAuthProblems();
-  const own = useOwnRelays();
-  const theirs = state.sendAuth.filter((relay) => !isOwnRelay(relay, own));
+  const theirs = state.sendAuth.filter((relay) => !state.inboxRelays.includes(relay));
   if (!theirs.length) return null;
   const refused = refusedAmong(problems, theirs);
-  const [text, action] = !authAllowed
+  const [text, action] = refused.signer.length
     ? [
-        "Their inbox relay takes messages only from senders who sign in — and then knows this one is from you.",
-        <Button size="sm" onClick={onSignIn} data-testid="dm-send-allow-auth">
-          Allow sign-in
+        "Your signer rejected signing in to their inbox relay. The message goes out once you approve.",
+        <Button
+          size="sm"
+          onClick={() => refused.signer.forEach((url) => askRelayAuthAgain(url))}
+          data-testid="dm-send-auth-ask-again"
+        >
+          Rejected - Ask again
         </Button>,
       ]
-    : refused.signer.length
+    : refused.other.length
       ? [
-          "Your signer rejected signing in to their inbox relay. The message goes out once you approve.",
+          `${relayHost(refused.other[0].url)} · ${authProblemLabel(refused.other[0].problem)}`,
           <Button
             size="sm"
-            onClick={() => refused.signer.forEach((url) => askRelayAuthAgain(url))}
-            data-testid="dm-send-auth-ask-again"
+            variant="outline"
+            onClick={() => refused.other.forEach(({ url }) => askRelayAuthAgain(url))}
+            data-testid="dm-send-auth-try-again"
           >
-            Rejected - Ask again
+            Try again
           </Button>,
         ]
-      : refused.other.length
-        ? [
-            `${relayHost(refused.other[0].url)} · ${authProblemLabel(refused.other[0].problem)}`,
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => refused.other.forEach(({ url }) => askRelayAuthAgain(url))}
-              data-testid="dm-send-auth-try-again"
-            >
-              Try again
-            </Button>,
-          ]
-        : [null, null];
+      : [null, null];
   if (!text) return null;
   return (
     <Alert

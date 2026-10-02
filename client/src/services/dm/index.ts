@@ -106,10 +106,9 @@ export function subscribeDmEngine(listener: () => void): () => void {
 }
 
 /**
- * Turn private messages on: publish the inbox list. Once it names them, the
- * inbox relays are the reader's own and sign them in (NIP-42) when they ask
- * (services/relayAuth) — they won't hand over an inbox otherwise. Signing in to
- * recipients' relays stays the reader's call, asked when a send needs it.
+ * Turn private messages on: publish the inbox list. The inbox relays sign the
+ * reader in (NIP-42) when they ask (services/relayAuth) — they won't hand over
+ * an inbox otherwise.
  */
 export async function turnOnMessages(relays: string[]): Promise<PublishOutcome> {
   const account = accountManager.active;
