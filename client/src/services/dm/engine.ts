@@ -67,11 +67,13 @@ export interface LiveHandlers {
 
 export type WrapFilter = { kinds: number[]; "#p": string[]; since?: number; until?: number; limit?: number };
 
+export type PublishResult = Pick<Delivery, "message" | "auth" | "unreachable" | "notice"> & { ok: boolean };
+
 export interface DmTransport {
   live(relay: string, filter: WrapFilter, handlers: LiveHandlers): () => void;
   page(relay: string, filter: WrapFilter, handlers: PageHandlers): () => void;
-  /** `auth`: refused until the sender signs in (NIP-42). */
-  publish(relay: string, event: NostrEvent): Promise<{ ok: boolean; message?: string; auth?: boolean }>;
+  /** `auth`: refused until the sender signs in (NIP-42). `unreachable`: never connected. */
+  publish(relay: string, event: NostrEvent): Promise<PublishResult>;
   /** Calls back each time the relay completes a NIP-42 login. */
   onAuthenticated(relay: string, callback: () => void): () => void;
 }
@@ -1198,7 +1200,7 @@ export class DmEngine {
             deliveries.push({ recipient: w.recipient, relay, ok: true });
             return;
           }
-          const result: Awaited<ReturnType<DmTransport["publish"]>> = await this.deps.transport
+          const result: PublishResult = await this.deps.transport
             .publish(relay, w.wrap)
             .catch((e: unknown) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
           deliveries.push({
@@ -1207,6 +1209,8 @@ export class DmEngine {
             ok: result.ok,
             message: result.message,
             ...(result.ok || !result.auth ? {} : { auth: true }),
+            ...(result.ok || !result.unreachable ? {} : { unreachable: true }),
+            ...(result.ok || !result.notice ? {} : { notice: result.notice }),
           });
           if (!result.ok && result.auth) this.awaitSendAuth(relay);
           update(false);

@@ -11,9 +11,14 @@ export interface Delivery {
   recipient: string;
   relay: string;
   ok?: boolean;
+  /** The relay's own words in its OK (NIP-01), e.g. `restricted: not a member`, or why there were none. */
   message?: string;
   /** Refused until the sender signs in to the relay (NIP-42). */
   auth?: boolean;
+  /** The socket never opened — the relay didn't refuse, it couldn't be reached. */
+  unreachable?: boolean;
+  /** The last NOTICE the relay sent while we waited: some relays say "no" that way instead of in the OK. */
+  notice?: string;
 }
 
 /** `queued`: not delivered, and the device is offline — it goes out on its own when back. */

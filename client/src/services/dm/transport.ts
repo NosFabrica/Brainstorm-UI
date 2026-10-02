@@ -15,7 +15,7 @@ import { combineLatest, distinctUntilChanged, filter, firstValueFrom, map, of, t
 import type { NostrEvent } from "nostr-tools";
 import { pool } from "@/lib/relayPool";
 import { allowWriteAuth } from "@/services/relayAuth";
-import type { DmTransport } from "./engine";
+import type { DmTransport, PublishResult } from "./engine";
 
 /** How long a refused publish waits for services/relayAuth to sign in. */
 const AUTH_WAIT_MS = 6000;
@@ -77,14 +77,30 @@ export const poolTransport: DmTransport = {
 
   async publish(url, event) {
     const relay = pool.relay(url);
-    const once = async () => {
+    const once = async (): Promise<PublishResult> => {
+      // A relay that won't take the event without saying so in its OK often
+      // says it in a NOTICE instead — keep the last one, so the reason shows.
+      let notice: string | undefined;
+      const notices = relay.notice$.subscribe((text) => (notice = text));
       try {
         // No library retry: an `auth-required` answer has to come back to us as
         // one, not as a "Timeout" after the retries wait on a login.
         const result = await relay.publish(event, { timeout: 10_000, retries: false });
-        return { ok: result.ok, message: result.message };
+        return result.ok ? { ok: true, message: result.message } : { ok: false, message: result.message, notice };
       } catch (error) {
-        return { ok: false, message: reasonOf(error), auth: error instanceof AuthRequiredError };
+        // A socket that fails to open errors with its DOM error event, not an
+        // Error: the relay never heard the event, so this is no refusal.
+        if (!(error instanceof Error)) {
+          const detail = (error as { message?: unknown } | null)?.message;
+          return {
+            ok: false,
+            message: typeof detail === "string" && detail ? detail : "Could not connect",
+            unreachable: true,
+          };
+        }
+        return { ok: false, message: reasonOf(error), auth: error instanceof AuthRequiredError, notice };
+      } finally {
+        notices.unsubscribe();
       }
     };
     const first = await once();
