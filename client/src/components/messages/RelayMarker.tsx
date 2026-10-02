@@ -48,30 +48,32 @@ export function markerLabel(p: RelayProgress): string {
   }
 }
 
-/** A refused login, said as who refused it (services/relayAuth). */
+/** A login that didn't happen, said as why (services/relayAuth). */
 export function authProblemLabel(problem: RelayAuthProblem): string {
   if (problem.by === "signer") return "your signer rejected signing in";
-  return problem.message ? `refused your sign-in: ${problem.message}` : "refused your sign-in";
+  if (problem.by === "relay")
+    return problem.message ? `refused your sign-in: ${problem.message}` : "refused your sign-in";
+  return problem.message ? `sign-in didn't go through: ${problem.message}` : "sign-in didn't go through";
 }
 
-/** Another go at a refused login: the signer's no needs a fresh approval; the relay's, a fresh try. */
+/** Another go: the signer's no needs a fresh approval; anything else, a fresh try. */
 export function authAgainLabel(problem: RelayAuthProblem): string {
   return problem.by === "signer" ? "Rejected - Ask again" : "Try again";
 }
 
-/** Which of `urls` had their login refused, split by who refused it. */
+/** Which of `urls` have a login that didn't happen: the signer's no apart from everything else. */
 export function refusedAmong(
   problems: ReadonlyMap<string, RelayAuthProblem>,
   urls: Iterable<string>,
-): { signer: string[]; relay: { url: string; message?: string }[] } {
+): { signer: string[]; other: { url: string; problem: RelayAuthProblem }[] } {
   const signer: string[] = [];
-  const relay: { url: string; message?: string }[] = [];
+  const other: { url: string; problem: RelayAuthProblem }[] = [];
   for (const url of new Set(urls)) {
     const problem = relayAuthProblemFor(problems, url);
     if (problem?.by === "signer") signer.push(url);
-    else if (problem?.by === "relay") relay.push({ url, message: problem.message });
+    else if (problem) other.push({ url, problem });
   }
-  return { signer, relay };
+  return { signer, other };
 }
 
 const TONE: Record<RelayProgress["state"], string> = {

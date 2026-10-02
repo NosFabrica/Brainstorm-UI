@@ -69,8 +69,8 @@ import {
 } from "./people";
 import type { RelayProgress } from "@/lib/dm/pager";
 import { askRelayAuthAgain, isOwnRelay } from "@/services/relayAuth";
-import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
-import { refusedAmong } from "./RelayMarker";
+import { useOwnRelays, useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { authProblemLabel, refusedAmong } from "./RelayMarker";
 
 type Item =
   | { kind: "day"; key: string; label: string }
@@ -686,7 +686,8 @@ function SendAuthBanner({
   onSignIn: () => void;
 }) {
   const problems = useRelayAuthProblems();
-  const theirs = state.sendAuth.filter((relay) => !isOwnRelay(relay));
+  const own = useOwnRelays();
+  const theirs = state.sendAuth.filter((relay) => !isOwnRelay(relay, own));
   if (!theirs.length) return null;
   const refused = refusedAmong(problems, theirs);
   const [text, action] = !authAllowed
@@ -707,13 +708,13 @@ function SendAuthBanner({
             Rejected - Ask again
           </Button>,
         ]
-      : refused.relay.length
+      : refused.other.length
         ? [
-            `${relayHost(refused.relay[0].url)} refused your sign-in${refused.relay[0].message ? `: ${refused.relay[0].message}` : "."}`,
+            `${relayHost(refused.other[0].url)} · ${authProblemLabel(refused.other[0].problem)}`,
             <Button
               size="sm"
               variant="outline"
-              onClick={() => refused.relay.forEach(({ url }) => askRelayAuthAgain(url))}
+              onClick={() => refused.other.forEach(({ url }) => askRelayAuthAgain(url))}
               data-testid="dm-send-auth-try-again"
             >
               Try again

@@ -8,8 +8,7 @@ import { startRelayAuth } from "./services/relayAuth";
 import { startDirectMessages } from "./services/dm";
 import { pool } from "./lib/relayPool";
 import { accountManager } from "./accounts";
-import { canSignSilently } from "./accounts/signing";
-import { isRemoteSignerTimeout } from "./accounts/remote-signer";
+import { canSignSilently, signAs, signerSaidNo } from "./accounts/signing";
 import "./index.css";
 
 // From the first moment: support-ticket diagnostics can carry what the
@@ -38,9 +37,9 @@ startRelayAuth({
   pool,
   active$: accountManager.active$,
   canSignQuietly: canSignSilently,
-  // A signer that didn't answer in time hasn't said no.
-  isRejection: (error) =>
-    !isRemoteSignerTimeout(error) && !/time(d)?[\s-]?out/i.test(error instanceof Error ? error.message : String(error)),
+  sign: signAs,
+  // Only the reader's own "no" is a rejection; a missing or silent signer is worth another go.
+  isRejection: signerSaidNo,
 });
 
 // Private messages (NIP-17) follow the Active Account from sign-in, not from the

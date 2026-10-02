@@ -84,13 +84,13 @@ held, the chat asks "Allow sign-in", and the message goes out by itself when
 that relay signs the reader in. The answer is remembered per account on the
 device and can be turned off in Settings. Neither kind of login ever raises the
 Unlock modal for a login nobody asked for — a locked key signs in once the
-reader is in Messages. A refused login is told apart by who refused it: the
-reader's signer saying no shows "Rejected - Ask again", which asks for a fresh
-approval; the relay answering the login with a refusal shows its reason and
-"Try again". Neither is retried by itself — a signer that only failed to answer
-in time is, the next time the reader opens Messages. The trade-off is NIP-42's: signing in to a recipient's
-inbox relay tells that relay who is sending to its users. A reader who hasn't
-allowed it keeps that private and can't reach those inboxes.
+reader is in Messages. A login that doesn't happen is recorded per account and relay, saying why:
+the reader's signer saying no shows "Rejected - Ask again", which asks for a
+fresh approval; the relay answering the login with a refusal shows its reason
+and "Try again"; a login that simply didn't go through (no signer, no answer in
+time) shows "Try again" and is also tried again when the reader next opens
+Messages. While a record stands the relay is not asked again — not on its next
+refused read, and not after a reconnect.
 
 ## Everything else stays on the device
 

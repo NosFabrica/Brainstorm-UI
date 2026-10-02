@@ -17,8 +17,16 @@ import {
   isOwnRelay,
   relayAuthProblems,
   setRelayAuthInteractive,
-  startRelayAuth,
+  startRelayAuth as realStartRelayAuth,
 } from "./relayAuth";
+
+// Every watcher is stopped after its test: refusals are kept per account across the module.
+const stops: (() => void)[] = [];
+const startRelayAuth = ((opts) => {
+  const stop = realStartRelayAuth(opts);
+  stops.push(stop);
+  return stop;
+}) as typeof realStartRelayAuth;
 
 const PK = "a".repeat(64);
 const PK2 = "b".repeat(64);
@@ -83,6 +91,8 @@ function setup(active: Account | undefined = account) {
 }
 
 beforeEach(() => {
+  while (stops.length) stops.pop()!();
+  setRelayAuthInteractive(false);
   lists = new Map();
   localStorage.clear();
   vi.clearAllMocks();
@@ -411,7 +421,8 @@ describe("a refused login", () => {
     account.signEvent.mockRejectedValueOnce(new Error("signer timed out"));
     gated.challenge$.next("c1");
     await tick();
-    expect(relayAuthProblems().size).toBe(0);
+    // Not the signer's "no": "Try again", and tried again by itself when Messages opens.
+    expect(relayAuthProblems().get("wss://gated.example/")).toEqual({ by: "error", message: "signer timed out" });
 
     setRelayAuthInteractive(true);
     await tick();
@@ -429,6 +440,84 @@ describe("a refused login", () => {
     active$.next(other);
     await tick();
     expect(relayAuthProblems().size).toBe(0);
+  });
+});
+
+describe("a refused login, over time", () => {
+  const refuse = () => account.signEvent.mockRejectedValueOnce(new Error("user rejected"));
+
+  it("still stands after the relay reconnects with a fresh challenge", async () => {
+    own(PK, "wss://gated.example");
+    const { gated } = setup();
+    refuse();
+    gated.challenge$.next("c1");
+    await tick();
+    gated.challenge$.next(null);
+    gated.challenge$.next("c2");
+    await tick();
+    expect(gated.authenticate).toHaveBeenCalledTimes(1);
+    expect(relayAuthProblems().get("wss://gated.example/")).toEqual({ by: "signer" });
+  });
+
+  it("comes back with the account that refused, button and all", async () => {
+    own(PK, "wss://gated.example");
+    own(PK2, "wss://gated.example");
+    const { active$, gated } = setup();
+    refuse();
+    gated.challenge$.next("c1");
+    await tick();
+    active$.next(other);
+    await tick();
+    expect(relayAuthProblems().size).toBe(0);
+    gated.authenticatedAs = null; // dropped for B in the real pool; a fresh anonymous socket
+    active$.next(account);
+    await tick();
+    expect(relayAuthProblems().get("wss://gated.example/")).toEqual({ by: "signer" });
+  });
+
+  it("can be asked again after the pool let go of that relay", async () => {
+    own(PK, "wss://gated.example");
+    const { gated, pool } = setup();
+    refuse();
+    gated.challenge$.next("c1");
+    await tick();
+    pool.remove(gated);
+    askRelayAuthAgain("wss://gated.example");
+    expect(relayAuthProblems().size).toBe(0);
+
+    // The relay comes back, and is asked without anyone clicking twice.
+    const again = fakeRelay("wss://gated.example");
+    pool.add$.next(again);
+    again.challenge$.next("c2");
+    await tick();
+    expect(again.authenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the relay didn't answer, rather than that it refused, when the library's wait ran out", async () => {
+    own(PK, "wss://gated.example");
+    const { gated } = setup();
+    gated.authenticate.mockResolvedValueOnce({ ok: false, message: "Timeout", from: gated.url });
+    gated.challenge$.next("c1");
+    await tick();
+    expect(relayAuthProblems().get("wss://gated.example/")).toEqual({
+      by: "error",
+      message: "the relay didn't answer",
+    });
+  });
+
+  it("drops a login that finished for an account no longer active", async () => {
+    own(PK, "wss://gated.example");
+    const { active$, gated, pool } = setup();
+    let approve!: () => void;
+    account.signEvent.mockImplementationOnce(() => new Promise((resolve) => (approve = () => resolve(signed))));
+    gated.challenge$.next("c1");
+    await tick();
+    active$.next(other);
+    await tick();
+    approve();
+    await tick();
+    expect(gated.authenticatedAs).toBe(PK);
+    expect(pool.remove).toHaveBeenCalledWith(gated);
   });
 });
 
