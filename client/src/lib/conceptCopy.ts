@@ -15,16 +15,18 @@
  * "from list", contexts, and the allowed / recommended / disallowed levels:
  * a field here is required or optional.
  *
- * Withdrawing replaces the copy rather than deleting it. The tag hub stores
- * only list kinds — its NIP-11 lists 9998/9999/39998/39999 and 7, not 5 —
- * so a NIP-09 deletion can't reach the relay copies are read from. The same
- * coordinate republished without a `b` is no longer a copy of anything, and
- * an addressable event keeps only its newest version.
+ * Withdrawing replaces the copy rather than deleting it: the same coordinate
+ * republished with `["b", "b-tag-deferred"]` — Tapestry's reserved value for
+ * "considered, chose none" (inherit-from.md § The b tag) — in place of its
+ * pointer. Every reader that knows the vocabulary treats it as dispositioned,
+ * never as a copy; replaceable state is surer than a NIP-09 deletion relays
+ * may or may not honour (the hub does take kind 5); and it says a decision was
+ * made, where a header with no `b` looks like one that never was a copy.
  */
 import { httpUrl, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
 import { displayHintTags } from "@/lib/displayHints";
 import { linkTags, type LinkRef } from "@/lib/linkTemplates";
-import type { ConceptDefinition } from "@/lib/conceptResolution";
+import { B_DEFERRED, type ConceptDefinition } from "@/lib/conceptResolution";
 
 /** Where a row in the form came from. */
 export type FieldOrigin = "definition" | "items" | "custom";
@@ -221,7 +223,8 @@ export function withdrawnTemplate(copy: ConceptDefinition): EventTemplate {
     content: "",
     tags: [
       ["d", d],
-      ["alt", "A withdrawn concept copy: it no longer points at any community concept."],
+      ["b", B_DEFERRED],
+      ["alt", "A withdrawn concept copy: considered, and affiliated with no community concept."],
     ],
   };
 }

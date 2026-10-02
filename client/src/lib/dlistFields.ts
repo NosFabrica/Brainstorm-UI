@@ -14,10 +14,11 @@
  * value is http(s)); every other type, or none, is text.
  *
  * An item is a kind-39999 event (9999 non-addressable) filed under its
- * header by a `z` tag naming the header's coordinate (a 9998 header: an `e`
- * tag naming its id). Lists, not people: the items of the GitHub Accounts
- * list name accounts, they don't badge profiles. lib/dlists reads the music
- * lists, whose shapes are fixed; this module reads any list.
+ * header by a `z` tag naming the header's coordinate (a 9998 header: its
+ * event id, also by `z`; an `e` is tolerated). Lists, not people: the items
+ * of the GitHub Accounts list name accounts, they don't badge profiles.
+ * lib/dlists reads the music lists, whose shapes are fixed; this module
+ * reads any list.
  */
 
 export const DLIST_HEADER_KIND = 39998;
@@ -102,7 +103,11 @@ export function headerReference(header: EventLike): string | null {
   return typeof header.id === "string" ? header.id : null;
 }
 
-/** The header an item is filed under: its first `z` tag, else (a 9998 list) its first `e`. */
+/**
+ * The header an item is filed under: its first `z` — a coordinate, or a 9998
+ * header's event id, as the NIP says. An `e` is tolerated as a fallback for a
+ * 9998 list, since one reader (Tapestry) queries 9998 items that way.
+ */
 export function headerReferenceOf(item: TaggedEvent): string | null {
   return tagValue(item, "z") ?? tagValue(item, "e");
 }

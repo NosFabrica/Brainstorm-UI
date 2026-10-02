@@ -3,7 +3,7 @@
  * it publishes — a copy that points at the community concept.
  */
 import { describe, expect, it } from "vitest";
-import { definitionOf, type HeaderEvent } from "./conceptResolution";
+import { bLinksOf, definitionOf, pointsAt, type HeaderEvent } from "./conceptResolution";
 import { copyTemplate, draftProblems, fieldsSeenOnItems, initialDraft, withdrawnTemplate } from "./conceptCopy";
 
 const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
@@ -146,7 +146,7 @@ describe("draftProblems", () => {
 });
 
 describe("withdrawnTemplate", () => {
-  it("keeps the coordinate and drops the b: no longer a copy", () => {
+  it("keeps the coordinate and marks it b-tag-deferred: considered, a copy of nothing", () => {
     const mine = definitionOf(
       header(ME, [
         ["required", "x"],
@@ -156,7 +156,12 @@ describe("withdrawnTemplate", () => {
     const t = withdrawnTemplate(mine);
     expect(t.kind).toBe(39998);
     expect(t.tags[0]).toEqual(["d", "github-accounts"]);
-    expect(t.tags.some((x) => x[0] === "b")).toBe(false);
+    expect(t.tags).toContainEqual(["b", "b-tag-deferred"]);
+    expect(t.tags.some((x) => x[0] === "b" && x[1] === COMMUNITY)).toBe(false);
+    // And resolution no longer counts it as a copy.
+    const withdrawn = { ...mine.event, tags: t.tags };
+    expect(pointsAt(withdrawn, COMMUNITY)).toBe(false);
+    expect(bLinksOf(withdrawn)).toEqual([]);
   });
 });
 

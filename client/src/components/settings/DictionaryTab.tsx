@@ -367,8 +367,9 @@ function OwnVersionSection({
           <DialogHeader>
             <DialogTitle>Withdraw your version?</DialogTitle>
             <DialogDescription>
-              Your copy is republished without its pointer to the community concept, so it no longer counts as a version
-              of {community.plural}. You&rsquo;ll see your Assistant&rsquo;s version, or the community&rsquo;s, again.
+              Your copy is republished as &ldquo;considered, affiliated with none&rdquo; in place of its pointer to the
+              community concept, so it no longer counts as a version of {community.plural}. You&rsquo;ll see your
+              Assistant&rsquo;s version, or the community&rsquo;s, again.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

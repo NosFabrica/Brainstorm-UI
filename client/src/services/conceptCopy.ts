@@ -2,8 +2,8 @@
  * Publishing and withdrawing the reader's own version of a concept
  * (lib/conceptCopy) — signed by the Active Account, sent where tags go: the
  * tag hub, where concepts are read, and the author's own write relays
- * (services/tags `publishTagEvent`). Withdrawing is a replacement, not a
- * NIP-09 deletion: the hub doesn't take kind 5.
+ * (services/tags `publishTagEvent`). Withdrawing is a replacement marked
+ * `b-tag-deferred`, not a NIP-09 deletion (lib/conceptCopy says why).
  */
 import { requireActiveAccount, signAs } from "@/accounts/signing";
 import { publishTagEvent } from "@/services/tags";
