@@ -106,6 +106,20 @@ export function askRelayAuthAgain(url?: string): void {
   askAgain$.next(which);
 }
 
+/**
+ * How long the signer gets to answer a login. An extension popup closed without a
+ * choice, or one hidden behind a window, may never answer; without a limit that one
+ * login held the relay — "asks you to sign in" with no way out — until a reload.
+ * Running out is "didn't go through": Try again, and asked again when Messages opens.
+ */
+export const SIGN_TIMEOUT_MS = 60_000;
+
+class SignerTimeout extends Error {
+  constructor() {
+    super("your signer didn't answer");
+  }
+}
+
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).trim() || undefined;
 
 export function startRelayAuth<A extends ActiveAccount>({
@@ -114,6 +128,7 @@ export function startRelayAuth<A extends ActiveAccount>({
   canSignQuietly = async () => true,
   sign = (account, draft) => account.signEvent(draft) as Promise<NostrEvent>,
   isRejection = () => true,
+  signTimeoutMs = SIGN_TIMEOUT_MS,
 }: {
   pool: AuthPool;
   active$: Observable<A | undefined>;
@@ -123,6 +138,8 @@ export function startRelayAuth<A extends ActiveAccount>({
   sign?: (account: A, draft: EventTemplate) => Promise<NostrEvent>;
   /** Whether a signing error is the signer saying no (accounts/signing signerSaidNo). */
   isRejection?: (error: unknown) => boolean;
+  /** How long the signer gets to answer a login (SIGN_TIMEOUT_MS). */
+  signTimeoutMs?: number;
 }): () => void {
   // Who answers a challenge right now: the active account, whoever it is.
   const signer$: Observable<A | undefined> = active$.pipe(
@@ -187,11 +204,27 @@ export function startRelayAuth<A extends ActiveAccount>({
       const asking = {
         pubkey: account.pubkey,
         signEvent: async (draft: EventTemplate) => {
+          let timer: ReturnType<typeof setTimeout> | undefined;
           try {
-            return await sign(account, draft);
+            return await Promise.race([
+              sign(account, draft),
+              new Promise<never>((_, reject) => {
+                timer = setTimeout(() => {
+                  const timedOut = new SignerTimeout();
+                  // The account queues signer requests one at a time (applesauce): a request
+                  // that never settles holds every later one — this login asked again,
+                  // opening messages, sending. Abort it so they can go.
+                  (account as { abortQueue?: (reason?: unknown) => void }).abortQueue?.(timedOut);
+                  reject(timedOut);
+                }, signTimeoutMs);
+              }),
+            ]);
           } catch (error) {
-            saidNo = isRejection(error);
+            // No answer isn't a "no": it's a login that didn't go through.
+            saidNo = !(error instanceof SignerTimeout) && isRejection(error);
             throw error;
+          } finally {
+            clearTimeout(timer);
           }
         },
       };

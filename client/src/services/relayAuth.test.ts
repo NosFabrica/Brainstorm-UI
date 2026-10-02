@@ -264,6 +264,34 @@ describe("a login that doesn't happen", () => {
     expect(relayAuthProblems().size).toBe(0);
   });
 
+  it("from a signer that never answers runs out, rather than holding the relay for good", async () => {
+    vi.useFakeTimers();
+    try {
+      const { gated } = setup({ signTimeoutMs: 1000 });
+      // An extension popup closed without a choice: the promise never settles.
+      account.signEvent.mockImplementationOnce(() => new Promise(() => {}));
+      const abortQueue = vi.fn();
+      (account as { abortQueue?: unknown }).abortQueue = abortQueue;
+      gated.challenge$.next("c1");
+      await vi.advanceTimersByTimeAsync(999);
+      expect(relayAuthProblems().size).toBe(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(relayAuthProblems().get(GATED)).toEqual({ by: "error", message: "your signer didn't answer" });
+      // The stuck request is let go, or it would hold every later one in the account's queue.
+      expect(abortQueue).toHaveBeenCalledTimes(1);
+
+      // Not a "no": asked again when the reader opens Messages, and this time it answers.
+      setRelayAuthInteractive(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(gated.authenticate).toHaveBeenCalledTimes(2);
+      expect(gated.authenticatedAs).toBe(PK);
+      expect(relayAuthProblems().size).toBe(0);
+    } finally {
+      delete (account as { abortQueue?: unknown }).abortQueue;
+      vi.useRealTimers();
+    }
+  });
+
   it("says the relay didn't answer, rather than that it refused, when the library's wait ran out", async () => {
     const { gated } = setup();
     gated.authenticate.mockResolvedValueOnce({ ok: false, message: "Timeout", from: gated.url });
