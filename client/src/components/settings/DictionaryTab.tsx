@@ -12,8 +12,8 @@
  * the page is already drawing from the copy for the day they can.
  *
  * `?concept=<coordinate>` opens one entry: its fields, where the definition
- * comes from, and its items. The item rows are placeholders for the list
- * card renderer to come.
+ * comes from, and its items, drawn by DListItemRow from the same view as an
+ * item's page, card and popup row.
  *
  * Items count and show only from authors in the reader's web of trust —
  * ranked at the verified line or above, from the active Perspective

@@ -30,7 +30,6 @@ vi.mock("@/components/share/things/shared", () => ({
 vi.mock("@/config/dictionary", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   DICTIONARY_CONCEPTS: [COMMUNITY],
-  rendererKeyOf: (c: string) => (c === COMMUNITY ? "github-account" : null),
 }));
 
 import { DListItemCard } from "./DListItemCard";
@@ -73,18 +72,7 @@ beforeEach(() => {
 });
 
 describe("DListItemCard", () => {
-  it("the community's definition: titled by the username, linking to GitHub, listed by its author", () => {
-    renderWithProviders(<DListItemCard event={item} />);
-    expect(screen.getByTestId("dlist-item-card-title")).toHaveTextContent("vcavallo");
-    expect(screen.getByTestId("dlist-item-card-kind")).toHaveTextContent("GitHub Account");
-    expect(screen.getByTestId(`dlist-item-card-link-${item.id}`)).toHaveAttribute(
-      "href",
-      "https://github.com/vcavallo",
-    );
-    expect(screen.getByText("Avi Burra")).toBeInTheDocument();
-  });
-
-  it("the reader's copy: its title field, its list image, its template link", () => {
+  it("a GitHub account under a definition that names the GitHub URL template: its title, its logo, its GitHub link", () => {
     concept = {
       data: resolveConcept({ community, communityCoordinate: COMMUNITY, personal: mine }),
       isPending: false,
@@ -92,7 +80,17 @@ describe("DListItemCard", () => {
     renderWithProviders(<DListItemCard event={item} />);
     expect(screen.getByTestId("dlist-item-card-title")).toHaveTextContent("Vinney Cavallo");
     expect(screen.getByTestId("dlist-item-card-image")).toBeInTheDocument();
-    expect(screen.getByTestId(`dlist-item-card-link-${item.id}`)).toHaveAttribute("title", "GitHub profile");
+    const link = screen.getByTestId(`dlist-item-card-link-${item.id}`);
+    expect(link).toHaveAttribute("href", "https://github.com/vcavallo");
+    expect(link).toHaveAttribute("title", "GitHub profile");
+  });
+
+  it("a definition that names no URL template: titled by its first required field, and no link", () => {
+    renderWithProviders(<DListItemCard event={item} />);
+    expect(screen.getByTestId("dlist-item-card-title")).toHaveTextContent("vcavallo");
+    expect(screen.getByTestId("dlist-item-card-kind")).toHaveTextContent("GitHub Account");
+    expect(screen.queryByTestId(`dlist-item-card-link-${item.id}`)).toBeNull();
+    expect(screen.getByText("Avi Burra")).toBeInTheDocument();
   });
 
   it("goes to the item's page with a relay hint", () => {
@@ -110,10 +108,20 @@ describe("DListItemCard", () => {
 });
 
 describe("DListSuggestionRow", () => {
-  it("names the item and, first on the grey line, what it is", () => {
+  it("under a definition that names the GitHub URL template: the title, and what it is with where it links", () => {
+    concept = {
+      data: resolveConcept({ community, communityCoordinate: COMMUNITY, personal: mine }),
+      isPending: false,
+    };
+    renderWithProviders(<DListSuggestionRow event={item} />);
+    expect(screen.getByTestId("dlist-suggestion-title")).toHaveTextContent("Vinney Cavallo");
+    expect(screen.getByTestId("dlist-suggestion-line")).toHaveTextContent("GitHub Account · github.com/vcavallo");
+  });
+
+  it("under a definition that names no URL template: what it is, and the list it's in", () => {
     renderWithProviders(<DListSuggestionRow event={item} />);
     expect(screen.getByTestId("dlist-suggestion-title")).toHaveTextContent("vcavallo");
-    expect(screen.getByTestId("dlist-suggestion-line")).toHaveTextContent("GitHub Account · github.com/vcavallo");
+    expect(screen.getByTestId("dlist-suggestion-line")).toHaveTextContent("GitHub Account · in GitHub Accounts");
   });
 
   it("shows nothing until it can name the item", () => {

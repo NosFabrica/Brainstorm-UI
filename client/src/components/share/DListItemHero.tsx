@@ -6,10 +6,11 @@
  *
  * - The kicker names the concept: "GitHub Account · in GitHub Accounts".
  * - Title, summary, picture and the list's image as lib/itemPresentation
- *   reads them: the definition's provisional display hints, else the
- *   renderer's title field, else the first required field.
- * - Its links (useItemView): URL templates the definition names, else the
- *   registered renderer's.
+ *   reads them: the definition's provisional display hints, else the first
+ *   required field.
+ * - Its links (useItemView): built from the URL templates the definition
+ *   names. A definition that names none gives no link — no concept has code
+ *   of its own.
  * - A required field the item lacks, said once.
  * - Where the definition comes from, and whether it agrees with the
  *   community's.
@@ -56,7 +57,7 @@ export function DListItemHero({ event }: { event: ItemEvent }) {
 }
 
 function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
-  const { resolved: r, renderer, shown, links, usedFields } = view;
+  const { resolved: r, shown, links, usedFields } = view;
   const fields = r.governing.fields;
   const cells = fields.map((f) => ({ field: f, cell: fieldCell(event, f) }));
   // Required by the definition, absent from the item — said once, wherever the field would show.
@@ -66,7 +67,7 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
   const extras = undeclaredFields(event, fields);
 
   return (
-    <div className="space-y-5" data-testid="dlist-item-hero" data-renderer={renderer?.key ?? "generic"}>
+    <div className="space-y-5" data-testid="dlist-item-hero" data-definition="read">
       <div>
         <p className="inline-flex flex-wrap items-center gap-x-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
           {shown.listImage ? (
@@ -119,11 +120,10 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
                 rel="noopener noreferrer nofollow"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
                 data-testid="dlist-item-link"
-                data-link-source={l.source}
                 title={l.href}
               >
                 <ExternalLink className="h-4 w-4" /> {l.label}
-                {l.source === "template" && <span className="font-normal text-white/70">· {new URL(l.href).host}</span>}
+                <span className="font-normal text-white/70">· {l.host}</span>
               </a>
             ))}
           </div>
@@ -253,7 +253,7 @@ function ConceptLink({ event, children }: { event: ItemEvent; children: ReactNod
 function Undefined({ event }: { event: ItemEvent }) {
   const extras = undeclaredFields(event, []);
   return (
-    <div className="space-y-3" data-testid="dlist-item-hero" data-renderer="none">
+    <div className="space-y-3" data-testid="dlist-item-hero" data-definition="missing">
       <p className="text-sm text-slate-500 dark:text-slate-400">
         This is an item in a list whose definition couldn&rsquo;t be read, so its fields can&rsquo;t be shown as the
         list means them. What it carries:

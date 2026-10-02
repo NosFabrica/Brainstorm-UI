@@ -36,16 +36,24 @@ for itself.
    counts as a copy only if it points at the community concept. Sharing its `d` is not
    enough.
 
-2. **Renderers receive the governing definition**: its names and its field declarations,
-   with the community definition beside it. They do not fetch headers.
+2. **Renderers receive the governing definition**: its names, its field declarations, its
+   display hints and its URL-template links, with the community definition beside it.
+   They do not fetch headers.
 3. **The reader is told how the two relate.** `agreement` is `agrees`, `differs` (and in
-   what: names, description, fields), `no-local-copy` (the community governs) or `unknown`
+   what: names, description, fields, display, links), `no-local-copy` (the community governs) or `unknown`
    (the community header couldn't be fetched to compare). The Dictionary shows it as a
    chip ("Agrees with the community"), and an item page will too.
-4. **Renderers are chosen by concept, along a chain.** `ResolvedConcept.chain` lists
-   coordinates from the governing copy out to the community concept. A renderer
-   registered for any coordinate on the chain applies, nearest first. Anything with no
-   registered renderer gets the generic one, which draws the governing field declarations.
+4. **No concept has code of its own.** How an item reads is data on its governing
+   definition. That covers which field is the title, summary or picture
+   (`lib/displayHints`), and which URL templates build its links (`lib/linkTemplates`).
+   One set of renderers (page, results card, popup row, list row) draws every concept from
+   that data. An item whose definition names no template has no link until one does.
+
+   A registry of per-concept renderers keyed along the chain shipped briefly. Its only
+   entry hardcoded GitHub's profile link. It was removed on 2026-10-02 ("burn the ships")
+   once URL templates could express the link, so the data path is the only path.
+   `ResolvedConcept.chain` remains, from the governing copy out to the community concept,
+   as the headers a list's items may be filed under.
 
 ## Where this goes next (not built)
 
@@ -55,18 +63,16 @@ for itself.
   API should return each item with its resolved governing definition already attached,
   so a results page fetches nothing extra per concept. The rule stays the one above; it
   just runs next to the index.
-- **Brainstorm's concepts in lockstep with its renderers.** Brainstorm publishes its own
-  copy of each concept it renders and registers its renderers against that copy. A user's
-  copy can then declare "I render with Brainstorm's concept", one more link on the chain,
-  so out of the box every concept Brainstorm has a renderer for renders correctly, and
-  anything else falls back to the generic view.
-- **Pointing at someone else's definition.** The same link to another author's concept,
-  for concepts Brainstorm doesn't render. In effect, a decentralized app store for
-  renderers. The chain is what lets that be added without touching the renderers.
-- **Divergent copies.** When users can edit their copies, the generic renderer already
-  follows them. A registered renderer built for the community's fields has to decide what
-  to do with a copy that differs: fall back to generic, or render what it knows and list
-  the rest. `agreement` and `differences` are there for that decision.
+- **Brainstorm's concepts as defaults.** Brainstorm publishes its own copy of each
+  concept it shows well (`houseConceptAuthors`), carrying the display hints and URL
+  templates it wants, so a reader with no copy of their own gets those. That is a copy, not
+  code.
+- **Pointing at someone else's definition.** A copy that defers to another author's
+  presentation is one more link on the chain. In effect, a decentralized app store for how
+  things look, and it needs no renderer changes, because the renderers only read data.
+- **Divergent copies.** When users can edit their copies, the renderers already follow
+  them: there is nothing built for the community's fields that a copy could break.
+  `agreement` and `differences` tell the reader what changed.
 
 ## Consequences
 

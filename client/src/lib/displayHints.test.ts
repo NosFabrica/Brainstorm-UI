@@ -76,10 +76,9 @@ describe("presentItem", () => {
       ["image", "https://x.example/i.svg"],
     ]),
   );
-  const renderer = { key: "github-account", titleField: "github-username" };
 
-  it("with no hints: the renderer's title field, and a description as the summary", () => {
-    expect(presentItem(item, plain, renderer, true)).toMatchObject({
+  it("with no hints: the first required field is the title, a description the summary", () => {
+    expect(presentItem(item, plain, true)).toMatchObject({
       title: "vcavallo",
       titleField: "github-username",
       summary: "Vinney Cavallo",
@@ -88,12 +87,8 @@ describe("presentItem", () => {
     });
   });
 
-  it("with no renderer: the first required field is the title", () => {
-    expect(presentItem(item, plain, null, true).title).toBe("vcavallo");
-  });
-
-  it("a hint beats the renderer: the header's author has the say", () => {
-    expect(presentItem(item, hinted, renderer, true)).toMatchObject({
+  it("a hint decides: the header's author has the say", () => {
+    expect(presentItem(item, hinted, true)).toMatchObject({
       title: "Vinney Cavallo",
       image: "https://avatars.example/v.png",
       listImage: "https://x.example/i.svg",
@@ -101,11 +96,11 @@ describe("presentItem", () => {
   });
 
   it("the summary is never the title again", () => {
-    expect(presentItem(item, hinted, renderer, true).summary).toBeNull();
+    expect(presentItem(item, hinted, true).summary).toBeNull();
   });
 
   it("hints switched off: the defaults stand", () => {
-    expect(presentItem(item, hinted, renderer, false)).toMatchObject({
+    expect(presentItem(item, hinted, false)).toMatchObject({
       title: "vcavallo",
       image: null,
       listImage: null,

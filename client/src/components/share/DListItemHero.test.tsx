@@ -34,7 +34,6 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
 vi.mock("@/config/dictionary", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   DICTIONARY_CONCEPTS: [COMMUNITY],
-  rendererKeyOf: (c: string) => (c === COMMUNITY ? "github-account" : null),
 }));
 
 import { DListItemHero } from "./DListItemHero";
@@ -70,20 +69,17 @@ beforeEach(() => {
 });
 
 describe("DListItemHero", () => {
-  it("draws a GitHub account: title and link to GitHub, no table for the field they show", () => {
-    renderWithProviders(<DListItemHero event={item} />);
-    expect(screen.getByTestId("dlist-item-hero")).toHaveAttribute("data-renderer", "github-account");
-    expect(screen.getByTestId("dlist-item-title")).toHaveTextContent("vcavallo");
-    expect(screen.getByTestId("dlist-item-link")).toHaveAttribute("href", "https://github.com/vcavallo");
-    expect(screen.getByTestId("dlist-item-link")).toHaveAttribute("data-link-source", "renderer");
-    // github-username is the title and the link: nothing left to tabulate.
-    expect(screen.queryByTestId("dlist-item-fields")).toBeNull();
-    expect(screen.getByText("GitHub Account")).toBeInTheDocument();
-  });
-
-  it("a definition that names a URL template links from data, not from the renderer", () => {
+  it("a GitHub account under a definition built the way it should be: clean, with its templated GitHub link", () => {
+    // A copy shaped like the one Vinney publishes: the person's name as title, the
+    // username beneath, the GitHub logo for the list, and the profile link built
+    // from the GitHub URL template — no GitHub-specific code anywhere.
     const copy = header(TA, [
       ["required", "github-username"],
+      ["field-type", "github-username", "text"],
+      ["optional", "description", "Who it belongs to"],
+      ["display", "title", "description"],
+      ["display", "summary", "github-username"],
+      ["image", "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"],
       ["link", TEMPLATE_ID, "wss://dcosl.brainstorm.world", "username", "github-username"],
       ["b", COMMUNITY, "pointer"],
     ]);
@@ -92,11 +88,23 @@ describe("DListItemHero", () => {
       isPending: false,
     };
     renderWithProviders(<DListItemHero event={item} />);
+    expect(screen.getByTestId("dlist-item-title")).toHaveTextContent("Vinney Cavallo");
+    expect(screen.getByTestId("dlist-item-summary")).toHaveTextContent("vcavallo");
+    expect(screen.getByTestId("dlist-item-list-image")).toBeInTheDocument();
     const link = screen.getByTestId("dlist-item-link");
     expect(link).toHaveAttribute("href", "https://github.com/vcavallo");
-    expect(link).toHaveAttribute("data-link-source", "template");
     expect(link).toHaveTextContent("GitHub profile");
     expect(link).toHaveTextContent("github.com");
+    // Every field is shown by the title, summary or link: no table, no More fields.
+    expect(screen.queryByTestId("dlist-item-fields")).toBeNull();
+    expect(screen.queryByTestId("dlist-item-more-toggle")).toBeNull();
+  });
+
+  it("a definition that names no URL template gives no link — there is no GitHub fallback", () => {
+    renderWithProviders(<DListItemHero event={item} />);
+    expect(screen.getByTestId("dlist-item-title")).toHaveTextContent("vcavallo"); // the first required field
+    expect(screen.queryByTestId("dlist-item-link")).toBeNull();
+    expect(screen.getByText("GitHub Account")).toBeInTheDocument();
   });
 
   it("folds tags outside the definition into More fields", async () => {
@@ -159,7 +167,7 @@ describe("DListItemHero", () => {
   it("with no definition, says so and shows what the item carries", () => {
     concept = { data: null, isPending: false };
     renderWithProviders(<DListItemHero event={item} />);
-    expect(screen.getByTestId("dlist-item-hero")).toHaveAttribute("data-renderer", "none");
+    expect(screen.getByTestId("dlist-item-hero")).toHaveAttribute("data-definition", "missing");
     expect(screen.getByText(/whose definition couldn.t be read/)).toBeInTheDocument();
     expect(screen.getByText("vcavallo")).toBeInTheDocument();
   });

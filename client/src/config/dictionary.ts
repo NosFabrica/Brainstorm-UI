@@ -1,14 +1,14 @@
 /**
- * Which concepts the Dictionary shows, which renderer draws each, which
- * plays a role the app relies on (URL Templates), and whose copies are
- * Brainstorm's — the one place the app reads `dictionary.config.json`.
+ * Which concepts the Dictionary shows, which plays a role the app relies
+ * on (URL Templates), and whose copies are Brainstorm's — the one place the app reads `dictionary.config.json`.
  *
  * The repo's rule for identifiers (config/tagging.config.json says it too):
  * a Nostr identifier that's the same on every deployment — a concept's
  * coordinate — is JSON config read through one module, never a literal in
  * code; what differs per deployment (relay and API URLs, flags) is a
- * VITE_* variable (lib/runtimeEnv). Adding URLs, or pointing a renderer at
- * a different concept, is an edit here.
+ * VITE_* variable (lib/runtimeEnv). Adding URLs is an edit here. How a
+ * concept's items are drawn is never here: that's its governing definition's
+ * fields, display hints and URL templates (ADR 0004).
  */
 import raw from "./dictionary.config.json";
 import { parseCoordinate } from "@/lib/dlistFields";
@@ -18,7 +18,7 @@ import { tagRelays } from "@/config/tagging";
 export type ConceptRole = "url-templates";
 
 const config = raw as {
-  concepts: { coordinate: string; renderer?: string; ownVersion?: boolean; role?: ConceptRole }[];
+  concepts: { coordinate: string; ownVersion?: boolean; role?: ConceptRole }[];
   houseConceptAuthors: string[];
   displayHints?: boolean;
 };
@@ -38,11 +38,6 @@ export function conceptForRole(role: ConceptRole): string | null {
 
 /** PROVISIONAL: URL Templates, the concept whose governing list the link picker offers (lib/linkTemplates). */
 export const URL_TEMPLATES_CONCEPT: string | null = conceptForRole("url-templates");
-
-/** The renderer key registered for a concept coordinate, if Brainstorm has one. */
-export function rendererKeyOf(coordinate: string): string | null {
-  return valid.find((c) => c.coordinate === coordinate)?.renderer ?? null;
-}
 
 /** Whether a concept's Dictionary entry offers "Publish my own version" (OwnVersionDialog). */
 export function offersOwnVersion(coordinate: string): boolean {

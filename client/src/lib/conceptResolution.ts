@@ -15,14 +15,12 @@
  *
  * Precedence, after tapestry's assistant-designation draft: the reader's
  * personally signed copy, then the one their Tapestry Assistant authored,
- * then Brainstorm's own (the house's — the concept its renderers are built
- * for), then the community header itself. Never by timestamp across
+ * then Brainstorm's own (the house's), then the community header itself. Never by timestamp across
  * authors: a stale assistant must not shadow a deliberate edit.
  *
- * `chain` lists the coordinates a renderer may be registered for, from the
- * governing copy out to the community concept, so "render this with
- * Brainstorm's renderer for GitHub Accounts" holds for any copy that points
- * there — and pointing at someone else's definition later is one more link.
+ * `chain` lists the coordinates from the governing copy out to the community
+ * concept — the headers a list's items may be filed under (services/dictionary
+ * `listHeaders`). Pointing at someone else's definition later is one more link.
  */
 import { coordinateOf, headerNames, parseFieldDecls, type FieldDecl } from "@/lib/dlistFields";
 import { parseDisplayHints, sameHints, type DisplayHints } from "@/lib/displayHints";
@@ -74,12 +72,12 @@ export type Agreement = "agrees" | "differs" | "no-local-copy" | "unknown";
 export interface ResolvedConcept {
   /** The shared concept, when its header was found. */
   community: ConceptDefinition | null;
-  /** The definition the reader sees: fields, names, renderer. */
+  /** The definition the reader sees: fields, names, display hints, links. */
   governing: ConceptDefinition;
   source: DefinitionSource;
   agreement: Agreement;
   differences: Difference[];
-  /** Coordinates a renderer may be registered for, governing first. */
+  /** The governing copy out to the community concept: the headers its items are filed under. */
   chain: string[];
 }
 

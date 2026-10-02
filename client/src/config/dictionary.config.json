@@ -3,10 +3,8 @@
   "concepts": [
     {
       "coordinate": "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:github-accounts",
-      "renderer": "github-account",
       "ownVersion": true,
       "_ownVersion": "Offers 'Publish my own version' on this concept's Dictionary entry (OwnVersionDialog): a signed-in reader publishes, edits and withdraws their own copy, and every renderer follows it. Began as a demo (2026-10-01); likely the seed of a general list header/item editor, so not throwaway.",
-      "_renderer": "Which of Brainstorm's renderers draws this concept's items (lib/conceptRenderers). A copy pointing here renders with it too: renderers are found along the copy's b chain (ADR 0004).",
       "_coordinate": "GitHub Accounts — Avi Burra's header on dcosl.brainstorm.world. It declares one field (required github-username, text), while its items also carry an undeclared description. Decision 2026-10-01: use Avi's header as it stands; if Brainstorm wants different fields it makes its own local copy (a b-pointer to this one), not a replacement."
     },
     {
