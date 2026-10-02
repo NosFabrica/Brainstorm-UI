@@ -179,6 +179,7 @@ export function FollowedByLine({
   npub,
   personal,
   enabled = true,
+  link = true,
   testId,
   className,
 }: {
@@ -186,23 +187,27 @@ export function FollowedByLine({
   npub: string;
   personal: boolean;
   enabled?: boolean;
+  /** False inside something that is already a link (a list row). */
+  link?: boolean;
   testId?: string;
   className?: string;
 }) {
   const e = usePersonEndorsements(enabled ? pubkey : null, personal);
-  return <FollowedByView e={e} npub={npub} personal={personal} testId={testId} className={className} />;
+  return <FollowedByView e={e} npub={npub} personal={personal} link={link} testId={testId} className={className} />;
 }
 
 function FollowedByView({
   e,
   npub,
   personal,
+  link = true,
   testId,
   className,
 }: {
   e: PersonEndorsements | null;
   npub: string;
   personal: boolean;
+  link?: boolean;
   testId?: string;
   className?: string;
 }) {
@@ -231,6 +236,12 @@ function FollowedByView({
       : others > 0
         ? `Followed by ${lead.join(", ")} & ${compactCount(others)} ${who}`
         : `Followed by ${lead.join(" & ")}`;
+  if (!link)
+    return (
+      <div className={className}>
+        <EndorsementLine testId={testId} faces={faces} label={label} />
+      </div>
+    );
   return (
     <Link
       href={`/p/${npub}/followers`}

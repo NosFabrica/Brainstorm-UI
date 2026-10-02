@@ -10,6 +10,7 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { ListsUpdateLine } from "@/components/ListsUpdate";
+import { MessagesSetupRow } from "@/components/messages/MessagesSetupRow";
 
 /**
  * /setup — the "Finish setting up your account" checklist hub. Replaces the
@@ -106,7 +107,7 @@ export default function FinishSetupPage() {
   const goFollow = () => navigate("/welcome?next=/setup");
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
+    <div className="min-h-page bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       <AppHeader
         user={user}
         onLogout={() => {
@@ -195,6 +196,7 @@ export default function FinishSetupPage() {
           )}
           {/* Activated already: new lists are an update under the ✓, never a step to redo. */}
           {activateDone && listsPending && <ListsUpdateLine />}
+          <MessagesSetupRow />
         </div>
 
         {allDone && (

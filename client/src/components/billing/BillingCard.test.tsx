@@ -10,8 +10,11 @@ import { DEFAULT_SUBSCRIPTION } from "@/services/subscription";
 // server would have sent — which is the whole point of the change.
 let sub: Subscription;
 let plans: BillingPlan[] | undefined;
-// The hook's two ways of not knowing yet: the read is still out, or it failed.
-let unknown: "loading" | "error" | null = null;
+// The hook's ways of not knowing: the read is still out, it failed, or it was
+// never made because the account has no Session.
+let unknown: "loading" | "error" | "session" | null = null;
+const resume = vi.fn();
+vi.mock("@/hooks/useResumeSession", () => ({ useResumeSession: () => ({ resume, busy: false }) }));
 const refetch = vi.fn();
 
 vi.mock("@/hooks/useSubscription", () => ({
@@ -30,6 +33,7 @@ vi.mock("@/hooks/useSubscription", () => ({
     isFree: (sub.policy === null || sub.policy.isDefault) && unknown === null,
     isLoading: unknown === "loading",
     isError: unknown === "error",
+    needsSession: unknown === "session",
     refetch: () => refetch(),
   }),
 }));
@@ -345,6 +349,23 @@ describe("BillingCard while it doesn't know what they hold", () => {
     expect(screen.queryByTestId("billing-change-plan")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  // A paying customer's phone (2026-09-30): the Account was there, its Session
+  // was not, so nothing was asked — and the card said "Free plan", "No payments
+  // — you're on the free plan" and offered Get Priority.
+  it("offers to reconnect when the account has no session, and never calls them free", () => {
+    unknown = "session";
+    renderWithProviders(<BillingCard />);
+    const card = screen.getByTestId("settings-billing-card");
+
+    expect(screen.getByTestId("billing-needs-session").textContent).toContain("Your plan hasn't changed");
+    expect(card.textContent).not.toMatch(/free plan/i);
+    expect(screen.queryByTestId("billing-status")).toBeNull();
+    expect(screen.queryByTestId("billing-change-plan")).toBeNull();
+    resume.mockClear();
+    fireEvent.click(screen.getByTestId("billing-reconnect"));
+    expect(resume).toHaveBeenCalledTimes(1);
   });
 
   it("says it's checking while the first read is out, and claims nothing yet", () => {

@@ -57,3 +57,26 @@ describe("PersonCard nip05", () => {
     expect(screen.getByTestId("text-nip05-2")).toHaveAttribute("data-nip05-status", "verified");
   });
 });
+
+describe("PersonCard tags", () => {
+  const human = {
+    key: `39999:${"9".repeat(64)}:verified-human`,
+    authorPubkey: "9".repeat(64),
+    slug: "verified-human",
+    name: "Verified Human",
+    people: 2,
+    vouches: 2,
+    sharesName: 0,
+    unverified: false,
+  };
+
+  it("wears the matched tag at its right edge, and nothing when there is none", () => {
+    const { rerender } = render(
+      <PersonCard result={person(HZRD)} idx={0} pov="nosfabrica" onOpen={() => {}} tag={human} />,
+    );
+    expect(screen.getByTestId("person-tag-chips-0")).toHaveAttribute("data-state", "ready");
+    expect(screen.getByTestId("person-tag-chip-verified-human")).toHaveTextContent("Verified Human");
+    rerender(<PersonCard result={person(HZRD)} idx={0} pov="nosfabrica" onOpen={() => {}} />);
+    expect(screen.queryByTestId("person-tag-chips-0")).toBeNull();
+  });
+});

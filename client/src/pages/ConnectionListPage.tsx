@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { MessageButton } from "@/components/messages/MessageButton";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useRoute, Redirect, Link } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
@@ -251,7 +252,7 @@ export default function ConnectionListPage() {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {/* The public pages' header — B mark, the shared search box, account — so
           search stays one tap away below a profile too, with Back pinned in it. */}
       <PublicPageHeader
@@ -411,6 +412,12 @@ export default function ConnectionListPage() {
                   score={score}
                   pov={scorePov}
                   testId={`conn-row-${pk.slice(0, 8)}`}
+                  // Only where there is a button: otherwise the row keeps its chevron.
+                  actions={
+                    me?.pubkey && me.pubkey !== pk ? (
+                      <MessageButton compact pubkey={pk} name={p?.display_name || p?.name} />
+                    ) : undefined
+                  }
                   meta={
                     rm && (
                       <div

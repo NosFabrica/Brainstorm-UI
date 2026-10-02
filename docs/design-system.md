@@ -52,6 +52,8 @@ One map, light + dark per tone. `tone(t)` → `{ bg, text, border, icon, dot }`.
 
 Tinted pill for tags, status badges, counts (p17 "Tags & Badges").
 
+Tag chips on people rows in search (`components/search/PersonTagChips.tsx`): every person wears their own tags quietly in `slate`; the tag the words matched is the one loud chip in `brand` (an unknown-creator tag stays `slate` with the plain-words tooltip). Right-aligned so a list scans, at most two in the typeahead and three on a card, one on a phone; always a link to the tag page, never a filter.
+
 ```tsx
 <Chip tone="emerald" icon={Check}>Verified</Chip>
 <Chip tone="slate" dot>Member</Chip>
@@ -71,6 +73,28 @@ The rows on the Everything page and the home feed follow Google's result proport
 | Thumbnail                                      | 92px square, `rounded-xl`, 16px gap                                                 |
 | Row                                            | `py-3.5`, lists are `space-y-1` — whitespace before dividers, no rules between rows |
 | Section title                                  | 16px (`SectionHeader variant="title"`); "See all" 13px; "+N more from" 12px         |
+
+### The search popup — `components/search/SearchBox.tsx`
+
+The popup offers **destinations**; the results page explains and previews. We cannot know
+whether "developer" means the tag or a person, so each reading is one row of its own kind and
+the reader picks (the team, 2026-10-01, after Google's "Poodle · Dog breed").
+
+- Fixed order: completion or `#topic` → shop (the page, when the words ask to shop) → tags (2)
+  → people (6) → "See all results".
+- The grey line's first word is the kind: `Tag · 5 people`, `Topic · …`, `Shop · 4+ listings`.
+  People keep their handle.
+- A people row is someone whose **name or handle** matched. A tag's people are behind the tag
+  row, which opens the tag page; nobody is pulled into the list for carrying a tag.
+- A listed person who carries the matched tag wears it quietly: grey text with a small tag
+  icon (`PersonTagLabel`), one tag per person, a label and not a link, clipped before the name
+  is, icon only on a phone. The coloured pill is for the results page.
+- Shop only when the words ask to shop — shop, store, buy, price, "for sale" — and name
+  something of at least three letters (`shopWords` in `lib/personContent.ts`). The Shop
+  **page** for the words comes first (`honey` / `Shop · 4+ listings` → `/?q=honey&t=shop`):
+  shopping is a place to land, as Google's is a tab. The count is a floor — listings named by
+  the words; the page also finds mentions. No single product gets a row.
+- What a person publishes (Articles, Media, …) shows on hover or the arrowed row, desktop only.
 
 ### KindPill — `components/ui/kind-pill.tsx`
 

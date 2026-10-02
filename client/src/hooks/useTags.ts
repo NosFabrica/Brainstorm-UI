@@ -14,7 +14,6 @@ import {
   pinTag,
   unpinTag,
   publishTagComment,
-  matchTags,
   applyTagToProfile,
   applyTagToEvent,
   predictedTagKey,
@@ -33,7 +32,6 @@ import {
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import type { TrustObserver } from "@/services/tags";
-import { useConnectionSpeed } from "@/lib/connection";
 
 /**
  * React Query bindings for decentralized tagging. Thin on purpose — the relay
@@ -129,23 +127,6 @@ export function usePickerTags(enabled = true) {
     gcTime: 60 * 60_000,
     retry: 1,
   });
-}
-
-/**
- * Tags matching what someone is typing, for the search dropdowns.
- *
- * The catalogue only starts loading once there are 2 characters to match, so
- * merely opening a page with a search box doesn't pay for a full relay walk.
- * Callers pass "" while their dropdown is closed, so leftover text doesn't keep it live.
- * After that first fetch it's cached for half an hour and every later keystroke
- * filters in memory — no relay traffic per character.
- */
-export function useTagMatches(query: string, max = 3): TagSummary[] {
-  // The catalogue is megabytes; a poor connection does without tag suggestions.
-  const speed = useConnectionSpeed();
-  const enabled = query.trim().length >= 2 && speed === "normal";
-  const { data } = useTagIndex(enabled);
-  return useMemo(() => (enabled ? matchTags(data ?? [], query, max) : []), [enabled, data, query, max]);
 }
 
 export const tagCommentsKey = (authorPubkey: string, slug: string) => ["tag-comments", authorPubkey, slug] as const;

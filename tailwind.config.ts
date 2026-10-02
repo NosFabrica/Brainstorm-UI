@@ -21,6 +21,12 @@ export default {
       screens: {
         short: { raw: "(max-height: 560px)" },
       },
+      // A full-height page: the visible viewport, less the bottom chrome the body is
+      // already padded by (lib/bottomChrome). 100vh on iOS is the toolbar-hidden
+      // height, and either unit alone plus that padding makes a short page scroll.
+      minHeight: {
+        page: "calc(100dvh - var(--bs-bottom-chrome, 0px))",
+      },
       borderRadius: {
         lg: ".5625rem" /* 9px */,
         md: ".375rem" /* 6px */,

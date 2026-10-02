@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** The whole tag catalogue loads only for the suggestion dropdown, never for a query restored from the URL. */
+/** Search never walks the hub's whole tag catalogue — it took half a minute. Tag rows come from the search relay. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
@@ -10,6 +10,8 @@ vi.mock("@/services/tags", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/tags")>()),
   fetchTagIndex: (...args: unknown[]) => fetchTagIndexMock(...args),
 }));
+const searchTagsMock = vi.fn<(...args: unknown[]) => Promise<unknown[]>>();
+vi.mock("@/services/searchTags", () => ({ fetchSearchTags: (...args: unknown[]) => searchTagsMock(...args) }));
 vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
   searchStream: () => () => {},
@@ -72,6 +74,8 @@ describe("the tag catalogue on the home search", () => {
     cleanup();
     fetchTagIndexMock.mockReset();
     fetchTagIndexMock.mockResolvedValue([]);
+    searchTagsMock.mockReset();
+    searchTagsMock.mockResolvedValue([]);
   });
 
   it("isn't fetched when a results page opens from a link", async () => {
@@ -82,8 +86,8 @@ describe("the tag catalogue on the home search", () => {
     expect(fetchTagIndexMock).not.toHaveBeenCalled();
   });
 
-  it("is fetched once someone types, and its matches show in the dropdown", async () => {
-    fetchTagIndexMock.mockResolvedValue([
+  it("isn't fetched when someone types either: the tag row comes from the search relay", async () => {
+    searchTagsMock.mockResolvedValue([
       {
         key: "a|bitcoiners",
         authorPubkey: "a".repeat(64),
@@ -91,25 +95,16 @@ describe("the tag catalogue on the home search", () => {
         name: "Bitcoiners",
         people: 12,
         vouches: 3,
-        sharesName: 0,
+        sharesName: 1,
         unverified: false,
+        members: [],
       },
     ]);
     window.history.replaceState({}, "", "/");
     renderLanding();
     typeInBox("bitc");
     expect(await screen.findByTestId("home-tag-suggestion")).toHaveTextContent("Bitcoiners");
-    expect(fetchTagIndexMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("stops being wanted once the dropdown closes, so a refresh doesn't pull it again", async () => {
-    window.history.replaceState({}, "", "/");
-    const qc = renderLanding();
-    const input = typeInBox("bitc");
-    await waitFor(() => expect(fetchTagIndexMock).toHaveBeenCalledTimes(1));
-    fireEvent.keyDown(input, { key: "Escape" });
-    // What the app does to every live query when the API recovers.
-    await qc.invalidateQueries();
-    expect(fetchTagIndexMock).toHaveBeenCalledTimes(1);
+    expect(searchTagsMock.mock.calls[0]?.[0]).toBe("bitc");
+    expect(fetchTagIndexMock).not.toHaveBeenCalled();
   });
 });

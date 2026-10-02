@@ -8,6 +8,7 @@ import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
+import { ReconnectButton } from "@/components/billing/ReconnectButton";
 import {
   billingDeadlineMs,
   formatAmount,
@@ -63,6 +64,7 @@ export function BillingCard() {
     isPaid: paid,
     isLoading,
     isError,
+    needsSession,
     refetch,
   } = useSubscription();
   const { plans, billingAvailable, solePurchasableName } = useBillingPlans();
@@ -107,7 +109,7 @@ export function BillingCard() {
           >
             Billing
           </h2>
-          {!isLoading && !isError && (
+          {!isLoading && !isError && !needsSession && (
             <Chip
               tone={ending ? "neutral" : status === "active" ? "success" : "warning"}
               size="sm"
@@ -126,7 +128,17 @@ export function BillingCard() {
         </Link>
       </div>
 
-      {isLoading || isError ? (
+      {needsSession ? (
+        // The account is here and its Session is not, so the server was never
+        // asked. That is not "no plan" either — and a spinner would never end.
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 px-5 py-5 text-sm text-slate-500 dark:text-slate-400 sm:px-6"
+          data-testid="billing-needs-session"
+        >
+          <span>We can't show your plan until your account reconnects. Your plan hasn't changed.</span>
+          <ReconnectButton testId="billing-reconnect" />
+        </div>
+      ) : isLoading || isError ? (
         // Nothing below may claim Free — or anything else — until the server has
         // answered: a read that's still out, or failed, is not "no plan".
         <div className="px-5 py-5 text-sm text-slate-500 dark:text-slate-400 sm:px-6" data-testid="billing-unknown">

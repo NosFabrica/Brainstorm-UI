@@ -815,6 +815,14 @@ export async function fetchProfileTags(
   const candidates = await fetchTagEvents(
     filterTagsAppliedToPubkey({ targetPubkey, zHandlePubkeys: Z_HANDLE_PUBKEYS }),
   );
+  return profileTagsFromCandidates(candidates, viewerPubkey, observer);
+}
+
+async function profileTagsFromCandidates(
+  candidates: NostrEvent[],
+  viewerPubkey: string | undefined,
+  observer: TrustObserver,
+): Promise<ProfileTagsResult> {
   if (!candidates.length) return { tags: [], mine: [], trustUnverified: false, viewerUnscored: false };
 
   const assertions = await normalizeAssertions(candidates);
@@ -1447,36 +1455,6 @@ export async function fetchPickerTags(viewerPubkey?: string, observer: TrustObse
   return banded.sort(
     (a, b) =>
       (a.band === b.band ? 0 : a.band === "profile" ? -1 : 1) || b.people - a.people || a.name.localeCompare(b.name),
-  );
-}
-
-/**
- * Filter the catalogue by what someone typed. Exact match first, then
- * starts-with, then contains — inside each band the catalogue's own
- * usage ordering carries through.
- */
-export function matchTags(index: TagSummary[], query: string, max = 5): TagSummary[] {
-  const q = query.trim().toLowerCase();
-  if (q.length < 2) return [];
-  const band = (t: TagSummary) => {
-    const n = t.name.toLowerCase();
-    if (n === q) return 0;
-    if (n.startsWith(q)) return 1;
-    if (n.includes(q)) return 2;
-    return 3;
-  };
-  return (
-    index
-      .map((t) => ({ t, b: band(t) }))
-      .filter((x) => x.b < 3)
-      // How well the name matches outranks who made the tag — an exact hit on an
-      // unverified tag is still what the person typed, and burying it under
-      // loose contains-matches is how `lfo` became unfindable. Creator standing
-      // only breaks ties inside a band; usage order survives beneath that,
-      // because the sort is stable.
-      .sort((x, y) => x.b - y.b || Number(x.t.unverified) - Number(y.t.unverified))
-      .slice(0, max)
-      .map((x) => x.t)
   );
 }
 

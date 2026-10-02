@@ -12,10 +12,11 @@ const toast = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 const applyMock = vi.fn(async (_vars: unknown) => ({}));
 let tags: unknown[] = [];
+let picker: unknown[] = [];
 vi.mock("@/hooks/useTags", () => ({
   useProfileTags: () => ({ data: { tags } }),
   useApplyTag: () => ({ mutateAsync: applyMock, isPending: false }),
-  usePickerTags: () => ({ data: [] }),
+  usePickerTags: () => ({ data: picker }),
 }));
 vi.mock("@/services/tags", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/tags")>()),
@@ -44,6 +45,7 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
 });
 beforeEach(() => {
+  picker = [];
   applyMock.mockClear();
   toast.mockClear();
 });
@@ -134,5 +136,42 @@ describe("TagPersonButton — adding a tag asks first", () => {
     expect(trigger).toHaveTextContent("Tag");
     expect(trigger.querySelector(".animate-spin")).toBeNull();
     settle({});
+  });
+});
+
+// Team feedback (2026-10-01): trust scores who does the tagging, not who made
+// the tag. A tag whose creator is unscored is still kept out of the standing
+// suggestions (most are noise), but once its name is typed it is a tag like
+// any other — no separate group, no "we don't know who made this".
+describe("TagPersonButton — a tag whose creator is unscored", () => {
+  const option = (name: string, people: number, unverified: boolean) => ({
+    key: `${AUTHOR}|${name.toLowerCase()}`,
+    name,
+    slug: name.toLowerCase(),
+    authorPubkey: AUTHOR,
+    people,
+    vouches: 1,
+    sharesName: 1,
+    band: "profile",
+    unverified,
+  });
+
+  it("is offered among the tags people use once its name is typed, with nothing said about its creator", async () => {
+    tags = [];
+    picker = [option("Developer", 12, false), option("lfo", 54, true)];
+    render(<TagPersonButton pubkey={PK} variant="link" />);
+    const input = await openPicker();
+
+    expect(screen.getAllByTestId("share-tag-existing").map((r) => r.textContent)).toEqual([
+      expect.stringContaining("Developer"),
+    ]);
+
+    fireEvent.change(input, { target: { value: "lfo" } });
+    const rows = await screen.findAllByTestId("share-tag-existing");
+    expect(rows.some((r) => r.textContent?.includes("lfo"))).toBe(true);
+    const list = screen.getByRole("listbox");
+    expect(list.textContent).not.toMatch(/don't know who made/i);
+    expect(list.textContent).not.toMatch(/also called this/i);
+    expect(screen.queryByTestId("share-tag-unverified")).toBeNull();
   });
 });

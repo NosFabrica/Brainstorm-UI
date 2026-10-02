@@ -6,6 +6,7 @@ import PricingPage from "./PricingPage";
 import { apiClient } from "@/services/api";
 
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => false }));
+vi.mock("@/hooks/useHasAccount", () => ({ useHasAccount: () => false }));
 vi.mock("@/services/api", () => ({ apiClient: { getBillingPlans: vi.fn() } }));
 // The chrome and the dialog need an AccountsProvider; neither is what these
 // tests are about. The dialog has its own seam — see CheckoutDialog.

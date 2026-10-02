@@ -110,7 +110,9 @@ vi.mock("@/hooks/useNetworkReach", () => ({
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
 vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ isSearchObserver: false }) }));
-vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
+vi.mock("@/hooks/useSearchTags", () => ({
+  useSearchTags: () => ({ tags: [], carriers: { byPubkey: new Map(), people: [], settled: true }, settled: true }),
+}));
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   searchWavlakeTracks: async () => [],
@@ -317,9 +319,9 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
     await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("input-home-search")));
   });
 
-  // Benjamin (2026-09-24), the Google reflex: "Satoshi Smiley T-shirt", then
-  // straight to it. Up to three product titles sit under the people.
-  it("product titles ride the typeahead and open the listing itself", async () => {
+  // Shopping is a place to land with everything for the words (Benjamin,
+  // 2026-10-01: only the shop, not the listings).
+  it("a shopping query offers the Shop page in the typeahead and opens it for the words", async () => {
     const SELLER = "e".repeat(64);
     listingsMock.mockResolvedValue([
       {
@@ -348,14 +350,15 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
       },
     ]);
     render(<Landing />);
-    typeInBox("satoshi smiley");
-    const row = await screen.findByTestId("home-product-suggestion-0", {}, { timeout: 3000 });
-    expect(row).toHaveTextContent("Satoshi Smiley T-shirt");
-    expect(row).toHaveTextContent("$21");
-    expect(row).toHaveTextContent("Black Sheep");
+    // The Shop row shows for words that ask to shop; the lookup is for the thing itself.
+    typeInBox("satoshi smiley shop");
+    const row = await screen.findByTestId("home-shop-row", {}, { timeout: 3000 });
+    expect(row).toHaveTextContent("satoshi smiley");
+    expect(row).toHaveTextContent("Shop · 1+ listings");
     expect(listingsMock.mock.calls[0][0]).toBe("satoshi smiley");
+    expect(screen.queryByTestId("home-product-suggestion-0")).toBeNull();
     fireEvent.click(row);
-    await waitFor(() => expect(window.location.pathname).toMatch(/^\/e\/(nevent1|t{64})/));
+    await waitFor(() => expect(window.location.search).toBe("?q=satoshi%20smiley&t=shop"));
   });
 
   it("the typeahead's footer names the person, never the key", async () => {

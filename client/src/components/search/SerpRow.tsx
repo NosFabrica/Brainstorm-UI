@@ -43,6 +43,7 @@ import { contentShape } from "@/lib/contentShape";
 import { describeThing, THING_KINDS } from "@/lib/thing";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
+import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { MediaImg } from "@/components/ui/media-img";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
@@ -483,7 +484,9 @@ export function SerpRow({
   const body = news
     ? ""
     : thing
-      ? (thing.description ?? "")
+      ? thing.detail.type === "ballot"
+        ? "" // its answers draw below, row by row
+        : (thing.description ?? "")
       : opaque
         ? tagVal(event, "alt") || ""
         : event.kind === 10040
@@ -673,6 +676,16 @@ export function SerpRow({
             <Snippet text={shown} query={query} lines={title ? 2 : 3} hide={linkedArticle ? cardLink : thumbUrl} />
             {/* X's "Translate post" for text in another language — on-device, quiet. */}
             <TranslateLine text={body.slice(0, 1000)} />
+          </div>
+        )}
+        {thing?.detail.type === "market" && (
+          <div className="mt-2.5 max-w-md">
+            <MarketSummary detail={thing.detail} link={thing.link} testId={`serp-market-${event.id}`} />
+          </div>
+        )}
+        {thing?.detail.type === "ballot" && (
+          <div className="mt-2.5 max-w-md">
+            <BallotAnswers detail={thing.detail} testId={`serp-ballot-${event.id}`} />
           </div>
         )}
         {linkedArticle && (

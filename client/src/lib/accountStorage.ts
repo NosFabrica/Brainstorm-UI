@@ -54,6 +54,12 @@ const NAMESPACES = {
   brainstorm_nip85_consent: "device",
   brainstorm_assistant: "device",
   brainstorm_relay_auth: "device",
+  // What the reader read, accepted, pinned and hid in Messages, and their timers.
+  // Keyed by the people they talk to, so it goes at sign-out with the sealed
+  // message cache (lib/dm/cache): a shared device keeps no trace of who. Pinned,
+  // muted and accepted come back at the next sign-in from the account's own
+  // encrypted copy (lib/dm/prefsSync).
+  brainstorm_dm_prefs: "session",
 } as const satisfies Record<string, Lifetime>;
 
 export type AccountNamespace = keyof typeof NAMESPACES;

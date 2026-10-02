@@ -1,5 +1,4 @@
 import { Tag, ArrowRight } from "lucide-react";
-import { UnverifiedTagChip } from "@/components/search/UnverifiedTagChip";
 import type { TagSummary } from "@/services/tags";
 
 /**
@@ -39,14 +38,9 @@ export function TagSuggestionRow({
         <Tag className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{tag.name}</p>
-          {/* You typed this name, so we show the tag — but we say what we
-              don't know about it rather than letting the list imply we
-              vouched for it. */}
-          {tag.unverified && <UnverifiedTagChip className="shrink-0" />}
-        </div>
-        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{people} tagged this</p>
+        <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{tag.name}</p>
+        {/* The kind first — a tag named like a person is still plainly a tag. */}
+        <p className="truncate text-xs text-slate-500 dark:text-slate-400">Tag · {people}</p>
       </div>
       <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" aria-hidden="true" />
     </button>
@@ -54,7 +48,10 @@ export function TagSuggestionRow({
 }
 
 /** Where a tag suggestion goes. Returns "" when the author pubkey won't encode. */
-export function tagSuggestionPath(tag: TagSummary, npubFor: (pk: string) => string): string {
+export function tagSuggestionPath(
+  tag: { authorPubkey: string; slug: string },
+  npubFor: (pk: string) => string,
+): string {
   try {
     return `/tags/${npubFor(tag.authorPubkey)}/${tag.slug}`;
   } catch {

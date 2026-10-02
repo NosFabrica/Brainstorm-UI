@@ -194,6 +194,27 @@ describe("searchStream", () => {
     expect(filter.search).toMatch(/^observer:/);
   });
 
+  /**
+   * Kind 38000 is shared with BAO's prediction markets and an election app's ballots;
+   * asked bare, they filled the Reviews page (87 of 100 on "bitcoin", production,
+   * 2026-10-01) and the tab, which shows reviews only, came up empty. NIP-87's own
+   * reviews carry `k` — the mint's kind — so 38000 is asked in a filter of its own,
+   * narrowed by it, beside the other review kinds.
+   */
+  it("on Reviews, asks kind 38000 only for NIP-87 mint reviews, by `#k`, beside the other review kinds", async () => {
+    controllable();
+
+    searchStream("bitcoin", { tab: "reviews", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filters = askedFilters() as { kinds?: number[]; "#k"?: string[]; search: string }[];
+    expect(filters).toHaveLength(2);
+    expect(filters[0].kinds).toEqual([34259, 31987]);
+    expect(filters[0]["#k"]).toBeUndefined();
+    expect(filters[1]).toMatchObject({ kinds: [38000], "#k": ["38172", "38173"] });
+    for (const f of filters) expect(f.search).toMatch(/^bitcoin observer:/);
+  });
+
   // Zap Cooking's overwritten recipes (2026-09-24): the search relay still
   // holds the husks — content "", a tombstone tag, a "[Deleted]" title — and
   // they were "[Deleted]" cards on every tab. A husk never becomes a hit.
@@ -906,6 +927,40 @@ describe("paging a union", () => {
     expect(asked(1).until).toBe(900);
   });
 
+  // Reviews asks two filters of disjoint kinds (ratings + relay reviews; NIP-87 mint reviews
+  // by `#k`). By an event's kind the page knows which filter it answered, so each walks back
+  // from its own oldest second, stops when it runs short, and the list reads newest-first.
+  it("a union of disjoint kinds walks each filter back from its own oldest, and ends when all run short", async () => {
+    const [first, second] = pages(3);
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream("sort:recent", { tab: "reviews", pov: "nosfabrica", limit: 2 }, (s) => snaps.push(s));
+    await tick();
+    expect(askedFilters()).toHaveLength(2);
+    const rating = (id: string, at: number) => ({ ...note(id, at), kind: 34259 }) as NostrEvent;
+    const mint = (id: string, at: number) => ({ ...note(id, at), kind: 38000 }) as NostrEvent;
+    // The relay answers filter by filter; the mint reviews are newer than the second rating.
+    first.next(frame(rating("r1", 5000)));
+    first.next(frame(rating("r2", 1000)));
+    first.next(frame(mint("m1", 4000)));
+    first.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["r1", "m1", "r2"]);
+    // The mint filter came back short (1 of 2): it is done; ratings walk back from 1000.
+    expect(snaps.at(-1)!.exhausted).toBeFalsy();
+
+    handle.more();
+    await tick();
+    const page2 = askedFilters(1);
+    expect(page2).toHaveLength(1);
+    expect(page2[0]).toMatchObject({ kinds: [34259, 31987], until: 1000, limit: 2 });
+
+    second.next(frame(rating("r3", 900)));
+    second.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.exhausted).toBe(true);
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["r1", "m1", "r2", "r3"]);
+  });
+
   it("a union is exhausted when a page brings nothing new, not when its total runs short", async () => {
     const [first] = pages(3);
     const snaps: SearchSnapshot[] = [];
@@ -1080,6 +1135,21 @@ describe("suggestListings", () => {
     subject.next(frame(listing("t5", "SATOSHI smiley Sticker")));
     subject.next(EOSE);
     expect((await pending).map((h) => h.event.id)).toEqual(["t1", "t5"]);
+  });
+
+  // "hon" is the start of "Honey", not the middle of "Phone": letters found
+  // anywhere in a title counted listings that had nothing to do with the words.
+  it("matches a typed word at the start of a title word, not in the middle of one", async () => {
+    const { subject } = controllable();
+    const pending = suggestListings("hon", { pov: "nosfabrica" }, { limit: 9 });
+    await tick();
+    subject.next(frame(listing("h1", "Honey")));
+    subject.next(frame(listing("h2", "Raw wildflower honey, 4oz")));
+    subject.next(frame(listing("h3", "Phone case")));
+    subject.next(frame(listing("h4", "Hand-made (honeycomb) candle")));
+    subject.next(frame(listing("h5", "Saxophone lessons")));
+    subject.next(EOSE);
+    expect((await pending).map((h) => h.event.id)).toEqual(["h1", "h2", "h4"]);
   });
 
   it("one product is one row, and the limit holds", async () => {

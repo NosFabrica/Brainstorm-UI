@@ -10,7 +10,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BehaviorSubject, Subject } from "rxjs";
 import { relayAuthAllowed, setRelayAuthAllowed } from "@/lib/relayAuthPref";
-import { startRelayAuth } from "./relayAuth";
+import { allowWriteAuth, setRelayAuthInteractive, startRelayAuth } from "./relayAuth";
 
 const PK = "a".repeat(64);
 const PK2 = "b".repeat(64);
@@ -25,6 +25,7 @@ function fakeRelay(url: string, { gated = true } = {}) {
     url,
     challenge$: new BehaviorSubject<string | null>(null),
     authRequiredForRead$: new BehaviorSubject(gated),
+    authRequiredForPublish$: new BehaviorSubject(false),
     authenticatedAs: null as string | null,
     authenticate: vi.fn(async (signer: Account) => {
       relay.authenticatedAs = signer.pubkey;
@@ -128,6 +129,53 @@ describe("startRelayAuth", () => {
     polite.authRequiredForRead$.next(true);
     await tick();
     expect(polite.authenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it("signs in to a relay that refused a private message, as it does for a refused read", async () => {
+    setRelayAuthAllowed(PK, true);
+    allowWriteAuth("wss://inbox.example");
+    const pool = fakePool();
+    const inbox = fakeRelay("wss://inbox.example", { gated: false });
+    pool.relays.set(inbox.url, inbox);
+    startRelayAuth({ pool: pool as never, active$: new BehaviorSubject<Account | undefined>(account) });
+    inbox.challenge$.next("c1");
+    await tick();
+    expect(inbox.authenticate).not.toHaveBeenCalled();
+
+    inbox.authRequiredForPublish$.next(true);
+    await tick();
+    expect(inbox.authenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a relay that refused some other write alone", async () => {
+    setRelayAuthAllowed(PK, true);
+    const pool = fakePool();
+    const notes = fakeRelay("wss://notes.example", { gated: false });
+    pool.relays.set(notes.url, notes);
+    startRelayAuth({ pool: pool as never, active$: new BehaviorSubject<Account | undefined>(account) });
+    notes.challenge$.next("c1");
+    notes.authRequiredForPublish$.next(true);
+    await tick();
+    expect(notes.authenticate).not.toHaveBeenCalled();
+  });
+
+  it("never unlocks a key for a login nobody asked for, until the reader is in Messages", async () => {
+    setRelayAuthAllowed(PK, true);
+    const pool = fakePool();
+    const inbox = fakeRelay("wss://locked.example");
+    pool.relays.set(inbox.url, inbox);
+    startRelayAuth({
+      pool: pool as never,
+      active$: new BehaviorSubject<Account | undefined>(account),
+      canSignQuietly: async () => false,
+    });
+    inbox.challenge$.next("c1");
+    await tick();
+    expect(inbox.authenticate).not.toHaveBeenCalled();
+    setRelayAuthInteractive(true);
+    await tick();
+    expect(inbox.authenticate).toHaveBeenCalledTimes(1);
+    setRelayAuthInteractive(false);
   });
 
   it("turning the switch on answers a challenge already waiting, without a reload", async () => {

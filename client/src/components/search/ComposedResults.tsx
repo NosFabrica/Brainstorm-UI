@@ -15,7 +15,7 @@ import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
 import { filterPodcastIndex } from "@/lib/dlists";
 import { parseTrack } from "@/lib/trackEvent";
 import { setPlaylist } from "@/lib/audioPlayer";
-import { Clock, HelpCircle } from "lucide-react";
+import { Clock, HelpCircle, Tag } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing, QuietTrustChrome } from "@/components/score/VerificationCoin";
@@ -66,17 +66,33 @@ import {
   type SearchSnapshot,
   type SearchTab,
 } from "@/services/search";
+import { Chip } from "@/components/ui/chip";
+import { useSearchTags } from "@/hooks/useSearchTags";
+import {
+  matchedTagChip,
+  leadCarriersByRank,
+  leadingCarriers,
+  mergeCarrierHits,
+  rankCarriers,
+  tagsCarriedBy,
+  type TagChip,
+} from "@/lib/tagCarrierPeople";
+import { leadingTags } from "@/lib/tagMatch";
+import { scopeOf } from "@/lib/searchSyntax";
 
 /** Compact person chip for the People strip. */
 function PersonChip({
   person,
   score,
   visited,
+  tag,
   onOpen,
 }: {
   person: SearchResult;
   score: number | null;
   visited: boolean;
+  /** The tag the words matched, if this person carries it. */
+  tag?: TagChip;
   onOpen: (p: SearchResult) => void;
 }) {
   const tierRing = useTierRing();
@@ -113,6 +129,21 @@ function PersonChip({
       <span className="w-full truncate text-center text-xs font-semibold text-slate-800 dark:text-slate-100">
         {getDisplayLabel(person)}
       </span>
+      {/* The strip has no right edge, so the tag sits under the name; the
+          card is a button, so the tag is a label here — the People tab and
+          the tag row above are the way in. */}
+      {tag && (
+        <Chip
+          tone="brand"
+          size="sm"
+          icon={Tag}
+          className="max-w-full"
+          title={`Tagged ${tag.name} by ${tag.people === 1 ? "1 person" : `${tag.people ?? 0} people`}`}
+          data-testid={`strip-person-tag-${pk8}`}
+        >
+          <span className="truncate">{tag.name}</span>
+        </Chip>
+      )}
       {visited && (
         <span
           className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 dark:text-slate-500"
@@ -402,14 +433,46 @@ function ComposedResultsBody({
   showingRef.current = showing;
   useEffect(() => () => onSectionHits?.(showingRef.current), [onSectionHits]);
 
+  // Words that name a tag find the people on it (the team, 2026-09-29): they
+  // lead the strip wearing the tag; the relay's matches follow.
+  // Both come from the search relay in one ask (hooks/useSearchTags).
+  const { tags: tagMatches, carriers } = useSearchTags(scopeOf(query) ? "" : query, {
+    pov,
+    viewerPubkey: userPubkey,
+    members: true,
+  });
+  // Only a tag the words name outright, with weight behind it, leads (lib/tagMatch).
+  const leadPeople = useMemo(
+    () => leadingCarriers(carriers.people, carriers.byPubkey, leadingTags(tagMatches, query)),
+    [carriers.people, carriers.byPubkey, tagMatches, query],
+  );
+  const carrierSets = useMemo(() => {
+    const sets = new Map<string, Set<string>>();
+    for (const [pubkey, tags] of carriers.byPubkey) {
+      for (const t of tags) {
+        const set = sets.get(t.key) ?? new Set<string>();
+        set.add(pubkey);
+        sets.set(t.key, set);
+      }
+    }
+    return sets;
+  }, [carriers.byPubkey]);
   const allHits = useMemo(
-    () =>
-      [people, latest, articles, happening, media, music, shop]
+    () => [
+      ...[people, latest, articles, happening, media, music, shop]
         .flatMap((s) => s?.hits ?? [])
         .map((h) => h.event.pubkey),
-    [people, latest, articles, happening, media, music, shop],
+      ...carriers.people.map((c) => c.pubkey),
+    ],
+    [people, latest, articles, happening, media, music, shop, carriers.people],
   );
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
+  // Their order, taken once when they land and held for the query.
+  const carrierRank = useMemo(
+    () => (carriers.settled ? rankCarriers(leadPeople, scoreOf) : new Map<string, number>()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [carriers.settled, leadPeople],
+  );
   // The client-side filters (Verified only, reach) apply here too, so the
   // composed page and the tabs agree on what the box says.
   const clientState = readFilters(query);
@@ -500,9 +563,15 @@ function ComposedResultsBody({
   const stripRef = useWheelScrollX();
   const peopleOrdered = useMemo(() => {
     const hits = peopleF?.hits.filter((h) => h.author) ?? [];
-    // Transparent on-device personalization: faces you've opened lead.
-    return [...hits].sort((a, b) => Number(visited.has(b.event.pubkey)) - Number(visited.has(a.event.pubkey)));
-  }, [peopleF, visited]);
+    const merged = leadCarriersByRank(mergeCarrierHits(hits, leadPeople), carrierRank);
+    let end = 0;
+    while (end < merged.length && merged[end].event.id.startsWith("tag-carrier:")) end++;
+    // Transparent on-device personalization: faces you've opened lead the relay's part.
+    const tail = merged
+      .slice(end)
+      .sort((a, b) => Number(visited.has(b.event.pubkey)) - Number(visited.has(a.event.pubkey)));
+    return [...merged.slice(0, end), ...tail];
+  }, [peopleF, visited, leadPeople, carrierRank]);
 
   const articleClusters = useMemo(
     () => (articlesF ? peopleFirst(collapseHits(articlesF.hits, undefined, { maxPerAuthor: 2 })) : []),
@@ -641,6 +710,8 @@ function ComposedResultsBody({
                   person={h.author!}
                   score={h.author!.wotRank ?? scoreOf(h.event.pubkey) ?? null}
                   visited={visited.has(h.event.pubkey)}
+                  // A face card wears a tag only when it is the one searched.
+                  tag={matchedTagChip(tagsCarriedBy(h.event.pubkey, carrierSets, tagMatches))}
                   onOpen={(p) => onOpenProfile?.(p)}
                 />
               ))}

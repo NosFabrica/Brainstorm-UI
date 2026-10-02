@@ -45,6 +45,20 @@ describe("kindLabel", () => {
     ).toBe("Recipe");
     expect(kindLabel(ev(30023, [["d", "why"]]))).toBe("Article");
   });
+
+  it("names a kind-38000 by its format: mint review, prediction market, ballot, else its number", () => {
+    expect(kindLabel(ev(38000, [["u", "https://mint.lnpay.cz"]]))).toBe("Mint review");
+    expect(
+      kindLabel(
+        ev(38000, [
+          ["d", "59a3b0cda6c25472714327435b0e8190"],
+          ["market", "59a3b0cda6c25472714327435b0e8190"],
+        ]),
+      ),
+    ).toBe("Prediction market");
+    expect(kindLabel(ev(38000, [["election", "spring-2026-council"]]))).toBe("Ballot");
+    expect(kindLabel(ev(38000, [["d", "b21068c8"]]))).toBe("Kind 38000");
+  });
 });
 
 describe("specKindTags", () => {

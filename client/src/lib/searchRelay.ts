@@ -8,7 +8,7 @@
  * nothing here may import upward.
  */
 import type { Relay } from "applesauce-relay";
-import { pool } from "./relayPool";
+import { pool, warmRelay } from "./relayPool";
 import { env } from "./runtimeEnv";
 import { watchRelay } from "@/lib/serverStatus";
 
@@ -31,4 +31,14 @@ export function searchRelay(): Relay | null {
   unwatch?.();
   unwatch = watchRelay(cached);
   return cached;
+}
+
+/**
+ * Open the search socket before the first keystroke — a reader who focuses
+ * the box is about to search, and the handshake then overlaps their typing
+ * instead of sitting in front of the first suggestion.
+ */
+export function warmSearchRelay(): void {
+  const relay = searchRelay();
+  if (relay) warmRelay(relay);
 }

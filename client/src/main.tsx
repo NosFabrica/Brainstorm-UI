@@ -5,8 +5,10 @@ import { installErrorBuffer } from "./lib/errorBuffer";
 import { startStoreHydration } from "./services/storeHydration";
 import { resolveHouseObserver } from "./services/trustSource";
 import { startRelayAuth } from "./services/relayAuth";
+import { startDirectMessages } from "./services/dm";
 import { pool } from "./lib/relayPool";
 import { accountManager } from "./accounts";
+import { canSignSilently } from "./accounts/signing";
 import "./index.css";
 
 // From the first moment: support-ticket diagnostics can carry what the
@@ -29,7 +31,13 @@ void resolveHouseObserver();
 
 // Relays that gate reads behind a NIP-42 login: never waited on (lib/relayPool),
 // answered with the account's signer when the reader allowed it (Settings).
-startRelayAuth({ pool, active$: accountManager.active$ });
+// Never with our Unlock modal unless the reader is in Messages.
+startRelayAuth({ pool, active$: accountManager.active$, canSignQuietly: canSignSilently });
+
+// Private messages (NIP-17) follow the Active Account from sign-in, not from the
+// first visit to Messages: the live subscription warms the inbox and the unread
+// badge while the reader is elsewhere (services/dm).
+startDirectMessages();
 
 createRoot(document.getElementById("root")!).render(
   <ThemeProvider>

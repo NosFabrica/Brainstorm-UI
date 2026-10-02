@@ -24,7 +24,7 @@ export default function OnboardingPage() {
   const [, setLocation] = useLocation();
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-slate-950">
+    <div className="relative flex min-h-page flex-col overflow-hidden bg-slate-950">
       <style>{`
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(20px); }

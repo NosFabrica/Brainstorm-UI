@@ -22,9 +22,11 @@
 #
 # Backend APIs - github.com/NosFabrica/brainstorm_server
 #   api.brainstorm.world
-#   search.brainstorm.world
 #   brainstormserver.nosfabrica.com
 #   brainstormserver-staging.nosfabrica.com
+#
+# Search relay - github.com/NosFabrica/vespa-relay
+#   search.brainstorm.world
 #
 # nostr relays - strfry, github.com/hoytech/strfry
 #   scores.brainstorm.world

@@ -61,6 +61,50 @@ if (hasDom && typeof globalThis.IntersectionObserver === "undefined") {
   } as unknown as typeof IntersectionObserver;
 }
 
+// No unit test talks to a real relay. Node ships a real WebSocket, so anything
+// that reaches the relay pool unmocked would dial the public relays — and a
+// connection that lands after its file has finished fires its event into the
+// NEXT file's jsdom, failing a test that did nothing ("The "event" argument must
+// be an instance of Event. Received an instance of Event"). This one never
+// connects: a relay that is simply not answering. Suites that need a socket to
+// behave stub their own.
+class OfflineWebSocket extends EventTarget {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSING = 2;
+  static readonly CLOSED = 3;
+  readonly CONNECTING = 0;
+  readonly OPEN = 1;
+  readonly CLOSING = 2;
+  readonly CLOSED = 3;
+  readonly url: string;
+  readyState: number = OfflineWebSocket.CONNECTING;
+  binaryType = "blob";
+  bufferedAmount = 0;
+  extensions = "";
+  protocol = "";
+  onopen: ((event: Event) => void) | null = null;
+  onmessage: ((event: Event) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  onclose: ((event: Event) => void) | null = null;
+
+  constructor(url: string | URL) {
+    super();
+    this.url = String(url);
+  }
+
+  send(): void {}
+
+  close(): void {
+    if (this.readyState === OfflineWebSocket.CLOSED) return;
+    this.readyState = OfflineWebSocket.CLOSED;
+    const event = new Event("close");
+    this.onclose?.(event);
+    this.dispatchEvent(event);
+  }
+}
+globalThis.WebSocket = OfflineWebSocket as unknown as typeof WebSocket;
+
 beforeEach(() => {
   if (hasDom) localStorage.clear();
 });

@@ -12,6 +12,8 @@
  */
 import { accountManager } from "@/accounts";
 import { clearEventCache, dropLegacyProfileDb, hydrateEventStore, startEventCacheSync } from "@/lib/eventCache";
+import { clearDmCache } from "@/lib/dm/cache";
+import { forgetDmPrefs } from "@/lib/dm/prefs";
 
 let hydratedFor: string | null = null;
 
@@ -44,4 +46,9 @@ function hydrateFor(pubkey: string | null): void {
 export function clearHydratedStore(): void {
   hydratedFor = null;
   void clearEventCache().catch(() => undefined);
+  // Private messages too — sealed to this device, but a shared device should not
+  // keep anyone's conversations past their session.
+  void clearDmCache().catch(() => undefined);
+  // …and what this tab remembers of their prefs, whose rows sign-out just removed.
+  forgetDmPrefs();
 }

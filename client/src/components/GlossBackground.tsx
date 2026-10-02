@@ -16,14 +16,16 @@ export function GlossBackground() {
           grows as results stream in would otherwise move them on every arrival. */}
       <div className="absolute inset-x-0 top-0 h-[100dvh]">
         {/* Soft aurora mesh — cool, pale washes; slightly brighter in dark so the
-            Aurora glow reads on the Ink base. Every blurred wash is its own layer
-            (will-change-transform): iOS Safari otherwise re-rasterizes these
-            100px+ blurs whenever anything above them repaints — ~260ms per
-            keystroke in the search box. */}
-        <div className="bg-brand-accent/16 absolute -top-[16%] left-[2%] h-[52%] w-[52%] rounded-full blur-[130px] will-change-transform dark:bg-brand-accent/[0.14]" />
-        <div className="bg-[#a78bfa]/11 absolute -top-[10%] right-[4%] h-[48%] w-[46%] rounded-full blur-[140px] will-change-transform dark:bg-[#a78bfa]/[0.16]" />
-        <div className="absolute -right-[12%] top-[20%] h-[46%] w-[44%] rounded-full bg-[#7dd3fc]/10 blur-[150px] will-change-transform dark:bg-[#7dd3fc]/[0.10]" />
-        <div className="absolute -left-[12%] top-[6%] h-[46%] w-[42%] rounded-full bg-brand-deep/[0.06] blur-[150px] will-change-transform dark:bg-brand-primary/[0.12]" />
+            Aurora glow reads on the Ink base. Gradients, not blurred blobs
+            (.gloss-wash): iOS Safari froze the search page for ~7s at a time
+            re-rendering 130–150px blurs while results streamed in, layer or no
+            layer. Each box is the old blob grown by 1.75× its blur radius.
+            The first two have no light-mode wash: their old /16 and /11
+            opacities never compiled, so light mode never showed them. */}
+        <div className="gloss-wash absolute left-[calc(2%-228px)] top-[calc(-16%-228px)] h-[calc(52%+455px)] w-[calc(52%+455px)] [--wash-a:0] [--wash:var(--brand-accent)] dark:[--wash-a:0.14]" />
+        <div className="gloss-wash absolute right-[calc(4%-245px)] top-[calc(-10%-245px)] h-[calc(48%+490px)] w-[calc(46%+490px)] [--wash-a:0] [--wash:167_139_250] dark:[--wash-a:0.16]" />
+        <div className="gloss-wash absolute right-[calc(-12%-263px)] top-[calc(20%-263px)] h-[calc(46%+525px)] w-[calc(44%+525px)] [--wash-a:0.1] [--wash:125_211_252]" />
+        <div className="gloss-wash absolute left-[calc(-12%-263px)] top-[calc(6%-263px)] h-[calc(46%+525px)] w-[calc(42%+525px)] [--wash-a:0.06] [--wash:var(--brand-deep)] dark:[--wash-a:0.12] dark:[--wash:var(--brand-primary)]" />
 
         {/* Bright gloss highlight behind the hero/search — a white sheen in light;
             hidden in dark (the aurora washes carry the glow there). Its gradient

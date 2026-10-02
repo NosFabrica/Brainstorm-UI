@@ -5,9 +5,11 @@ import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
 import { wantProfile } from "@/services/authorProfileQueue";
-import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
-import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
+import { CONTENT_RELAYS, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
+import { requestAll, requestAllByRelay, requestNewest, requestNewestWithReach, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { withObserver } from "@/lib/searchSyntax";
+import { resolveHouseObserver } from "@/services/trustSource";
 import { publishUntilEnough } from "@/lib/publishQuorum";
 import { loadReplaceable } from "@/lib/loaders";
 import { profileContentOf } from "@/lib/profileContent";
@@ -439,6 +441,8 @@ export const ALERT_PREFS_D_TAG = "brainstorm.world/alert-prefs";
 
 /** Fetch + decrypt the logged-in user's alert prefs (or null if none/unreadable). */
 export const SCORE_JOURNAL_D_TAG = "brainstorm.world/score-journal";
+/** Pinned, muted and accepted chats (lib/dm/prefsSync). Room keys name who you talk to: encrypted, like the rest. */
+export const DM_PREFS_D_TAG = "brainstorm.world/dm-prefs";
 
 /** Fetch + decrypt one of the user's private app-data blobs (or null). */
 export async function fetchAlertPrefs(
@@ -468,11 +472,64 @@ export async function fetchAlertPrefs(
   }
 }
 
+/**
+ * One of the user's private app-data blobs, read so that a caller about to
+ * REPLACE it can tell "there is none" from "couldn't tell" — `fetchAlertPrefs`
+ * returns null for both, and for a blob it could not decrypt. Always from the
+ * relays: the EventStore holds whatever this session last saw or published, not
+ * what another device wrote since.
+ *
+ *  - `found`: the newest copy, decrypted. `unchanged` instead when its id is
+ *    `knownId` — nothing new, and no decrypt (no signer prompt) spent on it.
+ *  - `absent`: a majority of the relays asked answered and none holds one.
+ *  - `unknown`: anything else — too few relays answered, the Account can't
+ *    sign silently, or the copy there couldn't be read. Never overwrite on this.
+ */
+export type PrivateAppData =
+  | { status: "found"; id: string; createdAt: number; data: Record<string, unknown> }
+  | { status: "unchanged"; id: string; createdAt: number }
+  | { status: "absent" }
+  | { status: "unknown" };
+
+export async function fetchPrivateAppData(
+  dTag: string,
+  { timeoutMs = 6000, knownId }: { timeoutMs?: number; knownId?: string } = {},
+): Promise<PrivateAppData> {
+  const account = activeAccount();
+  if (!account || !(await canSignSilently(account))) return { status: "unknown" };
+  try {
+    const relays = await outboxRelays(account.pubkey, PROFILE_RELAYS);
+    const { newest, reach } = await requestNewestWithReach(
+      relays,
+      { kinds: [30078], authors: [account.pubkey], "#d": [dTag], limit: 1 },
+      timeoutMs,
+    );
+    if (!newest) {
+      return reach.answered.length * 2 > reach.asked.length ? { status: "absent" } : { status: "unknown" };
+    }
+    if (newest.id === knownId) return { status: "unchanged", id: newest.id, createdAt: newest.created_at };
+    const plain = newest.content ? await decryptFromSelf(account, newest.content) : null;
+    if (!plain) return { status: "unknown" };
+    const data: unknown = JSON.parse(plain);
+    if (!data || typeof data !== "object" || Array.isArray(data)) return { status: "unknown" };
+    return { status: "found", id: newest.id, createdAt: newest.created_at, data: data as Record<string, unknown> };
+  } catch {
+    return { status: "unknown" };
+  }
+}
+
 /** Encrypt + publish the logged-in user's alert prefs as a kind-30078 event. */
 export async function publishAlertPrefs(
   prefs: unknown,
   dTag: string = ALERT_PREFS_D_TAG,
-  { background = false }: { background?: boolean } = {},
+  {
+    background = false,
+    createdAt,
+  }: {
+    background?: boolean;
+    /** Seconds. Lets a caller stamp past a copy it has seen, so relays keep this one even when its clock lags. */
+    createdAt?: number;
+  } = {},
 ): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
@@ -486,6 +543,7 @@ export async function publishAlertPrefs(
       kind: 30078,
       tags: [["d", dTag]],
       content: ciphertext,
+      ...(createdAt ? { created_at: createdAt } : {}),
     });
     return await publishToRelays(signed);
   } catch (err) {
@@ -1246,7 +1304,8 @@ export async function publishRelaysFor(signedEvent: NostrEvent, extraRelays: str
   // Seeded here rather than at the call sites: activate, update, republish and
   // deactivate all publish through this one function.
   const seed = signedEvent.kind === 10040 ? nip85RelaySeed() : [];
-  return dedupeRelays([...own, ...inboxes, ...seed, ...extraRelays]);
+  // The search relay rides in PROFILE_RELAYS as a read fallback; it is an index, not a publish target.
+  return dedupeRelays([...own, ...inboxes, ...seed, ...extraRelays]).filter((url) => url !== SEARCH_RELAY);
 }
 
 /**
@@ -1524,8 +1583,6 @@ export async function fetchMuteListTimestamp(
   return undefined;
 }
 
-const WOT_SEARCH_RELAY = env.VITE_WOT_SEARCH_RELAY.trim();
-
 export interface NostrSearchResult {
   pubkey: string;
   npub: string;
@@ -1536,95 +1593,33 @@ export interface NostrSearchResult {
   nip05?: string;
 }
 
-export function searchNostrProfiles(
+export async function searchNostrProfiles(
   query: string,
   options: { limit?: number; timeoutMs?: number } = {},
 ): Promise<NostrSearchResult[]> {
   const { limit = 10, timeoutMs = 5000 } = options;
-  if (!WOT_SEARCH_RELAY) {
-    console.error(
-      "[nostr] VITE_WOT_SEARCH_RELAY is not set — Nostr profile search is disabled. " +
-        "Set VITE_WOT_SEARCH_RELAY at build/deploy time (see README and Dockerfile).",
-    );
-    return Promise.resolve([]);
+  const relay = searchRelay();
+  if (!relay) return [];
+  // The relay refuses a read naming no observer (`auth-required:`).
+  const observer = await resolveHouseObserver().catch(() => null);
+  const events = await requestAll([relay.url], { kinds: [0], search: withObserver(query, observer), limit }, timeoutMs);
+  const seen = new Set<string>();
+  const results: NostrSearchResult[] = [];
+  for (const event of events) {
+    if (event.kind !== 0 || seen.has(event.pubkey)) continue;
+    seen.add(event.pubkey);
+    const content = getProfileContent(event);
+    results.push({
+      pubkey: event.pubkey,
+      npub: nip19.npubEncode(event.pubkey),
+      name: content?.name || undefined,
+      displayName: content?.display_name || content?.displayName || undefined,
+      picture: content?.picture || undefined,
+      about: content?.about || undefined,
+      nip05: content?.nip05 || undefined,
+    });
   }
-  return new Promise((resolve) => {
-    const results: NostrSearchResult[] = [];
-    const seen = new Set<string>();
-    let ws: WebSocket | null = null;
-    let settled = false;
-
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      try {
-        ws?.close();
-      } catch {}
-      resolve(results);
-    };
-
-    const timeout = setTimeout(finish, timeoutMs);
-
-    try {
-      ws = new WebSocket(WOT_SEARCH_RELAY);
-
-      ws.onopen = () => {
-        const req = JSON.stringify([
-          "REQ",
-          "search-1",
-          {
-            kinds: [0],
-            search: query,
-            limit,
-          },
-        ]);
-        ws!.send(req);
-      };
-
-      ws.onmessage = (msg) => {
-        try {
-          const data = JSON.parse(msg.data);
-          if (data[0] === "EVENT" && data[2]) {
-            const event = data[2];
-            const pubkey = event.pubkey;
-            if (pubkey && !seen.has(pubkey)) {
-              seen.add(pubkey);
-              try {
-                const content = JSON.parse(event.content || "{}");
-                results.push({
-                  pubkey,
-                  npub: nip19.npubEncode(pubkey),
-                  name: content.name || undefined,
-                  displayName: content.display_name || content.displayName || undefined,
-                  picture: content.picture || undefined,
-                  about: content.about || undefined,
-                  nip05: content.nip05 || undefined,
-                });
-              } catch {
-                results.push({ pubkey, npub: nip19.npubEncode(pubkey) });
-              }
-            }
-          } else if (data[0] === "EOSE") {
-            clearTimeout(timeout);
-            finish();
-          }
-        } catch {}
-      };
-
-      ws.onerror = () => {
-        clearTimeout(timeout);
-        finish();
-      };
-
-      ws.onclose = () => {
-        clearTimeout(timeout);
-        finish();
-      };
-    } catch {
-      clearTimeout(timeout);
-      finish();
-    }
-  });
+  return results;
 }
 
 export { eventStore, pool };

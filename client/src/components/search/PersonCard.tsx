@@ -4,6 +4,9 @@
  * follower pill, npub copy), extracted from landing.tsx so every vertical
  * shares it.
  */
+import { MessageButton } from "@/components/messages/MessageButton";
+import { PersonTagChips } from "@/components/search/PersonTagChips";
+import type { TagChip } from "@/lib/tagCarrierPeople";
 import { Check, Copy, Globe, Users, Zap } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -40,6 +43,7 @@ export function PersonCard({
   onPrefetchEnter,
   onPrefetchLeave,
   showFollowedBy = false,
+  tag,
 }: {
   result: SearchResult;
   idx: number;
@@ -49,6 +53,8 @@ export function PersonCard({
   onPrefetchLeave?: (result: SearchResult) => void;
   /** The "Followed by …" line costs a server call — the top of the page earns it. */
   showFollowedBy?: boolean;
+  /** The tag the words matched, if this person carries it — the pill at the card's right edge. */
+  tag?: TagChip;
 }) {
   const tierRing = useTierRing();
   const quiet = useQuietTrustChrome();
@@ -190,9 +196,13 @@ export function PersonCard({
             </span>
           </div>
         </div>
-        <span className="mt-1 hidden shrink-0 text-[11px] font-medium text-slate-300 transition-colors group-hover:text-brand-primary dark:text-slate-600 sm:inline">
-          View →
-        </span>
+        <div className="ml-auto flex shrink-0 flex-col items-end gap-1">
+          {tag && <PersonTagChips tag={tag} testId={`person-tag-chips-${idx}`} className="h-auto flex-wrap" />}
+          <MessageButton compact pubkey={result.pubkey} name={getDisplayLabel(result)} />
+          <span className="mt-1 hidden shrink-0 text-[11px] font-medium text-slate-300 transition-colors group-hover:text-brand-primary dark:text-slate-600 sm:inline">
+            View →
+          </span>
+        </div>
       </div>
     </div>
   );

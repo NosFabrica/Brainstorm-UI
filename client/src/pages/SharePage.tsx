@@ -19,6 +19,7 @@ import {
   FileQuestion,
   PenLine,
   Search,
+  MessageCircle,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
@@ -1022,6 +1023,19 @@ export default function SharePage() {
         displayName={displayName}
       />
     ) : null;
+  // Message: opens (or starts) the private chat with this person.
+  const messageIcon =
+    loggedIn && !isOwner ? (
+      <Link
+        href={`/messages/${npub}`}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"
+        title={`Message ${displayName}`}
+        aria-label={`Message ${displayName}`}
+        data-testid="share-message"
+      >
+        <MessageCircle className="h-4 w-4" />
+      </Link>
+    ) : null;
   const profileMenu = (
     <ProfileMenu
       key={`${rel.isMuted}-${!!rel.report}`}
@@ -1038,6 +1052,7 @@ export default function SharePage() {
     <div className="hidden shrink-0 items-center gap-2 sm:flex" data-testid="share-actions-topright">
       {searchIcon}
       {reviewIcon}
+      {messageIcon}
       {followButton}
       {profileMenu}
     </div>
@@ -1051,6 +1066,7 @@ export default function SharePage() {
     <div className="flex items-center gap-1 sm:hidden" data-testid="share-actions-mobile-top">
       {searchIcon}
       {reviewIcon}
+      {messageIcon}
       {profileMenu}
     </div>
   );
@@ -1833,7 +1849,7 @@ function ProfileShareSheet({
 
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <PublicPageHeader maxWidthClass="max-w-4xl" actions={actions} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6">{children}</main>
     </div>

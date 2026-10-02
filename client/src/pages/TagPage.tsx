@@ -217,7 +217,7 @@ export default function TagPage() {
   if (status === "absent") return <NotFound />;
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="flex min-h-page flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <PublicPageHeader maxWidthClass="max-w-2xl" />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6 sm:px-6 sm:py-8" data-testid="tag-page">
         <button
