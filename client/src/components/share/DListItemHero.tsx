@@ -22,16 +22,11 @@ import { Link } from "wouter";
 import { BookOpen, ChevronDown, ExternalLink, Loader2, TriangleAlert } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
-import { useItemConcept } from "@/hooks/useItemConcept";
+import { isReady, useItemView, type ReadyItemView } from "@/hooks/useItemView";
 import { useHasSession } from "@/hooks/useHasSession";
 import { fieldCell, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
-import { rendererFor } from "@/lib/conceptRenderers";
-import { presentItem } from "@/lib/itemPresentation";
-import { itemLinks } from "@/lib/linkTemplates";
-import { useLinkTemplates } from "@/hooks/useLinkTemplates";
-import { DISPLAY_HINTS_ENABLED } from "@/config/dictionary";
 import { avatarSrc } from "@/lib/avatarSrc";
-import type { DefinitionSource, ResolvedConcept } from "@/lib/conceptResolution";
+import type { DefinitionSource } from "@/lib/conceptResolution";
 import { dictionaryConceptOf } from "@/services/dictionary";
 
 type ItemEvent = { id: string; kind: number; pubkey: string; created_at: number; content: string; tags: string[][] };
@@ -44,33 +39,23 @@ const SOURCE_WORDS: Record<DefinitionSource, string> = {
 };
 
 export function DListItemHero({ event }: { event: ItemEvent }) {
-  const concept = useItemConcept(event);
-  const resolved = concept.data ?? null;
+  const view = useItemView(event);
 
-  if (concept.isPending)
+  if (view.pending)
     return (
       <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400" data-testid="dlist-item-hero">
         <Loader2 className="h-4 w-4 animate-spin" /> Reading what this list says its items are…
       </p>
     );
 
-  if (!resolved) return <Undefined event={event} />;
-  return <Defined event={event} resolved={resolved} />;
+  if (!isReady(view)) return <Undefined event={event} />;
+  return <Defined event={event} view={view} />;
 }
 
-function Defined({ event, resolved: r }: { event: ItemEvent; resolved: ResolvedConcept }) {
-  const renderer = rendererFor(r);
+function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
+  const { resolved: r, renderer, shown, links } = view;
   const fields = r.governing.fields;
   const cells = fields.map((f) => ({ field: f, cell: fieldCell(event, f) }));
-  const valueOf = (name: string) => cells.find((c) => c.field.name === name)?.cell.value ?? null;
-  const shown = presentItem(event, r.governing, renderer);
-  // Links from data when the definition names URL templates (provisional); otherwise the
-  // registered renderer's — the fallback for definitions with no `link` tag yet.
-  const refs = DISPLAY_HINTS_ENABLED ? r.governing.links : [];
-  const templates = useLinkTemplates(refs);
-  const links: { label: string; href: string; source: "template" | "renderer" }[] = refs.length
-    ? itemLinks(event, refs, templates.data ?? new Map()).map((l) => ({ ...l, source: "template" as const }))
-    : (renderer?.links?.(valueOf) ?? []).map((l) => ({ ...l, source: "renderer" as const }));
   const extras = undeclaredFields(event, fields);
 
   return (

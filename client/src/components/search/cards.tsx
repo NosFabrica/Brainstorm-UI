@@ -179,6 +179,7 @@ export function CardShell({
   fill = false,
   corner,
   testId,
+  href,
 }: {
   event: NostrEvent;
   children: React.ReactNode;
@@ -204,6 +205,8 @@ export function CardShell({
    *  Lives outside the card's own link like openIn does. */
   corner?: React.ReactNode;
   testId?: string;
+  /** Where the card goes, when the event's own page needs more than its id — a relay hint for a list item. */
+  href?: string;
 }) {
   const footer = openInPlacement === "footer";
   const iconOnly = openInPlacement === "corner-icon";
@@ -213,7 +216,7 @@ export function CardShell({
       data-testid={testId}
     >
       <Link
-        href={eventPath(event)}
+        href={href ?? eventPath(event)}
         className={`block rounded-xl p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 sm:p-4 ${fill ? "h-full" : ""}`}
       >
         {children}
