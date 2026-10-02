@@ -11,18 +11,22 @@
  * (`d` = "AmethystSettings"). That blob is replaced whole on every write, so we
  * keep ours apart rather than share it.
  *
- * Conflicts are last-writer-wins on `updated_at`, the moment the reader last
- * changed any of the three (lib/dm/prefs stamps it). The one exception is a
- * device's first sync, which unions both copies so nobody loses the pins they
- * made before this existed.
+ * Conflicts are last-writer-wins on `updated_at`, which lib/dm/prefs stamps past
+ * the last copy this device saw, so an edit made after seeing another device's
+ * wins whatever the clocks say. Until a device has merged once (`sync.joined`)
+ * its lists are only unioned in: a replaceable event is overwritten whole, so a
+ * device that hasn't seen the account's copy must never publish over it — not
+ * on a timeout, not on a copy it couldn't decrypt, not on a pin made before
+ * the first fetch came back.
  */
 import { activeAccount, type PublishOutcome } from "@/accounts/signing";
-import { DM_PREFS_D_TAG, fetchAlertPrefs, publishAlertPrefs } from "@/services/nostr";
+import { DM_PREFS_D_TAG, fetchPrivateAppData, publishAlertPrefs } from "@/services/nostr";
 import {
   SYNCED_DM_FIELDS,
   applySyncedDmPrefs,
   onSyncedDmPrefsChange,
   readDmPrefs,
+  strings,
   syncedFieldsEqual,
   type DmPrefs,
   type DmPrefsSync,
@@ -37,58 +41,103 @@ export interface RemoteDmPrefs extends Partial<SyncedDmPrefs> {
 export function parseRemoteDmPrefs(raw: Record<string, unknown> | null | undefined): RemoteDmPrefs | null {
   if (!raw || typeof raw.updated_at !== "number") return null;
   const out: RemoteDmPrefs = { updatedAt: raw.updated_at };
-  for (const f of SYNCED_DM_FIELDS) {
-    const v = raw[f];
-    if (Array.isArray(v)) out[f] = v.filter((x): x is string => typeof x === "string");
-  }
+  for (const f of SYNCED_DM_FIELDS) if (Array.isArray(raw[f])) out[f] = strings(raw[f]);
   return out;
 }
 
-export type DmPrefsPlan =
-  | { kind: "keep" }
-  | { kind: "publish" }
-  | { kind: "adopt"; fields: Partial<SyncedDmPrefs>; sync: DmPrefsSync; publish: boolean };
+export interface DmPrefsPlan {
+  /** Written to this device first. */
+  write?: { fields: Partial<SyncedDmPrefs>; sync: DmPrefsSync };
+  publish: boolean;
+}
 
-/** What to do with this device's copy and the account's. Pure: `hydrateDmPrefs` does the I/O. */
-export function reconcileDmPrefs(local: DmPrefs, remote: RemoteDmPrefs | null, now: number): DmPrefsPlan {
-  if (!remote) {
-    // Nothing readable on the account. A change made here goes up; so does a device's
-    // first copy, but without a stamp — if this was only a relay timeout or a signer
-    // that couldn't ask, the next sync still merges instead of overwriting.
-    if (local.sync?.dirty) return { kind: "publish" };
-    if (!local.sync && SYNCED_DM_FIELDS.some((f) => local[f].length)) return { kind: "publish" };
-    return { kind: "keep" };
-  }
-  if (!local.sync) {
+/**
+ * What to do with this device's copy and the account's. Pure: `hydrateDmPrefs`
+ * does the I/O. `remote` is the account's copy, or what the relays said instead.
+ */
+export function reconcileDmPrefs(
+  local: DmPrefs,
+  remote: RemoteDmPrefs | "absent" | "unknown",
+  now: number,
+): DmPrefsPlan {
+  if (remote === "unknown") return { publish: false };
+  const sync = local.sync;
+  if (!sync?.joined) {
+    if (remote === "absent") {
+      // Proven empty: this device's copy is the first. Joined once the publish lands —
+      // or now, when it has nothing to send, so its next change goes straight out.
+      if (!SYNCED_DM_FIELDS.some((f) => local[f].length)) {
+        return { write: { fields: {}, sync: { at: sync?.at ?? 0, dirty: false, joined: true } }, publish: false };
+      }
+      return { write: { fields: {}, sync: { at: sync?.at ?? now, dirty: true, joined: false } }, publish: true };
+    }
     const merged = {} as SyncedDmPrefs;
     for (const f of SYNCED_DM_FIELDS) merged[f] = [...new Set([...(remote[f] ?? local[f]), ...local[f]])];
     const theirs = Object.fromEntries(SYNCED_DM_FIELDS.map((f) => [f, remote[f] ?? []])) as SyncedDmPrefs;
     const ahead = !syncedFieldsEqual(merged, theirs);
     return {
-      kind: "adopt",
-      fields: merged,
-      sync: ahead ? { at: now, dirty: true } : { at: remote.updatedAt, dirty: false },
+      write: {
+        fields: merged,
+        sync: ahead
+          ? { at: Math.max(now, remote.updatedAt + 1), dirty: true, joined: true }
+          : { at: remote.updatedAt, dirty: false, joined: true },
+      },
       publish: ahead,
     };
   }
-  if (remote.updatedAt > local.sync.at) {
+  // The relays lost it, or it was deleted: put this device's back.
+  if (remote === "absent") return { write: { fields: {}, sync: { ...sync, dirty: true } }, publish: true };
+  if (remote.updatedAt > sync.at) {
     const fields: Partial<SyncedDmPrefs> = {};
     for (const f of SYNCED_DM_FIELDS) if (remote[f]) fields[f] = remote[f];
-    return { kind: "adopt", fields, sync: { at: remote.updatedAt, dirty: false }, publish: false };
+    return { write: { fields, sync: { at: remote.updatedAt, dirty: false, joined: true } }, publish: false };
   }
-  if (remote.updatedAt < local.sync.at) return { kind: "publish" };
+  if (remote.updatedAt < sync.at) return { write: { fields: {}, sync: { ...sync, dirty: true } }, publish: true };
   // Same moment: it is our own publish, landed without us hearing back.
-  return local.sync.dirty
-    ? { kind: "adopt", fields: {}, sync: { at: local.sync.at, dirty: false }, publish: false }
-    : { kind: "keep" };
+  return sync.dirty ? { write: { fields: {}, sync: { ...sync, dirty: false } }, publish: false } : { publish: false };
+}
+
+/**
+ * NIP-44 refuses plaintext over 65535 bytes, and a 1:1 room key alone is 129.
+ * `accepted` only ever grows, so without a bound a long-lived account would one
+ * day stop syncing for good. Over budget, the published copy drops the oldest
+ * accepted requests first, then the oldest mutes, then the oldest pins; this
+ * device keeps all of them.
+ */
+const MAX_PLAINTEXT_BYTES = 60_000;
+
+export function fitDmPrefsPayload<T extends SyncedDmPrefs>(payload: T): T {
+  let size = new TextEncoder().encode(JSON.stringify(payload)).length;
+  if (size <= MAX_PLAINTEXT_BYTES) return payload;
+  const accepted = [...payload.accepted];
+  const muted = [...payload.muted];
+  const pinned = [...payload.pinned];
+  // `accepted` and `muted` append, so their oldest lead; `pinned` is newest first.
+  const drop = (list: string[], oldestFirst: boolean) => {
+    const gone = oldestFirst ? list.shift()! : list.pop()!;
+    size -= new TextEncoder().encode(gone).length + 3; // its quotes and comma
+  };
+  while (size > MAX_PLAINTEXT_BYTES && accepted.length) drop(accepted, true);
+  while (size > MAX_PLAINTEXT_BYTES && muted.length) drop(muted, true);
+  while (size > MAX_PLAINTEXT_BYTES && pinned.length) drop(pinned, false);
+  return { ...payload, accepted, muted, pinned };
 }
 
 /** A burst of pin/mute toggles is one publish. */
 const DEBOUNCE_MS = 1500;
 const RETRY_MS = 15_000;
 const MAX_RETRIES = 3;
+/** Boot and opening Messages straight after are one read, not two. */
+const FRESH_MS = 30_000;
 
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
+const hydrating = new Map<string, Promise<void>>();
+const hydratedAt = new Map<string, number>();
+/** The account's copy as last read, so an unchanged one is neither decrypted nor re-parsed. */
+const seen = new Map<string, { id: string; remote: RemoteDmPrefs | null }>();
+/** Newest `created_at` (s) seen or published per account: the next publish goes past it, or relays keep the older. */
+const lastCreatedAt = new Map<string, number>();
+let running = false;
 let queue: Promise<unknown> = Promise.resolve();
 
 /** One at a time, so an older copy can never be signed after a newer one. */
@@ -99,31 +148,45 @@ function serial<T>(task: () => Promise<T>): Promise<T> {
 }
 
 function schedule(pubkey: string, delay: number, attempt = 0): void {
+  if (!running) return;
   clearTimeout(timers.get(pubkey));
   timers.set(
     pubkey,
     setTimeout(() => {
       timers.delete(pubkey);
-      void serial(() => publishNow(pubkey, attempt));
+      void serial(() => publishNow(pubkey, { attempt }));
     }, delay),
   );
 }
 
-async function publishNow(pubkey: string, attempt = 0): Promise<void> {
+async function publishNow(pubkey: string, { attempt = 0, first = false } = {}): Promise<void> {
   // Another account is active now: this one's change stays dirty until it's back.
   if (activeAccount()?.pubkey !== pubkey) return;
   const prefs = readDmPrefs(pubkey);
-  const at = prefs.sync?.at ?? Date.now();
+  const sync = prefs.sync;
+  // Nothing new to say, or not merged yet — `hydrateDmPrefs` publishes once it has.
+  if (!sync?.dirty || (!sync.joined && !first)) return;
+  const createdAt = Math.max(Math.floor(Date.now() / 1000), (lastCreatedAt.get(pubkey) ?? 0) + 1);
   const res = await publishAlertPrefs(
-    { v: 1, updated_at: at, pinned: prefs.pinned, muted: prefs.muted, accepted: prefs.accepted },
+    fitDmPrefsPayload({
+      v: 1,
+      updated_at: sync.at,
+      pinned: prefs.pinned,
+      muted: prefs.muted,
+      accepted: prefs.accepted,
+    }),
     DM_PREFS_D_TAG,
     // Nobody asked to unlock for a pin: a Locked Account defers to the next sync.
-    { background: true },
+    { background: true, createdAt },
   ).catch((): PublishOutcome => ({ success: false, error: "All relays failed" }));
+  // Signed out or switched while it was out: the row may be gone, and must stay gone.
+  if (activeAccount()?.pubkey !== pubkey) return;
   if (res.success) {
+    lastCreatedAt.set(pubkey, createdAt);
     // Only what was sent is confirmed: a change made while it was in flight stays dirty.
-    const now = readDmPrefs(pubkey).sync;
-    if (!now || now.at === at) applySyncedDmPrefs(pubkey, {}, { at, dirty: false });
+    if (readDmPrefs(pubkey).sync?.at === sync.at) {
+      applySyncedDmPrefs(pubkey, {}, { at: sync.at, dirty: false, joined: true });
+    }
     return;
   }
   // Waiting on the reader (locked, declined, signer away) or unable to encrypt at all:
@@ -135,24 +198,53 @@ async function publishNow(pubkey: string, attempt = 0): Promise<void> {
 
 /**
  * Bring the account's copy in and send this device's up if it is newer. Runs when
- * the inbox starts for a key held here and whenever Messages opens.
+ * the inbox starts for a key held here and whenever Messages opens; a second call
+ * while one is running, or soon after one got an answer, is the same call.
  */
 export function hydrateDmPrefs(pubkey: string): Promise<void> {
-  return serial(async () => {
-    if (!pubkey || activeAccount()?.pubkey !== pubkey) return;
-    const raw = await fetchAlertPrefs(6000, DM_PREFS_D_TAG).catch(() => null);
+  if (!pubkey) return Promise.resolve();
+  const inFlight = hydrating.get(pubkey);
+  if (inFlight) return inFlight;
+  if (Date.now() - (hydratedAt.get(pubkey) ?? 0) < FRESH_MS) return Promise.resolve();
+  const run = serial(async () => {
+    if (activeAccount()?.pubkey !== pubkey) return;
+    const got = await fetchPrivateAppData(DM_PREFS_D_TAG, { knownId: seen.get(pubkey)?.id });
     // Switched accounts mid-fetch: what came back isn't this account's.
     if (activeAccount()?.pubkey !== pubkey) return;
-    const plan = reconcileDmPrefs(readDmPrefs(pubkey), parseRemoteDmPrefs(raw), Date.now());
-    if (plan.kind === "adopt") applySyncedDmPrefs(pubkey, plan.fields, plan.sync);
-    if (plan.kind === "publish" || (plan.kind === "adopt" && plan.publish)) await publishNow(pubkey);
-  });
+    let remote: RemoteDmPrefs | "absent" | "unknown";
+    if (got.status === "found") {
+      const parsed = parseRemoteDmPrefs(got.data);
+      seen.set(pubkey, { id: got.id, remote: parsed });
+      // Ours, readable, but not in a shape we know: nothing in it to keep.
+      remote = parsed ?? "absent";
+    } else if (got.status === "unchanged") {
+      remote = seen.get(pubkey)?.remote ?? "absent";
+    } else {
+      remote = got.status;
+    }
+    if (got.status === "found" || got.status === "unchanged") {
+      lastCreatedAt.set(pubkey, Math.max(lastCreatedAt.get(pubkey) ?? 0, got.createdAt));
+    }
+    const plan = reconcileDmPrefs(readDmPrefs(pubkey), remote, Date.now());
+    if (plan.write) applySyncedDmPrefs(pubkey, plan.write.fields, plan.write.sync);
+    if (plan.publish) await publishNow(pubkey, { first: true });
+    // Only a read that settled things counts: "couldn't tell", or a first copy that
+    // didn't make it out, leaves the next open or the next change to ask again.
+    if (remote !== "unknown" && readDmPrefs(pubkey).sync?.joined) hydratedAt.set(pubkey, Date.now());
+  }).finally(() => hydrating.delete(pubkey));
+  hydrating.set(pubkey, run);
+  return run;
 }
 
 /** Publish the reader's pin/mute/accept changes as they make them. Returns the stop. */
 export function startDmPrefsSync(): () => void {
-  onSyncedDmPrefsChange((pubkey) => schedule(pubkey, DEBOUNCE_MS));
+  running = true;
+  // Not merged yet: the change waits for the merge, which publishes it.
+  onSyncedDmPrefsChange((pubkey) =>
+    readDmPrefs(pubkey).sync?.joined ? schedule(pubkey, DEBOUNCE_MS) : void hydrateDmPrefs(pubkey),
+  );
   return () => {
+    running = false;
     onSyncedDmPrefsChange(null);
     for (const t of timers.values()) clearTimeout(t);
     timers.clear();

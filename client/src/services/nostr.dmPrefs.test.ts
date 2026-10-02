@@ -16,6 +16,17 @@ import * as nip44 from "nostr-tools/nip44";
 const publish = vi.fn();
 const signAs = vi.fn();
 const activeAccount = vi.fn();
+const requestNewestWithReach = vi.fn();
+
+vi.mock("@/lib/relayRequest", async (original) => ({
+  ...(await original<typeof import("@/lib/relayRequest")>()),
+  requestNewestWithReach: (...args: unknown[]) => requestNewestWithReach(...args),
+}));
+
+vi.mock("@/lib/relayRouting", async (original) => ({
+  ...(await original<typeof import("@/lib/relayRouting")>()),
+  outboxRelays: async () => ["wss://r0", "wss://r1", "wss://r2"],
+}));
 
 vi.mock("@/lib/relayPool", () => ({
   pool: { publish: (...args: unknown[]) => publish(...args), request: () => EMPTY },
@@ -82,5 +93,62 @@ describe("publishing the synced chat prefs", () => {
     expect(res).toEqual({ success: false, error: "Could not encrypt" });
     expect(signAs).not.toHaveBeenCalled();
     expect(publish).not.toHaveBeenCalled();
+  });
+});
+
+describe("reading the synced chat prefs before replacing them", () => {
+  const asked = ["wss://r0", "wss://r1", "wss://r2"];
+  const reach = (answered: string[]) => ({ asked, answered });
+  const signed = async () => {
+    const content = nip44.encrypt(JSON.stringify(blob), toSelf);
+    return finalizeEvent({ kind: 30078, created_at: 50, tags: [["d", "brainstorm.world/dm-prefs"]], content }, SECRET);
+  };
+
+  beforeEach(() => activeAccount.mockReturnValue(account(true)));
+
+  it("decrypts the account's copy, asking the relays for exactly that d tag", async () => {
+    const event = await signed();
+    requestNewestWithReach.mockResolvedValue({ newest: event, reach: reach(asked) });
+
+    const got = await nostr.fetchPrivateAppData(nostr.DM_PREFS_D_TAG);
+
+    expect(got).toEqual({ status: "found", id: event.id, createdAt: 50, data: blob });
+    expect(requestNewestWithReach.mock.calls[0][1]).toEqual({
+      kinds: [30078],
+      authors: [PUBKEY],
+      "#d": ["brainstorm.world/dm-prefs"],
+      limit: 1,
+    });
+  });
+
+  it("calls it absent only when most relays answered", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reach(asked.slice(0, 2)) });
+    expect(await nostr.fetchPrivateAppData(nostr.DM_PREFS_D_TAG)).toEqual({ status: "absent" });
+
+    requestNewestWithReach.mockResolvedValue({ newest: undefined, reach: reach(asked.slice(0, 1)) });
+    expect(await nostr.fetchPrivateAppData(nostr.DM_PREFS_D_TAG)).toEqual({ status: "unknown" });
+  });
+
+  it("calls a copy it can't decrypt unknown, never absent", async () => {
+    requestNewestWithReach.mockResolvedValue({ newest: await signed(), reach: reach(asked) });
+    activeAccount.mockReturnValue(account(false));
+    expect(await nostr.fetchPrivateAppData(nostr.DM_PREFS_D_TAG)).toEqual({ status: "unknown" });
+  });
+
+  it("skips the decrypt for a copy it has already seen", async () => {
+    const event = await signed();
+    const decrypt = vi.fn();
+    activeAccount.mockReturnValue({ ...account(true), nip44: { encrypt: vi.fn(), decrypt } });
+    requestNewestWithReach.mockResolvedValue({ newest: event, reach: reach(asked) });
+
+    const got = await nostr.fetchPrivateAppData(nostr.DM_PREFS_D_TAG, { knownId: event.id });
+
+    expect(got).toEqual({ status: "unchanged", id: event.id, createdAt: 50 });
+    expect(decrypt).not.toHaveBeenCalled();
+  });
+
+  it("stamps the publish with the created_at it's given", async () => {
+    await nostr.publishAlertPrefs(blob, nostr.DM_PREFS_D_TAG, { background: true, createdAt: 777 });
+    expect((publish.mock.calls[0][1] as { created_at: number }).created_at).toBe(777);
   });
 });

@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PrivateAppData } from "@/services/nostr";
 
 const publishAlertPrefs = vi.fn();
-const fetchAlertPrefs = vi.fn();
+const fetchPrivateAppData = vi.fn();
 const activeAccount = vi.fn();
 
 vi.mock("@/services/nostr", () => ({
   DM_PREFS_D_TAG: "brainstorm.world/dm-prefs",
   publishAlertPrefs: (...args: unknown[]) => publishAlertPrefs(...args),
-  fetchAlertPrefs: (...args: unknown[]) => fetchAlertPrefs(...args),
+  fetchPrivateAppData: (...args: unknown[]) => fetchPrivateAppData(...args),
 }));
 
 vi.mock("@/accounts/signing", () => ({
@@ -22,13 +23,20 @@ const OTHER_ROOM = `${"c".repeat(64)},${PK}`;
 let prefs: typeof import("./prefs");
 let sync: typeof import("./prefsSync");
 
+const found = (data: Record<string, unknown>, id = "e1", createdAt = 1000): PrivateAppData => ({
+  status: "found",
+  id,
+  createdAt,
+  data,
+});
+
 beforeEach(async () => {
   vi.clearAllMocks();
   vi.resetModules();
   localStorage.clear();
   activeAccount.mockReturnValue({ pubkey: PK });
   publishAlertPrefs.mockResolvedValue({ success: true });
-  fetchAlertPrefs.mockResolvedValue(null);
+  fetchPrivateAppData.mockResolvedValue({ status: "absent" });
   prefs = await import("./prefs");
   sync = await import("./prefsSync");
 });
@@ -39,63 +47,67 @@ afterEach(() => {
 
 /** The blob the last publish carried (before `publishAlertPrefs` encrypts it). */
 const published = () => publishAlertPrefs.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+const joined = (at: number, dirty = false) => ({ at, dirty, joined: true });
 
 describe("reconciling this device with the account's copy", () => {
   const local = (over: Partial<import("./prefs").DmPrefs> = {}) => ({ ...prefs.readDmPrefs(PK), ...over });
+  const remote = { updatedAt: 200, pinned: [OTHER_ROOM], muted: [], accepted: [] };
 
   it("takes the account's copy when it is newer, even over a change made here", () => {
-    const plan = sync.reconcileDmPrefs(
-      local({ pinned: [ROOM], sync: { at: 100, dirty: true } }),
-      { updatedAt: 200, pinned: [OTHER_ROOM], muted: [], accepted: [] },
-      999,
-    );
+    const plan = sync.reconcileDmPrefs(local({ pinned: [ROOM], sync: joined(100, true) }), remote, 999);
     expect(plan).toEqual({
-      kind: "adopt",
-      fields: { pinned: [OTHER_ROOM], muted: [], accepted: [] },
-      sync: { at: 200, dirty: false },
+      write: { fields: { pinned: [OTHER_ROOM], muted: [], accepted: [] }, sync: joined(200) },
       publish: false,
     });
   });
 
   it("sends this device's copy up when it is newer", () => {
-    const plan = sync.reconcileDmPrefs(
-      local({ pinned: [ROOM], sync: { at: 300, dirty: true } }),
-      { updatedAt: 200, pinned: [], muted: [], accepted: [] },
-      999,
-    );
-    expect(plan).toEqual({ kind: "publish" });
+    const plan = sync.reconcileDmPrefs(local({ pinned: [ROOM], sync: joined(300, true) }), remote, 999);
+    expect(plan.publish).toBe(true);
   });
 
   it("merges both on a device's first sync, so pins made before sync existed survive", () => {
-    const plan = sync.reconcileDmPrefs(
-      local({ pinned: [ROOM] }),
-      { updatedAt: 200, pinned: [OTHER_ROOM], muted: [], accepted: [] },
-      999,
-    );
+    const plan = sync.reconcileDmPrefs(local({ pinned: [ROOM] }), remote, 999);
     expect(plan).toMatchObject({
-      kind: "adopt",
-      fields: { pinned: [OTHER_ROOM, ROOM] },
-      sync: { at: 999, dirty: true },
+      write: { fields: { pinned: [OTHER_ROOM, ROOM] }, sync: { at: 999, dirty: true, joined: true } },
       publish: true,
     });
   });
 
-  it("keeps this device's list for a field the account's copy doesn't carry", () => {
+  it("merges a device that changed something before its first merge, rather than publishing over", () => {
     const plan = sync.reconcileDmPrefs(
-      local({ muted: [ROOM], sync: { at: 100, dirty: false } }),
-      { updatedAt: 200, pinned: [OTHER_ROOM] },
+      local({ pinned: [ROOM], sync: { at: 5000, dirty: true, joined: false } }),
+      remote,
       999,
     );
-    expect(plan).toMatchObject({ kind: "adopt", fields: { pinned: [OTHER_ROOM] } });
-    expect((plan as { fields: object }).fields).not.toHaveProperty("muted");
+    expect(plan.write?.fields.pinned).toEqual([OTHER_ROOM, ROOM]);
   });
 
-  it("doesn't stamp a first copy when nothing came back, so a missed fetch still merges later", () => {
-    expect(sync.reconcileDmPrefs(local({ pinned: [ROOM] }), null, 999)).toEqual({ kind: "publish" });
-    expect(sync.reconcileDmPrefs(local(), null, 999)).toEqual({ kind: "keep" });
+  it("keeps this device's list for a field the account's copy doesn't carry", () => {
+    const plan = sync.reconcileDmPrefs(local({ muted: [ROOM], sync: joined(100) }), { updatedAt: 200 }, 999);
+    expect(plan.write?.fields).toEqual({});
   });
 
-  it("reads only well-formed content", () => {
+  it("does nothing on a read that couldn't tell", () => {
+    expect(sync.reconcileDmPrefs(local({ pinned: [ROOM] }), "unknown", 999)).toEqual({ publish: false });
+    expect(sync.reconcileDmPrefs(local({ pinned: [ROOM], sync: joined(1, true) }), "unknown", 999)).toEqual({
+      publish: false,
+    });
+  });
+
+  it("publishes a first copy only when the account is proven to have none", () => {
+    expect(sync.reconcileDmPrefs(local({ pinned: [ROOM] }), "absent", 999)).toEqual({
+      write: { fields: {}, sync: { at: 999, dirty: true, joined: false } },
+      publish: true,
+    });
+    // Nothing to send: joined now, so the first pin goes straight out.
+    expect(sync.reconcileDmPrefs(local(), "absent", 999)).toEqual({
+      write: { fields: {}, sync: { at: 0, dirty: false, joined: true } },
+      publish: false,
+    });
+  });
+
+  it("reads only well-formed content, with the same sanitizer as local rows", () => {
     expect(sync.parseRemoteDmPrefs(null)).toBeNull();
     expect(sync.parseRemoteDmPrefs({ pinned: [ROOM] })).toBeNull();
     expect(sync.parseRemoteDmPrefs({ updated_at: 5, pinned: [ROOM, 7], muted: "x" })).toEqual({
@@ -105,9 +117,29 @@ describe("reconciling this device with the account's copy", () => {
   });
 });
 
+describe("the published copy", () => {
+  it("stays under NIP-44's plaintext limit, dropping the oldest accepted requests first", () => {
+    const accepted = Array.from({ length: 1000 }, (_, i) => `${i.toString(16).padStart(64, "0")},${PK}`);
+    const fitted = sync.fitDmPrefsPayload({ v: 1, updated_at: 1, pinned: [ROOM], muted: [ROOM], accepted });
+    expect(new TextEncoder().encode(JSON.stringify(fitted)).length).toBeLessThanOrEqual(60_000);
+    expect(fitted.pinned).toEqual([ROOM]);
+    expect(fitted.muted).toEqual([ROOM]);
+    expect(fitted.accepted.at(-1)).toBe(accepted.at(-1));
+    expect(fitted.accepted.length).toBeLessThan(1000);
+  });
+
+  it("is left alone when it fits", () => {
+    const payload = { pinned: [ROOM], muted: [], accepted: [] };
+    expect(sync.fitDmPrefsPayload(payload)).toBe(payload);
+  });
+});
+
 describe("pinning a chat", () => {
+  const joinedDevice = () => prefs.applySyncedDmPrefs(PK, {}, joined(100));
+
   it("publishes the synced fields once a burst of toggles settles", async () => {
     vi.useFakeTimers();
+    joinedDevice();
     const stop = sync.startDmPrefsSync();
     prefs.setRoomPinned(PK, ROOM, true);
     prefs.setRoomMuted(PK, ROOM, true);
@@ -119,7 +151,7 @@ describe("pinning a chat", () => {
     expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
     const [blob, dTag, opts] = publishAlertPrefs.mock.calls[0];
     expect(dTag).toBe("brainstorm.world/dm-prefs");
-    expect(opts).toEqual({ background: true });
+    expect(opts).toMatchObject({ background: true });
     expect(blob).toMatchObject({ v: 1, pinned: [OTHER_ROOM, ROOM], muted: [ROOM], accepted: [] });
     expect(prefs.readDmPrefs(PK).sync?.dirty).toBe(false);
     stop();
@@ -127,6 +159,7 @@ describe("pinning a chat", () => {
 
   it("doesn't publish for changes that don't sync", async () => {
     vi.useFakeTimers();
+    joinedDevice();
     const stop = sync.startDmPrefsSync();
     prefs.markRoomRead(PK, ROOM, 50);
     prefs.setRoomTimer(PK, ROOM, 3600);
@@ -135,8 +168,39 @@ describe("pinning a chat", () => {
     stop();
   });
 
+  it("before the first merge, merges instead of publishing over the account's copy", async () => {
+    vi.useFakeTimers();
+    fetchPrivateAppData.mockResolvedValue(found({ updated_at: 200, pinned: [OTHER_ROOM], muted: [], accepted: [] }));
+    const stop = sync.startDmPrefsSync();
+
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
+    expect(published()).toMatchObject({ pinned: [OTHER_ROOM, ROOM] });
+    stop();
+  });
+
+  it("stamps an edit past the copy it last saw, so a fast clock elsewhere can't undo it", () => {
+    prefs.applySyncedDmPrefs(PK, {}, joined(Date.now() + 600_000));
+    prefs.setRoomPinned(PK, ROOM, true);
+    expect(prefs.readDmPrefs(PK).sync!.at).toBeGreaterThan(Date.now() + 600_000);
+  });
+
+  it("doesn't publish again once the account's copy was adopted over it", async () => {
+    vi.useFakeTimers();
+    joinedDevice();
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    prefs.applySyncedDmPrefs(PK, { pinned: [OTHER_ROOM] }, joined(Date.now() + 1000));
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(publishAlertPrefs).not.toHaveBeenCalled();
+    stop();
+  });
+
   it("stays dirty for later when the account is locked, without retrying on a clock", async () => {
     vi.useFakeTimers();
+    joinedDevice();
     publishAlertPrefs.mockResolvedValue({ success: false, deferred: true });
     const stop = sync.startDmPrefsSync();
     prefs.setRoomPinned(PK, ROOM, true);
@@ -148,6 +212,7 @@ describe("pinning a chat", () => {
 
   it("retries a relay failure a few times, then waits for the next sync", async () => {
     vi.useFakeTimers();
+    joinedDevice();
     publishAlertPrefs.mockResolvedValue({ success: false, error: "All relays failed" });
     const stop = sync.startDmPrefsSync();
     prefs.setRoomPinned(PK, ROOM, true);
@@ -155,43 +220,116 @@ describe("pinning a chat", () => {
     expect(publishAlertPrefs).toHaveBeenCalledTimes(4);
     stop();
   });
+
+  it("schedules no retry once stopped", async () => {
+    vi.useFakeTimers();
+    joinedDevice();
+    let fail!: (v: unknown) => void;
+    publishAlertPrefs.mockReturnValue(new Promise((resolve) => (fail = resolve)));
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(2000);
+    stop();
+    fail({ success: false, error: "All relays failed" });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves no row behind when sign-out lands mid-publish", async () => {
+    vi.useFakeTimers();
+    joinedDevice();
+    let land!: (v: unknown) => void;
+    publishAlertPrefs.mockReturnValue(new Promise((resolve) => (land = resolve)));
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    activeAccount.mockReturnValue(undefined);
+    localStorage.clear();
+    prefs.forgetDmPrefs();
+    land({ success: true });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(localStorage.getItem(`brainstorm_dm_prefs:${PK}`)).toBeNull();
+    stop();
+  });
+
+  it("signs past the newest copy seen, so relays keep it even when this clock lags", async () => {
+    vi.useFakeTimers();
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    fetchPrivateAppData.mockResolvedValue(
+      found({ updated_at: 200, pinned: [], muted: [], accepted: [] }, "e1", future),
+    );
+    await sync.hydrateDmPrefs(PK);
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(publishAlertPrefs.mock.calls[0][2]).toMatchObject({ createdAt: future + 1 });
+    stop();
+  });
 });
 
 describe("opening the inbox", () => {
   it("brings in pins made on another device", async () => {
-    prefs.applySyncedDmPrefs(PK, { pinned: [ROOM] }, { at: 100, dirty: false });
-    fetchAlertPrefs.mockResolvedValue({ v: 1, updated_at: 200, pinned: [OTHER_ROOM], muted: [], accepted: [ROOM] });
+    prefs.applySyncedDmPrefs(PK, { pinned: [ROOM] }, joined(100));
+    fetchPrivateAppData.mockResolvedValue(
+      found({ v: 1, updated_at: 200, pinned: [OTHER_ROOM], muted: [], accepted: [ROOM] }),
+    );
 
     await sync.hydrateDmPrefs(PK);
 
     const p = prefs.readDmPrefs(PK);
     expect(p.pinned).toEqual([OTHER_ROOM]);
     expect(p.accepted).toEqual([ROOM]);
-    expect(p.sync).toEqual({ at: 200, dirty: false });
+    expect(p.sync).toEqual(joined(200));
     expect(publishAlertPrefs).not.toHaveBeenCalled();
   });
 
-  it("reads the account's copy from its own d tag", async () => {
+  it("never publishes over the account's copy on a read that couldn't tell", async () => {
+    prefs.updateDmPrefs(PK, (p) => ({ ...p, pinned: [ROOM] }));
+    fetchPrivateAppData.mockResolvedValue({ status: "unknown" });
     await sync.hydrateDmPrefs(PK);
-    expect(fetchAlertPrefs).toHaveBeenCalledWith(6000, "brainstorm.world/dm-prefs");
+    expect(publishAlertPrefs).not.toHaveBeenCalled();
+  });
+
+  it("publishes a first copy when the account proves to have none, and is joined after", async () => {
+    prefs.updateDmPrefs(PK, (p) => ({ ...p, pinned: [ROOM] }));
+    await sync.hydrateDmPrefs(PK);
+    expect(published()).toMatchObject({ pinned: [ROOM] });
+    expect(prefs.readDmPrefs(PK).sync).toMatchObject({ dirty: false, joined: true });
+  });
+
+  it("reads once for boot and an open straight after, and skips decrypting what it has seen", async () => {
+    fetchPrivateAppData.mockResolvedValue(found({ updated_at: 200, pinned: [], muted: [], accepted: [] }));
+    await Promise.all([sync.hydrateDmPrefs(PK), sync.hydrateDmPrefs(PK)]);
+    await sync.hydrateDmPrefs(PK);
+    expect(fetchPrivateAppData).toHaveBeenCalledTimes(1);
+    expect(fetchPrivateAppData).toHaveBeenCalledWith("brainstorm.world/dm-prefs", { knownId: undefined });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 60_000);
+    fetchPrivateAppData.mockResolvedValue({ status: "unchanged", id: "e1", createdAt: 1000 });
+    await sync.hydrateDmPrefs(PK);
+    expect(fetchPrivateAppData).toHaveBeenLastCalledWith("brainstorm.world/dm-prefs", { knownId: "e1" });
+    expect(prefs.readDmPrefs(PK).sync).toEqual(joined(200));
   });
 
   it("ignores what came back if the account switched while it was fetching", async () => {
-    fetchAlertPrefs.mockImplementation(async () => {
+    fetchPrivateAppData.mockImplementation(async () => {
       activeAccount.mockReturnValue({ pubkey: "d".repeat(64) });
-      return { v: 1, updated_at: 200, pinned: [OTHER_ROOM] };
+      return found({ v: 1, updated_at: 200, pinned: [OTHER_ROOM] });
     });
     await sync.hydrateDmPrefs(PK);
     expect(prefs.readDmPrefs(PK).pinned).toEqual([]);
   });
 
   it("sends up a change that never made it", async () => {
-    prefs.applySyncedDmPrefs(PK, { pinned: [ROOM] }, { at: 300, dirty: true });
-    fetchAlertPrefs.mockResolvedValue({ v: 1, updated_at: 200, pinned: [], muted: [], accepted: [] });
+    prefs.applySyncedDmPrefs(PK, { pinned: [ROOM] }, joined(300, true));
+    fetchPrivateAppData.mockResolvedValue(found({ v: 1, updated_at: 200, pinned: [], muted: [], accepted: [] }));
 
     await sync.hydrateDmPrefs(PK);
 
     expect(published()).toMatchObject({ updated_at: 300, pinned: [ROOM] });
-    expect(prefs.readDmPrefs(PK).sync).toEqual({ at: 300, dirty: false });
+    expect(prefs.readDmPrefs(PK).sync).toEqual(joined(300));
   });
 });

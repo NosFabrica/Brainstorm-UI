@@ -62,6 +62,11 @@ export interface DmPrefsSync {
   at: number;
   /** Changed here and not yet published. */
   dirty: boolean;
+  /**
+   * This device has merged with the account's copy, or published the first one.
+   * Until then its lists are only ever unioned in, never published over it.
+   */
+  joined: boolean;
 }
 
 export interface DmNotifyPrefs {
@@ -96,7 +101,7 @@ const numbers = (v: unknown): Record<string, number> =>
   isRecord(v)
     ? Object.fromEntries(Object.entries(v).filter((e): e is [string, number] => typeof e[1] === "number"))
     : {};
-const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
+export const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
 
 /** A stored row, field by field: a damaged or older shape falls back per field, never throws later. */
 function sanitize(raw: unknown): DmPrefs {
@@ -120,7 +125,7 @@ function sanitize(raw: unknown): DmPrefs {
     linkPreviews: typeof raw.linkPreviews === "boolean" ? raw.linkPreviews : DEFAULTS.linkPreviews,
     sync:
       isRecord(raw.sync) && typeof raw.sync.at === "number"
-        ? { at: raw.sync.at, dirty: raw.sync.dirty === true }
+        ? { at: raw.sync.at, dirty: raw.sync.dirty === true, joined: raw.sync.joined === true }
         : undefined,
   };
 }
@@ -174,7 +179,9 @@ function write(pubkey: string, next: DmPrefs): DmPrefs {
   return next;
 }
 
-const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+// Same reference first: every mutator that doesn't touch a list passes it through.
+const sameList = (a: readonly string[], b: readonly string[]) =>
+  a === b || (a.length === b.length && a.every((x, i) => x === b[i]));
 
 export function syncedFieldsEqual(a: SyncedDmPrefs, b: SyncedDmPrefs): boolean {
   return SYNCED_DM_FIELDS.every((f) => sameList(a[f], b[f]));
@@ -195,8 +202,11 @@ export function updateDmPrefs(pubkey: string, change: (prefs: DmPrefs) => DmPref
     ...changed,
     read: newest(changed.read),
     hidden: newest(changed.hidden),
-    // Stamped here, once, so every mutator below is covered without knowing about sync.
-    sync: touched ? { at: Date.now(), dirty: true } : before.sync,
+    // Stamped here, once, so every mutator below is covered without knowing about sync —
+    // and always past the copy this device last saw, so a slow clock can't lose a later edit.
+    sync: touched
+      ? { at: Math.max(Date.now(), (before.sync?.at ?? 0) + 1), dirty: true, joined: before.sync?.joined ?? false }
+      : before.sync,
   });
   if (touched) syncedChange?.(pubkey);
   return next;
