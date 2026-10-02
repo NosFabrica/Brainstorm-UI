@@ -13,6 +13,7 @@
  */
 import { AuthRequiredError, RelayClosedError } from "applesauce-relay";
 import {
+  EmptyError,
   combineLatest,
   distinctUntilChanged,
   filter,
@@ -112,8 +113,9 @@ export const poolTransport: DmTransport = {
       watch.add(relay.notice$.subscribe((text) => (notice = text)));
       const silence = (error?: unknown): PublishResult => {
         if (!connected) return { ok: false, message: "Could not connect", unreachable: true };
-        // The socket closed under us (a CloseEvent, not an Error): the relay may have it.
-        if (error !== undefined && !(error instanceof Error))
+        // The socket closed under us — a CloseEvent, or the stream ending with no
+        // OK at all (EmptyError) when it closed cleanly: the relay may have it.
+        if (error instanceof EmptyError || (error !== undefined && !(error instanceof Error)))
           return { ok: false, message: "Connection lost", dropped: true };
         // Anything but our own wait running out is the library's words, kept as they are.
         if (error instanceof Error && error.message !== "Timeout") return { ok: false, message: error.message };

@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BehaviorSubject, Subject } from "rxjs";
 import { normalizeURL } from "applesauce-core/helpers/url";
 import { relayAuthAllowed, setRelayAuthAllowed } from "@/lib/relayAuthPref";
-import { allowWriteAuth, setRelayAuthInteractive, startRelayAuth } from "./relayAuth";
+import { allowWriteAuth, isOwnRelay, setRelayAuthInteractive, startRelayAuth } from "./relayAuth";
 
 const PK = "a".repeat(64);
 const PK2 = "b".repeat(64);
@@ -303,6 +303,29 @@ describe("the reader's own relays", () => {
     await tick();
     expect(gated.authenticate).toHaveBeenCalledTimes(2);
     setRelayAuthInteractive(false);
+  });
+
+  // The library re-emits `auth-required` on every refused REQ: a decline must not become a prompt per read.
+  it("are not asked again after a decline when the relay refuses the next read", async () => {
+    own(PK, "wss://gated.example");
+    const { gated } = setup();
+    gated.authenticate.mockRejectedValueOnce(new Error("user declined"));
+    gated.challenge$.next("c1");
+    await tick();
+    gated.authRequiredForRead$.next(true);
+    gated.authRequiredForRead$.next(true);
+    own(PK, "wss://gated.example", "wss://another.example");
+    await tick();
+    expect(gated.authenticate).toHaveBeenCalledTimes(1);
+  });
+
+  it("are known by URL in any spelling, and forgotten when stopped", async () => {
+    own(PK, "wss://gated.example");
+    const { stop } = setup();
+    expect(isOwnRelay("wss://GATED.example")).toBe(true);
+    expect(isOwnRelay("wss://theirs.example/")).toBe(false);
+    stop();
+    expect(isOwnRelay("wss://gated.example/")).toBe(false);
   });
 
   it("are not signed in to for a signed-out reader", async () => {

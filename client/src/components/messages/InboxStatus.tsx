@@ -15,6 +15,7 @@ import { turnOnMessages } from "@/services/dm";
 import { SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
 import { ENCRYPTED_BLOSSOM_SERVERS } from "@/lib/blossomServers";
 import { relayHost } from "./people";
+import { isOwnRelay } from "@/services/relayAuth";
 
 /** First visit: publish a kind-10050 before anything can arrive. */
 export function InboxSetup() {
@@ -110,7 +111,7 @@ export function InboxNotices({
     variant?: "warning" | "default";
   }[] = [];
   // Your own relays sign you in by themselves (services/relayAuth); a recipient's asks first.
-  if (state.sendAuth.length > 0 && !authAllowed)
+  if (!authAllowed && state.sendAuth.some((relay) => !isOwnRelay(relay)))
     notices.push({
       key: "auth",
       icon: <KeyRound className="h-4 w-4" />,

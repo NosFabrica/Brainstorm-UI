@@ -16,8 +16,9 @@
  *   services/dm/transport): another relay turning down a note is no reason to
  *   tell it who we are.
  *
- * A declined or failed signature is asked again only once something changes,
- * such as the reader opening Messages.
+ * A declined or failed signature is asked again only when the reader next
+ * opens Messages — never on the relay's next refusal, which would be a prompt
+ * per read.
  *
  * It follows who may sign, not only new challenges. Turning the switch on,
  * switching to an account that allowed it, or the account's list coming to
@@ -69,6 +70,14 @@ export function setRelayAuthInteractive(on: boolean): void {
   if (interactive$.value !== on) interactive$.next(on);
 }
 
+const ownNow$ = new BehaviorSubject<ReadonlySet<string>>(new Set());
+/** Whether `url` is one of the active account's own relays — signed in to without asking. */
+export function isOwnRelay(url: string): boolean {
+  return ownNow$.value.has(normalizeURL(url));
+}
+
+const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((x) => b.has(x));
+
 /** The relays `pubkey` lists as theirs, as the pool keys them: NIP-65 and the NIP-17 inbox. */
 function ownRelaysFromStore(pubkey: string): ReadonlySet<string> {
   const nip65 = parseRelayList(eventStore.getReplaceable(RELAY_LIST_KIND, pubkey) as NostrEvent | undefined);
@@ -81,6 +90,8 @@ function ownRelaysLive(pubkey: string): Observable<ReadonlySet<string>> {
     filter((e) => e.pubkey === pubkey && (e.kind === RELAY_LIST_KIND || e.kind === DM_RELAY_LIST_KIND)),
     startWith(undefined),
     map(() => ownRelaysFromStore(pubkey)),
+    // A list arriving again from another relay, or one that moved nothing, changes nothing here.
+    distinctUntilChanged(sameSet),
   );
 }
 
@@ -129,15 +140,27 @@ export function startRelayAuth<A extends ActiveAccount>({
     const url = normalizeURL(relay.url);
     // Challenges being answered, or answered, on this connection — gone with it.
     const answered = new Set<string>();
+    // Of those, the ones declined: asked again when the reader next opens Messages.
+    const declined = new Set<string>();
+    let wasInteractive = interactive$.value;
     sub.add(
       combineLatest([
         relay.challenge$,
-        relay.authRequiredForRead$,
-        relay.authRequiredForPublish$,
-        writeAuth$,
+        // The library re-emits `true` on every refused REQ: only a change is news.
+        relay.authRequiredForRead$.pipe(distinctUntilChanged()),
+        relay.authRequiredForPublish$.pipe(distinctUntilChanged()),
+        writeAuth$.pipe(
+          map((writes) => writes.has(relay.url)),
+          distinctUntilChanged(),
+        ),
         signer$,
         interactive$,
-      ]).subscribe(([challenge, read, publish, writes, signer, interactive]) => {
+      ]).subscribe(([challenge, read, publish, writeRefused, signer, interactive]) => {
+        if (interactive && !wasInteractive) {
+          for (const key of declined) answered.delete(key);
+          declined.clear();
+        }
+        wasInteractive = interactive;
         const own = !!signer?.own.has(url);
         const mayHere = !!signer && (own || signer.allowed);
         const signedInAs = relay.authenticatedAs;
@@ -147,7 +170,7 @@ export function startRelayAuth<A extends ActiveAccount>({
           return;
         }
         if (!challenge || !signer || !mayHere || signedInAs) return;
-        const gated = own ? read || publish : read || (publish && writes.has(relay.url));
+        const gated = own ? read || publish : read || (publish && writeRefused);
         if (!gated) return;
         const account = signer.account;
         const key = `${account.pubkey} ${challenge}`;
@@ -161,19 +184,21 @@ export function startRelayAuth<A extends ActiveAccount>({
           }
           await relay.authenticate(account);
         })().catch(() => {
-          // Declined, or the signer failed: asked again next time something
-          // changes — the reader opening Messages — not in a loop.
-          answered.delete(key);
+          // Declined, or the signer failed: not again until the reader opens Messages.
+          declined.add(key);
         });
       }),
     );
   };
 
+  const ownSub = signer$.subscribe((signer) => ownNow$.next(signer?.own ?? new Set()));
   for (const relay of pool.relays.values()) watch(relay);
   const addSub = pool.add$.subscribe(watch);
   const removeSub = pool.remove$.subscribe(forget);
 
   return () => {
+    ownSub.unsubscribe();
+    ownNow$.next(new Set());
     addSub.unsubscribe();
     removeSub.unsubscribe();
     for (const relay of [...watched.keys()]) forget(relay);

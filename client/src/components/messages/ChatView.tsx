@@ -58,6 +58,7 @@ import { RenameChatDialog, renameText } from "./RenameChatDialog";
 import { useChatHistory, type ChatHistoryPhase } from "./useChatHistory";
 import { RoomAvatar, dayLabel, firstName, nameOf, roomTitle, shortDate, shortNpub, type Profiles } from "./people";
 import type { RelayProgress } from "@/lib/dm/pager";
+import { isOwnRelay } from "@/services/relayAuth";
 
 type Item =
   | { kind: "day"; key: string; label: string }
@@ -584,7 +585,7 @@ export function ChatView({
         ))}
       </div>
 
-      {state.sendAuth.length > 0 && !authAllowed && !isRequest && (
+      {!authAllowed && !isRequest && state.sendAuth.some((relay) => !isOwnRelay(relay)) && (
         <Alert
           variant="warning"
           className="mx-4 mb-2 flex w-auto items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] sm:mx-6"

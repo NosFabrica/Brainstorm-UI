@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BehaviorSubject, Subject, TimeoutError } from "rxjs";
+import { BehaviorSubject, EmptyError, Subject, TimeoutError } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 
 /** Just the relay state publish reads, driven by hand. */
@@ -81,6 +81,16 @@ describe("poolTransport.publish", () => {
       ok: false,
       message: "Timeout",
       notice: "disk full",
+    });
+  });
+
+  it("calls a socket that closed cleanly before any OK a lost connection, not a refusal", async () => {
+    relay.connected$.next(true);
+    relay.publish.mockRejectedValue(new EmptyError());
+    expect(await poolTransport.publish(relay.url, event)).toEqual({
+      ok: false,
+      message: "Connection lost",
+      dropped: true,
     });
   });
 
