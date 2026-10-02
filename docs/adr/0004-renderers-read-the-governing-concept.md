@@ -49,6 +49,12 @@ for itself.
 
 ## Where this goes next (not built)
 
+- **The server does the join.** Today the client resolves each concept on screen itself:
+  the community header, the reader's copies, and the URL templates, batched per render
+  and read from our relay first. When list items come back as search results, the search
+  API should return each item with its resolved governing definition already attached,
+  so a results page fetches nothing extra per concept. The rule stays the one above; it
+  just runs next to the index.
 - **Brainstorm's concepts in lockstep with its renderers.** Brainstorm publishes its own
   copy of each concept it renders and registers its renderers against that copy. A user's
   copy can then declare "I render with Brainstorm's concept", one more link on the chain,

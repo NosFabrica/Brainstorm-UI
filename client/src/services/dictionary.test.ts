@@ -42,15 +42,18 @@ const original = ev(AVI, 39999, [
 
 type F = Record<string, unknown>;
 const fetchMock = vi.fn(async (_filter: F | F[], _relays: string[]) => [] as Ev[]);
+/** Our index (the search relay): empty unless a test fills it — it lags the hub. */
+const indexMock = vi.fn(async (_filters: F[], _timeout: number) => [] as Ev[]);
 vi.mock("@/services/nostr", () => ({
   fetchEventsByFilter: (f: F | F[], r: string[]) => fetchMock(f, r),
+  fetchFromSearchRelayByFilters: (f: F[], t: number) => indexMock(f, t),
 }));
 vi.mock("@/config/tagging", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   tagRelays: () => ["wss://hub.example"],
 }));
 
-import { distinctItems, itemIdentity, loadDictionary } from "./dictionary";
+import { distinctItems, itemIdentity, loadConceptItems, loadDictionary } from "./dictionary";
 
 /** Answers each filter the way a relay would, from a fixed corpus. */
 /** One filter, as a relay matches it. */
@@ -77,6 +80,8 @@ function relayWith(corpus: Ev[]) {
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockResolvedValue([]);
+  indexMock.mockReset();
+  indexMock.mockResolvedValue([]);
 });
 
 describe("loadDictionary", () => {
@@ -189,5 +194,50 @@ describe("the header read", () => {
     fetchMock.mockResolvedValue([]);
     await loadDictionary({ pubkey: USER, taPubkey: TA }, [COMMUNITY], undefined, { items: false });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("our index and the hub", () => {
+  it("asks both at once and merges them", async () => {
+    relayWith([taCopy]); // the hub has the copy…
+    indexMock.mockResolvedValue([communityHeader]); // …the index has the community header
+    const [entry] = await loadDictionary({ pubkey: USER, taPubkey: TA }, [COMMUNITY], undefined, { items: false });
+    expect(entry.resolved?.source).toBe("assistant");
+    expect(entry.resolved?.community?.coordinate).toBe(COMMUNITY);
+    expect(indexMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a copy the index hasn't caught up with still governs, from the hub", async () => {
+    indexMock.mockResolvedValue([communityHeader]); // the index is days behind: no copy yet
+    relayWith([communityHeader, taCopy]);
+    const [entry] = await loadDictionary({ pubkey: USER, taPubkey: TA }, [COMMUNITY], undefined, { items: false });
+    expect(entry.inDictionary).toBe(true);
+  });
+
+  it("the same event from both is one", async () => {
+    indexMock.mockResolvedValue([communityHeader, original]);
+    relayWith([communityHeader, original]);
+    const [entry] = await loadDictionary({ pubkey: null, taPubkey: null }, [COMMUNITY]);
+    expect(entry.items).toHaveLength(1);
+  });
+});
+
+describe("at scale", () => {
+  it("reads headers a hundred concepts at a time", async () => {
+    const many = Array.from({ length: 150 }, (_, i) => `39998:${AVI}:concept-${i}`);
+    relayWith([]);
+    await loadDictionary({ pubkey: null, taPubkey: null }, many, undefined, { items: false });
+    // Two chunks, each retried once for want of a community header (none exist here).
+    const headerReads = fetchMock.mock.calls.filter(([f]) => JSON.stringify(f).includes('"#d"'));
+    expect(headerReads.map(([f]) => ((f as F[])[0]["#d"] as string[]).length)).toEqual([100, 100, 50, 50]);
+  });
+
+  it("items: false reads no items; loadConceptItems reads only the headers it's given", async () => {
+    relayWith([communityHeader, original]);
+    await loadDictionary({ pubkey: null, taPubkey: null }, [COMMUNITY], undefined, { items: false });
+    expect(sentFilters().some((f) => f["#z"])).toBe(false);
+    const items = await loadConceptItems([COMMUNITY]);
+    expect(items.map((i) => i.id)).toEqual([original.id]);
+    expect(sentFilters().find((f) => f["#z"])).toMatchObject({ "#z": [COMMUNITY] });
   });
 });

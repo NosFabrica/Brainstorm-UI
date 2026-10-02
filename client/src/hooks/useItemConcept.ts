@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useSelfHistory } from "@/hooks/useSelf";
-import { dictionaryConceptOf, loadDictionary } from "@/services/dictionary";
+import { dictionaryConceptOf } from "@/services/dictionary";
+import { resolveConceptBatched } from "@/services/conceptBatch";
 import type { ResolvedConcept } from "@/lib/conceptResolution";
 
 /**
@@ -21,10 +22,8 @@ export function useItemConcept(item: { kind: number; tags: string[][] }) {
   const historySettled = !(history.isPending && history.fetchStatus !== "idle");
   return useQuery({
     queryKey: ["item-concept", community, pubkey, taPubkey],
-    queryFn: async (): Promise<ResolvedConcept | null> => {
-      const [entry] = await loadDictionary({ pubkey, taPubkey }, [community!], undefined, { items: false });
-      return entry?.resolved ?? null;
-    },
+    // Batched with every other concept this render asks for (services/conceptBatch).
+    queryFn: (): Promise<ResolvedConcept | null> => resolveConceptBatched({ pubkey, taPubkey }, community!),
     enabled: !!community && historySettled,
     staleTime: 5 * 60_000,
   });

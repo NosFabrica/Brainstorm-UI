@@ -46,6 +46,10 @@ vi.mock("@/hooks/useDictionary", () => ({
 vi.mock("@/hooks/useProfile", () => ({ useProfile: () => ({ name: "Avi Burra" }) }));
 /** Authors in the reader's web of trust, as the rank read would decide. */
 let trustedAuthors = new Set<string>([AVI]);
+// A concept's items load on their own (useConceptItems); here they're the entry's.
+vi.mock("@/hooks/useConceptItems", () => ({
+  useConceptItems: (entry: DictionaryEntry | undefined) => ({ data: entry?.items ?? [], isPending: false }),
+}));
 vi.mock("@/hooks/useWotItems", () => ({
   useWotItems: <T extends { pubkey: string }>(items: T[]) => ({
     trusted: items.filter((i) => trustedAuthors.has(i.pubkey)),

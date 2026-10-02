@@ -19,7 +19,7 @@
  * ranked at the verified line or above, from the active Perspective
  * (services/wotRanks). The rest are a count, shown on request, never mixed in.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useSearch } from "wouter";
 import { ArrowLeft, BookOpen, ChevronRight, Loader2 } from "lucide-react";
@@ -42,6 +42,8 @@ import { withdrawOwnCopy } from "@/services/conceptCopy";
 import { useDictionary } from "@/hooks/useDictionary";
 import { useProfile } from "@/hooks/useProfile";
 import { useWotItems } from "@/hooks/useWotItems";
+import { useConceptItems } from "@/hooks/useConceptItems";
+import { useNearViewport } from "@/hooks/useNearViewport";
 import { DISPLAY_HINTS_ENABLED, dictionaryRelays, hasVersionTester } from "@/config/dictionary";
 import { DISPLAY_ROLES, type DisplayHints } from "@/lib/displayHints";
 import type { LinkRef } from "@/lib/linkTemplates";
@@ -151,9 +153,14 @@ const itemCountText = (n: number) => `${n.toLocaleString()} ${n === 1 ? "item" :
 function ConceptRow({ entry }: { entry: DictionaryEntry }) {
   const r = entry.resolved!;
   const fields = r.governing.fields;
-  const wot = useWotItems(entry.items);
+  // The count reads the concept's items, so only once the row nears the screen.
+  const rowRef = useRef<HTMLLIElement>(null);
+  const near = useNearViewport(rowRef, "200px");
+  const items = useConceptItems(entry, near);
+  const wot = useWotItems(items.data ?? []);
+  const counting = !items.data || wot.pending;
   return (
-    <li>
+    <li ref={rowRef}>
       <Link
         href={dictionaryEntryPath(entry.communityCoordinate)}
         className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:border-brand-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
@@ -163,7 +170,7 @@ function ConceptRow({ entry }: { entry: DictionaryEntry }) {
           <div className="flex flex-wrap items-baseline gap-x-2">
             <span className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{r.governing.plural}</span>
             <span className="text-xs text-slate-500 dark:text-slate-400" data-testid="dictionary-row-count">
-              {wot.pending ? "…" : itemCountText(wot.trusted.length)}
+              {counting ? "…" : itemCountText(wot.trusted.length)}
             </span>
           </div>
           {r.governing.description && (
@@ -212,6 +219,8 @@ function DictionaryEntryView({
   loading: boolean;
   hasAssistant: boolean;
 }) {
+  // This concept's items: the only list this page reads (services/dictionary loadConceptItems).
+  const items = useConceptItems(entry);
   const back = (
     <Link
       href="/settings?tab=dictionary"
@@ -263,10 +272,15 @@ function DictionaryEntryView({
             <VersionTester
               community={r.community}
               current={r.source === "personal" ? r.governing : null}
-              items={entry.items}
+              items={items.data ?? []}
             />
           )}
-          <ItemsSection items={entry.items} fields={r.governing.fields} noun={r.governing} />
+          <ItemsSection
+            items={items.data ?? []}
+            loading={items.isPending}
+            fields={r.governing.fields}
+            noun={r.governing}
+          />
         </div>
       </Card>
     </div>
@@ -533,20 +547,26 @@ function ProvenanceSection({ resolved: r, coordinate }: { resolved: ResolvedConc
 
 function ItemsSection({
   items,
+  loading = false,
   fields,
   noun,
 }: {
   items: DictionaryItem[];
+  /** The list itself is still being read. */
+  loading?: boolean;
   fields: FieldDecl[];
   noun: { singular: string; plural: string };
 }) {
   const wot = useWotItems(items);
   const [showOutside, setShowOutside] = useState(false);
   const plural = noun.plural.toLowerCase();
+  const pending = loading || wot.pending;
   return (
     <section className="space-y-3" data-testid="dictionary-items">
-      <SectionHeader kicker={`${noun.plural} · ${wot.pending ? "…" : wot.trusted.length}`} />
-      {wot.pending ? (
+      <SectionHeader kicker={`${noun.plural} · ${pending ? "…" : wot.trusted.length}`} />
+      {loading ? (
+        <Pending label={`Reading the ${plural}…`} />
+      ) : wot.pending ? (
         <Pending label="Checking who's in your web of trust…" />
       ) : wot.trusted.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="dictionary-items-none">

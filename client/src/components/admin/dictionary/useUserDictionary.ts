@@ -22,7 +22,8 @@ export function useUserDictionary(pubkey: string, taPubkey: string | null, enabl
   return useQuery({
     queryKey: userDictionaryKey(pubkey, taPubkey),
     queryFn: async (): Promise<UserDictionarySummary> => {
-      const entries = await loadDictionary({ pubkey, taPubkey });
+      // Which concepts they hold needs headers and copies, never items.
+      const entries = await loadDictionary({ pubkey, taPubkey }, undefined, undefined, { items: false });
       return { entries, held: entries.filter((e) => e.inDictionary).length, total: DICTIONARY_CONCEPTS.length };
     },
     enabled,

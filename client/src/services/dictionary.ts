@@ -5,9 +5,11 @@
  * items filed under any of them. lib/conceptResolution decides which copy
  * governs; this only gathers the candidates.
  *
- * Two rounds: headers (community and copies, at once), then the items of
- * every header that may govern — a curated copy's items are the ones filed
- * under it, the community's under the community header. A copy of an item
+ * Headers first — community and copies, in chunks, one subscription each —
+ * then, only when something shows them, the items of every header that may
+ * govern: a curated copy's items are the ones filed under it, the
+ * community's under the community header. Every read goes to our index and
+ * the tag hub at once (services/listReads). A copy of an item
  * (tapestry's curation copies, `d` = `copy-…` with a `q` naming its original)
  * counts as its original, so a list and its curation don't count twice.
  *
@@ -15,7 +17,7 @@
  * page says what it found, not that the network is down.
  */
 import { DICTIONARY_CONCEPTS, HOUSE_CONCEPT_AUTHORS, dictionaryRelays } from "@/config/dictionary";
-import { fetchEventsByFilter } from "@/services/nostr";
+import { readListEvents } from "@/services/listReads";
 import { DLIST_ITEM_KINDS, coordinateOf, isDListItem, parseCoordinate } from "@/lib/dlistFields";
 import { pointsAt, resolveConcept, type HeaderEvent, type ResolvedConcept } from "@/lib/conceptResolution";
 
@@ -103,40 +105,71 @@ function copyBy(author: string | null, community: string, copies: HeaderEvent[])
   );
 }
 
+/** Concepts per header read: a filter of thousands of `#d`/`#b` values is one no relay takes. */
+const CONCEPT_CHUNK = 100;
+
+/**
+ * One chunk's community headers and copies, as ONE subscription with two
+ * filters: half the subscriptions on a relay that caps them (the tag hub
+ * allows 20), and a failed read becomes visible — the configured concepts'
+ * headers always exist, so a read with none of them failed (a relay at its
+ * limit answers with nothing), where an empty copies filter alone is the
+ * normal answer for a reader with no copies. Retried once, and only then.
+ */
+async function readHeaders(concepts: string[], copyAuthors: string[], hubRelays: string[]): Promise<HeaderEvent[]> {
+  const parsed = concepts.map((c) => parseCoordinate(c)!);
+  const filters = [
+    { kinds: [39998], authors: [...new Set(parsed.map((c) => c.pubkey))], "#d": [...new Set(parsed.map((c) => c.d))] },
+    ...(copyAuthors.length ? [{ kinds: [39998], authors: copyAuthors, "#b": concepts }] : []),
+  ];
+  const wanted = new Set(concepts);
+  const read = () => readListEvents(filters, TIMEOUT_MS, hubRelays) as Promise<HeaderEvent[]>;
+  const events = await read();
+  return events.some((e) => wanted.has(coordinateOf(e) ?? "")) ? events : read();
+}
+
+/** The headers whose items are a concept's list: the community's and every copy on the governing chain. */
+export function listHeaders(communityCoordinate: string, resolved: ResolvedConcept | null): string[] {
+  return [...new Set([communityCoordinate, ...(resolved?.chain ?? [])])];
+}
+
+/**
+ * A concept's items, from the headers its list is filed under — read only when
+ * something shows them (an entry, a row on screen), never with the
+ * Dictionary's headers, so a Dictionary of thousands of concepts costs its
+ * headers and nothing more.
+ */
+export async function loadConceptItems(
+  headers: string[],
+  hubRelays: string[] = dictionaryRelays(),
+): Promise<DictionaryItem[]> {
+  if (!headers.length) return [];
+  const events = (await readListEvents(
+    [{ kinds: [...DLIST_ITEM_KINDS], "#z": headers, limit: ITEM_LIMIT }],
+    TIMEOUT_MS,
+    hubRelays,
+  )) as DictionaryItem[];
+  const filed = new Set(headers);
+  return distinctItems(events.filter(isDListItem).filter((ev) => zValues(ev).some((z) => filed.has(z))));
+}
+
 export async function loadDictionary(
   reader: DictionaryReader,
   concepts: string[] = DICTIONARY_CONCEPTS,
-  relays: string[] = dictionaryRelays(),
+  hubRelays: string[] = dictionaryRelays(),
   { items: withItems = true }: { items?: boolean } = {},
 ): Promise<DictionaryEntry[]> {
-  const parsed = concepts.map((c) => parseCoordinate(c)).filter((c) => c?.kind === 39998);
-  if (!parsed.length) return [];
+  concepts = concepts.filter((c) => parseCoordinate(c)?.kind === 39998);
+  if (!concepts.length) return [];
   const copyAuthors = [
     ...new Set([reader.pubkey, reader.taPubkey, ...HOUSE_CONCEPT_AUTHORS].filter((a): a is string => !!a)),
   ];
 
-  // The community headers and the copies, as ONE subscription with two filters: half
-  // the subscriptions on a relay that caps them (the tag hub allows 20), and a failed
-  // read becomes visible — the configured concepts' headers always exist, so a read
-  // with none of them failed (a relay at its limit answers with nothing), where an
-  // empty copies filter alone is the normal answer for a reader with no copies.
-  // Retried once, and only then.
-  const filters = [
-    {
-      kinds: [39998],
-      authors: [...new Set(parsed.map((c) => c!.pubkey))],
-      "#d": [...new Set(parsed.map((c) => c!.d))],
-    },
-    ...(copyAuthors.length ? [{ kinds: [39998], authors: copyAuthors, "#b": concepts }] : []),
-  ];
-  const read = () =>
-    (fetchEventsByFilter(filters as never, relays, TIMEOUT_MS) as Promise<HeaderEvent[]>).catch(
-      () => [] as HeaderEvent[],
-    );
+  const headerEvents: HeaderEvent[] = [];
+  for (let i = 0; i < concepts.length; i += CONCEPT_CHUNK) {
+    headerEvents.push(...(await readHeaders(concepts.slice(i, i + CONCEPT_CHUNK), copyAuthors, hubRelays)));
+  }
   const conceptSet = new Set(concepts);
-  const hasCommunity = (events: HeaderEvent[]) => events.some((e) => conceptSet.has(coordinateOf(e) ?? ""));
-  let headerEvents = await read();
-  if (!hasCommunity(headerEvents)) headerEvents = await read();
   const byCoordinate = newestPerCoordinate(headerEvents);
   const communityHeaders = new Map([...byCoordinate].filter(([coord]) => conceptSet.has(coord)));
   const copies = [...byCoordinate.values()].filter(
@@ -153,27 +186,18 @@ export async function loadDictionary(
     }),
   );
 
-  // Every header whose items may be the list: the community's and the governing copy's.
-  const headersOf = (i: number) => new Set([concepts[i], ...(resolved[i]?.chain ?? [])]);
-  const allHeaders = [...new Set(concepts.flatMap((_, i) => [...headersOf(i)]))];
-  // An item page needs the concept, not the whole list: `items: false` skips the round.
-  const itemEvents = withItems
-    ? ((await fetchEventsByFilter(
-        { kinds: [...DLIST_ITEM_KINDS], "#z": allHeaders, limit: ITEM_LIMIT },
-        relays,
-        TIMEOUT_MS,
-      ).catch(() => [])) as DictionaryItem[])
-    : [];
-  const items = itemEvents.filter(isDListItem);
+  // `items: false` (the Dictionary's list, an item page, admin) leaves the items to loadConceptItems.
+  const headersOf = concepts.map((c, i) => listHeaders(c, resolved[i]));
+  const items = withItems ? await loadConceptItems([...new Set(headersOf.flat())], hubRelays) : [];
 
   return concepts.map((communityCoordinate, i) => {
-    const mine = headersOf(i);
+    const mine = new Set(headersOf[i]);
     const r = resolved[i];
     return {
       communityCoordinate,
       resolved: r,
       inDictionary: r?.source === "personal" || r?.source === "assistant",
-      items: distinctItems(items.filter((ev) => zValues(ev).some((z) => mine.has(z)))),
+      items: items.filter((ev) => zValues(ev).some((z) => mine.has(z))),
     };
   });
 }

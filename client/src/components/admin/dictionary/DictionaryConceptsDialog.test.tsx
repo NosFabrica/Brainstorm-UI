@@ -46,7 +46,10 @@ describe("DictionaryConceptsDialog", () => {
     open();
     expect(await screen.findByText("Not yet")).toBeInTheDocument();
     expect(screen.getByText("GitHub Accounts")).toBeInTheDocument();
-    expect(loadDictionary).toHaveBeenCalledWith({ pubkey: USER, taPubkey: TA });
+    // Headers and copies only: which concepts they hold needs no items.
+    expect(loadDictionary).toHaveBeenCalledWith({ pubkey: USER, taPubkey: TA }, undefined, undefined, {
+      items: false,
+    });
   });
 
   it("asks the server to copy the configured concepts, and reports each", async () => {

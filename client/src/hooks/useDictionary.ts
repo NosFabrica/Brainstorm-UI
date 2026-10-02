@@ -17,7 +17,8 @@ export function useDictionary() {
   const historySettled = !(history.isPending && history.fetchStatus !== "idle");
   const query = useQuery({
     queryKey: ["dictionary", pubkey, taPubkey],
-    queryFn: () => loadDictionary({ pubkey, taPubkey }),
+    // Headers and copies only: a concept's items load when its row or entry shows them (useConceptItems).
+    queryFn: () => loadDictionary({ pubkey, taPubkey }, undefined, undefined, { items: false }),
     enabled: !!pubkey && historySettled,
     staleTime: 5 * 60_000,
   });
