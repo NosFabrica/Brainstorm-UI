@@ -28,6 +28,7 @@ import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
 import { OwnVersionDialog } from "@/components/dictionary/OwnVersionDialog";
+import { DListItemRow } from "@/components/dictionary/DListItemRow";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,13 +45,12 @@ import { useProfile } from "@/hooks/useProfile";
 import { useWotItems } from "@/hooks/useWotItems";
 import { useConceptItems } from "@/hooks/useConceptItems";
 import { useNearViewport } from "@/hooks/useNearViewport";
-import { DISPLAY_HINTS_ENABLED, dictionaryRelays, hasVersionTester } from "@/config/dictionary";
+import { DISPLAY_HINTS_ENABLED, dictionaryRelays, offersOwnVersion } from "@/config/dictionary";
 import { DISPLAY_ROLES, type DisplayHints } from "@/lib/displayHints";
 import type { LinkRef } from "@/lib/linkTemplates";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { avatarSrc } from "@/lib/avatarSrc";
-import { eventPath } from "@/lib/shareId";
-import { fieldCell, parseCoordinate, type FieldDecl } from "@/lib/dlistFields";
+import { parseCoordinate, type FieldDecl } from "@/lib/dlistFields";
 import type { ConceptDefinition, DefinitionSource, ResolvedConcept } from "@/lib/conceptResolution";
 import type { DictionaryEntry, DictionaryItem } from "@/services/dictionary";
 
@@ -268,19 +268,14 @@ function DictionaryEntryView({
           <FieldsSection fields={r.governing.fields} display={DISPLAY_HINTS_ENABLED ? r.governing.display : null} />
           {DISPLAY_HINTS_ENABLED && r.governing.links.length > 0 && <LinksSection refs={r.governing.links} />}
           <ProvenanceSection resolved={r} coordinate={coordinate} />
-          {hasVersionTester(coordinate) && r.community && (
-            <VersionTester
+          {offersOwnVersion(coordinate) && r.community && (
+            <OwnVersionSection
               community={r.community}
               current={r.source === "personal" ? r.governing : null}
               items={items.data ?? []}
             />
           )}
-          <ItemsSection
-            items={items.data ?? []}
-            loading={items.isPending}
-            fields={r.governing.fields}
-            noun={r.governing}
-          />
+          <ItemsSection items={items.data ?? []} loading={items.isPending} resolved={r} />
         </div>
       </Card>
     </div>
@@ -288,12 +283,12 @@ function DictionaryEntryView({
 }
 
 /**
- * The temporary "your own version" tester (config `versionTester`): publish a
+ * "Your own version" (config `ownVersion`) — began as a demo, likely the seed of a list editor: publish a
  * personal copy of the concept, change it, withdraw it — and watch the
  * fields and item pages follow, since a personal copy outranks the
  * Assistant's and the community's.
  */
-function VersionTester({
+function OwnVersionSection({
   community,
   current,
   items,
@@ -331,8 +326,8 @@ function VersionTester({
   };
 
   return (
-    <section className="space-y-3" data-testid="dictionary-version-tester">
-      <SectionHeader kicker="Your own version · tester" />
+    <section className="space-y-3" data-testid="dictionary-own-version">
+      <SectionHeader kicker="Your own version" />
       <p className="text-sm text-slate-600 dark:text-slate-300">
         {current
           ? "You've published your own version, so it's the definition you see — here and on every item page."
@@ -548,15 +543,15 @@ function ProvenanceSection({ resolved: r, coordinate }: { resolved: ResolvedConc
 function ItemsSection({
   items,
   loading = false,
-  fields,
-  noun,
+  resolved,
 }: {
   items: DictionaryItem[];
   /** The list itself is still being read. */
   loading?: boolean;
-  fields: FieldDecl[];
-  noun: { singular: string; plural: string };
+  /** The definition the rows are drawn from (DListItemRow). */
+  resolved: ResolvedConcept;
 }) {
+  const noun = resolved.governing;
   const wot = useWotItems(items);
   const [showOutside, setShowOutside] = useState(false);
   const plural = noun.plural.toLowerCase();
@@ -575,7 +570,7 @@ function ItemsSection({
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border">
           {wot.trusted.map((item) => (
-            <ItemRow key={item.id} item={item} fields={fields} />
+            <DListItemRow key={item.id} item={item} resolved={resolved} />
           ))}
         </ul>
       )}
@@ -593,7 +588,7 @@ function ItemsSection({
           {showOutside && (
             <ul className="divide-y divide-border rounded-xl border border-dashed border-border opacity-70">
               {wot.outside.map((item) => (
-                <ItemRow key={item.id} item={item} fields={fields} outside />
+                <DListItemRow key={item.id} item={item} resolved={resolved} outside />
               ))}
             </ul>
           )}
@@ -605,32 +600,5 @@ function ItemsSection({
         </p>
       )}
     </section>
-  );
-}
-
-/** A placeholder row — the list card renderer replaces it. The governing fields, in their declared order. */
-function ItemRow({ item, fields, outside = false }: { item: DictionaryItem; fields: FieldDecl[]; outside?: boolean }) {
-  const all = fields.map((f) => ({ field: f, cell: fieldCell(item, f) }));
-  const cells = all.filter((c) => c.cell.value != null);
-  // A required field the item lacks: the definition expects it, so the row says so.
-  const missing = all.filter((c) => c.cell.missing).map((c) => c.field.name);
-  return (
-    <li>
-      <Link
-        href={eventPath(item, dictionaryRelays())}
-        className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-900"
-        data-testid={outside ? "dictionary-item-outside" : "dictionary-item"}
-      >
-        <span className="min-w-0 flex-1 truncate text-sm text-slate-900 dark:text-slate-100">
-          {cells.length ? cells.map((c) => c.cell.value).join(" · ") : <em className="text-slate-500">no fields</em>}
-        </span>
-        {missing.length > 0 && (
-          <Chip tone="warning" size="sm" data-testid="dictionary-item-missing">
-            missing {missing.join(", ")}
-          </Chip>
-        )}
-        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-      </Link>
-    </li>
   );
 }

@@ -12,6 +12,15 @@ import { definitionOf, type HeaderEvent } from "@/lib/conceptResolution";
 const { publish } = vi.hoisted(() => ({ publish: vi.fn() }));
 vi.mock("@/services/conceptCopy", () => ({ publishOwnCopy: (...a: unknown[]) => publish(...a) }));
 
+// No relays and no accounts here: an anonymous reader, and no URL templates on offer.
+vi.mock("@/hooks/useDictionaryReader", () => ({
+  useDictionaryReader: () => ({ pubkey: null, taPubkey: null, settled: true }),
+}));
+vi.mock("@/hooks/useLinkTemplates", () => ({
+  useLinkTemplates: () => ({ data: new Map() }),
+  useAvailableTemplates: () => ({ data: [], isPending: false }),
+}));
+
 import { OwnVersionDialog } from "./OwnVersionDialog";
 
 const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";

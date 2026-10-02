@@ -9,6 +9,10 @@
  * - the definition itself: the first required field is the title, a
  *   declared `summary` or `description` is the summary.
  * The header's author beats Brainstorm's code: a hint is the author's say.
+ *
+ * Chosen per definition, never per item: an item missing its title field
+ * reads "Untitled <singular>" rather than borrowing another field, so the
+ * same field always fills the same slot down a list (the team, 2026-10-02).
  */
 import { DISPLAY_HINTS_ENABLED } from "@/config/dictionary";
 import { fieldCell, httpUrl } from "@/lib/dlistFields";

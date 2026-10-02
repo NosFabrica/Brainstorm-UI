@@ -61,6 +61,14 @@ vi.mock("@/hooks/useWotItems", () => ({
 }));
 
 import { userEvent } from "@testing-library/user-event";
+vi.mock("@/hooks/useDictionaryReader", () => ({
+  useDictionaryReader: () => ({ pubkey: "1".repeat(64), taPubkey: TA, settled: true }),
+}));
+vi.mock("@/hooks/useLinkTemplates", () => ({
+  useLinkTemplates: () => ({ data: new Map() }),
+  useAvailableTemplates: () => ({ data: [], isPending: false }),
+}));
+
 import { DictionaryTab } from "./DictionaryTab";
 
 const entryOf = (copy: HeaderEvent | null): DictionaryEntry => {
@@ -134,7 +142,9 @@ describe("an entry", () => {
     expect(fields).toHaveTextContent("Who it belongs to");
     expect(screen.getByTestId("dictionary-provenance")).toHaveTextContent("differs from it in its fields");
     // The item row reads the governing fields: the username and, now declared, the description.
-    expect(screen.getByTestId("dictionary-item")).toHaveTextContent("vcavallo · Vinney Cavallo");
+    // The row reads the governing definition: titled by the username, the now-declared description its summary.
+    expect(screen.getByTestId("dictionary-item-title")).toHaveTextContent("vcavallo");
+    expect(screen.getByTestId("dictionary-item-line")).toHaveTextContent("Vinney Cavallo");
   });
 
   it("the community's own definition names its author", () => {

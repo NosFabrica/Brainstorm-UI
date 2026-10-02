@@ -44,12 +44,25 @@ export const isReady = (v: ItemView): v is ReadyItemView => !!v.resolved && !!v.
  */
 export function useItemView(item: { kind: number; tags: string[][] }): ItemView {
   const concept = useItemConcept(item);
-  const resolved = concept.data ?? null;
+  return useResolvedItemView(item, concept.data ?? null, concept.isPending);
+}
+
+/**
+ * The same view, for a caller that already holds the item's resolved
+ * definition — a Dictionary entry drawing its own items — so it needn't look
+ * the concept up again per item (and an item filed under a copy, which
+ * useItemConcept can't recognise by its `z` yet, still renders).
+ */
+export function useResolvedItemView(
+  item: { tags: string[][] },
+  resolved: ResolvedConcept | null,
+  pending = false,
+): ItemView {
   const refs = DISPLAY_HINTS_ENABLED && resolved ? resolved.governing.links : [];
   const templates = useLinkTemplates(refs);
-  if (concept.isPending || !resolved) {
+  if (pending || !resolved) {
     return {
-      pending: concept.isPending,
+      pending,
       resolved: null,
       renderer: null,
       shown: null,

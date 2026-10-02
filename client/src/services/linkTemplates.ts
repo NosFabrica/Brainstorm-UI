@@ -1,17 +1,17 @@
 /**
  * URL templates, fetched (lib/linkTemplates). By id for a header's links —
  * an id names one frozen event, so an answer is kept for the session — and
- * by list for the version tester's choices: every item filed under the URL
+ * by list for the link picker's choices: every item filed under the URL
  * Templates concept.
  *
  * Asked of our index and, beside it, the header's relay hints and the tag
  * hub (services/listReads). A template that can't
  * be found is simply no link; its author may have deleted it.
  */
-import { DLIST_ITEM_KINDS, isDListItem } from "@/lib/dlistFields";
 import { templateOf, templatePlaceholders, type LinkRef, type UrlTemplate } from "@/lib/linkTemplates";
 import { URL_TEMPLATES_CONCEPT, dictionaryRelays } from "@/config/dictionary";
 import { readListEvents } from "@/services/listReads";
+import { listHeaders, loadConceptItems, loadDictionary, type DictionaryReader } from "@/services/dictionary";
 
 const TIMEOUT_MS = 8000;
 const byId = new Map<string, UrlTemplate>();
@@ -30,15 +30,19 @@ export async function fetchTemplates(refs: LinkRef[]): Promise<Map<string, UrlTe
   return new Map(refs.flatMap((r) => (byId.has(r.templateId) ? [[r.templateId, byId.get(r.templateId)!]] : [])));
 }
 
-/** Every well-formed template filed under the URL Templates concept, newest first. */
-export async function fetchAvailableTemplates(): Promise<UrlTemplate[]> {
+/**
+ * Every well-formed template in the reader's URL Templates list, newest first.
+ * URL Templates is just another Dictionary concept: the list read is its
+ * governing one for this reader — their copy, their Assistant's, Brainstorm's,
+ * else the community's (ADR 0004) — and its items are the ones filed under
+ * that chain (services/dictionary).
+ */
+export async function fetchAvailableTemplates(reader: DictionaryReader): Promise<UrlTemplate[]> {
   if (!URL_TEMPLATES_CONCEPT) return [];
-  const events = (await readListEvents(
-    [{ kinds: [...DLIST_ITEM_KINDS], "#z": [URL_TEMPLATES_CONCEPT], limit: 200 }],
-    TIMEOUT_MS,
-  )) as { id: string; pubkey: string; kind: number; created_at: number; tags: string[][] }[];
+  const [entry] = await loadDictionary(reader, [URL_TEMPLATES_CONCEPT], undefined, { items: false });
+  const events = await loadConceptItems(listHeaders(URL_TEMPLATES_CONCEPT, entry?.resolved ?? null));
   const out: UrlTemplate[] = [];
-  for (const ev of events.filter(isDListItem).sort((a, b) => b.created_at - a.created_at)) {
+  for (const ev of events) {
     const tpl = templateOf(ev);
     if (tpl && templatePlaceholders(tpl.template)) {
       byId.set(ev.id, tpl);

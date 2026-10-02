@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { useSelfHistory } from "@/hooks/useSelf";
+import { useDictionaryReader } from "@/hooks/useDictionaryReader";
 import { loadDictionary } from "@/services/dictionary";
 
 /**
@@ -11,15 +10,12 @@ import { loadDictionary } from "@/services/dictionary";
  * account alone.
  */
 export function useDictionary() {
-  const pubkey = useActiveAccountDisplay()?.pubkey ?? null;
-  const history = useSelfHistory(pubkey ?? undefined);
-  const taPubkey = (history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey ?? null;
-  const historySettled = !(history.isPending && history.fetchStatus !== "idle");
+  const { pubkey, taPubkey, settled } = useDictionaryReader();
   const query = useQuery({
     queryKey: ["dictionary", pubkey, taPubkey],
     // Headers and copies only: a concept's items load when its row or entry shows them (useConceptItems).
     queryFn: () => loadDictionary({ pubkey, taPubkey }, undefined, undefined, { items: false }),
-    enabled: !!pubkey && historySettled,
+    enabled: !!pubkey && settled,
     staleTime: 5 * 60_000,
   });
   return { ...query, pubkey, taPubkey };

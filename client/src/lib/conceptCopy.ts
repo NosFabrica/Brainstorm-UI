@@ -1,7 +1,8 @@
 /**
  * A reader's own version of a community concept, as a draft and as the
  * event it becomes — the grammar behind "Publish my own version" in the
- * Dictionary (a tester for now, GitHub Accounts only; the team, 2026-10-01).
+ * Dictionary (offered per concept by config `ownVersion`; begun 2026-10-01 as a demo,
+ * likely the seed of a general list editor).
  *
  * The event is a local copy (lib/conceptResolution): a kind-39998 at the
  * community concept's `d`, signed by the reader, pointing back with
