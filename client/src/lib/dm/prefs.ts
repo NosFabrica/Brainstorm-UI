@@ -1,8 +1,10 @@
 /**
- * The reader's own choices about their messages, on this device: what they
- * have read, which requests they accepted or deleted, disappearing timers, and
- * who reaches their chats directly. None of it is on the wire — NIP-17 has no
- * read receipts and no room settings — so it lives with the account here.
+ * The reader's own choices about their messages: what they have read, which
+ * requests they accepted or deleted, disappearing timers, and who reaches their
+ * chats directly. NIP-17 has no read receipts and no room settings, so it lives
+ * with the account here — and the few that should follow the reader to another
+ * device (`SYNCED_DM_FIELDS`) are also kept, encrypted, in their own app data
+ * (lib/dm/prefsSync).
  */
 import { accountKey } from "@/lib/accountStorage";
 
@@ -43,6 +45,23 @@ export interface DmPrefs {
   notify: DmNotifyPrefs;
   /** Preview cards for links, fetched privately (components/messages/DmLinkPreview). */
   linkPreviews: boolean;
+  /** Where `SYNCED_DM_FIELDS` stand against the account's encrypted copy. Absent until this device first syncs. */
+  sync?: DmPrefsSync;
+}
+
+/**
+ * Pinned, muted and accepted chats follow the reader between devices; the rest
+ * is per-device (read state and hidden rooms churn with every message, timers
+ * are already in the messages themselves).
+ */
+export const SYNCED_DM_FIELDS = ["pinned", "muted", "accepted"] as const;
+export type SyncedDmPrefs = Pick<DmPrefs, (typeof SYNCED_DM_FIELDS)[number]>;
+
+export interface DmPrefsSync {
+  /** When the synced fields last changed (ms): here, or in the account's copy this device adopted. */
+  at: number;
+  /** Changed here and not yet published. */
+  dirty: boolean;
 }
 
 export interface DmNotifyPrefs {
@@ -99,6 +118,10 @@ function sanitize(raw: unknown): DmPrefs {
       preview: typeof notify.preview === "boolean" ? notify.preview : DEFAULTS.notify.preview,
     },
     linkPreviews: typeof raw.linkPreviews === "boolean" ? raw.linkPreviews : DEFAULTS.linkPreviews,
+    sync:
+      isRecord(raw.sync) && typeof raw.sync.at === "number"
+        ? { at: raw.sync.at, dirty: raw.sync.dirty === true }
+        : undefined,
   };
 }
 
@@ -140,9 +163,7 @@ export function forgetDmPrefs(): void {
   for (const l of [...listeners]) l();
 }
 
-export function updateDmPrefs(pubkey: string, change: (prefs: DmPrefs) => DmPrefs): DmPrefs {
-  const changed = change(readDmPrefs(pubkey));
-  const next = { ...changed, read: newest(changed.read), hidden: newest(changed.hidden) };
+function write(pubkey: string, next: DmPrefs): DmPrefs {
   memo.set(pubkey, next);
   try {
     localStorage.setItem(key(pubkey), JSON.stringify(next));
@@ -151,6 +172,39 @@ export function updateDmPrefs(pubkey: string, change: (prefs: DmPrefs) => DmPref
   }
   for (const l of [...listeners]) l();
   return next;
+}
+
+const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+export function syncedFieldsEqual(a: SyncedDmPrefs, b: SyncedDmPrefs): boolean {
+  return SYNCED_DM_FIELDS.every((f) => sameList(a[f], b[f]));
+}
+
+let syncedChange: ((pubkey: string) => void) | null = null;
+
+/** lib/dm/prefsSync hears here when the reader changes a synced field, so it can publish. */
+export function onSyncedDmPrefsChange(listener: ((pubkey: string) => void) | null): void {
+  syncedChange = listener;
+}
+
+export function updateDmPrefs(pubkey: string, change: (prefs: DmPrefs) => DmPrefs): DmPrefs {
+  const before = readDmPrefs(pubkey);
+  const changed = change(before);
+  const touched = !syncedFieldsEqual(before, changed);
+  const next = write(pubkey, {
+    ...changed,
+    read: newest(changed.read),
+    hidden: newest(changed.hidden),
+    // Stamped here, once, so every mutator below is covered without knowing about sync.
+    sync: touched ? { at: Date.now(), dirty: true } : before.sync,
+  });
+  if (touched) syncedChange?.(pubkey);
+  return next;
+}
+
+/** What lib/dm/prefsSync writes: the account's copy adopted, or a publish confirmed. Never republishes. */
+export function applySyncedDmPrefs(pubkey: string, fields: Partial<SyncedDmPrefs>, sync: DmPrefsSync): DmPrefs {
+  return write(pubkey, { ...readDmPrefs(pubkey), ...fields, sync });
 }
 
 export function subscribeDmPrefs(listener: () => void): () => void {

@@ -20,6 +20,7 @@ import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/
 import { setRelayAuthInteractive } from "@/services/relayAuth";
 import { roomKeyFromSlug } from "@/lib/dm/rooms";
 import { acceptRoom, archiveRoom, hideRoom } from "@/lib/dm/prefs";
+import { hydrateDmPrefs } from "@/lib/dm/prefsSync";
 import type { DmMessage } from "@/lib/dm/store";
 import type { SendResult } from "@/services/dm/engine";
 import { ConversationList, type InboxTab } from "@/components/messages/ConversationList";
@@ -64,6 +65,10 @@ export default function MessagesPage() {
   useEffect(() => {
     engine?.allowDecrypt();
   }, [engine]);
+  // …and so does the account's encrypted copy of pinned, muted and accepted chats.
+  useEffect(() => {
+    if (me) void hydrateDmPrefs(me);
+  }, [me]);
   // …and inbox relays waiting on a login may ask for one, even if that means unlocking.
   useEffect(() => {
     setRelayAuthInteractive(true);

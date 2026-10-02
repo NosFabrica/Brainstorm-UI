@@ -441,6 +441,8 @@ export const ALERT_PREFS_D_TAG = "brainstorm.world/alert-prefs";
 
 /** Fetch + decrypt the logged-in user's alert prefs (or null if none/unreadable). */
 export const SCORE_JOURNAL_D_TAG = "brainstorm.world/score-journal";
+/** Pinned, muted and accepted chats (lib/dm/prefsSync). Room keys name who you talk to: encrypted, like the rest. */
+export const DM_PREFS_D_TAG = "brainstorm.world/dm-prefs";
 
 /** Fetch + decrypt one of the user's private app-data blobs (or null). */
 export async function fetchAlertPrefs(
