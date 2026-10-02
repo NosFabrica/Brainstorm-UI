@@ -11,7 +11,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BehaviorSubject, Subject } from "rxjs";
 import { normalizeURL } from "applesauce-core/helpers/url";
 import { relayAuthAllowed, setRelayAuthAllowed } from "@/lib/relayAuthPref";
-import { allowWriteAuth, isOwnRelay, setRelayAuthInteractive, startRelayAuth } from "./relayAuth";
+import {
+  allowWriteAuth,
+  askRelayAuthAgain,
+  isOwnRelay,
+  relayAuthProblems,
+  setRelayAuthInteractive,
+  startRelayAuth,
+} from "./relayAuth";
 
 const PK = "a".repeat(64);
 const PK2 = "b".repeat(64);
@@ -37,7 +44,11 @@ function fakeRelay(url: string, { gated = true } = {}) {
     authRequiredForRead$: new BehaviorSubject(gated),
     authRequiredForPublish$: new BehaviorSubject(false),
     authenticatedAs: null as string | null,
-    authenticate: vi.fn(async (signer: Account) => {
+    /** What the relay answers the login with — `false` is the relay's own refusal. */
+    accepts: true as boolean,
+    authenticate: vi.fn(async (signer: Pick<Account, "pubkey" | "signEvent">) => {
+      await signer.signEvent({ kind: 22242, tags: [], content: "", created_at: 1 });
+      if (!relay.accepts) return { ok: false, message: "restricted: members only", from: url };
       relay.authenticatedAs = signer.pubkey;
       return { ok: true, from: url };
     }),
@@ -58,7 +69,7 @@ function fakePool() {
   return pool;
 }
 const tick = async () => {
-  for (let i = 0; i < 3; i++) await Promise.resolve();
+  for (let i = 0; i < 10; i++) await Promise.resolve();
 };
 
 /** A pool with one gated relay already in it, the watcher running over `active$`. */
@@ -212,7 +223,7 @@ describe("startRelayAuth", () => {
     active$.next(other);
     await tick();
     expect(gated.authenticate).toHaveBeenCalledTimes(2);
-    expect(gated.authenticate.mock.calls[1][0]).toBe(other);
+    expect(gated.authenticate.mock.calls[1][0].pubkey).toBe(PK2);
   });
 
   // NIP-42 has no sign-out: a connection signed in as someone who may no
@@ -292,7 +303,7 @@ describe("the reader's own relays", () => {
     expect(pool.remove).not.toHaveBeenCalled();
   });
 
-  it("are asked again after a decline once something changes, not in a loop", async () => {
+  it("are tried again after a failed login when the reader opens Messages, not in a loop", async () => {
     own(PK, "wss://gated.example");
     const { gated } = setup();
     gated.authenticate.mockRejectedValueOnce(new Error("user declined"));
@@ -306,7 +317,7 @@ describe("the reader's own relays", () => {
   });
 
   // The library re-emits `auth-required` on every refused REQ: a decline must not become a prompt per read.
-  it("are not asked again after a decline when the relay refuses the next read", async () => {
+  it("are not tried again after a failed login when the relay refuses the next read", async () => {
     own(PK, "wss://gated.example");
     const { gated } = setup();
     gated.authenticate.mockRejectedValueOnce(new Error("user declined"));
@@ -335,6 +346,89 @@ describe("the reader's own relays", () => {
     gated.challenge$.next("c1");
     await tick();
     expect(gated.authenticate).not.toHaveBeenCalled();
+  });
+});
+
+describe("a refused login", () => {
+  const refuse = () => account.signEvent.mockRejectedValueOnce(new Error("user rejected"));
+
+  it("by the signer is on record as the signer's, and is asked again only when the reader asks", async () => {
+    own(PK, "wss://gated.example");
+    const { gated } = setup();
+    refuse();
+    gated.challenge$.next("c1");
+    await tick();
+    expect(relayAuthProblems().get("wss://gated.example/")).toEqual({ by: "signer" });
+
+    // Opening Messages, or the relay refusing another read, is not "ask again".
+    setRelayAuthInteractive(true);
+    gated.authRequiredForRead$.next(true);
+    await tick();
+    setRelayAuthInteractive(false);
+    expect(gated.authenticate).toHaveBeenCalledTimes(1);
+
+    askRelayAuthAgain("wss://gated.example");
+    await tick();
+    expect(gated.authenticate).toHaveBeenCalledTimes(2);
+    expect(gated.authenticatedAs).toBe(PK);
+    expect(relayAuthProblems().size).toBe(0);
+  });
+
+  it("by the relay is on record as the relay's, with its reason, and tried again only when asked", async () => {
+    own(PK, "wss://gated.example");
+    const { gated } = setup();
+    gated.accepts = false;
+    gated.challenge$.next("c1");
+    await tick();
+    expect(relayAuthProblems().get("wss://gated.example/")).toEqual({
+      by: "relay",
+      message: "restricted: members only",
+    });
+
+    setRelayAuthInteractive(true);
+    await tick();
+    setRelayAuthInteractive(false);
+    expect(gated.authenticate).toHaveBeenCalledTimes(1);
+
+    gated.accepts = true;
+    askRelayAuthAgain();
+    await tick();
+    expect(gated.authenticate).toHaveBeenCalledTimes(2);
+    expect(relayAuthProblems().size).toBe(0);
+  });
+
+  it("is not a rejection when the signer only failed to answer in time", async () => {
+    own(PK, "wss://gated.example");
+    const pool = fakePool();
+    const gated = fakeRelay("wss://gated.example");
+    pool.relays.set(gated.url, gated);
+    startRelayAuth({
+      pool: pool as never,
+      active$: new BehaviorSubject<Account | undefined>(account),
+      ownRelays,
+      isRejection: (error) => !String(error).includes("timed out"),
+    });
+    account.signEvent.mockRejectedValueOnce(new Error("signer timed out"));
+    gated.challenge$.next("c1");
+    await tick();
+    expect(relayAuthProblems().size).toBe(0);
+
+    setRelayAuthInteractive(true);
+    await tick();
+    setRelayAuthInteractive(false);
+    expect(gated.authenticate).toHaveBeenCalledTimes(2);
+  });
+
+  it("belongs to the account: another account starts with none", async () => {
+    own(PK, "wss://gated.example");
+    const { active$, gated } = setup();
+    refuse();
+    gated.challenge$.next("c1");
+    await tick();
+    expect(relayAuthProblems().size).toBe(1);
+    active$.next(other);
+    await tick();
+    expect(relayAuthProblems().size).toBe(0);
   });
 });
 

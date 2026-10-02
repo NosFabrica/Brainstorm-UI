@@ -56,9 +56,21 @@ import { MessageBubble } from "./MessageBubble";
 import { Composer } from "./Composer";
 import { RenameChatDialog, renameText } from "./RenameChatDialog";
 import { useChatHistory, type ChatHistoryPhase } from "./useChatHistory";
-import { RoomAvatar, dayLabel, firstName, nameOf, roomTitle, shortDate, shortNpub, type Profiles } from "./people";
+import {
+  RoomAvatar,
+  dayLabel,
+  firstName,
+  nameOf,
+  relayHost,
+  roomTitle,
+  shortDate,
+  shortNpub,
+  type Profiles,
+} from "./people";
 import type { RelayProgress } from "@/lib/dm/pager";
-import { isOwnRelay } from "@/services/relayAuth";
+import { askRelayAuthAgain, isOwnRelay } from "@/services/relayAuth";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { refusedAmong } from "./RelayMarker";
 
 type Item =
   | { kind: "day"; key: string; label: string }
@@ -585,22 +597,7 @@ export function ChatView({
         ))}
       </div>
 
-      {!authAllowed && !isRequest && state.sendAuth.some((relay) => !isOwnRelay(relay)) && (
-        <Alert
-          variant="warning"
-          className="mx-4 mb-2 flex w-auto items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] sm:mx-6"
-        >
-          <span className="shrink-0">
-            <KeyRound className="h-4 w-4" />
-          </span>
-          <span className="flex-1">
-            Their inbox relay takes messages only from senders who sign in — and then knows this one is from you.
-          </span>
-          <Button size="sm" onClick={onSignIn} data-testid="dm-send-allow-auth">
-            Allow sign-in
-          </Button>
-        </Alert>
-      )}
+      {!isRequest && <SendAuthBanner state={state} authAllowed={authAllowed} onSignIn={onSignIn} />}
 
       {isRequest ? (
         <div className="shrink-0 border-t border-border bg-card px-4 pb-5 pt-4 sm:px-6" data-testid="dm-request-bar">
@@ -671,5 +668,69 @@ export function ChatView({
         onRename={rename}
       />
     </section>
+  );
+}
+
+/**
+ * A message held by a recipient's inbox relay that wants the sender signed in
+ * (the reader's own relays sign in by themselves): ask for consent, or — once
+ * given — say who turned the login down and offer another go.
+ */
+function SendAuthBanner({
+  state,
+  authAllowed,
+  onSignIn,
+}: {
+  state: DmEngineState;
+  authAllowed: boolean;
+  onSignIn: () => void;
+}) {
+  const problems = useRelayAuthProblems();
+  const theirs = state.sendAuth.filter((relay) => !isOwnRelay(relay));
+  if (!theirs.length) return null;
+  const refused = refusedAmong(problems, theirs);
+  const [text, action] = !authAllowed
+    ? [
+        "Their inbox relay takes messages only from senders who sign in — and then knows this one is from you.",
+        <Button size="sm" onClick={onSignIn} data-testid="dm-send-allow-auth">
+          Allow sign-in
+        </Button>,
+      ]
+    : refused.signer.length
+      ? [
+          "Your signer rejected signing in to their inbox relay. The message goes out once you approve.",
+          <Button
+            size="sm"
+            onClick={() => refused.signer.forEach((url) => askRelayAuthAgain(url))}
+            data-testid="dm-send-auth-ask-again"
+          >
+            Rejected - Ask again
+          </Button>,
+        ]
+      : refused.relay.length
+        ? [
+            `${relayHost(refused.relay[0].url)} refused your sign-in${refused.relay[0].message ? `: ${refused.relay[0].message}` : "."}`,
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => refused.relay.forEach(({ url }) => askRelayAuthAgain(url))}
+              data-testid="dm-send-auth-try-again"
+            >
+              Try again
+            </Button>,
+          ]
+        : [null, null];
+  if (!text) return null;
+  return (
+    <Alert
+      variant="warning"
+      className="mx-4 mb-2 flex w-auto items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] sm:mx-6"
+    >
+      <span className="shrink-0">
+        <KeyRound className="h-4 w-4" />
+      </span>
+      <span className="flex-1">{text}</span>
+      {action}
+    </Alert>
   );
 }

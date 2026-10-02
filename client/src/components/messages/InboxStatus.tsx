@@ -15,7 +15,9 @@ import { turnOnMessages } from "@/services/dm";
 import { SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
 import { ENCRYPTED_BLOSSOM_SERVERS } from "@/lib/blossomServers";
 import { relayHost } from "./people";
-import { isOwnRelay } from "@/services/relayAuth";
+import { askRelayAuthAgain, isOwnRelay } from "@/services/relayAuth";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { refusedAmong } from "./RelayMarker";
 
 /** First visit: publish a kind-10050 before anything can arrive. */
 export function InboxSetup() {
@@ -110,6 +112,35 @@ export function InboxNotices({
     action?: React.ReactNode;
     variant?: "warning" | "default";
   }[] = [];
+  const problems = useRelayAuthProblems();
+  // Your inbox, and wherever a message waits on a login: who turned the login down, and another go at it.
+  const refused = refusedAmong(problems, [...state.inboxRelays, ...state.sendAuth]);
+  if (refused.signer.length)
+    notices.push({
+      key: "auth-signer",
+      icon: <KeyRound className="h-4 w-4" />,
+      text: `Your signer rejected signing in to ${refused.signer.map(relayHost).join(", ")}. Messages there wait until you approve.`,
+      action: (
+        <Button
+          size="sm"
+          onClick={() => refused.signer.forEach((url) => askRelayAuthAgain(url))}
+          data-testid="dm-auth-ask-again"
+        >
+          Rejected - Ask again
+        </Button>
+      ),
+    });
+  for (const { url, message } of refused.relay)
+    notices.push({
+      key: `auth-relay-${url}`,
+      icon: <KeyRound className="h-4 w-4" />,
+      text: `${relayHost(url)} refused your sign-in${message ? `: ${message}` : "."}`,
+      action: (
+        <Button size="sm" variant="outline" onClick={() => askRelayAuthAgain(url)} data-testid="dm-auth-try-again">
+          Try again
+        </Button>
+      ),
+    });
   // Your own relays sign you in by themselves (services/relayAuth); a recipient's asks first.
   if (!authAllowed && state.sendAuth.some((relay) => !isOwnRelay(relay)))
     notices.push({

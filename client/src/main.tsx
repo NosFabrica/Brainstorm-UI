@@ -9,6 +9,7 @@ import { startDirectMessages } from "./services/dm";
 import { pool } from "./lib/relayPool";
 import { accountManager } from "./accounts";
 import { canSignSilently } from "./accounts/signing";
+import { isRemoteSignerTimeout } from "./accounts/remote-signer";
 import "./index.css";
 
 // From the first moment: support-ticket diagnostics can carry what the
@@ -33,7 +34,14 @@ void resolveHouseObserver();
 // answered with the account's signer — always on the reader's own relays,
 // elsewhere when the reader allowed it (Messages, or Settings).
 // Never with our Unlock modal unless the reader is in Messages.
-startRelayAuth({ pool, active$: accountManager.active$, canSignQuietly: canSignSilently });
+startRelayAuth({
+  pool,
+  active$: accountManager.active$,
+  canSignQuietly: canSignSilently,
+  // A signer that didn't answer in time hasn't said no.
+  isRejection: (error) =>
+    !isRemoteSignerTimeout(error) && !/time(d)?[\s-]?out/i.test(error instanceof Error ? error.message : String(error)),
+});
 
 // Private messages (NIP-17) follow the Active Account from sign-in, not from the
 // first visit to Messages: the live subscription warms the inbox and the unread

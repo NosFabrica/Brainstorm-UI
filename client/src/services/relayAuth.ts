@@ -16,9 +16,13 @@
  *   services/dm/transport): another relay turning down a note is no reason to
  *   tell it who we are.
  *
- * A declined or failed signature is asked again only when the reader next
- * opens Messages — never on the relay's next refusal, which would be a prompt
- * per read.
+ * A refused login is recorded per relay (`relayAuthProblems$`), saying who
+ * refused: the reader's signer saying no ("Rejected - Ask again" in Messages),
+ * or the relay answering the login with a refusal of its own (its reason, and
+ * "Try again"). Either stands until the reader asks again
+ * (`askRelayAuthAgain`). Any other failure — a signer that doesn't answer in
+ * time, a dropped socket — is tried again when the reader next opens Messages.
+ * None is retried on the relay's next refusal, which would be a prompt per read.
  *
  * It follows who may sign, not only new challenges. Turning the switch on,
  * switching to an account that allowed it, or the account's list coming to
@@ -35,6 +39,7 @@
  */
 import {
   BehaviorSubject,
+  Subject,
   Subscription,
   combineLatest,
   distinctUntilChanged,
@@ -76,6 +81,37 @@ export function isOwnRelay(url: string): boolean {
   return ownNow$.value.has(normalizeURL(url));
 }
 
+/** Why a relay's login didn't happen: the reader's signer said no, or the relay refused the login it was sent. */
+export type RelayAuthProblem = { by: "signer" } | { by: "relay"; message?: string };
+
+const problems$ = new BehaviorSubject<ReadonlyMap<string, RelayAuthProblem>>(new Map());
+/** Relays whose login was refused, by normalized URL — each waits for the reader to ask again. */
+export const relayAuthProblems$: Observable<ReadonlyMap<string, RelayAuthProblem>> = problems$.asObservable();
+export function relayAuthProblems(): ReadonlyMap<string, RelayAuthProblem> {
+  return problems$.value;
+}
+function setProblem(url: string, problem: RelayAuthProblem | undefined) {
+  if (!problem && !problems$.value.has(url)) return;
+  const next = new Map(problems$.value);
+  if (problem) next.set(url, problem);
+  else next.delete(url);
+  problems$.next(next);
+}
+
+/** The refusal on record for `url`, in whatever spelling it comes. */
+export function relayAuthProblemFor(
+  problems: ReadonlyMap<string, RelayAuthProblem>,
+  url: string,
+): RelayAuthProblem | undefined {
+  return problems.get(normalizeURL(url));
+}
+
+const askAgain$ = new Subject<string | undefined>();
+/** The reader asked for another try at a refused login — on `url`, or on every relay that has one. */
+export function askRelayAuthAgain(url?: string): void {
+  askAgain$.next(url === undefined ? undefined : normalizeURL(url));
+}
+
 const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((x) => b.has(x));
 
 /** The relays `pubkey` lists as theirs, as the pool keys them: NIP-65 and the NIP-17 inbox. */
@@ -99,18 +135,22 @@ export function startRelayAuth<A extends ActiveAccount>({
   pool,
   active$,
   canSignQuietly = async () => true,
+  isRejection = () => true,
   ownRelays = ownRelaysLive,
 }: {
   pool: AuthPool;
   active$: Observable<A | undefined>;
   /** Whether signing now raises no modal of ours (accounts/signing canSignSilently). */
   canSignQuietly?: (account: A) => Promise<boolean>;
+  /** Whether the signer's error is it saying no, rather than failing to answer (a timeout, say). */
+  isRejection?: (error: unknown) => boolean;
   /** The relays this account lists as its own, normalized. */
   ownRelays?: (pubkey: string) => Observable<ReadonlySet<string>>;
 }): () => void {
+  type Signer = { account: A; own: ReadonlySet<string>; allowed: boolean };
   // Who may answer a challenge right now: the active account — on its own
   // relays always, elsewhere if it said yes on this device.
-  const signer$ = active$.pipe(
+  const signer$: Observable<Signer | undefined> = active$.pipe(
     distinctUntilChanged(),
     switchMap((account) =>
       account
@@ -140,9 +180,67 @@ export function startRelayAuth<A extends ActiveAccount>({
     const url = normalizeURL(relay.url);
     // Challenges being answered, or answered, on this connection — gone with it.
     const answered = new Set<string>();
-    // Of those, the ones declined: asked again when the reader next opens Messages.
-    const declined = new Set<string>();
+    // Of those, the ones that failed: refused by the signer or the relay (until
+    // the reader asks again), or something else (until they open Messages).
+    const refused = new Set<string>();
+    const failed = new Set<string>();
     let wasInteractive = interactive$.value;
+    type Inputs = [string | null, boolean, boolean, boolean, Signer | undefined, boolean];
+    let last: Inputs | undefined;
+
+    const evaluate = ([challenge, read, publish, writeRefused, signer, interactive]: Inputs) => {
+      if (interactive && !wasInteractive) {
+        for (const key of failed) answered.delete(key);
+        failed.clear();
+      }
+      wasInteractive = interactive;
+      const own = !!signer?.own.has(url);
+      const mayHere = !!signer && (own || signer.allowed);
+      const signedInAs = relay.authenticatedAs;
+      if (signedInAs && (signedInAs !== signer?.account.pubkey || !mayHere)) {
+        forget(relay);
+        pool.remove(relay);
+        return;
+      }
+      if (!challenge || !signer || !mayHere || signedInAs) return;
+      const gated = own ? read || publish : read || (publish && writeRefused);
+      if (!gated) return;
+      const account = signer.account;
+      const key = `${account.pubkey} ${challenge}`;
+      if (answered.has(key)) return;
+      answered.add(key);
+      let saidNo = false;
+      // The account, with its "no" told apart from the relay's.
+      const asking = {
+        pubkey: account.pubkey,
+        signEvent: async (draft: Parameters<A["signEvent"]>[0]) => {
+          try {
+            return await account.signEvent(draft);
+          } catch (error) {
+            saidNo = isRejection(error);
+            throw error;
+          }
+        },
+      };
+      void (async () => {
+        if (!interactive && !(await canSignQuietly(account).catch(() => false))) {
+          // Not now: answered when the reader opens Messages.
+          answered.delete(key);
+          return;
+        }
+        const answer = (await relay.authenticate(asking as unknown as A)) as { ok?: boolean; message?: string };
+        if (answer?.ok === false) {
+          refused.add(key);
+          setProblem(url, { by: "relay", message: answer.message?.trim() || undefined });
+        } else setProblem(url, undefined);
+      })().catch(() => {
+        if (saidNo) {
+          refused.add(key);
+          setProblem(url, { by: "signer" });
+        } else failed.add(key);
+      });
+    };
+
     sub.add(
       combineLatest([
         relay.challenge$,
@@ -155,43 +253,33 @@ export function startRelayAuth<A extends ActiveAccount>({
         ),
         signer$,
         interactive$,
-      ]).subscribe(([challenge, read, publish, writeRefused, signer, interactive]) => {
-        if (interactive && !wasInteractive) {
-          for (const key of declined) answered.delete(key);
-          declined.clear();
-        }
-        wasInteractive = interactive;
-        const own = !!signer?.own.has(url);
-        const mayHere = !!signer && (own || signer.allowed);
-        const signedInAs = relay.authenticatedAs;
-        if (signedInAs && (signedInAs !== signer?.account.pubkey || !mayHere)) {
-          forget(relay);
-          pool.remove(relay);
-          return;
-        }
-        if (!challenge || !signer || !mayHere || signedInAs) return;
-        const gated = own ? read || publish : read || (publish && writeRefused);
-        if (!gated) return;
-        const account = signer.account;
-        const key = `${account.pubkey} ${challenge}`;
-        if (answered.has(key)) return;
-        answered.add(key);
-        void (async () => {
-          if (!interactive && !(await canSignQuietly(account).catch(() => false))) {
-            // Not now: answered when the reader opens Messages.
-            answered.delete(key);
-            return;
-          }
-          await relay.authenticate(account);
-        })().catch(() => {
-          // Declined, or the signer failed: not again until the reader opens Messages.
-          declined.add(key);
-        });
+      ]).subscribe((inputs) => {
+        last = inputs;
+        evaluate(inputs);
+      }),
+    );
+    sub.add(
+      askAgain$.subscribe((which) => {
+        if (which !== undefined && which !== url) return;
+        if (!refused.size && !failed.size) return;
+        for (const key of [...refused, ...failed]) answered.delete(key);
+        refused.clear();
+        failed.clear();
+        setProblem(url, undefined);
+        if (last) evaluate(last);
       }),
     );
   };
 
-  const ownSub = signer$.subscribe((signer) => ownNow$.next(signer?.own ?? new Set()));
+  let problemsFor: string | undefined;
+  const ownSub = signer$.subscribe((signer) => {
+    ownNow$.next(signer?.own ?? new Set());
+    // A refusal is the account's: another account starts with none.
+    if (signer?.account.pubkey !== problemsFor) {
+      problemsFor = signer?.account.pubkey;
+      if (problems$.value.size) problems$.next(new Map());
+    }
+  });
   for (const relay of pool.relays.values()) watch(relay);
   const addSub = pool.add$.subscribe(watch);
   const removeSub = pool.remove$.subscribe(forget);
@@ -199,6 +287,7 @@ export function startRelayAuth<A extends ActiveAccount>({
   return () => {
     ownSub.unsubscribe();
     ownNow$.next(new Set());
+    problems$.next(new Map());
     addSub.unsubscribe();
     removeSub.unsubscribe();
     for (const relay of [...watched.keys()]) forget(relay);
