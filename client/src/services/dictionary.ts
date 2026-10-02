@@ -1,7 +1,7 @@
 /**
  * A reader's Dictionary, read from the tag hub: for each concept the app
  * shows (config/dictionary), its community header, the copies that point at
- * it — the reader's own, their Tapestry Assistant's, Brainstorm's — and the
+ * it — the reader's own, their Tapestry Assistant's, the house's — and the
  * items filed under any of them. lib/conceptResolution decides which copy
  * governs; this only gathers the candidates.
  *
@@ -16,8 +16,9 @@
  * A relay that fails or times out reads as empty: no copies, no items. The
  * page says what it found, not that the network is down.
  */
-import { DICTIONARY_CONCEPTS, HOUSE_CONCEPT_AUTHORS, dictionaryRelays } from "@/config/dictionary";
+import { DICTIONARY_CONCEPTS, dictionaryRelays } from "@/config/dictionary";
 import { readListEvents } from "@/services/listReads";
+import { resolveHouseObserver, resolveTrustSource } from "@/services/trustSource";
 import { DLIST_ITEM_KINDS, coordinateOf, isDListItem, parseCoordinate } from "@/lib/dlistFields";
 import { pointsAt, resolveConcept, type HeaderEvent, type ResolvedConcept } from "@/lib/conceptResolution";
 
@@ -153,6 +154,21 @@ export async function loadConceptItems(
   return distinctItems(events.filter(isDListItem).filter((ev) => zValues(ev).some((z) => filed.has(z))));
 }
 
+/**
+ * Whose copies are Brainstorm's own definitions: the house observer — the
+ * deployment's default observer, discovered from the server and never
+ * configured (services/trustSource) — then the Assistant its kind-10040
+ * names, as a reader's own copy comes before their Assistant's. What a reader
+ * with no copy of their own sees, signed in or not. Empty when the house
+ * can't be found: the community's definition governs.
+ */
+export async function houseCopyAuthors(): Promise<string[]> {
+  const house = await resolveHouseObserver().catch(() => null);
+  if (!house) return [];
+  const assistant = (await resolveTrustSource(house).catch(() => null))?.taPubkey;
+  return assistant && assistant !== house ? [house, assistant] : [house];
+}
+
 export async function loadDictionary(
   reader: DictionaryReader,
   concepts: string[] = DICTIONARY_CONCEPTS,
@@ -161,9 +177,8 @@ export async function loadDictionary(
 ): Promise<DictionaryEntry[]> {
   concepts = concepts.filter((c) => parseCoordinate(c)?.kind === 39998);
   if (!concepts.length) return [];
-  const copyAuthors = [
-    ...new Set([reader.pubkey, reader.taPubkey, ...HOUSE_CONCEPT_AUTHORS].filter((a): a is string => !!a)),
-  ];
+  const house = await houseCopyAuthors();
+  const copyAuthors = [...new Set([reader.pubkey, reader.taPubkey, ...house].filter((a): a is string => !!a))];
 
   const headerEvents: HeaderEvent[] = [];
   for (let i = 0; i < concepts.length; i += CONCEPT_CHUNK) {
@@ -182,7 +197,7 @@ export async function loadDictionary(
       communityCoordinate: coordinate,
       personal: copyBy(reader.pubkey, coordinate, copies),
       assistant: copyBy(reader.taPubkey, coordinate, copies),
-      house: HOUSE_CONCEPT_AUTHORS.map((a) => copyBy(a, coordinate, copies)).find(Boolean) ?? null,
+      house: house.map((a) => copyBy(a, coordinate, copies)).find(Boolean) ?? null,
     }),
   );
 

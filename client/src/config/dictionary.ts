@@ -1,6 +1,9 @@
 /**
- * Which concepts the Dictionary shows, which plays a role the app relies
- * on (URL Templates), and whose copies are Brainstorm's — the one place the app reads `dictionary.config.json`.
+ * Which concepts the Dictionary shows and which plays a role the app relies
+ * on (URL Templates) — the one place the app reads `dictionary.config.json`.
+ * Not whose copies are Brainstorm's own: that's the house observer, discovered
+ * from the server like everywhere else in the app (services/dictionary
+ * `houseCopyAuthors`), never a key written here.
  *
  * The repo's rule for identifiers (config/tagging.config.json says it too):
  * a Nostr identifier that's the same on every deployment — a concept's
@@ -19,7 +22,6 @@ export type ConceptRole = "url-templates";
 
 const config = raw as {
   concepts: { coordinate: string; ownVersion?: boolean; role?: ConceptRole }[];
-  houseConceptAuthors: string[];
   displayHints?: boolean;
 };
 
@@ -43,9 +45,6 @@ export const URL_TEMPLATES_CONCEPT: string | null = conceptForRole("url-template
 export function offersOwnVersion(coordinate: string): boolean {
   return valid.some((c) => c.coordinate === coordinate && c.ownVersion === true);
 }
-
-/** Authors of Brainstorm's own copies. */
-export const HOUSE_CONCEPT_AUTHORS: string[] = config.houseConceptAuthors;
 
 /**
  * The tag hub, where list events are published and read beside our index

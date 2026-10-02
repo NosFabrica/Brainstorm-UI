@@ -52,6 +52,13 @@ vi.mock("@/config/tagging", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   tagRelays: () => ["wss://hub.example"],
 }));
+/** The house observer and the Assistant its 10040 names: none unless a test sets them. */
+const houseMock = vi.fn(async () => null as string | null);
+const trustSourceMock = vi.fn(async (_pk: string) => null as { taPubkey: string; relay: string } | null);
+vi.mock("@/services/trustSource", () => ({
+  resolveHouseObserver: () => houseMock(),
+  resolveTrustSource: (pk: string) => trustSourceMock(pk),
+}));
 
 import { distinctItems, itemIdentity, loadConceptItems, loadDictionary } from "./dictionary";
 
@@ -82,6 +89,10 @@ beforeEach(() => {
   fetchMock.mockResolvedValue([]);
   indexMock.mockReset();
   indexMock.mockResolvedValue([]);
+  houseMock.mockReset();
+  houseMock.mockResolvedValue(null);
+  trustSourceMock.mockReset();
+  trustSourceMock.mockResolvedValue(null);
 });
 
 describe("loadDictionary", () => {
@@ -149,6 +160,63 @@ describe("loadDictionary", () => {
     relayWith([communityHeader, original, stray]);
     const [entry] = await loadDictionary({ pubkey: null, taPubkey: null }, [COMMUNITY]);
     expect(entry.items.map((i) => i.id)).toEqual([original.id]);
+  });
+});
+
+describe("the house", () => {
+  const HOUSE = "3".repeat(64);
+  const HOUSE_TA = "4".repeat(64);
+  const copyBy = (pubkey: string) =>
+    ev(pubkey, 39998, [
+      ["d", "github-accounts"],
+      ["names", "GitHub Account", "GitHub Accounts"],
+      ["required", "github-username"],
+      ["b", COMMUNITY, "pointer"],
+    ]);
+
+  it("a reader with no copy of their own, signed in or not, sees the house's", async () => {
+    houseMock.mockResolvedValue(HOUSE);
+    relayWith([communityHeader, copyBy(HOUSE)]);
+    for (const reader of [
+      { pubkey: null, taPubkey: null },
+      { pubkey: USER, taPubkey: TA },
+    ]) {
+      const [entry] = await loadDictionary(reader, [COMMUNITY], undefined, { items: false });
+      expect(entry.resolved?.source).toBe("house");
+      expect(entry.resolved?.governing.coordinate).toBe(`39998:${HOUSE}:github-accounts`);
+      expect(entry.inDictionary).toBe(false); // Brainstorm's, not theirs
+    }
+  });
+
+  it("asks for the house's copies and its Assistant's, after the reader's", async () => {
+    houseMock.mockResolvedValue(HOUSE);
+    trustSourceMock.mockResolvedValue({ taPubkey: HOUSE_TA, relay: "wss://scores.example" });
+    relayWith([]);
+    await loadDictionary({ pubkey: USER, taPubkey: TA }, [COMMUNITY], undefined, { items: false });
+    expect(trustSourceMock).toHaveBeenCalledWith(HOUSE);
+    expect(sentFilters().find((f) => f["#b"])).toMatchObject({ authors: [USER, TA, HOUSE, HOUSE_TA] });
+  });
+
+  it("the house's Assistant's copy is the house's", async () => {
+    houseMock.mockResolvedValue(HOUSE);
+    trustSourceMock.mockResolvedValue({ taPubkey: HOUSE_TA, relay: "wss://scores.example" });
+    relayWith([communityHeader, copyBy(HOUSE_TA)]);
+    const [entry] = await loadDictionary({ pubkey: null, taPubkey: null }, [COMMUNITY], undefined, { items: false });
+    expect(entry.resolved?.source).toBe("house");
+  });
+
+  it("the reader's Assistant's copy comes before the house's", async () => {
+    houseMock.mockResolvedValue(HOUSE);
+    relayWith([communityHeader, copyBy(HOUSE), taCopy]);
+    const [entry] = await loadDictionary({ pubkey: USER, taPubkey: TA }, [COMMUNITY], undefined, { items: false });
+    expect(entry.resolved?.source).toBe("assistant");
+  });
+
+  it("no house found: the community's definition governs", async () => {
+    houseMock.mockRejectedValue(new Error("offline"));
+    relayWith([communityHeader]);
+    const [entry] = await loadDictionary({ pubkey: null, taPubkey: null }, [COMMUNITY], undefined, { items: false });
+    expect(entry.resolved?.source).toBe("community");
   });
 });
 

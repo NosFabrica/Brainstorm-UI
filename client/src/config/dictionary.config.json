@@ -25,7 +25,5 @@
   ],
   "_pending": "URLs — no kind-39998 URLs concept exists on any relay (searched dcosl, tags.brainstorm.world, staging, tapestry; 2026-10-01). Decision 2026-10-01: GitHub Accounts first, URLs once someone authors it. Its coordinate is permanent once copies point at it, so choose the author first.",
   "displayHints": true,
-  "_displayHints": "PROVISIONAL (2026-10-01): read presentation hints on concept headers — ['display', title|summary|image, <field>] and the list's ['image', <url>] (lib/displayHints). Not in any spec yet; names may change once the team settles them with David. false = ignore them and use the defaults.",
-  "houseConceptAuthors": [],
-  "_houseConceptAuthors": "The keys whose copies are Brainstorm's own definition of a concept — what an anonymous reader, or one with no copy, sees, and what Brainstorm's renderers are built for. Empty until Brainstorm publishes its concepts."
+  "_displayHints": "PROVISIONAL (2026-10-01): read presentation hints on concept headers — ['display', title|summary|image, <field>] and the list's ['image', <url>] (lib/displayHints). Not in any spec yet; names may change once the team settles them with David. false = ignore them and use the defaults."
 }

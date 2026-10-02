@@ -177,7 +177,7 @@ For one reader and one community concept, the definition that governs is the fir
 
 1. the reader's **own** copy (their key);
 2. their **Tapestry Assistant's** copy;
-3. the **app's own** copy (the "house"; optional): **Provisional**, Brainstorm's addition;
+3. the **app's own** copy (the "house"): **Provisional**, Brainstorm's addition;
 4. the **community** header: **Provisional**, Brainstorm's addition.
 
 Tiers 1 and 2, and "never by timestamp", are the spec's dual-author rule
@@ -186,6 +186,15 @@ the same slug (`39998:<user>:<S>`, then `39998:<TA>:<S>`) and discovers the Assi
 from the user's kind-10040 `["39998:dlist-header", <TA>, <relay>]`. It doesn't require a
 `b`. Brainstorm requires the `b`, finds the Assistant through its own server, and adds
 tiers 3 and 4 and the agreement display below.
+
+The house tier applies to every reader, signed in or not, and comes before the community
+header. The house is the same account the app already uses as its default perspective for
+trust: the deployment's default observer, which the server publishes under the reserved
+NIP-05 name `_` (`/.well-known/nostr.json?name=_`). Its copies count, and so do those of
+the Assistant its kind-10040 names. Nothing in the app's config names the house; it is
+discovered. A house with no copy of a concept leaves that tier empty, and the community
+header governs. So "the house accepts the community's definition as it is" needs no event,
+though a copy that agrees says so explicitly.
 
 Never pick by timestamp across authors. A stale assistant must not shadow a deliberate
 edit. A header counts as a copy only if its `b` points at the community concept; sharing

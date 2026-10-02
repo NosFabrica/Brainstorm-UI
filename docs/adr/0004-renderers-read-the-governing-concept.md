@@ -26,8 +26,9 @@ for itself.
 1. **Which definition governs:**
    1. the reader's personally signed copy;
    2. else their Tapestry Assistant's copy;
-   3. else Brainstorm's own copy (the house's: `houseConceptAuthors` in
-      `config/dictionary.config.json`);
+   3. else Brainstorm's own copy: the house observer's, or its Assistant's. The house is
+      the one the rest of the app uses, discovered from the server
+      (`services/trustSource`), never a key in config;
    4. else the community header itself.
 
    This is tapestry's dual-author rule (`protocols/drafts/assistant-designation.md`)
@@ -64,7 +65,7 @@ for itself.
   so a results page fetches nothing extra per concept. The rule stays the one above; it
   just runs next to the index.
 - **Brainstorm's concepts as defaults.** Brainstorm publishes its own copy of each
-  concept it shows well (`houseConceptAuthors`), carrying the display hints and URL
+  concept it shows well (signed by the house or its Assistant), carrying the display hints and URL
   templates it wants, so a reader with no copy of their own gets those. That is a copy, not
   code.
 - **Pointing at someone else's definition.** A copy that defers to another author's
