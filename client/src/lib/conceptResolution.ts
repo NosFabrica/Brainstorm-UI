@@ -26,6 +26,7 @@
  */
 import { coordinateOf, headerNames, parseFieldDecls, type FieldDecl } from "@/lib/dlistFields";
 import { parseDisplayHints, sameHints, type DisplayHints } from "@/lib/displayHints";
+import { linkTags, parseLinkRefs, type LinkRef } from "@/lib/linkTemplates";
 
 export type BType = "pointer" | "inherit" | "inherit-items";
 
@@ -57,10 +58,12 @@ export interface ConceptDefinition {
   fields: FieldDecl[];
   /** Provisional presentation hints (lib/displayHints): which field is the title, and so on. */
   display: DisplayHints;
+  /** Provisional links built from URL templates (lib/linkTemplates). */
+  links: LinkRef[];
 }
 
 /** What a copy changed from the community concept. Wording counts: it is what the reader reads. */
-export type Difference = "names" | "description" | "fields" | "display";
+export type Difference = "names" | "description" | "fields" | "display" | "links";
 
 /**
  * `no-local-copy`: the community header governs because nobody's copy applies.
@@ -127,6 +130,10 @@ export function definitionOf(header: HeaderEvent): ConceptDefinition {
     description,
     fields,
     display: parseDisplayHints(header, fields),
+    links: parseLinkRefs(
+      header,
+      fields.map((f) => f.name),
+    ),
   };
 }
 
@@ -139,6 +146,7 @@ export function differencesBetween(copy: ConceptDefinition, community: ConceptDe
   if (shape(copy) !== shape(community)) out.push("fields");
   // Which field reads as the title, the list's image: a copy that changes them changes how items look.
   if (!sameHints(copy.display, community.display)) out.push("display");
+  if (JSON.stringify(linkTags(copy.links)) !== JSON.stringify(linkTags(community.links))) out.push("links");
   return out;
 }
 

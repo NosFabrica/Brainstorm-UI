@@ -204,3 +204,58 @@ describe("display hints in the copy (provisional)", () => {
     expect(draftProblems(draft)).toEqual(["The list image must be an http(s) URL."]);
   });
 });
+
+describe("links in the copy (provisional)", () => {
+  const TEMPLATE = "f19f39daf75388ff0f19cc37dde5ae1b90124b0d60e35659160c48dc690deca4";
+  const DCOSL = "wss://dcosl.brainstorm.world";
+
+  it("publishes a fully bound link, before the b", () => {
+    const draft = initialDraft(community, null, items);
+    draft.links = [{ templateId: TEMPLATE, relay: DCOSL, bindings: [["username", "github-username"]] }];
+    expect(copyTemplate(community, draft).tags.slice(-2)).toEqual([
+      ["link", TEMPLATE, DCOSL, "username", "github-username"],
+      ["b", COMMUNITY, "pointer"],
+    ]);
+  });
+
+  it("an unbound placeholder is a problem, and the link isn't written", () => {
+    const draft = initialDraft(community, null, items);
+    draft.links = [{ templateId: TEMPLATE, relay: DCOSL, bindings: [["username", ""]] }];
+    expect(draftProblems(draft)).toEqual(["Every link placeholder needs a field."]);
+    expect(copyTemplate(community, draft).tags.some((t) => t[0] === "link")).toBe(false);
+  });
+
+  it("a link bound to a field this version leaves out is a problem", () => {
+    const draft = initialDraft(community, null, items);
+    draft.links = [{ templateId: TEMPLATE, relay: DCOSL, bindings: [["username", "description"]] }];
+    expect(draftProblems(draft)).toEqual(["A link uses a field this version doesn’t include: description."]);
+  });
+
+  it("starts from the current version's links", () => {
+    const mine = definitionOf(
+      header(ME, [
+        ["names", "GitHub Account", "GitHub Accounts"],
+        ["required", "github-username"],
+        ["link", TEMPLATE, DCOSL, "username", "github-username"],
+        ["b", COMMUNITY, "pointer"],
+      ]),
+    );
+    expect(initialDraft(community, mine, items).links).toEqual([
+      { templateId: TEMPLATE, relay: DCOSL, bindings: [["username", "github-username"]] },
+    ]);
+  });
+});
+
+describe("the same link twice", () => {
+  it("is written once", () => {
+    const TEMPLATE = "f19f39daf75388ff0f19cc37dde5ae1b90124b0d60e35659160c48dc690deca4";
+    const draft = initialDraft(community, null, items);
+    const link = {
+      templateId: TEMPLATE,
+      relay: "wss://dcosl.brainstorm.world",
+      bindings: [["username", "github-username"]] as [string, string][],
+    };
+    draft.links = [link, { ...link }];
+    expect(copyTemplate(community, draft).tags.filter((t) => t[0] === "link")).toHaveLength(1);
+  });
+});

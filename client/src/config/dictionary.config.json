@@ -17,6 +17,9 @@
   "displayHints": true,
   "_displayHints": "PROVISIONAL (2026-10-01): read presentation hints on concept headers — ['display', title|summary|image, <field>] and the list's ['image', <url>] (lib/displayHints). Not in any spec yet; names may change once the team settles them with David. false = ignore them and use the defaults.",
 
+  "urlTemplatesConcept": "39998:2efaa715bbb46dd5be6b7da8d7700266d11674b913b8178addb5c2e63d987331:url-templates",
+  "_urlTemplatesConcept": "PROVISIONAL (2026-10-01): the URL Templates concept, authored by Vinney's main key as a canonical root (self-b). Its items carry ['url-template', <RFC 6570 level-1 template>] and a name; a concept header pins one by event id with ['link', <id>, <relay>, <placeholder>, <field>, …] (lib/linkTemplates). Read under the same displayHints flag; this list is what the version tester offers.",
+
   "houseConceptAuthors": [],
   "_houseConceptAuthors": "The keys whose copies are Brainstorm's own definition of a concept — what an anonymous reader, or one with no copy, sees, and what Brainstorm's renderers are built for. Empty until Brainstorm publishes its concepts."
 }

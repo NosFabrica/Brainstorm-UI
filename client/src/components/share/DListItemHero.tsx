@@ -27,6 +27,9 @@ import { useHasSession } from "@/hooks/useHasSession";
 import { fieldCell, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
 import { rendererFor } from "@/lib/conceptRenderers";
 import { presentItem } from "@/lib/itemPresentation";
+import { itemLinks } from "@/lib/linkTemplates";
+import { useLinkTemplates } from "@/hooks/useLinkTemplates";
+import { DISPLAY_HINTS_ENABLED } from "@/config/dictionary";
 import { avatarSrc } from "@/lib/avatarSrc";
 import type { DefinitionSource, ResolvedConcept } from "@/lib/conceptResolution";
 import { dictionaryConceptOf } from "@/services/dictionary";
@@ -61,7 +64,13 @@ function Defined({ event, resolved: r }: { event: ItemEvent; resolved: ResolvedC
   const cells = fields.map((f) => ({ field: f, cell: fieldCell(event, f) }));
   const valueOf = (name: string) => cells.find((c) => c.field.name === name)?.cell.value ?? null;
   const shown = presentItem(event, r.governing, renderer);
-  const links = renderer?.links?.(valueOf) ?? [];
+  // Links from data when the definition names URL templates (provisional); otherwise the
+  // registered renderer's — the fallback for definitions with no `link` tag yet.
+  const refs = DISPLAY_HINTS_ENABLED ? r.governing.links : [];
+  const templates = useLinkTemplates(refs);
+  const links: { label: string; href: string; source: "template" | "renderer" }[] = refs.length
+    ? itemLinks(event, refs, templates.data ?? new Map()).map((l) => ({ ...l, source: "template" as const }))
+    : (renderer?.links?.(valueOf) ?? []).map((l) => ({ ...l, source: "renderer" as const }));
   const extras = undeclaredFields(event, fields);
 
   return (
@@ -115,11 +124,14 @@ function Defined({ event, resolved: r }: { event: ItemEvent; resolved: ResolvedC
                 key={l.href}
                 href={l.href}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener noreferrer nofollow"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
                 data-testid="dlist-item-link"
+                data-link-source={l.source}
+                title={l.href}
               >
                 <ExternalLink className="h-4 w-4" /> {l.label}
+                {l.source === "template" && <span className="font-normal text-white/70">· {new URL(l.href).host}</span>}
               </a>
             ))}
           </div>

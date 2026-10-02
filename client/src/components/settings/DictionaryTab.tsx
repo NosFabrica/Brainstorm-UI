@@ -44,6 +44,8 @@ import { useProfile } from "@/hooks/useProfile";
 import { useWotItems } from "@/hooks/useWotItems";
 import { DISPLAY_HINTS_ENABLED, dictionaryRelays, hasVersionTester } from "@/config/dictionary";
 import { DISPLAY_ROLES, type DisplayHints } from "@/lib/displayHints";
+import type { LinkRef } from "@/lib/linkTemplates";
+import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { eventPath } from "@/lib/shareId";
 import { fieldCell, parseCoordinate, type FieldDecl } from "@/lib/dlistFields";
@@ -255,6 +257,7 @@ function DictionaryEntryView({
             </p>
           )}
           <FieldsSection fields={r.governing.fields} display={DISPLAY_HINTS_ENABLED ? r.governing.display : null} />
+          {DISPLAY_HINTS_ENABLED && r.governing.links.length > 0 && <LinksSection refs={r.governing.links} />}
           <ProvenanceSection resolved={r} coordinate={coordinate} />
           {hasVersionTester(coordinate) && r.community && (
             <VersionTester
@@ -379,6 +382,34 @@ const REQUIREMENT_LABEL: Record<FieldDecl["requirement"], string> = {
   optional: "Optional",
 };
 
+/** The definition's links (provisional): each URL template it pins, and which field fills each placeholder. */
+function LinksSection({ refs }: { refs: LinkRef[] }) {
+  const templates = useLinkTemplates(refs);
+  return (
+    <section className="space-y-3" data-testid="dictionary-links">
+      <SectionHeader kicker="Links" />
+      <ul className="divide-y divide-border rounded-xl border border-border">
+        {refs.map((ref, i) => {
+          const tpl = templates.data?.get(ref.templateId);
+          return (
+            <li key={`${ref.templateId}-${i}`} className="space-y-1 px-4 py-2.5">
+              <div className="flex flex-wrap items-baseline gap-x-3">
+                <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {tpl?.name ?? (templates.isPending ? "…" : "Template not found")}
+                </span>
+                {tpl && <code className="font-mono text-xs text-slate-500 dark:text-slate-400">{tpl.template}</code>}
+              </div>
+              <p className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                {ref.bindings.map(([p, f]) => `{${p}} ← ${f}`).join(" · ")}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function FieldsSection({ fields, display }: { fields: FieldDecl[]; display: DisplayHints | null }) {
   // The roles the definition gives its fields (provisional display hints), shown on the field.
   const rolesOf = (name: string) => DISPLAY_ROLES.filter((role) => display?.[role] === name);
@@ -449,6 +480,7 @@ const DIFFERENCE_LABEL = {
   description: "its description",
   fields: "its fields",
   display: "how its items read",
+  links: "its links",
 } as const;
 
 function ProvenanceSection({ resolved: r, coordinate }: { resolved: ResolvedConcept; coordinate: string }) {

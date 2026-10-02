@@ -22,6 +22,7 @@
  */
 import { httpUrl, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
 import { displayHintTags } from "@/lib/displayHints";
+import { linkTags, type LinkRef } from "@/lib/linkTemplates";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
 
 /** Where a row in the form came from. */
@@ -52,6 +53,8 @@ export interface CopyDraft {
   description: string;
   fields: DraftField[];
   display: DraftDisplay;
+  /** Provisional URL-template links (lib/linkTemplates); a binding with no field yet is "". */
+  links: LinkRef[];
 }
 
 export interface EventTemplate {
@@ -126,6 +129,7 @@ export function initialDraft(
     description: base.description ?? "",
     fields: rows,
     display: { title, summary, image, listImage: listImage ?? "" },
+    links: base.links.map((l) => ({ ...l, bindings: l.bindings.map(([p, f]) => [p, f] as [string, string]) })),
   };
 }
 
@@ -141,6 +145,10 @@ export function draftProblems(draft: CopyDraft): string[] {
   if (dupes.length) out.push(`Listed twice: ${[...new Set(dupes)].join(", ")}.`);
   const listImage = draft.display.listImage.trim();
   if (listImage && !httpUrl(listImage)) out.push("The list image must be an http(s) URL.");
+  if (draft.links.some((l) => l.bindings.some(([, f]) => !f))) out.push("Every link placeholder needs a field.");
+  const enabled = new Set(names);
+  const unused = draft.links.flatMap((l) => l.bindings.map(([, f]) => f)).filter((f) => f && !enabled.has(f));
+  if (unused.length) out.push(`A link uses a field this version doesn’t include: ${[...new Set(unused)].join(", ")}.`);
   return out;
 }
 
@@ -175,6 +183,10 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
       listImage: draft.display.listImage.trim() || null,
     }),
   );
+  // Links whose every placeholder has a field this version includes.
+  const usable = draft.links.filter((l) => l.bindings.every(([, f]) => f && enabled.has(f)));
+  const linkKey = (t: string[]) => JSON.stringify(t);
+  tags.push(...linkTags(usable).filter((t, i, all) => all.findIndex((u) => linkKey(u) === linkKey(t)) === i));
   tags.push(["b", community.coordinate, "pointer"]);
   return { kind: 39998, content: "", tags };
 }

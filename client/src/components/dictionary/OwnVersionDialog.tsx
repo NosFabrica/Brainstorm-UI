@@ -40,6 +40,9 @@ import {
 } from "@/lib/conceptCopy";
 import { DISPLAY_ROLES, type DisplayRole } from "@/lib/displayHints";
 import { httpUrl } from "@/lib/dlistFields";
+import { templatePlaceholders, type UrlTemplate } from "@/lib/linkTemplates";
+import { useAvailableTemplates, useLinkTemplates } from "@/hooks/useLinkTemplates";
+import { dictionaryRelays } from "@/config/dictionary";
 
 /** Radix Select can't hold an empty value: "no hint" needs a name of its own. */
 const AUTO = "__auto";
@@ -87,6 +90,37 @@ export function OwnVersionDialog({
   const setDisplay = (patch: Partial<DraftDisplay>) => setDraft((d) => ({ ...d, display: { ...d.display, ...patch } }));
   // A role can only name a field this version declares; a disabled field drops back to Automatic.
   const enabledNames = draft.fields.filter((f) => f.enabled && f.name.trim()).map((f) => f.name.trim());
+
+  // URL templates: the ones on offer (the URL Templates list), and the ones this draft already pins.
+  const available = useAvailableTemplates(open);
+  const pinned = useLinkTemplates(draft.links);
+  const templateById = new Map<string, UrlTemplate>([
+    ...(available.data ?? []).map((t) => [t.id, t] as [string, UrlTemplate]),
+    ...(pinned.data ?? new Map()),
+  ]);
+  const addLink = (id: string) => {
+    const tpl = templateById.get(id);
+    const placeholders = tpl ? (templatePlaceholders(tpl.template) ?? []) : [];
+    // A field named for the placeholder is the likely one: {username} → github-username.
+    const guess = (p: string) => enabledNames.find((n) => n === p || n.endsWith(`-${p}`)) ?? "";
+    setDraft((d) => ({
+      ...d,
+      links: [
+        ...d.links,
+        { templateId: id, relay: dictionaryRelays()[0] ?? "", bindings: placeholders.map((p) => [p, guess(p)]) },
+      ],
+    }));
+  };
+  const bindLink = (i: number, placeholder: string, field: string) =>
+    setDraft((d) => ({
+      ...d,
+      links: d.links.map((l, j) =>
+        j === i ? { ...l, bindings: l.bindings.map(([p, f]) => [p, p === placeholder ? field : f]) } : l,
+      ),
+    }));
+  // A template this version already links isn't offered twice.
+  const offered = (available.data ?? []).filter((t) => !draft.links.some((l) => l.templateId === t.id));
+  const removeLink = (i: number) => setDraft((d) => ({ ...d, links: d.links.filter((_, j) => j !== i) }));
 
   const publish = async () => {
     if (publishing || problems.length) return;
@@ -214,6 +248,94 @@ export function OwnVersionDialog({
             <Button type="button" variant="outline" size="sm" onClick={addField} data-testid="own-version-add-field">
               <Plus className="mr-1 h-3.5 w-3.5" /> Add a field
             </Button>
+          </div>
+
+          <div className="space-y-2" data-testid="own-version-links">
+            <Label className="flex items-center gap-2">
+              Links
+              <Chip tone="slate" size="sm">
+                provisional
+              </Chip>
+            </Label>
+            {draft.links.length > 0 && (
+              <ul className="divide-y divide-border rounded-xl border border-border">
+                {draft.links.map((link, i) => {
+                  const tpl = templateById.get(link.templateId);
+                  return (
+                    <li
+                      key={`${link.templateId}-${i}`}
+                      className="space-y-2 px-3 py-2"
+                      data-testid={`own-version-link-${i}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {tpl?.name ?? "URL template"}
+                        </span>
+                        <code className="min-w-0 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
+                          {tpl?.template ?? link.templateId.slice(0, 12) + "…"}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={() => removeLink(i)}
+                          className="ml-auto rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+                          aria-label="Remove link"
+                          data-testid="own-version-link-remove"
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      {link.bindings.map(([placeholder, field]) => (
+                        <div key={placeholder} className="flex items-center gap-2 text-xs">
+                          <code className="font-mono text-slate-600 dark:text-slate-300">{`{${placeholder}}`}</code>
+                          <span className="text-slate-400">←</span>
+                          <Select
+                            value={enabledNames.includes(field) ? field : AUTO}
+                            onValueChange={(v) => bindLink(i, placeholder, v === AUTO ? "" : v)}
+                          >
+                            <SelectTrigger
+                              className="h-8 w-48 font-mono text-xs"
+                              data-testid={`own-version-link-bind-${placeholder}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={AUTO}>Choose a field</SelectItem>
+                              {enabledNames.map((n) => (
+                                <SelectItem key={n} value={n} className="font-mono text-xs">
+                                  {n}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {offered.length > 0 ? (
+              <Select value="" onValueChange={addLink}>
+                <SelectTrigger className="h-8 w-56 text-sm" data-testid="own-version-add-link">
+                  <SelectValue placeholder="+ Add a link…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {offered.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name} <span className="font-mono text-xs text-slate-400">{t.template}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {available.isPending
+                  ? "Looking for URL templates…"
+                  : (available.data ?? []).length
+                    ? "Every URL template is already linked."
+                    : "No URL templates found."}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2" data-testid="own-version-display">

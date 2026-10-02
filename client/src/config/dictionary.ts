@@ -12,7 +12,12 @@ const config = raw as {
   concepts: { coordinate: string; renderer?: string; versionTester?: boolean }[];
   houseConceptAuthors: string[];
   displayHints?: boolean;
+  urlTemplatesConcept?: string;
 };
+
+/** PROVISIONAL: the URL Templates concept whose items the version tester offers (lib/linkTemplates). */
+export const URL_TEMPLATES_CONCEPT: string | null =
+  parseCoordinate(config.urlTemplatesConcept)?.kind === 39998 ? config.urlTemplatesConcept! : null;
 
 /** PROVISIONAL: whether renderers honour headers' presentation hints (lib/displayHints). */
 export const DISPLAY_HINTS_ENABLED: boolean = config.displayHints === true;
