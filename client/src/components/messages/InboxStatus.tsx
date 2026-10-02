@@ -4,7 +4,7 @@
  * (or said no), a signer that can't do NIP-44 at all.
  */
 import { useState } from "react";
-import { Inbox, KeyRound, Loader2, Lock, Plug } from "lucide-react";
+import { Inbox, Loader2, Lock, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
@@ -91,20 +91,7 @@ export function OpeningStatus({ state }: { state: DmEngineState }) {
 }
 
 /** What waits on the reader — a login, an unlock, a signer that can't — pinned under the list. */
-export function InboxNotices({
-  engine,
-  state,
-  authAllowed,
-  onAllowAuth,
-}: {
-  engine: DmEngine | null;
-  state: DmEngineState;
-  authAllowed: boolean;
-  onAllowAuth: () => void;
-}) {
-  const readAuth =
-    Object.values(state.live).some((s) => s === "auth") || state.history.relays.some((r) => r.state === "auth");
-  const waitingAuth = readAuth || state.sendAuth.length > 0;
+export function InboxNotices({ engine, state }: { engine: DmEngine | null; state: DmEngineState }) {
   const notices: {
     key: string;
     icon: React.ReactNode;
@@ -112,19 +99,6 @@ export function InboxNotices({
     action?: React.ReactNode;
     variant?: "warning" | "default";
   }[] = [];
-  if (waitingAuth && !authAllowed)
-    notices.push({
-      key: "auth",
-      icon: <KeyRound className="h-4 w-4" />,
-      text: readAuth
-        ? "Your inbox relays ask you to sign in before they hand over your messages."
-        : "Some inbox relays only take your messages once you sign in to them. Unsent messages go out when you do.",
-      action: (
-        <Button size="sm" onClick={onAllowAuth} data-testid="dm-allow-auth">
-          Allow sign-in
-        </Button>
-      ),
-    });
   if (state.paused === "no-nip44")
     notices.push({
       key: "nip44",

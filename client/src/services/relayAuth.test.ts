@@ -1,16 +1,15 @@
 // @vitest-environment jsdom
 /**
- * Signing in to relays that ask (NIP-42), for a reader who has a signer and
- * said yes. A relay in Benjamin's own relay list answers reads with
- * `auth-required`; the pool skips it (lib/relayPool) so nothing waits, and
- * this is the other half: when the relay sends its challenge, answer it with
- * the account's signer — once per challenge, only with consent, never for a
- * signed-out reader — so the next read gets that relay's events too.
+ * Signing in to the reader's own relays when they ask (NIP-42). A relay in
+ * Benjamin's own relay list answers reads with `auth-required`; the pool skips
+ * it (lib/relayPool) so nothing waits, and this is the other half: when the
+ * relay sends its challenge, answer it with the account's signer — once per
+ * challenge, without asking, never for a signed-out reader, and never on
+ * someone else's relay — so the next read gets that relay's events too.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BehaviorSubject, Subject } from "rxjs";
-import { relayAuthAllowed, setRelayAuthAllowed } from "@/lib/relayAuthPref";
-import { allowWriteAuth, setRelayAuthInteractive, startRelayAuth } from "./relayAuth";
+import { isOwnRelay, setRelayAuthInteractive, startRelayAuth } from "./relayAuth";
 
 const PK = "a".repeat(64);
 const PK2 = "b".repeat(64);
@@ -18,6 +17,22 @@ const signed = { id: "s".repeat(64), kind: 22242, pubkey: PK, tags: [], content:
 const account = { pubkey: PK, signEvent: vi.fn(async () => signed) };
 const other = { pubkey: PK2, signEvent: vi.fn(async () => ({ ...signed, pubkey: PK2 })) };
 type Account = typeof account;
+
+const GATED = "wss://gated.example/";
+const INBOX = "wss://inbox.example/";
+const NOTES = "wss://notes.example/";
+const POLITE = "wss://polite.example/";
+const LOCKED = "wss://locked.example/";
+const THEIRS = "wss://theirs.example/";
+
+/** Each account's own relays (kind 10002 + 10050), as the store would hand them over. */
+let lists: Map<string, BehaviorSubject<ReadonlySet<string>>>;
+const listOf = (pubkey: string) => {
+  if (!lists.has(pubkey)) lists.set(pubkey, new BehaviorSubject<ReadonlySet<string>>(new Set()));
+  return lists.get(pubkey)!;
+};
+const ownRelays = (pubkey: string) => listOf(pubkey).asObservable();
+const own = (pubkey: string, ...urls: string[]) => listOf(pubkey).next(new Set(urls));
 
 /** A relay as the watcher sees it; `gated` is whether it has refused a read. */
 function fakeRelay(url: string, { gated = true } = {}) {
@@ -52,28 +67,36 @@ const tick = async () => {
 };
 
 /** A pool with one gated relay already in it, the watcher running over `active$`. */
-function setup(active: Account | undefined = account) {
+function setup() {
   const pool = fakePool();
-  const active$ = new BehaviorSubject<Account | undefined>(active);
-  const gated = fakeRelay("wss://gated.example");
+  const active$ = new BehaviorSubject<Account | undefined>(account);
+  const gated = fakeRelay(GATED);
   pool.relays.set(gated.url, gated);
-  const stop = startRelayAuth({ pool: pool as never, active$ });
+  const stop = startRelayAuth({ pool: pool as never, active$, ownRelays });
   return { pool, active$, gated, stop };
 }
 
+let stops: (() => void)[] = [];
+function start(opts: Omit<Parameters<typeof startRelayAuth<Account>>[0], "ownRelays">) {
+  const stop = startRelayAuth({ ...opts, ownRelays });
+  stops.push(stop);
+  return stop;
+}
+
 beforeEach(() => {
-  localStorage.clear();
+  for (const stop of stops) stop();
+  stops = [];
+  lists = new Map();
   vi.clearAllMocks();
 });
 
 describe("startRelayAuth", () => {
-  it("answers a relay's challenge with the account's signer, when the reader allowed it", async () => {
-    setRelayAuthAllowed(PK, true);
+  it("answers a challenge from one of the account's own relays with its signer, without asking", async () => {
+    own(PK, GATED);
     const pool = fakePool();
-    const active$ = new BehaviorSubject<Account | undefined>(account);
-    startRelayAuth({ pool: pool as never, active$ });
+    start({ pool: pool as never, active$: new BehaviorSubject<Account | undefined>(account) });
 
-    const gated = fakeRelay("wss://gated.example");
+    const gated = fakeRelay(GATED);
     pool.add$.next(gated);
     gated.challenge$.next("challenge-xyz");
     await tick();
@@ -83,21 +106,31 @@ describe("startRelayAuth", () => {
     await expect(signer.signEvent({ kind: 22242, tags: [], content: "", created_at: 1 })).resolves.toBe(signed);
   });
 
-  it("stays quiet without consent, and for a signed-out reader", async () => {
-    const { active$, gated } = setup();
-    gated.challenge$.next("c1");
+  it("never signs in to someone else's relay", async () => {
+    own(PK, GATED);
+    const pool = fakePool();
+    const theirs = fakeRelay(THEIRS);
+    theirs.authRequiredForPublish$.next(true);
+    pool.relays.set(theirs.url, theirs);
+    start({ pool: pool as never, active$: new BehaviorSubject<Account | undefined>(account) });
+    theirs.challenge$.next("c1");
     await tick();
-    expect(gated.authenticate).not.toHaveBeenCalled();
+    expect(theirs.authenticate).not.toHaveBeenCalled();
+    expect(isOwnRelay(THEIRS)).toBe(false);
+    expect(isOwnRelay("wss://GATED.example")).toBe(true);
+  });
 
+  it("stays quiet for a signed-out reader", async () => {
+    own(PK, GATED);
+    const { active$, gated } = setup();
     active$.next(undefined);
-    setRelayAuthAllowed(PK, true);
-    gated.challenge$.next("c2");
+    gated.challenge$.next("c1");
     await tick();
     expect(gated.authenticate).not.toHaveBeenCalled();
   });
 
   it("answers each challenge once, and a relay already in the pool too", async () => {
-    setRelayAuthAllowed(PK, true);
+    own(PK, GATED);
     const { gated } = setup();
     gated.challenge$.next("c1");
     gated.challenge$.next("c1");
@@ -106,7 +139,7 @@ describe("startRelayAuth", () => {
   });
 
   it("a declined or failed signature is nothing more than that", async () => {
-    setRelayAuthAllowed(PK, true);
+    own(PK, GATED);
     const { gated, pool } = setup();
     gated.authenticate.mockRejectedValueOnce(new Error("user declined"));
     gated.challenge$.next("c1");
@@ -115,13 +148,13 @@ describe("startRelayAuth", () => {
     expect(pool.remove).not.toHaveBeenCalled();
   });
 
-  // No prompt, and no pubkey handed over, for a relay that never needed it.
-  it("leaves a relay that challenges without refusing a read alone, until it refuses one", async () => {
-    setRelayAuthAllowed(PK, true);
+  // No prompt for a login nothing needed.
+  it("leaves a relay that challenges without refusing anything alone, until it refuses a read", async () => {
+    own(PK, POLITE);
     const pool = fakePool();
-    const polite = fakeRelay("wss://polite.example", { gated: false });
+    const polite = fakeRelay(POLITE, { gated: false });
     pool.relays.set(polite.url, polite);
-    startRelayAuth({ pool: pool as never, active$: new BehaviorSubject<Account | undefined>(account) });
+    start({ pool: pool as never, active$: new BehaviorSubject<Account | undefined>(account) });
     polite.challenge$.next("c1");
     await tick();
     expect(polite.authenticate).not.toHaveBeenCalled();
@@ -131,13 +164,12 @@ describe("startRelayAuth", () => {
     expect(polite.authenticate).toHaveBeenCalledTimes(1);
   });
 
-  it("signs in to a relay that refused a private message, as it does for a refused read", async () => {
-    setRelayAuthAllowed(PK, true);
-    allowWriteAuth("wss://inbox.example");
+  it("signs in to one of its own relays that refused a write, as it does for a refused read", async () => {
+    own(PK, INBOX, NOTES);
     const pool = fakePool();
-    const inbox = fakeRelay("wss://inbox.example", { gated: false });
+    const inbox = fakeRelay(INBOX, { gated: false });
     pool.relays.set(inbox.url, inbox);
-    startRelayAuth({ pool: pool as never, active$: new BehaviorSubject<Account | undefined>(account) });
+    start({ pool: pool as never, active$: new BehaviorSubject<Account | undefined>(account) });
     inbox.challenge$.next("c1");
     await tick();
     expect(inbox.authenticate).not.toHaveBeenCalled();
@@ -147,24 +179,23 @@ describe("startRelayAuth", () => {
     expect(inbox.authenticate).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves a relay that refused some other write alone", async () => {
-    setRelayAuthAllowed(PK, true);
-    const pool = fakePool();
-    const notes = fakeRelay("wss://notes.example", { gated: false });
-    pool.relays.set(notes.url, notes);
-    startRelayAuth({ pool: pool as never, active$: new BehaviorSubject<Account | undefined>(account) });
-    notes.challenge$.next("c1");
-    notes.authRequiredForPublish$.next(true);
+  it("answers a waiting challenge once the account's list comes to name that relay", async () => {
+    const { gated } = setup();
+    gated.challenge$.next("c1");
     await tick();
-    expect(notes.authenticate).not.toHaveBeenCalled();
+    expect(gated.authenticate).not.toHaveBeenCalled();
+
+    own(PK, GATED);
+    await tick();
+    expect(gated.authenticate).toHaveBeenCalledTimes(1);
   });
 
   it("never unlocks a key for a login nobody asked for, until the reader is in Messages", async () => {
-    setRelayAuthAllowed(PK, true);
+    own(PK, LOCKED);
     const pool = fakePool();
-    const inbox = fakeRelay("wss://locked.example");
+    const inbox = fakeRelay(LOCKED);
     pool.relays.set(inbox.url, inbox);
-    startRelayAuth({
+    start({
       pool: pool as never,
       active$: new BehaviorSubject<Account | undefined>(account),
       canSignQuietly: async () => false,
@@ -178,20 +209,9 @@ describe("startRelayAuth", () => {
     setRelayAuthInteractive(false);
   });
 
-  it("turning the switch on answers a challenge already waiting, without a reload", async () => {
-    const { gated } = setup();
-    gated.challenge$.next("c1");
-    await tick();
-    expect(gated.authenticate).not.toHaveBeenCalled();
-
-    setRelayAuthAllowed(PK, true);
-    await tick();
-    expect(gated.authenticate).toHaveBeenCalledTimes(1);
-  });
-
-  it("a newly active account answers a challenge the previous one saw", async () => {
-    setRelayAuthAllowed(PK, true);
-    setRelayAuthAllowed(PK2, true);
+  it("a newly active account answers a challenge the previous one saw, on its own relays", async () => {
+    own(PK, GATED);
+    own(PK2, GATED);
     const { active$, gated } = setup();
     gated.authenticate.mockRejectedValueOnce(new Error("user declined"));
     gated.challenge$.next("c1");
@@ -206,23 +226,11 @@ describe("startRelayAuth", () => {
   // NIP-42 has no sign-out: a connection signed in as someone who may no
   // longer sign is dropped, and the next read opens an anonymous one.
   it.each([
-    [
-      "the switch is turned off",
-      (active$: BehaviorSubject<Account | undefined>) => {
-        void active$;
-        setRelayAuthAllowed(PK, false);
-      },
-    ],
     ["the reader signs out", (active$: BehaviorSubject<Account | undefined>) => active$.next(undefined)],
-    [
-      "another account becomes active",
-      (active$: BehaviorSubject<Account | undefined>) => {
-        setRelayAuthAllowed(PK2, true);
-        active$.next(other);
-      },
-    ],
+    ["another account becomes active", (active$: BehaviorSubject<Account | undefined>) => active$.next(other)],
   ])("drops a relay signed in as the account when %s", async (_when, change) => {
-    setRelayAuthAllowed(PK, true);
+    own(PK, GATED);
+    own(PK2, GATED);
     const { pool, active$, gated } = setup();
     gated.challenge$.next("c1");
     await tick();
@@ -235,22 +243,12 @@ describe("startRelayAuth", () => {
   });
 
   it("stops watching when stopped", async () => {
-    setRelayAuthAllowed(PK, true);
+    own(PK, GATED);
     const { gated, stop } = setup();
     stop();
     gated.challenge$.next("c1");
     await tick();
     expect(gated.authenticate).not.toHaveBeenCalled();
-  });
-});
-
-describe("relayAuthAllowed", () => {
-  it("is off until the reader turns it on, per account", () => {
-    expect(relayAuthAllowed(PK)).toBe(false);
-    setRelayAuthAllowed(PK, true);
-    expect(relayAuthAllowed(PK)).toBe(true);
-    expect(relayAuthAllowed("b".repeat(64))).toBe(false);
-    setRelayAuthAllowed(PK, false);
-    expect(relayAuthAllowed(PK)).toBe(false);
+    expect(isOwnRelay(GATED)).toBe(false);
   });
 });

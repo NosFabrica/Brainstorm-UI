@@ -70,10 +70,9 @@ export interface RelayMarkerProps {
   onAdvance?: (url: string) => void;
   onVisible?: (url: string, visible: boolean) => void;
   onRetry?: (url: string) => void;
-  onSignIn?: () => void;
 }
 
-export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry, onSignIn }: RelayMarkerProps) {
+export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry }: RelayMarkerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref);
   const { url, reachedUntil } = progress;
@@ -104,14 +103,6 @@ export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry, 
         className="rounded-md border border-current px-2 py-0.5 font-sans text-[11px] font-semibold"
       >
         Retry
-      </button>
-    ) : state === "auth" && onSignIn ? (
-      <button
-        type="button"
-        onClick={onSignIn}
-        className="rounded-md border border-current px-2 py-0.5 font-sans text-[11px] font-semibold"
-      >
-        Sign in
       </button>
     ) : null;
 

@@ -10,7 +10,6 @@ import {
   Check,
   History,
   Info,
-  KeyRound,
   Loader2,
   MoreVertical,
   Pin,
@@ -23,7 +22,6 @@ import {
 import { Link, useSearch } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -215,8 +213,6 @@ export function ChatView({
   onDetails,
   onToggleInfo,
   onArchive,
-  onSignIn,
-  authAllowed,
   sendError,
   initialSubject,
 }: {
@@ -236,9 +232,6 @@ export function ChatView({
   onDetails: (m: DmMessage) => void;
   onToggleInfo: () => void;
   onArchive: () => void;
-  onSignIn: () => void;
-  /** The reader lets relays that ask sign them in (lib/relayAuthPref). */
-  authAllowed: boolean;
   sendError: (result: SendResult) => void;
   /** A group's name, chosen when it was started, sent with its first message. */
   initialSubject?: string;
@@ -550,7 +543,6 @@ export function ChatView({
                 variant="chat"
                 onVisible={onVisible}
                 onRetry={(url) => engine?.retry(url)}
-                onSignIn={onSignIn}
               />
             ) : (
               <MessageBubble
@@ -584,23 +576,6 @@ export function ChatView({
           </Fragment>
         ))}
       </div>
-
-      {state.sendAuth.length > 0 && !authAllowed && !isRequest && (
-        <Alert
-          variant="warning"
-          className="mx-4 mb-2 flex w-auto items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] sm:mx-6"
-        >
-          <span className="shrink-0">
-            <KeyRound className="h-4 w-4" />
-          </span>
-          <span className="flex-1">
-            Their inbox relay takes messages only from senders who sign in — and then knows this one is from you.
-          </span>
-          <Button size="sm" onClick={onSignIn} data-testid="dm-send-allow-auth">
-            Allow sign-in
-          </Button>
-        </Alert>
-      )}
 
       {isRequest ? (
         <div className="shrink-0 border-t border-border bg-card px-4 pb-5 pt-4 sm:px-6" data-testid="dm-request-bar">

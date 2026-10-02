@@ -74,17 +74,17 @@ The send answers once every recipient has a relay that took their wrap; slower
 relays keep going in the background and fill in the delivery details, so a
 dead inbox relay doesn't hold the composer for its timeout.
 
-Many inbox relays (auth.nostr1.com among the suggested ones) take a wrap only
-from a signed-in sender. A refused publish (`auth-required`) is signed in
-through the same consent as reads (lib/relayAuthPref; services/relayAuth
-answers a refused write only on relays where a private message was refused,
-and never raises the Unlock modal for a login nobody asked for — a locked key
-signs in once the reader is in Messages), retried once, and otherwise held:
-the message shows "their relay wants you signed in", and goes out by itself
-when that relay signs the reader in. The trade-off is NIP-42's: signing in to
-a recipient's inbox relay tells that relay who is sending to its users. A
-reader who hasn't allowed sign-in keeps that private and can't reach those
-inboxes.
+Many inbox relays (auth.nostr1.com among the suggested ones) hand over an
+inbox, or take a wrap, only from a signed-in reader. services/relayAuth signs
+in (NIP-42), without asking, to the reader's own relays — those named in their
+kind-10002 or kind-10050 — once one refuses a read or a write, and never raises
+the Unlock modal for a login nobody asked for (a locked key signs in once the
+reader is in Messages). A wrap refused by one of those relays waits briefly for
+that login and is retried — which covers a recipient who shares that relay. A
+relay that is only someone else's is never signed in to: signing in to a
+recipient's inbox relay would tell it who is sending to its users, so a wrap
+it refuses for want of a login stays undelivered, and the message says "their
+relay wants you signed in".
 
 ## Everything else stays on the device
 
