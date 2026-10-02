@@ -14,6 +14,7 @@ import { eventStore } from "@/lib/eventStore";
 import { deviceSealer, dmCacheBackend } from "@/lib/dm/cache";
 import { DM_RELAY_LIST_KIND, dmRelayTags, loadDmRelays } from "@/lib/dm/inboxRelays";
 import { ensureReadFloor } from "@/lib/dm/prefs";
+import { hydrateDmPrefs, startDmPrefsSync } from "@/lib/dm/prefsSync";
 import { publishToRelays } from "@/services/nostr";
 import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/relayAuthPref";
 import { DmEngine, type DmAccount, type SendResult, type SignerFailure } from "./engine";
@@ -75,6 +76,9 @@ function startFor(account: BrainstormAccount | undefined) {
   current = null;
   if (account) {
     ensureReadFloor(account.pubkey);
+    // Pinned/muted/accepted chats from the account's encrypted copy. A key held here
+    // can open it unasked; an extension or bunker would prompt, so it waits for Messages.
+    if (account instanceof LocalAccount) void hydrateDmPrefs(account.pubkey);
     current = new DmEngine(dmAccountFor(account), {
       transport: poolTransport,
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
@@ -96,10 +100,12 @@ function startFor(account: BrainstormAccount | undefined) {
 
 /** Begin following the Active Account. Called once at boot (main.tsx). */
 export function startDirectMessages(): () => void {
+  const stopPrefsSync = startDmPrefsSync();
   startFor(accountManager.active);
   const sub = accountManager.active$.subscribe((account) => startFor(account));
   return () => {
     sub.unsubscribe();
+    stopPrefsSync();
     startFor(undefined);
   };
 }

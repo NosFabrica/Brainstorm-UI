@@ -6,7 +6,7 @@ import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
 import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS, SEARCH_RELAY } from "@/lib/relays";
-import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
+import { requestAll, requestAllByRelay, requestNewest, requestNewestWithReach, requestOne } from "@/lib/relayRequest";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { withObserver } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
@@ -441,6 +441,8 @@ export const ALERT_PREFS_D_TAG = "brainstorm.world/alert-prefs";
 
 /** Fetch + decrypt the logged-in user's alert prefs (or null if none/unreadable). */
 export const SCORE_JOURNAL_D_TAG = "brainstorm.world/score-journal";
+/** Pinned, muted and accepted chats (lib/dm/prefsSync). Room keys name who you talk to: encrypted, like the rest. */
+export const DM_PREFS_D_TAG = "brainstorm.world/dm-prefs";
 
 /** Fetch + decrypt one of the user's private app-data blobs (or null). */
 export async function fetchAlertPrefs(
@@ -470,11 +472,64 @@ export async function fetchAlertPrefs(
   }
 }
 
+/**
+ * One of the user's private app-data blobs, read so that a caller about to
+ * REPLACE it can tell "there is none" from "couldn't tell" — `fetchAlertPrefs`
+ * returns null for both, and for a blob it could not decrypt. Always from the
+ * relays: the EventStore holds whatever this session last saw or published, not
+ * what another device wrote since.
+ *
+ *  - `found`: the newest copy, decrypted. `unchanged` instead when its id is
+ *    `knownId` — nothing new, and no decrypt (no signer prompt) spent on it.
+ *  - `absent`: a majority of the relays asked answered and none holds one.
+ *  - `unknown`: anything else — too few relays answered, the Account can't
+ *    sign silently, or the copy there couldn't be read. Never overwrite on this.
+ */
+export type PrivateAppData =
+  | { status: "found"; id: string; createdAt: number; data: Record<string, unknown> }
+  | { status: "unchanged"; id: string; createdAt: number }
+  | { status: "absent" }
+  | { status: "unknown" };
+
+export async function fetchPrivateAppData(
+  dTag: string,
+  { timeoutMs = 6000, knownId }: { timeoutMs?: number; knownId?: string } = {},
+): Promise<PrivateAppData> {
+  const account = activeAccount();
+  if (!account || !(await canSignSilently(account))) return { status: "unknown" };
+  try {
+    const relays = await outboxRelays(account.pubkey, PROFILE_RELAYS);
+    const { newest, reach } = await requestNewestWithReach(
+      relays,
+      { kinds: [30078], authors: [account.pubkey], "#d": [dTag], limit: 1 },
+      timeoutMs,
+    );
+    if (!newest) {
+      return reach.answered.length * 2 > reach.asked.length ? { status: "absent" } : { status: "unknown" };
+    }
+    if (newest.id === knownId) return { status: "unchanged", id: newest.id, createdAt: newest.created_at };
+    const plain = newest.content ? await decryptFromSelf(account, newest.content) : null;
+    if (!plain) return { status: "unknown" };
+    const data: unknown = JSON.parse(plain);
+    if (!data || typeof data !== "object" || Array.isArray(data)) return { status: "unknown" };
+    return { status: "found", id: newest.id, createdAt: newest.created_at, data: data as Record<string, unknown> };
+  } catch {
+    return { status: "unknown" };
+  }
+}
+
 /** Encrypt + publish the logged-in user's alert prefs as a kind-30078 event. */
 export async function publishAlertPrefs(
   prefs: unknown,
   dTag: string = ALERT_PREFS_D_TAG,
-  { background = false }: { background?: boolean } = {},
+  {
+    background = false,
+    createdAt,
+  }: {
+    background?: boolean;
+    /** Seconds. Lets a caller stamp past a copy it has seen, so relays keep this one even when its clock lags. */
+    createdAt?: number;
+  } = {},
 ): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
@@ -488,6 +543,7 @@ export async function publishAlertPrefs(
       kind: 30078,
       tags: [["d", dTag]],
       content: ciphertext,
+      ...(createdAt ? { created_at: createdAt } : {}),
     });
     return await publishToRelays(signed);
   } catch (err) {
