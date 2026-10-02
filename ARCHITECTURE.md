@@ -40,6 +40,13 @@ the relays they **read** from; stamp `e`/`a`/`p` tags with a relay hint.
 answer. `publishRelaysFor()` composes a publish's destination set, and
 `publishToRelays(event, extraRelays)` unions anything a call site adds.
 
+Our search relay (`VITE_SEARCH_RELAY_URL`, `wss://search.brainstorm.world/`) is
+in both read floors (`PROFILE_RELAYS`, `CONTENT_RELAYS`): it indexes far more
+than the public relays. It refuses a plain read without sign-in, so the pool's
+relay adds the NIP-50 `include:spam` token to any filter sent there that has no
+`search` of its own (`withSearchToken`, `lib/relayPool.ts`). It is an index, not
+a publish target: publishes leave it out.
+
 A read with many authors goes through `planOutboxReads()` + `requestAllByRelay()`
 instead, so each relay is asked only about the authors it serves, under a
 connection budget chosen by set cover.
@@ -102,6 +109,20 @@ Two sources, by what the surface needs:
 - **Browsing and tagging** (the tags page, a tag's page, a profile's tags, the tag picker) read
   the **tag hub** (`services/tags.ts`), because they need every tag and who applied it. That
   is a walk of the whole catalogue and is slow; search must not depend on it.
+
+## Private messages (NIP-17)
+
+`services/dm/` runs one `DmEngine` per Active Account from sign-in: a live
+subscription for wraps since the last visit (minus NIP-59's two-day back-dating,
+at most a week) and a per-relay history pager below it, driven by on-screen
+relay markers (`lib/dm/pager.ts`, ported from Amethyst). Wraps are opened by the
+account's signer — in the background only for a local key; extensions and
+bunkers wait for Messages to open — and kept sealed with the device key in
+IndexedDB (`lib/dm/cache.ts`), dropped on sign-out. The store groups messages
+into Chats by participant set; `lib/dm/inbox.ts` shelves them into Chats and
+trust-sorted Requests. UI: `pages/MessagesPage.tsx` and `components/messages/`;
+inbox relays (kind 10050) and preferences: Settings › Trust & search.
+Rationale: [docs/adr/0004-nip17-private-messages.md](docs/adr/0004-nip17-private-messages.md).
 
 ## External Dependencies
 

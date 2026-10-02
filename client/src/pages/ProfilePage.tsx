@@ -40,6 +40,7 @@ import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useShareUrl } from "@/hooks/useShareUrl";
 import { ZapModal } from "@/components/ZapModal";
+import { MessageButton } from "@/components/messages/MessageButton";
 import { FlashIcon } from "@/components/FlashIcon";
 import { WotStrengthCard } from "@/components/WotStrengthCard";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
@@ -2977,6 +2978,7 @@ export default function ProfilePage() {
                                 );
                               })()
                             )}
+                            <MessageButton pubkey={hexPubkey} name={searchPostsName} />
                             <button
                               type="button"
                               onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}

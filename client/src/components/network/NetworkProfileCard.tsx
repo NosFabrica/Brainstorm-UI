@@ -1,4 +1,5 @@
 import { useState, useMemo, memo } from "react";
+import { MessageButton } from "@/components/messages/MessageButton";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { rungFraction } from "@/lib/trustLadder";
@@ -601,6 +602,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                             {cardActionPending === "mute" ? "..." : isMutedUser ? "Unmute" : "Mute"}
                           </span>
                         </button>
+                        <MessageButton pubkey={pk} className="h-7 rounded-lg px-2.5 text-[11px]" />
                       </>
                     )}
                   </div>

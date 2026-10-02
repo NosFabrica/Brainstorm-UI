@@ -110,6 +110,7 @@ import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 import { RelayAuthCard } from "@/components/settings/RelayAuthCard";
+import { MessagesSettingsCard } from "@/components/settings/MessagesSettingsCard";
 import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
 
 type SettingsTab = "profile" | "trust" | "billing" | "about";
@@ -174,7 +175,13 @@ export default function SettingsPage() {
   const [advancedOpen, setAdvancedOpen] = useState(focusParam === "tag-relays");
   useEffect(() => {
     const target =
-      focusParam === "backup" ? "account-backup-section" : focusParam === "tag-relays" ? "tag-relays-section" : null;
+      focusParam === "backup"
+        ? "account-backup-section"
+        : focusParam === "tag-relays"
+          ? "tag-relays-section"
+          : focusParam === "messages"
+            ? "messages-section"
+            : null;
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2375,6 +2382,7 @@ export default function SettingsPage() {
             <div className="space-y-6" data-testid="tab-content-trust">
               {presetsCard}
               <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
+              <MessagesSettingsCard />
               {networkAlertsCard}
               {advancedSection}
             </div>
