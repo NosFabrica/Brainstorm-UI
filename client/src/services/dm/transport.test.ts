@@ -17,15 +17,13 @@ class FakeRelay {
 
 let relay: FakeRelay;
 vi.mock("@/lib/relayPool", () => ({ pool: { relay: () => relay } }));
-let own = true;
-vi.mock("@/services/relayAuth", () => ({ isOwnRelay: () => own }));
+vi.mock("@/services/relayAuth", () => ({ allowWriteAuth: vi.fn() }));
 
 const { poolTransport } = await import("./transport");
 const event = { id: "e".repeat(64) } as NostrEvent;
 
 beforeEach(() => {
   relay = new FakeRelay();
-  own = true;
 });
 
 describe("poolTransport.publish", () => {
@@ -105,17 +103,5 @@ describe("poolTransport.publish", () => {
     relay.authenticated$.next(true);
     expect(await sent).toEqual({ ok: true, message: "" });
     expect(relay.publish).toHaveBeenCalledTimes(1);
-  });
-
-  it("doesn't wait for a login on someone else's relay — we never sign in there", async () => {
-    own = false;
-    relay.connected$.next(true);
-    relay.authRequiredForPublish$.next(true);
-    expect(await poolTransport.publish(relay.url, event)).toEqual({
-      ok: false,
-      message: "auth-required: sign in to publish",
-      auth: true,
-    });
-    expect(relay.publish).not.toHaveBeenCalled();
   });
 });

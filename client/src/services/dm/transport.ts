@@ -6,11 +6,10 @@
  * (NIP-42) — that is what keeps someone else from downloading your inbox. The
  * live subscription waits for that login (the pool's subscriptions do); history
  * pages don't, and report `auth` instead so the pager can park the relay until
- * services/relayAuth signs in, which it does on the reader's own relays.
- * Publishing is the same: many inbox relays only take a wrap from a signed-in
- * sender, so a send refused with `auth-required` by one of the reader's own
- * relays waits briefly for that login and tries again. Anyone else's relay is
- * never signed in to, so its refusal stands.
+ * services/relayAuth signs in — always on the reader's own relays. Publishing
+ * is the same: many inbox relays only take a wrap from a signed-in sender, so a
+ * send refused with `auth-required` waits briefly for that login (a recipient's
+ * relay only with the reader's consent) and tries again.
  */
 import { AuthRequiredError, RelayClosedError } from "applesauce-relay";
 import {
@@ -26,7 +25,7 @@ import {
 } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import { pool } from "@/lib/relayPool";
-import { isOwnRelay } from "@/services/relayAuth";
+import { allowWriteAuth } from "@/services/relayAuth";
 import type { DmTransport, PublishResult } from "./engine";
 
 /** How long a refused publish waits for services/relayAuth to sign in. */
@@ -137,13 +136,14 @@ export const poolTransport: DmTransport = {
     };
     const first = await once();
     if (!first.auth) return first;
+    // This relay may now be answered (services/relayAuth) — for messages only.
+    allowWriteAuth(relay.url);
     // Refused although signed in: a login won't change that.
     if (relay.authenticated) return { ok: false, message: first.message };
-    // Someone else's relay: we don't sign in there (services/relayAuth), so
-    // there is no login to wait for.
-    if (!isOwnRelay(relay.url)) return first;
-    // One of the reader's own relays: services/relayAuth answers its challenge;
-    // give that a moment, then try once more.
+    // Recipients' inbox relays often take wraps only from a signed-in sender.
+    // services/relayAuth answers the challenge — on the reader's own relays
+    // always, elsewhere if the reader allowed it; give that a moment, then try
+    // once more.
     const signedIn = await firstValueFrom(
       relay.authenticated$.pipe(
         filter((yes) => yes),

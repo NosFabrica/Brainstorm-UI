@@ -30,7 +30,8 @@ if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
 void resolveHouseObserver();
 
 // Relays that gate reads behind a NIP-42 login: never waited on (lib/relayPool),
-// answered with the account's signer when they are the reader's own relays.
+// answered with the account's signer — always on the reader's own relays,
+// elsewhere when the reader allowed it (Messages, or Settings).
 // Never with our Unlock modal unless the reader is in Messages.
 startRelayAuth({ pool, active$: accountManager.active$, canSignQuietly: canSignSilently });
 

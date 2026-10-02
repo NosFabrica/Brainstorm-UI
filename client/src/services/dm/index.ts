@@ -15,6 +15,7 @@ import { deviceSealer, dmCacheBackend } from "@/lib/dm/cache";
 import { DM_RELAY_LIST_KIND, dmRelayTags, loadDmRelays } from "@/lib/dm/inboxRelays";
 import { ensureReadFloor } from "@/lib/dm/prefs";
 import { publishToRelays } from "@/services/nostr";
+import { relayAuthAllowed, relayAuthChanged$ } from "@/lib/relayAuthPref";
 import { DmEngine, type DmAccount, type SendResult, type SignerFailure } from "./engine";
 import { encryptFile, fileTags } from "@/lib/dm/fileCrypto";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
@@ -79,6 +80,14 @@ function startFor(account: BrainstormAccount | undefined) {
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
       cache: dmCacheBackend(),
       sealer: deviceSealer,
+      // Turning sign-in off drops the sockets signed in to others' relays (services/relayAuth):
+      // reconnect once it has, or the inbox goes quiet until a reload.
+      onAuthPrefChanged: (callback) => {
+        const sub = relayAuthChanged$.subscribe((pk) => {
+          if (pk === account.pubkey && !relayAuthAllowed(pk)) setTimeout(callback, 0);
+        });
+        return () => sub.unsubscribe();
+      },
     });
     void current.start();
   }
@@ -108,7 +117,8 @@ export function subscribeDmEngine(listener: () => void): () => void {
 /**
  * Turn private messages on: publish the inbox list. Once it names them, the
  * inbox relays are the reader's own and sign them in (NIP-42) when they ask
- * (services/relayAuth) — they won't hand over an inbox otherwise.
+ * (services/relayAuth) — they won't hand over an inbox otherwise. Signing in to
+ * recipients' relays stays the reader's call, asked when a send needs it.
  */
 export async function turnOnMessages(relays: string[]): Promise<PublishOutcome> {
   const account = accountManager.active;

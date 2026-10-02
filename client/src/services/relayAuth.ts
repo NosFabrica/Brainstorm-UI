@@ -1,27 +1,32 @@
 /**
- * Signing in to the reader's own relays when they ask (NIP-42).
+ * Signing in to relays that ask (NIP-42), for a reader who has a signer.
  *
- * A relay in the reader's own relay list — their NIP-65 relays (kind 10002) or
- * their private-message inbox (kind 10050) — can answer reads with
- * `auth-required`, and an inbox relay can refuse a write the same way. The pool
- * never waits for any of this (lib/relayPool) — nothing on a screen is held by
- * one relay's login. This is the other half: once one of the reader's own
- * relays has refused a read or a write, answer its challenge with the account's
- * signer, without asking — they chose that relay, and it already knows them —
- * never for a signed-out reader, so the next read gets that relay's events too.
- * A declined or failed signature is nothing more than that.
+ * A relay can answer reads with `auth-required`, and a private-message inbox
+ * relay can refuse a write the same way. The pool never waits for any of this
+ * (lib/relayPool) — nothing on a screen is held by one relay's login. This is
+ * the other half: once such a relay has refused, answer its challenge with the
+ * account's signer, never for a signed-out reader — so the next read gets that
+ * relay's events too. Which relays:
  *
- * Anyone else's relay is never signed in to: a recipient's inbox relay that
- * takes wraps only from signed-in senders would learn who is writing to its
- * users, so a message there stays undelivered (services/dm/transport).
+ * - **The reader's own** — named in their NIP-65 list (kind 10002) or their
+ *   private-message inbox list (kind 10050): always, once one refuses a read or
+ *   a write. They chose that relay, and an inbox they can't open is no inbox.
+ * - **Anyone else's** — only with consent (lib/relayAuthPref). Reads as above;
+ *   writes only where a private message was refused (`allowWriteAuth`, from
+ *   services/dm/transport): another relay turning down a note is no reason to
+ *   tell it who we are.
  *
- * It follows who may sign, not only new challenges. Switching accounts, or the
- * account publishing a list that names a relay already waiting, answers a
- * challenge already waiting. A relay signed in as someone who may no longer
- * sign — another account, signed out — is dropped from the pool: NIP-42 has no
- * sign-out, so a fresh, anonymous connection is the only way back, and the next
- * read opens one. Relays that challenge without refusing a read or a write are
- * left alone: no prompt for a login nothing needed.
+ * A declined or failed signature is asked again only once something changes,
+ * such as the reader opening Messages.
+ *
+ * It follows who may sign, not only new challenges. Turning the switch on,
+ * switching to an account that allowed it, or the account's list coming to
+ * name a relay answers a challenge already waiting. A relay signed in as
+ * someone who may no longer sign there — the switch turned off, another
+ * account, signed out — is dropped from the pool: NIP-42 has no sign-out, so a
+ * fresh, anonymous connection is the only way back, and the next read opens
+ * one. Relays that challenge without refusing anything are left alone: no
+ * prompt, and no pubkey handed to a relay that did not need it.
  *
  * Nobody asked for this login, so it never raises our Unlock modal: a key that
  * can't sign silently waits until the reader is in Messages
@@ -47,20 +52,21 @@ import { normalizeURL } from "applesauce-core/helpers/url";
 import { eventStore } from "@/lib/eventStore";
 import { RELAY_LIST_KIND, parseRelayList } from "@/lib/relayList";
 import { DM_RELAY_LIST_KIND, dmRelaysFromStore } from "@/lib/dm/inboxRelays";
+import { relayAuthAllowed, relayAuthChanged$ } from "@/lib/relayAuthPref";
 
 type AuthPool = Pick<RelayPool, "relays" | "add$" | "remove$" | "remove">;
 type ActiveAccount = Pick<IAccount, "pubkey" | "signEvent">;
+
+const writeAuth$ = new BehaviorSubject<ReadonlySet<string>>(new Set());
+/** A private message to `url` was refused until the sender signs in: that relay may be answered. */
+export function allowWriteAuth(url: string): void {
+  if (!writeAuth$.value.has(url)) writeAuth$.next(new Set([...writeAuth$.value, url]));
+}
 
 const interactive$ = new BehaviorSubject(false);
 /** The reader is in Messages: a login may ask them to unlock. */
 export function setRelayAuthInteractive(on: boolean): void {
   if (interactive$.value !== on) interactive$.next(on);
-}
-
-const ownNow$ = new BehaviorSubject<ReadonlySet<string>>(new Set());
-/** Whether `url` is one of the active account's own relays — the only kind we sign in to. */
-export function isOwnRelay(url: string): boolean {
-  return ownNow$.value.has(normalizeURL(url));
 }
 
 /** The relays `pubkey` lists as theirs, as the pool keys them: NIP-65 and the NIP-17 inbox. */
@@ -91,16 +97,25 @@ export function startRelayAuth<A extends ActiveAccount>({
   /** The relays this account lists as its own, normalized. */
   ownRelays?: (pubkey: string) => Observable<ReadonlySet<string>>;
 }): () => void {
-  // Who may answer a challenge right now, and where: the active account, on its own relays.
+  // Who may answer a challenge right now: the active account — on its own
+  // relays always, elsewhere if it said yes on this device.
   const signer$ = active$.pipe(
     distinctUntilChanged(),
     switchMap((account) =>
-      account ? ownRelays(account.pubkey).pipe(map((own) => ({ account, own }))) : of(undefined),
+      account
+        ? combineLatest([
+            ownRelays(account.pubkey),
+            relayAuthChanged$.pipe(
+              startWith(undefined),
+              map(() => relayAuthAllowed(account.pubkey)),
+              distinctUntilChanged(),
+            ),
+          ]).pipe(map(([own, allowed]) => ({ account, own, allowed })))
+        : of(undefined),
     ),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
   const watched = new Map<Relay, Subscription>();
-  const answered = new Set<string>();
 
   const forget = (relay: Relay) => {
     watched.get(relay)?.unsubscribe();
@@ -112,25 +127,30 @@ export function startRelayAuth<A extends ActiveAccount>({
     const sub = new Subscription();
     watched.set(relay, sub);
     const url = normalizeURL(relay.url);
+    // Challenges being answered, or answered, on this connection — gone with it.
+    const answered = new Set<string>();
     sub.add(
       combineLatest([
         relay.challenge$,
-        combineLatest([relay.authRequiredForRead$, relay.authRequiredForPublish$]).pipe(
-          map(([read, publish]) => read || publish),
-          distinctUntilChanged(),
-        ),
+        relay.authRequiredForRead$,
+        relay.authRequiredForPublish$,
+        writeAuth$,
         signer$,
         interactive$,
-      ]).subscribe(([challenge, gated, signer, interactive]) => {
+      ]).subscribe(([challenge, read, publish, writes, signer, interactive]) => {
+        const own = !!signer?.own.has(url);
+        const mayHere = !!signer && (own || signer.allowed);
         const signedInAs = relay.authenticatedAs;
-        if (signedInAs && signedInAs !== signer?.account.pubkey) {
+        if (signedInAs && (signedInAs !== signer?.account.pubkey || !mayHere)) {
           forget(relay);
           pool.remove(relay);
           return;
         }
-        if (!challenge || !gated || !signer || signedInAs || !signer.own.has(url)) return;
+        if (!challenge || !signer || !mayHere || signedInAs) return;
+        const gated = own ? read || publish : read || (publish && writes.has(relay.url));
+        if (!gated) return;
         const account = signer.account;
-        const key = `${url} ${account.pubkey} ${challenge}`;
+        const key = `${account.pubkey} ${challenge}`;
         if (answered.has(key)) return;
         answered.add(key);
         void (async () => {
@@ -140,21 +160,22 @@ export function startRelayAuth<A extends ActiveAccount>({
             return;
           }
           await relay.authenticate(account);
-        })().catch(() => undefined);
+        })().catch(() => {
+          // Declined, or the signer failed: asked again next time something
+          // changes — the reader opening Messages — not in a loop.
+          answered.delete(key);
+        });
       }),
     );
   };
 
-  const ownSub = signer$.subscribe((signer) => ownNow$.next(signer?.own ?? new Set()));
   for (const relay of pool.relays.values()) watch(relay);
   const addSub = pool.add$.subscribe(watch);
   const removeSub = pool.remove$.subscribe(forget);
 
   return () => {
-    ownSub.unsubscribe();
     addSub.unsubscribe();
     removeSub.unsubscribe();
     for (const relay of [...watched.keys()]) forget(relay);
-    ownNow$.next(new Set());
   };
 }

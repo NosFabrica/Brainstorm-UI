@@ -75,16 +75,18 @@ relays keep going in the background and fill in the delivery details, so a
 dead inbox relay doesn't hold the composer for its timeout.
 
 Many inbox relays (auth.nostr1.com among the suggested ones) hand over an
-inbox, or take a wrap, only from a signed-in reader. services/relayAuth signs
-in (NIP-42), without asking, to the reader's own relays — those named in their
-kind-10002 or kind-10050 — once one refuses a read or a write, and never raises
-the Unlock modal for a login nobody asked for (a locked key signs in once the
-reader is in Messages). A wrap refused by one of those relays waits briefly for
-that login and is retried — which covers a recipient who shares that relay. A
-relay that is only someone else's is never signed in to: signing in to a
-recipient's inbox relay would tell it who is sending to its users, so a wrap
-it refuses for want of a login stays undelivered, and the message says "their
-relay wants you signed in".
+inbox, or take a wrap, only from a signed-in reader (NIP-42). services/relayAuth
+signs in to the reader's own relays — those in their kind-10002 or kind-10050 —
+without asking, once one refuses a read or a write. Anyone else's relay is
+signed in to only with consent (lib/relayAuthPref): a refused publish
+(`auth-required`) on a recipient's inbox relay is retried once and otherwise
+held, the chat asks "Allow sign-in", and the message goes out by itself when
+that relay signs the reader in. The answer is remembered per account on the
+device and can be turned off in Settings. Neither kind of login ever raises the
+Unlock modal for a login nobody asked for — a locked key signs in once the
+reader is in Messages. The trade-off is NIP-42's: signing in to a recipient's
+inbox relay tells that relay who is sending to its users. A reader who hasn't
+allowed it keeps that private and can't reach those inboxes.
 
 ## Everything else stays on the device
 
