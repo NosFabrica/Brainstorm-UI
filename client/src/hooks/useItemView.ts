@@ -22,6 +22,11 @@ export interface ItemView {
   renderer: ConceptRenderer | null;
   shown: ItemPresentation | null;
   links: ViewLink[];
+  /**
+   * The declared fields the presentation shows — the title, summary and picture
+   * fields, and the fields its links are built from. A page lists only the rest.
+   */
+  usedFields: Set<string>;
 }
 
 /** A view whose definition was read: what the renderers draw. */
@@ -43,7 +48,14 @@ export function useItemView(item: { kind: number; tags: string[][] }): ItemView 
   const refs = DISPLAY_HINTS_ENABLED && resolved ? resolved.governing.links : [];
   const templates = useLinkTemplates(refs);
   if (concept.isPending || !resolved) {
-    return { pending: concept.isPending, resolved: null, renderer: null, shown: null, links: [] };
+    return {
+      pending: concept.isPending,
+      resolved: null,
+      renderer: null,
+      shown: null,
+      links: [],
+      usedFields: new Set(),
+    };
   }
   const renderer = rendererFor(resolved);
   const valueOf = (name: string) => {
@@ -53,5 +65,15 @@ export function useItemView(item: { kind: number; tags: string[][] }): ItemView 
   const links: ViewLink[] = refs.length
     ? itemLinks(item, refs, templates.data ?? new Map()).map((l) => ({ ...l, source: "template" }))
     : (renderer?.links?.(valueOf) ?? []).map((l) => ({ ...l, host: new URL(l.href).host, source: "renderer" }));
-  return { pending: false, resolved, renderer, shown: presentItem(item, resolved.governing, renderer), links };
+  const shown = presentItem(item, resolved.governing, renderer);
+  const usedFields = new Set(
+    [
+      shown.titleField,
+      shown.summaryField,
+      shown.imageField,
+      // The link's fields: the templates' bindings, else what the fallback renderer reads.
+      ...(refs.length ? refs.flatMap((r) => r.bindings.map(([, field]) => field)) : (renderer?.linkFields ?? [])),
+    ].filter((f): f is string => !!f),
+  );
+  return { pending: false, resolved, renderer, shown, links, usedFields };
 }

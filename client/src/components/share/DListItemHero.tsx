@@ -8,14 +8,17 @@
  * - Title, summary, picture and the list's image as lib/itemPresentation
  *   reads them: the definition's provisional display hints, else the
  *   renderer's title field, else the first required field.
- * - Every declared field, in the definition's order; a required one the item
- *   lacks says so.
+ * - Its links (useItemView): URL templates the definition names, else the
+ *   registered renderer's.
+ * - A required field the item lacks, said once.
  * - Where the definition comes from, and whether it agrees with the
  *   community's.
- * - Tags the definition doesn't declare are the item author's own additions:
- *   folded away and labelled as outside the definition, not mixed in.
+ * - No catch-all table (the team, 2026-10-01): a field the title, summary,
+ *   picture or a link already shows isn't listed again. Declared fields
+ *   nothing shows, and tags outside the definition, fold into "More fields";
+ *   an item the definition fully covers has none.
  *
- * The author, the time and the ids are EventScreen's, above and around this.
+ * The lister, the time and the ids are EventScreen's, around this.
  */
 import { useState, type ReactNode } from "react";
 import { Link } from "wouter";
@@ -53,9 +56,13 @@ export function DListItemHero({ event }: { event: ItemEvent }) {
 }
 
 function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
-  const { resolved: r, renderer, shown, links } = view;
+  const { resolved: r, renderer, shown, links, usedFields } = view;
   const fields = r.governing.fields;
   const cells = fields.map((f) => ({ field: f, cell: fieldCell(event, f) }));
+  // Required by the definition, absent from the item — said once, wherever the field would show.
+  const missing = cells.filter((c) => c.cell.missing).map((c) => c.field.name);
+  // Declared fields nothing above shows, and tags outside the definition: both wait behind "More fields".
+  const unshown = cells.filter((c) => !usedFields.has(c.field.name) && c.cell.value != null);
   const extras = undeclaredFields(event, fields);
 
   return (
@@ -123,7 +130,11 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
         )}
       </div>
 
-      <FieldList cells={cells} />
+      {missing.length > 0 && (
+        <Chip tone="warning" icon={TriangleAlert} size="sm" data-testid="dlist-item-missing">
+          Missing {missing.join(", ")} — the list requires {missing.length === 1 ? "it" : "them"}
+        </Chip>
+      )}
 
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
         <span>
@@ -132,7 +143,9 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
         <AgreementChip agreement={r.agreement} />
       </p>
 
-      {extras.length > 0 && <Extras extras={extras} singular={r.governing.singular} />}
+      {(unshown.length > 0 || extras.length > 0) && (
+        <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />
+      )}
     </div>
   );
 }
@@ -173,7 +186,20 @@ function FieldList({ cells }: { cells: { field: FieldDecl; cell: ReturnType<type
   );
 }
 
-function Extras({ extras, singular }: { extras: { name: string; value: string }[]; singular: string }) {
+/**
+ * What the definition doesn't show: declared fields no title, summary, picture
+ * or link uses, then tags the item carries that the definition never declared.
+ * Folded away; an item the definition fully covers has none and shows nothing.
+ */
+function MoreFields({
+  cells,
+  extras,
+  singular,
+}: {
+  cells: { field: FieldDecl; cell: ReturnType<typeof fieldCell> }[];
+  extras: { name: string; value: string }[];
+  singular: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-2">
@@ -182,13 +208,16 @@ function Extras({ extras, singular }: { extras: { name: string; value: string }[
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-brand-link dark:text-slate-400"
-        data-testid="dlist-item-extras-toggle"
+        data-testid="dlist-item-more-toggle"
       >
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
-        {extras.length} more {extras.length === 1 ? "detail" : "details"} the author added, outside the {singular}{" "}
-        definition
+        More fields ({cells.length + extras.length})
       </button>
-      {open && (
+      {open && <FieldList cells={cells} />}
+      {open && extras.length > 0 && (
+        <p className="pt-1 text-[11px] text-slate-400 dark:text-slate-500">Not part of the {singular} definition</p>
+      )}
+      {open && extras.length > 0 && (
         <dl
           className="divide-y divide-dashed divide-border rounded-xl border border-dashed border-border"
           data-testid="dlist-item-extras"

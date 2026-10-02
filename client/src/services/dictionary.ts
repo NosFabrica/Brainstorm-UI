@@ -115,24 +115,33 @@ export async function loadDictionary(
     ...new Set([reader.pubkey, reader.taPubkey, ...HOUSE_CONCEPT_AUTHORS].filter((a): a is string => !!a)),
   ];
 
-  const [communityEvents, copyEvents] = await Promise.all([
-    fetchEventsByFilter(
-      {
-        kinds: [39998],
-        authors: [...new Set(parsed.map((c) => c!.pubkey))],
-        "#d": [...new Set(parsed.map((c) => c!.d))],
-      },
-      relays,
-      TIMEOUT_MS,
-    ).catch(() => []),
-    copyAuthors.length
-      ? fetchEventsByFilter({ kinds: [39998], authors: copyAuthors, "#b": concepts }, relays, TIMEOUT_MS).catch(
-          () => [],
-        )
-      : Promise.resolve([]),
-  ]);
-  const communityHeaders = newestPerCoordinate(communityEvents as HeaderEvent[]);
-  const copies = [...newestPerCoordinate(copyEvents as HeaderEvent[]).values()];
+  // The community headers and the copies, as ONE subscription with two filters: half
+  // the subscriptions on a relay that caps them (the tag hub allows 20), and a failed
+  // read becomes visible — the configured concepts' headers always exist, so a read
+  // with none of them failed (a relay at its limit answers with nothing), where an
+  // empty copies filter alone is the normal answer for a reader with no copies.
+  // Retried once, and only then.
+  const filters = [
+    {
+      kinds: [39998],
+      authors: [...new Set(parsed.map((c) => c!.pubkey))],
+      "#d": [...new Set(parsed.map((c) => c!.d))],
+    },
+    ...(copyAuthors.length ? [{ kinds: [39998], authors: copyAuthors, "#b": concepts }] : []),
+  ];
+  const read = () =>
+    (fetchEventsByFilter(filters as never, relays, TIMEOUT_MS) as Promise<HeaderEvent[]>).catch(
+      () => [] as HeaderEvent[],
+    );
+  const conceptSet = new Set(concepts);
+  const hasCommunity = (events: HeaderEvent[]) => events.some((e) => conceptSet.has(coordinateOf(e) ?? ""));
+  let headerEvents = await read();
+  if (!hasCommunity(headerEvents)) headerEvents = await read();
+  const byCoordinate = newestPerCoordinate(headerEvents);
+  const communityHeaders = new Map([...byCoordinate].filter(([coord]) => conceptSet.has(coord)));
+  const copies = [...byCoordinate.values()].filter(
+    (h) => copyAuthors.includes(h.pubkey) && !conceptSet.has(coordinateOf(h) ?? ""),
+  );
 
   const resolved = concepts.map((coordinate) =>
     resolveConcept({

@@ -70,13 +70,14 @@ beforeEach(() => {
 });
 
 describe("DListItemHero", () => {
-  it("draws a GitHub account: title, link to GitHub, the declared field", () => {
+  it("draws a GitHub account: title and link to GitHub, no table for the field they show", () => {
     renderWithProviders(<DListItemHero event={item} />);
     expect(screen.getByTestId("dlist-item-hero")).toHaveAttribute("data-renderer", "github-account");
     expect(screen.getByTestId("dlist-item-title")).toHaveTextContent("vcavallo");
     expect(screen.getByTestId("dlist-item-link")).toHaveAttribute("href", "https://github.com/vcavallo");
     expect(screen.getByTestId("dlist-item-link")).toHaveAttribute("data-link-source", "renderer");
-    expect(screen.getByTestId("dlist-item-fields")).toHaveTextContent("github-username");
+    // github-username is the title and the link: nothing left to tabulate.
+    expect(screen.queryByTestId("dlist-item-fields")).toBeNull();
     expect(screen.getByText("GitHub Account")).toBeInTheDocument();
   });
 
@@ -98,13 +99,34 @@ describe("DListItemHero", () => {
     expect(link).toHaveTextContent("github.com");
   });
 
-  it("keeps tags the definition doesn't declare out of the fields, folded away", async () => {
+  it("folds tags outside the definition into More fields", async () => {
     renderWithProviders(<DListItemHero event={item} />);
-    expect(screen.getByTestId("dlist-item-fields")).not.toHaveTextContent("Vinney Cavallo");
-    const toggle = screen.getByTestId("dlist-item-extras-toggle");
-    expect(toggle).toHaveTextContent("1 more detail the author added, outside the GitHub Account definition");
+    expect(screen.queryByText("Vinney Cavallo")).toBeNull();
+    const toggle = screen.getByTestId("dlist-item-more-toggle");
+    expect(toggle).toHaveTextContent("More fields (1)");
     await userEvent.click(toggle);
+    expect(screen.getByText("Not part of the GitHub Account definition")).toBeInTheDocument();
     expect(screen.getByTestId("dlist-item-extras")).toHaveTextContent("Vinney Cavallo");
+  });
+
+  it("folds a declared field nothing shows into More fields", async () => {
+    const copy = header(TA, [
+      ["required", "github-username"],
+      ["optional", "location"],
+      ["b", COMMUNITY, "pointer"],
+    ]);
+    concept = {
+      data: resolveConcept({ community, communityCoordinate: COMMUNITY, assistant: copy }),
+      isPending: false,
+    };
+    renderWithProviders(
+      <DListItemHero
+        event={{ ...item, tags: [...item.tags.filter((t) => t[0] !== "description"), ["location", "NYC"]] }}
+      />,
+    );
+    await userEvent.click(screen.getByTestId("dlist-item-more-toggle"));
+    expect(screen.getByTestId("dlist-item-fields")).toHaveTextContent("location");
+    expect(screen.getByTestId("dlist-item-fields")).not.toHaveTextContent("github-username");
   });
 
   it("draws from the reader's copy when it declares more — and says it differs", () => {
@@ -120,15 +142,18 @@ describe("DListItemHero", () => {
       isPending: false,
     };
     renderWithProviders(<DListItemHero event={item} />);
-    expect(screen.getByTestId("dlist-item-fields")).toHaveTextContent("Vinney Cavallo");
-    expect(screen.queryByTestId("dlist-item-extras-toggle")).toBeNull();
+    // The declared description is the summary: covered, so no More fields at all.
+    expect(screen.getByTestId("dlist-item-summary")).toHaveTextContent("Vinney Cavallo");
+    expect(screen.queryByTestId("dlist-item-more-toggle")).toBeNull();
     expect(screen.getByTestId("chip-dictionary-agreement")).toHaveTextContent("Differs from the community");
     expect(screen.getByText(/your Assistant's copy of/)).toBeInTheDocument();
   });
 
   it("flags a required field the item lacks", () => {
     renderWithProviders(<DListItemHero event={{ ...item, tags: [["z", COMMUNITY]] }} />);
-    expect(screen.getByTestId("dlist-item-fields")).toHaveTextContent("Missing — the list requires it");
+    expect(screen.getByTestId("dlist-item-missing")).toHaveTextContent(
+      "Missing github-username — the list requires it",
+    );
   });
 
   it("with no definition, says so and shows what the item carries", () => {

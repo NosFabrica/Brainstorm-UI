@@ -25,6 +25,8 @@ export interface ConceptRenderer {
   titleField: string;
   /** Where an item lives off Nostr, from its field values. */
   links?: (value: (field: string) => string | null) => ItemLink[];
+  /** The fields `links` reads, so a page knows they're shown, not left over. */
+  linkFields?: string[];
 }
 
 /** GitHub's own rule for a username: alphanumerics and single inner hyphens, 39 at most. */
@@ -34,6 +36,7 @@ const RENDERERS: Record<string, ConceptRenderer> = {
   "github-account": {
     key: "github-account",
     titleField: "github-username",
+    linkFields: ["github-username"],
     links: (value) => {
       const username = value("github-username")?.trim();
       return username && GITHUB_USERNAME.test(username)

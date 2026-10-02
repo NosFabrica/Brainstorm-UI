@@ -24,6 +24,7 @@ export interface ItemPresentation {
   summaryField: string | null;
   /** The item's own picture, an http(s) URL. */
   image: string | null;
+  imageField: string | null;
   /** The list's image, worn by every item. */
   listImage: string | null;
 }
@@ -59,6 +60,7 @@ export function presentItem(
     summary: summaryField === titleField ? null : valueOf(summaryField),
     summaryField,
     image: httpUrl(valueOf(hints.image)),
+    imageField: hints.image,
     listImage: hints.listImage,
   };
 }
