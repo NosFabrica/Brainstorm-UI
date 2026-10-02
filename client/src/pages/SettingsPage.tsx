@@ -48,6 +48,7 @@ import {
   SlidersHorizontal,
   ShieldAlert,
   ChevronRight,
+  BookOpen,
 } from "lucide-react";
 import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
@@ -112,8 +113,9 @@ import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 import { RelayAuthCard } from "@/components/settings/RelayAuthCard";
 import { MessagesSettingsCard } from "@/components/settings/MessagesSettingsCard";
 import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
+import { DictionaryTab } from "@/components/settings/DictionaryTab";
 
-type SettingsTab = "profile" | "trust" | "billing" | "about";
+type SettingsTab = "profile" | "trust" | "dictionary" | "billing" | "about";
 
 // Placeholder agent prompts (the dev team will supply the final, working copy).
 const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
@@ -149,6 +151,9 @@ const inputCls =
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
+  // The concepts the reader's Assistant keeps for them (2026-10-01: a Settings
+  // tab by the team's choice). Past the 375px track, so phones scroll to it.
+  { key: "dictionary", label: "Dictionary", icon: BookOpen },
   // Billing lives in Settings because Settings is where you CHANGE things —
   // cancelling is the most consequential account action in the product, and it
   // belongs next to the other irreversible ones rather than on a status page
@@ -162,7 +167,9 @@ export default function SettingsPage() {
   const search = useSearch();
   const tabParam = new URLSearchParams(search).get("tab");
   const activeTab: SettingsTab =
-    tabParam === "trust" || tabParam === "billing" || tabParam === "about" ? tabParam : "profile";
+    tabParam === "trust" || tabParam === "dictionary" || tabParam === "billing" || tabParam === "about"
+      ? tabParam
+      : "profile";
   // Deep links into a specific control, so a "you can change this in Settings"
   // sentence elsewhere lands ON the thing rather than at the top of a tab:
   //   ?focus=backup      → Account > Back up
@@ -2385,6 +2392,12 @@ export default function SettingsPage() {
               <MessagesSettingsCard />
               {networkAlertsCard}
               {advancedSection}
+            </div>
+          )}
+
+          {activeTab === "dictionary" && (
+            <div className="space-y-6" data-testid="tab-content-dictionary">
+              <DictionaryTab />
             </div>
           )}
 

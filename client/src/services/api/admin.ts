@@ -48,6 +48,33 @@ export interface TrustedListRunData {
   tags: TrustedListTagResult[];
 }
 
+/** This server has no dictionary endpoint yet (docs/dictionary/ADMIN-ASKS.md). */
+export class DictionaryUnavailableError extends Error {
+  constructor() {
+    super("Dictionary concepts aren't available on this server yet.");
+    this.name = "DictionaryUnavailableError";
+  }
+}
+
+/** What happened to one concept (docs/dictionary/ADMIN-ASKS.md § Response). */
+export interface DictionaryConceptResult {
+  /** The community header's coordinate. */
+  community: string;
+  /** The assistant's copy; null when the community header wasn't found. */
+  local: string | null;
+  event_id: string | null;
+  status: "published" | "updated" | "unchanged" | "conflict" | "not_found" | "failed";
+  error?: string | null;
+}
+
+export interface DictionaryRunData {
+  observer: string;
+  /** The observer's assistant key — the one that signed the copies. */
+  signing_pubkey?: string | null;
+  relay?: string | null;
+  concepts: DictionaryConceptResult[];
+}
+
 export interface AdminUserDetail {
   pubkey: string;
   scheduling_id: number | null;
@@ -79,6 +106,27 @@ export const adminApi = {
     if (response.status === 404 || response.status === 405) throw new TrustedListsUnavailableError();
     if (!response.ok) {
       throw new Error((await extractApiError(response)) || `Failed to publish trusted lists (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  /**
+   * Has the observer's assistant author its copies of these community
+   * concepts (docs/dictionary/ADMIN-ASKS.md): a kind-39998 header each,
+   * pointing at the community header with a `b` tag. Idempotent — a concept
+   * already copied comes back `unchanged`.
+   */
+  async publishDictionaryConcepts(observer: string, concepts: string[]): Promise<DictionaryRunData> {
+    const response = await authenticatedFetch(`${getBrainstormApi()}/admin/dictionary/${observer}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ concepts }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (response.status === 404 || response.status === 405) throw new DictionaryUnavailableError();
+    if (!response.ok) {
+      throw new Error((await extractApiError(response)) || `Failed to add dictionary concepts (${response.status})`);
     }
     const json = await response.json();
     return json?.data ?? json;
