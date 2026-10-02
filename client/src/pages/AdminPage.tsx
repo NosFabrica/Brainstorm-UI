@@ -90,7 +90,6 @@ import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { hasSession } from "@/accounts/session";
 import type { BrainstormAccount } from "@/accounts/metadata";
-import { searchByText } from "@/lib/profileSearch";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -3159,30 +3158,14 @@ export default function AdminPage() {
     setOnboardError(null);
     setOnboardResults([]);
     try {
-      let results: NostrSearchResult[] = [];
-      try {
-        // Backend search (NosFabrica/house POV, unauthenticated) — same endpoint
-        // the public search uses. Falls back to a direct relay search on failure.
-        const { results: byText } = await searchByText(q, "nosfabrica", undefined, 10);
-        results = byText.map((r) => ({
-          pubkey: r.pubkey,
-          npub: r.npub,
-          name: r.name,
-          displayName: r.displayName,
-          picture: r.picture,
-          about: r.about,
-          nip05: r.nip05,
-        }));
-      } catch {
-        results = await searchNostrProfiles(q, { limit: 10, timeoutMs: 5000 });
-      }
+      const results = await searchNostrProfiles(q, { limit: 10 });
       if (results.length === 0) {
         setOnboardError("No profiles found — try a different name");
       } else {
         setOnboardResults(results);
       }
     } catch {
-      setOnboardError("Search failed — backend may be unavailable");
+      setOnboardError("Search failed — the search relay may be unavailable");
     } finally {
       setOnboardSearching(false);
     }

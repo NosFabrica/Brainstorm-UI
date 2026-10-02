@@ -1657,7 +1657,12 @@ export async function searchNostrProfiles(
   if (!relay) return [];
   // The relay refuses a read naming no observer (`auth-required:`).
   const observer = await resolveHouseObserver().catch(() => null);
-  const events = await requestAll([relay.url], { kinds: [0], search: withObserver(query, observer), limit }, timeoutMs);
+  const ask = (search: string) => requestAll([relay.url], { kinds: [0], search, limit }, timeoutMs);
+  const ranked = withObserver(query, observer);
+  const unranked = withObserver(query, null);
+  let events = await ask(ranked);
+  // Newcomers sit below the house trust floor; an admin still needs to find them.
+  if (!events.some((e) => e.kind === 0) && ranked !== unranked) events = await ask(unranked);
   const seen = new Set<string>();
   const results: NostrSearchResult[] = [];
   for (const event of events) {

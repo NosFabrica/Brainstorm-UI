@@ -29,12 +29,18 @@ vi.mock("@/hooks/useSelf", () => ({
   useSelfHistory: () => ({ data: undefined, isSuccess: false }),
 }));
 vi.mock("@/lib/nip85Activation", () => ({ isNip85Activated: () => false }));
+const suggestProfiles = vi.fn(
+  async (_q: string, _params: { pov: string }, _opts?: { limit?: number }) => [] as { pubkey: string }[],
+);
+vi.mock("@/services/search", () => ({
+  HOUSE_POV: "nosfabrica",
+  suggestProfiles: (q: string, params: { pov: string }, opts?: { limit?: number }) => suggestProfiles(q, params, opts),
+}));
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(async () => new Map()),
   SEED_FOLLOW_HEX: "b".repeat(64),
 }));
-vi.mock("@/lib/profileSearch", () => ({ searchByText: vi.fn(async () => ({ results: [] })) }));
 vi.mock("@/components/PersonRow", () => ({
   PersonRow: ({ person }: { person: { pubkey: string } }) => <div data-testid={`row-${person.pubkey.slice(0, 8)}`} />,
 }));
@@ -104,5 +110,18 @@ describe("the first-follow-list confirmation", () => {
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     expect(screen.queryByTestId("dialog-confirm-new-follow-list")).not.toBeInTheDocument();
     expect(followPubkeys).toHaveBeenCalledWith(expect.any(Array), undefined);
+  });
+});
+
+describe("search", () => {
+  it("suggests people the way the main search box does, from the house Perspective", async () => {
+    const FOUND = "c".repeat(64);
+    suggestProfiles.mockResolvedValue([{ pubkey: FOUND }]);
+    renderWithProviders(<FollowToCalculateCard onDone={vi.fn()} />);
+
+    fireEvent.change(screen.getByTestId("follow-card-search"), { target: { value: "lira" } });
+
+    expect(await screen.findByTestId(`row-${FOUND.slice(0, 8)}`)).toBeInTheDocument();
+    expect(suggestProfiles).toHaveBeenCalledWith("lira", { pov: "nosfabrica" }, { limit: 12 });
   });
 });

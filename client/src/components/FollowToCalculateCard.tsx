@@ -6,10 +6,11 @@ import { PersonRow, type PersonLite } from "@/components/PersonRow";
 import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
 import { SEED_FOLLOW_HEX } from "@/services/nostr";
+import { HOUSE_POV, suggestProfiles } from "@/services/search";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys, recoverFollowListFromRelay, type FollowOptions } from "@/services/socialActions";
-import { searchByText, type SearchResult } from "@/lib/profileSearch";
+import type { SearchResult } from "@/lib/profileSearch";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
@@ -102,7 +103,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     setSearching(true);
     const timer = setTimeout(async () => {
       try {
-        const { results: r } = await searchByText(q, "nosfabrica", undefined, 12);
+        const r = await suggestProfiles(q, { pov: HOUSE_POV }, { limit: 12 });
         if (!cancelled) setResults(r);
       } catch {
         if (!cancelled) setResults([]);
