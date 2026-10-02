@@ -48,6 +48,13 @@ relay adds the NIP-50 `include:spam` token to any filter sent there that has no
 `search` of its own (`withSearchToken`, `lib/relayPool.ts`). It is an index, not
 a publish target: publishes leave it out.
 
+My-WoT search is offered only once the search relay says it can rank through the
+user. The UI asks through our ORE provider, the API's public `POST /search/pubkeys`
+(`VITE_API_URL`, unauthenticated and unobserved by the server-down detector), which proxies the relay's private route: 200 for
+`relevance-pov` with the user as `pov` is available; 202, 422 or any error is "not yet"
+(`isSearchObserverOnRelay`, `services/searchObserver.ts`). It relies on the API's ORE auth
+being off (`open_ranking_require_auth`); with it on the probe gets 401 and My-WoT stays off.
+
 A read with many authors goes through `planOutboxReads()` + `requestAllByRelay()`
 instead, so each relay is asked only about the authors it serves, under a
 connection budget chosen by set cover.

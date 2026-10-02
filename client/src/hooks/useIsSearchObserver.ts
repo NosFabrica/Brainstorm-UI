@@ -1,34 +1,35 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/services/api";
-import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useHasMywot } from "@/hooks/useHasMywot";
+import { isSearchObserverOnRelay } from "@/services/searchObserver";
 
 /**
- * Whether the logged-in user is allowed to run search from their own trust
- * perspective ("search observer"), backed by `GET /user/isSearchObserver`.
- *
- * Defaults to `false` (house / NosFabrica perspective) when logged out, while
- * loading, or on error. `useCanSearchMywot` stands the Account's last confirmed
- * answer in for it while loading, so a reload doesn't search through the house
- * first; a first visit still waits for the backend to confirm. Gated on `useHasSession()` so it never
- * fires for anonymous visitors (that path goes through `authenticatedFetch`,
- * which can 401-redirect public pages).
+ * Whether the search relay can rank through the Active Account ("search
+ * observer"), by the relay's own verdict. `false` in Anonymous browsing,
+ * without an assistant, while loading, or on error. `useCanSearchMywot` stands
+ * the Account's last confirmed answer in for it while loading, so a reload
+ * doesn't search through the house first; a first visit still waits for the
+ * relay to confirm.
  */
 export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: boolean; known: boolean } {
-  const hasSession = useHasSession();
   const pubkey = useActiveAccountDisplay()?.pubkey;
+  const mywot = useHasMywot();
+  const enabled = !!pubkey && !!mywot.taPubkey;
   const query = useQuery({
-    // Per Account: another Account's answer must not read as this one's after a switch.
-    queryKey: ["/user/isSearchObserver", pubkey],
-    queryFn: () => apiClient.getIsSearchObserver(),
-    enabled: hasSession,
+    // taPubkey: gaining an assistant must refetch, since without one the query is disabled.
+    queryKey: ["search-observer", pubkey, mywot.taPubkey],
+    queryFn: () => isSearchObserverOnRelay(pubkey!),
+    enabled,
     staleTime: 60_000,
   });
 
+  // No probe without an assistant: until `/user/history` answers, this is loading too.
+  if (!enabled)
+    return { isSearchObserver: false, isLoading: !!pubkey && mywot.isLoading, known: !!pubkey && mywot.known };
   return {
     isSearchObserver: query.data ?? false,
-    isLoading: hasSession && query.isPending,
-    /** The backend has answered — `isSearchObserver` is only a default before that. */
+    isLoading: query.isPending,
+    /** The relay has answered — `isSearchObserver` is only a default before that. */
     known: query.isSuccess,
   };
 }
