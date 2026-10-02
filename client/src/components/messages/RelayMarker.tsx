@@ -9,6 +9,8 @@ import { AlertTriangle, ArrowDown, Check, KeyRound, Loader2 } from "lucide-react
 import { cn } from "@/lib/utils";
 import type { RelayProgress } from "@/lib/dm/pager";
 import { relayHost, shortDate } from "./people";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { askRelayAuthAgain, relayAuthProblemFor, type RelayAuthProblem } from "@/services/relayAuth";
 
 /**
  * Whether `ref` is on screen; `null` until the observer has said (and where
@@ -46,6 +48,34 @@ export function markerLabel(p: RelayProgress): string {
   }
 }
 
+/** A login that didn't happen, said as why (services/relayAuth). */
+export function authProblemLabel(problem: RelayAuthProblem): string {
+  if (problem.by === "signer") return "your signer rejected signing in";
+  if (problem.by === "relay")
+    return problem.message ? `refused your sign-in: ${problem.message}` : "refused your sign-in";
+  return problem.message ? `sign-in didn't go through: ${problem.message}` : "sign-in didn't go through";
+}
+
+/** Another go: the signer's no needs a fresh approval; anything else, a fresh try. */
+export function authAgainLabel(problem: RelayAuthProblem): string {
+  return problem.by === "signer" ? "Rejected - Ask again" : "Try again";
+}
+
+/** Which of `urls` have a login that didn't happen: the signer's no apart from everything else. */
+export function refusedAmong(
+  problems: ReadonlyMap<string, RelayAuthProblem>,
+  urls: Iterable<string>,
+): { signer: string[]; other: { url: string; problem: RelayAuthProblem }[] } {
+  const signer: string[] = [];
+  const other: { url: string; problem: RelayAuthProblem }[] = [];
+  for (const url of new Set(urls)) {
+    const problem = relayAuthProblemFor(problems, url);
+    if (problem?.by === "signer") signer.push(url);
+    else if (problem) other.push({ url, problem });
+  }
+  return { signer, other };
+}
+
 const TONE: Record<RelayProgress["state"], string> = {
   idle: "border-slate-300 text-slate-500 dark:border-slate-700 dark:text-slate-400",
   loading: "border-slate-300 text-slate-500 dark:border-slate-700 dark:text-slate-400",
@@ -70,10 +100,9 @@ export interface RelayMarkerProps {
   onAdvance?: (url: string) => void;
   onVisible?: (url: string, visible: boolean) => void;
   onRetry?: (url: string) => void;
-  onSignIn?: () => void;
 }
 
-export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry, onSignIn }: RelayMarkerProps) {
+export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry }: RelayMarkerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref);
   const { url, reachedUntil } = progress;
@@ -81,6 +110,9 @@ export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry, 
   // While its wraps are still being opened a relay reads as loading, whatever its pager says.
   const state: RelayProgress["state"] = opening ? "loading" : progress.state;
   const backlog = progress.opening ?? 0;
+  const problems = useRelayAuthProblems();
+  const problem = state === "auth" ? relayAuthProblemFor(problems, url) : undefined;
+  const label = problem ? authProblemLabel(problem) : markerLabel(progress);
 
   useEffect(() => {
     if (inView !== null) onVisible?.(url, inView);
@@ -105,13 +137,14 @@ export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry, 
       >
         Retry
       </button>
-    ) : state === "auth" && onSignIn ? (
+    ) : problem ? (
       <button
         type="button"
-        onClick={onSignIn}
-        className="rounded-md border border-current px-2 py-0.5 font-sans text-[11px] font-semibold"
+        onClick={() => askRelayAuthAgain(url)}
+        className="shrink-0 rounded-md border border-current px-2 py-0.5 font-sans text-[11px] font-semibold"
+        data-testid="dm-relay-auth-again"
       >
-        Sign in
+        {authAgainLabel(problem)}
       </button>
     ) : null;
 
@@ -127,7 +160,7 @@ export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry, 
         <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
         <MarkerIcon state={state} opening={opening} />
         <span className="truncate">
-          {relayHost(url)} · {markerLabel(progress)}
+          {relayHost(url)} · {label}
         </span>
         {action}
         <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
@@ -148,7 +181,7 @@ export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry, 
     >
       <MarkerIcon state={state} opening={opening} />
       <span className="min-w-0 flex-1 truncate">
-        {relayHost(url)} · {markerLabel(progress)}
+        {relayHost(url)} · {label}
       </span>
       {action}
     </div>

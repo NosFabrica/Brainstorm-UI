@@ -56,8 +56,21 @@ import { MessageBubble } from "./MessageBubble";
 import { Composer } from "./Composer";
 import { RenameChatDialog, renameText } from "./RenameChatDialog";
 import { useChatHistory, type ChatHistoryPhase } from "./useChatHistory";
-import { RoomAvatar, dayLabel, firstName, nameOf, roomTitle, shortDate, shortNpub, type Profiles } from "./people";
+import {
+  RoomAvatar,
+  dayLabel,
+  firstName,
+  nameOf,
+  relayHost,
+  roomTitle,
+  shortDate,
+  shortNpub,
+  type Profiles,
+} from "./people";
 import type { RelayProgress } from "@/lib/dm/pager";
+import { askRelayAuthAgain } from "@/services/relayAuth";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { authProblemLabel, refusedAmong } from "./RelayMarker";
 
 type Item =
   | { kind: "day"; key: string; label: string }
@@ -215,8 +228,6 @@ export function ChatView({
   onDetails,
   onToggleInfo,
   onArchive,
-  onSignIn,
-  authAllowed,
   sendError,
   initialSubject,
 }: {
@@ -236,9 +247,6 @@ export function ChatView({
   onDetails: (m: DmMessage) => void;
   onToggleInfo: () => void;
   onArchive: () => void;
-  onSignIn: () => void;
-  /** The reader lets relays that ask sign them in (lib/relayAuthPref). */
-  authAllowed: boolean;
   sendError: (result: SendResult) => void;
   /** A group's name, chosen when it was started, sent with its first message. */
   initialSubject?: string;
@@ -550,7 +558,6 @@ export function ChatView({
                 variant="chat"
                 onVisible={onVisible}
                 onRetry={(url) => engine?.retry(url)}
-                onSignIn={onSignIn}
               />
             ) : (
               <MessageBubble
@@ -585,22 +592,7 @@ export function ChatView({
         ))}
       </div>
 
-      {state.sendAuth.length > 0 && !authAllowed && !isRequest && (
-        <Alert
-          variant="warning"
-          className="mx-4 mb-2 flex w-auto items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] sm:mx-6"
-        >
-          <span className="shrink-0">
-            <KeyRound className="h-4 w-4" />
-          </span>
-          <span className="flex-1">
-            Their inbox relay takes messages only from senders who sign in — and then knows this one is from you.
-          </span>
-          <Button size="sm" onClick={onSignIn} data-testid="dm-send-allow-auth">
-            Allow sign-in
-          </Button>
-        </Alert>
-      )}
+      {!isRequest && <SendAuthBanner state={state} />}
 
       {isRequest ? (
         <div className="shrink-0 border-t border-border bg-card px-4 pb-5 pt-4 sm:px-6" data-testid="dm-request-bar">
@@ -671,5 +663,54 @@ export function ChatView({
         onRename={rename}
       />
     </section>
+  );
+}
+
+/**
+ * A message held by a recipient's inbox relay whose login didn't happen
+ * (services/relayAuth signs in by itself): say who turned it down, and offer
+ * another go. The reader's own inbox relays are InboxNotices' to say.
+ */
+function SendAuthBanner({ state }: { state: DmEngineState }) {
+  const problems = useRelayAuthProblems();
+  const theirs = state.sendAuth.filter((relay) => !state.inboxRelays.includes(relay));
+  if (!theirs.length) return null;
+  const refused = refusedAmong(problems, theirs);
+  const [text, action] = refused.signer.length
+    ? [
+        "Your signer rejected signing in to their inbox relay. The message goes out once you approve.",
+        <Button
+          size="sm"
+          onClick={() => refused.signer.forEach((url) => askRelayAuthAgain(url))}
+          data-testid="dm-send-auth-ask-again"
+        >
+          Rejected - Ask again
+        </Button>,
+      ]
+    : refused.other.length
+      ? [
+          `${relayHost(refused.other[0].url)} · ${authProblemLabel(refused.other[0].problem)}`,
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refused.other.forEach(({ url }) => askRelayAuthAgain(url))}
+            data-testid="dm-send-auth-try-again"
+          >
+            Try again
+          </Button>,
+        ]
+      : [null, null];
+  if (!text) return null;
+  return (
+    <Alert
+      variant="warning"
+      className="mx-4 mb-2 flex w-auto items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] sm:mx-6"
+    >
+      <span className="shrink-0">
+        <KeyRound className="h-4 w-4" />
+      </span>
+      <span className="flex-1">{text}</span>
+      {action}
+    </Alert>
   );
 }

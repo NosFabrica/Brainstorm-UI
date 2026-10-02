@@ -106,6 +106,19 @@ export function signAs(account: BrainstormAccount, template: UnsignedTemplate): 
 }
 
 /**
+ * Whether a signing error is the signer saying no — the reader declining the
+ * prompt in their extension or bunker, or cancelling our unlock — rather than
+ * the signer failing to answer at all (no extension, a dropped bunker, a
+ * timeout). Only a "no" is the reader's decision; the rest is worth trying again.
+ */
+export function signerSaidNo(error: unknown): boolean {
+  if (isUnlockCancelled(error)) return true;
+  if (isRemoteSignerTimeout(error)) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  return /reject|denied|declin|cancel|refus|not (allowed|authori[sz]ed|permitted)|permission/i.test(message);
+}
+
+/**
  * NIP-44 encrypt to the Account's own key. Through the Account, never
  * `window.nostr` — reaching for the extension directly silently fails for a
  * remote signer, and signs as the wrong identity when both are present.

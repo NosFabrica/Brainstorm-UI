@@ -8,7 +8,7 @@ import { startRelayAuth } from "./services/relayAuth";
 import { startDirectMessages } from "./services/dm";
 import { pool } from "./lib/relayPool";
 import { accountManager } from "./accounts";
-import { canSignSilently } from "./accounts/signing";
+import { canSignSilently, signAs, signerSaidNo } from "./accounts/signing";
 import "./index.css";
 
 // From the first moment: support-ticket diagnostics can carry what the
@@ -29,10 +29,17 @@ if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
 // Asking now means the first search doesn't wait for it in series.
 void resolveHouseObserver();
 
-// Relays that gate reads behind a NIP-42 login: never waited on (lib/relayPool),
-// answered with the account's signer when the reader allowed it (Settings).
+// Relays that gate reads or writes behind a NIP-42 login: never waited on
+// (lib/relayPool), answered with the account's signer wherever they ask.
 // Never with our Unlock modal unless the reader is in Messages.
-startRelayAuth({ pool, active$: accountManager.active$, canSignQuietly: canSignSilently });
+startRelayAuth({
+  pool,
+  active$: accountManager.active$,
+  canSignQuietly: canSignSilently,
+  sign: signAs,
+  // Only the reader's own "no" is a rejection; a missing or silent signer is worth another go.
+  isRejection: signerSaidNo,
+});
 
 // Private messages (NIP-17) follow the Active Account from sign-in, not from the
 // first visit to Messages: the live subscription warms the inbox and the unread

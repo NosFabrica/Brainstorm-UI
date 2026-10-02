@@ -15,6 +15,9 @@ import { turnOnMessages } from "@/services/dm";
 import { SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
 import { ENCRYPTED_BLOSSOM_SERVERS } from "@/lib/blossomServers";
 import { relayHost } from "./people";
+import { askRelayAuthAgain } from "@/services/relayAuth";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { authProblemLabel, refusedAmong } from "./RelayMarker";
 
 /** First visit: publish a kind-10050 before anything can arrive. */
 export function InboxSetup() {
@@ -91,20 +94,7 @@ export function OpeningStatus({ state }: { state: DmEngineState }) {
 }
 
 /** What waits on the reader — a login, an unlock, a signer that can't — pinned under the list. */
-export function InboxNotices({
-  engine,
-  state,
-  authAllowed,
-  onAllowAuth,
-}: {
-  engine: DmEngine | null;
-  state: DmEngineState;
-  authAllowed: boolean;
-  onAllowAuth: () => void;
-}) {
-  const readAuth =
-    Object.values(state.live).some((s) => s === "auth") || state.history.relays.some((r) => r.state === "auth");
-  const waitingAuth = readAuth || state.sendAuth.length > 0;
+export function InboxNotices({ engine, state }: { engine: DmEngine | null; state: DmEngineState }) {
   const notices: {
     key: string;
     icon: React.ReactNode;
@@ -112,16 +102,33 @@ export function InboxNotices({
     action?: React.ReactNode;
     variant?: "warning" | "default";
   }[] = [];
-  if (waitingAuth && !authAllowed)
+  const problems = useRelayAuthProblems();
+  // Your inbox relays — which also hold your own copy of what you send. A
+  // recipient's relay is the chat's to say (ChatView's SendAuthBanner).
+  const refused = refusedAmong(problems, state.inboxRelays);
+  if (refused.signer.length)
     notices.push({
-      key: "auth",
+      key: "auth-signer",
       icon: <KeyRound className="h-4 w-4" />,
-      text: readAuth
-        ? "Your inbox relays ask you to sign in before they hand over your messages."
-        : "Some inbox relays only take your messages once you sign in to them. Unsent messages go out when you do.",
+      text: `Your signer rejected signing in to ${refused.signer.map(relayHost).join(", ")}. Messages there wait until you approve.`,
       action: (
-        <Button size="sm" onClick={onAllowAuth} data-testid="dm-allow-auth">
-          Allow sign-in
+        <Button
+          size="sm"
+          onClick={() => refused.signer.forEach((url) => askRelayAuthAgain(url))}
+          data-testid="dm-auth-ask-again"
+        >
+          Rejected - Ask again
+        </Button>
+      ),
+    });
+  for (const { url, problem } of refused.other)
+    notices.push({
+      key: `auth-${url}`,
+      icon: <KeyRound className="h-4 w-4" />,
+      text: `${relayHost(url)} · ${authProblemLabel(problem)}`,
+      action: (
+        <Button size="sm" variant="outline" onClick={() => askRelayAuthAgain(url)} data-testid="dm-auth-try-again">
+          Try again
         </Button>
       ),
     });

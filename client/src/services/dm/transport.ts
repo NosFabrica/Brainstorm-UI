@@ -6,12 +6,13 @@
  * (NIP-42) — that is what keeps someone else from downloading your inbox. The
  * live subscription waits for that login (the pool's subscriptions do); history
  * pages don't, and report `auth` instead so the pager can park the relay until
- * services/relayAuth signs in, with the reader's consent. Publishing is the
- * same: many inbox relays only take a wrap from a signed-in sender, so a send
- * refused with `auth-required` waits briefly for that login and tries again.
+ * services/relayAuth signs in. Publishing is the same: many inbox relays only
+ * take a wrap from a signed-in sender, so a send refused with `auth-required`
+ * waits briefly for that login and tries again.
  */
 import { AuthRequiredError, RelayClosedError } from "applesauce-relay";
 import {
+  EmptyError,
   combineLatest,
   distinctUntilChanged,
   filter,
@@ -24,7 +25,6 @@ import {
 } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import { pool } from "@/lib/relayPool";
-import { allowWriteAuth } from "@/services/relayAuth";
 import type { DmTransport, PublishResult } from "./engine";
 
 /** How long a refused publish waits for services/relayAuth to sign in. */
@@ -111,8 +111,9 @@ export const poolTransport: DmTransport = {
       watch.add(relay.notice$.subscribe((text) => (notice = text)));
       const silence = (error?: unknown): PublishResult => {
         if (!connected) return { ok: false, message: "Could not connect", unreachable: true };
-        // The socket closed under us (a CloseEvent, not an Error): the relay may have it.
-        if (error !== undefined && !(error instanceof Error))
+        // The socket closed under us — a CloseEvent, or the stream ending with no
+        // OK at all (EmptyError) when it closed cleanly: the relay may have it.
+        if (error instanceof EmptyError || (error !== undefined && !(error instanceof Error)))
           return { ok: false, message: "Connection lost", dropped: true };
         // Anything but our own wait running out is the library's words, kept as they are.
         if (error instanceof Error && error.message !== "Timeout") return { ok: false, message: error.message };
@@ -135,13 +136,11 @@ export const poolTransport: DmTransport = {
     };
     const first = await once();
     if (!first.auth) return first;
-    // This relay may now be answered (services/relayAuth) — for messages only.
-    allowWriteAuth(relay.url);
     // Refused although signed in: a login won't change that.
     if (relay.authenticated) return { ok: false, message: first.message };
     // Recipients' inbox relays often take wraps only from a signed-in sender.
-    // services/relayAuth answers the challenge if the reader allowed it; give
-    // that a moment, then try once more.
+    // services/relayAuth answers the challenge; give that a moment, then try
+    // once more.
     const signedIn = await firstValueFrom(
       relay.authenticated$.pipe(
         filter((yes) => yes),

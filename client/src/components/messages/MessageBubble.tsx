@@ -1,7 +1,9 @@
 import { memo, useState } from "react";
 import { AlertTriangle, Check, CheckCheck, Info, Loader2, Reply, SmilePlus, Timer, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { DmMessage } from "@/lib/dm/store";
+import type { Delivery, DmMessage } from "@/lib/dm/store";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { askRelayAuthAgain, relayAuthProblemFor } from "@/services/relayAuth";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
 import { fileMetaOf, reactionLabel } from "@/lib/dm/rooms";
 import {
@@ -41,6 +43,47 @@ function Linked({ text }: { text: string }) {
 
 export const QUICK_REACTIONS = ["+", "😂", "🙏", "🔥", "😮"];
 
+/**
+ * A message no relay took. One held by a relay that wants the sender signed in says
+ * whose "no" it was, and its Retry asks for that login again before sending — while a
+ * declined login stands, sending alone would be turned away the same way.
+ */
+function NotDelivered({
+  deliveries,
+  onResend,
+  discard,
+}: {
+  deliveries: Delivery[];
+  onResend: () => void;
+  discard: React.ReactNode;
+}) {
+  const problems = useRelayAuthProblems();
+  const held = [...new Set(deliveries.filter((d) => d.auth && !d.ok).map((d) => d.relay))];
+  const declined = held.some((relay) => relayAuthProblemFor(problems, relay)?.by === "signer");
+  return (
+    <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400">
+      <AlertTriangle className="h-3 w-3" />
+      {declined
+        ? "Not delivered · you declined to sign in to their relay"
+        : held.length
+          ? "Not delivered · their relay wants you signed in"
+          : "Not delivered"}
+      <button
+        type="button"
+        onClick={() => {
+          for (const relay of held) askRelayAuthAgain(relay);
+          onResend();
+        }}
+        className="font-semibold underline underline-offset-2"
+        data-testid="dm-resend"
+      >
+        {declined ? "Ask again" : "Retry"}
+      </button>
+      · {discard}
+    </span>
+  );
+}
+
 function Status({
   message,
   onDetails,
@@ -72,16 +115,7 @@ function Status({
       </span>
     );
   if (out.status === "failed")
-    return (
-      <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400">
-        <AlertTriangle className="h-3 w-3" />
-        {out.deliveries.some((d) => d.auth) ? "Not delivered · their relay wants you signed in" : "Not delivered"}
-        <button type="button" onClick={onResend} className="font-semibold underline underline-offset-2">
-          Retry
-        </button>
-        · {discard}
-      </span>
-    );
+    return <NotDelivered deliveries={out.deliveries} onResend={onResend} discard={discard} />;
   const recipients = new Set(out.deliveries.map((d) => d.recipient));
   const ok = out.deliveries.filter((d) => d.ok).length;
   return (

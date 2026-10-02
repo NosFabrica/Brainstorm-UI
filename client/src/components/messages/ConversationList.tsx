@@ -145,7 +145,6 @@ export function ConversationList({
   me,
   selectedKey,
   tab,
-  onSignIn,
   notices,
   onPeopleNear,
 }: {
@@ -157,7 +156,6 @@ export function ConversationList({
   me: string;
   selectedKey: string | null;
   tab: InboxTab;
-  onSignIn: () => void;
   /** Status and things waiting on the reader, pinned under the list. */
   notices?: React.ReactNode;
   /** The people of rows coming near the screen. */
@@ -358,7 +356,6 @@ export function ConversationList({
                     variant="list"
                     onAdvance={advance}
                     onRetry={retry}
-                    onSignIn={onSignIn}
                   />
                 ),
               )}

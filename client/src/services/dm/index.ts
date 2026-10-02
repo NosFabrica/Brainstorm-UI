@@ -16,7 +16,6 @@ import { DM_RELAY_LIST_KIND, dmRelayTags, loadDmRelays } from "@/lib/dm/inboxRel
 import { ensureReadFloor } from "@/lib/dm/prefs";
 import { hydrateDmPrefs, startDmPrefsSync } from "@/lib/dm/prefsSync";
 import { publishToRelays } from "@/services/nostr";
-import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/relayAuthPref";
 import { DmEngine, type DmAccount, type SendResult, type SignerFailure } from "./engine";
 import { encryptFile, fileTags } from "@/lib/dm/fileCrypto";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
@@ -84,14 +83,6 @@ function startFor(account: BrainstormAccount | undefined) {
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
       cache: dmCacheBackend(),
       sealer: deviceSealer,
-      // Turning sign-in off drops the signed-in sockets (services/relayAuth):
-      // reconnect once it has, or the inbox goes quiet until a reload.
-      onAuthPrefChanged: (callback) => {
-        const sub = relayAuthChanged$.subscribe((pk) => {
-          if (pk === account.pubkey && !relayAuthAllowed(pk)) setTimeout(callback, 0);
-        });
-        return () => sub.unsubscribe();
-      },
     });
     void current.start();
   }
@@ -121,10 +112,9 @@ export function subscribeDmEngine(listener: () => void): () => void {
 }
 
 /**
- * Turn private messages on in one step: publish the inbox list, and let the
- * inbox relays sign the reader in (NIP-42) — they won't hand over an inbox
- * otherwise, and many won't take a message from a sender who hasn't. Asking
- * for both separately left people with an inbox that never loaded.
+ * Turn private messages on: publish the inbox list. The inbox relays sign the
+ * reader in (NIP-42) when they ask (services/relayAuth) — they won't hand over
+ * an inbox otherwise.
  */
 export async function turnOnMessages(relays: string[]): Promise<PublishOutcome> {
   const account = accountManager.active;
@@ -151,16 +141,10 @@ async function turnOnInbox(account: { pubkey: string }, relays: string[]): Promi
   // account already published (from another client) with our suggestions.
   const existing = await loadDmRelays(account.pubkey, { fresh: true, timeoutMs: 6000 }).catch(() => null);
   if (existing?.relays.length) {
-    setRelayAuthAllowed(account.pubkey, true);
     if (current?.pubkey === account.pubkey) void current.refreshInbox();
     return { success: true };
   }
-  const allowedBefore = relayAuthAllowed(account.pubkey);
-  setRelayAuthAllowed(account.pubkey, true);
-  const outcome = await publishInboxRelays(relays);
-  // Nothing turned on: leave the sign-in choice as it was.
-  if (!outcome.success && !allowedBefore) setRelayAuthAllowed(account.pubkey, false);
-  return outcome;
+  return publishInboxRelays(relays);
 }
 
 /**
