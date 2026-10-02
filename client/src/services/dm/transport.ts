@@ -11,7 +11,17 @@
  * refused with `auth-required` waits briefly for that login and tries again.
  */
 import { AuthRequiredError, RelayClosedError } from "applesauce-relay";
-import { combineLatest, distinctUntilChanged, filter, firstValueFrom, map, of, timeout } from "rxjs";
+import {
+  combineLatest,
+  distinctUntilChanged,
+  filter,
+  firstValueFrom,
+  map,
+  of,
+  Subscription,
+  timeout,
+  type Observable,
+} from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import { pool } from "@/lib/relayPool";
 import { allowWriteAuth } from "@/services/relayAuth";
@@ -19,6 +29,13 @@ import type { DmTransport, PublishResult } from "./engine";
 
 /** How long a refused publish waits for services/relayAuth to sign in. */
 const AUTH_WAIT_MS = 6000;
+
+/** A state observable's current value — the library's are BehaviorSubjects underneath. */
+function now<T>(state$: Observable<T>, fallback: T): T {
+  let value = fallback;
+  state$.subscribe((v) => (value = v)).unsubscribe();
+  return value;
+}
 
 const reasonOf = (error: unknown) =>
   error instanceof RelayClosedError ? error.reason : error instanceof Error ? error.message : String(error);
@@ -78,29 +95,42 @@ export const poolTransport: DmTransport = {
   async publish(url, event) {
     const relay = pool.relay(url);
     const once = async (): Promise<PublishResult> => {
-      // A relay that won't take the event without saying so in its OK often
-      // says it in a NOTICE instead — keep the last one, so the reason shows.
+      // Already told to sign in on this connection: the library would hold the
+      // event for that login, then report a bare "Timeout" — say so at once.
+      if (now(relay.authRequiredForPublish$, false) && !relay.authenticated)
+        return { ok: false, message: "auth-required: sign in to publish", auth: true };
+      // Whether the socket was open at any point: a relay that never connected
+      // didn't refuse anything. The relay's state answers that, not the type of
+      // what was thrown — a relay in reconnect backoff fails as a plain timeout.
+      let connected = false;
+      // A relay that says nothing in an OK sometimes says why in a NOTICE.
+      // NOTICEs aren't tied to an event, so it is kept only as a hint for silence.
       let notice: string | undefined;
-      const notices = relay.notice$.subscribe((text) => (notice = text));
+      const watch = new Subscription();
+      watch.add(relay.connected$.subscribe((up) => (connected ||= up)));
+      watch.add(relay.notice$.subscribe((text) => (notice = text)));
+      const silence = (error?: unknown): PublishResult => {
+        if (!connected) return { ok: false, message: "Could not connect", unreachable: true };
+        // The socket closed under us (a CloseEvent, not an Error): the relay may have it.
+        if (error !== undefined && !(error instanceof Error))
+          return { ok: false, message: "Connection lost", dropped: true };
+        // Anything but our own wait running out is the library's words, kept as they are.
+        if (error instanceof Error && error.message !== "Timeout") return { ok: false, message: error.message };
+        return { ok: false, message: "Timeout", ...(notice ? { notice } : {}) };
+      };
       try {
         // No library retry: an `auth-required` answer has to come back to us as
         // one, not as a "Timeout" after the retries wait on a login.
         const result = await relay.publish(event, { timeout: 10_000, retries: false });
-        return result.ok ? { ok: true, message: result.message } : { ok: false, message: result.message, notice };
+        if (result.ok) return { ok: true, message: result.message };
+        // The library's own wait running out comes back dressed as an answer.
+        return result.message === "Timeout" ? silence() : { ok: false, message: result.message };
       } catch (error) {
-        // A socket that fails to open errors with its DOM error event, not an
-        // Error: the relay never heard the event, so this is no refusal.
-        if (!(error instanceof Error)) {
-          const detail = (error as { message?: unknown } | null)?.message;
-          return {
-            ok: false,
-            message: typeof detail === "string" && detail ? detail : "Could not connect",
-            unreachable: true,
-          };
-        }
-        return { ok: false, message: reasonOf(error), auth: error instanceof AuthRequiredError, notice };
+        if (error instanceof RelayClosedError)
+          return { ok: false, message: error.reason, auth: error instanceof AuthRequiredError };
+        return silence(error);
       } finally {
-        notices.unsubscribe();
+        watch.unsubscribe();
       }
     };
     const first = await once();

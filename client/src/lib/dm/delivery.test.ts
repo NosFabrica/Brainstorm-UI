@@ -21,6 +21,18 @@ describe("deliveryOutcome", () => {
     });
   });
 
+  it("tells a dropped connection from a refusal", () => {
+    expect(deliveryOutcome({ ...at, ok: false, message: "Connection lost", dropped: true })).toEqual({
+      label: "Connection lost",
+    });
+  });
+
+  it("reads any timeout wording as silence, not as the relay's words", () => {
+    expect(deliveryOutcome({ ...at, ok: false, message: "Relay ping timeout after 20000ms" })).toEqual({
+      label: "No answer",
+    });
+  });
+
   it("reads silence as no answer, keeping a NOTICE sent instead of an OK", () => {
     expect(deliveryOutcome({ ...at, ok: false, message: "Timeout" })).toEqual({ label: "No answer" });
     expect(deliveryOutcome({ ...at, ok: false, message: "Timeout", notice: "rate limited" })).toEqual({

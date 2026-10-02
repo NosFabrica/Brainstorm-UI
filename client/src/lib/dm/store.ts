@@ -17,7 +17,9 @@ export interface Delivery {
   auth?: boolean;
   /** The socket never opened — the relay didn't refuse, it couldn't be reached. */
   unreachable?: boolean;
-  /** The last NOTICE the relay sent while we waited: some relays say "no" that way instead of in the OK. */
+  /** The socket closed before the relay answered; it may have the event. */
+  dropped?: boolean;
+  /** The last NOTICE the relay sent while it gave no OK: some relays say "no" that way. A hint — NOTICEs name no event. */
   notice?: string;
 }
 
