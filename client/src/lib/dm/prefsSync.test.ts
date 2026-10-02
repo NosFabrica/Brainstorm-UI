@@ -53,12 +53,43 @@ describe("reconciling this device with the account's copy", () => {
   const local = (over: Partial<import("./prefs").DmPrefs> = {}) => ({ ...prefs.readDmPrefs(PK), ...over });
   const remote = { updatedAt: 200, pinned: [OTHER_ROOM], muted: [], accepted: [] };
 
-  it("takes the account's copy when it is newer, even over a change made here", () => {
-    const plan = sync.reconcileDmPrefs(local({ pinned: [ROOM], sync: joined(100, true) }), remote, 999);
+  it("takes the account's copy when it is newer and nothing changed here", () => {
+    const plan = sync.reconcileDmPrefs(local({ pinned: [ROOM], sync: joined(100) }), remote, 999);
     expect(plan).toEqual({
       write: { fields: { pinned: [OTHER_ROOM], muted: [], accepted: [] }, sync: joined(200) },
       publish: false,
     });
+  });
+
+  it("merges a change made here into a newer account copy instead of dropping it", () => {
+    const base = { pinned: [], muted: [], accepted: [] };
+    const plan = sync.reconcileDmPrefs(local({ pinned: [ROOM], sync: { ...joined(100, true), base } }), remote, 999);
+    expect(plan.write?.fields.pinned).toEqual([ROOM, OTHER_ROOM]);
+    expect(plan.write?.sync).toMatchObject({ at: 201, dirty: true, joined: true });
+    expect(plan.publish).toBe(true);
+  });
+
+  it("keeps another device's edit when this one, stale, edits something else", () => {
+    // Both saw: C muted and T muted. The other device unmuted T; this one, not knowing, pins B.
+    const T = `${"d".repeat(64)},${PK}`;
+    const base = { pinned: [], muted: [OTHER_ROOM, T], accepted: [] };
+    const plan = sync.reconcileDmPrefs(
+      local({ pinned: [ROOM], muted: [OTHER_ROOM, T], sync: { ...joined(100, true), base } }),
+      { updatedAt: 200, pinned: [], muted: [OTHER_ROOM], accepted: [] },
+      999,
+    );
+    expect(plan.write?.fields).toMatchObject({ pinned: [ROOM], muted: [OTHER_ROOM] });
+    expect(plan.publish).toBe(true);
+  });
+
+  it("lets a removal here win over the same item in the account's copy", () => {
+    const base = { pinned: [ROOM], muted: [], accepted: [] };
+    const plan = sync.reconcileDmPrefs(
+      local({ pinned: [], sync: { ...joined(100, true), base } }),
+      { updatedAt: 200, pinned: [OTHER_ROOM, ROOM], muted: [], accepted: [] },
+      999,
+    );
+    expect(plan.write?.fields.pinned).toEqual([OTHER_ROOM]);
   });
 
   it("sends this device's copy up when it is newer", () => {
@@ -216,8 +247,58 @@ describe("pinning a chat", () => {
     publishAlertPrefs.mockResolvedValue({ success: false, error: "All relays failed" });
     const stop = sync.startDmPrefsSync();
     prefs.setRoomPinned(PK, ROOM, true);
-    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    // Within one refresh period: the open-tab refresh is itself the next sync.
+    await vi.advanceTimersByTimeAsync(100_000);
     expect(publishAlertPrefs).toHaveBeenCalledTimes(4);
+    stop();
+  });
+
+  it("reads the account's copy before publishing, so a stale tab doesn't undo another device", async () => {
+    vi.useFakeTimers();
+    const T = `${"d".repeat(64)},${PK}`;
+    // This tab last saw T and OTHER muted.
+    fetchPrivateAppData.mockResolvedValue(
+      found({ updated_at: 200, pinned: [], muted: [OTHER_ROOM, T], accepted: [] }, "e1"),
+    );
+    await sync.hydrateDmPrefs(PK);
+    // Meanwhile another device unmutes T.
+    fetchPrivateAppData.mockResolvedValue(
+      found({ updated_at: 300, pinned: [], muted: [OTHER_ROOM], accepted: [] }, "e2"),
+    );
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(published()).toMatchObject({ pinned: [ROOM], muted: [OTHER_ROOM] });
+    expect(prefs.readDmPrefs(PK).muted).toEqual([OTHER_ROOM]);
+    stop();
+  });
+
+  it("publishes nothing on a read that couldn't tell, and tries again later", async () => {
+    vi.useFakeTimers();
+    joinedDevice();
+    fetchPrivateAppData.mockResolvedValue({ status: "unknown" });
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(publishAlertPrefs).not.toHaveBeenCalled();
+    fetchPrivateAppData.mockResolvedValue({ status: "absent" });
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(published()).toMatchObject({ pinned: [ROOM] });
+    stop();
+  });
+
+  it("picks up another device's change when the tab comes back into view", async () => {
+    fetchPrivateAppData.mockResolvedValue(found({ updated_at: 200, pinned: [], muted: [], accepted: [] }, "e1"));
+    await sync.hydrateDmPrefs(PK);
+    const stop = sync.startDmPrefsSync();
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 60_000);
+    fetchPrivateAppData.mockResolvedValue(
+      found({ updated_at: 300, pinned: [OTHER_ROOM], muted: [], accepted: [] }, "e2"),
+    );
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(prefs.readDmPrefs(PK).pinned).toEqual([OTHER_ROOM]);
     stop();
   });
 
@@ -281,7 +362,7 @@ describe("opening the inbox", () => {
     const p = prefs.readDmPrefs(PK);
     expect(p.pinned).toEqual([OTHER_ROOM]);
     expect(p.accepted).toEqual([ROOM]);
-    expect(p.sync).toEqual(joined(200));
+    expect(p.sync).toMatchObject(joined(200));
     expect(publishAlertPrefs).not.toHaveBeenCalled();
   });
 
@@ -311,7 +392,7 @@ describe("opening the inbox", () => {
     fetchPrivateAppData.mockResolvedValue({ status: "unchanged", id: "e1", createdAt: 1000 });
     await sync.hydrateDmPrefs(PK);
     expect(fetchPrivateAppData).toHaveBeenLastCalledWith("brainstorm.world/dm-prefs", { knownId: "e1" });
-    expect(prefs.readDmPrefs(PK).sync).toEqual(joined(200));
+    expect(prefs.readDmPrefs(PK).sync).toMatchObject(joined(200));
   });
 
   it("ignores what came back if the account switched while it was fetching", async () => {
@@ -330,6 +411,6 @@ describe("opening the inbox", () => {
     await sync.hydrateDmPrefs(PK);
 
     expect(published()).toMatchObject({ updated_at: 300, pinned: [ROOM] });
-    expect(prefs.readDmPrefs(PK).sync).toEqual(joined(300));
+    expect(prefs.readDmPrefs(PK).sync).toMatchObject(joined(300));
   });
 });

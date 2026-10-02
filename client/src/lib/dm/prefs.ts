@@ -67,6 +67,12 @@ export interface DmPrefsSync {
    * Until then its lists are only ever unioned in, never published over it.
    */
   joined: boolean;
+  /**
+   * The account's copy as of the last sync (adopted, or published from here). A
+   * change made since is this device's edit against it, merged onto whatever the
+   * account's copy has become rather than replacing it (lib/dm/prefsSync).
+   */
+  base?: SyncedDmPrefs;
 }
 
 export interface DmNotifyPrefs {
@@ -125,7 +131,20 @@ function sanitize(raw: unknown): DmPrefs {
     linkPreviews: typeof raw.linkPreviews === "boolean" ? raw.linkPreviews : DEFAULTS.linkPreviews,
     sync:
       isRecord(raw.sync) && typeof raw.sync.at === "number"
-        ? { at: raw.sync.at, dirty: raw.sync.dirty === true, joined: raw.sync.joined === true }
+        ? {
+            at: raw.sync.at,
+            dirty: raw.sync.dirty === true,
+            joined: raw.sync.joined === true,
+            ...(isRecord(raw.sync.base)
+              ? {
+                  base: {
+                    pinned: strings(raw.sync.base.pinned),
+                    muted: strings(raw.sync.base.muted),
+                    accepted: strings(raw.sync.base.accepted),
+                  },
+                }
+              : {}),
+          }
         : undefined,
   };
 }
@@ -205,16 +224,33 @@ export function updateDmPrefs(pubkey: string, change: (prefs: DmPrefs) => DmPref
     // Stamped here, once, so every mutator below is covered without knowing about sync —
     // and always past the copy this device last saw, so a slow clock can't lose a later edit.
     sync: touched
-      ? { at: Math.max(Date.now(), (before.sync?.at ?? 0) + 1), dirty: true, joined: before.sync?.joined ?? false }
+      ? {
+          at: Math.max(Date.now(), (before.sync?.at ?? 0) + 1),
+          dirty: true,
+          joined: before.sync?.joined ?? false,
+          // What this edit is made against: kept across a burst of edits until a sync settles it.
+          base: before.sync?.base ?? syncedFieldsOf(before),
+        }
       : before.sync,
   });
   if (touched) syncedChange?.(pubkey);
   return next;
 }
 
-/** What lib/dm/prefsSync writes: the account's copy adopted, or a publish confirmed. Never republishes. */
+export function syncedFieldsOf(prefs: SyncedDmPrefs): SyncedDmPrefs {
+  return { pinned: prefs.pinned, muted: prefs.muted, accepted: prefs.accepted };
+}
+
+/**
+ * What lib/dm/prefsSync writes: the account's copy adopted, merged, or a publish
+ * confirmed. Never republishes. Settled (not dirty), this device's lists become its
+ * base; still dirty, the base is the one `sync` names, or the one it had.
+ */
 export function applySyncedDmPrefs(pubkey: string, fields: Partial<SyncedDmPrefs>, sync: DmPrefsSync): DmPrefs {
-  return write(pubkey, { ...readDmPrefs(pubkey), ...fields, sync });
+  const before = readDmPrefs(pubkey);
+  const next = { ...before, ...fields };
+  const base = sync.dirty ? (sync.base ?? before.sync?.base) : syncedFieldsOf(next);
+  return write(pubkey, { ...next, sync: { ...sync, ...(base ? { base } : {}) } });
 }
 
 export function subscribeDmPrefs(listener: () => void): () => void {
