@@ -1,0 +1,22 @@
+{
+  "_comment": "The concepts the Dictionary shows (Settings › Dictionary) and that a user's Tapestry Assistant authors local copies of. Each is a community concept, named by its kind-39998 header coordinate — never by event id, which changes on every republish. Decision 2026-10-01: start with two concepts, GitHub Accounts and URLs; URLs has no community concept yet (see _pending).",
+
+  "concepts": [
+    {
+      "coordinate": "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:github-accounts",
+      "renderer": "github-account",
+      "versionTester": true,
+      "_versionTester": "Temporary (2026-10-01): shows 'Publish my own version' on this concept's Dictionary entry, so a signed-in reader can publish, change and withdraw a personal copy and watch the renderer follow it. A tester for demos until users' Assistants author copies.",
+      "_renderer": "Which of Brainstorm's renderers draws this concept's items (lib/conceptRenderers). A copy pointing here renders with it too: renderers are found along the copy's b chain (ADR 0004).",
+      "_coordinate": "GitHub Accounts — Avi Burra's header on dcosl.brainstorm.world. It declares one field (required github-username, text), while its items also carry an undeclared description. Decision 2026-10-01: use Avi's header as it stands; if Brainstorm wants different fields it makes its own local copy (a b-pointer to this one), not a replacement."
+    }
+  ],
+
+  "_pending": "URLs — no kind-39998 URLs concept exists on any relay (searched dcosl, tags.brainstorm.world, staging, tapestry; 2026-10-01). Decision 2026-10-01: GitHub Accounts first, URLs once someone authors it. Its coordinate is permanent once copies point at it, so choose the author first.",
+
+  "displayHints": true,
+  "_displayHints": "PROVISIONAL (2026-10-01): read presentation hints on concept headers — ['display', title|summary|image, <field>] and the list's ['image', <url>] (lib/displayHints). Not in any spec yet; names may change once the team settles them with David. false = ignore them and use the defaults.",
+
+  "houseConceptAuthors": [],
+  "_houseConceptAuthors": "The keys whose copies are Brainstorm's own definition of a concept — what an anonymous reader, or one with no copy, sees, and what Brainstorm's renderers are built for. Empty until Brainstorm publishes its concepts."
+}

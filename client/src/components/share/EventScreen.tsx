@@ -36,7 +36,9 @@ import { DesignationHero } from "@/components/share/DesignationHero";
 import { StructuralHero } from "@/components/share/StructuralHero";
 import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { DListHero } from "@/components/share/DListHero";
+import { DListItemHero } from "@/components/share/DListItemHero";
 import { dlistOfEvent } from "@/lib/dlists";
+import { dictionaryConceptOf } from "@/services/dictionary";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
@@ -331,6 +333,7 @@ function EventView({
   const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 10040, 31337, 30402, 31922, 31923]);
   const renderedGenerically =
     !!note &&
+    !dictionaryConceptOf(note) &&
     !isGitItem(note.kind) &&
     !DEDICATED_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
@@ -528,6 +531,9 @@ function EventView({
             >
               {dlistOfEvent(note) ? (
                 <DListHero event={note} />
+              ) : dictionaryConceptOf(note) ? (
+                // An item of a Dictionary concept, drawn from its governing definition (ADR 0004).
+                <DListItemHero event={note} />
               ) : isGitItem(note.kind) ? (
                 <GitItemHero
                   event={note}

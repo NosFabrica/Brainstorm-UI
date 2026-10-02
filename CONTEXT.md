@@ -94,6 +94,36 @@ _Avoid_: rating, stars, likes, social proof
 An account whose house score is under the verified line, or that has no score at all.
 _Avoid_: untrusted, low trust, unknown
 
+### Concepts and the Dictionary
+
+**Concept**:
+A kind of thing the network can list (GitHub accounts, URLs), defined by a
+kind-39998 header: its names, description and the fields its items carry
+(`lib/dlistFields.ts`). The items are kind-39999 events filed under it by `z`.
+_Avoid_: schema, type, category
+
+**Community concept**:
+A concept other people's headers point at: the shared definition.
+_Avoid_: global concept, canonical concept
+
+**Local copy**:
+Someone's own header for a community concept, pointing at it with
+`["b", <community coordinate>, "pointer"]`. A User's are authored by their
+Brainstorm Assistant. Today a copy repeats the community's definition; one day
+it may change it.
+_Avoid_: fork, clone, override
+
+**Dictionary**:
+The concepts a User holds local copies of, shown in Settings › Dictionary.
+Which concepts the app offers is `config/dictionary.config.json`.
+_Avoid_: glossary, vocabulary
+
+**Governing definition**:
+The definition an item is shown by, chosen by `resolveConcept`: the reader's own
+copy, else their Assistant's, else Brainstorm's, else the community's. Renderers
+read only this (ADR 0004).
+_Avoid_: effective schema, resolved header
+
 ### Not to be confused
 
 **Perspective**:
