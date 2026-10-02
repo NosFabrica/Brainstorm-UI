@@ -172,7 +172,9 @@ export const MessageBubble = memo(function MessageBubble({
         // preview and reply quote in a bubble took two taps. Touch reveals them by tapping
         // the bubble instead.
         "flex shrink-0 items-center gap-0.5 self-center opacity-0 transition-opacity focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100",
-        (actionsShown || reactOpen) && "opacity-100",
+        // On touch the hidden row would still hold its width beside the bubble, halving it
+        // on a phone: take it out of the layout until a tap shows it.
+        actionsShown || reactOpen ? "opacity-100" : "[@media(hover:none)]:hidden",
         mine ? "order-first" : "",
       )}
     >
@@ -230,13 +232,19 @@ export const MessageBubble = memo(function MessageBubble({
           {showAuthor && <PersonAvatar pubkey={message.author} profiles={profiles} size={32} />}
         </span>
       )}
-      <div className={cn("flex max-w-[78%] flex-col gap-1", mine ? "items-end" : "items-start")}>
+      <div className={cn("flex max-w-[85%] flex-col gap-1 sm:max-w-[78%]", mine ? "items-end" : "items-start")}>
         {!mine && group && showAuthor && (
           <span className="px-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
             {firstName(message.author, profiles)}
           </span>
         )}
-        <div className="flex items-center gap-1">
+        <div
+          className={cn(
+            "flex items-center gap-1",
+            // A shown row that doesn't fit beside a wide bubble wraps below it on touch.
+            mine ? "justify-end [@media(hover:none)]:flex-wrap-reverse" : "[@media(hover:none)]:flex-wrap",
+          )}
+        >
           {!mine ? null : actions}
           <div
             className={cn(
