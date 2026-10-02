@@ -7,8 +7,15 @@
  * been seen working. Every tag name lives here, so a rename is one edit;
  * `displayHints` in dictionary.config.json turns reading them off.
  *
- *   ["display", "title" | "summary" | "image", <declared field>]
+ *   ["display", "title" | "summary" | "image" | "link" | "media", <declared field>]
  *   ["image", <url>]        — the list's own image (NIP-51 lists' tag)
+ *
+ * `link` and `media` (2026-10-02) name fields whose values are whole URLs —
+ * an item's page somewhere, its playable file — so they come from the item's
+ * author, not from a template (lib/linkTemplates fixes a link's host; these
+ * can't, and the reader's web-of-trust filter on items is what guards them).
+ * Only http(s) values count. A `media` value plays by its file type
+ * (lib/mediaKind): audio in the track card, video in the inline player.
  *
  * A hint decorates a declared field and never invents one — the rule
  * `field-type` follows. First hint per role wins; unknown roles are ignored.
@@ -20,7 +27,7 @@ import { httpUrl, type FieldDecl } from "@/lib/dlistFields";
 
 export const DISPLAY_TAG = "display";
 export const LIST_IMAGE_TAG = "image";
-export const DISPLAY_ROLES = ["title", "summary", "image"] as const;
+export const DISPLAY_ROLES = ["title", "summary", "image", "link", "media"] as const;
 export type DisplayRole = (typeof DISPLAY_ROLES)[number];
 
 export interface DisplayHints {
@@ -28,11 +35,20 @@ export interface DisplayHints {
   title: string | null;
   summary: string | null;
   image: string | null;
+  link: string | null;
+  media: string | null;
   /** The list's own image, an http(s) URL. */
   listImage: string | null;
 }
 
-export const NO_HINTS: DisplayHints = { title: null, summary: null, image: null, listImage: null };
+export const NO_HINTS: DisplayHints = {
+  title: null,
+  summary: null,
+  image: null,
+  link: null,
+  media: null,
+  listImage: null,
+};
 
 const isRole = (v: string | undefined): v is DisplayRole => DISPLAY_ROLES.includes(v as DisplayRole);
 
@@ -59,4 +75,4 @@ export function displayHintTags(hints: DisplayHints): string[][] {
 }
 
 export const sameHints = (a: DisplayHints, b: DisplayHints): boolean =>
-  a.title === b.title && a.summary === b.summary && a.image === b.image && a.listImage === b.listImage;
+  DISPLAY_ROLES.every((role) => a[role] === b[role]) && a.listImage === b.listImage;

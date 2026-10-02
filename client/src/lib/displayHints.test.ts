@@ -42,6 +42,8 @@ describe("parseDisplayHints", () => {
       title: "description",
       summary: "github-username",
       image: "avatar",
+      link: null,
+      media: null,
       listImage: "https://github.githubassets.com/favicons/favicon.svg",
     });
   });
@@ -113,5 +115,78 @@ describe("a copy that changes the hints", () => {
     const community = definitionOf(header(fields));
     const copy = definitionOf(header([...fields, ["display", "title", "description"]]));
     expect(differencesBetween(copy, community)).toEqual(["display"]);
+  });
+});
+
+describe("link and media roles", () => {
+  // A V4V song as the curator files it, under a definition that names what each field is for.
+  const songFields = [
+    ["required", "title"],
+    ["optional", "artist"],
+    ["optional", "artwork"],
+    ["optional", "url"],
+    ["optional", "t", "Podcast Index page"],
+    ["field-type", "url", "url"],
+    ["field-type", "t", "url"],
+  ];
+  const song = {
+    tags: [
+      ["title", "Supertramp"],
+      ["artist", "Torcon 7"],
+      ["artwork", "https://feeds.example/cover.jpg"],
+      ["url", "https://mp3s.podcastindex.org/Supertramp.mp3"],
+      ["t", "https://podcastindex.org/podcast/4148683#5"],
+    ],
+  };
+  const songs = definitionOf(
+    header([
+      ...songFields,
+      ["display", "title", "title"],
+      ["display", "summary", "artist"],
+      ["display", "image", "artwork"],
+      ["display", "link", "t"],
+      ["display", "media", "url"],
+    ]),
+  );
+
+  it("reads link and media like any other role", () => {
+    expect(songs.display).toMatchObject({ link: "t", media: "url" });
+  });
+
+  it("the link is the item's own URL, named by its field's description", () => {
+    expect(presentItem(song, songs, true).link).toEqual({
+      href: "https://podcastindex.org/podcast/4148683#5",
+      host: "podcastindex.org",
+      label: "Podcast Index page",
+    });
+  });
+
+  it("the media plays as what its file is", () => {
+    expect(presentItem(song, songs, true).media).toEqual({
+      url: "https://mp3s.podcastindex.org/Supertramp.mp3",
+      kind: "audio",
+    });
+    const video = { tags: [...song.tags.filter((t) => t[0] !== "url"), ["url", "https://v.example/clip.mp4"]] };
+    expect(presentItem(video, songs, true).media?.kind).toBe("video");
+  });
+
+  it("no media from a file that isn't audio or video, and no link from a non-http value", () => {
+    const odd = {
+      tags: [
+        ["url", "https://example.com/page.html"],
+        ["t", "javascript:alert(1)"],
+      ],
+    };
+    expect(presentItem(odd, songs, true)).toMatchObject({ media: null, link: null });
+  });
+
+  it("a link labelled by its host when the field has no description", () => {
+    const plain = definitionOf(
+      header([
+        ["optional", "page"],
+        ["display", "link", "page"],
+      ]),
+    );
+    expect(presentItem({ tags: [["page", "https://example.org/x"]] }, plain, true).link?.label).toBe("example.org");
   });
 });

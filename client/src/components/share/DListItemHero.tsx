@@ -8,9 +8,10 @@
  * - Title, summary, picture and the list's image as lib/itemPresentation
  *   reads them: the definition's provisional display hints, else the first
  *   required field.
- * - Its links (useItemView): built from the URL templates the definition
- *   names. A definition that names none gives no link — no concept has code
- *   of its own.
+ * - Its links (useItemView): its own `link` field, and those built from the
+ *   URL templates the definition names. A definition that names neither gives
+ *   no link — no concept has code of its own.
+ * - Its `media` field, played: audio in the app's track card, video inline.
  * - A required field the item lacks, said once.
  * - Where the definition comes from, and whether it agrees with the
  *   community's.
@@ -30,6 +31,8 @@ import { isReady, useItemView, type ReadyItemView } from "@/hooks/useItemView";
 import { useHasSession } from "@/hooks/useHasSession";
 import { fieldCell, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
 import { avatarSrc } from "@/lib/avatarSrc";
+import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
+import { FeedVideo } from "@/components/share/FeedVideo";
 import type { DefinitionSource } from "@/lib/conceptResolution";
 import { dictionaryConceptOf } from "@/services/dictionary";
 
@@ -129,6 +132,24 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
           </div>
         )}
       </div>
+
+      {shown.media && (
+        <div data-testid="dlist-item-media" data-media-kind={shown.media.kind}>
+          {shown.media.kind === "audio" ? (
+            // The app's own track card: it plays on the floor (lib/playback) — one sound at a time.
+            <EmbeddedTrackCard
+              id={`dlist:${event.id}`}
+              title={shown.title ?? r.governing.singular}
+              artist={shown.summary ?? undefined}
+              cover={shown.image ?? shown.listImage ?? undefined}
+              audio={shown.media.url}
+              pageUrl={links[0]?.href}
+            />
+          ) : (
+            <FeedVideo src={shown.media.url} poster={shown.image ?? undefined} className="w-full rounded-xl" />
+          )}
+        </div>
+      )}
 
       {missing.length > 0 && (
         <Chip tone="warning" icon={TriangleAlert} size="sm" data-testid="dlist-item-missing">

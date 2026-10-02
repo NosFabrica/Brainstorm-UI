@@ -11,6 +11,11 @@
       "coordinate": "39998:2efaa715bbb46dd5be6b7da8d7700266d11674b913b8178addb5c2e63d987331:url-templates",
       "role": "url-templates",
       "_role": "PROVISIONAL (2026-10-01): URL Templates — Vinney's canonical list (self-b). Its items carry [\"url-template\", <RFC 6570 level-1 template>] and a name; a concept header pins one by event id with [\"link\", <id>, <relay>, <placeholder>, <field>, …] (lib/linkTemplates). Just another Dictionary concept: the template picker reads its governing list for the reader — their copy, their Assistant's, else this one."
+    },
+    {
+      "coordinate": "39998:77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3:da216f8f-6a99-460a-801c-62e7217f7acd",
+      "ownVersion": true,
+      "_coordinate": "Demo (2026-10-02): V4V Songs by the music curator — a header that declares no fields, so its ~22k songs render as untitled until a reader publishes their own version. Kept to show the team how an own version (field types, display hints, link and media roles) fixes a badly formatted list: songs get titles, cover art and an in-page player. Not one of the music tab's registered lists (config/dlists.config.json)."
     }
   ],
   "_pending": "URLs — no kind-39998 URLs concept exists on any relay (searched dcosl, tags.brainstorm.world, staging, tapestry; 2026-10-01). Decision 2026-10-01: GitHub Accounts first, URLs once someone authors it. Its coordinate is permanent once copies point at it, so choose the author first.",

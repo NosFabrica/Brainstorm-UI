@@ -36,6 +36,18 @@ vi.mock("@/config/dictionary", async (orig) => ({
   DICTIONARY_CONCEPTS: [COMMUNITY],
 }));
 
+// The app's players, as what they're handed: the test is what the page gives them.
+vi.mock("@/components/share/EmbeddedTrackCard", () => ({
+  EmbeddedTrackCard: (p: { audio?: string; title: string; artist?: string }) => (
+    <div data-testid="track-card" data-audio={p.audio}>
+      {p.title} — {p.artist}
+    </div>
+  ),
+}));
+vi.mock("@/components/share/FeedVideo", () => ({
+  FeedVideo: (p: { src: string }) => <div data-testid="feed-video" data-src={p.src} />,
+}));
+
 import { DListItemHero } from "./DListItemHero";
 
 const header = (pubkey: string, tags: string[][]): HeaderEvent => ({
@@ -170,5 +182,59 @@ describe("DListItemHero", () => {
     expect(screen.getByTestId("dlist-item-hero")).toHaveAttribute("data-definition", "missing");
     expect(screen.getByText(/whose definition couldn.t be read/)).toBeInTheDocument();
     expect(screen.getByText("vcavallo")).toBeInTheDocument();
+  });
+});
+
+describe("DListItemHero — media and an item's own link", () => {
+  // A V4V song, under a definition that says which field plays and which links out.
+  const songs = header(AVI, [
+    ["required", "title"],
+    ["optional", "artist"],
+    ["optional", "url"],
+    ["optional", "t", "Podcast Index page"],
+    ["field-type", "url", "url"],
+    ["field-type", "t", "url"],
+    ["display", "title", "title"],
+    ["display", "summary", "artist"],
+    ["display", "link", "t"],
+    ["display", "media", "url"],
+  ]);
+  const song = {
+    ...item,
+    tags: [
+      ["z", COMMUNITY],
+      ["title", "Supertramp"],
+      ["artist", "Torcon 7"],
+      ["url", "https://mp3s.podcastindex.org/Supertramp.mp3"],
+      ["t", "https://podcastindex.org/podcast/4148683#5"],
+    ],
+  };
+
+  it("plays an audio file in the track card, and links the item's own page", () => {
+    concept = { data: resolveConcept({ community: songs, communityCoordinate: COMMUNITY }), isPending: false };
+    renderWithProviders(<DListItemHero event={song} />);
+    expect(screen.getByTestId("dlist-item-media")).toHaveAttribute("data-media-kind", "audio");
+    expect(screen.getByTestId("track-card")).toHaveAttribute(
+      "data-audio",
+      "https://mp3s.podcastindex.org/Supertramp.mp3",
+    );
+    expect(screen.getByTestId("track-card")).toHaveTextContent("Supertramp — Torcon 7");
+    const link = screen.getByTestId("dlist-item-link");
+    expect(link).toHaveAttribute("href", "https://podcastindex.org/podcast/4148683#5");
+    expect(link).toHaveTextContent("Podcast Index page");
+    // title, artist, url and t are all shown: nothing left over.
+    expect(screen.queryByTestId("dlist-item-more-toggle")).toBeNull();
+  });
+
+  it("plays a video file inline", () => {
+    concept = { data: resolveConcept({ community: songs, communityCoordinate: COMMUNITY }), isPending: false };
+    const clip = { ...song, tags: [...song.tags.filter((t) => t[0] !== "url"), ["url", "https://v.example/clip.mp4"]] };
+    renderWithProviders(<DListItemHero event={clip} />);
+    expect(screen.getByTestId("feed-video")).toHaveAttribute("data-src", "https://v.example/clip.mp4");
+  });
+
+  it("without a media role, nothing plays", () => {
+    renderWithProviders(<DListItemHero event={item} />);
+    expect(screen.queryByTestId("dlist-item-media")).toBeNull();
   });
 });

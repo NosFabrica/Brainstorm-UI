@@ -37,6 +37,8 @@ export interface DraftField {
   origin: FieldOrigin;
   /** For a field seen on items: how many carry it. */
   seenOn?: number;
+  /** The field's value type — `text` unless set (`url`: its values are links). */
+  type?: string;
 }
 
 /** The provisional display hints (lib/displayHints) as the form holds them. */
@@ -44,6 +46,8 @@ export interface DraftDisplay {
   title: string | null;
   summary: string | null;
   image: string | null;
+  link: string | null;
+  media: string | null;
   /** As typed; published only when it's an http(s) URL. */
   listImage: string;
 }
@@ -112,24 +116,38 @@ export function initialDraft(
       enabled: !!own,
       required: (own ?? f).requirement === "required",
       origin: "definition",
+      type: (own ?? f).type,
     });
   }
   for (const { name, count } of seen) {
     const own = inBase.get(name);
-    rows.push({ name, enabled: !!own, required: own?.requirement === "required", origin: "items", seenOn: count });
+    rows.push({
+      name,
+      enabled: !!own,
+      required: own?.requirement === "required",
+      origin: "items",
+      seenOn: count,
+      type: own?.type ?? "text",
+    });
   }
   const listed = new Set(rows.map((r) => r.name));
   for (const f of base.fields) {
     if (!listed.has(f.name))
-      rows.push({ name: f.name, enabled: true, required: f.requirement === "required", origin: "custom" });
+      rows.push({
+        name: f.name,
+        enabled: true,
+        required: f.requirement === "required",
+        origin: "custom",
+        type: f.type,
+      });
   }
-  const { title, summary, image, listImage } = base.display;
+  const { title, summary, image, link, media, listImage } = base.display;
   return {
     singular: base.singular,
     plural: base.plural,
     description: base.description ?? "",
     fields: rows,
-    display: { title, summary, image, listImage: listImage ?? "" },
+    display: { title, summary, image, link, media, listImage: listImage ?? "" },
     links: base.links.map((l) => ({ ...l, bindings: l.bindings.map(([p, f]) => [p, f] as [string, string]) })),
   };
 }
@@ -170,8 +188,9 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
   for (const f of draft.fields.filter((f) => f.enabled)) {
     const name = f.name.trim();
     tags.push([f.required ? "required" : "optional", name]);
-    const type = typed.get(name);
-    if (type) tags.push([...type]);
+    // A field the community typed keeps a type tag; any other only when it isn't plain text.
+    const type = f.type ?? "text";
+    if (typed.has(name) || type !== "text") tags.push(["field-type", name, type]);
   }
   // A hint may only name a field this version declares — the rule a reader holds it to.
   const enabled = new Set(draft.fields.filter((f) => f.enabled).map((f) => f.name.trim()));
@@ -181,6 +200,8 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
       title: pick(draft.display.title),
       summary: pick(draft.display.summary),
       image: pick(draft.display.image),
+      link: pick(draft.display.link),
+      media: pick(draft.display.media),
       listImage: draft.display.listImage.trim() || null,
     }),
   );

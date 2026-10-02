@@ -52,12 +52,17 @@ export function useResolvedItemView(
   const templates = useLinkTemplates(refs);
   if (pending || !resolved) return { pending, resolved: null, shown: null, links: [], usedFields: new Set() };
   const shown = presentItem(item, resolved.governing);
-  const links = itemLinks(item, refs, templates.data ?? new Map());
+  // The item's own link (a `link` role) first, then the ones its templates build; one per address.
+  const links = [...(shown.link ? [shown.link] : []), ...itemLinks(item, refs, templates.data ?? new Map())].filter(
+    (l, i, all) => all.findIndex((x) => x.href === l.href) === i,
+  );
   const usedFields = new Set(
     [
       shown.titleField,
       shown.summaryField,
       shown.imageField,
+      shown.linkField,
+      shown.mediaField,
       ...refs.flatMap((r) => r.bindings.map(([, field]) => field)),
     ].filter((f): f is string => !!f),
   );

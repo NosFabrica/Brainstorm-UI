@@ -56,9 +56,9 @@ describe("initialDraft", () => {
     const draft = initialDraft(community, null, items);
     expect(draft).toMatchObject({ singular: "GitHub Account", plural: "GitHub Accounts" });
     expect(draft.fields).toEqual([
-      { name: "github-username", enabled: true, required: true, origin: "definition" },
-      { name: "description", enabled: false, required: false, origin: "items", seenOn: 2 },
-      { name: "note", enabled: false, required: false, origin: "items", seenOn: 1 },
+      { name: "github-username", enabled: true, required: true, origin: "definition", type: "text" },
+      { name: "description", enabled: false, required: false, origin: "items", seenOn: 2, type: "text" },
+      { name: "note", enabled: false, required: false, origin: "items", seenOn: 1, type: "text" },
     ]);
   });
 
@@ -74,10 +74,10 @@ describe("initialDraft", () => {
     );
     const draft = initialDraft(community, mine, items);
     expect(draft.fields).toEqual([
-      { name: "github-username", enabled: true, required: false, origin: "definition" },
-      { name: "description", enabled: true, required: true, origin: "items", seenOn: 2 },
-      { name: "note", enabled: false, required: false, origin: "items", seenOn: 1 },
-      { name: "avatar", enabled: true, required: false, origin: "custom" },
+      { name: "github-username", enabled: true, required: false, origin: "definition", type: "text" },
+      { name: "description", enabled: true, required: true, origin: "items", seenOn: 2, type: "text" },
+      { name: "note", enabled: false, required: false, origin: "items", seenOn: 1, type: "text" },
+      { name: "avatar", enabled: true, required: false, origin: "custom", type: "text" },
     ]);
     expect(draft.description).toBe("");
   });
@@ -194,6 +194,8 @@ describe("display hints in the copy (provisional)", () => {
       title: "description",
       summary: null,
       image: null,
+      link: null,
+      media: null,
       listImage: "https://x.example/gh.svg",
     });
   });
@@ -257,5 +259,28 @@ describe("the same link twice", () => {
     };
     draft.links = [link, { ...link }];
     expect(copyTemplate(community, draft).tags.filter((t) => t[0] === "link")).toHaveLength(1);
+  });
+});
+
+describe("field types and the link and media roles", () => {
+  it("a field set to url is published with its type; plain text needs no tag", () => {
+    const draft = initialDraft(community, null, items);
+    draft.fields.push({ name: "page", enabled: true, required: false, origin: "custom", type: "url" });
+    draft.fields.push({ name: "note2", enabled: true, required: false, origin: "custom", type: "text" });
+    const tags = copyTemplate(community, draft).tags;
+    expect(tags).toContainEqual(["field-type", "page", "url"]);
+    expect(tags.some((t) => t[0] === "field-type" && t[1] === "note2")).toBe(false);
+    // The community's own explicit type stays.
+    expect(tags).toContainEqual(["field-type", "github-username", "text"]);
+  });
+
+  it("publishes link and media roles for fields this version includes", () => {
+    const draft = initialDraft(community, null, items);
+    draft.fields.push({ name: "page", enabled: true, required: false, origin: "custom", type: "url" });
+    draft.fields.push({ name: "clip", enabled: true, required: false, origin: "custom", type: "url" });
+    draft.display = { ...draft.display, link: "page", media: "clip" };
+    const tags = copyTemplate(community, draft).tags;
+    expect(tags).toContainEqual(["display", "link", "page"]);
+    expect(tags).toContainEqual(["display", "media", "clip"]);
   });
 });

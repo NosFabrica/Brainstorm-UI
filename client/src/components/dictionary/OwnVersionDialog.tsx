@@ -47,7 +47,17 @@ import { dictionaryRelays } from "@/config/dictionary";
 
 /** Radix Select can't hold an empty value: "no hint" needs a name of its own. */
 const AUTO = "__auto";
-const ROLE_LABEL: Record<DisplayRole, string> = { title: "Title", summary: "Summary", image: "Picture" };
+const ROLE_LABEL: Record<DisplayRole, string> = {
+  title: "Title",
+  summary: "Summary",
+  image: "Picture",
+  link: "Link",
+  media: "Media",
+};
+/** Title and summary always read from some field; a picture, link or media only when one is named. */
+const NO_ROLE_LABEL = (role: DisplayRole) => (role === "title" || role === "summary" ? "Automatic" : "None");
+/** The value types the form offers (dlistFields: only `url` changes rendering). */
+const FIELD_TYPES = ["text", "url"] as const;
 import type { ConceptDefinition } from "@/lib/conceptResolution";
 import { publishOwnCopy } from "@/services/conceptCopy";
 
@@ -221,6 +231,26 @@ export function OwnVersionDialog({
                     </Chip>
                   )}
                   <span className="ml-auto flex items-center gap-1.5">
+                    <Select
+                      value={f.type ?? "text"}
+                      onValueChange={(v) => setField(i, { type: v })}
+                      disabled={!f.enabled}
+                    >
+                      <SelectTrigger
+                        className="h-7 w-[4.5rem] font-mono text-xs"
+                        aria-label={`${f.name || "Field"} type`}
+                        data-testid="own-version-field-type"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FIELD_TYPES.map((t) => (
+                          <SelectItem key={t} value={t} className="font-mono text-xs">
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Checkbox
                       id={`own-required-${i}`}
                       checked={f.required}
@@ -358,7 +388,7 @@ export function OwnVersionDialog({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={AUTO}>{role === "image" ? "None" : "Automatic"}</SelectItem>
+                      <SelectItem value={AUTO}>{NO_ROLE_LABEL(role)}</SelectItem>
                       {enabledNames.map((n) => (
                         <SelectItem key={n} value={n} className="font-mono text-xs">
                           {n}
