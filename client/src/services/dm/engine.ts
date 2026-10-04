@@ -108,8 +108,6 @@ export interface DmEngineDeps {
   onOnline?: (callback: () => void) => () => void;
   /** How long one wrap may take to open before its slot is taken back (default 45s). */
   decryptTimeoutMs?: number;
-  /** Calls back when the reader turns relay sign-in on or off; the inbox reconnects. */
-  onAuthPrefChanged?: (callback: () => void) => () => void;
 }
 
 /** A message waiting in the outbox: its signed wraps, so a retry needs no signer. */
@@ -235,7 +233,6 @@ export class DmEngine {
   /** Automatic tries per message since the connection last came back. */
   private readonly attempts = new Map<string, number>();
   private stopOnline?: () => void;
-  private stopAuthPref?: () => void;
   private starting?: Promise<void>;
   private hydrating?: Promise<void>;
   private connecting?: Promise<void>;
@@ -289,7 +286,6 @@ export class DmEngine {
     await this.connecting;
     // Stopped during the lookup (an account switch): register nothing that would outlive it.
     if (this.stopped) return;
-    this.stopAuthPref = this.deps.onAuthPrefChanged?.(() => void this.refreshInbox());
     this.flushOutbox();
     this.stopOnline = (this.deps.onOnline ?? onWindowOnline)(() => {
       this.attempts.clear();
@@ -306,7 +302,6 @@ export class DmEngine {
     for (const stop of this.sendAuthWaits.values()) stop();
     this.sendAuthWaits.clear();
     this.stopOnline?.();
-    this.stopAuthPref?.();
     if (this.resumeTimer !== undefined)
       (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.resumeTimer);
     const clearTimer = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
