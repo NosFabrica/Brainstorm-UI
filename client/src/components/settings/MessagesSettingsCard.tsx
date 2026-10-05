@@ -244,10 +244,13 @@ export function MessagesSettingsCard() {
               {relays.map((url) => (
                 <li key={url} className="flex items-center gap-2.5 px-3 py-2" data-testid={`dm-server-${host(url)}`}>
                   <Server className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs" title={host(url)}>
-                    {host(url)}
+                  {/* On a phone the status sits under the name, so the name keeps the width. */}
+                  <span className="flex min-w-0 flex-1 flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2.5">
+                    <span className="min-w-0 max-w-full truncate font-mono text-xs sm:flex-1" title={host(url)}>
+                      {host(url)}
+                    </span>
+                    <ServerStatusChip status={dirty ? null : statusOf(url)} />
                   </span>
-                  <ServerStatusChip status={dirty ? null : statusOf(url)} />
                   <button
                     type="button"
                     onClick={() => setDraft(relays.filter((r) => r !== url))}
