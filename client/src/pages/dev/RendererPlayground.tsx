@@ -75,7 +75,7 @@ export default function RendererPlayground() {
 
   const ref = parseRef(id);
   const event = useQuery({
-    queryKey: ["playground-event", id],
+    queryKey: ["playground-event", ref],
     queryFn: () => fetchRef(ref!),
     enabled: !!ref,
     staleTime: 60_000,
