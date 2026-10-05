@@ -4,7 +4,7 @@
  * a publisher row (who maintains this), and the live NIP-34 activity
  * feed — the "is anyone working on this?" signal nostrhub doesn't have.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { eventStore } from "@/lib/eventStore";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { fetchProfileMap } from "@/services/nostr";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { Chip } from "@/components/ui/chip";
@@ -55,35 +55,10 @@ function ago(at: number): string {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-/** Store-first publisher profile, one relay fallback — AppHero's move. */
+/** The publisher's profile, live. */
 function usePublisher(pubkey: string): SearchResult | null {
-  const known = eventStore.getReplaceable(0, pubkey);
-  const [fetched, setFetched] = useState<SearchResult | null>(null);
-  useEffect(() => {
-    if (known) return;
-    let alive = true;
-    void fetchProfileMap([pubkey]).then((map) => {
-      const profile = map.get(pubkey);
-      if (alive && profile) {
-        setFetched(
-          kind0ToSearchResult({
-            kind: 0,
-            pubkey,
-            content: JSON.stringify(profile),
-            tags: [],
-            created_at: 0,
-            id: "",
-            sig: "",
-          } as NostrEvent),
-        );
-      }
-    });
-    return () => {
-      alive = false;
-    };
-  }, [known, pubkey]);
-  if (known) return kind0ToSearchResult(known as NostrEvent);
-  return fetched;
+  const { event } = useLiveProfile(pubkey);
+  return useMemo(() => (event ? kind0ToSearchResult(event) : null), [event]);
 }
 
 export function RepoHero({ event }: { event: RepoEvent }) {

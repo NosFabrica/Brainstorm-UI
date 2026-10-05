@@ -31,6 +31,7 @@ vi.mock("@/hooks/useAuthorScores", () => ({
 }));
 vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+  refreshProfileEvent: vi.fn(async () => null),
 }));
 // The real store verifies signatures (and jsdom's TextEncoder trips @noble),
 // so known-profile lookups are faked per test.

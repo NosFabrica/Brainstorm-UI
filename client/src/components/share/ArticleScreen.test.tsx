@@ -45,6 +45,18 @@ const profiles = new Map([
 
 vi.mock("@/services/nostr", () => ({
   fetchProfile: async (pk: string) => profiles.get(pk) ?? null,
+  refreshProfileEvent: async (pk: string) =>
+    profiles.has(pk)
+      ? {
+          id: "f".repeat(64),
+          kind: 0,
+          pubkey: pk,
+          created_at: 1,
+          tags: [],
+          content: JSON.stringify(profiles.get(pk)),
+          sig: "",
+        }
+      : null,
   fetchProfileMap: async (pks: string[]) =>
     new Map(pks.flatMap((pk) => (profiles.has(pk) ? [[pk, profiles.get(pk)!]] : []))),
   fetchEventsByIds: async (ids: string[]) => (ids.includes(QUOTED.id) ? [QUOTED] : []),

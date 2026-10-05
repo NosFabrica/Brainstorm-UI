@@ -39,6 +39,7 @@ import {
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useShareUrl } from "@/hooks/useShareUrl";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { ZapModal } from "@/components/ZapModal";
 import { MessageButton } from "@/components/messages/MessageButton";
 import { FlashIcon } from "@/components/FlashIcon";
@@ -60,7 +61,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchProfile,
   fetchProfiles,
   eventStore,
   fetchReportsForPubkey,
@@ -1659,22 +1659,16 @@ export default function ProfilePage() {
     isSuccess: profileOverviewQuery.isSuccess,
   };
 
-  const nostrProfileQuery = useQuery<ProfileContent | null>({
-    queryKey: ["nostr-profile", hexPubkey],
-    queryFn: async () => (await fetchProfile(hexPubkey)) ?? null,
-    enabled: !!hexPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const liveNostrProfile = useLiveProfile(hexPubkey || undefined);
 
   const profileResult = profileQuery.data ?? null;
-  const nostrProfile = nostrProfileQuery.data ?? null;
+  const nostrProfile = liveNostrProfile.profile ?? null;
 
   useEffect(() => {
-    if (hexPubkey && profileQuery.isSuccess && nostrProfileQuery.isFetched) {
+    if (hexPubkey && profileQuery.isSuccess && !liveNostrProfile.loading) {
       clearProfileSeed(hexPubkey);
     }
-  }, [hexPubkey, profileQuery.isSuccess, nostrProfileQuery.isFetched]);
+  }, [hexPubkey, profileQuery.isSuccess, liveNostrProfile.loading]);
 
   const seedAsNostrProfile = useMemo<ProfileContent | null>(() => {
     if (!seed) return null;

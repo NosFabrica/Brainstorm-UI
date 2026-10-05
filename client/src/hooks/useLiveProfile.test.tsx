@@ -6,9 +6,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { NostrEvent } from "nostr-tools";
-import type { ReactNode } from "react";
 import { eventStore } from "@/lib/eventStore";
 import { __useCacheStore } from "@/lib/eventCache";
 
@@ -21,7 +19,7 @@ vi.mock("@/services/nostr", () => ({
   fetchProfileMap: () => profileMapMock(),
 }));
 
-import { useLiveProfile, useLiveProfiles } from "./useLiveProfile";
+import { __resetAskedProfiles, useLiveProfile, useLiveProfiles } from "./useLiveProfile";
 
 let n = 0;
 const kind0 = (pubkey: string, created_at: number, name: string) =>
@@ -35,11 +33,6 @@ const kind0 = (pubkey: string, created_at: number, name: string) =>
     tags: [],
   }) as NostrEvent;
 
-function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-}
-
 const realVerify = eventStore.verifyEvent;
 beforeAll(() => {
   eventStore.verifyEvent = undefined;
@@ -49,13 +42,17 @@ afterAll(() => {
   eventStore.verifyEvent = realVerify;
   __useCacheStore(undefined);
 });
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+  __resetAskedProfiles();
+});
 
 describe("useLiveProfile", () => {
   it("shows the held copy at once, asks the relays with the hints anyway, and takes a newer one", async () => {
     const pk = "1".repeat(64);
     eventStore.add(kind0(pk, 100, "old name"));
-    const { result } = renderHook(() => useLiveProfile(pk, ["wss://hint.example/"]), { wrapper });
+    const { result } = renderHook(() => useLiveProfile(pk, ["wss://hint.example/"]));
 
     expect(result.current.profile?.name).toBe("old name");
     expect(result.current.loading).toBe(false);
@@ -69,7 +66,7 @@ describe("useLiveProfile", () => {
 
   it("is loading only while nothing at all is known", async () => {
     const pk = "2".repeat(64);
-    const { result } = renderHook(() => useLiveProfile(pk), { wrapper });
+    const { result } = renderHook(() => useLiveProfile(pk));
     expect(result.current.loading).toBe(true);
     act(() => {
       eventStore.add(kind0(pk, 100, "first answer"));
@@ -79,11 +76,56 @@ describe("useLiveProfile", () => {
   });
 });
 
+describe("useLiveProfile asks", () => {
+  it("settles to 'no profile' when the relays answer empty", async () => {
+    const pk = "5".repeat(64);
+    refreshMock.mockResolvedValueOnce(null);
+    const { result } = renderHook(() => useLiveProfile(pk));
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.profile).toBeUndefined();
+  });
+
+  it("asks again only after 10–15 minutes, for someone it found", async () => {
+    const pk = "6".repeat(64);
+    eventStore.add(kind0(pk, 100, "erin"));
+    refreshMock.mockResolvedValue(null);
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+
+    renderHook(() => useLiveProfile(pk)).unmount();
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+
+    clock.mockReturnValue(now + 10 * 60_000 - 1);
+    renderHook(() => useLiveProfile(pk)).unmount();
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+
+    clock.mockReturnValue(now + 15 * 60_000);
+    renderHook(() => useLiveProfile(pk)).unmount();
+    expect(refreshMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("joins an ask already out instead of sending a second", async () => {
+    const pk = "7".repeat(64);
+    let answer!: (e: NostrEvent | null) => void;
+    refreshMock.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const first = renderHook(() => useLiveProfile(pk));
+    const second = renderHook(() => useLiveProfile(pk));
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(second.result.current.loading).toBe(true);
+
+    await act(async () => answer(null));
+    expect(first.result.current.loading).toBe(false);
+    expect(second.result.current.loading).toBe(false);
+  });
+});
+
 describe("useLiveProfiles", () => {
   it("names held people at once, and renames them when a newer copy lands", async () => {
     const pk = "3".repeat(64);
     eventStore.add(kind0(pk, 100, "carol"));
-    const { result } = renderHook(() => useLiveProfiles([pk]), { wrapper });
+    const { result } = renderHook(() => useLiveProfiles([pk]));
     expect(result.current.get(pk)?.name).toBe("carol");
     await waitFor(() => expect(profileMapMock).toHaveBeenCalled()); // still asked
     act(() => {
@@ -95,10 +137,22 @@ describe("useLiveProfiles", () => {
   it("asks once for someone every list on the page shows", async () => {
     const pk = "4".repeat(64);
     eventStore.add(kind0(pk, 100, "dave"));
-    renderHook(() => useLiveProfiles([pk]), { wrapper });
+    renderHook(() => useLiveProfiles([pk]));
     await waitFor(() => expect(profileMapMock).toHaveBeenCalledTimes(1));
-    renderHook(() => useLiveProfiles([pk]), { wrapper });
+    renderHook(() => useLiveProfiles([pk]));
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(profileMapMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second list joins an ask already out, and names the person when it answers", async () => {
+    const pk = "8".repeat(64);
+    let answer!: (m: Map<string, unknown>) => void;
+    profileMapMock.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    renderHook(() => useLiveProfiles([pk]));
+    const second = renderHook(() => useLiveProfiles([pk]));
+    expect(profileMapMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => answer(new Map([[pk, { name: "frank" }]])));
+    expect(second.result.current.get(pk)?.name).toBe("frank");
   });
 });

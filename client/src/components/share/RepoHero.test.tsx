@@ -31,6 +31,7 @@ vi.mock("@/hooks/useAuthorScores", () => ({
 }));
 vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+  refreshProfileEvent: vi.fn(async () => null),
 }));
 const knownProfiles = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", () => ({
@@ -38,6 +39,7 @@ vi.mock("@/lib/eventStore", () => ({
     getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
     getEvent: () => undefined,
     add: (event: NostrEvent) => event,
+    insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
   },
 }));
 

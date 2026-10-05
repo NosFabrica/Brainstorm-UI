@@ -30,7 +30,11 @@ vi.mock("@/services/search", async (importOriginal) => ({
       rank: null,
     })),
 }));
-vi.mock("@/services/nostr", () => ({ fetchProfile: async () => null, fetchProfileMap: async () => new Map() }));
+vi.mock("@/services/nostr", () => ({
+  fetchProfile: async () => null,
+  refreshProfileEvent: async () => null,
+  fetchProfileMap: async () => new Map(),
+}));
 vi.mock("@/services/searchFaces", () => ({ fetchPillProfiles: async () => new Map() }));
 vi.mock("@/services/api", () => ({ apiClient: new Proxy({}, { get: () => async () => null }) }));
 const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());

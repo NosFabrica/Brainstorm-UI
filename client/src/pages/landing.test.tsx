@@ -61,6 +61,7 @@ vi.mock("@/services/search", async (importOriginal) => {
 const knownProfiles = new Map<string, { name?: string; display_name?: string; picture?: string }>();
 vi.mock("@/services/nostr", () => ({
   fetchProfile: async () => null,
+  refreshProfileEvent: async () => null,
   fetchRecentByKinds: async () => [],
   fetchLiveStreams: async () => [],
   fetchProfileMap: async (pks: string[]) =>
