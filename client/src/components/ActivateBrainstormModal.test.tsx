@@ -32,7 +32,8 @@ const signNip85 = vi.fn(async () => ({
 }));
 const publishToRelays = vi.fn(async () => ({ success: true, relay: "wss://relay" }));
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   signNip85: (...a: unknown[]) => signNip85(...(a as [])),
   publishToRelays: (...a: unknown[]) => publishToRelays(...(a as [])),
   getNip85RelayUrl: () => "wss://nip85-staging.example",

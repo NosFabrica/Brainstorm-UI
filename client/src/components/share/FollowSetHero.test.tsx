@@ -14,16 +14,17 @@ vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => () => 0.7,
 }));
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
 }));
 const knownProfiles = new Map<string, NostrEvent>();
-vi.mock("@/lib/eventStore", () => ({
+vi.mock("@/lib/eventStore", async () => ({
   eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
     getEvent: () => undefined,
     add: (event: NostrEvent) => event,
-    insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
   },
 }));
 

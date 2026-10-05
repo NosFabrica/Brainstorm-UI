@@ -14,7 +14,8 @@ const refreshMock = vi.fn<(pubkey: string, opts: { relayHints?: string[] }) => P
   () => new Promise(() => {}), // the relays never finish
 );
 const profileMapMock = vi.fn(async () => new Map());
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   refreshProfileEvent: (pubkey: string, opts: { relayHints?: string[] }) => refreshMock(pubkey, opts),
   fetchProfileMap: () => profileMapMock(),
 }));

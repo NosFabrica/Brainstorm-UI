@@ -30,7 +30,8 @@ vi.mock("@/services/search", async (importOriginal) => ({
       rank: null,
     })),
 }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfile: async () => null,
   refreshProfileEvent: async () => null,
   fetchProfileMap: async () => new Map(),

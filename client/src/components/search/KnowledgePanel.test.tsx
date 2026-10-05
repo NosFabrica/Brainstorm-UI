@@ -76,7 +76,8 @@ const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number)
   Promise.resolve([]),
 );
 const liveStreamsMock = vi.fn<(pubkey: string) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
   fetchLiveStreams: (pubkey: string) => liveStreamsMock(pubkey),

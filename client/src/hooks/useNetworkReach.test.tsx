@@ -19,7 +19,10 @@ vi.mock("@/services/socialActions", () => ({
   getFollowedPubkeys: (list: { tags: string[][] } | null) =>
     new Set(list?.tags.filter((t) => t[0] === "p").map((t) => t[1]) ?? []),
 }));
-vi.mock("@/services/nostr", () => ({ fetchEventsByAuthors: (...a: unknown[]) => eventsMock(...a) }));
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
+  fetchEventsByAuthors: (...a: unknown[]) => eventsMock(...a),
+}));
 vi.mock("@/lib/relays", () => ({ CONTENT_RELAYS: ["wss://x"] }));
 
 import { useNetworkReach } from "./useNetworkReach";

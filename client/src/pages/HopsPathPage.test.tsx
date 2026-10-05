@@ -50,7 +50,8 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () 
 let signedIn = false;
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => signedIn }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap,
   fetchProfileForShare: async () => null,
   refreshProfileEvent: async () => null,

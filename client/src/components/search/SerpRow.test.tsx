@@ -20,25 +20,20 @@ vi.mock("@/hooks/useAuthorScores", () => ({
 }));
 // Events a row's note quotes — a test that wants one resolved seeds it here.
 const quotedEvents = new Map<string, NostrEvent>();
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
   fetchEventsByIds: vi.fn((ids: string[]) => Promise.resolve(ids.map((id) => quotedEvents.get(id)).filter(Boolean))),
 }));
 // The real store verifies signatures (and jsdom's TextEncoder trips @noble),
 // so known-profile lookups are faked per test.
 const knownProfiles = new Map<string, NostrEvent>();
-vi.mock("@/lib/eventStore", async () => {
-  const { of } = await import("rxjs");
-  return {
-    eventStore: {
-      timeline: () => of([]),
-      getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
-      getEvent: () => undefined,
-      add: (event: NostrEvent) => event,
-      insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
-    },
-  };
-});
+vi.mock("@/lib/eventStore", async () => ({
+  eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
+    getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
+  },
+}));
 import { nip19 } from "nostr-tools";
 // Link metadata comes from the link-preview service — faked so the row can
 // prove it turns a plain link into a card when the answer exists.

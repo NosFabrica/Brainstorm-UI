@@ -27,6 +27,10 @@ Five canonical triage roles, each mapped to its default label string (`needs-tri
 
 Single-context layout — [`CONTEXT.md`](CONTEXT.md) + [`docs/adr/`](docs/adr/) at the repo root. Both exist; extend them rather than starting a parallel glossary. See `docs/agents/domain.md`.
 
+### Running the UI
+
+Locally against staging, for a browser check: `docs/agents/run-ui.md`.
+
 ### Shipping to staging
 
 PR → merge into `staging` → deploy staging from brainstorm-k8s. By default create the PR and walk the user through the rest. See `docs/agents/staging-deploy.md`.
@@ -43,19 +47,9 @@ When you need real events (what a kind looks like in practice, who publishes it,
 
 Sign through `signAs()` (`client/src/accounts/signing.ts`), never `account.signEvent`/`finalizeEvent` directly — it picks the Active Account and stamps the `["client", "Brainstorm"]` tag.
 
-## Design system (use the primitives)
+## Design system
 
-New UI **must** use the shared primitives instead of hand-rolling styles — this is what keeps theming/spacing consistent and stops dark-mode drift. Do **not** write `bg-<color>-50 dark:bg-<color>-500/10 …` tinted pills or `rounded-2xl border bg-white dark:bg-slate-900 shadow-sm` cards by hand.
-
-- Tinted pill/badge → `<Chip tone=…>` (`components/ui/chip.tsx`)
-- Metric tile → `<StatTile …>` (`components/ui/stat-tile.tsx`)
-- Card surface → `<Card>` (`components/ui/card.tsx`; `interactive` for clickable)
-- Section kicker → `<SectionHeader kicker=… />` (`components/ui/section-header.tsx`)
-- Tones (light+dark, one source of truth) → `lib/tones.ts`
-- Alerts → `ui/alert.tsx`; tabs → `ui/tabs.tsx`; buttons → `ui/button.tsx`
-- Search box → `<SearchBox>` (`components/search/SearchBox.tsx`) — the one box behind home, every header (PublicPageHeader, AppHeader), the phone sheet and /what-is-wot; never a second typeahead
-
-Anchored to the designer's brand-guidelines p17 "UI Foundations" sheet. Full guide + what stays bespoke: `docs/design-system.md`. Interface icons are lucide today (guidelines spec Phosphor — migration deferred, not a bug).
+New UI uses the shared primitives (`Chip`, `StatTile`, `Card`, `SectionHeader`, tones, `SearchBox`, …) — the list and what stays bespoke: `docs/design-system.md`.
 
 ## E2E smoke (`e2e/`)
 

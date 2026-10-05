@@ -13,7 +13,10 @@ const ask = vi.fn(() => new Promise((resolve) => (answer = resolve)));
 const markNip85Activated = vi.fn();
 const clearNip85Activated = vi.fn();
 vi.mock("@/services/trustAnchor", () => ({ askTrustProviderList: () => ask() }));
-vi.mock("@/services/nostr", () => ({ getNip85RelayUrl: () => RELAY }));
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
+  getNip85RelayUrl: () => RELAY,
+}));
 vi.mock("@/lib/nip85Activation", () => ({
   markNip85Activated: (pk: string) => markNip85Activated(pk),
   clearNip85Activated: (pk: string) => clearNip85Activated(pk),

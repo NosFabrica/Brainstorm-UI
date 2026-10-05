@@ -40,7 +40,8 @@ const QUOTED = {
 };
 const byIds = vi.fn(async (ids: string[]) => (ids.includes(QUOTED.id) ? [QUOTED] : []));
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchAddressableEvents: (c: unknown) => addressable(c),
   fetchEventsByIds: (ids: string[]) => byIds(ids),
   fetchProfileMap: async (pks: string[]) =>

@@ -43,7 +43,8 @@ const profiles = new Map([
   [AUTHOR, { name: "hzrd149" }],
 ]);
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfile: async (pk: string) => profiles.get(pk) ?? null,
   refreshProfileEvent: async (pk: string) =>
     profiles.has(pk)

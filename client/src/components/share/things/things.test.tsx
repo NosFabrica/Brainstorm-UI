@@ -10,7 +10,8 @@ import type { NostrEvent } from "nostr-tools";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
 const profileMapMock = vi.fn((_pks: string[]) => Promise.resolve(new Map<string, Record<string, unknown>>()));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: (pks: string[]) => profileMapMock(pks),
   refreshProfileEvent: async (pk: string) => {
     const content = (await profileMapMock([pk])).get(pk);
@@ -19,12 +20,12 @@ vi.mock("@/services/nostr", () => ({
       : null;
   },
 }));
-vi.mock("@/lib/eventStore", () => ({
+vi.mock("@/lib/eventStore", async () => ({
   eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: () => undefined,
     getEvent: () => undefined,
     add: (e: NostrEvent) => e,
-    insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
   },
 }));
 const fromSearchMock = vi.fn((_filters: Record<string, unknown>[], _opts?: unknown) =>
