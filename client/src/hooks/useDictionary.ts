@@ -8,14 +8,16 @@ import { loadDictionary } from "@/services/dictionary";
  * show "not in your Dictionary" for a concept their Assistant did add, then
  * flip. With no Session the history never comes, so it reads with the
  * account alone.
+ *
+ * `enabled: false` reads nothing — for a surface only some readers get.
  */
-export function useDictionary() {
+export function useDictionary(enabled = true) {
   const { pubkey, taPubkey, settled } = useDictionaryReader();
   const query = useQuery({
     queryKey: ["dictionary", pubkey, taPubkey],
     // Headers and copies only: a concept's items load when its row or entry shows them (useConceptItems).
     queryFn: () => loadDictionary({ pubkey, taPubkey }, undefined, undefined, { items: false }),
-    enabled: !!pubkey && settled,
+    enabled: enabled && !!pubkey && settled,
     staleTime: 5 * 60_000,
   });
   return { ...query, pubkey, taPubkey };

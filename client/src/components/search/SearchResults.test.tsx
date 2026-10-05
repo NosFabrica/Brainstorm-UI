@@ -25,6 +25,8 @@ const serverStatusMock = vi.fn(() => ({
   nextProbeAt: null as number | null,
 }));
 const retryNowMock = vi.fn();
+// List items among results read the Dictionary through the account; they have their own tests.
+vi.mock("@/components/search/ListItemResults", () => ({ ListItemResults: () => null }));
 vi.mock("@/lib/serverStatus", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/serverStatus")>();
   return {

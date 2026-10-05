@@ -66,6 +66,10 @@ const carriersMock = vi.fn((_tags: unknown[]) => ({
   people: [] as unknown[],
   settled: true,
 }));
+// List items have their own tests (ListItemResults.test); here, only where they sit.
+vi.mock("@/components/search/ListItemResults", () => ({
+  ListItemResults: ({ query }: { query: string }) => <div data-testid="list-item-results-slot">{query}</div>,
+}));
 // The search relay's answer: the tags the words matched and who carries them.
 const searchTagsAsked = vi.fn((_q: string, _opts: unknown) => {});
 vi.mock("@/hooks/useSearchTags", () => ({
@@ -1633,6 +1637,19 @@ describe("ComposedResults — a query that matches a tag", () => {
     });
     await screen.findByTestId(`serp-person-${FRESH.slice(0, 8)}`);
     expect(screen.queryByTestId(`strip-person-tag-${FRESH.slice(0, 8)}`)).toBeNull();
+  });
+
+  it("a named list's items sit above People, asked with the reader's words", async () => {
+    render(<ComposedResults query="github vcavallo" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("people").emit({
+      hits: [hitOf(ev("p1", 0, FRESH, JSON.stringify({ name: "Vinney" })), "Vinney")],
+      eose: true,
+      timeMs: 100,
+    });
+    const people = await screen.findByTestId("serp-section-people");
+    const slot = screen.getByTestId("list-item-results-slot");
+    expect(slot).toHaveTextContent("github vcavallo");
+    expect(slot.compareDocumentPosition(people) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("the People strip leads with the tag's people, best first, each wearing the tag; the relay's match follows bare", async () => {
