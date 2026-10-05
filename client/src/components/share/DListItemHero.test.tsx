@@ -38,6 +38,10 @@ vi.mock("@/config/dictionary", async (orig) => ({
 }));
 
 // The app's players, as what they're handed: the test is what the page gives them.
+// The rest of the list has its own tests (DListItemNeighbours.test).
+vi.mock("@/components/dictionary/DListItemNeighbours", () => ({
+  DListItemNeighbours: () => <div data-testid="neighbours-slot" />,
+}));
 vi.mock("@/components/share/EmbeddedTrackCard", () => ({
   EmbeddedTrackCard: (p: { audio?: string; title: string; artist?: string }) => (
     <div data-testid="track-card" data-audio={p.audio}>
@@ -112,6 +116,18 @@ describe("DListItemHero", () => {
     // Every field is shown by the title, summary or link: no table, no More fields.
     expect(screen.queryByTestId("dlist-item-fields")).toBeNull();
     expect(screen.queryByTestId("dlist-item-more-toggle")).toBeNull();
+  });
+
+  it("with no picture and no list image, a plain mark leads — and the page still closes on the rest of its list and its definition", () => {
+    renderWithProviders(<DListItemHero event={item} />);
+    expect(screen.getByTestId("dlist-item-plain-mark")).toBeInTheDocument();
+    expect(screen.queryByTestId("dlist-item-list-image")).toBeNull();
+    const hero = screen.getByTestId("dlist-item-hero");
+    const order = [...hero.querySelectorAll("[data-testid='neighbours-slot'], [data-testid='dlist-item-definition']")];
+    expect(order.map((el) => el.getAttribute("data-testid"))).toEqual(["neighbours-slot", "dlist-item-definition"]);
+    expect(screen.getByTestId("dlist-item-definition")).toHaveTextContent(
+      "Shown as the community concept GitHub Accounts",
+    );
   });
 
   it("a definition that names no URL template gives no link — there is no GitHub fallback", () => {

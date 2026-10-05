@@ -5,16 +5,19 @@
  * of the concept, when they hold one, is the definition (useItemConcept).
  *
  * - The kicker names the concept: "GitHub Account · in GitHub Accounts".
- * - Title, summary, picture and the list's image as lib/itemPresentation
- *   reads them: the definition's provisional display hints, else the first
- *   required field.
+ * - A picture leads, beside the title and summary: the item's own, else the
+ *   list's image, else a plain mark — all as lib/itemPresentation reads them
+ *   (the definition's provisional display hints, else the first required
+ *   field).
  * - Its links (useItemView): its own `link` field, and those built from the
  *   URL templates the definition names. A definition that names neither gives
  *   no link — no concept has code of its own.
  * - Its `media` field, played: audio in the app's track card, video inline.
  * - A required field the item lacks, said once.
- * - Where the definition comes from, and whether it agrees with the
- *   community's.
+ * - Who else listed the same thing and what else the list holds
+ *   (DListItemNeighbours).
+ * - Last and quietest, where the definition comes from, and whether it
+ *   agrees with the community's.
  * - No catch-all table (the team, 2026-10-01): a field the title, summary,
  *   picture or a link already shows isn't listed again. Declared fields
  *   nothing shows, and tags outside the definition, fold into "More fields";
@@ -27,6 +30,8 @@ import { Link } from "wouter";
 import { BookOpen, ChevronDown, ExternalLink, Loader2, TriangleAlert } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
+import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
+import { Favicon } from "@/components/share/LinkPreview";
 import { isReady, useItemView, type ReadyItemView } from "@/hooks/useItemView";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { fieldCell, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
@@ -72,65 +77,61 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
   return (
     <div className="space-y-5" data-testid="dlist-item-hero" data-definition="read">
       <div>
-        <p className="inline-flex flex-wrap items-center gap-x-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
-          {shown.listImage ? (
-            <img
-              src={avatarSrc(shown.listImage, "sm")}
-              alt=""
-              className="h-4 w-4 rounded-sm object-contain"
-              data-testid="dlist-item-list-image"
-            />
-          ) : (
-            <BookOpen className="h-3.5 w-3.5" />
-          )}{" "}
-          {r.governing.singular}
+        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
+          {r.governing.singular}{" "}
           <span className="font-medium normal-case tracking-normal text-slate-400 dark:text-slate-500">
             in <ConceptLink event={event}>{r.governing.plural}</ConceptLink>
           </span>
         </p>
-        <div className="mt-2 flex items-center gap-3">
-          {shown.image && (
-            <img
-              src={avatarSrc(shown.image, "lg")}
-              alt=""
-              className="h-12 w-12 shrink-0 rounded-full border border-border object-cover"
-              data-testid="dlist-item-image"
-            />
-          )}
-          <h1
-            className="min-w-0 break-words text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
-            style={{ fontFamily: "var(--font-display)" }}
-            data-testid="dlist-item-title"
-          >
-            {shown.title ?? <span className="text-slate-400">Untitled {r.governing.singular.toLowerCase()}</span>}
-          </h1>
-        </div>
-        {shown.summary && (
-          <p
-            className="mt-2 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300"
-            data-testid="dlist-item-summary"
-          >
-            {shown.summary}
-          </p>
-        )}
-        {links.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {links.map((l) => (
-              <a
-                key={l.href}
-                href={l.href}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
-                data-testid="dlist-item-link"
-                title={l.href}
+        <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <Picture image={shown.image} listImage={shown.listImage} />
+            <div className="min-w-0 flex-1">
+              <h1
+                className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
+                style={{ fontFamily: "var(--font-display)" }}
+                data-testid="dlist-item-title"
               >
-                <ExternalLink className="h-4 w-4" /> {l.label}
-                <span className="font-normal text-white/70">· {l.host}</span>
-              </a>
-            ))}
+                {shown.title ?? <span className="text-slate-400">Untitled {r.governing.singular.toLowerCase()}</span>}
+              </h1>
+              {shown.summary && (
+                <p
+                  className="mt-1 break-words text-[15px] leading-relaxed text-slate-600 dark:text-slate-300"
+                  data-testid="dlist-item-summary"
+                >
+                  {shown.summary}
+                </p>
+              )}
+            </div>
           </div>
-        )}
+          {links.length > 0 && (
+            <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+              {links.map((l, i) => (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className={
+                    i === 0
+                      ? "inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
+                      : "inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  }
+                  data-testid="dlist-item-link"
+                  title={l.href}
+                >
+                  {/* The destination's own mark, on a white chip so a dark logo reads on the button. */}
+                  <span className="flex h-5 w-5 items-center justify-center rounded bg-white">
+                    <Favicon host={l.host} className="h-3.5 w-3.5 text-slate-500" />
+                  </span>
+                  {l.label}
+                  <span className="sr-only">· {l.host}</span>
+                  <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {shown.media && (
@@ -157,17 +158,52 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
         </Chip>
       )}
 
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+      {(unshown.length > 0 || extras.length > 0) && (
+        <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />
+      )}
+
+      <DListItemNeighbours event={event} resolved={r} />
+
+      <p
+        className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-400 dark:text-slate-500"
+        data-testid="dlist-item-definition"
+      >
         <span>
           Shown as {SOURCE_WORDS[r.source]} <ConceptLink event={event}>{r.governing.plural}</ConceptLink>.
         </span>
         <AgreementChip agreement={r.agreement} />
       </p>
-
-      {(unshown.length > 0 || extras.length > 0) && (
-        <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />
-      )}
     </div>
+  );
+}
+
+/**
+ * What leads the page: the item's own picture, round, as a person's is; else
+ * the list's image in a tile, as a logo sits; else the list's plain mark.
+ */
+function Picture({ image, listImage }: { image: string | null; listImage: string | null }) {
+  if (image)
+    return (
+      <img
+        src={avatarSrc(image, "lg")}
+        alt=""
+        className="h-16 w-16 shrink-0 rounded-full border border-border object-cover"
+        data-testid="dlist-item-image"
+      />
+    );
+  return (
+    <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-100">
+      {listImage ? (
+        <img
+          src={avatarSrc(listImage, "sm")}
+          alt=""
+          className="h-9 w-9 object-contain"
+          data-testid="dlist-item-list-image"
+        />
+      ) : (
+        <BookOpen className="h-6 w-6" data-testid="dlist-item-plain-mark" />
+      )}
+    </span>
   );
 }
 
