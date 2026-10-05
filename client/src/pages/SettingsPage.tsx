@@ -153,6 +153,7 @@ const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
   // The concepts the reader's Assistant keeps for them (2026-10-01: a Settings
   // tab by the team's choice). Past the 375px track, so phones scroll to it.
+  // Admins only while it's an internal demo (2026-10-05): see ADMIN_ONLY_TABS.
   { key: "dictionary", label: "Dictionary", icon: BookOpen },
   // Billing lives in Settings because Settings is where you CHANGE things —
   // cancelling is the most consequential account action in the product, and it
@@ -162,14 +163,23 @@ const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "about", label: "About", icon: Info },
 ];
 
+/**
+ * Tabs only an admin sees, and only an admin can open by URL — anyone else
+ * lands on Profile. The Dictionary (2026-10-05): still an internal demo, kept
+ * from regular users until it's settled. Its renderers, on list items' pages,
+ * cards and search rows, are for everyone; only the page about them is hidden.
+ */
+const ADMIN_ONLY_TABS: ReadonlySet<SettingsTab> = new Set(["dictionary"]);
+
 export default function SettingsPage() {
   const [, navigate] = useLocation();
   const search = useSearch();
+  // Live identity: the header avatar updates the moment a profile save lands.
+  const user = useActiveAccountDisplay();
+  const isAdmin = user?.isAdmin === true;
+  const tabs = TABS.filter((t) => isAdmin || !ADMIN_ONLY_TABS.has(t.key));
   const tabParam = new URLSearchParams(search).get("tab");
-  const activeTab: SettingsTab =
-    tabParam === "trust" || tabParam === "dictionary" || tabParam === "billing" || tabParam === "about"
-      ? tabParam
-      : "profile";
+  const activeTab: SettingsTab = tabs.find((t) => t.key === tabParam)?.key ?? "profile";
   // Deep links into a specific control, so a "you can change this in Settings"
   // sentence elsewhere lands ON the thing rather than at the top of a tab:
   //   ?focus=backup      → Account > Back up
@@ -207,8 +217,6 @@ export default function SettingsPage() {
     navigate(t === "profile" ? "/settings" : `/settings?tab=${t}`);
   };
 
-  // Live identity: the header avatar updates the moment a profile save lands.
-  const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [nip85ConfirmOpen, setNip85ConfirmOpen] = useState(false);
   const [republishState, setRepublishState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
@@ -2354,7 +2362,7 @@ export default function SettingsPage() {
             data-testid="settings-tab-bar"
           >
             <div className="border-brand-accent/12 inline-flex rounded-full border bg-white/70 p-1 shadow-sm backdrop-blur-sm dark:bg-slate-900/70">
-              {TABS.map((tab) => {
+              {tabs.map((tab) => {
                 const active = activeTab === tab.key;
                 return (
                   <button

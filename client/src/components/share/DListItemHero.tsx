@@ -28,7 +28,7 @@ import { BookOpen, ChevronDown, ExternalLink, Loader2, TriangleAlert } from "luc
 import { Chip } from "@/components/ui/chip";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
 import { isReady, useItemView, type ReadyItemView } from "@/hooks/useItemView";
-import { useHasSession } from "@/hooks/useHasSession";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { fieldCell, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -255,11 +255,15 @@ function MoreFields({
   );
 }
 
-/** The concept's Dictionary entry for a signed-in reader; plain words for anyone else (Settings needs a Session). */
+/**
+ * The concept's Dictionary entry for an admin; plain words for anyone else —
+ * the Dictionary is admins-only while it's an internal demo (SettingsPage
+ * `ADMIN_ONLY_TABS`), and the admin claim rides on a Session.
+ */
 function ConceptLink({ event, children }: { event: ItemEvent; children: ReactNode }) {
-  const hasSession = useHasSession();
+  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const coordinate = dictionaryConceptOf(event);
-  if (!hasSession || !coordinate) return <>{children}</>;
+  if (!isAdmin || !coordinate) return <>{children}</>;
   return (
     <Link
       href={`/settings?tab=dictionary&concept=${encodeURIComponent(coordinate)}`}

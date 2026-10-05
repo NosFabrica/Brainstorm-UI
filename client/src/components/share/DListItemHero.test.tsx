@@ -16,7 +16,8 @@ const TA = "2".repeat(64);
 
 let concept: { data: ResolvedConcept | null; isPending: boolean } = { data: null, isPending: true };
 vi.mock("@/hooks/useItemConcept", () => ({ useItemConcept: () => concept }));
-vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
+const viewer = vi.hoisted(() => ({ isAdmin: true }));
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ isAdmin: viewer.isAdmin }) }));
 // The GitHub profile template, as published on dcosl (pinned by id).
 const { TEMPLATE_ID } = vi.hoisted(() => ({
   TEMPLATE_ID: "f19f39daf75388ff0f19cc37dde5ae1b90124b0d60e35659160c48dc690deca4",
@@ -78,6 +79,7 @@ const item = {
 
 beforeEach(() => {
   concept = { data: resolveConcept({ community, communityCoordinate: COMMUNITY }), isPending: false };
+  viewer.isAdmin = true;
 });
 
 describe("DListItemHero", () => {
@@ -117,6 +119,21 @@ describe("DListItemHero", () => {
     expect(screen.getByTestId("dlist-item-title")).toHaveTextContent("vcavallo"); // the first required field
     expect(screen.queryByTestId("dlist-item-link")).toBeNull();
     expect(screen.getByText("GitHub Account")).toBeInTheDocument();
+  });
+
+  it("an admin can follow the concept's name to its Dictionary entry", () => {
+    renderWithProviders(<DListItemHero event={item} />);
+    const links = screen.getAllByRole("link", { name: "GitHub Accounts" });
+    expect(links.length).toBeGreaterThan(0);
+    for (const a of links)
+      expect(a).toHaveAttribute("href", `/settings?tab=dictionary&concept=${encodeURIComponent(COMMUNITY)}`);
+  });
+
+  it("anyone else reads the concept's name as plain words: the Dictionary is admins-only for now", () => {
+    viewer.isAdmin = false;
+    renderWithProviders(<DListItemHero event={item} />);
+    expect(screen.getByTestId("dlist-item-hero")).toHaveTextContent("Shown as the community concept GitHub Accounts.");
+    expect(screen.queryByRole("link", { name: "GitHub Accounts" })).toBeNull();
   });
 
   it("folds tags outside the definition into More fields", async () => {
