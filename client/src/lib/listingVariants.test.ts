@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { parseListing, type Listing } from "./listing";
-import { collapseVariants, productsFromEvents } from "./listingVariants";
+import { collapseVariants, foldProductHits, productsFromEvents } from "./listingVariants";
 
 const SELLER = "ab".repeat(32);
 const make = (
@@ -292,5 +292,52 @@ describe("productsFromEvents — what is hidden stays hidden", () => {
       event("mug", "Mug", 6, []),
     ]);
     expect(products.map((p) => p.group.title)).toEqual(["Mug"]);
+  });
+});
+
+// Search holds hits, in the relay's order, with things that are not listings
+// among them (a stall, a marketplace). One product is one hit, where its first
+// listing stood.
+describe("foldProductHits — search results as products", () => {
+  const S = "12".repeat(32);
+  const hit = (d: string, title: string, extra: string[][] = [], kind = 30402) => ({
+    event: {
+      id: d.replace(/\W/g, "").padEnd(64, "0").slice(0, 64),
+      pubkey: S,
+      kind,
+      created_at: 1,
+      content: "",
+      tags: [["d", d], ["title", title], ["price", "20", "USD"], ["image", "https://img/x.jpg"], ...extra],
+    },
+    marker: d,
+  });
+  const P = `30402:${S}:hoodie`;
+  const size = (s: string) =>
+    hit(`hoodie-${s.toLowerCase()}`, `Hoodie - ${s}`, [
+      ["type", "variation", "physical"],
+      ["a", P],
+      ["spec", "Size", s],
+    ]);
+
+  it("keeps one hit per product, where its first listing stood, and passes everything else through", () => {
+    const stall = hit("stall", "A stall", [], 30017);
+    const mug = hit("mug", "Mug");
+    const parent = hit("hoodie", "Hoodie", [["type", "variable", "physical"]]);
+    const { hits, groups } = foldProductHits([size("L"), stall, mug, size("M"), parent, size("S")]);
+    // The hoodie takes the place of its first size, as its parent; the stall and the mug stay put.
+    expect(hits.map((h) => h.marker)).toEqual(["hoodie", "stall", "mug"]);
+    expect(groups.get(parent.event.id)?.options).toEqual(["S", "M", "L"]);
+    expect(groups.get(mug.event.id)?.options).toEqual([]);
+    expect(groups.has(stall.event.id)).toBe(false);
+  });
+
+  it("drops what is not for sale, and every size of a product its seller hid", () => {
+    const hiddenParent = hit("hoodie", "Hoodie", [
+      ["type", "variable", "physical"],
+      ["visibility", "hidden"],
+    ]);
+    const sold = hit("old", "Old thing", [["status", "sold"]]);
+    const { hits } = foldProductHits([size("L"), hiddenParent, sold, hit("mug", "Mug")]);
+    expect(hits.map((h) => h.marker)).toEqual(["mug"]);
   });
 });

@@ -1423,6 +1423,49 @@ describe("ComposedResults", () => {
     expect(onTabChange).toHaveBeenCalledWith("shop");
   });
 
+  // Issue #158: a product's sizes are one card here too, and do not use up
+  // the row's two-per-seller allowance.
+  it("the Shop row shows a product and its sizes as one card", async () => {
+    render(<ComposedResults query="hoodie" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const seller = "7".repeat(64);
+    const P = `30402:${seller}:hoodie`;
+    const listing = (id: string, title: string, extra: string[][] = []) =>
+      hitOf(
+        ev(id, 30402, seller, "", [
+          ["d", id],
+          ["title", title],
+          ["price", "46.2", "USD"],
+          ["image", "https://img/h.jpg"],
+          ...extra,
+        ]),
+        "Satoshoes",
+      );
+    const size = (s: string) =>
+      listing(`hoodie-${s}`, `Hoodie - ${s}`, [
+        ["type", "variation", "physical"],
+        ["a", P],
+        ["spec", "Size", s],
+      ]);
+    sectionCall("shop").emit({
+      hits: [
+        size("L"),
+        size("M"),
+        size("S"),
+        listing("hoodie", "Hoodie", [["type", "variable", "physical"]]),
+        listing("mug", "Mug"),
+      ],
+      eose: true,
+      timeMs: 120,
+    });
+
+    const section = await screen.findByTestId("serp-section-shop");
+    const ids = [...section.querySelectorAll("[data-testid^='listing-card-']")].map((n) =>
+      n.getAttribute("data-testid"),
+    );
+    expect(ids).toEqual(["listing-card-hoodie", "listing-card-mug"]);
+    expect(within(section).getByTestId("listing-options-hoodie")).toHaveTextContent("3 options");
+  });
+
   it("shows no Shop row when nothing for sale matches", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("shop").emit({

@@ -4,7 +4,7 @@ import { nip19, type NostrEvent } from "nostr-tools";
 import { fetchProfileMap, fetchRecentByKinds } from "@/services/nostr";
 import { fetchSimilarListings } from "@/services/search";
 import { APP_TAGS, LISTING_KIND, isSellable, parseListing } from "@/lib/listing";
-import { productsFromEvents, splitVariantTitle, type ProductCard } from "@/lib/listingVariants";
+import { cardGroupOf, productsFromEvents, splitVariantTitle, type ProductCard } from "@/lib/listingVariants";
 import { eventPath } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { ListingCard } from "@/components/search/cards";
@@ -138,13 +138,7 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {mine.map(({ event: ev, group }) => (
-              <ListingCard
-                key={group.id}
-                event={ev}
-                author={null}
-                showAuthor={false}
-                group={{ title: group.title, options: group.options.length }}
-              />
+              <ListingCard key={group.id} event={ev} author={null} showAuthor={false} group={cardGroupOf(group)} />
             ))}
           </div>
         </section>

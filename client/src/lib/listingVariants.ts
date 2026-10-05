@@ -263,3 +263,63 @@ export function productsFromEvents<E extends EventLike>(events: E[]): ProductCar
     group,
   }));
 }
+
+/**
+ * Search hits → one hit per product, in the relay's order: a product stands
+ * where its first listing stood, represented by its parent when the page
+ * holds it. Listings that are not for sale are dropped; hits that are not
+ * listings (a stall, a marketplace) pass through untouched. `groups` gives
+ * each kept listing's product, by event id.
+ */
+export function foldProductHits<H extends { event: EventLike }>(
+  hits: H[],
+): { hits: H[]; groups: Map<string, VariantGroup> } {
+  const byId = new Map<string, H>();
+  const parsed: Listing[] = [];
+  for (const h of hits) {
+    const l = parseListing({ ...h.event, content: h.event.content ?? "" });
+    if (!l) continue;
+    byId.set(l.id, h);
+    parsed.push(l);
+  }
+  const groups = new Map<string, VariantGroup>();
+  // Which product each listing belongs to, so a product is placed at its first listing.
+  const productOf = new Map<string, VariantGroup>();
+  for (const group of collapseVariants(sellableListings(parsed))) {
+    groups.set(group.primary.id, group);
+    for (const l of [group.primary, ...group.members]) productOf.set(l.id, group);
+  }
+  const out: H[] = [];
+  const placed = new Set<VariantGroup>();
+  for (const h of hits) {
+    if (!byId.has(h.event.id)) {
+      out.push(h);
+      continue;
+    }
+    const group = productOf.get(h.event.id);
+    if (!group || placed.has(group)) continue;
+    placed.add(group);
+    out.push(byId.get(group.primary.id) as H);
+  }
+  return { hits: out, groups };
+}
+
+/** What a product card needs to say about its options (`ListingCard`'s `group`). */
+export interface ProductCardGroup {
+  title: string;
+  /** How many options, when we know them all. */
+  options: number;
+  /** There are options, but the list in hand may be partial: say so without a count. */
+  moreOptions: boolean;
+  /** The lowest price, when the options' prices differ. */
+  from: ListingPrice | null;
+}
+
+export function cardGroupOf(group: VariantGroup): ProductCardGroup {
+  return {
+    title: group.title,
+    options: group.complete ? group.options.length : 0,
+    moreOptions: !group.complete,
+    from: group.priceFrom?.varies ? group.priceFrom.price : null,
+  };
+}
