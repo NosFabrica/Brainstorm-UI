@@ -8,7 +8,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ListingCard, PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
-import { isSellable, parseListing } from "@/lib/listing";
+import { parseListing } from "@/lib/listing";
+import { cardGroupOf, foldProductHits, type ProductCardGroup } from "@/lib/listingVariants";
 import { noteTitle } from "@/lib/noteTitle";
 import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
@@ -34,6 +35,7 @@ import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream
 import type { PanelSections } from "@/components/search/KnowledgePanel";
 import { takeHeadStart, type HeadStartResult } from "@/lib/headStart";
 import { EventRow } from "@/components/search/EventRow";
+import { ListItemResults } from "@/components/search/ListItemResults";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 
@@ -517,17 +519,18 @@ function ComposedResultsBody({
   const musicF = filtered(music);
   const shopF = filtered(shop);
   const byKindF = unplacedKinds.length > 0 ? filtered(byKind) : null;
+  // Products, not listings: a hoodie in ten sizes is one card (lib/listingVariants).
   // Two per seller at most, four in all — one shop's forty mugs are not the row.
   const shopRow = useMemo(() => {
+    const fold = foldProductHits((shopF?.hits ?? []).filter((h) => parseListing(h.event) !== null));
     const perSeller = new Map<string, number>();
-    const out: SearchHit[] = [];
-    for (const h of shopF?.hits ?? []) {
-      const l = parseListing(h.event);
-      if (!l || !isSellable(l)) continue;
+    const out: { hit: SearchHit; group: ProductCardGroup | undefined }[] = [];
+    for (const h of fold.hits) {
       const n = perSeller.get(h.event.pubkey) ?? 0;
       if (n >= 2) continue;
       perSeller.set(h.event.pubkey, n + 1);
-      out.push(h);
+      const group = fold.groups.get(h.event.id);
+      out.push({ hit: h, group: group && cardGroupOf(group) });
       if (out.length >= 4) break;
     }
     return out;
@@ -690,6 +693,9 @@ function ComposedResultsBody({
         </p>
       )}
 
+      {/* A search that names a list — "github vcavallo" — leads with its items. Admins only for now. */}
+      <ListItemResults query={query} onTabChange={onTabChange} />
+
       {peopleOrdered.length === 0 && stillLoading(peopleF) && (
         <SectionSkeleton id="people" kicker="People" shape="people" />
       )}
@@ -753,8 +759,14 @@ function ComposedResultsBody({
       {shopRow.length > 0 && (
         <Section id="shop" kicker="Shop" tab="shop" onTabChange={onTabChange}>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            {shopRow.map((h) => (
-              <ListingCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} />
+            {shopRow.map(({ hit: h, group }) => (
+              <ListingCard
+                key={h.event.id}
+                event={h.event}
+                author={h.author}
+                score={scoreOf(h.event.pubkey)}
+                group={group}
+              />
             ))}
           </div>
         </Section>

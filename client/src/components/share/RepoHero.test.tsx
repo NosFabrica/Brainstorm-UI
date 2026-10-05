@@ -29,12 +29,15 @@ const commentsMock = vi.fn<(ids: string[]) => Promise<Map<string, number>>>(() =
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => () => 0.7,
 }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+  refreshProfileEvent: vi.fn(async () => null),
 }));
 const knownProfiles = new Map<string, NostrEvent>();
-vi.mock("@/lib/eventStore", () => ({
+vi.mock("@/lib/eventStore", async () => ({
   eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
     getEvent: () => undefined,
     add: (event: NostrEvent) => event,

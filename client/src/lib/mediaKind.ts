@@ -16,6 +16,14 @@ const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
 const AUDIO_RE = /\.(?:mp3|m4a|ogg|wav|flac|aac|opus)(?:\?|#|$)/i;
 const VIDEO_RE = /\.(?:mp4|webm|mov|m3u8)(?:\?|#|$)/i;
 
+/** What a bare URL plays as, by its file extension — for a value with no event or mime type around it. */
+export function mediaKindOfUrl(url: string): MediaKind | null {
+  if (AUDIO_RE.test(url)) return "audio";
+  if (VIDEO_RE.test(url)) return "video";
+  if (IMAGE_RE.test(url)) return "photo";
+  return null;
+}
+
 /** The file's URL: imeta first (NIP-92/94), then url/thumb/image tags, then the first picture or clip in the words. */
 export function mediaUrlOf(event: EventLike): string | null {
   for (const tag of event.tags) {

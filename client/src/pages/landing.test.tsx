@@ -21,6 +21,8 @@ const isPanelProbe = (q: string, p?: { tab?: string; limit?: number }) =>
   q.startsWith("#") || (p?.tab === "apps" && p?.limit === 6) || (p?.tab === "events" && p?.limit === 60);
 const mainStreamCalls = () =>
   streamMock.mock.calls.filter(([q, p]) => !isPanelProbe(String(q), p as { tab?: string; limit?: number }));
+// List items among results read the Dictionary through the account; they have their own tests.
+vi.mock("@/components/search/ListItemResults", () => ({ ListItemResults: () => null }));
 vi.mock("@/services/search", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/search")>();
   return {
@@ -59,8 +61,10 @@ vi.mock("@/services/search", async (importOriginal) => {
 });
 // Profiles a test wants the page to know, by pubkey.
 const knownProfiles = new Map<string, { name?: string; display_name?: string; picture?: string }>();
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfile: async () => null,
+  refreshProfileEvent: async () => null,
   fetchRecentByKinds: async () => [],
   fetchLiveStreams: async () => [],
   fetchProfileMap: async (pks: string[]) =>

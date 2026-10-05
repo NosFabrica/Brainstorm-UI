@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { ChevronDown, PinOff, Tag as TagIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -13,7 +13,6 @@ import { UnscoredReachNotice } from "@/components/tags/UnscoredReachNotice";
 import { StanceButtons } from "@/components/share/StanceControl";
 import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
-import { fetchProfileMap } from "@/services/nostr";
 import { useApplyTag, useMyAssertions, usePinnedTags, useProfileTags, useTogglePin } from "@/hooks/useTags";
 import { TAG_PINS_ENABLED } from "@/config/tagging";
 import { npubFromPubkey } from "@/lib/shareId";
@@ -119,14 +118,8 @@ export function YourTagsPanel() {
     return Array.from(set);
   }, [tagsOnMe, said, viewerPubkey]);
 
-  const profilesQuery = useQuery({
-    queryKey: ["your-tags-profiles", people.join(",")],
-    queryFn: () => fetchProfileMap(people),
-    enabled: people.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data;
+  const profileMap = useLiveProfiles(people);
+  const profiles = profileMap;
 
   return (
     <div className="space-y-6" data-testid="your-tags-panel">

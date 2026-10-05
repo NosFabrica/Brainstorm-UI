@@ -51,7 +51,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { cacheProfile, fetchProfile, fetchOutboxRelayList } from "@/services/nostr";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -205,27 +204,6 @@ export default function DashboardPage() {
 
   useTrustPresetSync(!!user);
 
-  const needsProfile = !!user && !user.displayName && !user.picture;
-  useQuery({
-    queryKey: ["profile", user?.pubkey],
-    queryFn: async () => {
-      if (!user?.pubkey) return null;
-      await fetchOutboxRelayList(user.pubkey);
-      const content = await fetchProfile(user.pubkey);
-      if (content) {
-        // Caching it on the Account is what re-renders the header — this query's
-        // own result is only the profile page's fallback copy.
-        cacheProfile(content, user.pubkey);
-        return content;
-      }
-      throw new Error("Profile not found");
-    },
-    enabled: needsProfile,
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
-    staleTime: Infinity,
-  });
-
   const recalcTriggeredAtRef = useRef<number | null>(null);
 
   // SELF overview's `flagged_by_observer` is always false (self ≠ flags self),
@@ -324,7 +302,7 @@ export default function DashboardPage() {
       markNip85Activated(user?.pubkey);
       if (!nip85Activated) setNip85Activated(true);
     } else if (trustServiceProvider.data === "other") {
-      // The flag itself was cleared inside checkExistingTrustProvider.
+      // The flag itself is cleared by useTrustProviderStatus once the relays answer.
       if (nip85Activated) setNip85Activated(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- provider data is already keyed on pubkey

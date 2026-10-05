@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { fetchContactList } from "@/services/socialActions";
 import { fetchOutboxRelayList } from "@/services/nostr";
 import { knownFollowCount, recordFollowList } from "@/lib/followStore";
@@ -30,30 +30,20 @@ export function useVerifiedNoFollows(pubkey: string | null | undefined): NoFollo
   const mintedHere = !!pubkey && identityHas(pubkey, "createdInApp");
   const needsCheck = !!pubkey && floor === 0 && !mintedHere;
 
-  const query = useQuery({
-    queryKey: ["verified-no-follows", pubkey],
-    enabled: needsCheck,
-    staleTime: 60_000,
-    retry: 1,
-    queryFn: async () => {
-      try {
-        await fetchOutboxRelayList(pubkey!);
-      } catch {
-        /* best-effort warm */
-      }
-      const ev = await fetchContactList(pubkey!);
-      if (ev) {
-        recordFollowList(pubkey!, ev);
-        return "has-follows" as const;
-      }
-      return "none" as const;
-    },
+  const contacts = useStoreReplaceable(3, needsCheck ? pubkey : null, async () => {
+    try {
+      await fetchOutboxRelayList(pubkey!);
+    } catch {
+      /* best-effort warm */
+    }
+    const ev = await fetchContactList(pubkey!);
+    if (ev) recordFollowList(pubkey!, ev);
+    return ev;
   });
 
   if (!pubkey) return "checking";
   if (floor > 0) return "has-follows";
   if (mintedHere) return "none";
-  if (query.data) return query.data;
-  if (query.isError) return "none";
-  return "checking";
+  if (contacts.event) return "has-follows";
+  return contacts.settled ? "none" : "checking";
 }

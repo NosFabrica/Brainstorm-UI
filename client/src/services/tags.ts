@@ -274,7 +274,7 @@ function makeTrustFetcher(relay: string) {
  * (The subject's inbox is not in the union either, and that is also on purpose:
  * a tag assertion is a claim ABOUT someone — see `NOT_ADDRESSED_TO_P_TAGS`.)
  */
-async function publishTagEvent(signed: Record<string, unknown>): Promise<{ accepted: number; total: number }> {
+export async function publishTagEvent(signed: Record<string, unknown>): Promise<{ accepted: number; total: number }> {
   const author = signed.pubkey as string;
   const relays = dedupeRelays([...(await outboxRelays(author, [])), ...tagRelays()]);
   const responses = await pool.publish(relays, signed as never);

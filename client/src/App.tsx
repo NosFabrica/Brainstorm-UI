@@ -66,6 +66,8 @@ const HowTagsWorkPage = lazyWithReload(() => import("@/pages/HowTagsWorkPage"));
 const InsightsPage = lazyWithReload(() => import("@/pages/InsightsPage"));
 const LoginPage = lazyWithReload(() => import("@/pages/LoginPage"));
 const MyTagsPage = lazyWithReload(() => import("@/pages/MyTagsPage"));
+// Dev only: `import.meta.env.DEV` is false in a production build, so this and its chunk drop out.
+const RendererPlayground = import.meta.env.DEV ? lazyWithReload(() => import("@/pages/dev/RendererPlayground")) : null;
 const NetworkPage = lazyWithReload(() => import("@/pages/NetworkPage"));
 const NostrPage = lazyWithReload(() => import("@/pages/NostrPage"));
 const OnboardingPage = lazyWithReload(() => import("@/pages/OnboardingPage"));
@@ -279,6 +281,7 @@ function Router() {
             <Route path="/faq" component={FaqPage} />
             {FEATURES.agentSuite && <Route path="/agentsuite">{() => <RequireAuth component={UserPanelPage} />}</Route>}
             <Route path="/admin">{() => <RequireAuth component={AdminRoute} />}</Route>
+            {RendererPlayground && <Route path="/dev/renderers" component={RendererPlayground} />}
             <Route component={NotFound} />
           </Switch>
         </Suspense>

@@ -14,7 +14,13 @@ import type { SearchSnapshot, SearchParams } from "@/services/search";
 import { __resetHeadStart } from "@/lib/headStart";
 
 // The store verifies signatures; these events are fixtures, not signed ones.
-vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => e, getReplaceable: () => undefined } }));
+vi.mock("@/lib/eventStore", async () => ({
+  eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
+    add: (e: unknown) => e,
+    getReplaceable: () => undefined,
+  },
+}));
 
 interface StreamCall {
   query: string;
@@ -59,6 +65,10 @@ const carriersMock = vi.fn((_tags: unknown[]) => ({
   byPubkey: new Map<string, unknown[]>(),
   people: [] as unknown[],
   settled: true,
+}));
+// List items have their own tests (ListItemResults.test); here, only where they sit.
+vi.mock("@/components/search/ListItemResults", () => ({
+  ListItemResults: ({ query }: { query: string }) => <div data-testid="list-item-results-slot">{query}</div>,
 }));
 // The search relay's answer: the tags the words matched and who carries them.
 const searchTagsAsked = vi.fn((_q: string, _opts: unknown) => {});
@@ -1423,6 +1433,49 @@ describe("ComposedResults", () => {
     expect(onTabChange).toHaveBeenCalledWith("shop");
   });
 
+  // Issue #158: a product's sizes are one card here too, and do not use up
+  // the row's two-per-seller allowance.
+  it("the Shop row shows a product and its sizes as one card", async () => {
+    render(<ComposedResults query="hoodie" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const seller = "7".repeat(64);
+    const P = `30402:${seller}:hoodie`;
+    const listing = (id: string, title: string, extra: string[][] = []) =>
+      hitOf(
+        ev(id, 30402, seller, "", [
+          ["d", id],
+          ["title", title],
+          ["price", "46.2", "USD"],
+          ["image", "https://img/h.jpg"],
+          ...extra,
+        ]),
+        "Satoshoes",
+      );
+    const size = (s: string) =>
+      listing(`hoodie-${s}`, `Hoodie - ${s}`, [
+        ["type", "variation", "physical"],
+        ["a", P],
+        ["spec", "Size", s],
+      ]);
+    sectionCall("shop").emit({
+      hits: [
+        size("L"),
+        size("M"),
+        size("S"),
+        listing("hoodie", "Hoodie", [["type", "variable", "physical"]]),
+        listing("mug", "Mug"),
+      ],
+      eose: true,
+      timeMs: 120,
+    });
+
+    const section = await screen.findByTestId("serp-section-shop");
+    const ids = [...section.querySelectorAll("[data-testid^='listing-card-']")].map((n) =>
+      n.getAttribute("data-testid"),
+    );
+    expect(ids).toEqual(["listing-card-hoodie", "listing-card-mug"]);
+    expect(within(section).getByTestId("listing-options-hoodie")).toHaveTextContent("3 options");
+  });
+
   it("shows no Shop row when nothing for sale matches", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("shop").emit({
@@ -1584,6 +1637,19 @@ describe("ComposedResults — a query that matches a tag", () => {
     });
     await screen.findByTestId(`serp-person-${FRESH.slice(0, 8)}`);
     expect(screen.queryByTestId(`strip-person-tag-${FRESH.slice(0, 8)}`)).toBeNull();
+  });
+
+  it("a named list's items sit above People, asked with the reader's words", async () => {
+    render(<ComposedResults query="github vcavallo" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("people").emit({
+      hits: [hitOf(ev("p1", 0, FRESH, JSON.stringify({ name: "Vinney" })), "Vinney")],
+      eose: true,
+      timeMs: 100,
+    });
+    const people = await screen.findByTestId("serp-section-people");
+    const slot = screen.getByTestId("list-item-results-slot");
+    expect(slot).toHaveTextContent("github vcavallo");
+    expect(slot.compareDocumentPosition(people) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("the People strip leads with the tag's people, best first, each wearing the tag; the relay's match follows bare", async () => {

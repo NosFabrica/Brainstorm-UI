@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { naddrForEvent } from "@/lib/articleLinks";
@@ -36,7 +37,10 @@ import { DesignationHero } from "@/components/share/DesignationHero";
 import { StructuralHero } from "@/components/share/StructuralHero";
 import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { DListHero } from "@/components/share/DListHero";
+import { CuratorFooter } from "@/components/search/cards";
+import { DListItemHero } from "@/components/share/DListItemHero";
 import { dlistOfEvent } from "@/lib/dlists";
+import { dictionaryConceptOf } from "@/services/dictionary";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
@@ -142,26 +146,23 @@ function eventMediaUrls(ev: MinimalEvent): string[] {
  * resolved from the address (the latest version). What renders is decided by the event's kind: articles,
  * wiki pages and specs read on the article layout, everything else here.
  */
+const byCoord = (events: MinimalEvent[]) =>
+  new Map(events.map((e) => [`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`, e]));
+
 export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; event?: MinimalEvent }) {
   const ptr: EventPointer | null = event
     ? { id: event.id, author: event.pubkey, relays: given?.relays }
     : (given ?? null);
   const relayHints = ptr?.relays || [];
-  const eventQuery = useQuery({
-    queryKey: ["event", ptr?.id],
-    queryFn: async () => {
-      if (!ptr) return null;
-      const evs = await fetchEventsByIds([ptr.id], Array.from(new Set([...relayHints, ...PROFILE_RELAYS])));
-      return (evs[0] as MinimalEvent) ?? null;
-    },
-    enabled: !!ptr?.id && !event,
-    // An event by id never changes, so a held copy is the answer: no spinner,
-    // and no relay asked for what the store already has.
-    initialData: () => (ptr?.id ? ((eventStore.getEvent(ptr.id) as MinimalEvent | undefined) ?? undefined) : undefined),
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const note = (event ?? eventQuery.data) as MinimalEvent | null | undefined;
+  // An event by id never changes, so a held copy is the answer: no spinner,
+  // and no relay asked for what the store already has.
+  const eventQuery = useStoreEvents(
+    ptr?.id && !event && !eventStore.getEvent(ptr.id) ? `event:${ptr.id}` : null,
+    ptr?.id && !event ? [{ ids: [ptr.id] }] : null,
+    () => fetchEventsByIds([ptr!.id], Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+  );
+  const note = (event ?? eventQuery.events[0] ?? (eventQuery.loading ? undefined : null)) as
+    MinimalEvent | null | undefined;
 
   // Deleted by overwriting (lib/blankEvent): the address still resolves, to a
   // husk. Say what happened rather than render an article called "[Deleted]".
@@ -180,7 +181,7 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
         />
       );
   }
-  return <EventView ptr={ptr} note={note} loading={eventQuery.isLoading} />;
+  return <EventView ptr={ptr} note={note} loading={eventQuery.loading} />;
 }
 
 function DeletedEvent() {
@@ -248,38 +249,38 @@ function EventView({
   // References inside the note (quoted notes, articles, mentions) so the rich
   // card can embed them — same two batched queries the share page uses.
   const refs = useMemo(() => collectRefs(note ? [note] : []), [note]);
-  const refEventsQuery = useQuery({
-    queryKey: ["event-refs", ptr?.id, refs.ids],
-    queryFn: () =>
+  const refEventsQuery = useStoreEvents(
+    refs.ids.length ? `event-refs:${refs.ids.join(",")}` : null,
+    refs.ids.length ? [{ ids: refs.ids }] : null,
+    () =>
       fetchEventsByIds(
         refs.ids,
         Array.from(new Set([...relayHints, ...PROFILE_RELAYS, ...refs.idRelays.slice(0, MAX_REF_HINTS)])),
       ),
-    enabled: refs.ids.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const addrEventsQuery = useQuery({
-    queryKey: ["event-addrs", ptr?.id, refs.addrs.map(addrCoord)],
-    queryFn: () =>
-      fetchAddressableEvents(capHints(refs.addrs), Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
-    enabled: refs.addrs.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  );
+  // The held copies render through `heldAddrs` below; this only fills the store.
+  const addrEventsQuery = useStoreEvents(
+    refs.addrs.length ? `event-addrs:${refs.addrs.map(addrCoord).join(",")}` : null,
+    null,
+    async () =>
+      Array.from(
+        (
+          await fetchAddressableEvents(capHints(refs.addrs), Array.from(new Set([...relayHints, ...PROFILE_RELAYS])))
+        ).values(),
+      ),
+  );
 
   const eventsById = useMemo(() => {
     const m = new Map<string, MinimalEvent>();
-    for (const ev of (refEventsQuery.data ?? []) as MinimalEvent[]) m.set(ev.id, ev);
+    for (const ev of (refEventsQuery.events ?? []) as MinimalEvent[]) m.set(ev.id, ev);
     return m;
-  }, [refEventsQuery.data]);
+  }, [refEventsQuery.events]);
   // Referenced articles: the held copy at once, the newer of it and the
   // fetched one after — and any later version the store receives.
   const heldAddrs = useHeldReplaceables(refs.addrs);
   const addrByCoord = useMemo(
-    () =>
-      mergeNewest(refs.addrs, heldAddrs, (addrEventsQuery.data as Map<string, MinimalEvent> | undefined) ?? new Map()),
-    [refs.addrs, heldAddrs, addrEventsQuery.data],
+    () => mergeNewest(refs.addrs, heldAddrs, byCoord(addrEventsQuery.events as MinimalEvent[])),
+    [refs.addrs, heldAddrs, addrEventsQuery.events],
   );
 
   const allRefPubkeys = useMemo(() => {
@@ -331,6 +332,7 @@ function EventView({
   const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 10040, 31337, 30402, 31922, 31923]);
   const renderedGenerically =
     !!note &&
+    !dictionaryConceptOf(note) &&
     !isGitItem(note.kind) &&
     !DEDICATED_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
@@ -343,6 +345,45 @@ function EventView({
   // An addressable event (a listing, a track) also has its address: the
   // link that follows its author's edits, not this one version.
   const naddr = note && note.kind >= 30000 && note.kind < 40000 ? naddrForEvent(note, relayHints) : null;
+  const entityMenu =
+    ptr && nevent && note ? (
+      <EntityMenu
+        entity={{
+          kind: "event",
+          eventKind: note.kind,
+          bech32: nevent,
+          uri: openInApp,
+          origin: renderedGenerically ? originClientOf(note) : undefined,
+        }}
+        copies={[
+          ...(naddr
+            ? [
+                {
+                  id: "naddr",
+                  label: "Copy naddr",
+                  value: naddr,
+                  hint: "Its address: always the latest version",
+                },
+              ]
+            : []),
+          { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
+          { id: "event-id", label: "Copy event ID", value: ptr.id, hint: "The raw 64-character id" },
+          // The event as fetched from the relay (sig included) — the cast to MinimalEvent is type-only.
+          {
+            id: "event-json",
+            label: "Copy raw JSON",
+            value: JSON.stringify(note, null, 2),
+            hint: "The full signed event, as relays serve it",
+          },
+        ]}
+        triggerTestId="event-menu"
+      />
+    ) : null;
+  // A list's items and headers are about the thing listed, not who listed it: the
+  // lister is a quiet "Listed by" under it, as on the results card, instead of the
+  // header a post or an article gets (the team, 2026-10-01).
+  const quietAuthor =
+    !!note && (!!dlistOfEvent(note) || !!dictionaryConceptOf(note) || note.kind === 39998 || note.kind === 9998);
 
   // When the thread's anon signup gate is showing, suppress the page's own
   // (now-duplicate) "Who can you trust online?" funnel.
@@ -440,81 +481,57 @@ function EventView({
             <ThreadAncestors note={note} relayHints={relayHints} />
 
             {/* Author header — and the ⋯, on the object it acts on (X puts it
-                on the post, not the page). */}
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <Link
-                href={authorNpub ? `/p/${authorNpub}` : "#"}
-                className="flex min-w-0 items-center gap-2.5 hover:opacity-80"
-              >
-                <span className="relative shrink-0">
-                  <Avatar
-                    className={`h-12 w-12 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${tierRing(score01) ?? ""}`}
-                  >
-                    {profile.picture ? (
-                      <AvatarImage src={profile.picture} alt={authorName} className="object-cover" />
-                    ) : null}
-                    <AvatarFallback className="rounded-full bg-brand-primary/15 text-sm font-bold text-brand-primary">
-                      {initialsFor(authorName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  {typeof score01 === "number" && Number.isFinite(score01) && (
-                    <VerificationCoin
-                      score01={score01}
-                      pov="global"
-                      size={22}
-                      className={
-                        tierRing(score01) && coinReplaced
-                          ? "sr-only"
-                          : "absolute -bottom-1 -right-1 rounded-full ring-2 ring-white dark:ring-slate-900"
-                      }
-                    />
-                  )}
-                </span>
-                <div className="min-w-0 space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-[15px] font-bold leading-tight text-slate-900 dark:text-slate-100">
-                      {authorName}
-                    </span>
-                    <Nip05Check nip05={profile.nip05} pubkey={note.pubkey} className="h-4 w-4 shrink-0 text-sky-500" />
-                    <TierWordChip score01={score01} />
+                on the post, not the page). A list event keeps only the ⋯ here. */}
+            {quietAuthor ? (
+              entityMenu && <div className="mb-3 flex justify-end">{entityMenu}</div>
+            ) : (
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <Link
+                  href={authorNpub ? `/p/${authorNpub}` : "#"}
+                  className="flex min-w-0 items-center gap-2.5 hover:opacity-80"
+                >
+                  <span className="relative shrink-0">
+                    <Avatar
+                      className={`h-12 w-12 rounded-full border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${tierRing(score01) ?? ""}`}
+                    >
+                      {profile.picture ? (
+                        <AvatarImage src={profile.picture} alt={authorName} className="object-cover" />
+                      ) : null}
+                      <AvatarFallback className="rounded-full bg-brand-primary/15 text-sm font-bold text-brand-primary">
+                        {initialsFor(authorName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {typeof score01 === "number" && Number.isFinite(score01) && (
+                      <VerificationCoin
+                        score01={score01}
+                        pov="global"
+                        size={22}
+                        className={
+                          tierRing(score01) && coinReplaced
+                            ? "sr-only"
+                            : "absolute -bottom-1 -right-1 rounded-full ring-2 ring-white dark:ring-slate-900"
+                        }
+                      />
+                    )}
+                  </span>
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-[15px] font-bold leading-tight text-slate-900 dark:text-slate-100">
+                        {authorName}
+                      </span>
+                      <Nip05Check
+                        nip05={profile.nip05}
+                        pubkey={note.pubkey}
+                        className="h-4 w-4 shrink-0 text-sky-500"
+                      />
+                      <TierWordChip score01={score01} />
+                    </div>
+                    <span className="block text-[13px] text-slate-500 dark:text-slate-400">{ago(note.created_at)}</span>
                   </div>
-                  <span className="block text-[13px] text-slate-500 dark:text-slate-400">{ago(note.created_at)}</span>
-                </div>
-              </Link>
-              {ptr && nevent && (
-                <EntityMenu
-                  entity={{
-                    kind: "event",
-                    eventKind: note.kind,
-                    bech32: nevent,
-                    uri: openInApp,
-                    origin: renderedGenerically ? originClientOf(note) : undefined,
-                  }}
-                  copies={[
-                    ...(naddr
-                      ? [
-                          {
-                            id: "naddr",
-                            label: "Copy naddr",
-                            value: naddr,
-                            hint: "Its address: always the latest version",
-                          },
-                        ]
-                      : []),
-                    { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
-                    { id: "event-id", label: "Copy event ID", value: ptr.id, hint: "The raw 64-character id" },
-                    // The event as fetched from the relay (sig included) — the cast to MinimalEvent is type-only.
-                    {
-                      id: "event-json",
-                      label: "Copy raw JSON",
-                      value: JSON.stringify(note, null, 2),
-                      hint: "The full signed event, as relays serve it",
-                    },
-                  ]}
-                  triggerTestId="event-menu"
-                />
-              )}
-            </div>
+                </Link>
+                {entityMenu}
+              </div>
+            )}
 
             {/* The technical view's line: kind, ids, a click to copy. Nothing with it off. */}
             {ptr && (
@@ -528,6 +545,9 @@ function EventView({
             >
               {dlistOfEvent(note) ? (
                 <DListHero event={note} />
+              ) : dictionaryConceptOf(note) ? (
+                // An item of a Dictionary concept, drawn from its governing definition (ADR 0004).
+                <DListItemHero event={note} />
               ) : isGitItem(note.kind) ? (
                 <GitItemHero
                   event={note}
@@ -552,7 +572,7 @@ function EventView({
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
-                <ListingHero event={note} sellerWebsite={profile.website} />
+                <ListingHero event={note} sellerWebsite={profile.website} sellerName={authorName} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
               ) : hasThingPage(note) ? (
@@ -610,6 +630,26 @@ function EventView({
                   )}
                 </div>
               )}
+              {quietAuthor && (
+                <Link
+                  href={authorNpub ? `/p/${authorNpub}` : "#"}
+                  className="mt-5 block hover:opacity-80"
+                  data-testid="event-listed-by"
+                >
+                  <CuratorFooter
+                    kicker="Listed by"
+                    author={{
+                      pubkey: note.pubkey,
+                      npub: authorNpub,
+                      name: profile.name,
+                      displayName: profile.display_name,
+                      picture: profile.picture,
+                    }}
+                    score={score01}
+                    created_at={note.created_at}
+                  />
+                </Link>
+              )}
             </div>
 
             {/* Under a listing: the seller's other things, then similar things
@@ -635,8 +675,9 @@ function EventView({
               onGateChange={setThreadGated}
             />
 
-            {/* More from this author — keep readers inside Brainstorm. */}
-            {authorPk && (
+            {/* More from this author — keep readers inside Brainstorm. Not under a list
+                event: who listed a GitHub account says nothing about the account. */}
+            {authorPk && !quietAuthor && (
               <MoreFromAuthor
                 pubkey={authorPk}
                 authorName={authorName}

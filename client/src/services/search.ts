@@ -24,6 +24,7 @@ import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
 import { liftQuery, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
 import { isSellable, parseListing } from "@/lib/listing";
+import { familyOf } from "@/lib/listingVariants";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
@@ -2044,7 +2045,8 @@ export function suggestListings(
     // A typed word names a title word from its start: "hon" is "Honey", not "Phone".
     const titleWords = title.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
     if (!words.every((w) => titleWords.some((t) => t.startsWith(w)))) return null;
-    return `${hit.event.pubkey}|${title.replace(/\s+/g, " ").trim()}`;
+    // One product is one: its sizes share the family their seller declared.
+    return familyOf(l) ?? `${hit.event.pubkey}|${title.replace(/\s+/g, " ").trim()}`;
   });
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { nip19 } from "nostr-tools";
 import { Calendar, CalendarPlus, MapPin, ExternalLink, PlayCircle, ChevronDown } from "lucide-react";
 import {
@@ -17,7 +18,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { fetchProfileMap } from "@/services/nostr";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { buildIcs, downloadIcs, icsFileName, type IcsInput } from "@/lib/ics";
 import {
@@ -55,9 +55,8 @@ export function EventHero({ event }: { event: MinimalEvent }) {
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`
     : null;
 
-  // The host and the guests' faces — profiles from the same store-first fetch.
+  // The host and the guests' faces.
   const [rsvps, setRsvps] = useState<EventRsvps | null>(null);
-  const [profiles, setProfiles] = useState<Map<string, Profile>>(new Map());
   const faces = rsvps?.faces.slice(0, 5) ?? [];
   useEffect(() => {
     let alive = true;
@@ -68,16 +67,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
       alive = false;
     };
   }, [address]);
-  const peopleKey = [event.pubkey, ...faces].join(",");
-  useEffect(() => {
-    let alive = true;
-    void fetchProfileMap(peopleKey.split(",")).then((m) => {
-      if (alive) setProfiles(new Map([...m].map(([pk, c]) => [pk, c as Profile])));
-    });
-    return () => {
-      alive = false;
-    };
-  }, [peopleKey]);
+  const profiles = useLiveProfiles([event.pubkey, ...faces]) as Map<string, Profile>;
   const scoreOf = useAuthorScores([event.pubkey, ...faces]);
   const tierRing = useTierRing();
   const host = profiles.get(event.pubkey);

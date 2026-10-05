@@ -1,10 +1,12 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { useSelfHistory } from "@/hooks/useSelf";
-import { fetchNewJoiners, acknowledgeJoiners, type NewJoiner } from "@/services/inviteAcceptance";
+import { fetchNewJoiners, acknowledgeJoiners, MAX_SHOWN, type NewJoiner } from "@/services/inviteAcceptance";
+import { useMyFollows } from "@/hooks/useMyFollows";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { identityHas } from "@/accounts/display";
 import { useHasSession } from "@/hooks/useHasSession";
 
@@ -55,7 +57,21 @@ export function useNewJoiners() {
     retry: false,
   });
 
-  const joiners: NewJoiner[] = query.data ?? [];
+  // Not anyone they already follow back; named as profiles land.
+  const { follows, ready } = useMyFollows();
+  const pool = useMemo(
+    () => (ready ? (query.data ?? []).filter((j) => !follows.has(j.pubkey)).slice(0, MAX_SHOWN) : []),
+    [query.data, follows, ready],
+  );
+  const profiles = useLiveProfiles(pool.map((j) => j.pubkey));
+  const joiners: NewJoiner[] = useMemo(
+    () =>
+      pool.map((j) => {
+        const p = profiles.get(j.pubkey);
+        return { ...j, name: p?.display_name || p?.name || j.name, picture: p?.picture || j.picture };
+      }),
+    [pool, profiles],
+  );
 
   const settle = useCallback(
     (pks: string[]) => {

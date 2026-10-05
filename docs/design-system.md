@@ -96,6 +96,40 @@ the reader picks (the team, 2026-10-01, after Google's "Poodle · Dog breed").
   the words; the page also finds mentions. No single product gets a row.
 - What a person publishes (Articles, Media, …) shows on hover or the arrowed row, desktop only.
 
+### Listing cards and product options — `ListingCard`, `lib/listingVariants.ts`
+
+One product is one card, wherever things for sale are listed (the Shop tab, the Everything
+row, a seller's shelf and page, "More for sale", the popup's count).
+
+- **Which listings are one product** is the seller's to say: the Open Markets `type` tag
+  (`variable` parent, `variation`s pointing at it with an `a` tag, the option in `spec`).
+  Only listings that carry no `type` are folded by the older title guess.
+- The card is the parent's (its title, its page). It says `10 options` when every option is
+  in hand, `Options available` when a search found some without their parent, and
+  `From $46.20` only when the options' prices differ. With an options badge, the photo count
+  is not shown.
+- The parent is never one of its own options. On a product page the options are chips named
+  by their spec value under the option's name (`Size  XS S M …`), sizes small to large, the
+  one being read marked; each chip is that option's own listing, with its own buy link.
+- The options row sits where a shopper chooses: inside the product card, under the title and
+  above the buy buttons (`ListingOptions`), not below the description.
+- The seller's categories are how a listing is found, not what a buyer reads first: under the
+  description, five at first with `+N more`, each once (no plural or case repeats) and never
+  the seller's own name (`categoriesToShow`).
+- A product page is laid out as a store lays one out: photos; the seller's name as a small
+  upper-case line above the title, linking to their page; the price large in words with the
+  reader's money quietly beside it; who follows the seller (`FollowedByLine`); a thin rule;
+  then the options and the buttons; then the description, folded past ~600 characters.
+- Options are boxes a thumb can hit (40px tall), the chosen one filled, under a line that says
+  `Size: 6XL` — or `Choose a size` on the product's own page, where none is chosen.
+- Buying leads: where there is somewhere to buy, that button is the filled one and comes
+  first, and messaging the seller is the outlined second. Both are 44px tall; on a phone each
+  takes the full width.
+- On a phone, once the buy buttons scroll away, a slim bar above the tab bar repeats the price
+  and the same link out. It offsets by `--bs-bottom-chrome`. There is no cart, quantity or
+  checkout anywhere: payment stays with the seller.
+- Hidden means not shown: a hidden option is not offered, and a hidden parent hides its options.
+
 ### KindPill — `components/ui/kind-pill.tsx`
 
 The Chip that says what a content item _is_ — Spec, Article, Listing, App, Event, Stream, Track… —

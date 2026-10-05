@@ -19,7 +19,8 @@ const profileMock = vi.fn(async () => ({
   sig: "",
   content: JSON.stringify({ name: "borntobefree", display_name: "Born To Be Free", picture: "https://img/me.jpg" }),
 }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentMock(pubkey, kinds, limit),
   refreshProfileEvent: () => profileMock(),
 }));

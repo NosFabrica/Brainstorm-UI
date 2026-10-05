@@ -26,14 +26,26 @@ beforeEach(() => {
 });
 
 describe("FollowButton", () => {
-  it("not following: one click follows, no questions asked", async () => {
+  it("not following: one click follows at once, before the publish lands", async () => {
+    let land!: (r: { success: boolean }) => void;
+    followUser.mockReturnValueOnce(new Promise((resolve) => (land = resolve)));
     render(<FollowButton targetPubkey={PK} initialFollowing={false} displayName="A.A.Ron" />);
     const button = screen.getByTestId("share-follow");
     expect(button).toHaveTextContent("Follow");
     fireEvent.click(button);
-    await waitFor(() => expect(followUser).toHaveBeenCalledWith(PK));
-    await waitFor(() => expect(button).toHaveTextContent("Following"));
+    expect(button).toHaveTextContent("Following");
+    expect(followUser).toHaveBeenCalledWith(PK);
+    land({ success: true });
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Following" })));
     expect(screen.queryByTestId("follow-confirm")).toBeNull();
+  });
+
+  it("a publish that fails flips back and says so", async () => {
+    followUser.mockResolvedValueOnce({ success: false });
+    render(<FollowButton targetPubkey={PK} initialFollowing={false} displayName="A.A.Ron" />);
+    fireEvent.click(screen.getByTestId("share-follow"));
+    await waitFor(() => expect(screen.getByTestId("share-follow")).toHaveTextContent(/^Follow$/));
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
   });
 
   it("following: the pointer turns the button into a red Unfollow", () => {

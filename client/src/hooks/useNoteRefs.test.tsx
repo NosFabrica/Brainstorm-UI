@@ -39,7 +39,8 @@ const eventsByIdsMock = vi.fn(async (ids: string[], _relays?: string[]) =>
     : [],
 );
 const addrMock = vi.fn(async (_addrs?: { relays?: string[] }[], _relays?: string[]) => new Map());
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: (pks: string[]) => profileMapMock(pks),
   fetchEventsByIds: (ids: string[], relays?: string[]) => eventsByIdsMock(ids, relays),
   fetchAddressableEvents: (addrs: { relays?: string[] }[], relays?: string[]) => addrMock(addrs, relays),

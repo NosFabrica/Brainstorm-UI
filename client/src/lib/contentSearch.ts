@@ -1,4 +1,3 @@
-import { fetchNotesByHashtag } from "@/services/nostr";
 import { type NostrEvent } from "applesauce-core/helpers";
 import { lookupTrustSignals } from "@/services/trustSignals";
 
@@ -33,7 +32,7 @@ export function rankHashtagEvents(
  * Content search — v1 runs entirely against live relays and ranks results by
  * author Web-of-Trust score (house POV) client-side. This is deliberately a
  * thin facade: when a backend content index (Vespa / NIP-50 note search) lands,
- * swap the body of `searchContentByHashtag` for that call — the page contract
+ * swap the body of `scoreHashtagAuthors` for that call — the page contract
  * (a trust-ranked, spam-filtered list of events) stays identical.
  */
 
@@ -42,30 +41,11 @@ function scoreAuthor(pubkey: string): Promise<number | null> {
   return lookupTrustSignals(pubkey).then((s) => s.influence);
 }
 
-export interface HashtagContent {
-  /** Trust-ranked, spam-filtered events (kind 1 + 30023). */
-  events: NostrEvent[];
-  /** author pubkey → house-influence score (0..1), for badges / debugging. */
-  scores: Map<string, number>;
-  /** Total candidates fetched before trust filtering (for "N of M" context). */
-  candidateCount: number;
-}
-
 /** How many distinct authors we score per query — bounds the API fan-out. */
 const MAX_SCORED_AUTHORS = 50;
 
-/**
- * Fetch candidate content for a hashtag and attach an author WoT score to each.
- * Returns the raw candidates (newest-first) plus the `scores` map — the PAGE
- * applies the spam threshold + Top/Latest ordering, so its strictness and sort
- * controls re-filter instantly with no refetch. Authors beyond the scoring cap
- * (or not in the WoT graph) simply have no score and are treated as untrusted.
- */
-export async function searchContentByHashtag(tag: string, opts: { limit?: number } = {}): Promise<HashtagContent> {
-  const events = await fetchNotesByHashtag(tag, { limit: opts.limit ?? 100 });
-  const candidateCount = events.length;
-
-  // events arrive newest-first; take the most-recent authors up to the cap.
+/** The most recent distinct authors of a hashtag's candidates (newest-first), up to the scoring cap. */
+export function hashtagAuthors(events: NostrEvent[]): string[] {
   const authors: string[] = [];
   const seen = new Set<string>();
   for (const ev of events) {
@@ -75,7 +55,16 @@ export async function searchContentByHashtag(tag: string, opts: { limit?: number
     }
     if (authors.length >= MAX_SCORED_AUTHORS) break;
   }
+  return authors;
+}
 
+/**
+ * An author WoT score per author. The PAGE applies the spam threshold +
+ * Top/Latest ordering, so its strictness and sort controls re-filter instantly
+ * with no refetch. Authors not scored (or not in the WoT graph) are treated as
+ * untrusted.
+ */
+export async function scoreHashtagAuthors(authors: string[]): Promise<Map<string, number>> {
   const scores = new Map<string, number>();
   await Promise.all(
     authors.map(async (pk) => {
@@ -83,6 +72,5 @@ export async function searchContentByHashtag(tag: string, opts: { limit?: number
       if (typeof s === "number" && Number.isFinite(s)) scores.set(pk, s);
     }),
   );
-
-  return { events, scores, candidateCount };
+  return scores;
 }

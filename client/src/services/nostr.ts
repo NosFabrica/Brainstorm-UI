@@ -879,9 +879,41 @@ export async function fetchEventsByIds(
   return [...found.values()];
 }
 
+/**
+ * A product and its options, asked for by name: the parent listing at
+ * `parentAddress` (`30402:<pubkey>:<d>`) and every listing of the same seller
+ * that points at it. The seller's newest listings usually hold them all; a
+ * big shop's do not, and a product page must not show half its sizes. Asked
+ * of the search relay and the seller's own relays together; never rejects.
+ */
+export async function fetchListingFamily(
+  pubkey: string,
+  parentAddress: string,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const [kind, author, ...rest] = parentAddress.split(":");
+  const d = rest.join(":");
+  if (author !== pubkey || !d || !Number.isFinite(Number(kind))) return [];
+  const filters = [
+    { kinds: [Number(kind)], authors: [pubkey], "#d": [d] },
+    { kinds: [Number(kind)], authors: [pubkey], "#a": [parentAddress], limit: 200 },
+  ];
+  const relays = await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS);
+  const answers = await Promise.all([
+    fetchFromSearchRelayByFilters(filters, timeoutMs).catch(() => [] as NostrEvent[]),
+    ...filters.map((f) => fetchEventsByFilter(f, relays, timeoutMs).catch(() => [] as NostrEvent[])),
+  ]);
+  const byId = new Map<string, NostrEvent>();
+  for (const ev of answers.flat()) byId.set(ev.id, ev);
+  return [...byId.values()];
+}
+
 /** Any filter against the search relay, with the lens it requires; EOSE or
  *  timeout resolves, never rejects. */
-function fetchFromSearchRelayByFilters(filters: Record<string, unknown>[], timeoutMs: number): Promise<NostrEvent[]> {
+export function fetchFromSearchRelayByFilters(
+  filters: Record<string, unknown>[],
+  timeoutMs: number,
+): Promise<NostrEvent[]> {
   return new Promise((resolve) => {
     let relay: ReturnType<typeof searchRelay>;
     try {
@@ -1316,6 +1348,9 @@ export async function publishRelaysFor(signedEvent: NostrEvent, extraRelays: str
  * `extraRelays` is genuinely extra — it is UNIONED with the routed set, never a
  * replacement for it. (This argument used to be named `relays` and was silently
  * ignored, which is why `services/tags.ts` had to hand-roll `pool.publish`.)
+ *
+ * A published event lands in the EventStore, after the publish so routing above
+ * still reads the old copy; store-first reads then see our own write.
  */
 export async function publishToRelays(
   signedEvent: NostrEvent,
@@ -1340,7 +1375,10 @@ export async function publishToRelays(
           .then((r) => ({ ok: r.ok, from: url, message: r.message })),
       { need: opts.need, timeoutMs },
     );
-    if (accepted.length) return { success: true, relay: accepted[0], accepted: accepted.length, total };
+    if (accepted.length) {
+      eventStore.add(signedEvent);
+      return { success: true, relay: accepted[0], accepted: accepted.length, total };
+    }
     return { success: false, error: failed[0]?.message || "All relays failed", accepted: 0, total };
   }
 
@@ -1351,7 +1389,10 @@ export async function publishToRelays(
     const accepted = responses.filter((r) => r.ok).length;
     const total = responses.length || writeRelays.length;
     const succeeded = responses.find((r) => r.ok);
-    if (succeeded) return { success: true, relay: succeeded.from, accepted, total };
+    if (succeeded) {
+      eventStore.add(signedEvent);
+      return { success: true, relay: succeeded.from, accepted, total };
+    }
     return { success: false, error: responses[0]?.message || "All relays failed", accepted: 0, total };
   } catch {
     return { success: false, error: "All relays failed", accepted: 0, total: writeRelays.length };
@@ -1407,10 +1448,6 @@ export async function publishProfile(content: Record<string, unknown>, tags: str
     res = await publishToRelays(signed);
   }
   if (res.success) {
-    // The store outranks the display cache in `useActiveAccountDisplay`, and it is
-    // store-first, so without this the edit reverts on the next render and the old
-    // kind-0 is written back over the cache. Reload was the only way out.
-    eventStore.add(signed);
     try {
       cacheProfile(content as unknown as ProfileContent, account.pubkey);
     } catch {}
@@ -1443,11 +1480,7 @@ async function publishRelayListAs(account: BrainstormAccount, relays: string[]):
   try {
     const signed = await signAs(account, { kind: 10002, tags, content: "" });
     if (signed.kind !== 10002) return { success: false, error: "Signer returned an unexpected event kind" };
-    const res = await publishToRelays(signed);
-    // After the publish, not before: `publishToRelays` routes by the list in the
-    // store, so the new list would otherwise decide where it is itself announced.
-    if (res.success) eventStore.add(signed);
-    return res;
+    return await publishToRelays(signed);
   } catch (e) {
     return signingFailure(e);
   }
@@ -1539,16 +1572,21 @@ export interface MuteMetadata {
   timestamp: number;
 }
 
-export async function fetchReportsForPubkey(targetPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {
-  const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], "#p": [targetPubkey] }, timeoutMs);
-  return events.map((event) => ({
+/** A kind-1984 event as a report about `targetPubkey`. */
+export function reportAbout(event: NostrEvent, targetPubkey: string): ReportMetadata {
+  return {
     reporterPubkey: event.pubkey,
     targetPubkey,
     // The `p` tag naming the target carries the NIP-56 report type.
     reportType: event.tags.find((tag) => tag[0] === "p" && tag[1] === targetPubkey && tag[2])?.[2] ?? "other",
     timestamp: event.created_at,
     reason: event.content || "",
-  }));
+  };
+}
+
+export async function fetchReportsForPubkey(targetPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {
+  const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], "#p": [targetPubkey] }, timeoutMs);
+  return events.map((event) => reportAbout(event, targetPubkey));
 }
 
 export async function fetchReportsByPubkey(reporterPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {
