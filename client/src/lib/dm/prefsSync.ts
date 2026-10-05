@@ -22,7 +22,7 @@
  * on a timeout, not on a copy it couldn't decrypt, not on a pin made before
  * the first fetch came back.
  */
-import { activeAccount, type PublishOutcome } from "@/accounts/signing";
+import { activeAccount, hasExternalSigner, type PublishOutcome } from "@/accounts/signing";
 import { DM_PREFS_D_TAG, fetchPrivateAppData, publishAlertPrefs } from "@/services/nostr";
 import {
   SYNCED_DM_FIELDS,
@@ -263,7 +263,7 @@ async function publishNow(pubkey: string, { attempt = 0, first = false } = {}): 
   }
   // Waiting on the reader (locked, declined, signer away) or unable to encrypt at all:
   // a timer can't fix those. The next change or the next time Messages opens retries.
-  if (res.deferred || res.cancelled || res.signerUnreachable || res.error === "Not logged in") return;
+  if (res.deferred || res.cancelled || res.declined || res.signerUnreachable || res.error === "Not logged in") return;
   if (res.error === "Could not encrypt") return;
   if (attempt < MAX_RETRIES) schedule(pubkey, RETRY_MS, attempt + 1);
 }
@@ -303,10 +303,14 @@ export function startDmPrefsSync(): () => void {
   );
   // An open tab follows the other devices: when it comes back into view, and every few
   // minutes while it's in view. hydrateDmPrefs skips a read made in the last FRESH_MS.
+  // Only for a key held here: an extension or bunker asks the reader for every
+  // read and write, and nobody asked for these. Theirs syncs when Messages opens
+  // and when they pin, mute or accept a chat. (Closing an extension's prompt
+  // focuses the tab again, so a refresh on focus would open the next prompt.)
   const refresh = () => {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-    const pubkey = activeAccount()?.pubkey;
-    if (pubkey) void hydrateDmPrefs(pubkey);
+    const account = activeAccount();
+    if (account && !hasExternalSigner(account)) void hydrateDmPrefs(account.pubkey);
   };
   const hasWindow = typeof window !== "undefined";
   if (hasWindow) {

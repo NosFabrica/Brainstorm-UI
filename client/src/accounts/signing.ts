@@ -39,6 +39,8 @@ export type PublishOutcome = {
   deferred?: boolean;
   /** The remote signer never answered — a person has to open or re-pair it. */
   signerUnreachable?: boolean;
+  /** The signer said no, or answered as another profile: asking again on a timer only asks again. */
+  declined?: boolean;
   relay?: string;
   accepted?: number;
   total?: number;
@@ -74,8 +76,10 @@ export function signingFailure(error: unknown, fallback = "Signing failed"): Pub
   if (kind === "timeout") {
     return { success: false, error: SIGNER_SILENT, signerUnreachable: true };
   }
-  if (kind === "wrong-account") return { success: false, error: SIGNER_OTHER_PROFILE };
-  return { success: false, error: error instanceof Error ? error.message : fallback };
+  if (kind === "wrong-account") return { success: false, error: SIGNER_OTHER_PROFILE, declined: true };
+  const message = error instanceof Error ? error.message : fallback;
+  if (kind === "declined") return { success: false, error: message, declined: true };
+  return { success: false, error: message };
 }
 
 /** The Account every user-published event is signed by, or undefined when signed out. */
