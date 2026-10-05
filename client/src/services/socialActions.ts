@@ -463,12 +463,37 @@ async function publishMuteList(
   }
 }
 
+/**
+ * The mute list a mute builds on. None found is only "start empty" when that is
+ * known — a key minted here, or the relays answering that none exists (#72, as
+ * for a first follow list); otherwise null, and the mute is refused rather than
+ * replacing a list we couldn't read.
+ */
+async function resolveMuteBase(pubkey: string, cached?: NostrEvent | null): Promise<NostrEvent | null> {
+  const found = cached ?? (await fetchMuteList(pubkey));
+  if (found) return found;
+  const empty: NostrEvent = { pubkey, kind: 10000, created_at: 0, tags: [], content: "" };
+  if (identityHas(pubkey, "createdInApp")) return empty;
+  try {
+    await fetchOutboxRelayList(pubkey);
+  } catch {
+    /* best-effort warm */
+  }
+  const { newest, reach } = await requestNewestWithReach(
+    outboxRelaysFromDb(pubkey, PROFILE_RELAYS),
+    { kinds: [10000], authors: [pubkey], limit: 5 },
+    6000,
+  );
+  if (newest) return newest as NostrEvent;
+  return reach.answered.length * 2 > reach.asked.length ? empty : null;
+}
+
 export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
 
-  const current = cachedMuteList ?? (await fetchMuteList(account.pubkey));
+  const current = await resolveMuteBase(account.pubkey, cachedMuteList);
   if (!current) return { success: false, error: "Could not fetch your mute list from relays. Please try again." };
 
   if (current.tags.some(isPTagFor(targetPubkey))) return { success: true };
