@@ -192,7 +192,9 @@ function Picture({ image, listImage }: { image: string | null; listImage: string
       />
     );
   return (
-    <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-100">
+    <span
+      className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400 dark:border-slate-700 ${listImage ? "" : "dark:bg-slate-800 dark:text-slate-500"}`}
+    >
       {listImage ? (
         <img
           src={avatarSrc(listImage, "sm")}
