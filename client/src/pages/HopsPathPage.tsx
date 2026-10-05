@@ -685,7 +685,15 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
   if (done) {
     return (
       <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-        <Flag className="h-3 w-3" /> Reported
+        <Flag className="h-3 w-3" /> Reported ·
+        {/* Undone from their profile's ⋯ menu, where every report can be taken back. */}
+        <Link
+          href={`/p/${npubFromPubkey(pubkey)}`}
+          className="underline-offset-2 hover:underline"
+          data-testid="hops-report-undo"
+        >
+          Undo
+        </Link>
       </span>
     );
   }
