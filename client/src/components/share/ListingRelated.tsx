@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
-import { fetchProfileMap, fetchRecentByKinds } from "@/services/nostr";
+import { fetchListingFamily, fetchProfileMap, fetchRecentByKinds } from "@/services/nostr";
 import { fetchSimilarListings } from "@/services/search";
 import { APP_TAGS, LISTING_KIND, isSellable, parseListing } from "@/lib/listing";
-import { cardGroupOf, productsFromEvents, splitVariantTitle, type ProductCard } from "@/lib/listingVariants";
+import { cardGroupOf, familyOf, productsFromEvents, type ProductCard } from "@/lib/listingVariants";
 import { eventPath } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { ListingCard } from "@/components/search/cards";
@@ -28,7 +28,12 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
   const [mine, setMine] = useState<ProductCard<NostrEvent>[]>([]);
   // Everything the seller has, counted, for the row's door to their page.
   const [mineTotal, setMineTotal] = useState(0);
-  const [options, setOptions] = useState<{ id: string; pubkey: string; label: string }[]>([]);
+  // This product's options: every one of them when the seller declared the
+  // product (this listing's own marked), the others when it is a title guess.
+  const [options, setOptions] = useState<{
+    heading: string;
+    chips: { id: string; pubkey: string; label: string; current: boolean }[];
+  } | null>(null);
   const [similar, setSimilar] = useState<NostrEvent[]>([]);
   const [sellers, setSellers] = useState<Map<string, SearchResult>>(new Map());
 
@@ -38,18 +43,30 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
     // As deep as the profile's shelf asks: a seller's newest listings can be
     // a run of hidden copies (Staci's shop, 2026-09-24), and thirty of those
     // left this row empty while her profile showed 36 products.
-    void fetchRecentByKinds(event.pubkey, [LISTING_KIND], 100).then((evs) => {
+    // A declared product is also asked for by name, so a big shop's product
+    // page never shows half its sizes (lib/listingVariants, #158).
+    const self = parseListing({ ...event, content: "" });
+    const family = self ? familyOf(self) : null;
+    void Promise.all([
+      fetchRecentByKinds(event.pubkey, [LISTING_KIND], 100),
+      family ? fetchListingFamily(event.pubkey, family).catch(() => []) : Promise.resolve([]),
+    ]).then(([recent, familyEvents]) => {
       if (!alive) return;
+      const seen = new Set<string>();
+      const evs = [...recent, ...familyEvents].filter((ev) => !seen.has(ev.id) && seen.add(ev.id));
       // The seller's things as products. The product this listing belongs to
-      // gives its other sizes as options; the rest are "more for sale".
+      // gives its options; the rest are "more for sale".
       const products = productsFromEvents(evs);
       const isThis = (m: { id: string; pubkey: string; d: string }) =>
         m.id === event.id || `${LISTING_KIND}:${m.pubkey}:${m.d}` === address;
-      const own = products.find((p) => p.group.members.some(isThis));
+      const own = products.find((p) => isThis(p.group.primary) || p.group.members.some(isThis));
+      // Declared by the seller: the parent is the product, never an option.
+      const declared = !!own && (own.group.parent !== null || !own.group.complete);
+      const chips = (own?.group.options.length ? own.group.members : [])
+        .map((m, i) => ({ id: m.id, pubkey: m.pubkey, label: own!.group.options[i], current: isThis(m) }))
+        .filter((c) => declared || !c.current);
       setOptions(
-        (own?.group.members ?? [])
-          .filter((m) => !isThis(m))
-          .map((m) => ({ id: m.id, pubkey: m.pubkey, label: splitVariantTitle(m.title).option ?? m.title })),
+        chips.length > 0 ? { heading: declared ? (own!.group.optionName ?? "Options") : "Other options", chips } : null,
       );
       const others = products.filter((p) => p !== own);
       setMineTotal(others.length);
@@ -100,23 +117,36 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on event identity
   }, [event.id]);
 
-  if (mine.length === 0 && similar.length === 0 && options.length === 0) return null;
+  if (mine.length === 0 && similar.length === 0 && !options) return null;
   return (
     // The same distance from its neighbours as the posts strip below it (mt-8),
     // and as much between its own rows: a shop page, not a footnote.
     <div className="mb-8 mt-8 space-y-8" data-testid="listing-related">
-      {options.length > 0 && (
+      {options && (
         <section data-testid="listing-options" className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Other options</span>
-          {options.map((o) => (
-            <Link
-              key={o.id}
-              href={eventPath({ id: o.id, pubkey: o.pubkey })}
-              className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-            >
-              {o.label}
-            </Link>
-          ))}
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{options.heading}</span>
+          {options.chips.map((o) =>
+            o.current ? (
+              // The option being read: marked, and not a link to itself.
+              <span
+                key={o.id}
+                aria-current="true"
+                className="rounded-full border border-brand-primary bg-brand-primary/10 px-2.5 py-1 text-xs font-semibold text-brand-primary"
+                data-testid="listing-option"
+              >
+                {o.label}
+              </span>
+            ) : (
+              <Link
+                key={o.id}
+                href={eventPath({ id: o.id, pubkey: o.pubkey })}
+                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                data-testid="listing-option"
+              >
+                {o.label}
+              </Link>
+            ),
+          )}
         </section>
       )}
       {mine.length > 0 && (

@@ -1679,7 +1679,9 @@ export function ListingCard({
             </span>
           )}
         </span>
-        {l.images.length > 1 && (
+        {/* One badge along the bottom: on a narrow card the two collide, and
+            that a product comes in options matters more than its photo count. */}
+        {l.images.length > 1 && !(group && (group.options > 1 || group.moreOptions)) && (
           <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
             {l.images.length} photos
           </span>
