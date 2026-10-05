@@ -82,6 +82,18 @@ export function signingFailure(error: unknown, fallback = "Signing failed"): Pub
   return { success: false, error: message };
 }
 
+/**
+ * What to tell someone whose publish threw: null for a cancel (they know), the
+ * signer's own words when it said no, answered as another profile or went
+ * quiet, and `network` for anything else — never "check your connection" for
+ * a request they just declined.
+ */
+export function signingProblem(error: unknown, network: string): string | null {
+  const outcome = signingFailure(error, "");
+  if (outcome.cancelled) return null;
+  return (outcome.declined || outcome.signerUnreachable) && outcome.error ? outcome.error : network;
+}
+
 /** The Account every user-published event is signed by, or undefined when signed out. */
 export function activeAccount(): BrainstormAccount | undefined {
   return accountManager.active;

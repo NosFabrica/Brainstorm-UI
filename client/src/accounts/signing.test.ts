@@ -16,8 +16,11 @@ import {
   requireActiveAccount,
   signAs,
   signingFailure,
+  signingProblem,
 } from "./signing";
 import { RemoteSignerTimeoutError } from "./remote-signer";
+import { SignerDeclinedError } from "./signer-errors";
+import { SignerMismatchError } from "applesauce-accounts";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 /** An Account that signs without asking — an extension or a bunker. */
@@ -239,5 +242,22 @@ describe("whether an account can sign silently", () => {
 
     await expect(canSignSilently(account)).resolves.toBe(false);
     expect(requestPassword).not.toHaveBeenCalled();
+  });
+});
+
+describe("signingProblem", () => {
+  const NET = "Check your connection and try again.";
+
+  it("says nothing for a cancel, and the signer's own words for a no or a wrong profile", () => {
+    expect(signingProblem(new UnlockCancelled(), NET)).toBeNull();
+    expect(signingProblem(new SignerDeclinedError("Your signer extension declined the request."), NET)).toBe(
+      "Your signer extension declined the request.",
+    );
+    expect(signingProblem(new SignerMismatchError("other profile"), NET)).toMatch(/different profile/);
+    expect(signingProblem(new RemoteSignerTimeoutError(), NET)).toMatch(/didn't answer/);
+  });
+
+  it("leaves anything else to the caller's network wording", () => {
+    expect(signingProblem(new Error("relay exploded"), NET)).toBe(NET);
   });
 });

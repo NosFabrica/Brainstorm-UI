@@ -6,6 +6,7 @@ import { Chip } from "@/components/ui/chip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
+import { signingProblem } from "@/accounts/signing";
 import { npubFromPubkey } from "@/lib/shareId";
 import { useApplyEventTag, useEventTags, usePickerTags } from "@/hooks/useTags";
 import { StanceRow } from "@/components/share/StanceControl";
@@ -168,12 +169,9 @@ function TagNoteButton({ eventId, relayHint, onNote }: { eventId: string; relayH
         title: polarity === 1 ? `Tagged as "${label}"` : `Disagreed with "${label}"`,
         description: polarity === 1 ? "Anyone can see this on the post." : "Your agreement has been taken back.",
       });
-    } catch {
-      toast({
-        title: "Couldn't tag this post",
-        description: "Check your connection and try again.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      const description = signingProblem(error, "Check your connection and try again.");
+      if (description) toast({ title: "Couldn't tag this post", description, variant: "destructive" });
     }
   }
 

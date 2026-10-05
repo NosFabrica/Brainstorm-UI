@@ -6,6 +6,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { LinkedText } from "@/components/LinkedText";
 import { useToast } from "@/hooks/use-toast";
+import { signingProblem } from "@/accounts/signing";
 import { fetchProfileMap } from "@/services/nostr";
 import { npubFromPubkey } from "@/lib/shareId";
 import { useTagComments, usePostTagComment } from "@/hooks/useTags";
@@ -54,12 +55,9 @@ export function TagComments({
     try {
       await post.mutateAsync(text);
       setDraft("");
-    } catch {
-      toast({
-        title: "Couldn't post that",
-        description: "Check your connection and try again.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      const description = signingProblem(error, "Check your connection and try again.");
+      if (description) toast({ title: "Couldn't post that", description, variant: "destructive" });
     }
   }
 
