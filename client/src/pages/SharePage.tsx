@@ -3,7 +3,7 @@ import { useRoute, useLocation, Link, Redirect } from "wouter";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   MessageSquare,
   Image as ImageIcon,
@@ -40,6 +40,7 @@ import {
   fetchEventsByIds,
   fetchOutboxRelayList,
   fetchProfilePrefs,
+  PROFILE_PREFS_D_TAG,
   publishProfilePrefs,
 } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
@@ -117,6 +118,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 import { Nip05Handle } from "@/components/Nip05Check";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 
 const NO_RELAYS: string[] = [];
 
@@ -155,14 +157,16 @@ export default function SharePage() {
 
   // User-owned personalization (NIP-78): what the profile owner has chosen to
   // hide / reorder / emphasize. Opt-out — everything shows until they hide it.
-  const prefsQuery = useQuery({
-    queryKey: ["share-prefs", pubkey],
-    queryFn: () => fetchProfilePrefs(pubkey),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const publishedPrefs = useMemo(() => parseProfilePrefs(prefsQuery.data ?? {}), [prefsQuery.data]);
+  const prefsEvent = useStoreReplaceable(30078, pubkey, () => fetchProfilePrefs(pubkey), {
+    identifier: PROFILE_PREFS_D_TAG,
+  }).event;
+  const publishedPrefs = useMemo(() => {
+    try {
+      return parseProfilePrefs(prefsEvent ? JSON.parse(prefsEvent.content || "{}") : {});
+    } catch {
+      return parseProfilePrefs({});
+    }
+  }, [prefsEvent]);
 
   // Owner-only inline editing — while editing, the page previews the DRAFT live.
   const currentUser = useActiveAccountDisplay();
@@ -196,7 +200,6 @@ export default function SharePage() {
     }
   })();
   const myPov = loggedIn && calcDone && scorePov === "personalized";
-  const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfilePrefs>(EMPTY_PROFILE_PREFS);
   const [savingPrefs, setSavingPrefs] = useState(false);
@@ -231,8 +234,6 @@ export default function SharePage() {
     if (res.success) {
       clearProfilePrefsDraft(pubkey);
       setEditing(false);
-      queryClient.setQueryData(["share-prefs", pubkey], draft); // reflect immediately
-      queryClient.invalidateQueries({ queryKey: ["share-prefs", pubkey] });
     } else {
       setPrefsError(res.error || "Couldn't save");
     }
@@ -405,23 +406,16 @@ export default function SharePage() {
   const eventsQuery = useRecentByKinds(pubkey, [31922, 31923], 8, relayHints);
 
   // NIP-65 (kind 10002) relay list → "Active on N relays" presence signal.
-  const relaysQuery = useQuery({
-    queryKey: ["share-relays", pubkey],
-    // The relay URLs themselves, write relays first: the count feeds the
-    // tenure line, the first four ride in the nprofile a power user copies.
-    queryFn: async () => {
-      // The shared NIP-65 reader, not a third hand-rolled one — this page had
-      // its own tag loop with its own idea of what a relay URL looks like.
-      const ev = await fetchOutboxRelayList(pubkey);
-      if (!ev) return [] as string[];
-      const list = parseRelayList(ev);
-      return dedupeRelays([...list.write, ...list.read]);
-    },
-    enabled: !!pubkey,
-    staleTime: 10 * 60_000,
-    retry: false,
-  });
-  const relays = relaysQuery.data ?? NO_RELAYS;
+  // The relay URLs themselves, write relays first: the count feeds the
+  // tenure line, the first four ride in the nprofile a power user copies.
+  const relayList = useStoreReplaceable(10002, pubkey, () => fetchOutboxRelayList(pubkey), {
+    window: { minMs: 10 * 60_000 },
+  }).event;
+  const relays = useMemo(() => {
+    if (!relayList) return NO_RELAYS;
+    const list = parseRelayList(relayList);
+    return dedupeRelays([...list.write, ...list.read]);
+  }, [relayList]);
   const relayCount = relays.length;
   const profileRelays = relays.length ? relays : relayHints;
 

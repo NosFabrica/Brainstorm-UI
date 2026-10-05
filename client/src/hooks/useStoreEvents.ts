@@ -50,7 +50,11 @@ export function useStoreEvents(
 
   const answer = settled?.key === key ? settled.answer : key ? lastAnswer(key) : undefined;
   const events = useMemo(() => {
-    const returned = Array.isArray(answer) ? (answer as NostrEvent[]) : NONE;
+    const returned = Array.isArray(answer)
+      ? (answer as NostrEvent[])
+      : answer && typeof answer === "object" && "kind" in answer && "id" in answer
+        ? [answer as NostrEvent]
+        : NONE;
     if (!returned.length) return stored;
     const byId = new Map(stored.map((e) => [e.id, e]));
     for (const e of returned) {

@@ -1,6 +1,6 @@
 import { ContactsFactory } from "applesauce-common/factories";
 import { MuteListFactory } from "applesauce-common/factories";
-import { verifyEvent } from "nostr-tools";
+import { verifyEvent, type NostrEvent as SignedEvent } from "nostr-tools";
 
 import { publishToRelays, fetchOutboxRelayList } from "./nostr";
 import { requestAll, requestNewest, requestNewestRaw, requestNewestWithReach } from "@/lib/relayRequest";
@@ -530,9 +530,14 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
     { kinds: [1984], authors: [account.pubkey], "#p": [targetPubkey] },
     timeoutMs,
   );
-  if (!collected.length) return null;
-  collected.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-  const latest = collected[0];
+  return myReportFrom(collected, targetPubkey);
+}
+
+/** The newest of my kind-1984 reports on `targetPubkey`, with every report's id; null for none. */
+export function myReportFrom(reports: SignedEvent[], targetPubkey: string): MyReport | null {
+  if (!reports.length) return null;
+  const sorted = [...reports].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  const latest = sorted[0];
   let reportType = "other";
   for (const tag of latest.tags || []) {
     if (tag[0] === "p" && tag[1] === targetPubkey && tag[2]) {
@@ -545,7 +550,7 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
     reportType,
     reason: latest.content || "",
     timestamp: latest.created_at || 0,
-    eventIds: collected.map((e) => e.id).filter(Boolean),
+    eventIds: sorted.map((e) => e.id).filter(Boolean),
   };
 }
 

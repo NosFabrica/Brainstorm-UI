@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach } from "vitest";
 import { __resetAsks } from "@/lib/askOnce";
+import { __resetListEdits } from "@/lib/listEdits";
 import { cleanup } from "@testing-library/react";
 
 // Suites that need no DOM opt into the node environment — jsdom's TextEncoder
@@ -109,6 +110,7 @@ globalThis.WebSocket = OfflineWebSocket as unknown as typeof WebSocket;
 beforeEach(() => {
   if (hasDom) localStorage.clear();
   __resetAsks();
+  __resetListEdits();
 });
 
 afterEach(() => {

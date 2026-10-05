@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { fetchEventsByAuthors } from "@/services/nostr";
 import { CONTENT_RELAYS } from "@/lib/relays";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
@@ -162,44 +162,38 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
 
   // Two-hop author set, built from real contact lists. One REQ for the sampled
   // follows' kind-3 events rather than N round-trips.
-  const authorsQuery = useQuery({
-    queryKey: ["network-article-authors", observer],
-    enabled,
-    staleTime: 10 * 60_000,
-    retry: false,
-    queryFn: async (): Promise<ArticleAuthor[]> => {
-      const mine = getFollowedPubkeys(await fetchContactList(observer));
-      if (mine.size === 0) return [];
-      const sample = Array.from(mine).slice(0, SAMPLE_FOLLOWS);
-      // Routed per author rather than blasted at a fixed set — see
-      // `fetchEventsByAuthors`. The candidate pool is only as wide as the
-      // contact lists we actually reach.
-      const lists = await fetchEventsByAuthors(
-        sample,
-        { kinds: [3] },
-        {
-          fallback: CONTENT_RELAYS,
-          timeoutMs: 8000,
-        },
-      );
+  const mine = useStoreReplaceable(3, enabled ? observer : null, () => fetchContactList(observer));
+  const myFollows = useMemo(() => getFollowedPubkeys((mine.event as never) ?? null), [mine.event]);
+  const sample = useMemo(() => Array.from(myFollows).slice(0, SAMPLE_FOLLOWS), [myFollows]);
+  const sampleKey = sample.join(",");
+  const listsFilter = useMemo(() => [{ kinds: [3], authors: sample }], [sampleKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lists = useStoreEvents(
+    enabled && sample.length ? `network-article-authors:${sampleKey}` : null,
+    sample.length ? listsFilter : null,
+    // Routed per author rather than blasted at a fixed set — see
+    // `fetchEventsByAuthors`. The candidate pool is only as wide as the
+    // contact lists we actually reach.
+    () => fetchEventsByAuthors(sample, { kinds: [3] }, { fallback: CONTENT_RELAYS, timeoutMs: 8000 }),
+    { minMs: 10 * 60_000 },
+  );
 
-      // Co-follow tally across my follows' follows.
-      const co = new Map<string, number>();
-      for (const list of lists) {
-        for (const pk of getFollowedPubkeys(list)) {
-          // "Beyond who you follow" — drop myself and anyone I already follow.
-          if (pk === observer || mine.has(pk)) continue;
-          co.set(pk, (co.get(pk) ?? 0) + 1);
-        }
+  const authors = useMemo<ArticleAuthor[]>(() => {
+    // Tallied once the lists are in: a tally per arriving list would re-key the articles ask each time.
+    if (!lists.settled) return [];
+    // Co-follow tally across my follows' follows.
+    const co = new Map<string, number>();
+    for (const list of lists.events) {
+      for (const pk of getFollowedPubkeys(list as never)) {
+        // "Beyond who you follow" — drop myself and anyone I already follow.
+        if (pk === observer || myFollows.has(pk)) continue;
+        co.set(pk, (co.get(pk) ?? 0) + 1);
       }
-      return Array.from(co.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, MAX_AUTHORS)
-        .map(([pubkey, trustedFollowerCount]) => ({ pubkey, trustedFollowerCount, hops: 2 }));
-    },
-  });
-
-  const authors = useMemo(() => authorsQuery.data ?? [], [authorsQuery.data]);
+    }
+    return Array.from(co.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_AUTHORS)
+      .map(([pubkey, trustedFollowerCount]) => ({ pubkey, trustedFollowerCount, hops: 2 }));
+  }, [lists.settled, observer, myFollows]); // eslint-disable-line react-hooks/exhaustive-deps
   const authorKeys = useMemo(() => authors.map((a) => a.pubkey), [authors]);
   const byPubkey = useMemo(() => new Map(authors.map((a) => [a.pubkey, a])), [authors]);
 
@@ -282,8 +276,8 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
   return {
     articles,
     // Loading while we're still resolving authors OR fetching their articles.
-    isLoading: authorsQuery.isLoading || (authorKeys.length > 0 && articlesQuery.loading),
-    isError: authorsQuery.isError,
+    isLoading: mine.loading || lists.loading || (authorKeys.length > 0 && articlesQuery.loading),
+    isError: false,
     hasAuthors: authorKeys.length > 0,
   };
 }

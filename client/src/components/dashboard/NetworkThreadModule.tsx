@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useLocation } from "wouter";
@@ -47,14 +47,12 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
   const [mode, setMode] = useState<Mode>("trending");
 
   // The user's ACTUAL follow list (kind 3) — not a moderation endpoint.
-  const followsQuery = useQuery({
-    queryKey: ["thread-contacts", observer],
-    queryFn: async () => Array.from(getFollowedPubkeys(await fetchContactList(observer))),
-    enabled: enabled && !!observer,
-    staleTime: 10 * 60_000,
-    retry: false,
-  });
-  const authors = useMemo(() => (followsQuery.data ?? []).slice(0, MAX_AUTHORS), [followsQuery.data]);
+  const follows = useStoreReplaceable(3, enabled && observer ? observer : null, () => fetchContactList(observer));
+
+  const authors = useMemo(
+    () => Array.from(getFollowedPubkeys((follows.event as never) ?? null)).slice(0, MAX_AUTHORS),
+    [follows.event],
+  );
 
   const authorsKey = authors.join(",");
   // Fixed per author set: a window recomputed every render would be a new filter, and a new REQ, each time.
@@ -163,7 +161,7 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
   // ENGAGEMENT, not trust). Shared session cache; house POV.
   const authorScoreOf = useAuthorScores(useMemo(() => notes.map((n) => n.pubkey), [notes]));
 
-  const loading = followsQuery.isLoading || (authors.length > 0 && notesQuery.loading);
+  const loading = follows.loading || (authors.length > 0 && notesQuery.loading);
   if (!enabled || (!loading && candidates.length === 0)) return null;
 
   const tab = (val: Mode, label: string, Icon: typeof Flame) => (

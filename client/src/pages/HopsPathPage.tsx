@@ -1,5 +1,6 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
+import { useMyFollows } from "@/hooks/useMyFollows";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierRing } from "@/components/score/VerificationCoin";
@@ -11,7 +12,7 @@ import { Loader2, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { reportUser, followUser, fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
+import { reportUser, followUser } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/services/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -157,15 +158,9 @@ export default function HopsPathPage() {
   };
 
   // My own follow list once → know which path nodes I already follow.
-  const followingQuery = useQuery({
-    // Keyed to the LOGGED-IN viewer, never the path origin — under House the
-    // origin is Brainstorm, and its follows must not render as your ticks.
-    queryKey: ["my-following", myPubkey],
-    queryFn: async () => getFollowedPubkeys(await fetchContactList(myPubkey)),
-    enabled: signedIn && !!myPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // The LOGGED-IN viewer's follows, never the path origin's — under House the
+  // origin is Brainstorm, and its follows must not render as your ticks.
+  const viewerFollows = useMyFollows();
 
   // replace, not push — see ConnectionListPage. These guards fire on the first
   // render before params/auth resolve, and a pushed entry poisons the back stack.
@@ -180,7 +175,7 @@ export default function HopsPathPage() {
 
   const subjectName = subject?.display_name || subject?.name || shortNpub(npubFromPubkey(toPubkey));
   const profs = profileMap;
-  const myFollows = followingQuery.data;
+  const myFollows = signedIn && viewerFollows.signedIn && viewerFollows.ready ? viewerFollows.follows : undefined;
 
   // Weak link = the DECISION-MAKER, not the scammer: the last trusted account before
   // trust collapses — the node that follows the first risky connector in the
