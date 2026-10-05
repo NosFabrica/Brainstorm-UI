@@ -28,6 +28,18 @@ export interface ListingShelf {
 }
 
 /**
+ * What the options row is called. On an option's own page one is already
+ * chosen, so the row names what it is ("Size"); on the product's page none
+ * is, so it asks ("Choose a size").
+ */
+function headingFor(optionName: string | null, chosen: boolean): string {
+  if (chosen) return optionName ?? "Options";
+  if (!optionName) return "Choose an option";
+  const word = optionName.toLowerCase();
+  return `Choose ${/^[aeiou]/.test(word) ? "an" : "a"} ${word}`;
+}
+
+/**
  * What a listing's page needs to know about its seller's shelf: the options
  * of the product it belongs to, and the seller's other products. The options
  * sit by the buy button and the other products below the description, so two
@@ -81,7 +93,17 @@ export function useListingShelf(event: ListingLike): ListingShelf {
       .filter((c) => declared || !c.current);
     return {
       options:
-        chips.length > 0 ? { heading: declared ? (own!.group.optionName ?? "Options") : "Other options", chips } : null,
+        chips.length > 0
+          ? {
+              heading: declared
+                ? headingFor(
+                    own!.group.optionName,
+                    chips.some((c) => c.current),
+                  )
+                : "Other options",
+              chips,
+            }
+          : null,
       others: products.filter((p) => p !== own),
     };
   }, [recent, familyEvents, event.id, address]);

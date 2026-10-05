@@ -47,6 +47,8 @@ vi.mock("@/services/nostr", async () => ({
 }));
 vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => null } }));
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => false }));
+// A listing page shows who follows its seller; that line is not what these tests are about.
+vi.mock("@/hooks/usePersonEndorsements", () => ({ usePersonEndorsements: () => null }));
 vi.mock("@/hooks/useShareMeta", () => ({ useShareMeta: () => {} }));
 vi.mock("@/components/PublicPageHeader", () => ({ PublicPageHeader: () => <header data-testid="header" /> }));
 vi.mock("@/components/share/EventThread", () => ({ EventThread: () => null }));

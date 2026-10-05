@@ -5,7 +5,7 @@
  * shop page. No checkout of ours: payment happens where the seller sells.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { act, render, screen, within, fireEvent } from "@testing-library/react";
 
 // The seller's other listings, for a listing published outside Conduit whose seller sells on Conduit.
 const recentMock = vi.fn(async (_pubkey: string, _kinds: number[], _limit: number) => [] as unknown[]);
@@ -14,6 +14,18 @@ vi.mock("@/services/nostr", async (importOriginal) => ({
   fetchRecentByKinds: (pk: string, kinds: number[], limit: number) => recentMock(pk, kinds, limit),
   fetchListingFamily: async () => [],
 }));
+
+// The "Followed by …" line is the profile's own component, tested where it
+// lives; here it only matters that the seller's is asked for, and where it sits.
+vi.mock("@/components/search/EndorsementLine", () => ({
+  FollowedByLine: ({ pubkey, personal }: { pubkey: string; personal: boolean }) => (
+    <span data-testid="followed-by" data-pubkey={pubkey} data-personal={String(personal)}>
+      Followed by 12 verified accounts
+    </span>
+  ),
+}));
+const perspective = vi.hoisted(() => ({ pov: "nosfabrica" }));
+vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => [perspective.pov, () => {}] }));
 
 import { ListingHero } from "./ListingHero";
 
@@ -309,6 +321,145 @@ describe("ListingHero", () => {
       );
       expect(shown()).toEqual(["soap", "tallow"]);
       expect(screen.queryByTestId("listing-hero-categories-more")).toBeNull();
+    });
+  });
+
+  // What a shopper reads, in the order they read it: the name, the price, who
+  // is selling and why to trust them, then the way to buy (2026-10-05).
+  describe("the buying block", () => {
+    const before = (a: HTMLElement, b: HTMLElement) =>
+      !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    it("puts the price in words under the title, with the buyer's own money beside it", () => {
+      render(<ListingHero event={listing([["image", "https://img/1.jpg"]])} />);
+      const line = screen.getByTestId("listing-hero-price-line");
+      expect(line).toHaveTextContent("23,550 sats");
+      expect(line).toHaveTextContent("≈ $23.55");
+      expect(before(screen.getByTestId("listing-hero-title"), line)).toBe(true);
+      expect(before(line, screen.getByTestId("listing-hero-actions"))).toBe(true);
+      // Said once: the photo no longer carries a second copy.
+      expect(screen.getAllByTestId("listing-hero-price")).toHaveLength(1);
+      expect(line.contains(screen.getByTestId("listing-hero-price"))).toBe(true);
+    });
+
+    // A store's product page names the brand above the product: small, and a
+    // way to the seller's page. Who follows them sits under the price.
+    it("names the seller above the title, as a way to their page, and who follows them under the price", () => {
+      render(<ListingHero event={listing([])} sellerName="Barattolo" />);
+      const vendor = screen.getByTestId("listing-hero-vendor");
+      expect(vendor).toHaveTextContent("Barattolo");
+      expect(vendor.getAttribute("href")).toMatch(/^\/p\/npub1/);
+      expect(before(vendor, screen.getByTestId("listing-hero-title"))).toBe(true);
+
+      const trust = screen.getByTestId("listing-hero-seller");
+      expect(screen.getByTestId("followed-by")).toHaveAttribute("data-pubkey", SELLER);
+      expect(screen.getByTestId("followed-by")).toHaveAttribute("data-personal", "false");
+      expect(trust.contains(screen.getByTestId("followed-by"))).toBe(true);
+      expect(before(screen.getByTestId("listing-hero-price-line"), trust)).toBe(true);
+      expect(before(trust, screen.getByTestId("listing-hero-actions"))).toBe(true);
+    });
+
+    it("reads the seller's following through the reader's own perspective when they chose it", () => {
+      perspective.pov = "mywot";
+      render(<ListingHero event={listing([])} sellerName="Barattolo" />);
+      expect(screen.getByTestId("followed-by")).toHaveAttribute("data-personal", "true");
+      perspective.pov = "nosfabrica";
+    });
+
+    it("names no seller it was not told, but still shows who follows them", () => {
+      render(<ListingHero event={listing([])} />);
+      expect(screen.queryByTestId("listing-hero-vendor")).toBeNull();
+      expect(screen.getByTestId("followed-by")).toBeInTheDocument();
+    });
+  });
+
+  // A description can run to a dozen paragraphs; shipping, categories and the
+  // seller's other things were a long scroll below it.
+  describe("a long description", () => {
+    const LONG = Array.from(
+      { length: 12 },
+      (_, i) => `Paragraph ${i + 1} about the hoodie, its fabric and its fit.`,
+    ).join("\n\n");
+
+    it("shows its start, and the rest on request", () => {
+      render(<ListingHero event={listing([], LONG)} />);
+      const box = screen.getByTestId("listing-hero-description-box");
+      expect(box).toHaveAttribute("data-collapsed", "true");
+      fireEvent.click(screen.getByTestId("listing-hero-description-more"));
+      expect(box).toHaveAttribute("data-collapsed", "false");
+      expect(screen.queryByTestId("listing-hero-description-more")).toBeNull();
+      expect(box).toHaveTextContent("Paragraph 12");
+    });
+
+    it("is shown whole when it is short", () => {
+      render(<ListingHero event={listing([], "A short note about a jumper.")} />);
+      expect(screen.getByTestId("listing-hero-description-box")).toHaveAttribute("data-collapsed", "false");
+      expect(screen.queryByTestId("listing-hero-description-more")).toBeNull();
+    });
+  });
+
+  // On a phone the buy button scrolls away under a long description. A slim
+  // bar brings it back — the same link out, never a checkout of ours — only
+  // while the real buttons are off screen.
+  describe("the phone buy bar", () => {
+    let report: (visible: boolean) => void = () => {};
+    beforeEach(() => {
+      report = () => {};
+      vi.stubGlobal(
+        "IntersectionObserver",
+        class {
+          constructor(private cb: IntersectionObserverCallback) {}
+          observe(el: Element) {
+            report = (visible) =>
+              this.cb(
+                [{ isIntersecting: visible, target: el } as IntersectionObserverEntry],
+                this as unknown as IntersectionObserver,
+              );
+          }
+          unobserve() {}
+          disconnect() {}
+          takeRecords() {
+            return [];
+          }
+        },
+      );
+    });
+    const conduit = () =>
+      listing([["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]);
+
+    it("appears once the buy buttons scroll out of view, with the price and the same way to buy", () => {
+      render(<ListingHero event={conduit()} />);
+      expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
+
+      act(() => report(false));
+      const bar = screen.getByTestId("listing-hero-buybar");
+      expect(bar).toHaveTextContent("23,550 sats");
+      const link = within(bar).getByTestId("listing-hero-buybar-link");
+      expect(link).toHaveTextContent("Buy on Conduit");
+      expect(link.getAttribute("href")).toBe(screen.getByTestId("listing-hero-shop").getAttribute("href"));
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(screen.queryByText(/Buy now|Add to cart|Checkout/i)).toBeNull();
+
+      act(() => report(true));
+      expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
+    });
+
+    it("is not offered when there is nowhere to buy, or nothing for sale", () => {
+      const { unmount } = render(<ListingHero event={listing([])} />);
+      act(() => report(false));
+      expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
+      unmount();
+
+      render(
+        <ListingHero
+          event={listing([
+            ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"],
+            ["status", "sold"],
+          ])}
+        />,
+      );
+      act(() => report(false));
+      expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
     });
   });
 });
