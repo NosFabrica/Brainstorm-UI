@@ -2,6 +2,8 @@ import { Check, Gift, Lock, MessageSquare, Server, X as XIcon } from "lucide-rea
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Chip } from "@/components/ui/chip";
+import { deliveryOutcome } from "@/lib/dm/delivery";
+import { tone } from "@/lib/tones";
 import type { DmMessage } from "@/lib/dm/store";
 import { nameOf, relayHost, type Profiles } from "./people";
 
@@ -125,29 +127,31 @@ export function MessageDetailsDialog({
                       <span className="text-[13px] font-semibold">
                         {recipient === me ? "Your copy" : `To ${nameOf(recipient, profiles)}`}
                       </span>
-                      {list.map((d) => (
-                        <span key={d.relay} className="flex items-center gap-2 text-[13px]">
-                          <Server className="h-3.5 w-3.5 text-slate-500" />
-                          <span className="min-w-0 flex-1 truncate font-mono text-xs">{relayHost(d.relay)}</span>
-                          {d.ok ? (
-                            <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-300">
-                              <Check className="h-3.5 w-3.5" /> Accepted
+                      {list.map((d) => {
+                        const outcome = deliveryOutcome(d);
+                        return (
+                          <div key={d.relay} className="flex flex-col" data-testid="dm-delivery">
+                            <span className="flex items-center gap-2 text-[13px]">
+                              <Server className="h-3.5 w-3.5 text-slate-500" />
+                              <span className="min-w-0 flex-1 truncate font-mono text-xs">{relayHost(d.relay)}</span>
+                              <span
+                                className={`inline-flex items-center gap-1 font-semibold ${tone(d.ok ? "success" : "danger").text}`}
+                              >
+                                {d.ok ? <Check className="h-3.5 w-3.5" /> : <XIcon className="h-3.5 w-3.5" />}{" "}
+                                {outcome.label}
+                              </span>
                             </span>
-                          ) : (
-                            <span
-                              className="inline-flex items-center gap-1 font-semibold text-red-600 dark:text-red-400"
-                              title={d.message}
-                            >
-                              <XIcon className="h-3.5 w-3.5" />{" "}
-                              {d.auth
-                                ? "Needs sign-in"
-                                : !d.message || /timeout|timed out/i.test(d.message)
-                                  ? "No answer"
-                                  : "Refused"}
-                            </span>
-                          )}
-                        </span>
-                      ))}
+                            {outcome.detail && (
+                              <span
+                                className="ml-[22px] break-words font-mono text-[11px] text-slate-500 dark:text-slate-400"
+                                data-testid="dm-delivery-reason"
+                              >
+                                {outcome.detail}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   ))
                 ) : message.relays.length ? (

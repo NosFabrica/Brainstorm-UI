@@ -293,3 +293,74 @@ describe("parseListing — NIP-15 products and auctions sell beside NIP-99", () 
     expect(isSellable(ended!)).toBe(false);
   });
 });
+
+// The Open Markets specification (kind 30402): a product is simple, a variable
+// parent, or a variation of one; a variation points at its parent with one `a`
+// tag and says which option it is in `spec` tags. Shapes as the search relay
+// held them on 2026-10-05 (issue #158).
+describe("parseListing — a product with options", () => {
+  const SELLER = "2e9130621de48a1b544a2c2b2b4a2e5b9f08afe473f773a1594ead071df2bffa";
+  const PARENT = `30402:${SELLER}:circular-economy-hoodie-meweqz`;
+
+  it("reads a variation: its type, the parent it belongs to, and its option", () => {
+    const l = parseListing(
+      ev([
+        ["d", "circular-economy-hoodie-meweqz-6xl-2ygrb8"],
+        ["title", "Circular Economy Hoodie – Permissionless / Rules Without Rulers - 6XL"],
+        ["price", "46.2", "USD"],
+        ["type", "variation", "physical"],
+        ["a", PARENT],
+        ["a", `30405:${SELLER}:hoodies`],
+        ["spec", "Size", "6XL"],
+      ]),
+    );
+    expect(l).toMatchObject({
+      productType: "variation",
+      parent: PARENT,
+      specs: [{ key: "Size", value: "6XL" }],
+    });
+  });
+
+  it("reads a variable parent, which has no parent of its own", () => {
+    const l = parseListing(
+      ev([
+        ["d", "circular-economy-hoodie-meweqz"],
+        ["title", "Circular Economy Hoodie – Permissionless / Rules Without Rulers"],
+        ["price", "46.2", "USD"],
+        ["type", "variable", "physical"],
+        ["a", `30405:${SELLER}:hoodies`],
+      ]),
+    );
+    expect(l).toMatchObject({ productType: "variable", parent: null, specs: [] });
+  });
+
+  it("keeps 'no type published' apart from 'simple', and reads several specs in order", () => {
+    const untyped = parseListing(
+      ev([
+        ["d", "soap"],
+        ["title", "Tallow Soap"],
+        ["price", "9", "USD"],
+        ["spec", "Scent", "Lavender"],
+        ["spec", "Weight", "120 g"],
+        ["spec", "", "nothing"],
+        ["spec", "Empty"],
+      ]),
+    );
+    expect(untyped?.productType).toBeNull();
+    expect(untyped?.specs).toEqual([
+      { key: "Scent", value: "Lavender" },
+      { key: "Weight", value: "120 g" },
+    ]);
+    const simple = parseListing(
+      ev([
+        ["d", "mug"],
+        ["title", "Mug"],
+        ["price", "12", "USD"],
+        ["type", "Simple", "physical"],
+        // A product reference on something that is not a variation is not a parent.
+        ["a", PARENT],
+      ]),
+    );
+    expect(simple).toMatchObject({ productType: "simple", parent: null });
+  });
+});

@@ -7,8 +7,6 @@
 // precise "accepted invites" query — the hook + card never change.
 
 import { apiClient } from "@/services/api";
-import { fetchProfileMap } from "@/services/nostr";
-import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { nip19 } from "nostr-tools";
 import { accountKey } from "@/lib/accountStorage";
 
@@ -22,7 +20,7 @@ export interface NewJoiner {
 const knownKey = (pk: string) => accountKey("brainstorm_known_followers", pk);
 /** QA override: home is auth-gated, so preview drives canned joiners via this key. */
 const DEMO_KEY = "brainstorm_invite_demo";
-const MAX_SHOWN = 8;
+export const MAX_SHOWN = 8;
 
 function readSet(key: string): Set<string> {
   try {
@@ -81,7 +79,7 @@ function demoJoiners(myPubkey: string): NewJoiner[] {
 /**
  * Newcomers who just followed the sender. First call seeds the baseline silently
  * (so the existing follower base isn't reported as "new"). Returns at most
- * MAX_SHOWN, enriched with name + avatar.
+ * the whole pool; the caller drops follow-backs, caps at MAX_SHOWN and names them.
  */
 export async function fetchNewJoiners(myPubkey: string): Promise<NewJoiner[]> {
   if (!myPubkey) return [];
@@ -120,29 +118,8 @@ export async function fetchNewJoiners(myPubkey: string): Promise<NewJoiner[]> {
   const newcomers = fresh.filter((pk) => !trusted.has(pk));
   const pool = newcomers.length ? newcomers : fresh;
 
-  // 3. Exclude anyone the sender already follows back.
-  let following = new Set<string>();
-  try {
-    following = getFollowedPubkeys(await fetchContactList(myPubkey));
-  } catch {
-    /* ignore — worst case we show someone already followed; follow is a no-op */
-  }
-  const candidates = pool.filter((pk) => !following.has(pk)).slice(0, MAX_SHOWN);
-  if (!candidates.length) return [];
-
-  // 4. Enrich names + avatars (best-effort).
-  let profs: Awaited<ReturnType<typeof fetchProfileMap>> | undefined;
-  try {
-    profs = await fetchProfileMap(candidates);
-  } catch {
-    /* names optional */
-  }
-  return candidates.map((pk) => ({
-    pubkey: pk,
-    npub: nip19.npubEncode(pk),
-    name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
-    picture: profs?.get(pk)?.picture,
-  }));
+  // Who they already follow back, and names, are the caller's: both live in the event store.
+  return pool.map((pk) => ({ pubkey: pk, npub: nip19.npubEncode(pk) }));
 }
 
 /** Fold pubkeys into the baseline so they stop surfacing (welcomed or dismissed). */

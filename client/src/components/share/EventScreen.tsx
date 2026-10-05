@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { naddrForEvent } from "@/lib/articleLinks";
@@ -145,26 +146,23 @@ function eventMediaUrls(ev: MinimalEvent): string[] {
  * resolved from the address (the latest version). What renders is decided by the event's kind: articles,
  * wiki pages and specs read on the article layout, everything else here.
  */
+const byCoord = (events: MinimalEvent[]) =>
+  new Map(events.map((e) => [`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`, e]));
+
 export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; event?: MinimalEvent }) {
   const ptr: EventPointer | null = event
     ? { id: event.id, author: event.pubkey, relays: given?.relays }
     : (given ?? null);
   const relayHints = ptr?.relays || [];
-  const eventQuery = useQuery({
-    queryKey: ["event", ptr?.id],
-    queryFn: async () => {
-      if (!ptr) return null;
-      const evs = await fetchEventsByIds([ptr.id], Array.from(new Set([...relayHints, ...PROFILE_RELAYS])));
-      return (evs[0] as MinimalEvent) ?? null;
-    },
-    enabled: !!ptr?.id && !event,
-    // An event by id never changes, so a held copy is the answer: no spinner,
-    // and no relay asked for what the store already has.
-    initialData: () => (ptr?.id ? ((eventStore.getEvent(ptr.id) as MinimalEvent | undefined) ?? undefined) : undefined),
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const note = (event ?? eventQuery.data) as MinimalEvent | null | undefined;
+  // An event by id never changes, so a held copy is the answer: no spinner,
+  // and no relay asked for what the store already has.
+  const eventQuery = useStoreEvents(
+    ptr?.id && !event && !eventStore.getEvent(ptr.id) ? `event:${ptr.id}` : null,
+    ptr?.id && !event ? [{ ids: [ptr.id] }] : null,
+    () => fetchEventsByIds([ptr!.id], Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+  );
+  const note = (event ?? eventQuery.events[0] ?? (eventQuery.loading ? undefined : null)) as
+    MinimalEvent | null | undefined;
 
   // Deleted by overwriting (lib/blankEvent): the address still resolves, to a
   // husk. Say what happened rather than render an article called "[Deleted]".
@@ -183,7 +181,7 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
         />
       );
   }
-  return <EventView ptr={ptr} note={note} loading={eventQuery.isLoading} />;
+  return <EventView ptr={ptr} note={note} loading={eventQuery.loading} />;
 }
 
 function DeletedEvent() {
@@ -251,38 +249,38 @@ function EventView({
   // References inside the note (quoted notes, articles, mentions) so the rich
   // card can embed them — same two batched queries the share page uses.
   const refs = useMemo(() => collectRefs(note ? [note] : []), [note]);
-  const refEventsQuery = useQuery({
-    queryKey: ["event-refs", ptr?.id, refs.ids],
-    queryFn: () =>
+  const refEventsQuery = useStoreEvents(
+    refs.ids.length ? `event-refs:${refs.ids.join(",")}` : null,
+    refs.ids.length ? [{ ids: refs.ids }] : null,
+    () =>
       fetchEventsByIds(
         refs.ids,
         Array.from(new Set([...relayHints, ...PROFILE_RELAYS, ...refs.idRelays.slice(0, MAX_REF_HINTS)])),
       ),
-    enabled: refs.ids.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const addrEventsQuery = useQuery({
-    queryKey: ["event-addrs", ptr?.id, refs.addrs.map(addrCoord)],
-    queryFn: () =>
-      fetchAddressableEvents(capHints(refs.addrs), Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
-    enabled: refs.addrs.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  );
+  // The held copies render through `heldAddrs` below; this only fills the store.
+  const addrEventsQuery = useStoreEvents(
+    refs.addrs.length ? `event-addrs:${refs.addrs.map(addrCoord).join(",")}` : null,
+    null,
+    async () =>
+      Array.from(
+        (
+          await fetchAddressableEvents(capHints(refs.addrs), Array.from(new Set([...relayHints, ...PROFILE_RELAYS])))
+        ).values(),
+      ),
+  );
 
   const eventsById = useMemo(() => {
     const m = new Map<string, MinimalEvent>();
-    for (const ev of (refEventsQuery.data ?? []) as MinimalEvent[]) m.set(ev.id, ev);
+    for (const ev of (refEventsQuery.events ?? []) as MinimalEvent[]) m.set(ev.id, ev);
     return m;
-  }, [refEventsQuery.data]);
+  }, [refEventsQuery.events]);
   // Referenced articles: the held copy at once, the newer of it and the
   // fetched one after — and any later version the store receives.
   const heldAddrs = useHeldReplaceables(refs.addrs);
   const addrByCoord = useMemo(
-    () =>
-      mergeNewest(refs.addrs, heldAddrs, (addrEventsQuery.data as Map<string, MinimalEvent> | undefined) ?? new Map()),
-    [refs.addrs, heldAddrs, addrEventsQuery.data],
+    () => mergeNewest(refs.addrs, heldAddrs, byCoord(addrEventsQuery.events as MinimalEvent[])),
+    [refs.addrs, heldAddrs, addrEventsQuery.events],
   );
 
   const allRefPubkeys = useMemo(() => {
@@ -574,7 +572,7 @@ function EventView({
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
-                <ListingHero event={note} sellerWebsite={profile.website} />
+                <ListingHero event={note} sellerWebsite={profile.website} sellerName={authorName} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
               ) : hasThingPage(note) ? (

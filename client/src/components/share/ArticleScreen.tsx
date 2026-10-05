@@ -20,7 +20,7 @@ import {
   TierWordChip,
   useCoinReplacedByRing,
 } from "@/components/score/VerificationCoin";
-import { fetchProfile } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { apiClient } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
 import { sourceAppFor } from "@/lib/sourceApp";
@@ -310,18 +310,13 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
 
-  const profileQuery = useQuery({
-    queryKey: ["article-author", ptr?.pubkey],
-    queryFn: async () => (ptr ? ((await fetchProfile(ptr.pubkey)) ?? null) : null),
-    enabled: !!ptr?.pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const author = useLiveProfile(ptr?.pubkey, ptr?.relays);
 
+  const authorPk = ptr?.pubkey;
   const trustQuery = useQuery({
-    queryKey: ["article-author-trust", ptr?.pubkey],
-    queryFn: () => (ptr ? apiClient.getHouseInfluence(ptr.pubkey) : null),
-    enabled: !!ptr?.pubkey,
+    queryKey: ["article-author-trust", authorPk],
+    queryFn: () => (authorPk ? apiClient.getHouseInfluence(authorPk) : null),
+    enabled: !!authorPk,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -380,7 +375,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
     }
   })();
   const image = tag("image");
-  const profile = (profileQuery.data ?? {}) as {
+  const profile = (author.profile ?? {}) as {
     display_name?: string;
     name?: string;
     picture?: string;

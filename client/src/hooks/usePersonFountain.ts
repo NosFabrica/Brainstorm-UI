@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { fetchFountainItem, type FountainItem } from "@/lib/fountain";
 import { fountainLinksOf } from "@/components/search/PanelMedia";
-import { fetchRecentByKinds } from "@/services/nostr";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 
 type State = { items: FountainItem[]; loading: boolean };
 const IDLE: State = { items: [], loading: false };
@@ -17,29 +17,29 @@ const IDLE: State = { items: [], loading: false };
 const MAX_ITEMS = 12;
 
 export function usePersonFountain(pubkey: string | null): State {
-  const [state, setState] = useState<State>(() => (pubkey ? { items: [], loading: true } : IDLE));
+  const notes = useRecentByKinds(pubkey, [1], 40);
+  // The links once the notes are in: a list that grows per arriving note would re-ask Fountain each time.
+  const linksKey = notes.settled
+    ? fountainLinksOf(notes.events as NostrEvent[])
+        .slice(0, MAX_ITEMS)
+        .map((l) => l.url)
+        .join("\n")
+    : null;
+  const [state, setState] = useState<State & { key: string | null }>({ ...IDLE, key: null });
   useEffect(() => {
-    if (!pubkey) {
-      setState(IDLE);
-      return;
-    }
+    if (!pubkey || linksKey === null) return;
     let alive = true;
-    setState({ items: [], loading: true });
-    void (async () => {
-      try {
-        const notes = (await fetchRecentByKinds(pubkey, [1], 40)) as NostrEvent[];
-        const links = fountainLinksOf(notes).slice(0, MAX_ITEMS);
-        const found = await Promise.all(links.map(({ url }) => fetchFountainItem(url).catch(() => null)));
-        const seen = new Set<string>();
-        const items = found.filter((i): i is FountainItem => !!i && !seen.has(i.id) && (seen.add(i.id), true));
-        if (alive) setState({ items, loading: false });
-      } catch {
-        if (alive) setState(IDLE);
-      }
-    })();
+    void Promise.all(
+      (linksKey ? linksKey.split("\n") : []).map((url) => fetchFountainItem(url).catch(() => null)),
+    ).then((found) => {
+      const seen = new Set<string>();
+      const items = found.filter((i): i is FountainItem => !!i && !seen.has(i.id) && (seen.add(i.id), true));
+      if (alive) setState({ items, loading: false, key: linksKey });
+    });
     return () => {
       alive = false;
     };
-  }, [pubkey]);
-  return state;
+  }, [pubkey, linksKey]);
+  if (!pubkey) return IDLE;
+  return state.key === linksKey && linksKey !== null ? state : { items: [], loading: true };
 }

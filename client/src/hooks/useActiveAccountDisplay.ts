@@ -5,7 +5,7 @@ import { getDisplayName, getProfilePicture, getProfileContent, isValidProfile } 
 import { displayStream, rememberProfile, type AccountDisplay } from "@/accounts/display";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { eventStore } from "@/lib/eventStore";
-import { useProfile } from "@/hooks/useProfile";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 
 /**
  * The Active Account's display, live: it updates on a switch, when the profile
@@ -14,7 +14,7 @@ import { useProfile } from "@/hooks/useProfile";
  * consumer hears that from here.
  *
  * Two sources: the display cache on `AccountMetadata` is a synchronous first
- * paint — not a source of truth — and the `ProfileModel` is. Where both answer,
+ * paint — not a source of truth — and the store's kind-0 is. Where both answer,
  * the model wins. The cache is written back from it so the picker can't show a
  * name the rest of the app has moved past; `rememberProfile` no-ops on an
  * unchanged profile, so that cannot loop.
@@ -24,12 +24,10 @@ export function useActiveAccountDisplay(): AccountDisplay | null {
   const cached = use$(() => displayStream(manager), [manager]) ?? null;
   const pubkey = cached?.pubkey;
 
-  // Subscribed for the re-render only. Its *value* is a commit behind on a switch
-  // — the eager observable state keeps the previous identity's profile until the
-  // new subscription emits — and a `ProfileContent` carries no author, so nothing
-  // downstream can tell whose it is. Reading the store by pubkey can't mismatch,
-  // and this value is written back to metadata: a stale one persists.
-  useProfile(pubkey);
+  // Subscribed for the re-render and the relay ask only. This value is written
+  // back to metadata, so it is read from the store by pubkey: that can't mismatch
+  // on a switch, and a stale one would persist.
+  useLiveProfile(pubkey);
   const event = pubkey ? eventStore.getReplaceable(0, pubkey) : undefined;
   const live = event && isValidProfile(event) ? getProfileContent(event) : undefined;
 

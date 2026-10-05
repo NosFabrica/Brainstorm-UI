@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { fetchEventsByAuthors } from "@/services/nostr";
 import { CONTENT_RELAYS } from "@/lib/relays";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
@@ -161,87 +162,83 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
 
   // Two-hop author set, built from real contact lists. One REQ for the sampled
   // follows' kind-3 events rather than N round-trips.
-  const authorsQuery = useQuery({
-    queryKey: ["network-article-authors", observer],
-    enabled,
-    staleTime: 10 * 60_000,
-    retry: false,
-    queryFn: async (): Promise<ArticleAuthor[]> => {
-      const mine = getFollowedPubkeys(await fetchContactList(observer));
-      if (mine.size === 0) return [];
-      const sample = Array.from(mine).slice(0, SAMPLE_FOLLOWS);
-      // Routed per author rather than blasted at a fixed set — see
-      // `fetchEventsByAuthors`. The candidate pool is only as wide as the
-      // contact lists we actually reach.
-      const lists = await fetchEventsByAuthors(
-        sample,
-        { kinds: [3] },
-        {
-          fallback: CONTENT_RELAYS,
-          timeoutMs: 8000,
-        },
-      );
+  const mine = useStoreReplaceable(3, enabled ? observer : null, () => fetchContactList(observer));
+  const myFollows = useMemo(() => getFollowedPubkeys((mine.event as never) ?? null), [mine.event]);
+  const sample = useMemo(() => Array.from(myFollows).slice(0, SAMPLE_FOLLOWS), [myFollows]);
+  const sampleKey = sample.join(",");
+  const listsFilter = useMemo(() => [{ kinds: [3], authors: sample }], [sampleKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lists = useStoreEvents(
+    enabled && sample.length ? `network-article-authors:${sampleKey}` : null,
+    sample.length ? listsFilter : null,
+    // Routed per author rather than blasted at a fixed set — see
+    // `fetchEventsByAuthors`. The candidate pool is only as wide as the
+    // contact lists we actually reach.
+    () => fetchEventsByAuthors(sample, { kinds: [3] }, { fallback: CONTENT_RELAYS, timeoutMs: 8000 }),
+    { minMs: 10 * 60_000 },
+  );
 
-      // Co-follow tally across my follows' follows.
-      const co = new Map<string, number>();
-      for (const list of lists) {
-        for (const pk of getFollowedPubkeys(list)) {
-          // "Beyond who you follow" — drop myself and anyone I already follow.
-          if (pk === observer || mine.has(pk)) continue;
-          co.set(pk, (co.get(pk) ?? 0) + 1);
-        }
+  const authors = useMemo<ArticleAuthor[]>(() => {
+    // Tallied once the lists are in: a tally per arriving list would re-key the articles ask each time.
+    if (!lists.settled) return [];
+    // Co-follow tally across my follows' follows.
+    const co = new Map<string, number>();
+    for (const list of lists.events) {
+      for (const pk of getFollowedPubkeys(list as never)) {
+        // "Beyond who you follow" — drop myself and anyone I already follow.
+        if (pk === observer || myFollows.has(pk)) continue;
+        co.set(pk, (co.get(pk) ?? 0) + 1);
       }
-      return Array.from(co.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, MAX_AUTHORS)
-        .map(([pubkey, trustedFollowerCount]) => ({ pubkey, trustedFollowerCount, hops: 2 }));
-    },
-  });
-
-  const authors = useMemo(() => authorsQuery.data ?? [], [authorsQuery.data]);
+    }
+    return Array.from(co.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_AUTHORS)
+      .map(([pubkey, trustedFollowerCount]) => ({ pubkey, trustedFollowerCount, hops: 2 }));
+  }, [lists.settled, observer, myFollows]); // eslint-disable-line react-hooks/exhaustive-deps
   const authorKeys = useMemo(() => authors.map((a) => a.pubkey), [authors]);
   const byPubkey = useMemo(() => new Map(authors.map((a) => [a.pubkey, a])), [authors]);
 
-  const articlesQuery = useQuery({
-    queryKey: ["network-articles", authorKeys.length, authorKeys[0] ?? ""],
-    queryFn: async () => {
-      const now = Math.floor(Date.now() / 1000);
+  const authorsKey = authorKeys.join(",");
+  // Fixed per author set: windows recomputed every render would be a new filter, and a new REQ, each time.
+  const windows = useMemo(() => {
+    const now = Math.floor(Date.now() / 1000);
+    return { freshSince: now - FRESH_WINDOW_DAYS * DAY, widerSince: now - FALLBACK_WINDOW_DAYS * DAY };
+  }, [authorsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const articlesFilter = useMemo(
+    () => ({ kinds: [ARTICLE_KIND], authors: authorKeys, since: windows.widerSince }),
+    [authorsKey, windows], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const articlesQuery = useStoreEvents(
+    enabled && authorKeys.length ? `network-articles:${windows.freshSince}:${authorsKey}` : null,
+    enabled && authorKeys.length ? [articlesFilter] : null,
+    async () => {
       // Constrain the FETCH by recency — sorting newest-first over a stale set
       // still yields stale content, which is exactly how 18-month-old posts got
       // through. Widen once (not forever) if the fresh window comes back thin,
       // so smaller networks still see something without resurfacing ancient posts.
-      const freshSince = now - FRESH_WINDOW_DAYS * DAY;
       // Up to 400 authors. Sent as one filter to a fixed relay set this was the
       // worst case in the app: every relay received all 400 names and answered
       // for the few it carried. Routed, each connection is asked only about its
       // own authors — and the authors nobody indexed are actually reachable.
       const fresh = await fetchEventsByAuthors(
         authorKeys,
-        { kinds: [ARTICLE_KIND], since: freshSince, limit: 200 },
+        { kinds: [ARTICLE_KIND], since: windows.freshSince, limit: 200 },
         { fallback: CONTENT_RELAYS },
       );
-      if (fresh.length >= 8) return { events: fresh, freshSince };
+      if (fresh.length >= 8) return fresh;
+      // UNION, not replace: the widened items merely join the pool and the
+      // fresh tier keeps them below anything current.
       const wider = await fetchEventsByAuthors(
         authorKeys,
-        { kinds: [ARTICLE_KIND], since: now - FALLBACK_WINDOW_DAYS * DAY, limit: 200 },
+        { kinds: [ARTICLE_KIND], since: windows.widerSince, limit: 200 },
         { fallback: CONTENT_RELAYS },
       );
-      // UNION, not replace. The old code swapped the whole set for the wider one,
-      // so a thin fresh window meant every slot competed on equal footing with
-      // half-year-old posts. Now the widened items merely join the pool and the
-      // fresh tier keeps them below anything current.
-      const byId = new Map(fresh.map((e) => [e.id, e]));
-      for (const e of wider) if (!byId.has(e.id)) byId.set(e.id, e);
-      return { events: Array.from(byId.values()), freshSince };
+      return [...fresh, ...wider];
     },
-    enabled: enabled && authorKeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  );
 
   const articles = useMemo<NetworkArticle[]>(() => {
-    const events = articlesQuery.data?.events ?? [];
-    const freshSince = articlesQuery.data?.freshSince ?? 0;
+    const events = articlesQuery.events;
+    const freshSince = windows.freshSince;
     const nowSec = Math.floor(Date.now() / 1000);
 
     // Long-form is addressable: the same article re-published keeps its `d` tag,
@@ -274,13 +271,13 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean;
       out.push({ event, author });
     }
     return out;
-  }, [articlesQuery.data, byPubkey, sort]);
+  }, [articlesQuery.events, windows, byPubkey, sort]);
 
   return {
     articles,
     // Loading while we're still resolving authors OR fetching their articles.
-    isLoading: authorsQuery.isLoading || (authorKeys.length > 0 && articlesQuery.isLoading),
-    isError: authorsQuery.isError || articlesQuery.isError,
+    isLoading: mine.loading || lists.loading || (authorKeys.length > 0 && articlesQuery.loading),
+    isError: false,
     hasAuthors: authorKeys.length > 0,
   };
 }

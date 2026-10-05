@@ -13,6 +13,8 @@ import { fetchTrustProviderList, getNip85RelayUrl } from "./nostr";
 import { requestAll } from "@/lib/relayRequest";
 import { declaresLists, LIST_KINDS, type ListDesignation } from "@/lib/nip85Declaration";
 import { queryClient } from "@/lib/queryClient";
+import { eventStore } from "@/lib/eventStore";
+import { lastAnswer } from "@/lib/askOnce";
 
 /** "missing": lists exist and the 10040 doesn't name them — ask the user to publish again. */
 export type UserListsStatus = "none" | "declared" | "missing";
@@ -24,7 +26,7 @@ export interface UserLists {
 }
 
 /** /setup's "30392" row, else the user's own assistant on the NIP-85 relay (the server's own fallback). */
-async function designationFor(pubkey: string, taPubkey: string): Promise<ListDesignation | null> {
+export async function designationFor(pubkey: string, taPubkey: string): Promise<ListDesignation | null> {
   try {
     const row = (await apiClient.getSetupRows(pubkey)).find((r) => r[0] === "30392");
     if (row?.[1] && row?.[2]) return { key: row[1], relay: row[2] };
@@ -38,18 +40,40 @@ async function designationFor(pubkey: string, taPubkey: string): Promise<ListDes
   }
 }
 
+/** The HTTP half, cached where `useTrustListsStatus` and `listsToName` both read it. */
+export const designationKey = (pubkey: string, taPubkey: string) =>
+  ["trust-lists-designation", pubkey, taPubkey] as const;
+
+const LIST_FILTER = (designation: ListDesignation) => ({
+  kinds: LIST_KINDS.map(Number),
+  authors: [designation.key],
+  limit: 20,
+});
+
+/** One ask per designation for the lists on its relay; they land in the store. */
+export const listsAskKey = (designation: ListDesignation) => `trust-lists:${designation.key}:${designation.relay}`;
+export const listsFilter = LIST_FILTER;
+export const askLists = (designation: ListDesignation) =>
+  requestAll([designation.relay], LIST_FILTER(designation), 8000);
+
+/** Given the 10040 and the lists found: are there live lists it doesn't name? */
+export function listsStatusOf(
+  declaration: { tags: string[][] } | null | undefined,
+  designation: ListDesignation,
+  lists: { tags: string[][] }[],
+): UserListsStatus {
+  if (declaresLists(declaration, designation)) return "declared";
+  // A retraction is an empty list; only a live one is worth a signature.
+  const live = lists.some((e) => !e.tags.some((t) => t[0] === "status" && t[1] === "retracted"));
+  return live ? "missing" : "none";
+}
+
 export async function checkUserLists(pubkey: string, taPubkey: string): Promise<UserLists> {
   const designation = await designationFor(pubkey, taPubkey);
   if (!designation) return { status: "none", designation: null };
-  if (declaresLists(await fetchTrustProviderList(pubkey), designation)) return { status: "declared", designation };
-  const events = await requestAll(
-    [designation.relay],
-    { kinds: LIST_KINDS.map(Number), authors: [designation.key], limit: 20 },
-    8000,
-  );
-  // A retraction is an empty list; only a live one is worth a signature.
-  const live = events.some((e) => !e.tags.some((t) => t[0] === "status" && t[1] === "retracted"));
-  return { status: live ? "missing" : "none", designation };
+  const declaration = await fetchTrustProviderList(pubkey);
+  if (declaresLists(declaration, designation)) return { status: "declared", designation };
+  return { status: listsStatusOf(declaration, designation, await askLists(designation)), designation };
 }
 
 /**
@@ -59,21 +83,19 @@ export async function checkUserLists(pubkey: string, taPubkey: string): Promise<
  * rather than being re-derived at each one — the dashboard's Activate modal
  * skipped it and cost those users a second signature later.
  *
- * Prefers the answer the app already has (the same react-query key
- * `useTrustListsStatus` fills), so the signer prompt isn't held up by a
- * relay read the surface already did. Never throws: a publish must not fail
- * because we couldn't work out whether to mention lists.
+ * Prefers what the app already holds — the designation `useTrustListsStatus`
+ * cached, and the 10040 and lists in the store once their asks have answered —
+ * so the signer prompt isn't held up by a relay read the surface already did.
+ * Never throws: a publish must not fail because we couldn't work out whether to
+ * mention lists.
  */
 export async function listsToName(pubkey: string, taPubkey: string): Promise<ListDesignation | null> {
-  const known = queryClient.getQueryData<UserLists>(["trust-lists-status", pubkey, taPubkey]);
-  const lists = known ?? (await checkUserLists(pubkey, taPubkey).catch(() => null));
+  const designation = queryClient.getQueryData<ListDesignation | null>(designationKey(pubkey, taPubkey));
+  if (designation && lastAnswer(listsAskKey(designation)) !== undefined) {
+    const declaration = eventStore.getReplaceable(10040, pubkey);
+    const lists = eventStore.getByFilters(LIST_FILTER(designation) as never);
+    return listsStatusOf(declaration, designation, lists) === "missing" ? designation : null;
+  }
+  const lists = await checkUserLists(pubkey, taPubkey).catch(() => null);
   return lists?.status === "missing" ? lists.designation : null;
-}
-
-/**
- * After our own publish, say what we KNOW instead of refetching — a lagging
- * relay answering "missing" would re-raise the prompt the publish satisfied.
- */
-export function recordTrustListsDeclared(pubkey: string, designation: ListDesignation): void {
-  queryClient.setQueriesData({ queryKey: ["trust-lists-status", pubkey] }, { status: "declared", designation });
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import { apiClient } from "@/services/api";
-import { fetchProfile } from "@/services/nostr";
+import { warmProfile } from "@/hooks/useLiveProfile";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { pushRecentProfile } from "@/lib/recentSearches";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
@@ -53,13 +53,7 @@ export function useOpenProfile(user: AccountDisplay | null | undefined, effectiv
           staleTime: 5 * 60_000,
         })
         .catch(() => {});
-      queryClient
-        .prefetchQuery({
-          queryKey: ["nostr-profile", hex],
-          queryFn: async () => (await fetchProfile(hex)) ?? null,
-          staleTime: 5 * 60_000,
-        })
-        .catch(() => {});
+      warmProfile(hex);
     },
     [effectivePov],
   );

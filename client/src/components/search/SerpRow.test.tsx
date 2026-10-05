@@ -20,18 +20,18 @@ vi.mock("@/hooks/useAuthorScores", () => ({
 }));
 // Events a row's note quotes — a test that wants one resolved seeds it here.
 const quotedEvents = new Map<string, NostrEvent>();
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
   fetchEventsByIds: vi.fn((ids: string[]) => Promise.resolve(ids.map((id) => quotedEvents.get(id)).filter(Boolean))),
 }));
 // The real store verifies signatures (and jsdom's TextEncoder trips @noble),
 // so known-profile lookups are faked per test.
 const knownProfiles = new Map<string, NostrEvent>();
-vi.mock("@/lib/eventStore", () => ({
+vi.mock("@/lib/eventStore", async () => ({
   eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
-    getEvent: () => undefined,
-    add: (event: NostrEvent) => event,
   },
 }));
 import { nip19 } from "nostr-tools";

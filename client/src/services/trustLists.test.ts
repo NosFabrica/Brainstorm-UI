@@ -16,7 +16,9 @@ vi.mock("./nostr", () => ({
 const requestAll = vi.fn(async (..._a: unknown[]): Promise<Array<{ kind: number; tags: string[][] }>> => []);
 vi.mock("@/lib/relayRequest", () => ({ requestAll: (...a: unknown[]) => requestAll(...a) }));
 
-import { checkUserLists, listsToName } from "./trustLists";
+import { checkUserLists, designationKey, listsAskKey, listsToName } from "./trustLists";
+import { eventStore } from "@/lib/eventStore";
+import { track } from "@/lib/askOnce";
 import { listRows } from "@/lib/nip85Declaration";
 import { queryClient } from "@/lib/queryClient";
 
@@ -25,6 +27,18 @@ const TA = "b".repeat(64);
 const LIST_KEY = "c".repeat(64);
 const LIST_RELAY = "wss://nip85-staging.example";
 const list = (tags: string[][] = [["d", "tl-tag-x"]]) => ({ kind: 30392, tags });
+let n = 0;
+const signed = (pubkey: string, kind: number, tags: string[][]) =>
+  ({
+    id: (++n).toString(16).padStart(64, "0"),
+    pubkey,
+    kind,
+    tags,
+    content: "",
+    created_at: 1000 + n,
+    sig: "s",
+  }) as never;
+eventStore.verifyEvent = undefined;
 
 describe("checkUserLists", () => {
   beforeEach(() => {
@@ -105,8 +119,10 @@ describe("listsToName", () => {
     expect(await listsToName(ME, TA)).toEqual(DESIGNATION);
   });
 
-  it("answers from what the app already knows, without asking the relays again", async () => {
-    queryClient.setQueryData(["trust-lists-status", ME, TA], { status: "missing", designation: DESIGNATION });
+  it("answers from what the app already holds, without asking the relays again", async () => {
+    queryClient.setQueryData(designationKey(ME, TA), DESIGNATION);
+    eventStore.add(signed(LIST_KEY, 30392, [["d", "tl-tag-x"]]));
+    await track([listsAskKey(DESIGNATION)], Promise.resolve([]));
 
     expect(await listsToName(ME, TA)).toEqual(DESIGNATION);
     expect(getSetupRows).not.toHaveBeenCalled();
@@ -114,10 +130,15 @@ describe("listsToName", () => {
   });
 
   it("names nothing when the 10040 already says it, or there are no lists", async () => {
-    queryClient.setQueryData(["trust-lists-status", ME, TA], { status: "declared", designation: DESIGNATION });
+    queryClient.setQueryData(designationKey(ME, TA), DESIGNATION);
+    eventStore.add(signed(LIST_KEY, 30392, [["d", "tl-tag-y"]]));
+    eventStore.add(signed(ME, 10040, listRows(DESIGNATION)));
+    await track([listsAskKey(DESIGNATION)], Promise.resolve([]));
     expect(await listsToName(ME, TA)).toBeNull();
 
-    queryClient.setQueryData(["trust-lists-status", ME, TA], { status: "none", designation: null });
+    const empty = { key: "d".repeat(64), relay: LIST_RELAY };
+    queryClient.setQueryData(designationKey(ME, TA), empty);
+    await track([listsAskKey(empty)], Promise.resolve([]));
     expect(await listsToName(ME, TA)).toBeNull();
   });
 

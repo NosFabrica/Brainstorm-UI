@@ -1,5 +1,7 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
+import { useMyFollows } from "@/hooks/useMyFollows";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
@@ -8,10 +10,9 @@ import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileMap } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { reportUser, followUser, fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
+import { reportUser, followUser } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/services/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -136,17 +137,11 @@ export default function HopsPathPage() {
 
   const subject = useLiveProfile(toPubkey, relayHints).profile;
 
-  const profilesQuery = useQuery({
-    queryKey: ["hops-profiles", networkKey],
-    queryFn: () => fetchProfileMap(accounts),
-    enabled: accounts.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const profileMap = useLiveProfiles(accounts);
 
   // Your own scores for the same accounts, in one batch; the house's come from useAuthorScores.
   const myScoresQuery = useQuery({
-    queryKey: ["hops-my-scores", myPubkey, networkKey],
+    queryKey: ["hops-my-scores", myPubkey, accounts],
     queryFn: () => apiClient.getMyTrustSignals(accounts),
     enabled: signedIn && accounts.length > 0,
     staleTime: 5 * 60_000,
@@ -163,15 +158,9 @@ export default function HopsPathPage() {
   };
 
   // My own follow list once → know which path nodes I already follow.
-  const followingQuery = useQuery({
-    // Keyed to the LOGGED-IN viewer, never the path origin — under House the
-    // origin is Brainstorm, and its follows must not render as your ticks.
-    queryKey: ["my-following", myPubkey],
-    queryFn: async () => getFollowedPubkeys(await fetchContactList(myPubkey)),
-    enabled: signedIn && !!myPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // The LOGGED-IN viewer's follows, never the path origin's — under House the
+  // origin is Brainstorm, and its follows must not render as your ticks.
+  const viewerFollows = useMyFollows();
 
   // replace, not push — see ConnectionListPage. These guards fire on the first
   // render before params/auth resolve, and a pushed entry poisons the back stack.
@@ -185,8 +174,8 @@ export default function HopsPathPage() {
   if (!eligible) return <Redirect to={`/p/${rawId}`} replace />;
 
   const subjectName = subject?.display_name || subject?.name || shortNpub(npubFromPubkey(toPubkey));
-  const profs = profilesQuery.data;
-  const myFollows = followingQuery.data;
+  const profs = profileMap;
+  const myFollows = signedIn && viewerFollows.signedIn && viewerFollows.ready ? viewerFollows.follows : undefined;
 
   // Weak link = the DECISION-MAKER, not the scammer: the last trusted account before
   // trust collapses — the node that follows the first risky connector in the
@@ -696,7 +685,15 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
   if (done) {
     return (
       <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-        <Flag className="h-3 w-3" /> Reported
+        <Flag className="h-3 w-3" /> Reported ·
+        {/* Undone from their profile's ⋯ menu, where every report can be taken back. */}
+        <Link
+          href={`/p/${npubFromPubkey(pubkey)}`}
+          className="underline-offset-2 hover:underline"
+          data-testid="hops-report-undo"
+        >
+          Undo
+        </Link>
       </span>
     );
   }

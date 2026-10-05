@@ -7,7 +7,7 @@
  * favicons; the first link earns a metadata card when the proxy knows it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
@@ -152,7 +152,8 @@ describe("EventHero", () => {
     };
     try {
       render(<EventHero event={timed} />);
-      expect(await screen.findByTestId("event-hero-host")).toHaveTextContent("V4V Chicago");
+      const host = await screen.findByTestId("event-hero-host");
+      await waitFor(() => expect(host).toHaveTextContent("V4V Chicago"));
       const when = screen.getByTestId("event-hero-when");
       expect(when).toHaveTextContent(/\d{1,2}:\d{2}/); // a start time
       expect(when).toHaveTextContent(/–|to/); // and an end

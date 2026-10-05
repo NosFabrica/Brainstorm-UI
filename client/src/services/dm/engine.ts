@@ -67,11 +67,13 @@ export interface LiveHandlers {
 
 export type WrapFilter = { kinds: number[]; "#p": string[]; since?: number; until?: number; limit?: number };
 
+export type PublishResult = Pick<Delivery, "message" | "auth" | "unreachable" | "dropped" | "notice"> & { ok: boolean };
+
 export interface DmTransport {
   live(relay: string, filter: WrapFilter, handlers: LiveHandlers): () => void;
   page(relay: string, filter: WrapFilter, handlers: PageHandlers): () => void;
-  /** `auth`: refused until the sender signs in (NIP-42). */
-  publish(relay: string, event: NostrEvent): Promise<{ ok: boolean; message?: string; auth?: boolean }>;
+  /** `auth`: refused until the sender signs in (NIP-42). `unreachable`: never connected. */
+  publish(relay: string, event: NostrEvent): Promise<PublishResult>;
   /** Calls back each time the relay completes a NIP-42 login. */
   onAuthenticated(relay: string, callback: () => void): () => void;
 }
@@ -106,8 +108,6 @@ export interface DmEngineDeps {
   onOnline?: (callback: () => void) => () => void;
   /** How long one wrap may take to open before its slot is taken back (default 45s). */
   decryptTimeoutMs?: number;
-  /** Calls back when the reader turns relay sign-in on or off; the inbox reconnects. */
-  onAuthPrefChanged?: (callback: () => void) => () => void;
 }
 
 /** A message waiting in the outbox: its signed wraps, so a retry needs no signer. */
@@ -233,7 +233,6 @@ export class DmEngine {
   /** Automatic tries per message since the connection last came back. */
   private readonly attempts = new Map<string, number>();
   private stopOnline?: () => void;
-  private stopAuthPref?: () => void;
   private starting?: Promise<void>;
   private hydrating?: Promise<void>;
   private connecting?: Promise<void>;
@@ -287,7 +286,6 @@ export class DmEngine {
     await this.connecting;
     // Stopped during the lookup (an account switch): register nothing that would outlive it.
     if (this.stopped) return;
-    this.stopAuthPref = this.deps.onAuthPrefChanged?.(() => void this.refreshInbox());
     this.flushOutbox();
     this.stopOnline = (this.deps.onOnline ?? onWindowOnline)(() => {
       this.attempts.clear();
@@ -304,7 +302,6 @@ export class DmEngine {
     for (const stop of this.sendAuthWaits.values()) stop();
     this.sendAuthWaits.clear();
     this.stopOnline?.();
-    this.stopAuthPref?.();
     if (this.resumeTimer !== undefined)
       (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.resumeTimer);
     const clearTimer = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
@@ -1198,15 +1195,14 @@ export class DmEngine {
             deliveries.push({ recipient: w.recipient, relay, ok: true });
             return;
           }
-          const result: Awaited<ReturnType<DmTransport["publish"]>> = await this.deps.transport
+          const result: PublishResult = await this.deps.transport
             .publish(relay, w.wrap)
             .catch((e: unknown) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
+          // A failure keeps everything the transport learned about it.
           deliveries.push({
             recipient: w.recipient,
             relay,
-            ok: result.ok,
-            message: result.message,
-            ...(result.ok || !result.auth ? {} : { auth: true }),
+            ...(result.ok ? { ok: true, message: result.message } : result),
           });
           if (!result.ok && result.auth) this.awaitSendAuth(relay);
           update(false);

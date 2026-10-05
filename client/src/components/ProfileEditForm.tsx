@@ -4,7 +4,6 @@ import { Loader2, Check, AlertCircle, Pencil, Link2, ChevronDown, Plus, X, UserR
 import { publishProfile, fetchProfile, fetchProfileEvent } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { IDENTITY_PLATFORMS, splitIdentityClaim, formatIdentityClaim } from "@/lib/externalIdentity";
-import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { InfoHint } from "@/components/InfoHint";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC, initialsFor } from "@/lib/profileDefaults";
@@ -225,12 +224,6 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
       return;
     }
     if (res.success) {
-      // Seed the profile page's kind-0 cache so your own /profile/:npub shows the
-      // new info immediately (it otherwise serves a 5-min-stale cached copy).
-      try {
-        const pk = display?.pubkey;
-        if (pk) queryClient.setQueryData(["nostr-profile", pk], content);
-      } catch {}
       setState("success");
       setEditing(false); // back to view mode after a successful save
       toast({ title: "Profile saved", description: "Your changes are live." });

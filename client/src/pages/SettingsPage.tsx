@@ -68,7 +68,6 @@ import { checkUserLists } from "@/services/trustLists";
 import { logout } from "@/accounts/login-flow";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
-import { recordTrustProviderStatus } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
@@ -110,7 +109,6 @@ import nostrLogo from "@assets/download_1774042580188.png";
 import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
-import { RelayAuthCard } from "@/components/settings/RelayAuthCard";
 import { MessagesSettingsCard } from "@/components/settings/MessagesSettingsCard";
 import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
@@ -461,7 +459,6 @@ export default function SettingsPage() {
 
     if (result.success) {
       markNip85Activated(user.pubkey);
-      recordTrustProviderStatus(user.pubkey, "brainstorm");
       setRepublishState("success");
       toast({
         title: "NIP-85 event updated",
@@ -503,7 +500,6 @@ export default function SettingsPage() {
 
     if (result.success) {
       clearNip85Activated(user.pubkey);
-      recordTrustProviderStatus(user.pubkey, "none");
       setDeactivateState("success");
       toast({
         title: "Provider deactivated",
@@ -1919,7 +1915,6 @@ export default function SettingsPage() {
           >
             <TagRelaysCard />
           </div>
-          <RelayAuthCard />
           <TechnicalViewCard />
         </div>
       )}

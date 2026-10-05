@@ -95,7 +95,8 @@ const dlistFetchMock = vi.fn((_filter: Record<string, unknown>, _relays?: string
   Promise.resolve([] as NostrEvent[]),
 );
 vi.mock("@/services/musicTags", () => ({ fetchTaggedMusicians: async () => [] }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   // The person panel asks for the person's tracks and streams; nobody here has any.
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
   fetchLiveStreams: () => Promise.resolve([]),
@@ -1714,6 +1715,79 @@ describe("SearchResults", () => {
   // Benjamin's Shop: NIP-99 listings as photo-led cards, priced as published,
   // ranked by trust in the seller; sold and priceless never render; the
   // listings' own categories are the facets.
+  // Issue #158: "Circular Economy Hoodie" in the Shop showed eleven cards from
+  // one seller — ten sizes and their parent — that read as duplicates. The
+  // seller's app says they are one product (Open Markets `type` / parent `a`).
+  it("the Shop tab shows a product and its ten sizes as one card that says so", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="Circular Economy Hoodie" pov="nosfabrica" />);
+    const seller = "2e9130621de48a1b544a2c2b2b4a2e5b9f08afe473f773a1594ead071df2bffa";
+    const NAME = "Circular Economy Hoodie – Permissionless / Rules Without Rulers";
+    const P = `30402:${seller}:hoodie`;
+    const listing = (id: string, title: string, tags: string[][]) => ({
+      event: ev(id, 30402, seller, "", [
+        ["d", id],
+        ["title", title],
+        ["price", "46.2", "USD"],
+        ["image", "https://img/hoodie.jpg"],
+        ...tags,
+      ]),
+      author: author(seller, "Satoshoes"),
+      rank: null,
+    });
+    const sizes = ["6XL", "5XL", "4XL", "3XL", "2XL", "XL", "L", "M", "S", "XS"];
+    emit({
+      hits: [
+        ...sizes.map((s) =>
+          listing(`hoodie-${s}`, `${NAME} - ${s}`, [
+            ["type", "variation", "physical"],
+            ["a", P],
+            ["spec", "Size", s],
+          ]),
+        ),
+        listing("hoodie", NAME, [["type", "variable", "physical"]]),
+        listing("mug", "Mug", []),
+      ],
+      eose: true,
+      timeMs: 90,
+    });
+
+    const card = await screen.findByTestId("listing-card-hoodie");
+    expect(card).toHaveTextContent(NAME);
+    expect(within(card).getByTestId("listing-options-hoodie")).toHaveTextContent("10 options");
+    expect(screen.getAllByTestId(/^listing-card-/).map((c) => c.getAttribute("data-testid"))).toEqual([
+      "listing-card-hoodie",
+      "listing-card-mug",
+    ]);
+  });
+
+  it("says a product has options, without counting them, when only some of its sizes were found", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="hoodie 6xl" pov="nosfabrica" />);
+    const seller = "2e9130621de48a1b544a2c2b2b4a2e5b9f08afe473f773a1594ead071df2bffa";
+    const P = `30402:${seller}:hoodie`;
+    const size = (s: string) => ({
+      event: ev(`hoodie-${s}`, 30402, seller, "", [
+        ["d", `hoodie-${s}`],
+        ["title", `Rulers Hoodie - ${s}`],
+        ["price", "46.2", "USD"],
+        ["image", "https://img/hoodie.jpg"],
+        ["type", "variation", "physical"],
+        ["a", P],
+        ["spec", "Size", s],
+      ]),
+      author: author(seller, "Satoshoes"),
+      rank: null,
+    });
+    emit({ hits: [size("6XL"), size("5XL")], eose: true, timeMs: 90 });
+
+    const card = await screen.findByTestId("listing-card-hoodie-6XL");
+    expect(card).toHaveTextContent("Rulers Hoodie");
+    expect(card).not.toHaveTextContent("Rulers Hoodie - 6XL");
+    expect(within(card).getByTestId("listing-options-hoodie-6XL")).toHaveTextContent("Options available");
+    expect(screen.getAllByTestId(/^listing-card-/)).toHaveLength(1);
+  });
+
   it("the Shop tab shows sellable listings as priced cards and lets a category chip narrow them", async () => {
     setUrlTab("shop");
     render(<SearchResults query="maglia" pov="nosfabrica" />);

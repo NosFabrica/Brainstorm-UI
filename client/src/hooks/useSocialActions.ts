@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
+import { applyEdits, useListEdits, withListEdit } from "@/lib/listEdits";
 
 import { signingFailure } from "@/accounts/signing";
 import {
@@ -16,157 +17,84 @@ import {
   type NostrEvent,
 } from "@/services/socialActions";
 
+type Outcome = Awaited<ReturnType<typeof followUser>>;
+
 export function useSocialActions(myPubkey: string | undefined) {
-  const queryClient = useQueryClient();
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
-  const { data: contactList, isPending: contactsLoading } = useQuery({
-    queryKey: ["nostr-contacts", myPubkey],
-    queryFn: () => fetchContactList(myPubkey!),
-    enabled: !!myPubkey,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  const contacts = useStoreReplaceable(3, myPubkey, () => fetchContactList(myPubkey!));
+  const mutes = useStoreReplaceable(10000, myPubkey, () => fetchMuteList(myPubkey!));
+  const contactList = (contacts.event as NostrEvent | undefined) ?? null;
+  const muteList = (mutes.event as NostrEvent | undefined) ?? null;
 
-  const { data: muteList, isPending: mutesLoading } = useQuery({
-    queryKey: ["nostr-mutes", myPubkey],
-    queryFn: () => fetchMuteList(myPubkey!),
-    enabled: !!myPubkey,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  const listsLoading = !!myPubkey && (contacts.loading || mutes.loading);
 
-  const listsLoading = !!myPubkey && (contactsLoading || mutesLoading);
-
-  const followedSet = useMemo(() => getFollowedPubkeys(contactList ?? null), [contactList]);
-  const mutedSet = useMemo(() => getMutedPubkeys(muteList ?? null), [muteList]);
+  const contactEdits = useListEdits(3, myPubkey);
+  const muteEdits = useListEdits(10000, myPubkey);
+  const followedSet = useMemo(
+    () => applyEdits(getFollowedPubkeys(contactList), contactEdits),
+    [contactList, contactEdits],
+  );
+  const mutedSet = useMemo(() => applyEdits(getMutedPubkeys(muteList), muteEdits), [muteList, muteEdits]);
 
   const isFollowing = useCallback((targetPk: string) => followedSet.has(targetPk), [followedSet]);
   const isMuted = useCallback((targetPk: string) => mutedSet.has(targetPk), [mutedSet]);
   const isSelf = useCallback((targetPk: string) => myPubkey === targetPk, [myPubkey]);
 
-  // Optimistic cache writers. Seed a minimal list when the user has none yet
-  // (brand-new account) so the very first follow/mute still flips instantly, and
-  // dedupe the "add" so a double-tap can't push two p-tags.
-  const optimisticUpdateContacts = useCallback(
-    (targetPk: string, action: "add" | "remove") => {
-      queryClient.setQueryData(["nostr-contacts", myPubkey], (old: NostrEvent | null | undefined) => {
-        const base: NostrEvent = old ?? { pubkey: myPubkey ?? "", created_at: 0, kind: 3, tags: [], content: "" };
-        const has = base.tags.some((t) => t[0] === "p" && t[1] === targetPk);
-        const newTags =
-          action === "add"
-            ? has
-              ? base.tags
-              : [...base.tags, ["p", targetPk]]
-            : base.tags.filter((t) => !(t[0] === "p" && t[1] === targetPk));
-        return { ...base, tags: newTags, created_at: Math.floor(Date.now() / 1000) };
-      });
-    },
-    [queryClient, myPubkey],
-  );
-
-  const optimisticUpdateMutes = useCallback(
-    (targetPk: string, action: "add" | "remove") => {
-      queryClient.setQueryData(["nostr-mutes", myPubkey], (old: NostrEvent | null | undefined) => {
-        const base: NostrEvent = old ?? { pubkey: myPubkey ?? "", created_at: 0, kind: 10000, tags: [], content: "" };
-        const has = base.tags.some((t) => t[0] === "p" && t[1] === targetPk);
-        const newTags =
-          action === "add"
-            ? has
-              ? base.tags
-              : [...base.tags, ["p", targetPk]]
-            : base.tags.filter((t) => !(t[0] === "p" && t[1] === targetPk));
-        return { ...base, tags: newTags, created_at: Math.floor(Date.now() / 1000) };
-      });
-    },
-    [queryClient, myPubkey],
-  );
-
-  // All four toggles are OPTIMISTIC-FIRST: flip the cache the instant the user
-  // clicks (so the button reflects it with no spinner wait), then publish in the
-  // background. We deliberately do NOT re-fetch the list from relays afterward —
-  // relays are eventually consistent, so reading our own just-published event
-  // back usually returns the OLD list and would revert the flip. Our signed event
-  // is the source of truth; relays re-sync naturally on the next mount. Roll the
-  // optimistic write back only if the publish actually fails.
-  const doFollow = useCallback(
-    async (targetPk: string) => {
-      if (!myPubkey || myPubkey === targetPk) return { success: false, error: "Invalid action" };
-      const snapshot = queryClient.getQueryData<NostrEvent | null>(["nostr-contacts", myPubkey]);
-      optimisticUpdateContacts(targetPk, "add");
-      setPendingAction(`follow-${targetPk}`);
+  // All four toggles flip at once (lib/listEdits) and publish behind it. The
+  // published list lands in the store, which keeps the newest version: a relay
+  // still serving the old list can't revert the flip. A failed publish clears
+  // the edit, and the old list shows again.
+  const toggle = useCallback(
+    async (
+      kind: 3 | 10000,
+      action: "add" | "remove",
+      targetPk: string,
+      label: string,
+      publish: () => Promise<Outcome>,
+    ): Promise<Outcome> => {
+      setPendingAction(`${label}-${targetPk}`);
       try {
-        const result = await followUser(targetPk, contactList);
-        if (!result.success) queryClient.setQueryData(["nostr-contacts", myPubkey], snapshot);
-        return result;
+        return await withListEdit(kind, myPubkey!, targetPk, action, publish);
       } catch (e) {
-        queryClient.setQueryData(["nostr-contacts", myPubkey], snapshot);
-        return signingFailure(e, "Follow failed");
+        return signingFailure(e, `${label[0].toUpperCase()}${label.slice(1)} failed`);
       } finally {
         setPendingAction(null);
       }
     },
-    [myPubkey, contactList, optimisticUpdateContacts, queryClient],
+    [myPubkey],
+  );
+
+  const doFollow = useCallback(
+    async (targetPk: string) => {
+      if (!myPubkey || myPubkey === targetPk) return { success: false, error: "Invalid action" };
+      return toggle(3, "add", targetPk, "follow", () => followUser(targetPk, contactList));
+    },
+    [myPubkey, contactList, toggle],
   );
 
   const doUnfollow = useCallback(
     async (targetPk: string) => {
       if (!myPubkey) return { success: false, error: "Not logged in" };
-      const snapshot = queryClient.getQueryData<NostrEvent | null>(["nostr-contacts", myPubkey]);
-      optimisticUpdateContacts(targetPk, "remove");
-      setPendingAction(`unfollow-${targetPk}`);
-      try {
-        const result = await unfollowUser(targetPk, contactList);
-        if (!result.success) queryClient.setQueryData(["nostr-contacts", myPubkey], snapshot);
-        return result;
-      } catch (e) {
-        queryClient.setQueryData(["nostr-contacts", myPubkey], snapshot);
-        return signingFailure(e, "Unfollow failed");
-      } finally {
-        setPendingAction(null);
-      }
+      return toggle(3, "remove", targetPk, "unfollow", () => unfollowUser(targetPk, contactList));
     },
-    [myPubkey, contactList, optimisticUpdateContacts, queryClient],
+    [myPubkey, contactList, toggle],
   );
 
   const doMute = useCallback(
     async (targetPk: string) => {
       if (!myPubkey || myPubkey === targetPk) return { success: false, error: "Invalid action" };
-      const snapshot = queryClient.getQueryData<NostrEvent | null>(["nostr-mutes", myPubkey]);
-      optimisticUpdateMutes(targetPk, "add");
-      setPendingAction(`mute-${targetPk}`);
-      try {
-        const result = await muteUser(targetPk, muteList);
-        if (!result.success) queryClient.setQueryData(["nostr-mutes", myPubkey], snapshot);
-        return result;
-      } catch (e) {
-        queryClient.setQueryData(["nostr-mutes", myPubkey], snapshot);
-        return signingFailure(e, "Mute failed");
-      } finally {
-        setPendingAction(null);
-      }
+      return toggle(10000, "add", targetPk, "mute", () => muteUser(targetPk, muteList));
     },
-    [myPubkey, muteList, optimisticUpdateMutes, queryClient],
+    [myPubkey, muteList, toggle],
   );
 
   const doUnmute = useCallback(
     async (targetPk: string) => {
       if (!myPubkey) return { success: false, error: "Not logged in" };
-      const snapshot = queryClient.getQueryData<NostrEvent | null>(["nostr-mutes", myPubkey]);
-      optimisticUpdateMutes(targetPk, "remove");
-      setPendingAction(`unmute-${targetPk}`);
-      try {
-        const result = await unmuteUser(targetPk, muteList);
-        if (!result.success) queryClient.setQueryData(["nostr-mutes", myPubkey], snapshot);
-        return result;
-      } catch (e) {
-        queryClient.setQueryData(["nostr-mutes", myPubkey], snapshot);
-        return signingFailure(e, "Unmute failed");
-      } finally {
-        setPendingAction(null);
-      }
+      return toggle(10000, "remove", targetPk, "unmute", () => unmuteUser(targetPk, muteList));
     },
-    [myPubkey, muteList, optimisticUpdateMutes, queryClient],
+    [myPubkey, muteList, toggle],
   );
 
   const doReport = useCallback(

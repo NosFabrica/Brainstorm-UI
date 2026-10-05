@@ -1,7 +1,9 @@
 import { memo, useState } from "react";
 import { AlertTriangle, Check, CheckCheck, Info, Loader2, Reply, SmilePlus, Timer, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { DmMessage } from "@/lib/dm/store";
+import type { Delivery, DmMessage } from "@/lib/dm/store";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { askRelayAuthAgain, relayAuthProblemFor } from "@/services/relayAuth";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
 import { fileMetaOf, reactionLabel } from "@/lib/dm/rooms";
 import {
@@ -41,6 +43,47 @@ function Linked({ text }: { text: string }) {
 
 export const QUICK_REACTIONS = ["+", "😂", "🙏", "🔥", "😮"];
 
+/**
+ * A message no relay took. One held by a relay that wants the sender signed in says
+ * whose "no" it was, and its Retry asks for that login again before sending — while a
+ * declined login stands, sending alone would be turned away the same way.
+ */
+function NotDelivered({
+  deliveries,
+  onResend,
+  discard,
+}: {
+  deliveries: Delivery[];
+  onResend: () => void;
+  discard: React.ReactNode;
+}) {
+  const problems = useRelayAuthProblems();
+  const held = [...new Set(deliveries.filter((d) => d.auth && !d.ok).map((d) => d.relay))];
+  const declined = held.some((relay) => relayAuthProblemFor(problems, relay)?.by === "signer");
+  return (
+    <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400">
+      <AlertTriangle className="h-3 w-3" />
+      {declined
+        ? "Not delivered · you declined to sign in to their relay"
+        : held.length
+          ? "Not delivered · their relay wants you signed in"
+          : "Not delivered"}
+      <button
+        type="button"
+        onClick={() => {
+          for (const relay of held) askRelayAuthAgain(relay);
+          onResend();
+        }}
+        className="font-semibold underline underline-offset-2"
+        data-testid="dm-resend"
+      >
+        {declined ? "Ask again" : "Retry"}
+      </button>
+      · {discard}
+    </span>
+  );
+}
+
 function Status({
   message,
   onDetails,
@@ -72,16 +115,7 @@ function Status({
       </span>
     );
   if (out.status === "failed")
-    return (
-      <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400">
-        <AlertTriangle className="h-3 w-3" />
-        {out.deliveries.some((d) => d.auth) ? "Not delivered · their relay wants you signed in" : "Not delivered"}
-        <button type="button" onClick={onResend} className="font-semibold underline underline-offset-2">
-          Retry
-        </button>
-        · {discard}
-      </span>
-    );
+    return <NotDelivered deliveries={out.deliveries} onResend={onResend} discard={discard} />;
   const recipients = new Set(out.deliveries.map((d) => d.recipient));
   const ok = out.deliveries.filter((d) => d.ok).length;
   return (
@@ -172,7 +206,9 @@ export const MessageBubble = memo(function MessageBubble({
         // preview and reply quote in a bubble took two taps. Touch reveals them by tapping
         // the bubble instead.
         "flex shrink-0 items-center gap-0.5 self-center opacity-0 transition-opacity focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100",
-        (actionsShown || reactOpen) && "opacity-100",
+        // On touch the hidden row would still hold its width beside the bubble, halving it
+        // on a phone: take it out of the layout until a tap shows it.
+        actionsShown || reactOpen ? "opacity-100" : "[@media(hover:none)]:hidden",
         mine ? "order-first" : "",
       )}
     >
@@ -230,13 +266,19 @@ export const MessageBubble = memo(function MessageBubble({
           {showAuthor && <PersonAvatar pubkey={message.author} profiles={profiles} size={32} />}
         </span>
       )}
-      <div className={cn("flex max-w-[78%] flex-col gap-1", mine ? "items-end" : "items-start")}>
+      <div className={cn("flex max-w-[85%] flex-col gap-1 sm:max-w-[78%]", mine ? "items-end" : "items-start")}>
         {!mine && group && showAuthor && (
           <span className="px-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
             {firstName(message.author, profiles)}
           </span>
         )}
-        <div className="flex items-center gap-1">
+        <div
+          className={cn(
+            "flex items-center gap-1",
+            // A shown row that doesn't fit beside a wide bubble wraps below it on touch.
+            mine ? "justify-end [@media(hover:none)]:flex-wrap-reverse" : "[@media(hover:none)]:flex-wrap",
+          )}
+        >
           {!mine ? null : actions}
           <div
             className={cn(

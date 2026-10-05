@@ -725,19 +725,19 @@ function parseProfileFromEvent(event: NostrEvent | null): AdminProfile | null {
 }
 
 function useKind0Query(pubkey: string | null, extraRelays: string[] = []) {
-  const extrasKey = extraRelays
-    .filter((r) => r.length > 0)
-    .sort()
-    .join(",");
+  const extras = extraRelays.filter((r) => r.length > 0).sort();
   return useQuery<Kind0QueryResult>({
-    queryKey: ["admin/kind0-profile", pubkey ?? "", extrasKey],
+    queryKey: ["admin/kind0-profile", pubkey ?? "", extras],
+    // A relay probe: asked fresh each time, never answered from a cache.
     queryFn: async () => {
       if (!pubkey) return { event: null, profile: null };
-      const event = (await fetchProfileEvent(pubkey, STAFF_TIMEOUT_MS, extraRelays)) ?? null;
+      // eslint-disable-next-line no-restricted-syntax -- relay probe: what these relays hold now
+      const event = (await fetchProfileEvent(pubkey, STAFF_TIMEOUT_MS, extras)) ?? null;
       return { event, profile: parseProfileFromEvent(event) };
     },
     enabled: !!pubkey,
-    staleTime: 60_000,
+    staleTime: 0,
+    gcTime: 0,
     retry: 0,
   });
 }
@@ -1024,7 +1024,8 @@ export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey
   const nip85Query = useQuery<Nip85HealthCheck>({
     queryKey: ["admin/nip85-health", pubkey, taPubkey ?? ""],
     queryFn: () => checkNip85Health(pubkey, taPubkey, STAFF_TIMEOUT_MS),
-    staleTime: 60_000,
+    staleTime: 0,
+    gcTime: 0,
     retry: 0,
   });
 

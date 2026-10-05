@@ -59,8 +59,10 @@ vi.mock("@/services/search", async (importOriginal) => {
 });
 // Profiles a test wants the page to know, by pubkey.
 const knownProfiles = new Map<string, { name?: string; display_name?: string; picture?: string }>();
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfile: async () => null,
+  refreshProfileEvent: async () => null,
   fetchRecentByKinds: async () => [],
   fetchLiveStreams: async () => [],
   fetchProfileMap: async (pks: string[]) =>

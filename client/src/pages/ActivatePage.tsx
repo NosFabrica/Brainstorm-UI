@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Search as SearchIcon, Network as NetworkIcon, Gauge } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { fetchProfile } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { apiClient } from "@/services/api";
@@ -48,13 +48,7 @@ export default function ActivatePage() {
     }
   }, [user, hasMywot]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const profileQuery = useQuery({
-    queryKey: ["activate-profile", pubkey],
-    queryFn: () => fetchProfile(pubkey),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const { profile: prof } = useLiveProfile(pubkey || undefined);
   const overviewQuery = useQuery({
     queryKey: ["activate-overview", pubkey],
     queryFn: async () => (await apiClient.getUserOverview(pubkey))?.data ?? null,
@@ -63,8 +57,6 @@ export default function ActivatePage() {
     retry: false,
   });
 
-  const prof = profileQuery.data as
-    { display_name?: string; name?: string; picture?: string; nip05?: string } | undefined;
   const counts = (overviewQuery.data as { counts?: Record<string, number> } | null)?.counts ?? {};
   const followingCount = counts.following ?? knownFollowCount(pubkey);
   const followersCount = counts.followed_by ?? 0;

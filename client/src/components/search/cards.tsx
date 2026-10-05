@@ -1,5 +1,7 @@
 import { parseTrack } from "@/lib/trackEvent";
 import { formatListingPrice, listingCardLine, parseListing } from "@/lib/listing";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import type { ProductCardGroup } from "@/lib/listingVariants";
 import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRate";
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
@@ -38,8 +40,6 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Chip } from "@/components/ui/chip";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { eventStore } from "@/lib/eventStore";
-import { fetchProfileMap } from "@/services/nostr";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
 import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
@@ -642,19 +642,7 @@ export function RepoCard({
   const faces = counts.contributors.slice(0, 3);
   const faceScoreOf = useAuthorScores(faces);
   const faceRing = useTierRing();
-  const [faceProfiles, setFaceProfiles] = useState<Map<string, MemberProfile>>(new Map());
-  useEffect(() => {
-    if (faces.length === 0) return;
-    let alive = true;
-    void fetchProfileMap(faces).then((res) => {
-      if (!alive || res.size === 0) return;
-      setFaceProfiles(new Map([...res].map(([pk, c]) => [pk, c as MemberProfile])));
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [faces.join(",")]);
+  const faceProfiles = useFaceProfiles(faces);
   return (
     // Identity flush left, the code glyph balancing the top-right corner —
     // the App/List/Repo-page anatomy, now on the card too.
@@ -1045,40 +1033,9 @@ export function LiveTile({
  * out is the one thing you'd do next: add an upcoming event to your calendar,
  * or watch a past one's recording when there is one.
  */
-/** Profiles for a few faces: the store first, one fetch for the rest. */
+/** Profiles for a few faces, live. */
 export function useFaceProfiles(pubkeys: string[]): Map<string, MemberProfile> {
-  const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
-  const key = pubkeys.join(",");
-  useEffect(() => {
-    if (!key) return;
-    const known = new Map<string, MemberProfile>();
-    const missing: string[] = [];
-    for (const pk of key.split(",")) {
-      const stored = eventStore.getReplaceable(0, pk);
-      if (stored) {
-        try {
-          known.set(pk, JSON.parse(stored.content) as MemberProfile);
-        } catch {
-          /* unparseable — fallback face */
-        }
-      } else missing.push(pk);
-    }
-    setProfiles(known);
-    if (missing.length === 0) return;
-    let alive = true;
-    void fetchProfileMap(missing).then((res) => {
-      if (!alive || res.size === 0) return;
-      setProfiles((prev) => {
-        const next = new Map(prev);
-        for (const [pk, content] of res) next.set(pk, content as MemberProfile);
-        return next;
-      });
-    });
-    return () => {
-      alive = false;
-    };
-  }, [key]);
-  return profiles;
+  return useLiveProfiles(pubkeys) as Map<string, MemberProfile>;
 }
 
 /**
@@ -1296,38 +1253,7 @@ export function ListCard({
   const count = members.length + otherItems;
   const tierRing = useTierRing();
   const memberScoreOf = useAuthorScores(isPeopleList ? members.slice(0, 5) : []);
-  const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
-  useEffect(() => {
-    if (!isPeopleList) return;
-    const shown = members.slice(0, 5);
-    const known = new Map<string, MemberProfile>();
-    const missing: string[] = [];
-    for (const pk of shown) {
-      const stored = eventStore.getReplaceable(0, pk);
-      if (stored) {
-        try {
-          known.set(pk, JSON.parse(stored.content) as MemberProfile);
-        } catch {
-          /* unparseable — fallback face */
-        }
-      } else missing.push(pk);
-    }
-    setProfiles(known);
-    if (missing.length === 0) return;
-    let alive = true;
-    void fetchProfileMap(missing).then((res) => {
-      if (!alive || res.size === 0) return;
-      setProfiles((prev) => {
-        const next = new Map(prev);
-        for (const [pk, content] of res) next.set(pk, content as MemberProfile);
-        return next;
-      });
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event.id]);
+  const profiles = useFaceProfiles(isPeopleList ? members.slice(0, 5) : []);
   const header = (
     <div className="flex min-w-0 items-center gap-2">
       <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
@@ -1621,8 +1547,9 @@ export function ListingCard({
   score?: number | null;
   showAuthor?: boolean;
   /** When this card stands for one product published as several listings
-   *  (sizes, colours): the shared title and how many options there are. */
-  group?: { title: string; options: number };
+   *  (sizes, colours): its name, how many options there are — or only that
+   *  there are some — and its lowest price when they differ. */
+  group?: ProductCardGroup;
   /** The seller's other listings on the page: a Conduit seller's listing published elsewhere still opens on Conduit. */
   sellerListings?: NostrEvent[];
   /** The page's Bitcoin price, when it has one: the buyer's own money goes under the seller's price. */
@@ -1668,7 +1595,11 @@ export function ListingCard({
         )}
         <span className="absolute left-2 top-2 flex flex-col rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold leading-tight text-white">
           <span data-testid={`listing-price-${event.id}`}>
-            {l.price ? formatListingPrice(l.price) : "Price on request"}
+            {group?.from
+              ? `From ${formatListingPrice(group.from)}`
+              : l.price
+                ? formatListingPrice(l.price)
+                : "Price on request"}
           </span>
           {converted && (
             <span className="text-[10px] font-medium text-white/75" data-testid={`listing-price-converted-${event.id}`}>
@@ -1676,17 +1607,20 @@ export function ListingCard({
             </span>
           )}
         </span>
-        {l.images.length > 1 && (
+        {/* One badge along the bottom: on a narrow card the two collide, and
+            that a product comes in options matters more than its photo count. */}
+        {l.images.length > 1 && !(group && (group.options > 1 || group.moreOptions)) && (
           <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
             {l.images.length} photos
           </span>
         )}
-        {group && group.options > 1 && (
+        {group && (group.options > 1 || group.moreOptions) && (
           <span
             className="absolute bottom-2 left-2 rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-800"
             data-testid={`listing-options-${event.id}`}
           >
-            {group.options} options
+            {/* A count only when every option is in hand; a partial list just says there are some. */}
+            {group.moreOptions ? "Options available" : `${group.options} options`}
           </span>
         )}
       </div>

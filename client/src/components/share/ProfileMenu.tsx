@@ -8,7 +8,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EntityMenu } from "@/components/share/EntityMenu";
-import { muteUser, reportUser, unmuteUser } from "@/services/socialActions";
+import { muteUser, reportUser, unmuteUser, unreportUser } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 import { nostrUriFor, nprofileFor } from "@/lib/shareId";
 
@@ -23,8 +23,9 @@ const REPORT_REASONS = ["spam", "impersonation", "other"] as const;
  * else gets redirected out of it, so the link is theirs alone). Before, the
  * menu lived inside the Follow control and a signed-out visitor had none;
  * the open-in links sat in a panel of their own at the foot of the page
- * (team feedback, 2026-09-08). Mute/Report are optimistic, reverting on
- * failure.
+ * (team feedback, 2026-09-08). Mute and Undo report are optimistic,
+ * reverting on failure; a report can be taken back here, not only on the
+ * admin view.
  */
 export function ProfileMenu({
   pubkey,
@@ -74,6 +75,20 @@ export function ProfileMenu({
     }
   };
 
+  // Optimistic like Mute: the menu offers Report again at once; a refusal restores it.
+  const undoReport = async () => {
+    setReported(false);
+    const res = await unreportUser(pubkey);
+    if (res.success) {
+      toast({ title: "Report removed", description: "Scores may take a little while to reflect this." });
+      return;
+    }
+    setReported(true);
+    if (!res.cancelled) {
+      toast({ variant: "destructive", title: "Couldn't remove report", description: res.error || "Try again." });
+    }
+  };
+
   const nprofile = nprofileFor(pubkey, relays);
   // Each row says what its key is for — "why would they want this?"
   // (Benjamin, 2026-09-08). Share owns the human link; these are for machines.
@@ -107,8 +122,12 @@ export function ProfileMenu({
               {muted ? "Unmute" : "Mute"}
             </DropdownMenuItem>
             {reported ? (
-              <DropdownMenuItem className="gap-2 text-amber-600" disabled data-testid="share-report">
-                <Flag className="h-4 w-4" /> Reported
+              <DropdownMenuItem
+                className="gap-2 text-amber-600"
+                onClick={() => void undoReport()}
+                data-testid="share-report"
+              >
+                <Flag className="h-4 w-4" /> Undo report
               </DropdownMenuItem>
             ) : (
               <DropdownMenuSub>

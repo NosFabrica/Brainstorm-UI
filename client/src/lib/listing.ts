@@ -16,6 +16,9 @@ export interface ListingPrice {
   frequency?: string;
 }
 
+export type ProductType = "simple" | "variable" | "variation";
+const PRODUCT_TYPES = new Set<string>(["simple", "variable", "variation"]);
+
 export interface Listing {
   id: string;
   pubkey: string;
@@ -31,6 +34,16 @@ export interface Listing {
   /** "active" when the seller said so or said nothing; "sold" and others verbatim. */
   status: string;
   hidden: boolean;
+  /**
+   * The Open Markets product type: a plain product, a parent that comes in
+   * options, or one of a parent's options. Null when the seller's app said
+   * nothing — most listings — which is not the same as saying "simple".
+   */
+  productType: ProductType | null;
+  /** A variation's parent, as its address (`30402:<pubkey>:<d>`). Null otherwise. */
+  parent: string | null;
+  /** What the seller specified, in order: on a variation, which option it is ("Size", "6XL"). */
+  specs: { key: string; value: string }[];
   categories: string[];
   /** The seller's own page for this listing, when the app published one. */
   shopUrl: string | null;
@@ -96,6 +109,8 @@ export function parseListing(ev: EventLike): Listing | null {
       : null;
   const images = ev.tags.filter((t) => t[0] === "image" && isHttp(t[1])).map((t) => t[1]);
   const shopUrl = ev.tags.find((t) => (t[0] === "r" || t[0] === "web") && isHttp(t[1]))?.[1] ?? null;
+  const typed = (tag("type") ?? "").toLowerCase();
+  const productType = PRODUCT_TYPES.has(typed) ? (typed as ProductType) : null;
   return {
     id: ev.id,
     pubkey: ev.pubkey,
@@ -108,6 +123,16 @@ export function parseListing(ev: EventLike): Listing | null {
     location: tag("location") ?? null,
     status: (tag("status") || "active").toLowerCase(),
     hidden: (tag("visibility") || "").toLowerCase() === "hidden",
+    productType,
+    // Only a variation has a parent: any product may reference others, and a
+    // collection reference (30405) is not a product at all.
+    parent:
+      productType === "variation"
+        ? (ev.tags.find((t) => t[0] === "a" && t[1]?.startsWith(`${LISTING_KIND}:`))?.[1] ?? null)
+        : null,
+    specs: ev.tags
+      .filter((t) => t[0] === "spec" && t[1]?.trim() && t[2]?.trim())
+      .map((t) => ({ key: t[1].trim(), value: t[2].trim() })),
     categories: categoriesOf(ev),
     shopUrl,
     shipping: ev.tags
@@ -162,6 +187,9 @@ function parseProduct(ev: EventLike): Listing | null {
     location: null,
     status: quantity !== null && quantity <= 0 ? "sold" : "active",
     hidden: false,
+    productType: null,
+    parent: null,
+    specs: [],
     categories: categoriesOf(ev),
     shopUrl: null,
     shipping,
@@ -194,11 +222,34 @@ function parseAuction(ev: EventLike): Listing | null {
     location: tag("location") ?? null,
     status: ended ? "ended" : "active",
     hidden: false,
+    productType: null,
+    parent: null,
+    specs: [],
     categories: categoriesOf(ev),
     shopUrl: null,
     shipping: [],
     createdAt: ev.created_at,
   };
+}
+
+/**
+ * A listing's categories as a reader wants them: each once (a seller tags
+ * "hoodie", "hoodies" and "Hoodie" to be found, not to be read three times)
+ * and never the seller's own name, which the page already says. The first
+ * spelling of each is kept, in the seller's order.
+ */
+export function categoriesToShow(categories: readonly string[], sellerName?: string | null): string[] {
+  const keyOf = (c: string) => c.trim().toLowerCase().replace(/\s+/g, " ").replace(/s$/, "");
+  const seller = sellerName ? keyOf(sellerName) : null;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of categories) {
+    const key = keyOf(c);
+    if (!key || key === seller || seen.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+  }
+  return out;
 }
 
 /** For sale now: not sold, not hidden, and any status the seller left open. */

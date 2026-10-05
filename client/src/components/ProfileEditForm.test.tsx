@@ -16,7 +16,8 @@ const fetchProfileEvent = vi.fn(async (_pubkey: string) => null as unknown);
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => display(),
 }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   publishProfile: (...args: unknown[]) => publishProfile(...(args as [])),
   fetchProfile: (pubkey: string) => fetchProfile(pubkey),
   fetchProfileEvent: (pubkey: string) => fetchProfileEvent(pubkey),

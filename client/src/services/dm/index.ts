@@ -14,8 +14,8 @@ import { eventStore } from "@/lib/eventStore";
 import { deviceSealer, dmCacheBackend } from "@/lib/dm/cache";
 import { DM_RELAY_LIST_KIND, dmRelayTags, loadDmRelays } from "@/lib/dm/inboxRelays";
 import { ensureReadFloor } from "@/lib/dm/prefs";
+import { hydrateDmPrefs, startDmPrefsSync } from "@/lib/dm/prefsSync";
 import { publishToRelays } from "@/services/nostr";
-import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/relayAuthPref";
 import { DmEngine, type DmAccount, type SendResult, type SignerFailure } from "./engine";
 import { encryptFile, fileTags } from "@/lib/dm/fileCrypto";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
@@ -75,19 +75,14 @@ function startFor(account: BrainstormAccount | undefined) {
   current = null;
   if (account) {
     ensureReadFloor(account.pubkey);
+    // Pinned/muted/accepted chats from the account's encrypted copy. A key held here
+    // can open it unasked; an extension or bunker would prompt, so it waits for Messages.
+    if (account instanceof LocalAccount) void hydrateDmPrefs(account.pubkey);
     current = new DmEngine(dmAccountFor(account), {
       transport: poolTransport,
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
       cache: dmCacheBackend(),
       sealer: deviceSealer,
-      // Turning sign-in off drops the signed-in sockets (services/relayAuth):
-      // reconnect once it has, or the inbox goes quiet until a reload.
-      onAuthPrefChanged: (callback) => {
-        const sub = relayAuthChanged$.subscribe((pk) => {
-          if (pk === account.pubkey && !relayAuthAllowed(pk)) setTimeout(callback, 0);
-        });
-        return () => sub.unsubscribe();
-      },
     });
     void current.start();
   }
@@ -96,10 +91,12 @@ function startFor(account: BrainstormAccount | undefined) {
 
 /** Begin following the Active Account. Called once at boot (main.tsx). */
 export function startDirectMessages(): () => void {
+  const stopPrefsSync = startDmPrefsSync();
   startFor(accountManager.active);
   const sub = accountManager.active$.subscribe((account) => startFor(account));
   return () => {
     sub.unsubscribe();
+    stopPrefsSync();
     startFor(undefined);
   };
 }
@@ -115,10 +112,9 @@ export function subscribeDmEngine(listener: () => void): () => void {
 }
 
 /**
- * Turn private messages on in one step: publish the inbox list, and let the
- * inbox relays sign the reader in (NIP-42) — they won't hand over an inbox
- * otherwise, and many won't take a message from a sender who hasn't. Asking
- * for both separately left people with an inbox that never loaded.
+ * Turn private messages on: publish the inbox list. The inbox relays sign the
+ * reader in (NIP-42) when they ask (services/relayAuth) — they won't hand over
+ * an inbox otherwise.
  */
 export async function turnOnMessages(relays: string[]): Promise<PublishOutcome> {
   const account = accountManager.active;
@@ -145,16 +141,10 @@ async function turnOnInbox(account: { pubkey: string }, relays: string[]): Promi
   // account already published (from another client) with our suggestions.
   const existing = await loadDmRelays(account.pubkey, { fresh: true, timeoutMs: 6000 }).catch(() => null);
   if (existing?.relays.length) {
-    setRelayAuthAllowed(account.pubkey, true);
     if (current?.pubkey === account.pubkey) void current.refreshInbox();
     return { success: true };
   }
-  const allowedBefore = relayAuthAllowed(account.pubkey);
-  setRelayAuthAllowed(account.pubkey, true);
-  const outcome = await publishInboxRelays(relays);
-  // Nothing turned on: leave the sign-in choice as it was.
-  if (!outcome.success && !allowedBefore) setRelayAuthAllowed(account.pubkey, false);
-  return outcome;
+  return publishInboxRelays(relays);
 }
 
 /**

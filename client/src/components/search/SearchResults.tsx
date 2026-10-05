@@ -97,14 +97,14 @@ import {
 import { EventDateTile } from "@/components/share/EventDateTile";
 import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
-import { isSellable, parseListing } from "@/lib/listing";
+import { parseListing } from "@/lib/listing";
 import { describeThing, oneCardPerChannel, THING_KINDS, type ThingDetail } from "@/lib/thing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
+import { cardGroupOf, foldProductHits } from "@/lib/listingVariants";
 import { priceBands, priceInCurrency, toSats, viewerCurrency, type PriceBand } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
 import { usePersonContent } from "@/hooks/usePersonContent";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
-import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
@@ -128,6 +128,7 @@ import { KnowledgePanel, type PanelSections } from "@/components/search/Knowledg
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
 import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
@@ -787,33 +788,21 @@ export function SearchResults({
   // Set from the first render, never undefined: given undefined the panel would
   // ask the relay itself once, before the sections had a chance to answer.
   const [sections, setSections] = useState<PanelSections>({ people: null, events: null });
-  const [personMedia, setPersonMedia] = useState<SearchHit[]>([]);
-  useEffect(() => {
-    setPersonMedia([]);
-    // The Media tab and the composed Everything page both lead with it; the
-    // Music tab leads with the person's own tracks the same way.
-    const everything = tab === "everything" && !/(^|\s)sort:/i.test(query);
-    const music = tab === "music" && !scopeOf(query);
-    if ((tab !== "media" && !everything && !music) || !panelPerson) return;
-    let cancelled = false;
-    const who = panelPerson;
-    fetchRecentByKinds(who.pubkey, music ? [31337] : [1, 20, 21, 22, 34235, 34236], 40)
-      .then((events) => {
-        if (cancelled) return;
-        setPersonMedia(
-          events
-            .filter((e) => music || mediaUrlOf(e as NostrEvent) !== null)
-            .map((e) => ({ event: e as NostrEvent, author: who, rank: null })),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setPersonMedia([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
-  }, [tab, query, panelPerson?.pubkey]);
+  // The Media tab and the composed Everything page both lead with it; the
+  // Music tab leads with the person's own tracks the same way.
+  const leadsEverything = tab === "everything" && !/(^|\s)sort:/i.test(query);
+  const leadsMusic = tab === "music" && !scopeOf(query);
+  const leadWho = (tab === "media" || leadsEverything || leadsMusic) && panelPerson ? panelPerson : null;
+  const leadEvents = useRecentByKinds(leadWho?.pubkey, leadsMusic ? [31337] : [1, 20, 21, 22, 34235, 34236], 40).events;
+  const personMedia = useMemo<SearchHit[]>(
+    () =>
+      leadWho
+        ? leadEvents
+            .filter((e) => leadsMusic || mediaUrlOf(e as NostrEvent) !== null)
+            .map((e) => ({ event: e as NostrEvent, author: leadWho, rank: null }))
+        : [],
+    [leadEvents, leadWho, leadsMusic],
+  );
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [syntaxOpen, setSyntaxOpen] = useState(false);
   useSyntaxSheetShortcut(useCallback(() => setSyntaxOpen(true), []));
@@ -973,6 +962,25 @@ export function SearchResults({
   }, [carriers.byPubkey]);
   // Keep a ref so the render below sees a stable list even mid-stream. On the
   // Media tab the notes that carry media join the media-kind hits.
+  // The Shop as products: one card per product, its sizes and colours folded
+  // into it by the family its seller declared (lib/listingVariants, #158).
+  // Same-title copies from two apps fold first, into the one with a page.
+  const shopFold = useMemo(() => {
+    if (tab !== "shop") return null;
+    const base = snapshot?.hits ?? [];
+    return foldProductHits(
+      collapseDuplicateListings(
+        base.filter((h) => {
+          if (SHOP_PLACE_KINDS.has(h.event.kind)) return describeThing(h.event) !== null;
+          return parseListing(h.event) !== null;
+        }),
+      ),
+    );
+  }, [tab, snapshot]);
+  const shopGroupOf = (id: string) => {
+    const group = shopFold?.groups.get(id);
+    return group ? cardGroupOf(group) : undefined;
+  };
   const rawHits = useMemo(() => {
     const base = snapshot?.hits ?? [];
     // A listing is for sale or it is not a result: sold, hidden and priceless
@@ -981,14 +989,7 @@ export function SearchResults({
     // into the one with a product page (lib/listingDuplicates).
     // A NIP-15 stall or marketplace is a shop, not an item: it has no price,
     // and stays when it has a name to show (lib/thing).
-    if (tab === "shop")
-      return collapseDuplicateListings(
-        base.filter((h) => {
-          if (SHOP_PLACE_KINDS.has(h.event.kind)) return describeThing(h.event) !== null;
-          const l = parseListing(h.event);
-          return !!l && isSellable(l);
-        }),
-      );
+    if (tab === "shop") return shopFold?.hits ?? [];
     // The relay narrows by tag but cannot exclude by one: zap.cooking's own
     // articles wear the recipe tag too. One source of truth says which is
     // which, here, so the count line, the chips and the cards agree.
@@ -1010,7 +1011,7 @@ export function SearchResults({
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
     return [...base, ...visual];
-  }, [snapshot, mediaNotes, tab, personMedia, leadPeople]);
+  }, [snapshot, mediaNotes, tab, personMedia, leadPeople, shopFold]);
   // The person's own media is its own group above the list; the list drops its duplicates.
   const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -2496,6 +2497,7 @@ export function SearchResults({
                           return wrap(
                             <ListingCard
                               {...typed}
+                              group={shopGroupOf(event.id)}
                               rates={rates}
                               sellerListings={(snapshot?.hits ?? [])
                                 .filter((h) => h.event.pubkey === event.pubkey)

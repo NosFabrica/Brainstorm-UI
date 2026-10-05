@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { motion } from "framer-motion";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { useProfile } from "@/hooks/useProfile";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { getProfilePicture, type ProfileContent } from "applesauce-core/helpers/profile";
 import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -160,10 +160,8 @@ export function BrainstormAssistantCard({
     };
   }, [userPubkey, published]);
 
-  // The assistant's kind-0, live. A subscription rather than a fetch: the store
-  // answers immediately for one it already holds, its loader gets one it doesn't,
-  // and a later republish reaches this card without a reload.
-  const assistantProfile = useProfile(published?.pubkey);
+  // The assistant's kind-0, live: a later republish reaches this card without a reload.
+  const { profile: assistantProfile } = useLiveProfile(published?.pubkey);
 
   useEffect(() => {
     if (!published?.pubkey || !assistantProfile) return;

@@ -43,8 +43,21 @@ const profiles = new Map([
   [AUTHOR, { name: "hzrd149" }],
 ]);
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfile: async (pk: string) => profiles.get(pk) ?? null,
+  refreshProfileEvent: async (pk: string) =>
+    profiles.has(pk)
+      ? {
+          id: "f".repeat(64),
+          kind: 0,
+          pubkey: pk,
+          created_at: 1,
+          tags: [],
+          content: JSON.stringify(profiles.get(pk)),
+          sig: "",
+        }
+      : null,
   fetchProfileMap: async (pks: string[]) =>
     new Map(pks.flatMap((pk) => (profiles.has(pk) ? [[pk, profiles.get(pk)!]] : []))),
   fetchEventsByIds: async (ids: string[]) => (ids.includes(QUOTED.id) ? [QUOTED] : []),
@@ -63,8 +76,6 @@ vi.mock("@/components/share/ShareButton", () => ({ ShareButton: () => null }));
 vi.mock("@/components/share/EntityMenu", () => ({ EntityMenu: () => null }));
 
 import { ArticleScreen } from "./ArticleScreen";
-import { __resetQuotedNotes } from "@/hooks/useQuotedNotes";
-import { __resetLinkedArticles } from "@/hooks/useLinkedArticles";
 
 const npub = nip19.npubEncode(DEREK);
 const nevent = nip19.neventEncode({ id: QUOTED.id });
@@ -90,10 +101,7 @@ const open = (content: string, tags?: string[][]) =>
     </QueryClientProvider>,
   );
 
-beforeEach(() => {
-  __resetQuotedNotes();
-  __resetLinkedArticles();
-});
+beforeEach(() => {});
 
 const expectRendered = async () => {
   const body = screen.getByTestId("article-body");
@@ -144,7 +152,8 @@ describe("the article reader — a stub whose summary is a link to a note", () =
         "Some days posting here feels like nobody's listening.",
       ),
     );
-    expect(screen.getByTestId("article-summary")).toHaveTextContent("Derek Ross");
+    // Names are asked for in one batch, a beat after the note lands.
+    await waitFor(() => expect(screen.getByTestId("article-summary")).toHaveTextContent("Derek Ross"));
     expect(screen.getByTestId("article-summary")).not.toHaveTextContent("https://");
   });
 

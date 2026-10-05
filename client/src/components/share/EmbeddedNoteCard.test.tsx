@@ -40,7 +40,8 @@ const QUOTED = {
 };
 const byIds = vi.fn(async (ids: string[]) => (ids.includes(QUOTED.id) ? [QUOTED] : []));
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchAddressableEvents: (c: unknown) => addressable(c),
   fetchEventsByIds: (ids: string[]) => byIds(ids),
   fetchProfileMap: async (pks: string[]) =>
@@ -56,13 +57,9 @@ vi.mock("@/services/unfurl", () => ({ fetchUnfurl: async () => null }));
 
 import { EmbeddedNoteCard } from "./EmbeddedNoteCard";
 import { NoteContent } from "./NoteContent";
-import { __resetLinkedArticles } from "@/hooks/useLinkedArticles";
-import { __resetQuotedNotes } from "@/hooks/useQuotedNotes";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  __resetLinkedArticles();
-  __resetQuotedNotes();
 });
 
 describe("EmbeddedNoteCard", () => {
@@ -112,7 +109,7 @@ describe("EmbeddedNoteCard", () => {
     };
     renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
     const quoted = await screen.findByTestId("embedded-quote");
-    expect(quoted).toHaveTextContent("Derek Ross");
+    await waitFor(() => expect(quoted).toHaveTextContent("Derek Ross"));
     expect(quoted).toHaveTextContent("Some days posting here feels like nobody's listening.");
     await waitFor(() => expect(screen.queryByText("↳ quoted note")).toBeNull());
   });

@@ -6,7 +6,7 @@
  * this, clicking a "Verified Human" card landed on a blank event page.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 
@@ -14,12 +14,14 @@ vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => () => 0.7,
 }));
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
 }));
 const knownProfiles = new Map<string, NostrEvent>();
-vi.mock("@/lib/eventStore", () => ({
+vi.mock("@/lib/eventStore", async () => ({
   eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
     getEvent: () => undefined,
     add: (event: NostrEvent) => event,
@@ -65,7 +67,7 @@ describe("FollowSetHero", () => {
 
     // Members are ROWS into their profiles — the whole point of the page.
     const row = await screen.findByTestId(`set-member-${ALICE}`);
-    expect(row).toHaveTextContent("alice");
+    await waitFor(() => expect(row).toHaveTextContent("alice"));
     expect(row.getAttribute("href")).toBe(`/p/${nip19.npubEncode(ALICE)}`);
     // Rings ride every face.
     expect([...row.querySelectorAll("span")].some((el) => el.className.includes("shadow-[0_0_0"))).toBe(true);

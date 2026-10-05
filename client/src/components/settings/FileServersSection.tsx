@@ -2,32 +2,34 @@
  * The account's Blossom servers (BUD-03, kind 10063), edited beside its inbox
  * relays: private-message attachments are uploaded there first.
  */
-import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState, useMemo } from "react";
 import { HardDrive, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { ENCRYPTED_BLOSSOM_SERVERS, loadBlossomServers, normalizeServer } from "@/lib/blossomServers";
+import {
+  ENCRYPTED_BLOSSOM_SERVERS,
+  loadBlossomServers,
+  parseBlossomServers,
+  BLOSSOM_SERVER_LIST_KIND,
+  normalizeServer,
+} from "@/lib/blossomServers";
 import { publishBlossomServers } from "@/services/blossom";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 
 const host = (url: string) => url.replace(/^https?:\/\//, "");
 
 export function FileServersSection({ pubkey }: { pubkey: string }) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const current = useQuery({
-    queryKey: ["blossom-servers", pubkey],
-    queryFn: () => loadBlossomServers(pubkey),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-  });
+  const list = useStoreReplaceable(BLOSSOM_SERVER_LIST_KIND, pubkey || null, () => loadBlossomServers(pubkey));
+  const listed = useMemo(() => parseBlossomServers(list.event), [list.event]);
+  const listLoading = !!pubkey && !list.event && !list.settled;
   const [draft, setDraft] = useState<string[] | null>(null);
   const [adding, setAdding] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const servers = draft ?? current.data?.servers ?? [];
+  const servers = draft ?? listed;
   const dirty = draft !== null;
   useEffect(() => setDraft(null), [pubkey]);
 
@@ -49,7 +51,6 @@ export function FileServersSection({ pubkey }: { pubkey: string }) {
     if (outcome.cancelled) return;
     if (outcome.success) {
       setDraft(null);
-      void queryClient.invalidateQueries({ queryKey: ["blossom-servers", pubkey] });
       toast({ title: "File servers published" });
     } else {
       toast({ title: "Couldn't publish your file servers", description: outcome.error, variant: "destructive" });
@@ -66,7 +67,7 @@ export function FileServersSection({ pubkey }: { pubkey: string }) {
           list.
         </p>
       </div>
-      {current.isPending ? (
+      {listLoading ? (
         <span className="flex items-center gap-2 text-xs text-slate-500">
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Looking up your list…
         </span>
@@ -112,7 +113,7 @@ export function FileServersSection({ pubkey }: { pubkey: string }) {
         </Button>
       </form>
       {addError && <p className="text-xs text-red-600 dark:text-red-400">{addError}</p>}
-      {!servers.length && !dirty && !current.isPending && (
+      {!servers.length && !dirty && !listLoading && (
         <button
           type="button"
           onClick={() => setDraft(ENCRYPTED_BLOSSOM_SERVERS)}
