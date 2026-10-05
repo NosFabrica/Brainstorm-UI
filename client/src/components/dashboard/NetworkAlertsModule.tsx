@@ -1,21 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useLocation } from "wouter";
-import { useLiveProfiles } from "@/hooks/useLiveProfile";
-import {
-  ShieldAlert,
-  ShieldCheck,
-  VolumeX,
-  UserMinus,
-  ArrowRight,
-  Loader2,
-  ChevronDown,
-  Eye,
-  EyeOff,
-  Flag,
-  AlertTriangle,
-  X,
-} from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { useState, type ReactNode } from "react";
+import { VolumeX, UserMinus, ArrowRight, Loader2, Eye, EyeOff, Flag, AlertTriangle } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
@@ -32,26 +16,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
-import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import type { NetworkAlertEntry } from "@/services/api";
 import { unfollowUser, muteUser, reportUser, unreportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
-import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
 import {
-  ignoredAlertMap,
   ignoreAlert,
   unignoreAlert,
   ignoreMany,
   unignoreMany,
-  hydrateIgnoredFromNostr,
-  backfillIgnoredBaselines,
   whenIgnoreSyncSettles,
   hasEscalated,
-  actedAlertSet,
   markActed,
   unmarkActed,
 } from "@/lib/networkAlertsIgnored";
-import { accountKey } from "@/lib/accountStorage";
+import { useAlertPrefs } from "@/hooks/useAlertPrefs";
 
 // Module scope, not per-hook: the point is to say this ONCE, not once per hook
 // instance and certainly not once per ignored account. The likeliest cause (a
@@ -59,7 +37,6 @@ import { accountKey } from "@/lib/accountStorage";
 // warning would fire eight times while someone clears eight alerts.
 let warnedLocalOnlyThisSession = false;
 
-type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 type PendingAction = { pubkey: string; name: string; action: "unfollow" | "mute" };
 type ReportTarget = { pubkey: string; name: string; picture?: string; nip05?: string };
 /** Display bits used to confirm WHO is about to be reported. */
@@ -89,8 +66,7 @@ function isWidelyMuted(e: NetworkAlertEntry): boolean {
 }
 
 /**
- * Shared alert-action state for both the dashboard module and the full /alerts
- * page: the four row actions (ignore / unfollow / mute / report) plus the confirm
+ * Alert-action state for /alerts: the four row actions (ignore / unfollow / mute / report) plus the confirm
  * + typed-report dialogs they open. Ignore is a local dismiss (no Nostr action);
  * unfollow/mute/report all optimistically remove the row on success.
  *
@@ -101,35 +77,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
   const { toast } = useToast();
   // Persisted so an unfollow/mute/report hides the account on every surface
   // (dashboard + /alerts) and across reloads, not just in this hook instance.
-  const [dismissed, setDismissed] = useState<Set<string>>(() => actedAlertSet(observer));
-  const [ignored, setIgnored] = useState<Map<string, number | null>>(() => ignoredAlertMap(observer));
-  useEffect(() => {
-    // Local copy paints immediately; the account's encrypted NIP-78 list merges
-    // in when it arrives, so a dismissal made on another device carries over.
-    setIgnored(ignoredAlertMap(observer));
-    setDismissed(actedAlertSet(observer));
-    let live = true;
-    void hydrateIgnoredFromNostr(observer)
-      .then((merged) => {
-        if (live) setIgnored(merged);
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [observer]);
-
-  // One-time repair for entries stored before escalation baselines existed: they
-  // would otherwise stay hidden at any report count, which would make the
-  // "they'll show up again" promise beside the Ignore button a lie. Guarded so it
-  // only writes when there's genuinely something to fix — persist() publishes.
-  const currentSig = (current ?? []).map((e) => `${e.pubkey}:${e.verifiedReporterCount}`).join(",");
-  useEffect(() => {
-    if (!observer || !current?.length) return;
-    const repaired = backfillIgnoredBaselines(observer, current);
-    if (repaired) setIgnored(repaired);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [observer, currentSig]);
+  const { dismissed, setDismissed, ignored, setIgnored, isHidden } = useAlertPrefs(observer, current);
 
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [busy, setBusy] = useState(false);
@@ -139,15 +87,6 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
   const [reportNote, setReportNote] = useState("");
   const [reporting, setReporting] = useState(false);
 
-  /**
-   * Acted-on accounts stay gone. Ignored ones stay hidden UNTIL their reports
-   * materially worsen — ignoring someone at 9 reports shouldn't blind you at 60.
-   */
-  const isHidden = (pk: string, currentReports: number) => {
-    if (dismissed.has(pk)) return true;
-    if (!ignored.has(pk)) return false;
-    return !hasEscalated(ignored.get(pk) ?? null, currentReports);
-  };
   /** True when this row is back only because it got materially worse. */
   const isEscalated = (pk: string, currentReports: number) =>
     ignored.has(pk) && hasEscalated(ignored.get(pk) ?? null, currentReports);
@@ -484,310 +423,8 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
 }
 
 /**
- * Live Network Alerts — the dashboard's trust-&-safety console. Surfaces accounts
- * IN the observer's network that verified people report past threshold (flagged),
- * direct follows first, extended reach second. Fully async (its own query) so the
- * ~10s call never blocks the rest of the dashboard. Client-side deltas mark what's
- * NEW since the last visit. Every flagged row reads as a negative event (red accent
- * + "Reported" chip) and offers ignore / unfollow / mute / report.
+ * One flagged account, as a row of /alerts.
  */
-export function NetworkAlertsModule({
-  observer,
-  enabled,
-  onEmptyChange,
-}: {
-  observer: string;
-  enabled: boolean;
-  /** Lets the dashboard reflow: with nothing to act on, alerts shouldn't hold a column. */
-  onEmptyChange?: (empty: boolean) => void;
-}) {
-  const [, navigate] = useLocation();
-  const q = useNetworkAlerts(observer, { enabled });
-  const data = q.data?.data;
-
-  const flagged = useMemo(() => selectFlaggedAlerts(data), [data]);
-  // Follows only. Accounts at 2+ hops are still fetched (the /alerts page reads
-  // the same query from cache) but this card never renders or counts them.
-  const direct = useMemo(() => flagged.filter((e) => e.hops <= 1), [flagged]);
-
-  // Resolve names/avatars for every flagged account (batched).
-  const flaggedPubkeys = useMemo(() => flagged.map((e) => e.pubkey), [flagged]);
-  const profileMap = useLiveProfiles(flaggedPubkeys);
-  const profiles: Map<string, ProfileLite> = profileMap;
-
-  // Deltas: compute "new since last visit" once per snapshot; establish a silent
-  // baseline on the first-ever visit (nothing is "new" then).
-  const [newSet, setNewSet] = useState<Set<string>>(new Set());
-  const flaggedSig = flaggedPubkeys.join(",");
-  useEffect(() => {
-    if (!observer || !data) return;
-    const { newPubkeys } = computeNewAlerts(observer, flaggedPubkeys);
-    setNewSet(new Set(newPubkeys));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [observer, flaggedSig, !!data]);
-
-  const { isHidden, isEscalated, ignoredBaseline, actionsFor, dialogs } = useAlertActions(observer, flagged);
-
-  // New-first within each section so a freshly-flagged account jumps to the top
-  // (and carries the NEW tag) instead of hiding mid-list or in extended.
-  const newFirst = (arr: NetworkAlertEntry[]) =>
-    [...arr].sort((a, b) => (newSet.has(b.pubkey) ? 1 : 0) - (newSet.has(a.pubkey) ? 1 : 0));
-  const visibleDirect = newFirst(direct.filter((e) => !isHidden(e.pubkey, e.verifiedReporterCount)));
-  const newCount = visibleDirect.filter((e) => newSet.has(e.pubkey)).length;
-  const flaggedCount = visibleDirect.length;
-
-  const nameFor = (pk: string) =>
-    profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
-
-  // "Nothing needs you" = none of YOUR FOLLOWS are flagged. Extended reach is
-  // deliberately not part of this: it can't put the card into a state the user
-  // has to deal with, and it can't keep the card on screen after they've
-  // dismissed the all-clear. The dismiss stays safe to persist for the reason it
-  // always was — the moment one of your follows is flagged this goes false and
-  // the card comes back regardless.
-  const isEmpty = enabled && !q.isLoading && !q.isError && visibleDirect.length === 0;
-
-  // User can minimize the card to a slim one-row bar; the choice is remembered
-  // per account. Collapsing also tells the dashboard to give "Your Network" the
-  // full row (same reflow as the all-clear state), so nothing sits half-empty.
-  const COLLAPSE_KEY = accountKey("brainstorm_alerts_collapsed", observer);
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => {
-    try {
-      setCollapsed(!!localStorage.getItem(COLLAPSE_KEY));
-    } catch {}
-  }, [COLLAPSE_KEY]);
-  function toggleCollapsed() {
-    setCollapsed((c) => {
-      const next = !c;
-      try {
-        if (next) localStorage.setItem(COLLAPSE_KEY, "1");
-        else localStorage.removeItem(COLLAPSE_KEY);
-      } catch {}
-      return next;
-    });
-  }
-
-  // "Condensed" (empty OR minimized) is what the dashboard reflows on.
-  const condensed = isEmpty || collapsed;
-  useEffect(() => {
-    onEmptyChange?.(condensed);
-  }, [condensed, onEmptyChange]);
-
-  // The all-clear can be dismissed. Safe to persist because it ONLY suppresses
-  // the empty state — the moment anything is actually flagged, isEmpty goes false
-  // and the card renders regardless. So a user can never hide a real alert.
-  const CLEAR_KEY = accountKey("brainstorm_alerts_clear_dismissed", observer);
-  const [clearDismissed, setClearDismissed] = useState(false);
-  useEffect(() => {
-    try {
-      setClearDismissed(!!localStorage.getItem(CLEAR_KEY));
-    } catch {}
-  }, [CLEAR_KEY]);
-  function dismissClear() {
-    try {
-      localStorage.setItem(CLEAR_KEY, "1");
-    } catch {}
-    setClearDismissed(true);
-  }
-  if (isEmpty && clearDismissed) return null;
-
-  function markAllSeen() {
-    markAlertsSeen(observer, flaggedPubkeys);
-    setNewSet(new Set());
-  }
-
-  const rowProps = (e: NetworkAlertEntry) => ({
-    entry: e,
-    name: nameFor(e.pubkey),
-    picture: profiles.get(e.pubkey)?.picture,
-    isNew: newSet.has(e.pubkey),
-    following: e.hops <= 1,
-    escalatedFrom: isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null,
-    onDeepDive: () => navigate(`/p/${npubFromPubkey(e.pubkey)}`),
-    onWhy: () => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`),
-    ...actionsFor(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount, {
-      picture: profiles.get(e.pubkey)?.picture,
-      nip05: profiles.get(e.pubkey)?.nip05,
-    }),
-  });
-
-  // The quiet door to /alerts, shown in every state. Deliberately carries NO
-  // COUNT: this is the dashboard, and any number attached to "flagged" reads as
-  // a queue you're behind on, however gently it's styled. Extended reach — the
-  // accounts you don't follow — doesn't appear on this card at all any more. It
-  // lives on /alerts behind its own tab, where the count belongs to someone who
-  // went looking for it rather than someone who just opened their dashboard.
-  const manageLink = (
-    <button
-      type="button"
-      onClick={() => navigate("/alerts")}
-      className="mt-1 self-start rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-      data-testid="network-alerts-view-all"
-    >
-      Manage alerts →
-    </button>
-  );
-
-  // ---- states -------------------------------------------------------------
-  const header = (
-    <div className="flex items-center gap-2">
-      <div className="rounded-lg border border-slate-100 bg-white p-1.5 text-brand-deep shadow-sm ring-1 ring-slate-100 dark:border-slate-800/60 dark:bg-slate-800 dark:ring-slate-800">
-        <ShieldAlert className="h-3.5 w-3.5" />
-      </div>
-      <span
-        className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-200"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        Network Alerts
-      </span>
-      {/* Counts YOUR FOLLOWS only. It used to be follows + extended, so someone
-          whose own follow list was spotless still got a red "100 flagged" — a
-          count of strangers, in alert red, at the top of their dashboard. The
-          badge is the card's loudest signal; it has to mean "this many things
-          need YOU", and nothing in extended reach does. */}
-      {enabled && flaggedCount > 0 && (
-        <span
-          className="ml-1 inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-bold text-red-600 dark:text-red-400"
-          data-testid="network-alerts-flagged-count"
-        >
-          <AlertTriangle className="h-3 w-3" />
-          {flaggedCount} flagged
-        </span>
-      )}
-      <div className="ml-auto flex items-center gap-1.5">
-        {newCount > 0 && !collapsed && (
-          <button
-            type="button"
-            onClick={markAllSeen}
-            className="rounded text-[11px] font-semibold text-slate-500 hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400 dark:hover:text-white"
-            data-testid="network-alerts-mark-seen"
-          >
-            Mark all seen
-          </button>
-        )}
-        {enabled && (
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? "Expand network alerts" : "Minimize network alerts"}
-            aria-expanded={!collapsed}
-            title={collapsed ? "Expand" : "Minimize"}
-            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-            data-testid="network-alerts-collapse"
-          >
-            <ChevronDown className={`h-4 w-4 transition-transform ${collapsed ? "" : "rotate-180"}`} />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-
-  return (
-    <Card
-      className="flex h-full w-full flex-col gap-3 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-      data-testid="card-network-alerts"
-    >
-      {header}
-
-      {/* Body hidden when minimized — the header bar (with the flagged count and
-          the expand chevron) is all that remains, and the dashboard reflows so
-          "Your Network" takes the full row. */}
-      {!collapsed &&
-        (!enabled ? (
-          <div className="flex flex-col items-start gap-2 py-2" data-testid="network-alerts-pending">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-accent/20 bg-brand-accent/10">
-              <ShieldCheck className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
-            </div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Your safety radar is warming up</p>
-            <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-              As soon as your scores finish calculating, we'll flag anyone in your network that people you trust have
-              reported or muted — so you can act on it right here.
-            </p>
-          </div>
-        ) : q.isLoading ? (
-          <div className="space-y-2" data-testid="network-alerts-scanning">
-            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning your network…
-            </div>
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="h-12 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/60"
-                style={{ animationDelay: `${i * 0.1}s` }}
-              />
-            ))}
-          </div>
-        ) : q.isError ? (
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            Couldn't scan your network.{" "}
-            <button type="button" onClick={() => q.refetch()} className="font-semibold text-brand-link hover:underline">
-              Try again
-            </button>
-          </div>
-        ) : visibleDirect.length === 0 ? (
-          /* All-clear is the steady state, so it gets one line — not half the row.
-           Still shown rather than hidden: for a safety feature a missing widget
-           is ambiguous ("is it still watching?"), and hiding it would make the
-           dashboard reflow every time an alert arrives or clears.
-
-           Gated on YOUR FOLLOWS alone. It used to also require extended reach to
-           be empty, so anyone with flagged strangers nearby — the normal case —
-           could never be told their own follows were fine, however spotless they
-           were. And "Your network looks clean" is scoped to "Everyone you follow"
-           for the same reason: extended reach IS your network at 2 hops, so the
-           old wording flatly contradicted the footnote sitting under it. */
-          <div className="flex flex-col">
-            <div
-              className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
-              data-testid="network-alerts-clear"
-            >
-              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-              <span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300">
-                  Everyone you follow looks clean.
-                </span>{" "}
-                We're watching in the background.
-              </span>
-              <button
-                type="button"
-                onClick={dismissClear}
-                aria-label="Hide the all-clear"
-                title="Hide this. It comes back the moment something is flagged."
-                className="ml-auto shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-                data-testid="network-alerts-clear-dismiss"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            {manageLink}
-          </div>
-        ) : (
-          <>
-            {visibleDirect.length > 0 && (
-              <div className="space-y-1.5" data-testid="network-alerts-direct">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                  Flagged in your follows ({visibleDirect.length})
-                </p>
-                {visibleDirect.map((e) => (
-                  <AlertRow key={e.pubkey} {...rowProps(e)} />
-                ))}
-              </div>
-            )}
-
-            {/* "Manage" rather than "View all flagged accounts": /alerts now opens
-              on your follows, and the dashboard already lists every one of them
-              above — so the promise of a bigger list was false. What the page
-              actually adds is search, sort, bulk ignore and the ignored list. */}
-            {manageLink}
-          </>
-        ))}
-
-      {dialogs}
-    </Card>
-  );
-}
-
 export function AlertRow({
   entry,
   name,
