@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { fetchEventsByIds, fetchProfileMap } from "@/services/nostr";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import { fetchEventsByIds } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
@@ -21,19 +22,18 @@ export function ThreadAncestors({ note, relayHints }: { note: MinimalEvent; rela
   const ids = useMemo(() => Array.from(new Set([rootId, parentId].filter(Boolean))) as string[], [rootId, parentId]);
   const relays = useMemo(() => Array.from(new Set([...relayHints, ...PROFILE_RELAYS])), [relayHints]);
 
-  const eventsQuery = useQuery({
-    queryKey: ["thread-ancestors", ...ids],
-    queryFn: () => fetchEventsByIds(ids, relays),
-    enabled: ids.length > 0,
-    staleTime: 60_000,
-    retry: false,
-  });
+  const eventsQuery = useStoreEvents(
+    ids.length ? `thread-ancestors:${ids.join(",")}` : null,
+    ids.length ? [{ ids }] : null,
+    () => fetchEventsByIds(ids, relays),
+    { minMs: 60_000 },
+  );
 
   const byId = useMemo(() => {
     const m = new Map<string, MinimalEvent>();
-    for (const e of (eventsQuery.data ?? []) as MinimalEvent[]) m.set(e.id, e);
+    for (const e of (eventsQuery.events ?? []) as MinimalEvent[]) m.set(e.id, e);
     return m;
-  }, [eventsQuery.data]);
+  }, [eventsQuery.events]);
 
   const parent = parentId ? byId.get(parentId) : undefined;
   const root = rootId && rootId !== parentId ? byId.get(rootId) : undefined;
@@ -50,14 +50,8 @@ export function ThreadAncestors({ note, relayHints }: { note: MinimalEvent; rela
     return Array.from(set);
   }, [root, parent]);
 
-  const profilesQuery = useQuery({
-    queryKey: ["thread-ancestor-profiles", mentionPks.join(",")],
-    queryFn: () => fetchProfileMap(mentionPks),
-    enabled: mentionPks.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = (profilesQuery.data as Map<string, ProfileLite>) ?? new Map<string, ProfileLite>();
+  const profileMap = useLiveProfiles(mentionPks);
+  const profiles = (profileMap as Map<string, ProfileLite>) ?? new Map<string, ProfileLite>();
 
   if (!parentId && !rootId) return null; // not a reply
   if (!root && !parent) return null; // ancestors couldn't be fetched (deleted / off relays)

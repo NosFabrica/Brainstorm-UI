@@ -34,7 +34,10 @@ vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
   fetchVouchReplies: (...a: unknown[]) => repliesMock(...(a as [string[]])),
 }));
-vi.mock("@/services/nostr", () => ({ fetchProfileMap: vi.fn(() => Promise.resolve(new Map())) }));
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
+  fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+}));
 let viewerMock: { pubkey: string } | null = null;
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => viewerMock }));
 const publishVouchMock = vi.fn(async (_subject: string, _opts: { type: string; content: string }) => ({
@@ -47,12 +50,12 @@ vi.mock("@/services/vouches", () => ({
   revokeVouch: (s: string, id: string) => revokeVouchMock(s, id),
 }));
 const knownProfiles = new Map<string, NostrEvent>();
-vi.mock("@/lib/eventStore", () => ({
+vi.mock("@/lib/eventStore", async () => ({
   eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
     getReplaceable: (_k: number, pubkey: string) => knownProfiles.get(pubkey),
     getEvent: () => undefined,
     add: (e: NostrEvent) => e,
-    insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
   },
 }));
 

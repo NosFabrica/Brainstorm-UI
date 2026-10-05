@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { addrCoord, collectRefs, mentionPubkeysFromContent, type AddressRef, type MinimalEvent } from "@/lib/noteRefs";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
 import { newerEvent, useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 
 export type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -48,25 +49,14 @@ export function useNoteRefs(
 
   const idsKey = [...refs.ids].sort().join(",");
   const idHintsKey = refs.idRelays.slice(0, MAX_REF_HINTS).join(",");
-  const [eventsById, setEventsById] = useState<Map<string, MinimalEvent>>(NO_EVENTS);
-  useEffect(() => {
-    if (!idsKey) {
-      setEventsById(NO_EVENTS);
-      return;
-    }
-    let alive = true;
-    fetchEventsByIds(idsKey.split(","), Array.from(new Set([...relays, ...(idHintsKey ? idHintsKey.split(",") : [])])))
-      .then((list) => {
-        if (!alive) return;
-        const m = new Map<string, MinimalEvent>();
-        for (const ev of list as MinimalEvent[]) m.set(ev.id, ev);
-        setEventsById(m);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [idsKey, idHintsKey, relays]);
+  const idFilters = useMemo(() => (idsKey ? [{ ids: idsKey.split(",") }] : null), [idsKey]);
+  const quoted = useStoreEvents(idsKey ? `note-refs:${idsKey}:${idHintsKey}` : null, idFilters, () =>
+    fetchEventsByIds(idsKey.split(","), Array.from(new Set([...relays, ...(idHintsKey ? idHintsKey.split(",") : [])]))),
+  );
+  const eventsById = useMemo(() => {
+    if (!quoted.events.length) return NO_EVENTS;
+    return new Map(quoted.events.map((ev) => [ev.id, ev as MinimalEvent]));
+  }, [quoted.events]);
 
   // Keyed by coordinate AND hints: an identifier may hold a comma, so the
   // pointers themselves ride along in a memo rather than being re-parsed.
@@ -77,25 +67,19 @@ export function useNoteRefs(
     [addrsKey],
   );
   const heldAddrs = useHeldReplaceables(addrs);
-  const [fetchedAddrs, setFetchedAddrs] = useState<Map<string, MinimalEvent>>(NO_EVENTS);
-  useEffect(() => {
-    if (!addrs.length) {
-      setFetchedAddrs(NO_EVENTS);
-      return;
-    }
-    let alive = true;
-    fetchAddressableEvents(addrs, relays)
-      .then((src) => {
-        if (!alive) return;
-        const m = new Map<string, MinimalEvent>();
-        for (const [k, v] of src) m.set(k, v as MinimalEvent);
-        setFetchedAddrs(m);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [addrs, relays]);
+  // Held copies render through `heldAddrs`; this asks the relays for newer ones.
+  const askedAddrs = useStoreEvents(addrs.length ? `note-addrs:${addrsKey}` : null, null, async () =>
+    Array.from((await fetchAddressableEvents(addrs, relays).catch(() => new Map())).values()),
+  );
+  const fetchedAddrs = useMemo(() => {
+    if (!askedAddrs.events.length) return NO_EVENTS;
+    return new Map(
+      (askedAddrs.events as MinimalEvent[]).map((e) => [
+        `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`,
+        e,
+      ]),
+    );
+  }, [askedAddrs.events]);
   const addrByCoord = useMemo(() => mergeNewest(addrs, heldAddrs, fetchedAddrs), [addrs, heldAddrs, fetchedAddrs]);
 
   const extraKey = (opts.extraPubkeys ?? []).join(",");

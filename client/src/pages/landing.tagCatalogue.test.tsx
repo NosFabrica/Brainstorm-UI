@@ -19,7 +19,8 @@ vi.mock("@/services/search", async (importOriginal) => ({
   suggestProfileHits: async () => [],
   fetchRepoCounts: async () => ({ issues: 0, patches: 0 }),
 }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfile: async () => null,
   fetchRecentByKinds: async () => [],
   fetchLiveStreams: async () => [],

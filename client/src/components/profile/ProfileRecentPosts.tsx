@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { MessagesSquare, Loader2 } from "lucide-react";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
-import { fetchEventsByFilter, fetchProfileMap, fetchEventsByIds } from "@/services/nostr";
+import { fetchEventsByFilter, fetchEventsByIds } from "@/services/nostr";
 import { eventPath } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -15,21 +16,20 @@ import type { MinimalEvent } from "@/lib/noteRefs";
  * when the profile has no recent text notes, so it never leaves an empty block.
  */
 export function ProfileRecentPosts({ pubkey, limit = 3 }: { pubkey: string; limit?: number }) {
-  const notesQuery = useQuery({
-    queryKey: ["profile-recent-notes", pubkey],
-    queryFn: () => fetchEventsByFilter({ kinds: [1], authors: [pubkey], limit: 20 }),
-    enabled: !!pubkey,
-    staleTime: 2 * 60_000,
-    retry: false,
-  });
+  const notesQuery = useStoreEvents(
+    pubkey ? `profile-recent-notes:${pubkey}` : null,
+    pubkey ? [{ kinds: [1], authors: [pubkey], limit: 20 }] : null,
+    () => fetchEventsByFilter({ kinds: [1], authors: [pubkey], limit: 20 }),
+    { minMs: 2 * 60_000 },
+  );
 
   const notes = useMemo<MinimalEvent[]>(() => {
-    const all = (notesQuery.data ?? []) as MinimalEvent[];
+    const all = (notesQuery.events ?? []) as MinimalEvent[];
     return [...all]
       .filter((e) => (e.content ?? "").trim().length > 0)
       .sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0))
       .slice(0, limit);
-  }, [notesQuery.data, limit]);
+  }, [notesQuery.events, limit]);
 
   // Parents of any replies, so "replying to…" resolves with real context.
   const parentIds = useMemo(
@@ -39,34 +39,26 @@ export function ProfileRecentPosts({ pubkey, limit = 3 }: { pubkey: string; limi
       ).slice(0, 12),
     [notes],
   );
-  const parentsQuery = useQuery({
-    queryKey: ["profile-recent-parents", parentIds.join(",")],
-    queryFn: () => fetchEventsByIds(parentIds),
-    enabled: parentIds.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const parentsQuery = useStoreEvents(
+    notesQuery.settled && parentIds.length ? `profile-recent-parents:${parentIds.join(",")}` : null,
+    parentIds.length ? [{ ids: parentIds }] : null,
+    () => fetchEventsByIds(parentIds),
+  );
   const eventsById = useMemo(() => {
     const m = new Map<string, MinimalEvent>();
-    for (const e of (parentsQuery.data ?? []) as MinimalEvent[]) m.set(e.id, e);
+    for (const e of (parentsQuery.events ?? []) as MinimalEvent[]) m.set(e.id, e);
     return m;
-  }, [parentsQuery.data]);
+  }, [parentsQuery.events]);
 
   const profilePubkeys = useMemo(() => {
     const s = new Set<string>([pubkey]);
     eventsById.forEach((e) => s.add(e.pubkey));
     return Array.from(s);
   }, [pubkey, eventsById]);
-  const profilesQuery = useQuery({
-    queryKey: ["profile-recent-profiles", profilePubkeys.join(",")],
-    queryFn: () => fetchProfileMap(profilePubkeys),
-    enabled: profilePubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data ?? new Map();
+  const profileMap = useLiveProfiles(profilePubkeys);
+  const profiles = profileMap;
 
-  if (notesQuery.isLoading && notes.length === 0) {
+  if (notesQuery.loading && notes.length === 0) {
     return (
       <div
         className="mb-4 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-none"

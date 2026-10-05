@@ -16,10 +16,12 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 const muteUser = vi.fn(async (_pk: string) => ({ success: true }));
 const unmuteUser = vi.fn(async (_pk: string) => ({ success: true }));
 const reportUser = vi.fn(async (_pk: string, _reason: string) => ({ success: true }));
+const unreportUser = vi.fn(async (_pk: string) => ({ success: true }));
 vi.mock("@/services/socialActions", () => ({
   muteUser: (pk: string) => muteUser(pk),
   unmuteUser: (pk: string) => unmuteUser(pk),
   reportUser: (pk: string, reason: string) => reportUser(pk, reason),
+  unreportUser: (pk: string) => unreportUser(pk),
 }));
 
 const PK = "a".repeat(64);
@@ -109,6 +111,16 @@ describe("ProfileMenu", () => {
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })));
     menu = await open();
     expect(within(menu).getByTestId("share-mute")).toHaveTextContent("Unmute");
+  });
+
+  it("a report can be taken back: Undo report deletes it and offers Report again", async () => {
+    menuFor({ loggedIn: true, isOwner: false, isAdmin: false }, { alreadyReported: true });
+    const menu = await open();
+    fireEvent.click(within(menu).getByText("Undo report"));
+    await waitFor(() => expect(unreportUser).toHaveBeenCalledWith(PK));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Report removed" })));
+    const again = await open();
+    expect(within(again).getByTestId("share-report")).toHaveTextContent("Report");
   });
 
   it("Copy nprofile carries the person's relays; Copy public key copies the raw hex", async () => {

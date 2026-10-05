@@ -10,7 +10,8 @@ import { nip19, type NostrEvent } from "nostr-tools";
 
 const recentMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>();
 const profileMapMock = vi.fn<(pks: string[]) => Promise<Map<string, Record<string, unknown>>>>();
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentMock(pubkey, kinds, limit),
   fetchProfileMap: (pks: string[]) => profileMapMock(pks),
 }));

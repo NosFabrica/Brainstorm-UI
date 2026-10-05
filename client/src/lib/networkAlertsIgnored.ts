@@ -356,6 +356,18 @@ export function markActed(observer: string, pubkey: string): Set<string> {
   return next;
 }
 
+/** Undo `markActed` — the action was taken back, so the alert may show again. */
+export function unmarkActed(observer: string, pubkey: string): Set<string> {
+  const next = actedAlertSet(observer);
+  next.delete(pubkey);
+  if (observer) {
+    try {
+      localStorage.setItem(actedKey(observer), JSON.stringify(Array.from(next)));
+    } catch {}
+  }
+  return next;
+}
+
 /** Merge the account's published ignore list into the local one. */
 export async function hydrateIgnoredFromNostr(observer: string): Promise<Map<string, number | null>> {
   const local = load(observer);

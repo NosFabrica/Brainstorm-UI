@@ -5,7 +5,7 @@
  * Probed via the same relay typeahead the box uses; silent unless confident.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchLiveStreams, fetchRecentByKinds } from "@/services/nostr";
+import { fetchLiveStreams } from "@/services/nostr";
 import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
 import { PanelLive } from "@/components/search/PanelLive";
 import { PanelLatestMedia, fountainLinksOf, latestVideos } from "@/components/search/PanelMedia";
@@ -61,6 +61,8 @@ import {
   type SearchSnapshot,
 } from "@/services/search";
 import { useConnectionSpeed } from "@/lib/connection";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
  *  no review copy on search surfaces (Benjamin). */
@@ -211,7 +213,6 @@ function KnowledgePanelBody({
   const [topicEvents, setTopicEvents] = useState<SearchHit[] | null>(null);
   // The person's own songs — kind 31337 by author, the three newest that
   // actually are songs (the kind is abused; see lib/trackEvent).
-  const [personTracks, setPersonTracks] = useState<Track[]>([]);
   useEffect(() => {
     onPerson?.(person);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,11 +221,8 @@ function KnowledgePanelBody({
   // key first, exact name second, never a loose match.
   const [personWavlake, setPersonWavlake] = useState<{ artist: WavlakeArtist; songs: WavlakeSong[] } | null>(null);
   // Their stream: live now leads the panel; otherwise when they last streamed.
-  const [personStreams, setPersonStreams] = useState<PickedStreams>({ live: null, upcoming: null, replay: null });
   // Their latest posts that carry media — videos attached, podcast links.
-  const [personRecent, setPersonRecent] = useState<NostrEvent[]>([]);
   // What they have for sale — the three newest listings still for sale.
-  const [personListings, setPersonListings] = useState<VariantGroup[]>([]);
   // Below the desktop breakpoint the rail has nowhere to go and the panel
   // would fill the first screen; it folds to one row until tapped.
   const belowLg = useIsMobile(1024);
@@ -250,105 +248,68 @@ function KnowledgePanelBody({
   // What every probe below needs before it asks anything.
   const probeReady = probe && !scopeOf(query) && isPanelableQuery(query);
   let strip: { icon: React.ReactNode; title: string; line: string } | null = null;
+  // The person's things, live from the store: each ask about them leaves in one batch.
+  const personPk = person?.pubkey ?? null;
+  const listingEvents = useRecentByKinds(personPk, [LISTING_KIND], 12).events;
+  // Products, not listings: a shirt in five sizes is one row.
+  const personListings = useMemo<VariantGroup[]>(
+    () =>
+      productsFromEvents(listingEvents as NostrEvent[])
+        .slice(0, 3)
+        .map((p) => p.group),
+    [listingEvents],
+  );
+  const personRecent = useRecentByKinds(personPk, [1, 21, 22, 34235, 34236], 40).events as NostrEvent[];
+  // Authored by the streaming platform, not the person: the ask's answer is the list.
+  const streamEvents = useStoreEvents(personPk ? `live:${personPk}` : null, null, () =>
+    fetchLiveStreams(personPk!),
+  ).events;
+  const picked = useMemo(() => pickStreams(streamEvents), [streamEvents]);
+  // A replay is advertised only after its recording answered.
+  const replayUrl = (picked.replay?.recording as string | undefined) ?? null;
+  const [verifiedReplay, setVerifiedReplay] = useState<string | null>(null);
   useEffect(() => {
-    if (!person) {
-      setPersonListings([]);
-      return;
-    }
+    if (!replayUrl) return;
     let cancelled = false;
-    fetchRecentByKinds(person.pubkey, [LISTING_KIND], 12)
-      .then((events) => {
-        if (cancelled) return;
-        // Products, not listings: a shirt in five sizes is one row.
-        setPersonListings(
-          productsFromEvents(events as NostrEvent[])
-            .slice(0, 3)
-            .map((p) => p.group),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setPersonListings([]);
-      });
+    void verifyRecording(replayUrl).then((ok) => {
+      if (!cancelled && ok) setVerifiedReplay(replayUrl);
+    });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
-  }, [person?.pubkey]);
+  }, [replayUrl]);
+  const personStreams: PickedStreams = useMemo(
+    () => ({ ...picked, replay: picked.replay && verifiedReplay === replayUrl ? picked.replay : null }),
+    [picked, verifiedReplay, replayUrl],
+  );
+  const tracksQuery = useRecentByKinds(personPk, [TRACK_KIND], 6);
+  const personTracks = useMemo(
+    () =>
+      tracksQuery.events
+        .map(parseTrack)
+        .filter((tr): tr is Track => tr !== null)
+        .slice(0, 3),
+    [tracksQuery.events],
+  );
+  // No native tracks once the ask is in: their Wavlake catalogue instead.
+  const needsWavlake = !!person && tracksQuery.settled && personTracks.length === 0;
   useEffect(() => {
-    if (!person) {
-      setPersonRecent([]);
-      return;
-    }
-    let cancelled = false;
-    fetchRecentByKinds(person.pubkey, [1, 21, 22, 34235, 34236], 40)
-      .then((events) => {
-        if (!cancelled) setPersonRecent(events as NostrEvent[]);
-      })
-      .catch(() => {
-        if (!cancelled) setPersonRecent([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
-  }, [person?.pubkey]);
-  useEffect(() => {
-    if (!person) {
-      setPersonStreams({ live: null, upcoming: null, replay: null });
-      return;
-    }
-    let cancelled = false;
-    fetchLiveStreams(person.pubkey)
-      .then(async (events) => {
-        const picked = pickStreams(events);
-        // A replay is advertised only after its recording answered.
-        if (picked.replay && !(await verifyRecording(picked.replay.recording as string))) picked.replay = null;
-        if (!cancelled) setPersonStreams(picked);
-      })
-      .catch(() => {
-        if (!cancelled) setPersonStreams({ live: null, upcoming: null, replay: null });
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
-  }, [person?.pubkey]);
-
-  useEffect(() => {
-    if (!person) {
-      setPersonTracks([]);
-      return;
-    }
-    let cancelled = false;
     setPersonWavlake(null);
-    const wavlakeFallback = async () => {
+    if (!needsWavlake || !person) return;
+    let cancelled = false;
+    void (async () => {
       const artist = await findWavlakeArtist({ name: person.displayName || person.name, pubkey: person.pubkey });
       if (!artist || cancelled) return;
       const songs = await wavlakeArtistTracks(artist.id, 3);
       if (!cancelled && songs.length > 0) setPersonWavlake({ artist, songs });
-    };
-    fetchRecentByKinds(person.pubkey, [TRACK_KIND], 6)
-      .then((events) => {
-        if (cancelled) return;
-        const native = events
-          .map(parseTrack)
-          .filter((tr): tr is Track => tr !== null)
-          .slice(0, 3);
-        setPersonTracks(native);
-        if (native.length === 0) return wavlakeFallback();
-      })
-      .catch(() => {
-        if (!cancelled) setPersonTracks([]);
-        return wavlakeFallback();
-      })
-      .catch(() => {
-        /* Wavlake down: no row */
-      });
+    })().catch(() => {
+      /* Wavlake down: no row */
+    });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
-  }, [person?.pubkey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- per person, not per profile object
+  }, [needsWavlake, person?.pubkey]);
 
   // Everything the panel knows is about THIS query: a new one starts blank.
   // Nothing else belongs in these deps — a dep that changes while the results

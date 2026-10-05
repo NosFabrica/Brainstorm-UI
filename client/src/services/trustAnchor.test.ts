@@ -10,7 +10,6 @@ const triggerGrapeRank = vi.fn(async () => ({}));
 const getUserHistory = vi.fn(async () => ({ data: {} }));
 const signNip85 = vi.fn(async () => ({ id: "e".repeat(64), pubkey: "a".repeat(64) }));
 const publishToRelays = vi.fn(async () => ({ success: true }));
-const isUsingBrainstorm = vi.fn(async () => false);
 const fetchTrustProviderList = vi.fn(async (): Promise<{ tags: string[][] } | undefined> => undefined);
 const fetchOutboxRelayList = vi.fn(async () => undefined);
 const isUnlockCancelled = vi.fn(() => false);
@@ -25,7 +24,6 @@ const checkUserLists = vi.fn(async (..._a: unknown[]) => ({
   designation: null as null | { key: string; relay: string },
 }));
 const listsToName = vi.fn(async (..._a: unknown[]) => null as null | { key: string; relay: string });
-const recordTrustListsDeclared = vi.fn();
 
 vi.mock("./api", () => ({
   apiClient: {
@@ -37,14 +35,12 @@ vi.mock("./nostr", () => ({
   fetchOutboxRelayList: (...a: unknown[]) => fetchOutboxRelayList(...(a as [])),
   fetchTrustProviderList: (...a: unknown[]) => fetchTrustProviderList(...(a as [])),
   getNip85RelayUrl: () => "wss://nip85.example",
-  isUsingBrainstorm: (...a: unknown[]) => isUsingBrainstorm(...(a as [])),
   publishToRelays: (...a: unknown[]) => publishToRelays(...(a as [])),
   signNip85: (...a: unknown[]) => signNip85(...(a as [])),
 }));
 vi.mock("./trustLists", () => ({
   checkUserLists: (...a: unknown[]) => checkUserLists(...a),
   listsToName: (...a: unknown[]) => listsToName(...a),
-  recordTrustListsDeclared: (...a: unknown[]) => recordTrustListsDeclared(...a),
 }));
 vi.mock("@/accounts/signing", () => ({
   activeAccount: () => activeAccount(),
@@ -136,7 +132,7 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
   });
 
   // Adding the list rows must not cost the user anything already in their 10040.
-  it("with lists, signs our rows merged into the 10040 they have, and records the lists declared", async () => {
+  it("with lists, signs our rows merged into the 10040 they have", async () => {
     const LISTS = { key: "c".repeat(64), relay: "wss://nip85-staging.example" };
     const theirs = [["30383:rank", "f".repeat(64), "wss://elsewhere.example"]];
     fetchTrustProviderList.mockResolvedValueOnce({ tags: theirs });
@@ -145,7 +141,6 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
 
     expect(res).toEqual({ status: "success" });
     expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: LISTS, existing: theirs });
-    expect(recordTrustListsDeclared).toHaveBeenCalledWith(ME, LISTS);
   });
 
   /**
@@ -161,7 +156,6 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
 
     expect(res).toEqual({ status: "success" });
     expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: LISTS, existing: [] });
-    expect(recordTrustListsDeclared).toHaveBeenCalledWith(ME, LISTS);
   });
 
   it("a caller that says null means it — no lists, no lookup", async () => {
@@ -225,7 +219,12 @@ describe("checkExistingTrustProvider — the consent card's pre-check", () => {
   });
 
   it("an exact Brainstorm declaration → brainstorm, recorded locally", async () => {
-    isUsingBrainstorm.mockResolvedValueOnce(true);
+    fetchTrustProviderList.mockResolvedValueOnce({
+      tags: [
+        ["30382:rank", TA, "wss://nip85.example"],
+        ["30382:followers", TA, "wss://nip85.example"],
+      ],
+    });
     expect(await checkExistingTrustProvider(ME, TA)).toBe("brainstorm");
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
   });
@@ -262,7 +261,7 @@ describe("checkExistingTrustProvider — the consent card's pre-check", () => {
 
 /**
  * The automatic publish path (background poll + app-load self-heal) versus a
- * foreign declaration. `isUsingBrainstorm === false` alone cannot tell "no
+ * foreign declaration. "Not using Brainstorm" alone cannot tell "no
  * 10040" from "a 10040 naming someone else" — and only the second must stop
  * the publish: the user's on-relay declaration takes precedence over anything
  * this app decided in the background.
@@ -275,7 +274,6 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
     // clearAllMocks keeps implementations — pin the inert defaults so a
     // persistent mockResolvedValue can't leak between these tests.
     fetchTrustProviderList.mockResolvedValue(undefined);
-    isUsingBrainstorm.mockResolvedValue(false);
   });
 
   it("backs off from a declaration naming a different assistant — never a silent replace", async () => {
@@ -289,7 +287,12 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
   });
 
   it("records an existing Brainstorm declaration and stops", async () => {
-    isUsingBrainstorm.mockResolvedValueOnce(true);
+    fetchTrustProviderList.mockResolvedValueOnce({
+      tags: [
+        ["30382:rank", TA, "wss://nip85.example"],
+        ["30382:followers", TA, "wss://nip85.example"],
+      ],
+    });
 
     await ensureBrainstormTrustAnchor(ME, TA);
 

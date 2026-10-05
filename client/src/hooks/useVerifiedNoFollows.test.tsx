@@ -10,7 +10,8 @@ const createdInApp = vi.fn(() => false);
 vi.mock("@/services/socialActions", () => ({
   fetchContactList: (...a: unknown[]) => fetchContactList(...(a as [])),
 }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchOutboxRelayList: (...a: unknown[]) => fetchOutboxRelayList(...(a as [])),
 }));
 vi.mock("@/accounts/display", () => ({

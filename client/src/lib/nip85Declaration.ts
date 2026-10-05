@@ -21,6 +21,24 @@ export function declaresTrustProvider(event: NostrEvent, taPubkey: string, relay
 }
 
 /**
+ * What a kind-10040 says about the user's provider, given their own assistant
+ * (`taPubkey`). The bar is the rank pubkey being THEIR assistant; any other rank
+ * target — or none known yet — is "other". No declaration is "none". Whether to
+ * RECORD it as activated is the stricter `declaresTrustProvider`.
+ */
+export function trustProviderStatusOf(
+  event: Pick<NostrEvent, "tags"> | null | undefined,
+  taPubkey: string | null | undefined,
+  relayUrl: string,
+): "none" | "brainstorm" | "other" {
+  if (!event) return "none";
+  if (taPubkey && declaresTrustProvider(event as NostrEvent, taPubkey, relayUrl)) return "brainstorm";
+  const rankTarget = event.tags.find((t) => t[0] === "30382:rank")?.[1];
+  if (!rankTarget) return "none";
+  return rankTarget === taPubkey ? "brainstorm" : "other";
+}
+
+/**
  * The Trusted List kinds Brainstorm's assistant publishes for a user: 30392
  * (pubkeys), 30393 (events), 30394 (addressable events). Other apps find a
  * user's lists through their 10040, one row per kind.

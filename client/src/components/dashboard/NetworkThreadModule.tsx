@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useLocation } from "wouter";
 import { MessagesSquare, Loader2, Flame, Clock, Heart, Repeat2, MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
-import { fetchEventsByFilter, fetchProfileMap, fetchEventsByIds } from "@/services/nostr";
+import { fetchEventsByFilter, fetchEventsByIds } from "@/services/nostr";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { eventPath } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -45,49 +47,49 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
   const [mode, setMode] = useState<Mode>("trending");
 
   // The user's ACTUAL follow list (kind 3) — not a moderation endpoint.
-  const followsQuery = useQuery({
-    queryKey: ["thread-contacts", observer],
-    queryFn: async () => Array.from(getFollowedPubkeys(await fetchContactList(observer))),
-    enabled: enabled && !!observer,
-    staleTime: 10 * 60_000,
-    retry: false,
-  });
-  const authors = useMemo(() => (followsQuery.data ?? []).slice(0, MAX_AUTHORS), [followsQuery.data]);
+  const follows = useStoreReplaceable(3, enabled && observer ? observer : null, () => fetchContactList(observer));
 
-  const notesQuery = useQuery({
-    queryKey: ["thread-notes", authors.length, authors[0] ?? ""],
-    queryFn: () =>
-      fetchEventsByFilter({
-        kinds: [1],
-        authors,
-        since: Math.floor(Date.now() / 1000) - WINDOW_DAYS * DAY,
-        limit: 400,
-      }),
-    enabled: enabled && authors.length > 0,
-    staleTime: 2 * 60_000,
-    retry: false,
-  });
+  const authors = useMemo(
+    () => Array.from(getFollowedPubkeys((follows.event as never) ?? null)).slice(0, MAX_AUTHORS),
+    [follows.event],
+  );
+
+  const authorsKey = authors.join(",");
+  // Fixed per author set: a window recomputed every render would be a new filter, and a new REQ, each time.
+  const since = useMemo(() => Math.floor(Date.now() / 1000) - WINDOW_DAYS * DAY, [authorsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const notesFilter = useMemo(() => ({ kinds: [1], authors, since, limit: 400 }), [authorsKey, since]); // eslint-disable-line react-hooks/exhaustive-deps
+  const notesQuery = useStoreEvents(
+    enabled && authors.length ? `thread-notes:${since}:${authorsKey}` : null,
+    enabled && authors.length ? [notesFilter] : null,
+    () => fetchEventsByFilter(notesFilter),
+    { minMs: 2 * 60_000 },
+  );
 
   const candidates = useMemo<MinimalEvent[]>(() => {
-    const all = (notesQuery.data ?? []) as MinimalEvent[];
+    const all = (notesQuery.events ?? []) as MinimalEvent[];
     return all.filter((e) => (e.content ?? "").trim().length > 0);
-  }, [notesQuery.data]);
+  }, [notesQuery.events]);
 
   // Engagement: replies (kind 1 with an #e), reposts (6) and reactions (7)
   // pointing at these notes — from ANYONE, not just the user's follows, since
   // that's what makes a post genuinely trending rather than locally popular.
   const candidateIds = useMemo(() => candidates.slice(0, 100).map((e) => e.id), [candidates]);
-  const engagementQuery = useQuery({
-    queryKey: ["thread-engagement", candidateIds.length, candidateIds[0] ?? ""],
-    queryFn: () => fetchEventsByFilter({ kinds: [1, 6, 7], "#e": candidateIds, limit: 500 }),
-    enabled: enabled && mode === "trending" && candidateIds.length > 0,
-    staleTime: 2 * 60_000,
-    retry: false,
-  });
+  const engagementFilter = useMemo(
+    () => ({ kinds: [1, 6, 7], "#e": candidateIds, limit: 500 }),
+    [candidateIds.join(",")], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const engagementQuery = useStoreEvents(
+    enabled && mode === "trending" && notesQuery.settled && candidateIds.length
+      ? `thread-engagement:${candidateIds.join(",")}`
+      : null,
+    enabled && mode === "trending" && candidateIds.length ? [engagementFilter] : null,
+    () => fetchEventsByFilter(engagementFilter),
+    { minMs: 2 * 60_000 },
+  );
 
   const scores = useMemo(() => {
     const m = new Map<string, { replies: number; reposts: number; reactions: number; score: number }>();
-    for (const ev of (engagementQuery.data ?? []) as MinimalEvent[]) {
+    for (const ev of (engagementQuery.events ?? []) as MinimalEvent[]) {
       const targets = (ev.tags ?? []).filter((t: string[]) => t[0] === "e").map((t: string[]) => t[1]);
       // A reply/reaction can carry several e-tags (root + reply); credit the last,
       // which by NIP-10 convention is the event actually being responded to.
@@ -107,7 +109,7 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
       m.set(target, cur);
     }
     return m;
-  }, [engagementQuery.data]);
+  }, [engagementQuery.events]);
 
   const notes = useMemo<MinimalEvent[]>(() => {
     const sorted = [...candidates].sort((a, b) => {
@@ -136,18 +138,16 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
       ).slice(0, 24),
     [notes],
   );
-  const parentsQuery = useQuery({
-    queryKey: ["thread-parents", parentIds.join(",")],
-    queryFn: () => fetchEventsByIds(parentIds),
-    enabled: parentIds.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const parentsQuery = useStoreEvents(
+    notesQuery.settled && parentIds.length ? `thread-parents:${parentIds.join(",")}` : null,
+    parentIds.length ? [{ ids: parentIds }] : null,
+    () => fetchEventsByIds(parentIds),
+  );
   const eventsById = useMemo(() => {
     const m = new Map<string, MinimalEvent>();
-    for (const e of (parentsQuery.data ?? []) as MinimalEvent[]) m.set(e.id, e);
+    for (const e of (parentsQuery.events ?? []) as MinimalEvent[]) m.set(e.id, e);
     return m;
-  }, [parentsQuery.data]);
+  }, [parentsQuery.events]);
 
   const profilePubkeys = useMemo(() => {
     const s = new Set<string>();
@@ -155,19 +155,13 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
     eventsById.forEach((e) => s.add(e.pubkey));
     return Array.from(s);
   }, [notes, eventsById]);
-  const profilesQuery = useQuery({
-    queryKey: ["thread-profiles", profilePubkeys.join(",")],
-    queryFn: () => fetchProfileMap(profilePubkeys),
-    enabled: profilePubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data ?? new Map();
+  const profileMap = useLiveProfiles(profilePubkeys);
+  const profiles = profileMap;
   // Trust scores for the feed's authors (the module's own `scores` map is
   // ENGAGEMENT, not trust). Shared session cache; house POV.
   const authorScoreOf = useAuthorScores(useMemo(() => notes.map((n) => n.pubkey), [notes]));
 
-  const loading = followsQuery.isLoading || (authors.length > 0 && notesQuery.isLoading);
+  const loading = follows.loading || (authors.length > 0 && notesQuery.loading);
   if (!enabled || (!loading && candidates.length === 0)) return null;
 
   const tab = (val: Mode, label: string, Icon: typeof Flame) => (

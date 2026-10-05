@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useGoBack } from "@/hooks/useGoBack";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ShieldAlert, ShieldCheck, Loader2, Search, Eye, EyeOff } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
-import { fetchProfileMap } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import { AlertRow, useAlertActions } from "@/components/dashboard/NetworkAlertsModule";
@@ -56,14 +55,8 @@ export default function AlertsPage() {
   const flagged = useMemo(() => selectFlaggedAlerts(data), [data]);
 
   const flaggedPubkeys = useMemo(() => flagged.map((e) => e.pubkey), [flagged]);
-  const profilesQuery = useQuery({
-    queryKey: ["alerts-profiles", flaggedPubkeys.join(",")],
-    queryFn: () => fetchProfileMap(flaggedPubkeys),
-    enabled: flaggedPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles: Map<string, ProfileLite> = profilesQuery.data ?? new Map();
+  const profileMap = useLiveProfiles(flaggedPubkeys);
+  const profiles: Map<string, ProfileLite> = profileMap;
   const nameFor = (pk: string) =>
     profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
