@@ -550,7 +550,7 @@ function EventView({
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
-                <ListingHero event={note} sellerWebsite={profile.website} />
+                <ListingHero event={note} sellerWebsite={profile.website} sellerName={authorName} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
               ) : hasThingPage(note) ? (

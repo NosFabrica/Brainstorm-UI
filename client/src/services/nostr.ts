@@ -877,6 +877,35 @@ export async function fetchEventsByIds(
   return [...found.values()];
 }
 
+/**
+ * A product and its options, asked for by name: the parent listing at
+ * `parentAddress` (`30402:<pubkey>:<d>`) and every listing of the same seller
+ * that points at it. The seller's newest listings usually hold them all; a
+ * big shop's do not, and a product page must not show half its sizes. Asked
+ * of the search relay and the seller's own relays together; never rejects.
+ */
+export async function fetchListingFamily(
+  pubkey: string,
+  parentAddress: string,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const [kind, author, ...rest] = parentAddress.split(":");
+  const d = rest.join(":");
+  if (author !== pubkey || !d || !Number.isFinite(Number(kind))) return [];
+  const filters = [
+    { kinds: [Number(kind)], authors: [pubkey], "#d": [d] },
+    { kinds: [Number(kind)], authors: [pubkey], "#a": [parentAddress], limit: 200 },
+  ];
+  const relays = await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS);
+  const answers = await Promise.all([
+    fetchFromSearchRelayByFilters(filters, timeoutMs).catch(() => [] as NostrEvent[]),
+    ...filters.map((f) => fetchEventsByFilter(f, relays, timeoutMs).catch(() => [] as NostrEvent[])),
+  ]);
+  const byId = new Map<string, NostrEvent>();
+  for (const ev of answers.flat()) byId.set(ev.id, ev);
+  return [...byId.values()];
+}
+
 /** Any filter against the search relay, with the lens it requires; EOSE or
  *  timeout resolves, never rejects. */
 function fetchFromSearchRelayByFilters(filters: Record<string, unknown>[], timeoutMs: number): Promise<NostrEvent[]> {

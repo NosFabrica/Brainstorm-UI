@@ -7,7 +7,7 @@ import type { NostrEvent } from "nostr-tools";
 import { decodeShareId } from "@/lib/shareId";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { LISTING_KIND } from "@/lib/listing";
-import { productsFromEvents } from "@/lib/listingVariants";
+import { cardGroupOf, productsFromEvents } from "@/lib/listingVariants";
 import { ListingCard } from "@/components/search/cards";
 import { Chip } from "@/components/ui/chip";
 import { useGoBack } from "@/hooks/useGoBack";
@@ -71,7 +71,7 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
                 event={event as NostrEvent}
                 author={null}
                 showAuthor={false}
-                group={{ title: group.title, options: group.options.length }}
+                group={cardGroupOf(group)}
               />
             ))}
           </div>

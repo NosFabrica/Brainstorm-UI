@@ -543,11 +543,13 @@ function KnowledgePanelBody({
                         </span>
                         <span className="block text-[11px] text-slate-500 dark:text-slate-400">
                           {l.price ? formatListingPrice(l.price) : "Price on request"}
-                          {g.options.length > 1
-                            ? ` · ${g.options.length} options`
-                            : l.location
-                              ? ` · ${l.location}`
-                              : ""}
+                          {!g.complete
+                            ? " · Options available"
+                            : g.options.length > 1
+                              ? ` · ${g.options.length} options`
+                              : l.location
+                                ? ` · ${l.location}`
+                                : ""}
                         </span>
                       </span>
                     </Link>

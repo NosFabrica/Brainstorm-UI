@@ -1152,6 +1152,28 @@ describe("suggestListings", () => {
     expect((await pending).map((h) => h.event.id)).toEqual(["h1", "h2", "h4"]);
   });
 
+  // The popup's Shop row counts products: a hoodie in three sizes is one (#158).
+  it("counts a product and its sizes once", async () => {
+    const { subject } = controllable();
+    const pending = suggestListings("hoodie", { pov: "nosfabrica" }, { limit: 9 });
+    await tick();
+    const seller = "a".repeat(64);
+    // The helper's `d` is the listing's id, so the parent below is `h`.
+    const P = `30402:${seller}:h`;
+    const size = (s: string) =>
+      listing(`h-${s}`, `Hoodie - ${s}`, [
+        ["type", "variation", "physical"],
+        ["a", P],
+        ["spec", "Size", s],
+      ]);
+    subject.next(frame(size("L")));
+    subject.next(frame(size("M")));
+    subject.next(frame(listing("h", "Hoodie", [["type", "variable", "physical"]])));
+    subject.next(frame(listing("other", "Hoodie strings")));
+    subject.next(EOSE);
+    expect((await pending).map((h) => h.event.id)).toEqual(["h-L", "other"]);
+  });
+
   it("one product is one row, and the limit holds", async () => {
     const { subject } = controllable();
     const pending = suggestListings("soap", { pov: "nosfabrica" }, { limit: 2 });

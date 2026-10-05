@@ -12,6 +12,7 @@ const recentMock = vi.fn(async (_pubkey: string, _kinds: number[], _limit: numbe
 vi.mock("@/services/nostr", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/nostr")>()),
   fetchRecentByKinds: (pk: string, kinds: number[], limit: number) => recentMock(pk, kinds, limit),
+  fetchListingFamily: async () => [],
 }));
 
 import { ListingHero } from "./ListingHero";
@@ -210,5 +211,104 @@ describe("ListingHero", () => {
     expect(screen.getByTestId("listing-hero-price-unknown")).toHaveTextContent("Price on request");
     // No price is not a status — nothing here is sold or gone.
     expect(screen.queryByTestId("listing-hero-status")).toBeNull();
+  });
+
+  // A shopper reads the name, picks a size, then buys — so the sizes sit
+  // between the title and the buttons, not under the whole description
+  // (Benjamin, 2026-10-05).
+  it("offers the product's options between the title and the buy buttons", async () => {
+    const P = `30402:${SELLER}:hoodie`;
+    const sized = (s: string, at: number) => ({
+      id: `${s}`.padEnd(64, "a"),
+      kind: 30402,
+      pubkey: SELLER,
+      created_at: at,
+      content: "",
+      sig: "",
+      tags: [
+        ["d", `hoodie-${s}`],
+        ["title", `Hoodie - ${s}`],
+        ["price", "46.2", "USD"],
+        ["type", "variation", "physical"],
+        ["a", P],
+        ["spec", "Size", s],
+      ],
+    });
+    const self = sized("M", 10);
+    recentMock.mockResolvedValue([self, sized("L", 9), sized("S", 8)]);
+    render(<ListingHero event={self} />);
+    const options = await screen.findByTestId("listing-options");
+    expect(
+      within(options)
+        .getAllByTestId("listing-option")
+        .map((c) => c.textContent),
+    ).toEqual(["S", "M", "L"]);
+    const before = (a: HTMLElement, b: HTMLElement) =>
+      !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before(screen.getByTestId("listing-hero-title"), options)).toBe(true);
+    expect(before(options, screen.getByTestId("listing-hero-actions"))).toBe(true);
+  });
+
+  // Seventeen search tags between the name and the buy button pushed the
+  // button down the page. They are how a listing is found, not what a buyer
+  // reads first: a few, under the description, and the rest one tap away.
+  describe("the seller's categories", () => {
+    const TAGS = [
+      "bitcoin",
+      "bitcoin hoodie",
+      "nixon",
+      "1971",
+      "sound money",
+      "Satoshoes",
+      "hoodie",
+      "hoodies",
+      "Hoodie",
+      "tops",
+      "clothes",
+    ];
+    const withTags = () => listing(TAGS.map((t) => ["t", t]));
+    const shown = () => screen.getAllByTestId("listing-hero-category").map((c) => c.textContent);
+
+    it("sit under the description, five at first, with the rest behind a count", () => {
+      render(<ListingHero event={withTags()} sellerName="Satoshoes" />);
+      expect(shown()).toEqual(["bitcoin", "bitcoin hoodie", "nixon", "1971", "sound money"]);
+      const more = screen.getByTestId("listing-hero-categories-more");
+      // Eleven tags, less the seller's own name and two repeats of "hoodie": eight, five shown.
+      expect(more).toHaveTextContent("+3 more");
+      const before = (a: HTMLElement, b: HTMLElement) =>
+        !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(
+        before(screen.getByTestId("listing-hero-description"), screen.getByTestId("listing-hero-categories")),
+      ).toBe(true);
+      expect(before(screen.getByTestId("listing-hero-actions"), screen.getByTestId("listing-hero-categories"))).toBe(
+        true,
+      );
+
+      fireEvent.click(more);
+      expect(shown()).toEqual([
+        "bitcoin",
+        "bitcoin hoodie",
+        "nixon",
+        "1971",
+        "sound money",
+        "hoodie",
+        "tops",
+        "clothes",
+      ]);
+      expect(screen.queryByTestId("listing-hero-categories-more")).toBeNull();
+    });
+
+    it("show all of them, with no count, when there are five or fewer", () => {
+      render(
+        <ListingHero
+          event={listing([
+            ["t", "soap"],
+            ["t", "tallow"],
+          ])}
+        />,
+      );
+      expect(shown()).toEqual(["soap", "tallow"]);
+      expect(screen.queryByTestId("listing-hero-categories-more")).toBeNull();
+    });
   });
 });

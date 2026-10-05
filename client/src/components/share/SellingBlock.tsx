@@ -3,7 +3,7 @@ import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { ShoppingBag } from "lucide-react";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { LISTING_KIND } from "@/lib/listing";
-import { productsFromEvents } from "@/lib/listingVariants";
+import { cardGroupOf, productsFromEvents } from "@/lib/listingVariants";
 import { ListingCard } from "@/components/search/cards";
 import { ContentTeaserBlock } from "./ContentTeaserBlock";
 
@@ -58,7 +58,7 @@ export function SellingBlock({
             event={event as NostrEvent}
             author={null}
             showAuthor={false}
-            group={{ title: group.title, options: group.options.length }}
+            group={cardGroupOf(group)}
           />
         ))}
       </div>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ExternalLink, MapPin, MessageCircle, ShoppingBag, Truck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
-import { formatListingPrice, isSellable, parseListing } from "@/lib/listing";
+import { categoriesToShow, formatListingPrice, isSellable, parseListing } from "@/lib/listing";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { secondPriceLine, viewerCurrency } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
@@ -10,6 +10,13 @@ import { nostrUriFor } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
+import { ListingOptions } from "@/components/share/ListingOptions";
+import type { NostrEvent } from "nostr-tools";
+
+type ListingEvent = Pick<NostrEvent, "id" | "pubkey" | "kind" | "created_at" | "tags">;
+
+/** How many categories a product page shows before "+N more". */
+const CATEGORIES_SHOWN = 5;
 
 /**
  * A kind-30402 listing on its event page: the photos, the price as the seller
@@ -24,8 +31,11 @@ import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 export function ListingHero({
   event,
   sellerWebsite,
+  sellerName,
 }: {
   event: MinimalEvent;
+  /** The seller's name, when the page knows it: a category that only repeats it is not shown. */
+  sellerName?: string | null;
   /** The seller's own website, from their profile — the way in when the listing names no shop and no app we know. */ sellerWebsite?:
     string | null;
 }) {
@@ -39,6 +49,8 @@ export function ListingHero({
     content: event.content ?? "",
   });
   const [photo, setPhoto] = useState(0);
+  // A handful of categories is enough to say what this is; the rest are one tap away.
+  const [allCategories, setAllCategories] = useState(false);
   // The app that sold it wins over a stray shop link: that is where the
   // product actually lives and checks out.
   // A listing published outside Conduit by a seller who sells on Conduit still
@@ -58,6 +70,7 @@ export function ListingHero({
     }
   })();
   if (!l) return null;
+  const categories = categoriesToShow(l.categories, sellerName);
   const sellable = isSellable(l);
   // Sold, hidden, inactive: a status worth a chip. Merely priceless is not.
   const gone = !sellable && (l.status !== "active" || l.hidden);
@@ -144,12 +157,10 @@ export function ListingHero({
             <MapPin className="h-3.5 w-3.5" /> {l.location}
           </span>
         )}
-        {l.categories.map((c) => (
-          <Chip key={c} tone="slate" size="sm">
-            {c}
-          </Chip>
-        ))}
       </div>
+
+      {/* Where a shopper chooses: the product's options, right above the way to buy. */}
+      <ListingOptions event={event as ListingEvent} className="mt-3" />
 
       {/* Actions — the seller's app and the seller's shop. */}
       <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="listing-hero-actions">
@@ -227,6 +238,28 @@ export function ListingHero({
 
       {(l.description || l.summary) && (
         <ReadingText text={l.description || (l.summary as string)} className="mt-4" testId="listing-hero-description" />
+      )}
+
+      {/* The seller's categories: how the listing is found, not what a buyer
+          reads first — so under the story, a few at a time. */}
+      {categories.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-1.5" data-testid="listing-hero-categories">
+          {(allCategories ? categories : categories.slice(0, CATEGORIES_SHOWN)).map((c) => (
+            <Chip key={c} tone="slate" size="sm" data-testid="listing-hero-category">
+              {c}
+            </Chip>
+          ))}
+          {!allCategories && categories.length > CATEGORIES_SHOWN && (
+            <button
+              type="button"
+              onClick={() => setAllCategories(true)}
+              className="rounded-full px-1.5 py-0.5 text-[11px] font-medium text-brand-link hover:underline"
+              data-testid="listing-hero-categories-more"
+            >
+              +{categories.length - CATEGORIES_SHOWN} more
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

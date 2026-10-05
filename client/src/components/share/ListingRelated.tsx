@@ -3,12 +3,11 @@ import { Link } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { fetchSimilarListings } from "@/services/search";
-import { APP_TAGS, LISTING_KIND, isSellable, parseListing } from "@/lib/listing";
-import { productsFromEvents, splitVariantTitle, type ProductCard } from "@/lib/listingVariants";
-import { eventPath } from "@/lib/shareId";
+import { APP_TAGS, isSellable, parseListing } from "@/lib/listing";
+import { cardGroupOf } from "@/lib/listingVariants";
+import { useListingShelf } from "@/hooks/useListingShelf";
 import type { SearchResult } from "@/lib/profileSearch";
 import { ListingCard } from "@/components/search/cards";
-import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 
 type ListingLike = Pick<NostrEvent, "id" | "pubkey" | "kind" | "created_at" | "tags">;
 
@@ -29,27 +28,12 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
   const [similar, setSimilar] = useState<NostrEvent[]>([]);
   const address = addressOf(event);
 
-  // As deep as the profile's shelf asks: a seller's newest listings can be
-  // a run of hidden copies (Staci's shop, 2026-09-24), and thirty of those
-  // left this row empty while her profile showed 36 products.
-  const sellerEvents = useRecentByKinds(event.pubkey, [LISTING_KIND], 100).events;
-  // The seller's things as products. The product this listing belongs to
-  // gives its other sizes as options; the rest are "more for sale" — counted,
-  // for the row's door to their page.
-  const { mine, mineTotal, options } = useMemo(() => {
-    const products = productsFromEvents(sellerEvents);
-    const isThis = (m: { id: string; pubkey: string; d: string }) =>
-      m.id === event.id || `${LISTING_KIND}:${m.pubkey}:${m.d}` === address;
-    const own = products.find((p) => p.group.members.some(isThis));
-    const others = products.filter((p) => p !== own);
-    return {
-      mine: others.slice(0, 4) as ProductCard<NostrEvent>[],
-      mineTotal: others.length,
-      options: (own?.group.members ?? [])
-        .filter((m) => !isThis(m))
-        .map((m) => ({ id: m.id, pubkey: m.pubkey, label: splitVariantTitle(m.title).option ?? m.title })),
-    };
-  }, [sellerEvents, event.id, address]);
+  // The seller's other products, counted, for the row and its door to their
+  // page. This product's own options are offered by the buy button
+  // (ListingOptions); the two read one shelf (hooks/useListingShelf).
+  const { others } = useListingShelf(event);
+  const mine = others.slice(0, 4);
+  const mineTotal = others.length;
 
   useEffect(() => {
     let alive = true;
@@ -90,25 +74,11 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
     return next;
   }, [sellerProfiles]);
 
-  if (mine.length === 0 && similar.length === 0 && options.length === 0) return null;
+  if (mine.length === 0 && similar.length === 0) return null;
   return (
     // The same distance from its neighbours as the posts strip below it (mt-8),
     // and as much between its own rows: a shop page, not a footnote.
     <div className="mb-8 mt-8 space-y-8" data-testid="listing-related">
-      {options.length > 0 && (
-        <section data-testid="listing-options" className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Other options</span>
-          {options.map((o) => (
-            <Link
-              key={o.id}
-              href={eventPath({ id: o.id, pubkey: o.pubkey })}
-              className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-            >
-              {o.label}
-            </Link>
-          ))}
-        </section>
-      )}
       {mine.length > 0 && (
         <section data-testid="listing-more-from-seller">
           <div className="mb-3 flex items-baseline gap-3">
@@ -128,13 +98,7 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {mine.map(({ event: ev, group }) => (
-              <ListingCard
-                key={group.id}
-                event={ev}
-                author={null}
-                showAuthor={false}
-                group={{ title: group.title, options: group.options.length }}
-              />
+              <ListingCard key={group.id} event={ev} author={null} showAuthor={false} group={cardGroupOf(group)} />
             ))}
           </div>
         </section>

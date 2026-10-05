@@ -10,8 +10,10 @@ import { nip19, type NostrEvent } from "nostr-tools";
 
 const recentMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>();
 const profileMapMock = vi.fn<(pks: string[]) => Promise<Map<string, Record<string, unknown>>>>();
+const familyMock = vi.fn<(pubkey: string, parent: string) => Promise<NostrEvent[]>>();
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
+  fetchListingFamily: (pubkey: string, parent: string) => familyMock(pubkey, parent),
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentMock(pubkey, kinds, limit),
   fetchProfileMap: (pks: string[]) => profileMapMock(pks),
 }));
@@ -23,6 +25,19 @@ vi.mock("@/services/search", async (importOriginal) => ({
 }));
 
 import { ListingRelated } from "./ListingRelated";
+import { ListingOptions } from "./ListingOptions";
+
+/**
+ * The product page's two halves that read one seller's shelf: the options by
+ * the buy button (ListingOptions, inside the hero) and what else the seller
+ * has (ListingRelated). Rendered together, as the page does.
+ */
+const Page = ({ event, sellerName }: { event: NostrEvent; sellerName?: string }) => (
+  <>
+    <ListingOptions event={event} />
+    <ListingRelated event={event} sellerName={sellerName} />
+  </>
+);
 
 const SELLER = "ab".repeat(32);
 const OTHER = "cd".repeat(32);
@@ -54,6 +69,8 @@ describe("ListingRelated", () => {
     profileMapMock.mockResolvedValue(new Map());
     similarMock.mockResolvedValue([]);
     recentMock.mockResolvedValue([]);
+    familyMock.mockReset();
+    familyMock.mockResolvedValue([]);
   });
 
   it("offers more from the same seller, newest first — never this listing (even a newer edit of it) nor a sold one", async () => {
@@ -170,7 +187,7 @@ describe("ListingRelated", () => {
       variant("tee-m", "Tee — M", 800),
       listing(SELLER, "mug", "Mug", 700),
     ]);
-    render(<ListingRelated event={self} sellerName="Born To Be Free" />);
+    render(<Page event={self} sellerName="Born To Be Free" />);
     const options = await screen.findByTestId("listing-options");
     const chips = within(options).getAllByRole("link");
     expect(chips.map((c) => c.textContent)).toEqual(["L", "M"]);
@@ -179,5 +196,67 @@ describe("ListingRelated", () => {
     expect(within(row).getAllByTestId(/^listing-card-/)).toHaveLength(1);
     expect(row).toHaveTextContent("Mug");
     expect(row).not.toHaveTextContent("Tee");
+  });
+
+  // Issue #158: the 6XL hoodie's "Other options" listed its parent as an option
+  // and labelled the sizes with fragments of the title. The seller's app says
+  // what the product is and which size each listing is (Open Markets).
+  describe("a product whose seller declared its options", () => {
+    const NAME = "Circular Economy Hoodie – Permissionless / Rules Without Rulers";
+    const P = `30402:${SELLER}:hoodie`;
+    const SIZES = ["6XL", "5XL", "4XL", "3XL", "2XL", "XL", "L", "M", "S", "XS"];
+    const parent = listing(SELLER, "hoodie", NAME, 2000, [["type", "variable", "physical"]]);
+    const size = (s: string, i: number) =>
+      listing(SELLER, `hoodie-${s.toLowerCase()}`, `${NAME} - ${s}`, 1990 - i, [
+        ["type", "variation", "physical"],
+        ["a", P],
+        ["spec", "Size", s],
+      ]);
+    const kids = SIZES.map(size);
+    const mug = listing(SELLER, "mug", "Mug", 500);
+    const chips = () => within(screen.getByTestId("listing-options")).getAllByTestId("listing-option");
+
+    it("on one size's page: every size in order, this one marked, and the parent is not a size", async () => {
+      recentMock.mockResolvedValue([parent, ...kids, mug]);
+      render(<Page event={kids[0]} sellerName="Satoshoes" />);
+      const row = await screen.findByTestId("listing-options");
+      expect(row).toHaveTextContent("Size");
+      expect(chips().map((c) => c.textContent)).toEqual(["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL"]);
+      const current = chips().filter((c) => c.getAttribute("aria-current") === "true");
+      expect(current.map((c) => c.textContent)).toEqual(["6XL"]);
+      // Each other size opens its own listing; the one being read is not a link to itself.
+      expect(chips().filter((c) => c.tagName === "A")).toHaveLength(9);
+      expect(row.textContent).not.toMatch(/Permissionless|Rules Without Rulers/);
+      // The product is not also offered as one of the seller's other things.
+      const more = screen.getByTestId("listing-more-from-seller");
+      expect(more).toHaveTextContent("Mug");
+      expect(more).not.toHaveTextContent("Hoodie");
+    });
+
+    it("on the product's own page: all ten sizes, none marked", async () => {
+      recentMock.mockResolvedValue([parent, ...kids, mug]);
+      render(<Page event={parent} sellerName="Satoshoes" />);
+      await screen.findByTestId("listing-options");
+      expect(chips()).toHaveLength(10);
+      expect(chips().filter((c) => c.tagName === "A")).toHaveLength(10);
+      expect(chips().some((c) => c.getAttribute("aria-current") === "true")).toBe(false);
+    });
+
+    it("asks for the family itself, so sizes beyond the seller's newest listings are still offered", async () => {
+      recentMock.mockResolvedValue([kids[0], mug]);
+      familyMock.mockResolvedValue([parent, ...kids]);
+      render(<Page event={kids[0]} sellerName="Satoshoes" />);
+      await screen.findByTestId("listing-options");
+      expect(familyMock).toHaveBeenCalledWith(SELLER, P);
+      expect(chips()).toHaveLength(10);
+    });
+
+    it("asks for no family for a listing that is not part of one", async () => {
+      recentMock.mockResolvedValue([mug, listing(SELLER, "soap", "Soap", 400)]);
+      render(<Page event={mug} sellerName="Satoshoes" />);
+      await screen.findByTestId("listing-more-from-seller");
+      expect(familyMock).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("listing-options")).toBeNull();
+    });
   });
 });
