@@ -22,7 +22,10 @@ export function TrustedListMembers({
 }) {
   const { toast } = useToast();
   const list = useQuery({
+    // A relay probe: read back from the relay it was published to, never a cache.
     queryKey: ["trusted-list", observer, signingPubkey, dTag],
+    staleTime: 0,
+    gcTime: 0,
     queryFn: () => loadTrustedList({ observer, signingPubkey, dTag }),
   });
   const pubkeys = list.data?.members.map((m) => m.pubkey) ?? [];

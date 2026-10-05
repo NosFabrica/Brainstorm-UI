@@ -141,7 +141,7 @@ export default function HopsPathPage() {
 
   // Your own scores for the same accounts, in one batch; the house's come from useAuthorScores.
   const myScoresQuery = useQuery({
-    queryKey: ["hops-my-scores", myPubkey, networkKey],
+    queryKey: ["hops-my-scores", myPubkey, accounts],
     queryFn: () => apiClient.getMyTrustSignals(accounts),
     enabled: signedIn && accounts.length > 0,
     staleTime: 5 * 60_000,

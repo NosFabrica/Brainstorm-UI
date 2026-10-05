@@ -312,10 +312,11 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
 
   const author = useLiveProfile(ptr?.pubkey, ptr?.relays);
 
+  const authorPk = ptr?.pubkey;
   const trustQuery = useQuery({
-    queryKey: ["article-author-trust", ptr?.pubkey],
-    queryFn: () => (ptr ? apiClient.getHouseInfluence(ptr.pubkey) : null),
-    enabled: !!ptr?.pubkey,
+    queryKey: ["article-author-trust", authorPk],
+    queryFn: () => (authorPk ? apiClient.getHouseInfluence(authorPk) : null),
+    enabled: !!authorPk,
     staleTime: 5 * 60_000,
     retry: false,
   });

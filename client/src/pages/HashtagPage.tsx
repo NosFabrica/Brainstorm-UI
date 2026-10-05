@@ -9,7 +9,7 @@ import { EntityMenu } from "@/components/share/EntityMenu";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
-import { scoreHashtagAuthors, rankHashtagEvents, type SortMode } from "@/lib/contentSearch";
+import { hashtagAuthors, scoreHashtagAuthors, rankHashtagEvents, type SortMode } from "@/lib/contentSearch";
 import { fetchNotesByHashtag } from "@/services/nostr";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
@@ -135,14 +135,11 @@ export default function HashtagPage() {
   );
   const candidates = useMemo(() => notes.events.filter((e) => !isBlankEvent(e)), [notes.events]);
   // Scored once the notes are in, so the trust lookups aren't re-keyed per arriving note.
-  const scoredAuthors = useMemo(
-    () => (notes.settled ? Array.from(new Set(candidates.map((e) => e.pubkey))).join(",") : ""),
-    [notes.settled, candidates],
-  );
+  const scoredAuthors = useMemo(() => (notes.settled ? hashtagAuthors(candidates) : []), [notes.settled, candidates]);
   const scoresQuery = useQuery({
     queryKey: ["hashtag-scores", scoredAuthors],
-    queryFn: () => scoreHashtagAuthors(candidates),
-    enabled: !!scoredAuthors,
+    queryFn: () => scoreHashtagAuthors(scoredAuthors),
+    enabled: scoredAuthors.length > 0,
     staleTime: 60_000,
   });
   const scores = useMemo(() => scoresQuery.data ?? new Map<string, number>(), [scoresQuery.data]);
@@ -187,7 +184,7 @@ export default function HashtagPage() {
   const authorPubkeys = useMemo(() => [...new Set(events.map((ev) => ev.pubkey))], [events]);
   const { profiles, eventsById, addrByCoord } = useNoteRefs(events as MinimalEvent[], { extraPubkeys: authorPubkeys });
 
-  const loading = notes.loading || (!!scoredAuthors && scoresQuery.isLoading);
+  const loading = notes.loading || (scoredAuthors.length > 0 && scoresQuery.isLoading);
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/t/${tag}` : "";
 
   return (

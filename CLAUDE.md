@@ -10,6 +10,7 @@ in `NosFabrica/protocols`.
 - **Architecture overview** — [ARCHITECTURE.md](ARCHITECTURE.md): the routing model (anonymous search-first vs. authenticated), `RequireAuth`/`optionalAuthFetch` data paths, the staging/production API switcher, known backend gaps. Read it before structural work.
 - **Domain model** — [CONTEXT.md](CONTEXT.md) for the vocabulary, [docs/adr/](docs/adr/) for recorded decisions.
 - **Wire formats this UI consumes** — kind-30382 Trusted Assertions and kind-10040 designation are specified in [NosFabrica/protocols](https://github.com/NosFabrica/protocols) ([trusted-assertions.md](https://github.com/NosFabrica/protocols/blob/main/specs/trusted-assertions.md); GrapeRank semantics in [graperank.md](https://github.com/NosFabrica/protocols/blob/main/specs/graperank.md)).
+- **Reading Nostr data** — from the EventStore; react-query is for the HTTP API: [ADR 0005](docs/adr/0005-nostr-reads-from-the-event-store.md). Review rules: [CODING_STANDARDS.md](CODING_STANDARDS.md).
 - **R&D counterpart** — [nous-clawds4/tapestry](https://github.com/nous-clawds4/tapestry), where protocols are piloted before adoption here.
 
 ## Agent skills

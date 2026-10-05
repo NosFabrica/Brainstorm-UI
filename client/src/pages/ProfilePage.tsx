@@ -1260,6 +1260,9 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
   );
 });
 
+/** Per-section connection page size. */
+const SECTION_LIMIT = 200;
+
 export default function ProfilePage() {
   const tierRing = useTierRing();
   const [location, navigate] = useLocation();
@@ -1485,7 +1488,6 @@ export default function ProfilePage() {
   // Per-section connection queries (cursor-paginated).
   //  - followed_by + following: eager (drive mutual/shared computations).
   //  - the other four: lazy, only fire when their section is expanded.
-  const SECTION_LIMIT = 200;
   // Map per-section SortMode → backend `order`. Name sorts stay client-side
   // (no backend name index), and fall back to DESC for fetch purposes.
   const orderFor = (kind: string): "asc" | "desc" => (sectionSort[kind] === "trust-asc" ? "asc" : "desc");

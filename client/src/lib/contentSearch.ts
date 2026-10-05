@@ -44,14 +44,8 @@ function scoreAuthor(pubkey: string): Promise<number | null> {
 /** How many distinct authors we score per query — bounds the API fan-out. */
 const MAX_SCORED_AUTHORS = 50;
 
-/**
- * An author WoT score for the most recent authors of a hashtag's candidates
- * (newest-first). The PAGE applies the spam threshold + Top/Latest ordering,
- * so its strictness and sort controls re-filter instantly with no refetch.
- * Authors beyond the cap (or not in the WoT graph) have no score and are
- * treated as untrusted.
- */
-export async function scoreHashtagAuthors(events: NostrEvent[]): Promise<Map<string, number>> {
+/** The most recent distinct authors of a hashtag's candidates (newest-first), up to the scoring cap. */
+export function hashtagAuthors(events: NostrEvent[]): string[] {
   const authors: string[] = [];
   const seen = new Set<string>();
   for (const ev of events) {
@@ -61,6 +55,16 @@ export async function scoreHashtagAuthors(events: NostrEvent[]): Promise<Map<str
     }
     if (authors.length >= MAX_SCORED_AUTHORS) break;
   }
+  return authors;
+}
+
+/**
+ * An author WoT score per author. The PAGE applies the spam threshold +
+ * Top/Latest ordering, so its strictness and sort controls re-filter instantly
+ * with no refetch. Authors not scored (or not in the WoT graph) are treated as
+ * untrusted.
+ */
+export async function scoreHashtagAuthors(authors: string[]): Promise<Map<string, number>> {
   const scores = new Map<string, number>();
   await Promise.all(
     authors.map(async (pk) => {
