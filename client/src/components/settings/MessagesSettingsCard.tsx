@@ -12,7 +12,9 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { useDmPrefs } from "@/hooks/useDirectMessages";
+import { useDmEngine, useDmPrefs, useDmState } from "@/hooks/useDirectMessages";
+import { ANSWER_WITHIN_MS, replacementFor, serverStatus, type ServerStatus } from "@/lib/dm/serverStatus";
+import { Chip } from "@/components/ui/chip";
 import { publishInboxRelays } from "@/services/dm";
 import { FileServersSection } from "@/components/settings/FileServersSection";
 import { MAX_INBOX_RELAYS, SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
@@ -114,6 +116,24 @@ function NotificationSettings({ pubkey, notify }: { pubkey: string; notify: DmNo
   );
 }
 
+const STATUS: Record<ServerStatus, { label: string; tone: "success" | "warning" | "slate" }> = {
+  working: { label: "Working", tone: "success" },
+  "not-answering": { label: "Not answering", tone: "warning" },
+  "sign-in": { label: "Asks you to sign in", tone: "warning" },
+  checking: { label: "Checking…", tone: "slate" },
+};
+
+/** A server's status in a reader's words; nothing while the list has unsaved changes. */
+function ServerStatusChip({ status }: { status: ServerStatus | null }) {
+  if (!status) return null;
+  const s = STATUS[status];
+  return (
+    <Chip tone={s.tone} size="sm" className="shrink-0">
+      {s.label}
+    </Chip>
+  );
+}
+
 export function MessagesSettingsCard() {
   const pubkey = useActiveAccountDisplay()?.pubkey ?? "";
   const prefs = useDmPrefs(pubkey || undefined);
@@ -124,6 +144,17 @@ export function MessagesSettingsCard() {
   const [addError, setAddError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Each server's status, from the inbox's own live state (lib/dm/serverStatus).
+  const dmState = useDmState(useDmEngine());
+  // How long this page has watched: a server still silent well after another answered
+  // reads as not answering here, where nothing pages its history to find out.
+  const [openedAt] = useState(() => Date.now());
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => tick((n) => n + 1), ANSWER_WITHIN_MS + 500);
+    return () => clearTimeout(t);
+  }, []);
+  const statusOf = (url: string) => serverStatus(url, dmState, { waitedMs: Date.now() - openedAt });
   const relays = draft ?? current.relays;
   const dirty = draft !== null;
   useEffect(() => setDraft(null), [pubkey]);
@@ -171,10 +202,12 @@ export function MessagesSettingsCard() {
         </div>
       </div>
 
-      <div className="grid gap-8 p-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-2">
         <section className="flex flex-col gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">DM inbox relays</h3>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Message servers <span className="font-normal text-slate-400">· inbox relays</span>
+            </h3>
             <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
               Everyone who messages you sends to these, and only these. Pick one to {MAX_INBOX_RELAYS} that ask you to
               log in before handing out messages. Published as your kind 10050 list.
@@ -190,9 +223,25 @@ export function MessagesSettingsCard() {
                 <li className="px-3 py-2.5 text-xs text-slate-500">None yet — nobody can send you private messages.</li>
               )}
               {relays.map((url) => (
-                <li key={url} className="flex items-center gap-2.5 px-3 py-2">
+                <li key={url} className="flex items-center gap-2.5 px-3 py-2" data-testid={`dm-server-${host(url)}`}>
                   <Server className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs">{host(url)}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs" title={host(url)}>
+                    {host(url)}
+                  </span>
+                  <ServerStatusChip status={dirty ? null : statusOf(url)} />
+                  {!dirty && statusOf(url) === "not-answering" && replacementFor(relays) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = replacementFor(relays)!;
+                        setDraft(relays.map((r) => (r === url ? next : r)));
+                      }}
+                      aria-label={`Replace ${host(url)}`}
+                      className="rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Replace
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setDraft(relays.filter((r) => r !== url))}

@@ -30,6 +30,7 @@ import { RelayMarker } from "./RelayMarker";
 import { RequestTrustLine } from "./RequestTrust";
 import { MessageSearchResults } from "./MessageSearchResults";
 import { searchMessages } from "@/lib/dm/search";
+import { ANSWER_WITHIN_MS, serverStatus } from "@/lib/dm/serverStatus";
 import { usePeopleSearch } from "./usePeopleSearch";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { useNearViewport } from "@/hooks/useNearViewport";
@@ -151,38 +152,80 @@ function interleave(rooms: DmRoom[], relays: RelayProgress[]): Item[] {
 }
 
 /**
- * The inbox's history, said once: servers that aren't answering (with Retry),
- * else older messages still on their way, else nothing. Replaces a row per
- * relay in the list; a chat keeps its per-relay markers ("Keep looking").
+ * The inbox's history, said once, in a reader's words: how many of their message
+ * servers aren't answering and what that means, with Retry and Manage (Settings ›
+ * Messages, where each server's status is); else older messages still on their
+ * way; else nothing. Replaces a row per relay in the list; a chat keeps its own
+ * per-relay markers ("Keep looking").
+ *
+ * After a Retry the line goes quiet for the rest of the visit — a server that's
+ * gone for good shouldn't nag on every glance — but never disappears while it's
+ * true, and nothing is remembered between visits.
  */
-function HistoryStatus({ relays, onRetry }: { relays: RelayProgress[]; onRetry: (url: string) => void }) {
-  const silent = relays.filter((r) => r.state === "stalled");
+function HistoryStatus({ state, onRetry }: { state: DmEngineState; onRetry: (url: string) => void }) {
+  const [retried, setRetried] = useState(false);
+  // The same "not answering" Settings › Messages shows (lib/dm/serverStatus): a failed
+  // history page, or still unconnected well after another server answered.
+  const [openedAt] = useState(() => Date.now());
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => tick((n) => n + 1), ANSWER_WITHIN_MS + 500);
+    return () => clearTimeout(t);
+  }, []);
+  const relays = state.history.relays;
+  const urls = [...new Set([...relays.map((r) => r.url), ...Object.keys(state.live)])];
+  const waitedMs = Date.now() - openedAt;
+  const silent = urls.filter((url) => serverStatus(url, state, { waitedMs }) === "not-answering");
   const loading = relays.some((r) => r.state === "loading" || (r.opening ?? 0) > 0);
   if (!silent.length && !loading) return null;
-  return (
-    <p
-      className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500 dark:text-slate-400"
-      data-testid="dm-history-status"
+  const manage = (
+    <Link
+      href="/settings?tab=messages"
+      className="rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
     >
-      {silent.length ? (
+      Manage
+    </Link>
+  );
+  const servers = (n: number) => (n === 1 ? "server isn't" : "servers aren't");
+  return (
+    <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400" data-testid="dm-history-status">
+      {silent.length && retried ? (
+        <p className="flex items-center gap-2">
+          <span>
+            {silent.length} {servers(silent.length)} answering
+          </span>
+          <span className="ml-auto">{manage}</span>
+        </p>
+      ) : silent.length ? (
         <>
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-          {silent.length === 1 ? "1 server isn't responding" : `${silent.length} servers aren't responding`}
-          <button
-            type="button"
-            onClick={() => silent.forEach((r) => onRetry(r.url))}
-            className="ml-auto rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            Retry
-          </button>
+          <p className="flex items-start gap-2 leading-relaxed">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+            <span>
+              {silent.length} of your {urls.length} message servers {silent.length === 1 ? "isn't" : "aren't"}{" "}
+              answering. Some older messages may be missing.
+            </span>
+          </p>
+          <p className="mt-1.5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setRetried(true);
+                silent.forEach((url) => onRetry(url));
+              }}
+              className="rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Retry
+            </button>
+            {manage}
+          </p>
         </>
       ) : (
-        <>
+        <p className="flex items-center gap-2">
           <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
           Loading older messages…
-        </>
+        </p>
       )}
-    </p>
+    </div>
   );
 }
 
@@ -277,7 +320,7 @@ export function ConversationList({
         <div className="flex items-center justify-between px-4 pb-3 pt-4">
           <h1 className="font-display text-[22px] font-bold tracking-tight">Messages</h1>
           <Link
-            href="/settings?tab=trust&focus=messages"
+            href="/settings?tab=messages"
             aria-label="Message settings"
             className="ml-auto mr-2 inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
           >
@@ -428,7 +471,7 @@ export function ConversationList({
                 ),
               )}
 
-              <HistoryStatus relays={state.history.relays} onRetry={retry} />
+              <HistoryStatus state={state} onRetry={retry} />
 
               {tab === "chats" && shelves.archived.length > 0 && (
                 <div className="mt-3">

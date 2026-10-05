@@ -5,7 +5,7 @@
  * (not a mono row per relay), and Requests explained in a sentence.
  */
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
@@ -110,7 +110,7 @@ describe("ConversationList", () => {
     expect(screen.queryByText("Loading your messages…")).toBeNull();
   });
 
-  it("slow and silent servers are one quiet line, with Retry for the silent ones", () => {
+  it("a silent server is one plain line: what it means, Retry, and Manage", () => {
     const retry = vi.fn();
     show(
       stateWith([
@@ -122,11 +122,38 @@ describe("ConversationList", () => {
       shelves(),
       { retry, advance: vi.fn() },
     );
-    expect(screen.getByTestId("dm-history-status")).toHaveTextContent("1 server isn't responding");
+    const line = screen.getByTestId("dm-history-status");
+    expect(line).toHaveTextContent("1 of your 3 message servers isn't answering. Some older messages may be missing.");
     expect(screen.queryByText(/relay\.damus\.io/)).toBeNull();
-    expect(screen.queryByText(/relay\.primal\.net/)).toBeNull();
+    expect(screen.getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/settings?tab=messages");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledWith("wss://relay.damus.io");
+  });
+
+  it("after a Retry, a server still silent is a quiet line for the rest of the visit", () => {
+    show(stateWith([relay("wss://relay.damus.io", "stalled"), relay("wss://nos.lol", "done")]), "chats", shelves(), {
+      retry: vi.fn(),
+      advance: vi.fn(),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    const line = screen.getByTestId("dm-history-status");
+    expect(line).toHaveTextContent("1 server isn't answering");
+    expect(line).not.toHaveTextContent("Some older messages");
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Manage" })).toBeInTheDocument();
+  });
+
+  it("a server still connecting well after another answered is counted as not answering, as Settings counts it", () => {
+    vi.useFakeTimers();
+    const st = stateWith([relay("wss://relay.primal.net", "done"), relay("wss://relay.damus.io", "idle", 0)]);
+    st.live = { "wss://relay.primal.net": "synced", "wss://relay.damus.io": "connecting" };
+    show(st);
+    expect(screen.queryByTestId("dm-history-status")).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(16_000);
+    });
+    expect(screen.getByTestId("dm-history-status")).toHaveTextContent("1 of your 2 message servers isn't answering.");
+    vi.useRealTimers();
   });
 
   it("explains Requests in a sentence, and names the low-trust group plainly", () => {

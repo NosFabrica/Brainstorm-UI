@@ -49,6 +49,7 @@ import {
   ShieldAlert,
   ChevronRight,
   BookOpen,
+  MessageCircle,
 } from "lucide-react";
 import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
@@ -110,10 +111,11 @@ import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 import { MessagesSettingsCard } from "@/components/settings/MessagesSettingsCard";
+import { settingsTabFor } from "@/lib/settingsTab";
 import { TechnicalViewCard } from "@/components/settings/TechnicalViewCard";
 import { DictionaryTab } from "@/components/settings/DictionaryTab";
 
-type SettingsTab = "profile" | "trust" | "dictionary" | "billing" | "about";
+type SettingsTab = "profile" | "trust" | "messages" | "dictionary" | "billing" | "about";
 
 // Placeholder agent prompts (the dev team will supply the final, working copy).
 const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
@@ -149,6 +151,9 @@ const inputCls =
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
+  // Its own tab (2026-10-05), out of Trust & search: a reader looks for message settings
+  // under "Messages". Where the inbox's "Manage" (and its settings icon) lands.
+  { key: "messages", label: "Messages", icon: MessageCircle },
   // The concepts the reader's Assistant keeps for them (2026-10-01: a Settings
   // tab by the team's choice). Past the 375px track, so phones scroll to it.
   // Admins only while it's an internal demo (2026-10-05): see ADMIN_ONLY_TABS.
@@ -177,7 +182,13 @@ export default function SettingsPage() {
   const isAdmin = user?.isAdmin === true;
   const tabs = TABS.filter((t) => isAdmin || !ADMIN_ONLY_TABS.has(t.key));
   const tabParam = new URLSearchParams(search).get("tab");
-  const activeTab: SettingsTab = tabs.find((t) => t.key === tabParam)?.key ?? "profile";
+  const focusOf = new URLSearchParams(search).get("focus");
+  // Old `?tab=trust&focus=messages` links land on the Messages tab (lib/settingsTab).
+  const activeTab: SettingsTab = settingsTabFor(
+    tabParam,
+    focusOf,
+    tabs.map((t) => t.key),
+  );
   // Deep links into a specific control, so a "you can change this in Settings"
   // sentence elsewhere lands ON the thing rather than at the top of a tab:
   //   ?focus=backup      → Account > Back up
@@ -2392,9 +2403,14 @@ export default function SettingsPage() {
             <div className="space-y-6" data-testid="tab-content-trust">
               {presetsCard}
               <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
-              <MessagesSettingsCard />
               {networkAlertsCard}
               {advancedSection}
+            </div>
+          )}
+
+          {activeTab === "messages" && (
+            <div className="space-y-6" data-testid="tab-content-messages">
+              <MessagesSettingsCard />
             </div>
           )}
 
