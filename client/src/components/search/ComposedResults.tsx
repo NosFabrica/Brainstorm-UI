@@ -35,6 +35,7 @@ import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream
 import type { PanelSections } from "@/components/search/KnowledgePanel";
 import { takeHeadStart, type HeadStartResult } from "@/lib/headStart";
 import { EventRow } from "@/components/search/EventRow";
+import { ListItemResults } from "@/components/search/ListItemResults";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 
@@ -691,6 +692,9 @@ function ComposedResultsBody({
             : "Nothing found — try different words, or a specific tab."}
         </p>
       )}
+
+      {/* A search that names a list — "github vcavallo" — leads with its items. Admins only for now. */}
+      <ListItemResults query={query} onTabChange={onTabChange} />
 
       {peopleOrdered.length === 0 && stillLoading(peopleF) && (
         <SectionSkeleton id="people" kicker="People" shape="people" />

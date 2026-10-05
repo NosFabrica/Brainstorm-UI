@@ -21,6 +21,8 @@ const isPanelProbe = (q: string, p?: { tab?: string; limit?: number }) =>
   q.startsWith("#") || (p?.tab === "apps" && p?.limit === 6) || (p?.tab === "events" && p?.limit === 60);
 const mainStreamCalls = () =>
   streamMock.mock.calls.filter(([q, p]) => !isPanelProbe(String(q), p as { tab?: string; limit?: number }));
+// List items among results read the Dictionary through the account; they have their own tests.
+vi.mock("@/components/search/ListItemResults", () => ({ ListItemResults: () => null }));
 vi.mock("@/services/search", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/search")>();
   return {
