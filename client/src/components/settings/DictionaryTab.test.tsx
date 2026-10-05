@@ -43,7 +43,9 @@ let taPubkey: string | null = TA;
 vi.mock("@/hooks/useDictionary", () => ({
   useDictionary: () => ({ data: entries, isPending: false, pubkey: "1".repeat(64), taPubkey }),
 }));
-vi.mock("@/hooks/useProfile", () => ({ useProfile: () => ({ name: "Avi Burra" }) }));
+vi.mock("@/hooks/useLiveProfile", () => ({
+  useLiveProfile: () => ({ event: undefined, profile: { name: "Avi Burra" }, loading: false }),
+}));
 /** Authors in the reader's web of trust, as the rank read would decide. */
 let trustedAuthors = new Set<string>([AVI]);
 // A concept's items load on their own (useConceptItems); here they're the entry's.
