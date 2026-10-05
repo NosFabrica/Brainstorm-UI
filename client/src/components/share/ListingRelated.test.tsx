@@ -220,7 +220,9 @@ describe("ListingRelated", () => {
       recentMock.mockResolvedValue([parent, ...kids, mug]);
       render(<Page event={kids[0]} sellerName="Satoshoes" />);
       const row = await screen.findByTestId("listing-options");
+      // One is chosen — the one being read — so the row only names what it is.
       expect(row).toHaveTextContent("Size");
+      expect(row).not.toHaveTextContent("Choose");
       expect(chips().map((c) => c.textContent)).toEqual(["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL"]);
       const current = chips().filter((c) => c.getAttribute("aria-current") === "true");
       expect(current.map((c) => c.textContent)).toEqual(["6XL"]);
@@ -236,7 +238,9 @@ describe("ListingRelated", () => {
     it("on the product's own page: all ten sizes, none marked", async () => {
       recentMock.mockResolvedValue([parent, ...kids, mug]);
       render(<Page event={parent} sellerName="Satoshoes" />);
-      await screen.findByTestId("listing-options");
+      const row = await screen.findByTestId("listing-options");
+      // Nothing is chosen yet on the product's own page, so the row asks.
+      expect(row).toHaveTextContent("Choose a size");
       expect(chips()).toHaveLength(10);
       expect(chips().filter((c) => c.tagName === "A")).toHaveLength(10);
       expect(chips().some((c) => c.getAttribute("aria-current") === "true")).toBe(false);

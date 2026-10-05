@@ -15,6 +15,18 @@ vi.mock("@/services/nostr", async (importOriginal) => ({
   fetchListingFamily: async () => [],
 }));
 
+// The "Followed by …" line is the profile's own component, tested where it
+// lives; here it only matters that the seller's is asked for, and where it sits.
+vi.mock("@/components/search/EndorsementLine", () => ({
+  FollowedByLine: ({ pubkey, personal }: { pubkey: string; personal: boolean }) => (
+    <span data-testid="followed-by" data-pubkey={pubkey} data-personal={String(personal)}>
+      Followed by 12 verified accounts
+    </span>
+  ),
+}));
+const perspective = vi.hoisted(() => ({ pov: "nosfabrica" }));
+vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => [perspective.pov, () => {}] }));
+
 import { ListingHero } from "./ListingHero";
 
 beforeEach(() => {
@@ -309,6 +321,73 @@ describe("ListingHero", () => {
       );
       expect(shown()).toEqual(["soap", "tallow"]);
       expect(screen.queryByTestId("listing-hero-categories-more")).toBeNull();
+    });
+  });
+
+  // What a shopper reads, in the order they read it: the name, the price, who
+  // is selling and why to trust them, then the way to buy (2026-10-05).
+  describe("the buying block", () => {
+    const before = (a: HTMLElement, b: HTMLElement) =>
+      !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    it("puts the price in words under the title, with the buyer's own money beside it", () => {
+      render(<ListingHero event={listing([["image", "https://img/1.jpg"]])} />);
+      const line = screen.getByTestId("listing-hero-price-line");
+      expect(line).toHaveTextContent("23,550 sats");
+      expect(line).toHaveTextContent("≈ $23.55");
+      expect(before(screen.getByTestId("listing-hero-title"), line)).toBe(true);
+      expect(before(line, screen.getByTestId("listing-hero-actions"))).toBe(true);
+      // Said once: the photo no longer carries a second copy.
+      expect(screen.getAllByTestId("listing-hero-price")).toHaveLength(1);
+      expect(line.contains(screen.getByTestId("listing-hero-price"))).toBe(true);
+    });
+
+    it("says who is selling and who follows them, between the price and the buttons", () => {
+      render(<ListingHero event={listing([])} sellerName="Barattolo" />);
+      const seller = screen.getByTestId("listing-hero-seller");
+      expect(seller).toHaveTextContent("Sold by Barattolo");
+      expect(screen.getByTestId("followed-by")).toHaveAttribute("data-pubkey", SELLER);
+      expect(screen.getByTestId("followed-by")).toHaveAttribute("data-personal", "false");
+      expect(before(screen.getByTestId("listing-hero-price-line"), seller)).toBe(true);
+      expect(before(seller, screen.getByTestId("listing-hero-actions"))).toBe(true);
+    });
+
+    it("reads the seller's following through the reader's own perspective when they chose it", () => {
+      perspective.pov = "mywot";
+      render(<ListingHero event={listing([])} sellerName="Barattolo" />);
+      expect(screen.getByTestId("followed-by")).toHaveAttribute("data-personal", "true");
+      perspective.pov = "nosfabrica";
+    });
+
+    it("names no seller it was not told, but still shows who follows them", () => {
+      render(<ListingHero event={listing([])} />);
+      expect(screen.getByTestId("listing-hero-seller")).not.toHaveTextContent("Sold by");
+      expect(screen.getByTestId("followed-by")).toBeInTheDocument();
+    });
+  });
+
+  // A description can run to a dozen paragraphs; shipping, categories and the
+  // seller's other things were a long scroll below it.
+  describe("a long description", () => {
+    const LONG = Array.from(
+      { length: 12 },
+      (_, i) => `Paragraph ${i + 1} about the hoodie, its fabric and its fit.`,
+    ).join("\n\n");
+
+    it("shows its start, and the rest on request", () => {
+      render(<ListingHero event={listing([], LONG)} />);
+      const box = screen.getByTestId("listing-hero-description-box");
+      expect(box).toHaveAttribute("data-collapsed", "true");
+      fireEvent.click(screen.getByTestId("listing-hero-description-more"));
+      expect(box).toHaveAttribute("data-collapsed", "false");
+      expect(screen.queryByTestId("listing-hero-description-more")).toBeNull();
+      expect(box).toHaveTextContent("Paragraph 12");
+    });
+
+    it("is shown whole when it is short", () => {
+      render(<ListingHero event={listing([], "A short note about a jumper.")} />);
+      expect(screen.getByTestId("listing-hero-description-box")).toHaveAttribute("data-collapsed", "false");
+      expect(screen.queryByTestId("listing-hero-description-more")).toBeNull();
     });
   });
 });

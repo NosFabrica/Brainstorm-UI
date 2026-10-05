@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { nip19 } from "nostr-tools";
 import { ExternalLink, MapPin, MessageCircle, ShoppingBag, Truck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
@@ -9,11 +10,16 @@ import { useBtcRates } from "@/hooks/useBtcRates";
 import { nostrUriFor } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
+import { FollowedByLine } from "@/components/search/EndorsementLine";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { ListingOptions } from "@/components/share/ListingOptions";
 import type { NostrEvent } from "nostr-tools";
 
 type ListingEvent = Pick<NostrEvent, "id" | "pubkey" | "kind" | "created_at" | "tags">;
+
+/** A description longer than this many characters opens folded. */
+const DESCRIPTION_FOLD = 600;
 
 /** How many categories a product page shows before "+N more". */
 const CATEGORIES_SHOWN = 5;
@@ -49,6 +55,16 @@ export function ListingHero({
     content: event.content ?? "",
   });
   const [photo, setPhoto] = useState(0);
+  const [pov] = useActivePerspective();
+  const sellerNpub = useMemo(() => {
+    try {
+      return nip19.npubEncode(event.pubkey);
+    } catch {
+      return "";
+    }
+  }, [event.pubkey]);
+  // A long description opens folded: its start, and the rest on request.
+  const [wholeStory, setWholeStory] = useState(false);
   // A handful of categories is enough to say what this is; the rest are one tap away.
   const [allCategories, setAllCategories] = useState(false);
   // The app that sold it wins over a stray shop link: that is where the
@@ -71,6 +87,10 @@ export function ListingHero({
   })();
   if (!l) return null;
   const categories = categoriesToShow(l.categories, sellerName);
+  const converted = l.price && rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
+  const text = l.description || l.summary || "";
+  // Long enough that shipping, categories and the seller's other things are a scroll away.
+  const long = text.length > DESCRIPTION_FOLD;
   const sellable = isSellable(l);
   // Sold, hidden, inactive: a status worth a chip. Merely priceless is not.
   const gone = !sellable && (l.status !== "active" || l.hidden);
@@ -97,26 +117,6 @@ export function ListingHero({
         ) : (
           <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
             <ShoppingBag className="h-10 w-10" />
-          </span>
-        )}
-        {l.price ? (
-          <span className="absolute left-3 top-3 flex flex-col rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold leading-tight text-white">
-            <span data-testid="listing-hero-price">{formatListingPrice(l.price)}</span>
-            {(() => {
-              const converted = rates ? secondPriceLine(l.price, rates, viewerCurrency()) : null;
-              return converted ? (
-                <span className="text-xs font-medium text-white/75" data-testid="listing-hero-price-converted">
-                  {converted}
-                </span>
-              ) : null;
-            })()}
-          </span>
-        ) : (
-          <span
-            className="absolute left-3 top-3 rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold text-white"
-            data-testid="listing-hero-price-unknown"
-          >
-            Price on request
           </span>
         )}
         {gone && (
@@ -151,6 +151,49 @@ export function ListingHero({
       >
         {l.title}
       </h1>
+
+      {/* The price, in words, where a shopper looks for it: the seller's own
+          price leads, the buyer's money beside it. */}
+      <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5" data-testid="listing-hero-price-line">
+        {l.price ? (
+          <>
+            <span
+              className="text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100"
+              data-testid="listing-hero-price"
+            >
+              {formatListingPrice(l.price)}
+            </span>
+            {converted && (
+              <span
+                className="text-sm tabular-nums text-slate-500 dark:text-slate-400"
+                data-testid="listing-hero-price-converted"
+              >
+                {converted}
+              </span>
+            )}
+          </>
+        ) : (
+          <span
+            className="text-sm font-medium text-slate-500 dark:text-slate-400"
+            data-testid="listing-hero-price-unknown"
+          >
+            Price on request
+          </span>
+        )}
+      </p>
+
+      {/* Who is selling, and who vouches for them: the reason to buy here. */}
+      <div
+        className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400"
+        data-testid="listing-hero-seller"
+      >
+        {sellerName && (
+          <span>
+            Sold by <span className="font-semibold text-slate-700 dark:text-slate-200">{sellerName}</span>
+          </span>
+        )}
+        <FollowedByLine pubkey={event.pubkey} npub={sellerNpub} personal={pov === "mywot"} />
+      </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
         {l.location && (
           <span className="inline-flex items-center gap-1">
@@ -236,8 +279,32 @@ export function ListingHero({
         </div>
       )}
 
-      {(l.description || l.summary) && (
-        <ReadingText text={l.description || (l.summary as string)} className="mt-4" testId="listing-hero-description" />
+      {text && (
+        <div
+          className="mt-4"
+          data-collapsed={long && !wholeStory ? "true" : "false"}
+          data-testid="listing-hero-description-box"
+        >
+          <div className={long && !wholeStory ? "relative max-h-56 overflow-hidden" : undefined}>
+            <ReadingText text={text} testId="listing-hero-description" />
+            {long && !wholeStory && (
+              <span
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent dark:from-slate-900"
+                aria-hidden="true"
+              />
+            )}
+          </div>
+          {long && !wholeStory && (
+            <button
+              type="button"
+              onClick={() => setWholeStory(true)}
+              className="mt-1 text-sm font-semibold text-brand-link hover:underline"
+              data-testid="listing-hero-description-more"
+            >
+              Read more
+            </button>
+          )}
+        </div>
       )}
 
       {/* The seller's categories: how the listing is found, not what a buyer
