@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useGoBack } from "@/hooks/useGoBack";
@@ -23,6 +23,7 @@ import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts"
 import { AlertRow, useAlertActions } from "@/components/dashboard/NetworkAlertsModule";
 import type { NetworkAlertEntry } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
+import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
 import { cn } from "@/lib/utils";
 
 // Two scopes plus the ignored list. There used to be an "All" tab, and it was
@@ -56,6 +57,17 @@ export default function AlertsPage() {
 
   const flaggedPubkeys = useMemo(() => flagged.map((e) => e.pubkey), [flagged]);
   const profileMap = useLiveProfiles(flaggedPubkeys);
+
+  // Looking here is what "seen" means: the rows new since the last look keep
+  // their NEW tag for this visit, and the dashboard banner's count clears.
+  const [arrivedNew, setArrivedNew] = useState<Set<string>>(new Set());
+  const flaggedSig = flaggedPubkeys.join(",");
+  useEffect(() => {
+    if (!observer || !data) return;
+    setArrivedNew(new Set(computeNewAlerts(observer, flaggedPubkeys).newPubkeys));
+    markAlertsSeen(observer, flaggedPubkeys);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [observer, flaggedSig, !!data]);
   const profiles: Map<string, ProfileLite> = profileMap;
   const nameFor = (pk: string) =>
     profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
@@ -355,7 +367,7 @@ export default function AlertsPage() {
                 entry={e}
                 name={nameFor(e.pubkey)}
                 picture={profiles.get(e.pubkey)?.picture}
-                isNew={false}
+                isNew={arrivedNew.has(e.pubkey)}
                 following={e.hops <= 1}
                 escalatedFrom={isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null}
                 onDeepDive={() => navigate(`/p/${npubFromPubkey(e.pubkey)}`)}

@@ -13,7 +13,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
-import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule";
+import { AlertsBanner } from "@/components/dashboard/AlertsBanner";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
 import { TaggedYouModule } from "@/components/dashboard/TaggedYouModule";
@@ -1457,7 +1457,7 @@ export default function DashboardPage() {
                 transition={{ delay: 0.15 }}
                 className="flex w-full"
               >
-                <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
+                <AlertsBanner observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
               </motion.div>
             )}
 
