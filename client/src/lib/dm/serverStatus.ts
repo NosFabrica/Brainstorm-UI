@@ -5,7 +5,6 @@
  * not-answering ones in a line.
  */
 import type { DmEngineState } from "@/services/dm/engine";
-import { SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
 
 export type ServerStatus = "working" | "not-answering" | "sign-in" | "checking";
 
@@ -34,9 +33,4 @@ export function serverStatus(
     state.history.relays.some((r) => !same(r.url, url) && (r.state === "done" || r.pages > 0));
   if (anotherAnswered && waitedMs >= ANSWER_WITHIN_MS) return "not-answering";
   return "checking";
-}
-
-/** The first suggested server the reader doesn't already use; null when they use them all. */
-export function replacementFor(relays: readonly string[]): string | null {
-  return SUGGESTED_INBOX_RELAYS.find((s) => !relays.some((r) => same(r, s))) ?? null;
 }

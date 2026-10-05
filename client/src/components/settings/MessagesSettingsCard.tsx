@@ -13,7 +13,17 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useDmEngine, useDmPrefs, useDmState } from "@/hooks/useDirectMessages";
-import { ANSWER_WITHIN_MS, replacementFor, serverStatus, type ServerStatus } from "@/lib/dm/serverStatus";
+import { ANSWER_WITHIN_MS, serverStatus, type ServerStatus } from "@/lib/dm/serverStatus";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Chip } from "@/components/ui/chip";
 import { publishInboxRelays } from "@/services/dm";
 import { FileServersSection } from "@/components/settings/FileServersSection";
@@ -155,6 +165,15 @@ export function MessagesSettingsCard() {
     return () => clearTimeout(t);
   }, []);
   const statusOf = (url: string) => serverStatus(url, dmState, { waitedMs: Date.now() - openedAt });
+  const answering = current.relays.map((url) => statusOf(url));
+  const serversAnswering: "all" | "some" | "none" | "unknown" = !answering.length
+    ? "unknown"
+    : answering.every((st) => st === "not-answering")
+      ? "none"
+      : answering.some((st) => st === "not-answering")
+        ? "some"
+        : "all";
+  const [switchOpen, setSwitchOpen] = useState(false);
   const relays = draft ?? current.relays;
   const dirty = draft !== null;
   useEffect(() => setDraft(null), [pubkey]);
@@ -172,9 +191,9 @@ export function MessagesSettingsCard() {
     setAdding("");
   };
 
-  const publish = async () => {
+  const publish = async (list: string[] = relays) => {
     setBusy(true);
-    const outcome = await publishInboxRelays(relays);
+    const outcome = await publishInboxRelays(list);
     setBusy(false);
     if (outcome.cancelled) return;
     if (outcome.success) {
@@ -229,19 +248,6 @@ export function MessagesSettingsCard() {
                     {host(url)}
                   </span>
                   <ServerStatusChip status={dirty ? null : statusOf(url)} />
-                  {!dirty && statusOf(url) === "not-answering" && replacementFor(relays) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = replacementFor(relays)!;
-                        setDraft(relays.map((r) => (r === url ? next : r)));
-                      }}
-                      aria-label={`Replace ${host(url)}`}
-                      className="rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
-                    >
-                      Replace
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={() => setDraft(relays.filter((r) => r !== url))}
@@ -253,6 +259,25 @@ export function MessagesSettingsCard() {
                 </li>
               ))}
             </ul>
+          )}
+          {/* Senders deliver to every server on the list, so while one works nothing is lost:
+              say so, and offer no swap — replacing a server stops reading messages that only it
+              holds, for what is usually a passing outage. Only when none answer is there
+              something to fix, and then it's the suggested set, explained first. */}
+          {!dirty && serversAnswering === "some" && (
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="dm-servers-note">
+              Messages still reach you through your other servers.
+            </p>
+          )}
+          {!dirty && serversAnswering === "none" && (
+            <div className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-3">
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                None of your message servers are answering, so new messages can't reach you right now.
+              </p>
+              <Button size="sm" className="self-start" onClick={() => setSwitchOpen(true)}>
+                Use suggested servers
+              </Button>
+            </div>
           )}
           <form
             className="flex gap-2"
@@ -272,6 +297,33 @@ export function MessagesSettingsCard() {
               <Plus className="mr-1 h-4 w-4" /> Add
             </Button>
           </form>
+          <AlertDialog open={switchOpen} onOpenChange={setSwitchOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Switch to the suggested servers?</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2">
+                    <p>New messages will go to {SUGGESTED_INBOX_RELAYS.map(host).join(" and ")}.</p>
+                    <p>
+                      Messages on your current servers won't load until you add them back. You can change this here any
+                      time.
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setDraft(SUGGESTED_INBOX_RELAYS);
+                    void publish(SUGGESTED_INBOX_RELAYS);
+                  }}
+                >
+                  Switch and publish
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           {addError && <p className="text-xs text-red-600 dark:text-red-400">{addError}</p>}
           {relays.length > MAX_INBOX_RELAYS && (
             <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">

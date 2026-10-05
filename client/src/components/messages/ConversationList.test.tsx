@@ -123,7 +123,9 @@ describe("ConversationList", () => {
       { retry, advance: vi.fn() },
     );
     const line = screen.getByTestId("dm-history-status");
-    expect(line).toHaveTextContent("1 of your 3 message servers isn't answering. Some older messages may be missing.");
+    expect(line).toHaveTextContent(
+      "1 of your 3 message servers isn't answering. Your messages still arrive through the others.",
+    );
     expect(screen.queryByText(/relay\.damus\.io/)).toBeNull();
     expect(screen.getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/settings?tab=messages");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -138,7 +140,7 @@ describe("ConversationList", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     const line = screen.getByTestId("dm-history-status");
     expect(line).toHaveTextContent("1 server isn't answering");
-    expect(line).not.toHaveTextContent("Some older messages");
+    expect(line).not.toHaveTextContent("still arrive");
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     expect(screen.getByRole("link", { name: "Manage" })).toBeInTheDocument();
   });
@@ -154,6 +156,17 @@ describe("ConversationList", () => {
     });
     expect(screen.getByTestId("dm-history-status")).toHaveTextContent("1 of your 2 message servers isn't answering.");
     vi.useRealTimers();
+  });
+
+  it("when no server answers, says plainly that new messages can't reach you", () => {
+    show(stateWith([relay("wss://relay.damus.io", "stalled"), relay("wss://nos.lol", "stalled")]), "chats", shelves(), {
+      retry: vi.fn(),
+      advance: vi.fn(),
+    });
+    expect(screen.getByTestId("dm-history-status")).toHaveTextContent(
+      "None of your message servers are answering. New messages can't reach you right now.",
+    );
+    expect(screen.getByRole("link", { name: "Manage" })).toBeInTheDocument();
   });
 
   it("explains Requests in a sentence, and names the low-trust group plainly", () => {

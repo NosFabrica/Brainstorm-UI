@@ -21,7 +21,7 @@ vi.mock("@/components/messages/SyncDetails", () => ({ SyncDetails: () => null })
 const publishInboxRelays = vi.fn(async (_relays: string[]) => ({ success: true }));
 vi.mock("@/services/dm", () => ({ publishInboxRelays: (r: string[]) => publishInboxRelays(r) }));
 
-const state = {
+let state = {
   status: "ready",
   live: { "wss://relay.primal.net/": "synced" },
   history: {
@@ -32,6 +32,18 @@ const state = {
     ],
   },
 } as unknown as DmEngineState;
+const allSilent = {
+  status: "ready",
+  live: {},
+  history: {
+    relays: [
+      { url: "wss://relay.damus.io/", state: "stalled", reachedUntil: 0, completeTo: 0, pages: 0 },
+      { url: "wss://relay.primal.net/", state: "stalled", reachedUntil: 0, completeTo: 0, pages: 0 },
+      { url: "wss://auth.nostr1.com/", state: "stalled", reachedUntil: 0, completeTo: 0, pages: 0 },
+    ],
+  },
+} as unknown as DmEngineState;
+const someWorking = state;
 vi.mock("@/hooks/useDirectMessages", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   useDmEngine: () => null,
@@ -51,18 +63,26 @@ describe("MessagesSettingsCard servers", () => {
     expect(row("auth.nostr1.com")).toHaveTextContent("Asks you to sign in");
   });
 
-  it("swaps a server that isn't answering for a suggested one, and publishes only when asked", () => {
+  it("while any server works, offers no swap — only the reassurance that messages still arrive", () => {
+    state = someWorking;
     render(<MessagesSettingsCard />);
-    fireEvent.click(within(row("relay.damus.io")).getByRole("button", { name: "Replace relay.damus.io" }));
-    expect(screen.queryByTestId("dm-server-relay.damus.io")).toBeNull();
-    expect(row("nos.lol")).toBeInTheDocument();
-    expect(publishInboxRelays).not.toHaveBeenCalled();
+    expect(within(row("relay.damus.io")).queryByRole("button", { name: /Replace/ })).toBeNull();
+    expect(screen.getByTestId("dm-servers-note")).toHaveTextContent(
+      "Messages still reach you through your other servers.",
+    );
+    expect(screen.queryByRole("button", { name: "Use suggested servers" })).toBeNull();
+  });
 
-    fireEvent.click(screen.getByTestId("button-publish-inbox-relays"));
-    expect(publishInboxRelays).toHaveBeenCalledWith([
-      "wss://nos.lol/",
-      "wss://relay.primal.net/",
-      "wss://auth.nostr1.com/",
-    ]);
+  it("when none answer, offers the suggested servers — explained, and published only once confirmed", () => {
+    state = allSilent;
+    render(<MessagesSettingsCard />);
+    fireEvent.click(screen.getByRole("button", { name: "Use suggested servers" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog).toHaveTextContent("New messages will go to auth.nostr1.com and nos.lol");
+    expect(dialog).toHaveTextContent("Messages on your current servers won't load until you add them back");
+    expect(publishInboxRelays).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Switch and publish" }));
+    expect(publishInboxRelays).toHaveBeenCalledWith(["wss://auth.nostr1.com/", "wss://nos.lol/"]);
+    state = someWorking;
   });
 });

@@ -201,8 +201,9 @@ function HistoryStatus({ state, onRetry }: { state: DmEngineState; onRetry: (url
           <p className="flex items-start gap-2 leading-relaxed">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
             <span>
-              {silent.length} of your {urls.length} message servers {silent.length === 1 ? "isn't" : "aren't"}{" "}
-              answering. Some older messages may be missing.
+              {silent.length === urls.length
+                ? "None of your message servers are answering. New messages can't reach you right now."
+                : `${silent.length} of your ${urls.length} message servers ${silent.length === 1 ? "isn't" : "aren't"} answering. Your messages still arrive through the others.`}
             </span>
           </p>
           <p className="mt-1.5 flex justify-end gap-2">

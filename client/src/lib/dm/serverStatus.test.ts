@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { replacementFor, serverStatus } from "@/lib/dm/serverStatus";
+import { serverStatus } from "@/lib/dm/serverStatus";
 import type { DmEngineState } from "@/services/dm/engine";
 import type { RelayProgress } from "@/lib/dm/pager";
 
@@ -49,15 +49,5 @@ describe("serverStatus — a message server, in words a reader can act on", () =
 
   it("matches addresses written with or without the trailing slash", () => {
     expect(serverStatus("wss://b.example", s)).toBe("not-answering");
-  });
-});
-
-describe("replacementFor — a suggested server not already in the list", () => {
-  it("offers the first suggestion the reader doesn't have", () => {
-    expect(replacementFor(["wss://auth.nostr1.com/", "wss://relay.damus.io/"])).toBe("wss://nos.lol/");
-  });
-
-  it("offers nothing when the reader has every suggestion", () => {
-    expect(replacementFor(["wss://auth.nostr1.com/", "wss://nos.lol/"])).toBeNull();
   });
 });
