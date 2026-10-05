@@ -29,7 +29,8 @@ vi.mock("@/hooks/useSelf", () => ({
   useSelfHistory: () => ({ data: undefined, isSuccess: false }),
 }));
 vi.mock("@/lib/nip85Activation", () => ({ isNip85Activated: () => false }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(async () => new Map()),
   SEED_FOLLOW_HEX: "b".repeat(64),
 }));

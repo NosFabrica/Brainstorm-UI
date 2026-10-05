@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { Tag as TagIcon, X } from "lucide-react";
 import { FacePile, NameList } from "@/components/tags/FacePile";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
-import { fetchProfileMap } from "@/services/nostr";
 import { useProfileTags } from "@/hooks/useTags";
 import { npubFromPubkey } from "@/lib/shareId";
 import { relativeTimeShort } from "@/lib/relativeTime";
@@ -80,14 +79,8 @@ export function TaggedYouModule() {
   }, [data, watermark, viewerPubkey]);
 
   const taggers = useMemo(() => Array.from(new Set(fresh.flatMap((t) => t.others))), [fresh]);
-  const profilesQuery = useQuery({
-    queryKey: ["tagged-you-profiles", taggers.join(",")],
-    queryFn: () => fetchProfileMap(taggers),
-    enabled: taggers.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data;
+  const profileMap = useLiveProfiles(taggers);
+  const profiles = profileMap;
 
   function dismiss() {
     const now = Math.floor(Date.now() / 1000);

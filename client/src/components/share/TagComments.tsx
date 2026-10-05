@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { Loader2, MessageSquare } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { LinkedText } from "@/components/LinkedText";
 import { useToast } from "@/hooks/use-toast";
-import { fetchProfileMap } from "@/services/nostr";
 import { npubFromPubkey } from "@/lib/shareId";
 import { useTagComments, usePostTagComment } from "@/hooks/useTags";
 
@@ -39,14 +38,8 @@ export function TagComments({
   const post = usePostTagComment(authorPubkey, slug);
 
   const authors = useMemo(() => Array.from(new Set((comments ?? []).map((c) => c.author))), [comments]);
-  const profilesQuery = useQuery({
-    queryKey: ["tag-comment-profiles", authors.join(",")],
-    queryFn: () => fetchProfileMap(authors),
-    enabled: authors.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data;
+  const profileMap = useLiveProfiles(authors);
+  const profiles = profileMap;
 
   async function submit() {
     const text = draft.trim();

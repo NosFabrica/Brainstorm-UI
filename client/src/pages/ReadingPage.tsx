@@ -1,13 +1,12 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useGoBack } from "@/hooks/useGoBack";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen, Loader2, Flame, Clock } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Footer } from "@/components/Footer";
 import { NetworkArticleCard } from "@/components/dashboard/NetworkArticleCard";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { fetchProfileMap } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { useNetworkArticles, type ArticleSort } from "@/hooks/useNetworkArticles";
 import { cn } from "@/lib/utils";
@@ -34,14 +33,8 @@ export default function ReadingPage() {
   // One profile fetch for every author on the page (the dashboard strip only
   // resolves its top four).
   const pubkeys = useMemo(() => Array.from(new Set(articles.map((a) => a.event.pubkey))), [articles]);
-  const profilesQuery = useQuery({
-    queryKey: ["reading-profiles", pubkeys.join(",")],
-    queryFn: () => fetchProfileMap(pubkeys),
-    enabled: pubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data ?? new Map();
+  const profileMap = useLiveProfiles(pubkeys);
+  const profiles = profileMap;
 
   const handleLogout = () => logout();
 

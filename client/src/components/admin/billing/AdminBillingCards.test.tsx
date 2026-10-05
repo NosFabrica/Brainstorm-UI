@@ -96,7 +96,8 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 const fetchProfileMap = vi.fn(
   async (_pubkeys: string[]) => new Map<string, { name?: string; display_name?: string; picture?: string }>(),
 );
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: (pubkeys: string[]) => fetchProfileMap(pubkeys),
 }));
 

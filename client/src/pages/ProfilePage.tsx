@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
 import { scopedSearchHref } from "@/lib/searchSyntax";
+import { useMyReport, useTheyFollowMe } from "@/hooks/useRelationship";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
@@ -39,6 +40,7 @@ import {
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useShareUrl } from "@/hooks/useShareUrl";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { ZapModal } from "@/components/ZapModal";
 import { MessageButton } from "@/components/messages/MessageButton";
 import { FlashIcon } from "@/components/FlashIcon";
@@ -58,9 +60,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import {
-  fetchProfile,
   fetchProfiles,
   eventStore,
   fetchReportsForPubkey,
@@ -102,7 +103,6 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { DegreeChip } from "@/components/DegreeChip";
 import { SignInButton } from "@/components/SignInButton";
 import { useSocialActions } from "@/hooks/useSocialActions";
-import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 import { useHasSession } from "@/hooks/useHasSession";
 import { TIER_LABELS } from "@/services/trustThreshold";
@@ -1260,6 +1260,9 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
   );
 });
 
+/** Per-section connection page size. */
+const SECTION_LIMIT = 200;
+
 export default function ProfilePage() {
   const tierRing = useTierRing();
   const [location, navigate] = useLocation();
@@ -1316,32 +1319,15 @@ export default function ProfilePage() {
   }, [npubParam]);
 
   const social = useSocialActions(user?.pubkey);
-  const relQueryClient = useQueryClient();
 
   // "Follows you": does the target follow ME? (my pubkey ∈ their kind-3 contact list)
-  const theyFollowMeQuery = useQuery({
-    queryKey: ["they-follow-me", user?.pubkey, hexPubkey],
-    queryFn: async () => getFollowedPubkeys(await fetchContactList(hexPubkey)).has(user!.pubkey),
-    enabled: !!user?.pubkey && !!hexPubkey && user?.pubkey !== hexPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const theyFollowMe = theyFollowMeQuery.data === true;
+  const theyFollowMe = useTheyFollowMe(user?.pubkey, hexPubkey).followsMe;
 
   // "You reported this": have I published a kind-1984 report targeting them?
-  const myReportQuery = useQuery({
-    queryKey: ["my-report", user?.pubkey, hexPubkey],
-    queryFn: () => fetchMyReport(hexPubkey),
-    enabled: !!user?.pubkey && !!hexPubkey && user?.pubkey !== hexPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const myReport = myReportQuery.data ?? null;
-  // Write the "you reported this" state straight into the cache instead of
-  // re-fetching kind-1984 from relays (which lags 8s / until propagation) — so
-  // the chip appears/clears instantly. Shared key, so the /p line updates too.
-  const setMyReport = (value: MyReport | null) =>
-    relQueryClient.setQueryData(["my-report", user?.pubkey, hexPubkey], value);
+  // Live from the store; an unreport hides it at once while its deletion publishes.
+  const storedReport = useMyReport(user?.pubkey, hexPubkey);
+  const [unreporting, setUnreporting] = useState<string | null>(null);
+  const myReport = unreporting === hexPubkey ? null : storedReport;
 
   const { data: grapeRankData } = useQuery({
     queryKey: ["/user/graperankResult"],
@@ -1502,7 +1488,6 @@ export default function ProfilePage() {
   // Per-section connection queries (cursor-paginated).
   //  - followed_by + following: eager (drive mutual/shared computations).
   //  - the other four: lazy, only fire when their section is expanded.
-  const SECTION_LIMIT = 200;
   // Map per-section SortMode → backend `order`. Name sorts stay client-side
   // (no backend name index), and fall back to DESC for fetch purposes.
   const orderFor = (kind: string): "asc" | "desc" => (sectionSort[kind] === "trust-asc" ? "asc" : "desc");
@@ -1659,22 +1644,16 @@ export default function ProfilePage() {
     isSuccess: profileOverviewQuery.isSuccess,
   };
 
-  const nostrProfileQuery = useQuery<ProfileContent | null>({
-    queryKey: ["nostr-profile", hexPubkey],
-    queryFn: async () => (await fetchProfile(hexPubkey)) ?? null,
-    enabled: !!hexPubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const liveNostrProfile = useLiveProfile(hexPubkey || undefined);
 
   const profileResult = profileQuery.data ?? null;
-  const nostrProfile = nostrProfileQuery.data ?? null;
+  const nostrProfile = liveNostrProfile.profile ?? null;
 
   useEffect(() => {
-    if (hexPubkey && profileQuery.isSuccess && nostrProfileQuery.isFetched) {
+    if (hexPubkey && profileQuery.isSuccess && !liveNostrProfile.loading) {
       clearProfileSeed(hexPubkey);
     }
-  }, [hexPubkey, profileQuery.isSuccess, nostrProfileQuery.isFetched]);
+  }, [hexPubkey, profileQuery.isSuccess, liveNostrProfile.loading]);
 
   const seedAsNostrProfile = useMemo<ProfileContent | null>(() => {
     if (!seed) return null;
@@ -3071,20 +3050,16 @@ export default function ProfilePage() {
                                   <DropdownMenuItem
                                     className="cursor-pointer text-amber-700 focus:text-amber-800 dark:text-amber-400 dark:focus:text-amber-300"
                                     onClick={async () => {
-                                      const snapshot = myReport;
-                                      setMyReport(null); // optimistic: chip + menu flip instantly
+                                      setUnreporting(hexPubkey); // optimistic: chip + menu flip instantly
                                       const result = await social.unreport(hexPubkey);
-                                      if (result.cancelled) {
-                                        setMyReport(snapshot);
-                                        return;
-                                      }
+                                      setUnreporting(null);
+                                      if (result.cancelled) return;
                                       if (result.success) {
                                         toast({
                                           title: "Report removed",
                                           description: "Scores may take a little while to reflect this.",
                                         });
                                       } else {
-                                        setMyReport(snapshot); // rollback
                                         toast({
                                           title: "Error",
                                           description: result.error || "Couldn't remove report",
@@ -4338,15 +4313,6 @@ export default function ProfilePage() {
                 const result = await social.report(hexPubkey, reportReason);
                 if (result.cancelled) return;
                 if (result.success) {
-                  // Show the "you reported this" state immediately — the dialog's
-                  // own spinner already covered the publish; don't wait on a relay refetch.
-                  setMyReport({
-                    id: "",
-                    reportType: reportReason,
-                    reason: "",
-                    timestamp: Math.floor(Date.now() / 1000),
-                    eventIds: [],
-                  });
                   toast({ title: "Reported", description: "Report published to Nostr relays" });
                   setReportDialogOpen(false);
                 } else {

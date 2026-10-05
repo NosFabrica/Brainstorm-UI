@@ -10,9 +10,23 @@ import type { NostrEvent } from "nostr-tools";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
 const profileMapMock = vi.fn((_pks: string[]) => Promise.resolve(new Map<string, Record<string, unknown>>()));
-vi.mock("@/services/nostr", () => ({ fetchProfileMap: (pks: string[]) => profileMapMock(pks) }));
-vi.mock("@/lib/eventStore", () => ({
-  eventStore: { getReplaceable: () => undefined, getEvent: () => undefined, add: (e: NostrEvent) => e },
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
+  fetchProfileMap: (pks: string[]) => profileMapMock(pks),
+  refreshProfileEvent: async (pk: string) => {
+    const content = (await profileMapMock([pk])).get(pk);
+    return content
+      ? { id: "f".repeat(64), kind: 0, pubkey: pk, created_at: 1, tags: [], content: JSON.stringify(content), sig: "" }
+      : null;
+  },
+}));
+vi.mock("@/lib/eventStore", async () => ({
+  eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
+    getReplaceable: () => undefined,
+    getEvent: () => undefined,
+    add: (e: NostrEvent) => e,
+  },
 }));
 const fromSearchMock = vi.fn((_filters: Record<string, unknown>[], _opts?: unknown) =>
   Promise.resolve([] as NostrEvent[]),

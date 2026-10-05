@@ -95,7 +95,8 @@ const dlistFetchMock = vi.fn((_filter: Record<string, unknown>, _relays?: string
   Promise.resolve([] as NostrEvent[]),
 );
 vi.mock("@/services/musicTags", () => ({ fetchTaggedMusicians: async () => [] }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   // The person panel asks for the person's tracks and streams; nobody here has any.
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
   fetchLiveStreams: () => Promise.resolve([]),

@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import type { NostrEvent } from "nostr-tools";
-import { fetchListingFamily, fetchRecentByKinds } from "@/services/nostr";
+import { fetchListingFamily } from "@/services/nostr";
 import { LISTING_KIND, parseListing } from "@/lib/listing";
 import { familyOf, productsFromEvents, type ProductCard } from "@/lib/listingVariants";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 
 type ListingLike = Pick<NostrEvent, "id" | "pubkey" | "kind" | "created_at" | "tags">;
 
@@ -25,23 +27,45 @@ export interface ListingShelf {
   others: ProductCard<NostrEvent>[];
 }
 
-const EMPTY: ListingShelf = { options: null, others: [] };
-
-/** One ask in flight per listing, however many parts of its page want the answer. */
-const asked = new Map<string, Promise<ListingShelf>>();
-
-function load(event: ListingLike): Promise<ListingShelf> {
-  const address = `${event.kind}:${event.pubkey}:${event.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
+/**
+ * What a listing's page needs to know about its seller's shelf: the options
+ * of the product it belongs to, and the seller's other products. The options
+ * sit by the buy button and the other products below the description, so two
+ * parts of the page ask; the store gives them one answer.
+ */
+export function useListingShelf(event: ListingLike): ListingShelf {
+  const d = event.tags.find((t) => t[0] === "d")?.[1] ?? "";
+  const address = `${event.kind}:${event.pubkey}:${d}`;
   // As deep as the profile's shelf asks: a seller's newest listings can be a
-  // run of hidden copies (Staci's shop, 2026-09-24). A declared product is
-  // also asked for by name, so a big shop's product page never shows half
-  // its sizes (lib/listingVariants, #158).
-  const self = parseListing({ ...event, content: "" });
-  const family = self ? familyOf(self) : null;
-  return Promise.all([
-    fetchRecentByKinds(event.pubkey, [LISTING_KIND], 100),
-    family ? fetchListingFamily(event.pubkey, family).catch(() => []) : Promise.resolve([]),
-  ]).then(([recent, familyEvents]) => {
+  // run of hidden copies (Staci's shop, 2026-09-24), and thirty of those left
+  // the row empty while her profile showed 36 products.
+  const recent = useRecentByKinds(event.pubkey, [LISTING_KIND], 100).events;
+  // A declared product is also asked for by name — its parent and whatever
+  // points at it — so a big shop's product page never shows half its sizes
+  // (lib/listingVariants, #158).
+  const family = useMemo(() => {
+    const self = parseListing({ ...event, content: "" });
+    return self ? familyOf(self) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on event identity
+  }, [event.id]);
+  const familyFilters = useMemo(
+    () =>
+      family
+        ? [
+            { kinds: [LISTING_KIND], authors: [event.pubkey], "#d": [family.split(":").slice(2).join(":")] },
+            { kinds: [LISTING_KIND], authors: [event.pubkey], "#a": [family] },
+          ]
+        : null,
+    [family, event.pubkey],
+  );
+  const familyEvents = useStoreEvents(
+    family ? `listing-family:${family}` : null,
+    familyFilters,
+    () => fetchListingFamily(event.pubkey, family as string),
+    { minMs: 5 * 60_000, stream: false },
+  ).events;
+
+  return useMemo(() => {
     const seen = new Set<string>();
     const evs = [...recent, ...familyEvents].filter((ev) => !seen.has(ev.id) && seen.add(ev.id));
     // The seller's things as products. The product this listing belongs to
@@ -60,35 +84,5 @@ function load(event: ListingLike): Promise<ListingShelf> {
         chips.length > 0 ? { heading: declared ? (own!.group.optionName ?? "Options") : "Other options", chips } : null,
       others: products.filter((p) => p !== own),
     };
-  });
-}
-
-/**
- * What a listing's page needs to know about its seller's shelf: the options
- * of the product it belongs to, and the seller's other products. The options
- * sit by the buy button and the other products below the description, so two
- * parts of the page ask; they share one answer.
- */
-export function useListingShelf(event: ListingLike): ListingShelf {
-  const [shelf, setShelf] = useState<ListingShelf>(EMPTY);
-  useEffect(() => {
-    let alive = true;
-    setShelf(EMPTY);
-    let pending = asked.get(event.id);
-    if (!pending) {
-      pending = load(event).catch(() => EMPTY);
-      asked.set(event.id, pending);
-      // Shared only while it is in flight — the page's parts mount together —
-      // so a later visit asks afresh.
-      void pending.finally(() => asked.delete(event.id));
-    }
-    void pending.then((answer) => {
-      if (alive) setShelf(answer);
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on event identity
-  }, [event.id]);
-  return shelf;
+  }, [recent, familyEvents, event.id, address]);
 }

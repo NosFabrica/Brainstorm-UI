@@ -12,7 +12,8 @@ const copyMock = vi.fn(async (_text: string) => true);
 vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text) }));
 vi.mock("applesauce-react/hooks", () => ({ useActiveAccount: () => null }));
 const verifiedLud16Mock = vi.fn(async () => ({ verified: true, lud16: "joemartinmusic@getalby.com" }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   getVerifiedProfileLud16: () => verifiedLud16Mock(),
   signEventWithEphemeralKey: async () => ({}),
 }));

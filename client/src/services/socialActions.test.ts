@@ -570,6 +570,41 @@ describe("muting", () => {
   });
 
   it("refuses when the mute list could not be read, rather than replacing it", async () => {
+    deadRelays.add("wss://one");
+
+    const res = await social.muteUser(THEM);
+
+    expect(res.success).toBe(false);
+    expect(signAs).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A brand-new account has no kind-10000 anywhere. When the relays answer and
+   * none holds one, that is proof rather than silence, as for a first follow list:
+   * the first mute list starts empty.
+   */
+  it("creates the first mute list when the relays answered and none has one", async () => {
+    const res = await social.muteUser(THEM);
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("creates the first mute list for a key minted here, even with the relays down", async () => {
+    deadRelays.add("wss://one");
+    createdInApp.mockReturnValue(true);
+
+    const res = await social.muteUser(THEM);
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("still refuses when more relays stayed silent than answered", async () => {
+    relayList.push("wss://two", "wss://three");
+    deadRelays.add("wss://two");
+    deadRelays.add("wss://three");
+
     const res = await social.muteUser(THEM);
 
     expect(res.success).toBe(false);

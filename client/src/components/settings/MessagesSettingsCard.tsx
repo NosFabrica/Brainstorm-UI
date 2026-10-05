@@ -4,7 +4,6 @@
  * disappearing timer for new chats.
  */
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, MessageCircle, Plus, Server, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { SyncDetails } from "@/components/messages/SyncDetails";
@@ -16,12 +15,13 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useDmPrefs } from "@/hooks/useDirectMessages";
 import { publishInboxRelays } from "@/services/dm";
 import { FileServersSection } from "@/components/settings/FileServersSection";
-import { MAX_INBOX_RELAYS, SUGGESTED_INBOX_RELAYS, loadDmRelays } from "@/lib/dm/inboxRelays";
+import { MAX_INBOX_RELAYS, SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
 import { TIMER_CHOICES, setNotifyPrefs, updateDmPrefs, type DmNotifyPrefs, type DmReach } from "@/lib/dm/prefs";
 import { Switch } from "@/components/ui/switch";
 import { playChime } from "@/lib/chime";
 import { dedupeRelays } from "@/lib/relayRouting";
 import { cn } from "@/lib/utils";
+import { useDmRelays } from "@/hooks/useDmRelays";
 
 const REACH: { value: DmReach; label: string; hint: string }[] = [
   { value: "follows", label: "People I follow", hint: "Everyone else waits in Requests." },
@@ -118,19 +118,13 @@ export function MessagesSettingsCard() {
   const pubkey = useActiveAccountDisplay()?.pubkey ?? "";
   const prefs = useDmPrefs(pubkey || undefined);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const current = useQuery({
-    queryKey: ["dm-inbox", pubkey],
-    queryFn: () => loadDmRelays(pubkey),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-  });
+  const current = useDmRelays(pubkey || null);
   const [draft, setDraft] = useState<string[] | null>(null);
   const [adding, setAdding] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const relays = draft ?? current.data?.relays ?? [];
+  const relays = draft ?? current.relays;
   const dirty = draft !== null;
   useEffect(() => setDraft(null), [pubkey]);
 
@@ -154,7 +148,6 @@ export function MessagesSettingsCard() {
     if (outcome.cancelled) return;
     if (outcome.success) {
       setDraft(null);
-      void queryClient.invalidateQueries({ queryKey: ["dm-inbox", pubkey] });
       toast({ title: "Inbox relays published" });
     } else {
       toast({ title: "Couldn't publish your inbox relays", description: outcome.error, variant: "destructive" });
@@ -187,7 +180,7 @@ export function MessagesSettingsCard() {
               log in before handing out messages. Published as your kind 10050 list.
             </p>
           </div>
-          {current.isPending ? (
+          {current.loading ? (
             <span className="flex items-center gap-2 text-xs text-slate-500">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Looking up your list…
             </span>

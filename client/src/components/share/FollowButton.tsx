@@ -11,6 +11,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { followUser, unfollowUser } from "@/services/socialActions";
+import { activeAccount } from "@/accounts/signing";
+import { withListEdit } from "@/lib/listEdits";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE =
@@ -42,16 +44,22 @@ export function FollowButton({
   const [hover, setHover] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
+  // The button and every list that reads the viewer's follows flip at once; a
+  // failed or cancelled publish flips them back.
   const publish = async (next: boolean) => {
+    setFollowing(next);
+    setHover(false);
     setBusy(true);
-    const res = next ? await followUser(targetPubkey) : await unfollowUser(targetPubkey);
+    const send = () => (next ? followUser(targetPubkey) : unfollowUser(targetPubkey));
+    const me = activeAccount()?.pubkey;
+    const res = me ? await withListEdit(3, me, targetPubkey, next ? "add" : "remove", send) : await send();
     setBusy(false);
-    if (res.cancelled) return;
     if (res.success) {
-      setFollowing(next);
-      setHover(false);
       toast({ title: next ? "Following" : "Unfollowed" });
-    } else {
+      return;
+    }
+    setFollowing(!next);
+    if (!res.cancelled) {
       toast({ variant: "destructive", title: "Couldn't update follow", description: res.error || "Try again." });
     }
   };

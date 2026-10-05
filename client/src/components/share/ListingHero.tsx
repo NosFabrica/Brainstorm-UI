@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ExternalLink, MapPin, MessageCircle, ShoppingBag, Truck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
@@ -6,10 +6,10 @@ import { categoriesToShow, formatListingPrice, isSellable, parseListing } from "
 import { sourceAppFor } from "@/lib/sourceApp";
 import { secondPriceLine, viewerCurrency } from "@/lib/exchangeRate";
 import { useBtcRates } from "@/hooks/useBtcRates";
-import { fetchRecentByKinds } from "@/services/nostr";
 import { nostrUriFor } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { ListingOptions } from "@/components/share/ListingOptions";
 import type { NostrEvent } from "nostr-tools";
 
@@ -55,20 +55,8 @@ export function ListingHero({
   // product actually lives and checks out.
   // A listing published outside Conduit by a seller who sells on Conduit still
   // opens there: the seller's other listings say whether they do.
-  const [sellerListings, setSellerListings] = useState<MinimalEvent[]>([]);
-  useEffect(() => {
-    setSellerListings([]);
-    if (sourceAppFor(event)) return;
-    let alive = true;
-    fetchRecentByKinds(event.pubkey, [30402], 40)
-      .then((evs) => {
-        if (alive) setSellerListings(evs as MinimalEvent[]);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [event.id, event.pubkey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sellerListings = useRecentByKinds(sourceAppFor(event) ? null : event.pubkey, [30402], 40)
+    .events as MinimalEvent[];
   const app = sourceAppFor(event, { sellerListings });
   // The seller's price leads; what it is in the buyer's own money sits under it.
   const rates = useBtcRates();

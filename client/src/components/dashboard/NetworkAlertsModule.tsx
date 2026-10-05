@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -34,8 +34,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import type { NetworkAlertEntry } from "@/services/api";
-import { fetchProfileMap } from "@/services/nostr";
-import { unfollowUser, muteUser, reportUser } from "@/services/socialActions";
+import { unfollowUser, muteUser, reportUser, unreportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
 import {
@@ -50,6 +49,7 @@ import {
   hasEscalated,
   actedAlertSet,
   markActed,
+  unmarkActed,
 } from "@/lib/networkAlertsIgnored";
 import { accountKey } from "@/lib/accountStorage";
 
@@ -281,6 +281,23 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
     }
   }
 
+  // Deletes the report (NIP-09) and brings the alert back; a failure says so.
+  async function undoReport(pubkey: string, name: string) {
+    const res = await unreportUser(pubkey);
+    if (res.cancelled) return;
+    if (res.success) {
+      setDismissed(unmarkActed(observer, pubkey));
+      toast({ title: `Report on ${name} removed`, duration: 4000 });
+    } else {
+      toast({
+        title: `Couldn't remove the report on ${name}`,
+        description: res.error,
+        variant: "destructive",
+        duration: 6000,
+      });
+    }
+  }
+
   async function submitReport() {
     if (!reportTarget || !reportType) return;
     setReporting(true);
@@ -291,7 +308,16 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
     if (res.cancelled) return;
     if (res.success) {
       setDismissed(markActed(observer, pubkey));
-      toast({ title: `Reported ${name}`, description: "Your report was published to Nostr.", duration: 4000 });
+      toast({
+        title: `Reported ${name}`,
+        description: "Your report was published to Nostr.",
+        duration: 6000,
+        action: (
+          <ToastAction altText="Undo report" onClick={() => void undoReport(pubkey, name)}>
+            Undo
+          </ToastAction>
+        ),
+      });
     } else {
       toast({ title: `Couldn't report ${name}`, description: res.error, variant: "destructive", duration: 6000 });
     }
@@ -486,14 +512,8 @@ export function NetworkAlertsModule({
 
   // Resolve names/avatars for every flagged account (batched).
   const flaggedPubkeys = useMemo(() => flagged.map((e) => e.pubkey), [flagged]);
-  const profilesQuery = useQuery({
-    queryKey: ["network-alerts-profiles", flaggedPubkeys.join(",")],
-    queryFn: () => fetchProfileMap(flaggedPubkeys),
-    enabled: flaggedPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles: Map<string, ProfileLite> = profilesQuery.data ?? new Map();
+  const profileMap = useLiveProfiles(flaggedPubkeys);
+  const profiles: Map<string, ProfileLite> = profileMap;
 
   // Deltas: compute "new since last visit" once per snapshot; establish a silent
   // baseline on the first-ever visit (nothing is "new" then).

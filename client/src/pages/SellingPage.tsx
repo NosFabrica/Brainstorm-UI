@@ -1,11 +1,10 @@
 import { useMemo } from "react";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { useRoute } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { Loader2, ShoppingBag } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { decodeShareId } from "@/lib/shareId";
-import { fetchRecentByKinds } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { LISTING_KIND } from "@/lib/listing";
 import { cardGroupOf, productsFromEvents } from "@/lib/listingVariants";
@@ -22,14 +21,9 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
   const goBack = useGoBack();
 
   const { profile } = useLiveProfile(pubkey, relayHints);
-  const listingsQuery = useQuery({
-    queryKey: ["seller-listings", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [LISTING_KIND], 100, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const products = useMemo(() => productsFromEvents(listingsQuery.data ?? []), [listingsQuery.data]);
+  const listingsQuery = useRecentByKinds(pubkey, [LISTING_KIND], 100, relayHints);
+
+  const products = useMemo(() => productsFromEvents(listingsQuery.events ?? []), [listingsQuery.events]);
   const name = profile?.display_name || profile?.name || `${npub.slice(0, 12)}…`;
   const first = name.split(" ")[0];
 
@@ -54,14 +48,14 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
           >
             For sale from {name}
           </h1>
-          {listingsQuery.isSuccess && (
+          {listingsQuery.settled && (
             <Chip tone="slate" size="sm" data-testid="selling-count">
               {products.length}
             </Chip>
           )}
         </div>
 
-        {listingsQuery.isLoading ? (
+        {listingsQuery.loading ? (
           <div className="flex items-center gap-2 text-sm text-slate-400" data-testid="selling-loading">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { Loader2, ArrowRight, Search as SearchIcon, X, Users } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PersonRow, type PersonLite } from "@/components/PersonRow";
 import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
-import { fetchProfileMap, SEED_FOLLOW_HEX } from "@/services/nostr";
+import { SEED_FOLLOW_HEX } from "@/services/nostr";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys, recoverFollowListFromRelay, type FollowOptions } from "@/services/socialActions";
@@ -49,16 +49,10 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
   const [showAll, setShowAll] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const profilesQuery = useQuery({
-    queryKey: ["follow-card-curated", curated.map((c) => c.pubkey).join(",")],
-    queryFn: () => fetchProfileMap(curated.map((c) => c.pubkey)),
-    enabled: curated.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const profileMap = useLiveProfiles(curated.map((c) => c.pubkey));
 
   const curatedPeople: PersonLite[] = useMemo(() => {
-    const map = profilesQuery.data;
+    const map = profileMap;
     return curated.map((c) => {
       const p = map?.get(c.pubkey);
       return {
@@ -68,7 +62,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
         picture: p?.picture,
       };
     });
-  }, [curated, profilesQuery.data]);
+  }, [curated, profileMap]);
 
   const [peopleInfo, setPeopleInfo] = useState<Map<string, PersonLite>>(() => new Map());
   useEffect(() => {

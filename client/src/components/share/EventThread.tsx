@@ -1,5 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import type { Filter } from "applesauce-core/helpers/filter";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { Link } from "wouter";
 import { MessageSquare, ArrowRight, SlidersHorizontal, Loader2 } from "lucide-react";
 import { fetchEventsByFilter } from "@/services/nostr";
@@ -99,41 +100,41 @@ export function EventThread({
 
   const relays = useMemo(() => Array.from(new Set([...relayHints, ...PROFILE_RELAYS])), [relayHints]);
 
-  const repliesQuery = useQuery({
-    queryKey: ["thread-replies", "v3", eventId, addressCoord ?? ""],
-    // kind-1 = NIP-10 replies (notes); kind-1111 = NIP-22 comments (pictures,
-    // videos, articles, …). NIP-22 tags the parent with lowercase `#e`/`#a` and
-    // the root scope with uppercase `#E`/`#A` — query each so every kind of thread
-    // fills in. Addressable roots (articles) are referenced by their coordinate.
-    queryFn: async () => {
-      const filters: Record<string, unknown>[] = [
-        { "#e": [eventId], kinds: [1, 1111], limit: 150 },
-        { "#E": [eventId], kinds: [1111], limit: 150 },
-      ];
-      if (addressCoord) {
-        filters.push({ "#A": [addressCoord], kinds: [1111], limit: 150 });
-        filters.push({ "#a": [addressCoord], kinds: [1111], limit: 150 });
-      }
-      // The profile relays AND the search relay: marketplace apps publish
-      // comments to their own relays, which the search relay indexes and the
-      // profile relays never see. One conversation, deduped by id.
+  // kind-1 = NIP-10 replies (notes); kind-1111 = NIP-22 comments (pictures,
+  // videos, articles, …). NIP-22 tags the parent with lowercase `#e`/`#a` and
+  // the root scope with uppercase `#E`/`#A` — query each so every kind of thread
+  // fills in. Addressable roots (articles) are referenced by their coordinate.
+  const replyFilters = useMemo(() => {
+    const filters: Filter[] = [
+      { "#e": [eventId], kinds: [1, 1111], limit: 150 },
+      { "#E": [eventId], kinds: [1111], limit: 150 },
+    ];
+    if (addressCoord) {
+      filters.push({ "#A": [addressCoord], kinds: [1111], limit: 150 });
+      filters.push({ "#a": [addressCoord], kinds: [1111], limit: 150 });
+    }
+    return filters;
+  }, [eventId, addressCoord]);
+  const repliesQuery = useStoreEvents(
+    eventId ? `thread-replies:${eventId}:${addressCoord ?? ""}` : null,
+    eventId ? replyFilters : null,
+    // The profile relays AND the search relay: marketplace apps publish
+    // comments to their own relays, which the search relay indexes and the
+    // profile relays never see. One conversation, deduped by id.
+    async () => {
       const [results, indexed] = await Promise.all([
-        Promise.all(filters.map((f) => fetchEventsByFilter(f, relays, 7000))),
+        Promise.all(replyFilters.map((f) => fetchEventsByFilter(f as Record<string, unknown>, relays, 7000))),
         fetchCommentsByAddress(addressCoord ?? null, eventId).catch(() => [] as MinimalEvent[]),
       ]);
-      const byId = new Map<string, MinimalEvent>();
-      for (const e of [...results.flat(), ...indexed] as MinimalEvent[]) byId.set(e.id, e);
-      return Array.from(byId.values());
+      return [...results.flat(), ...indexed];
     },
-    enabled: !!eventId,
-    staleTime: 60_000,
-    retry: false,
-  });
+    { minMs: 60_000 },
+  );
 
   const replies = useMemo(() => {
-    const evs = ((repliesQuery.data ?? []) as MinimalEvent[]).filter((e) => e.id !== eventId);
+    const evs = ((repliesQuery.events ?? []) as MinimalEvent[]).filter((e) => e.id !== eventId);
     return evs.sort((a, b) => a.created_at - b.created_at);
-  }, [repliesQuery.data, eventId]);
+  }, [repliesQuery.events, eventId]);
 
   const refs = useMemo(() => collectRefs(replies), [replies]);
   const authorPubkeys = useMemo(
@@ -213,7 +214,7 @@ export function EventThread({
     return () => onGateChange?.(false);
   }, [isAnonGated, onGateChange]);
 
-  if (repliesQuery.isLoading) {
+  if (repliesQuery.loading) {
     return (
       <div
         className="mt-6 flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500"

@@ -30,7 +30,8 @@ const AUTHOR = "9".repeat(64);
 const eventsByIds = vi.fn(async (..._args: unknown[]) => [] as unknown[]);
 const served = vi.fn((): Record<string, unknown> | null | Promise<Record<string, unknown> | null> => null);
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchAddressableEvents: async (ptrs: { kind: number; pubkey: string; identifier: string }[]) => {
     const map = new Map<string, unknown>();
     const ev = await served();

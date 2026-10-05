@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useMyReport, useTheyFollowMe } from "@/hooks/useRelationship";
 import { useSocialActions } from "@/hooks/useSocialActions";
-import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
+import { type MyReport } from "@/services/socialActions";
 
 export interface RelationshipBadges {
   /** Logged in, target resolved, and not the viewer's own profile. */
@@ -33,28 +33,15 @@ export function useRelationshipBadges(targetPubkey: string | undefined): Relatio
 
   const enabled = !!myPubkey && !!targetPubkey && myPubkey !== targetPubkey;
 
-  const followsYouQuery = useQuery({
-    queryKey: ["they-follow-me", myPubkey, targetPubkey],
-    queryFn: async () => getFollowedPubkeys(await fetchContactList(targetPubkey!)).has(myPubkey!),
-    enabled,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
-
-  const myReportQuery = useQuery({
-    queryKey: ["my-report", myPubkey, targetPubkey],
-    queryFn: () => fetchMyReport(targetPubkey!),
-    enabled,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
+  const followsYou = useTheyFollowMe(myPubkey, targetPubkey);
+  const report = useMyReport(myPubkey, targetPubkey);
 
   return {
     enabled,
     isFollowing: enabled && social.isFollowing(targetPubkey!),
     isMuted: enabled && social.isMuted(targetPubkey!),
-    followsYou: followsYouQuery.data === true,
-    report: myReportQuery.data ?? null,
-    loading: enabled && (social.listsLoading || followsYouQuery.isLoading),
+    followsYou: followsYou.followsMe,
+    report,
+    loading: enabled && (social.listsLoading || followsYou.loading),
   };
 }

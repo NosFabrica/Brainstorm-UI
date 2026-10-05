@@ -105,7 +105,6 @@ import { priceBands, priceInCurrency, toSats, viewerCurrency, type PriceBand } f
 import { useBtcRates } from "@/hooks/useBtcRates";
 import { usePersonContent } from "@/hooks/usePersonContent";
 import { PersonContentChips } from "@/components/search/PersonContentChips";
-import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
@@ -129,6 +128,7 @@ import { KnowledgePanel, type PanelSections } from "@/components/search/Knowledg
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
 import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
@@ -788,33 +788,21 @@ export function SearchResults({
   // Set from the first render, never undefined: given undefined the panel would
   // ask the relay itself once, before the sections had a chance to answer.
   const [sections, setSections] = useState<PanelSections>({ people: null, events: null });
-  const [personMedia, setPersonMedia] = useState<SearchHit[]>([]);
-  useEffect(() => {
-    setPersonMedia([]);
-    // The Media tab and the composed Everything page both lead with it; the
-    // Music tab leads with the person's own tracks the same way.
-    const everything = tab === "everything" && !/(^|\s)sort:/i.test(query);
-    const music = tab === "music" && !scopeOf(query);
-    if ((tab !== "media" && !everything && !music) || !panelPerson) return;
-    let cancelled = false;
-    const who = panelPerson;
-    fetchRecentByKinds(who.pubkey, music ? [31337] : [1, 20, 21, 22, 34235, 34236], 40)
-      .then((events) => {
-        if (cancelled) return;
-        setPersonMedia(
-          events
-            .filter((e) => music || mediaUrlOf(e as NostrEvent) !== null)
-            .map((e) => ({ event: e as NostrEvent, author: who, rank: null })),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setPersonMedia([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
-  }, [tab, query, panelPerson?.pubkey]);
+  // The Media tab and the composed Everything page both lead with it; the
+  // Music tab leads with the person's own tracks the same way.
+  const leadsEverything = tab === "everything" && !/(^|\s)sort:/i.test(query);
+  const leadsMusic = tab === "music" && !scopeOf(query);
+  const leadWho = (tab === "media" || leadsEverything || leadsMusic) && panelPerson ? panelPerson : null;
+  const leadEvents = useRecentByKinds(leadWho?.pubkey, leadsMusic ? [31337] : [1, 20, 21, 22, 34235, 34236], 40).events;
+  const personMedia = useMemo<SearchHit[]>(
+    () =>
+      leadWho
+        ? leadEvents
+            .filter((e) => leadsMusic || mediaUrlOf(e as NostrEvent) !== null)
+            .map((e) => ({ event: e as NostrEvent, author: leadWho, rank: null }))
+        : [],
+    [leadEvents, leadWho, leadsMusic],
+  );
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [syntaxOpen, setSyntaxOpen] = useState(false);
   useSyntaxSheetShortcut(useCallback(() => setSyntaxOpen(true), []));

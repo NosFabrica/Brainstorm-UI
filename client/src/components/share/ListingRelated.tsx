@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
-import { fetchProfileMap } from "@/services/nostr";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { fetchSimilarListings } from "@/services/search";
 import { APP_TAGS, isSellable, parseListing } from "@/lib/listing";
 import { cardGroupOf } from "@/lib/listingVariants";
@@ -25,18 +25,18 @@ const sellable = (evs: NostrEvent[]) =>
  * is selling is the point of a web-of-trust shop.
  */
 export function ListingRelated({ event, sellerName }: { event: ListingLike; sellerName?: string }) {
+  const [similar, setSimilar] = useState<NostrEvent[]>([]);
+  const address = addressOf(event);
+
   // The seller's other products, counted, for the row and its door to their
   // page. This product's own options are offered by the buy button
-  // (ListingOptions); the two share one lookup.
+  // (ListingOptions); the two read one shelf (hooks/useListingShelf).
   const { others } = useListingShelf(event);
   const mine = others.slice(0, 4);
   const mineTotal = others.length;
-  const [similar, setSimilar] = useState<NostrEvent[]>([]);
-  const [sellers, setSellers] = useState<Map<string, SearchResult>>(new Map());
 
   useEffect(() => {
     let alive = true;
-    const address = addressOf(event);
     // The listing's categories as the seller wrote them AND lower-cased — the
     // relay's tag filter is exact, marketplaces are not. App identifiers
     // (shopstr, plebeian…) stay out: they would match a whole catalogue.
@@ -51,36 +51,28 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
       if (!alive) return;
       const rows = sellable(evs).slice(0, 4);
       setSimilar(rows);
-      const pks = [...new Set(rows.map((e) => e.pubkey))];
-      if (pks.length === 0) return;
-      void fetchProfileMap(pks).then((map) => {
-        if (!alive) return;
-        const next = new Map<string, SearchResult>();
-        for (const [pk, c] of map) {
-          const p = c as {
-            name?: string;
-            display_name?: string;
-            displayName?: string;
-            picture?: string;
-            nip05?: string;
-          };
-          next.set(pk, {
-            pubkey: pk,
-            npub: nip19.npubEncode(pk),
-            name: p.name,
-            displayName: p.display_name ?? p.displayName,
-            picture: p.picture,
-            nip05: p.nip05,
-          });
-        }
-        setSellers(next);
-      });
     });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on event identity
   }, [event.id]);
+
+  const sellerProfiles = useLiveProfiles(similar.map((e) => e.pubkey));
+  const sellers = useMemo(() => {
+    const next = new Map<string, SearchResult>();
+    for (const [pk, p] of sellerProfiles) {
+      next.set(pk, {
+        pubkey: pk,
+        npub: nip19.npubEncode(pk),
+        name: p.name,
+        displayName: p.display_name ?? (p as { displayName?: string }).displayName,
+        picture: p.picture,
+        nip05: p.nip05,
+      });
+    }
+    return next;
+  }, [sellerProfiles]);
 
   if (mine.length === 0 && similar.length === 0) return null;
   return (

@@ -33,7 +33,7 @@ function AccountDisplay() {
 }
 
 function renderWith(manager: AccountManager<AccountMetadata>) {
-  // The hook reads the ProfileModel now, so it needs the store the app mounts.
+  // The hook reads the store the app mounts.
   return render(
     <EventStoreProvider eventStore={eventStore}>
       <AccountsProvider manager={manager}>

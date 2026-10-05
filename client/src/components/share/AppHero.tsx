@@ -5,7 +5,7 @@
  * maintained?" + what's new + version history), and a publisher row so
  * the trust story — WHO signed this build — is one tap away.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
@@ -21,9 +21,8 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useAppEndorsements } from "@/hooks/useAppEndorsements";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { useProfileMap } from "@/hooks/useProfileMap";
-import { eventStore } from "@/lib/eventStore";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { compactCount } from "@/lib/compactCount";
-import { fetchProfileMap } from "@/services/nostr";
 import { endorsementLabel, rankEndorsers, type EndorserGroup } from "@/services/endorsements";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { Chip } from "@/components/ui/chip";
@@ -167,35 +166,10 @@ function cadenceLabel(releases: AppRelease[]): string | null {
   return `~every ${Math.max(2, Math.round(median / 30))}mo`;
 }
 
-/** Store-first publisher profile, with a relay fallback — MentionChip's move. */
+/** The publisher's profile, live. */
 function usePublisher(pubkey: string): SearchResult | null {
-  const known = eventStore.getReplaceable(0, pubkey);
-  const [fetched, setFetched] = useState<SearchResult | null>(null);
-  useEffect(() => {
-    if (known) return;
-    let alive = true;
-    void fetchProfileMap([pubkey]).then((map) => {
-      const profile = map.get(pubkey);
-      if (alive && profile) {
-        setFetched(
-          kind0ToSearchResult({
-            kind: 0,
-            pubkey,
-            content: JSON.stringify(profile),
-            tags: [],
-            created_at: 0,
-            id: "",
-            sig: "",
-          } as NostrEvent),
-        );
-      }
-    });
-    return () => {
-      alive = false;
-    };
-  }, [known, pubkey]);
-  if (known) return kind0ToSearchResult(known as NostrEvent);
-  return fetched;
+  const { event } = useLiveProfile(pubkey);
+  return useMemo(() => (event ? kind0ToSearchResult(event) : null), [event]);
 }
 
 const HISTORY_MAX = 5;

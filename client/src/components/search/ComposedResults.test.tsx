@@ -14,7 +14,13 @@ import type { SearchSnapshot, SearchParams } from "@/services/search";
 import { __resetHeadStart } from "@/lib/headStart";
 
 // The store verifies signatures; these events are fixtures, not signed ones.
-vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => e, getReplaceable: () => undefined } }));
+vi.mock("@/lib/eventStore", async () => ({
+  eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
+    add: (e: unknown) => e,
+    getReplaceable: () => undefined,
+  },
+}));
 
 interface StreamCall {
   query: string;
