@@ -119,7 +119,10 @@ describe("AlertsPage row details", () => {
   it("opened, it shows your history with the account and who reported it, grouped", async () => {
     show();
     const row = await screen.findByTestId(`network-alert-row-${pk("a").slice(0, 8)}`);
-    fireEvent.click(within(row).getByTestId("network-alert-details-toggle"));
+    const toggle = within(row).getByRole("button", { name: "Details for Name aa" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
 
     const details = within(row).getByTestId("alert-details");
     expect(reportersAsked).toHaveBeenCalledWith(pk("a"));

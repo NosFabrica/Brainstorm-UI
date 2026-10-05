@@ -628,6 +628,7 @@ export function AlertRow({
             type="button"
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
+            aria-label={`Details for ${name}`}
             className={`${actionBtn} ml-auto border-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200`}
             data-testid="network-alert-details-toggle"
           >
