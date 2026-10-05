@@ -7,6 +7,8 @@ import type { LinkRef } from "@/lib/linkTemplates";
 /** The templates a definition's links pin (services/linkTemplates). Off with the provisional flag. */
 export function useLinkTemplates(refs: LinkRef[]) {
   const ids = [...new Set(refs.map((r) => r.templateId))].sort();
+  // The ids are what `refs` asks for: a new array naming the same templates is the same question.
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps
   return useQuery({
     queryKey: ["link-templates", ids.join(",")],
     queryFn: () => fetchTemplates(refs),
