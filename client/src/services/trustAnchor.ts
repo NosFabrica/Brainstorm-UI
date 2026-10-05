@@ -9,23 +9,15 @@
  * effect all call.
  */
 import { apiClient } from "./api";
-import {
-  fetchOutboxRelayList,
-  fetchTrustProviderList,
-  getNip85RelayUrl,
-  isUsingBrainstorm,
-  publishToRelays,
-  signNip85,
-} from "./nostr";
+import { fetchOutboxRelayList, fetchTrustProviderList, getNip85RelayUrl, publishToRelays, signNip85 } from "./nostr";
 import { activeAccount, canSignSilently } from "@/accounts/signing";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { identityHas } from "@/accounts/display";
 import { accountKey } from "@/lib/accountStorage";
-import { queryClient } from "@/lib/queryClient";
 import { clearNip85Activated, isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { hasDeclinedNip85, hasNip85Consent, recordNip85Consent } from "@/lib/nip85Consent";
-import type { ListDesignation } from "@/lib/nip85Declaration";
-import { checkUserLists, listsToName, recordTrustListsDeclared } from "./trustLists";
+import { declaresTrustProvider, trustProviderStatusOf, type ListDesignation } from "@/lib/nip85Declaration";
+import { checkUserLists, listsToName } from "./trustLists";
 
 /**
  * Whether the automatic (non-user-initiated) NIP-85 publish paths may run for
@@ -86,33 +78,30 @@ export async function triggerScoringAndAnchor(pubkey: string, opts?: { nip85Cons
  */
 export type TrustProviderStatus = "none" | "brainstorm" | "other" | "unknown";
 
+/** The 10040 read every status surface shares: their outbox warmed first, then the relays, newest wins. */
+export async function askTrustProviderList(pubkey: string) {
+  try {
+    await fetchOutboxRelayList(pubkey);
+  } catch {
+    /* best-effort warm */
+  }
+  return fetchTrustProviderList(pubkey);
+}
+
 export async function checkExistingTrustProvider(
   pubkey: string,
   taPubkey?: string | null,
 ): Promise<TrustProviderStatus> {
   try {
-    // Warm the eventStore with their kind-10002 first, so the 10040 read (and
-    // any publish after it) routes to their real outbox relays — on the
-    // onboarding surfaces the dashboard's warm-up hasn't run yet.
-    await fetchOutboxRelayList(pubkey);
-    if (taPubkey && (await isUsingBrainstorm(pubkey, taPubkey))) {
-      // Published from another device — record it so nothing re-asks.
-      markNip85Activated(pubkey);
-      return "brainstorm";
-    }
-    const event = await fetchTrustProviderList(pubkey);
-    const rankTarget = event?.tags.find((t) => t[0] === "30382:rank")?.[1];
-    if (!rankTarget) return "none";
-    if (taPubkey && rankTarget !== taPubkey) {
-      // Definitive contrary evidence: a 10040 exists and names a different
-      // assistant. Unlike a relay MISS (absence, never a downgrade), presence
-      // of a foreign declaration means the local "activated" flag is now a
-      // lie — the on-relay 10040 takes precedence, so drop the flag and let
-      // every surface reflect the truth.
-      clearNip85Activated(pubkey);
-      return "other";
-    }
-    return rankTarget === taPubkey ? "brainstorm" : "other";
+    const event = await askTrustProviderList(pubkey);
+    const relay = getNip85RelayUrl();
+    const status = trustProviderStatusOf(event, taPubkey, relay);
+    // Published from another device — record it so nothing re-asks. Only the
+    // exact declaration is recorded as fact. A foreign declaration is definitive
+    // contrary evidence (unlike a relay MISS): the local flag is now a lie.
+    if (event && taPubkey && declaresTrustProvider(event, taPubkey, relay)) markNip85Activated(pubkey);
+    else if (status === "other" && taPubkey) clearNip85Activated(pubkey);
+    return status;
   } catch {
     return "unknown";
   }
@@ -143,8 +132,6 @@ async function publishSignedAnchor(
   const result = await publishToRelays(signed, undefined, ANCHOR_PUBLISH);
   if (result.success) {
     markNip85Activated(pubkey);
-    recordTrustProviderStatus(pubkey, "brainstorm");
-    if (lists) recordTrustListsDeclared(pubkey, lists);
     return { status: "success" };
   }
   return {
@@ -205,17 +192,6 @@ export async function publishBrainstormTrustAnchor(
 }
 
 /**
- * Seed the shared provider-status cache with a state we KNOW, instead of
- * invalidating — a refetch right after our own publish races relay
- * propagation, and a lagging relay answering "none" would re-raise the very
- * activation prompt the publish just satisfied. The partial key matches every
- * taPubkey variant for this account.
- */
-export function recordTrustProviderStatus(pubkey: string, status: TrustProviderStatus): void {
-  queryClient.setQueriesData({ queryKey: ["trust-provider-status", pubkey] }, status);
-}
-
-/**
  * Publish the user's NIP-85 declaration (kind 10040) selecting Brainstorm as
  * their rank+followers provider, unless it's already in place. Idempotent and
  * best-effort: a no-op once this account is marked activated or a Brainstorm
@@ -254,8 +230,6 @@ export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: stri
     const res = await publishToRelays(signed);
     if (res.success) {
       markNip85Activated(pubkey);
-      recordTrustProviderStatus(pubkey, "brainstorm");
-      if (lists) recordTrustListsDeclared(pubkey, lists);
     }
   } catch {}
 }

@@ -12,6 +12,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { queryClient } from "@/lib/queryClient";
+import { eventStore } from "@/lib/eventStore";
+import { track } from "@/lib/askOnce";
+import { designationKey, listsAskKey } from "@/services/trustLists";
 import { ActivateBrainstormModal } from "./ActivateBrainstormModal";
 
 const ME = "a".repeat(64);
@@ -35,12 +38,13 @@ vi.mock("@/services/nostr", () => ({
   getNip85RelayUrl: () => "wss://nip85-staging.example",
   fetchTrustProviderList: async () => undefined,
   fetchOutboxRelayList: async () => [],
-  isUsingBrainstorm: async () => false,
 }));
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ pubkey: ME, displayName: "Ana" }),
 }));
+
+eventStore.verifyEvent = undefined;
 
 describe("activating Brainstorm from the dashboard", () => {
   beforeEach(() => {
@@ -49,8 +53,19 @@ describe("activating Brainstorm from the dashboard", () => {
   });
 
   it("names the Trusted Lists the user has, so nothing asks them to sign again", async () => {
-    // What the dashboard already learned about this account's lists.
-    queryClient.setQueryData(["trust-lists-status", ME, TA], { status: "missing", designation: LISTS });
+    // What the dashboard already learned about this account's lists: where they
+    // live (/setup), and a live list in the store, its ask answered.
+    queryClient.setQueryData(designationKey(ME, TA), LISTS);
+    eventStore.add({
+      id: "1".repeat(64),
+      pubkey: LISTS.key,
+      kind: 30392,
+      tags: [["d", "tl-tag-x"]],
+      content: "",
+      created_at: 1,
+      sig: "s",
+    } as never);
+    await track([listsAskKey(LISTS)], Promise.resolve([]));
 
     render(<ActivateBrainstormModal open onOpenChange={() => {}} serviceKey={TA} onActivated={() => {}} />);
     await userEvent.click(screen.getByTestId("button-activate-confirm"));
@@ -64,7 +79,9 @@ describe("activating Brainstorm from the dashboard", () => {
   });
 
   it("signs the declaration alone when there are no lists to name", async () => {
-    queryClient.setQueryData(["trust-lists-status", ME, TA], { status: "none", designation: null });
+    const empty = { key: "d".repeat(64), relay: LISTS.relay };
+    queryClient.setQueryData(designationKey(ME, TA), empty);
+    await track([listsAskKey(empty)], Promise.resolve([]));
 
     render(<ActivateBrainstormModal open onOpenChange={() => {}} serviceKey={TA} onActivated={() => {}} />);
     await userEvent.click(screen.getByTestId("button-activate-confirm"));

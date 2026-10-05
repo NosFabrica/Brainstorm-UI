@@ -302,7 +302,7 @@ export default function DashboardPage() {
       markNip85Activated(user?.pubkey);
       if (!nip85Activated) setNip85Activated(true);
     } else if (trustServiceProvider.data === "other") {
-      // The flag itself was cleared inside checkExistingTrustProvider.
+      // The flag itself is cleared by useTrustProviderStatus once the relays answer.
       if (nip85Activated) setNip85Activated(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- provider data is already keyed on pubkey

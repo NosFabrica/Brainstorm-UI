@@ -67,7 +67,6 @@ import { checkUserLists } from "@/services/trustLists";
 import { logout } from "@/accounts/login-flow";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
-import { recordTrustProviderStatus } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
@@ -445,7 +444,6 @@ export default function SettingsPage() {
 
     if (result.success) {
       markNip85Activated(user.pubkey);
-      recordTrustProviderStatus(user.pubkey, "brainstorm");
       setRepublishState("success");
       toast({
         title: "NIP-85 event updated",
@@ -487,7 +485,6 @@ export default function SettingsPage() {
 
     if (result.success) {
       clearNip85Activated(user.pubkey);
-      recordTrustProviderStatus(user.pubkey, "none");
       setDeactivateState("success");
       toast({
         title: "Provider deactivated",
