@@ -136,7 +136,7 @@ export function startRelayAuth<A extends ActiveAccount>({
   canSignQuietly?: (account: A) => Promise<boolean>;
   /** Signs the login event as `account` (accounts/signing signAs). */
   sign?: (account: A, draft: EventTemplate) => Promise<NostrEvent>;
-  /** Whether a signing error is the signer saying no (accounts/signing signerSaidNo). */
+  /** Whether a signing error is the signer saying no (accounts/signer-errors signerSaidNo). */
   isRejection?: (error: unknown) => boolean;
   /** How long the signer gets to answer a login (SIGN_TIMEOUT_MS). */
   signTimeoutMs?: number;

@@ -1,8 +1,8 @@
 import { AccountManager, type SerializedAccount } from "applesauce-accounts";
-import { ExtensionAccount } from "applesauce-accounts/accounts";
 import type { NostrPool } from "applesauce-signers";
 
 import { AmberAccount } from "./amber";
+import { BrainstormExtensionAccount } from "./extension";
 import { LocalAccount } from "./local-account";
 import type { LocalSignerData, LocalSignerOptions } from "./local-signer";
 import type { AccountMetadata } from "./metadata";
@@ -63,7 +63,7 @@ export function createManager({
   manager.registerType(localAccountType({ unlockCache }));
   // Unregistered types are quarantined on load, so an extension user's Account
   // has to be restorable here or they'd be signed out on the next reload.
-  manager.registerType(ExtensionAccount);
+  manager.registerType(BrainstormExtensionAccount);
   // One type for every remote signer — nsec.app, Amber's bunker mode, Keycast
   // and anything self-hosted. Their differences live at transport, not here.
   manager.registerType(RemoteAccount);

@@ -41,6 +41,15 @@ page from every relay; if that page brought nothing for this chat — likely, si
 pages are account-wide — the chat offers **Keep looking**, which pages every
 relay until a message appears or all are done (`useChatHistory`).
 
+In the list the markers are invisible (2026-10-05): each still pages its relay
+as it scrolls into view, but the list says the history once, under the rows —
+"N servers aren't responding · Retry", else "Loading older messages…", else
+nothing. A reader shouldn't need to know what a relay is to read their messages.
+Only a relay waiting on a sign-in shows its own marker, because that needs them.
+The inbox reads as empty ("No chats yet.") once any relay has answered: the live
+subscription settling, or any relay delivering a page — one silent relay can
+hold "settled" off indefinitely. Inside a chat the per-relay markers stay.
+
 ## Opening messages
 
 Two NIP-44 decrypts per wrap, by the account's signer. A local key that can

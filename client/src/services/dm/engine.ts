@@ -78,7 +78,7 @@ export interface DmTransport {
   onAuthenticated(relay: string, callback: () => void): () => void;
 }
 
-export type SignerFailure = "cancelled" | "unreachable" | "refused" | "broken";
+export type SignerFailure = "cancelled" | "unreachable" | "refused" | "wrong-account" | "broken";
 
 export interface DmAccount {
   pubkey: string;
@@ -119,7 +119,7 @@ interface OutboxEntry {
   deliveries: Delivery[];
 }
 
-export type DmPause = "waiting" | "cancelled" | "unreachable" | "refused" | "no-nip44";
+export type DmPause = "waiting" | "cancelled" | "unreachable" | "refused" | "wrong-account" | "no-nip44";
 
 export interface DmEngineState {
   status: "starting" | "no-inbox" | "ready" | "stopped";
@@ -732,12 +732,26 @@ export class DmEngine {
 
   /** Give up on an undelivered message: gone from here, and from the outbox. */
   discard(messageId: string): void {
-    const status = this.store.message(messageId)?.outgoing?.status;
-    if (status !== "failed" && status !== "queued") return;
+    const message = this.store.message(messageId);
+    const status = message?.outgoing?.status;
+    if (!message || (status !== "failed" && status !== "queued")) return;
     this.outbox.delete(messageId);
     this.attempts.delete(messageId);
     this.outgoing.delete(messageId);
     this.store.remove([messageId]);
+    // The reader's own copy may already sit on their relays, and would come back
+    // on the next load looking sent. A wrap can't be deleted (a throwaway key
+    // signed it), so it is remembered as skipped, like a wrap that isn't a message.
+    if (message.wrapId)
+      this.keep({
+        key: wrapKey(this.me, message.wrapId),
+        owner: this.me,
+        wrapId: message.wrapId,
+        at: message.wrapAt,
+        failed: true,
+        reason: "skipped",
+        rules: FAILED_RULES,
+      });
     this.scheduleState();
   }
 
@@ -1117,18 +1131,11 @@ export class DmEngine {
         wraps.push({ recipient: target.pk, wrap, relays: target.relays.slice(0, MAX_INBOX_RELAYS) });
       }
     } catch (error) {
-      const reason = this.account.classify(error);
-      if (reason === "cancelled") {
-        this.store.remove([rumor.id]);
-        return { ok: false, error: "Cancelled" };
-      }
-      this.store.patch(rumor.id, {
-        outgoing: {
-          status: "failed",
-          deliveries: [],
-          error: error instanceof Error ? error.message : "Signing failed",
-        },
-      });
+      // Nothing was signed, so there is nothing to resend: a bubble kept here would
+      // offer a Retry that can't do anything, beside the draft the composer keeps.
+      // The draft is the retry — sent again, it asks the signer again.
+      this.store.remove([rumor.id]);
+      if (this.account.classify(error) === "cancelled") return { ok: false, error: "Cancelled" };
       return { ok: false, error: error instanceof Error ? error.message : "Signing failed" };
     }
 

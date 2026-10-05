@@ -138,7 +138,12 @@ export function InboxNotices({ engine, state }: { engine: DmEngine | null; state
       icon: <Plug className="h-4 w-4" />,
       text: "Your signer can't open private messages (it lacks NIP-44). Update it, or sign in with one that does.",
     });
-  if (state.paused === "cancelled" || state.paused === "refused" || state.paused === "unreachable")
+  if (
+    state.paused === "cancelled" ||
+    state.paused === "refused" ||
+    state.paused === "unreachable" ||
+    state.paused === "wrong-account"
+  )
     notices.push({
       key: "paused",
       icon: <Lock className="h-4 w-4" />,
@@ -147,7 +152,9 @@ export function InboxNotices({ engine, state }: { engine: DmEngine | null; state
           ? `Unlock to read ${state.queued} message${state.queued === 1 ? "" : "s"}.`
           : state.paused === "unreachable"
             ? "Your signer didn't answer, so new messages are still sealed."
-            : "Your signer declined to open messages.",
+            : state.paused === "wrong-account"
+              ? "Your signer is on a different profile than this account. Switch back to it, then try again."
+              : "Your signer declined to open messages.",
       action: (
         <Button size="sm" variant="outline" onClick={() => engine?.allowDecrypt()}>
           {state.paused === "cancelled" ? "Unlock" : "Try again"}

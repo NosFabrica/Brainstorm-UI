@@ -28,6 +28,7 @@ export function SyncDetails() {
       cancelled: "your signer is locked",
       unreachable: "your signer isn't answering",
       refused: "your signer declined to open them",
+      "wrong-account": "your signer is on a different profile",
       "no-nip44": "your signer can't open private messages (no NIP-44)",
     }[state.paused];
   const more = state.history.relays.some((r) => r.state === "idle" || r.state === "loading" || r.retrying);
@@ -40,7 +41,31 @@ export function SyncDetails() {
           here.
         </p>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border">
+      {/* On a phone the five columns were cut mid-word inside a sideways scroller: each
+          relay is a block of its own there, and the table is for wider screens. */}
+      <ul className="flex flex-col divide-y divide-border rounded-xl border border-border text-xs sm:hidden">
+        {state.inboxRelays.map((url) => {
+          const h = history.get(url);
+          return (
+            <li key={url} className="flex flex-col gap-1.5 px-3 py-2.5">
+              <span className="break-all font-mono font-semibold text-slate-800 dark:text-slate-100">
+                {relayHost(url)}
+              </span>
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-slate-600 dark:text-slate-300">
+                <dt className="text-slate-500 dark:text-slate-400">New messages</dt>
+                <dd>{LIVE_LABEL[state.live[url] ?? "connecting"] ?? state.live[url]}</dd>
+                <dt className="text-slate-500 dark:text-slate-400">History</dt>
+                <dd title={h?.reason}>{h ? markerLabel(h) : "—"}</dd>
+                <dt className="text-slate-500 dark:text-slate-400">Received</dt>
+                <dd className="tabular-nums">
+                  {(state.sync.received[url] ?? 0).toLocaleString()} · {h?.pages ?? 0} pages
+                </dd>
+              </dl>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="hidden overflow-x-auto rounded-xl border border-border sm:block">
         <table className="w-full text-left text-xs">
           <thead className="text-slate-500 dark:text-slate-400">
             <tr className="border-b border-border">

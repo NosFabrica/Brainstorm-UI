@@ -7,7 +7,7 @@ import type { NostrEvent } from "nostr-tools";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "@/accounts/local-account";
 import { isUnlockCancelled } from "@/accounts/local-signer";
-import { isRemoteSignerTimeout } from "@/accounts/remote-signer";
+import { classifySignerError } from "@/accounts/signer-errors";
 import { canSignSilently, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { eventStore } from "@/lib/eventStore";
@@ -25,20 +25,17 @@ import { poolTransport } from "./transport";
 
 function classifyFor(account: BrainstormAccount) {
   return (error: unknown): SignerFailure => {
-    if (isUnlockCancelled(error)) return "cancelled";
-    if (isRemoteSignerTimeout(error)) return "unreachable";
-    // An extension or bunker that ran out of time: not a "no", and not the message's fault.
-    if (/time(d)?[\s-]?out/i.test(error instanceof Error ? error.message : String(error))) return "unreachable";
+    const kind = classifySignerError(error);
+    if (kind === "cancelled") return "cancelled";
+    // Ran out of time, or the extension isn't here yet: not a "no", and not the message's fault.
+    if (kind === "timeout" || kind === "missing") return "unreachable";
+    // The extension is on another profile: its key can't open these, but this account's can.
+    if (kind === "wrong-account") return "wrong-account";
     // A key held here can't say no: once unlocked, any failure is the payload's.
     if (account instanceof LocalAccount) return "broken";
-    const message = error instanceof Error ? error.message : String(error);
     // A payload that won't decrypt is broken for good; anything else is the
     // signer saying no, which must never be remembered as "unreadable".
-    if (
-      /invalid (mac|payload|padding|base64)|unknown (encryption )?version|invalid.*length|payload must/i.test(message)
-    )
-      return "broken";
-    return "refused";
+    return kind === "bad-payload" ? "broken" : "refused";
   };
 }
 

@@ -14,6 +14,7 @@ vi.mock("@/services/nostr", () => ({
 
 vi.mock("@/accounts/signing", () => ({
   activeAccount: () => activeAccount(),
+  hasExternalSigner: (account: { external?: boolean }) => !!account.external,
 }));
 
 const PK = "a".repeat(64);
@@ -188,6 +189,18 @@ describe("pinning a chat", () => {
     stop();
   });
 
+  it("asks an extension when the reader pins: their act, their signer's prompt", async () => {
+    vi.useFakeTimers();
+    activeAccount.mockReturnValue({ pubkey: PK, external: true });
+    joinedDevice();
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
+    expect(publishAlertPrefs.mock.calls[0][2]).toMatchObject({ background: false });
+    stop();
+  });
+
   it("doesn't publish for changes that don't sync", async () => {
     vi.useFakeTimers();
     joinedDevice();
@@ -255,6 +268,31 @@ describe("pinning a chat", () => {
     stop();
   });
 
+  it("doesn't retry on a clock through a signer that prompts: the reader's next act does", async () => {
+    vi.useFakeTimers();
+    joinedDevice();
+    activeAccount.mockReturnValue({ pubkey: PK, external: true });
+    publishAlertPrefs.mockResolvedValue({ success: false, error: "All relays failed" });
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
+    expect(prefs.readDmPrefs(PK).sync?.dirty).toBe(true);
+    stop();
+  });
+
+  it("doesn't ask a signer that said no again on a clock", async () => {
+    vi.useFakeTimers();
+    joinedDevice();
+    publishAlertPrefs.mockResolvedValue({ success: false, error: "declined", declined: true });
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
+    expect(prefs.readDmPrefs(PK).sync?.dirty).toBe(true);
+    stop();
+  });
+
   it("reads the account's copy before publishing, so a stale tab doesn't undo another device", async () => {
     vi.useFakeTimers();
     const T = `${"d".repeat(64)},${PK}`;
@@ -301,6 +339,19 @@ describe("pinning a chat", () => {
     document.dispatchEvent(new Event("visibilitychange"));
     await vi.advanceTimersByTimeAsync(0);
     expect(prefs.readDmPrefs(PK).pinned).toEqual([OTHER_ROOM]);
+    stop();
+  });
+
+  it("leaves an extension's copy alone on focus and on the clock: each read or write would prompt", async () => {
+    activeAccount.mockReturnValue({ pubkey: PK, external: true });
+    const stop = sync.startDmPrefsSync();
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 60_000);
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(fetchPrivateAppData).not.toHaveBeenCalled();
+    expect(publishAlertPrefs).not.toHaveBeenCalled();
     stop();
   });
 

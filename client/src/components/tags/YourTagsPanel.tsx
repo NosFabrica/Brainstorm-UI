@@ -12,6 +12,7 @@ import { TagsCrossLink } from "@/components/tags/TagsCrossLink";
 import { UnscoredReachNotice } from "@/components/tags/UnscoredReachNotice";
 import { StanceButtons } from "@/components/share/StanceControl";
 import { useToast } from "@/hooks/use-toast";
+import { signingProblem } from "@/accounts/signing";
 import { useApplyTag, useMyAssertions, usePinnedTags, useProfileTags, useTogglePin } from "@/hooks/useTags";
 import { TAG_PINS_ENABLED } from "@/config/tagging";
 import { npubFromPubkey } from "@/lib/shareId";
@@ -346,12 +347,9 @@ function TagOnMeRow({
             ? "Your agreement is public."
             : "Your vote is public. Once disagreements outnumber agreements, the tag stops counting.",
       });
-    } catch {
-      toast({
-        title: "Couldn't save that",
-        description: "Check your connection and try again.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      const description = signingProblem(error, "Check your connection and try again.");
+      if (description) toast({ title: "Couldn't save that", description, variant: "destructive" });
     } finally {
       setBusy(false);
     }

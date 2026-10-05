@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
+import { signingProblem } from "@/accounts/signing";
 import { ROLES } from "@/config/personalization";
 import { resolveOrMintTag, type ProfileTag } from "@/services/tags";
 import { useApplyTag, useProfileTags, usePickerTags } from "@/hooks/useTags";
@@ -169,12 +170,9 @@ export function TagPersonButton({
         title: agreeing ? `You agree with "${tag.name}"` : `You disagreed with "${tag.name}"`,
         description: agreeing ? "Your vote is public." : "Your vote is public, and counts against this tag.",
       });
-    } catch {
-      toast({
-        title: "Couldn't save that",
-        description: "Check your connection and try again.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      const description = signingProblem(error, "Check your connection and try again.");
+      if (description) toast({ title: "Couldn't save that", description, variant: "destructive" });
     }
   }
 
@@ -209,12 +207,9 @@ export function TagPersonButton({
         });
         return;
       }
-    } catch {
-      toast({
-        title: "Couldn't add that tag",
-        description: "Check your connection and try again.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      const description = signingProblem(error, "Check your connection and try again.");
+      if (description) toast({ title: "Couldn't add that tag", description, variant: "destructive" });
     }
   }
 
@@ -239,12 +234,9 @@ export function TagPersonButton({
         });
         return;
       }
-    } catch {
-      toast({
-        title: "Couldn't add that tag",
-        description: "Check your connection and try again.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      const description = signingProblem(error, "Check your connection and try again.");
+      if (description) toast({ title: "Couldn't add that tag", description, variant: "destructive" });
     }
   }
 
