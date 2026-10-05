@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { VolumeX, UserMinus, ArrowRight, Loader2, Eye, EyeOff, Flag, AlertTriangle } from "lucide-react";
+import { VolumeX, UserMinus, ArrowRight, Loader2, Eye, EyeOff, Flag, AlertTriangle, ChevronDown } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
@@ -439,6 +439,7 @@ export function AlertRow({
   onUnfollow,
   onMute,
   onReport,
+  details,
 }: {
   entry: NetworkAlertEntry;
   name: string;
@@ -461,7 +462,10 @@ export function AlertRow({
   onUnfollow: () => void;
   onMute: () => void;
   onReport: () => void;
+  /** What the row says when opened (AlertDetails); rendered only while open, so its reads wait for it. */
+  details?: () => ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
   const actionBtn =
     "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
   const tierRing = useTierRing();
@@ -619,17 +623,29 @@ export function AlertRow({
             </button>
           </>
         )}
+        {details && (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className={`${actionBtn} ml-auto border-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200`}
+            data-testid="network-alert-details-toggle"
+          >
+            <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} /> Details
+          </button>
+        )}
         <button
           type="button"
           onClick={onDeepDive}
           title="View profile"
           aria-label={`View ${name}'s profile`}
-          className={`${actionBtn} ml-auto border-brand-accent/30 bg-brand-accent/[0.06] text-brand-deep hover:border-brand-accent/50 dark:text-brand-accent`}
+          className={`${actionBtn} ${details ? "" : "ml-auto"}border-brand-accent/30 bg-brand-accent/[0.06] text-brand-deep hover:border-brand-accent/50 dark:text-brand-accent`}
           data-testid="network-alert-deepdive"
         >
           View <ArrowRight className="h-3 w-3" />
         </button>
       </div>
+      {details && open && details()}
     </div>
   );
 }

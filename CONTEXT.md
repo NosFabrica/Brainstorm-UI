@@ -94,6 +94,13 @@ _Avoid_: rating, stars, likes, social proof
 An account whose house score is under the verified line, or that has no score at all.
 _Avoid_: untrusted, low trust, unknown
 
+**Flagged**:
+An account enough verified people have reported, past the backend's threshold
+(`verifiedReporterCount >= reporterThreshold`; docs/trust-tiers Decision 2).
+The UI says who reported it — people the User follows, verified accounts,
+unverified ones — never what the account is.
+_Avoid_: scammer, bad actor, dangerous
+
 ### Concepts and the Dictionary
 
 **Concept**:

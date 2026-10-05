@@ -21,6 +21,10 @@ vi.mock("@/services/nostr", () => ({
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: ME }) }));
 vi.mock("@/hooks/useLiveProfile", () => ({ useLiveProfiles: () => new Map() }));
+// The reader's history with each account is the details test's concern.
+vi.mock("@/hooks/useMyInteractions", () => ({
+  useMyInteractions: () => ({ summaryOf: () => null, dmPartial: false }),
+}));
 
 const entry = (pubkey: string, hops = 1): NetworkAlertEntry => ({
   pubkey,

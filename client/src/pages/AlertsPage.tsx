@@ -21,6 +21,8 @@ import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
 import { logout } from "@/accounts/login-flow";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import { AlertRow, useAlertActions } from "@/components/dashboard/NetworkAlertsModule";
+import { AlertDetails } from "@/components/alerts/AlertDetails";
+import { useMyInteractions } from "@/hooks/useMyInteractions";
 import type { NetworkAlertEntry } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
@@ -57,6 +59,9 @@ export default function AlertsPage() {
 
   const flaggedPubkeys = useMemo(() => flagged.map((e) => e.pubkey), [flagged]);
   const profileMap = useLiveProfiles(flaggedPubkeys);
+
+  // The reader's history with every flagged account: one read of their own data.
+  const interactions = useMyInteractions(observer, flaggedPubkeys);
 
   // Looking here is what "seen" means: the rows new since the last look keep
   // their NEW tag for this visit, and the dashboard banner's count clears.
@@ -372,6 +377,14 @@ export default function AlertsPage() {
                 escalatedFrom={isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null}
                 onDeepDive={() => navigate(`/p/${npubFromPubkey(e.pubkey)}`)}
                 onWhy={() => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`)}
+                details={() => (
+                  <AlertDetails
+                    pubkey={e.pubkey}
+                    npub={npubFromPubkey(e.pubkey)}
+                    history={interactions.summaryOf(e.pubkey)}
+                    dmPartial={interactions.dmPartial}
+                  />
+                )}
                 {...actionsFor(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount, {
                   picture: profiles.get(e.pubkey)?.picture,
                   nip05: profiles.get(e.pubkey)?.nip05,
