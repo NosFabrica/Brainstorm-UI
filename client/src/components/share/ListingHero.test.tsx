@@ -5,7 +5,7 @@
  * shop page. No checkout of ours: payment happens where the seller sells.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { act, render, screen, within, fireEvent } from "@testing-library/react";
 
 // The seller's other listings, for a listing published outside Conduit whose seller sells on Conduit.
 const recentMock = vi.fn(async (_pubkey: string, _kinds: number[], _limit: number) => [] as unknown[]);
@@ -388,6 +388,71 @@ describe("ListingHero", () => {
       render(<ListingHero event={listing([], "A short note about a jumper.")} />);
       expect(screen.getByTestId("listing-hero-description-box")).toHaveAttribute("data-collapsed", "false");
       expect(screen.queryByTestId("listing-hero-description-more")).toBeNull();
+    });
+  });
+
+  // On a phone the buy button scrolls away under a long description. A slim
+  // bar brings it back — the same link out, never a checkout of ours — only
+  // while the real buttons are off screen.
+  describe("the phone buy bar", () => {
+    let report: (visible: boolean) => void = () => {};
+    beforeEach(() => {
+      report = () => {};
+      vi.stubGlobal(
+        "IntersectionObserver",
+        class {
+          constructor(private cb: IntersectionObserverCallback) {}
+          observe(el: Element) {
+            report = (visible) =>
+              this.cb(
+                [{ isIntersecting: visible, target: el } as IntersectionObserverEntry],
+                this as unknown as IntersectionObserver,
+              );
+          }
+          unobserve() {}
+          disconnect() {}
+          takeRecords() {
+            return [];
+          }
+        },
+      );
+    });
+    const conduit = () =>
+      listing([["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]);
+
+    it("appears once the buy buttons scroll out of view, with the price and the same way to buy", () => {
+      render(<ListingHero event={conduit()} />);
+      expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
+
+      act(() => report(false));
+      const bar = screen.getByTestId("listing-hero-buybar");
+      expect(bar).toHaveTextContent("23,550 sats");
+      const link = within(bar).getByTestId("listing-hero-buybar-link");
+      expect(link).toHaveTextContent("Buy on Conduit");
+      expect(link.getAttribute("href")).toBe(screen.getByTestId("listing-hero-shop").getAttribute("href"));
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(screen.queryByText(/Buy now|Add to cart|Checkout/i)).toBeNull();
+
+      act(() => report(true));
+      expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
+    });
+
+    it("is not offered when there is nowhere to buy, or nothing for sale", () => {
+      const { unmount } = render(<ListingHero event={listing([])} />);
+      act(() => report(false));
+      expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
+      unmount();
+
+      render(
+        <ListingHero
+          event={listing([
+            ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"],
+            ["status", "sold"],
+          ])}
+        />,
+      );
+      act(() => report(false));
+      expect(screen.queryByTestId("listing-hero-buybar")).toBeNull();
     });
   });
 });

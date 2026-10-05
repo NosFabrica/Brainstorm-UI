@@ -116,6 +116,14 @@ row, a seller's shelf and page, "More for sale", the popup's count).
 - The seller's categories are how a listing is found, not what a buyer reads first: under the
   description, five at first with `+N more`, each once (no plural or case repeats) and never
   the seller's own name (`categoriesToShow`).
+- A product page reads in a shopper's order: photos, title, price in words (the seller's price,
+  the reader's money beside it), who is selling and who follows them (`FollowedByLine`), the
+  options, the buttons, then the description — folded past ~600 characters with `Read more`.
+  On the product's own page the options row asks (`Choose a size`); on an option's page it
+  names what it is (`Size`).
+- On a phone, once the buy buttons scroll away, a slim bar above the tab bar repeats the price
+  and the same link out. It offsets by `--bs-bottom-chrome`. There is no cart, quantity or
+  checkout anywhere: payment stays with the seller.
 - Hidden means not shown: a hidden option is not offered, and a hidden parent hides its options.
 
 ### KindPill — `components/ui/kind-pill.tsx`

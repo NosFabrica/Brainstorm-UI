@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { nip19 } from "nostr-tools";
 import { ExternalLink, MapPin, MessageCircle, ShoppingBag, Truck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
@@ -63,6 +63,18 @@ export function ListingHero({
       return "";
     }
   }, [event.pubkey]);
+  // The buy buttons, watched: once they scroll away on a phone, a slim bar
+  // brings the way to buy back. False until the browser says they are gone.
+  const actionsRef = useRef<HTMLDivElement | null>(null);
+  const [actionsGone, setActionsGone] = useState(false);
+  useEffect(() => {
+    const el = actionsRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setActionsGone(!entry.isIntersecting));
+    observer.observe(el);
+    return () => observer.disconnect();
+    // Re-attached when the listing changes: the buttons are a new node.
+  }, [event.id]);
   // A long description opens folded: its start, and the rest on request.
   const [wholeStory, setWholeStory] = useState(false);
   // A handful of categories is enough to say what this is; the rest are one tap away.
@@ -102,6 +114,15 @@ export function ListingHero({
     }
   })();
   const current = l.images[Math.min(photo, Math.max(0, l.images.length - 1))];
+  // The one way to buy, as the buttons below choose it: the marketplace that
+  // sold it, else the listing's own link, else the seller's website.
+  const buy = app
+    ? { href: app.url, label: `Buy on ${app.name}` }
+    : l.shopUrl && shopHost
+      ? { href: l.shopUrl, label: `Visit ${shopHost}` }
+      : websiteHost
+        ? { href: sellerWebsite as string, label: `Visit ${websiteHost}` }
+        : null;
 
   return (
     <div data-testid="listing-hero">
@@ -206,7 +227,7 @@ export function ListingHero({
       <ListingOptions event={event as ListingEvent} className="mt-3" />
 
       {/* Actions — the seller's app and the seller's shop. */}
-      <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="listing-hero-actions">
+      <div ref={actionsRef} className="mt-4 flex flex-wrap items-center gap-2" data-testid="listing-hero-actions">
         <a
           href={nostrUriFor(event.pubkey)}
           className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
@@ -326,6 +347,32 @@ export function ListingHero({
               +{categories.length - CATEGORIES_SHOWN} more
             </button>
           )}
+        </div>
+      )}
+
+      {/* Phones only: the way to buy, kept in reach while the story is read.
+          The same link out as the button above — payment stays with the
+          seller. It sits on top of the tab bar (lib/bottomChrome). */}
+      {sellable && buy && actionsGone && (
+        <div
+          className="fixed inset-x-0 bottom-[var(--bs-bottom-chrome,0px)] z-30 flex items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:hidden"
+          data-testid="listing-hero-buybar"
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{l.title}</span>
+            <span className="block text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+              {l.price ? formatListingPrice(l.price) : "Price on request"}
+            </span>
+          </span>
+          <a
+            href={buy.href}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            data-testid="listing-hero-buybar-link"
+          >
+            {buy.label} <ExternalLink className="h-3.5 w-3.5" />
+          </a>
         </div>
       )}
     </div>
