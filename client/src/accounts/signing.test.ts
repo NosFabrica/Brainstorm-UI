@@ -257,6 +257,15 @@ describe("signingProblem", () => {
     expect(signingProblem(new RemoteSignerTimeoutError(), NET)).toMatch(/didn't answer/);
   });
 
+  it('keeps a decline that came as a bare string — Amber\'s "Canceled" — off the network message', () => {
+    expect(signingProblem("Canceled", NET)).toBe("Canceled");
+    expect(signingProblem(new Error(""), NET)).toBe(NET);
+  });
+
+  it("doesn't take a relay's timeout for a signer that went quiet", () => {
+    expect(signingProblem(new Error("COUNT timeout"), NET)).toBe(NET);
+  });
+
   it("leaves anything else to the caller's network wording", () => {
     expect(signingProblem(new Error("relay exploded"), NET)).toBe(NET);
   });

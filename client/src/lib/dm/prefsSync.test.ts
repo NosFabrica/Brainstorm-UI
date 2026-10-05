@@ -266,6 +266,19 @@ describe("pinning a chat", () => {
     stop();
   });
 
+  it("doesn't retry on a clock through a signer that prompts: the reader's next act does", async () => {
+    vi.useFakeTimers();
+    joinedDevice();
+    activeAccount.mockReturnValue({ pubkey: PK, external: true });
+    publishAlertPrefs.mockResolvedValue({ success: false, error: "All relays failed" });
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
+    expect(prefs.readDmPrefs(PK).sync?.dirty).toBe(true);
+    stop();
+  });
+
   it("doesn't ask a signer that said no again on a clock", async () => {
     vi.useFakeTimers();
     joinedDevice();

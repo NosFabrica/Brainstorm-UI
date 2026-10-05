@@ -72,12 +72,16 @@ async function text(request: () => Promise<unknown>): Promise<string> {
  * after the DM engine has started — so that is asked when called, and fails as
  * "missing" (try again later) rather than "can't" (pause for good).
  */
-function timedCipher(pick: (nostr: Nip07) => Cipher | undefined, signer: TimedExtensionSigner) {
+function timedCipher(
+  nip: "NIP-04" | "NIP-44",
+  pick: (nostr: Nip07) => Cipher | undefined,
+  signer: TimedExtensionSigner,
+) {
   const nostr = (window as unknown as { nostr?: Nip07 }).nostr;
   if (nostr && !pick(nostr)) return undefined;
   const cipher = () => {
     const found = pick(extension());
-    if (!found) throw new Error("Your signer extension can't encrypt (no NIP-44).");
+    if (!found) throw new Error(`Your signer extension can't encrypt (no ${nip}).`);
     return found;
   };
   return {
@@ -107,13 +111,14 @@ export class TimedExtensionSigner extends ExtensionSigner {
    * (`SignerMismatchError`); decrypting is guarded here, against this.
    */
   owner?: string;
-  private confirmed?: { at: number; check: Promise<void> };
+  /** The last confirmation: `at` once it answered, absent while it is still asking. */
+  private confirmed?: { at?: number; check: Promise<void> };
 
   get nip04() {
-    return timedCipher((nostr) => nostr.nip04, this);
+    return timedCipher("NIP-04", (nostr) => nostr.nip04, this);
   }
   get nip44() {
-    return timedCipher((nostr) => nostr.nip44, this);
+    return timedCipher("NIP-44", (nostr) => nostr.nip44, this);
   }
 
   async getPublicKey(): Promise<string> {
@@ -140,17 +145,21 @@ export class TimedExtensionSigner extends ExtensionSigner {
   confirmProfile(): Promise<void> {
     const owner = this.owner;
     if (!owner) return Promise.resolve();
-    if (this.confirmed && Date.now() - this.confirmed.at < PROFILE_CONFIRMED_MS) return this.confirmed.check;
-    const check = (async () => {
+    const last = this.confirmed;
+    if (last && (last.at === undefined || Date.now() - last.at < PROFILE_CONFIRMED_MS)) return last.check;
+    const entry: { at?: number; check: Promise<void> } = { check: Promise.resolve() };
+    entry.check = (async () => {
       const now = answered(await withTimeout(extension().getPublicKey(), EXTENSION_TIMEOUT_MS, LATE));
       if (now !== owner) throw new SignerMismatchError("Your signer extension is on a different profile.");
+      // From the answer, not the ask: a slow unlock still covers the run that follows.
+      entry.at = Date.now();
     })();
-    this.confirmed = { at: Date.now(), check };
+    this.confirmed = entry;
     // Only a confirmed match stands; a failure is asked again next time.
-    check.catch(() => {
-      if (this.confirmed?.check === check) this.confirmed = undefined;
+    entry.check.catch(() => {
+      if (this.confirmed === entry) this.confirmed = undefined;
     });
-    return check;
+    return entry.check;
   }
 }
 

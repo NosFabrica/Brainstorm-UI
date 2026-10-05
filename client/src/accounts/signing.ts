@@ -63,6 +63,8 @@ export type PublishOutcome = {
 const SIGNER_SILENT =
   "Your signer didn't answer. Open it and check for a pending request — or connect it again from your account menu.";
 
+const SIGNER_DECLINED = "Your signer declined the request.";
+
 /** NIP-07 has no "profile changed" event: the first anyone hears of a switch is a signature by someone else. */
 const SIGNER_OTHER_PROFILE =
   "Your signer is on a different profile than this account. Switch back to it in your signer, then try again.";
@@ -77,8 +79,9 @@ export function signingFailure(error: unknown, fallback = "Signing failed"): Pub
     return { success: false, error: SIGNER_SILENT, signerUnreachable: true };
   }
   if (kind === "wrong-account") return { success: false, error: SIGNER_OTHER_PROFILE, declined: true };
-  const message = error instanceof Error ? error.message : fallback;
-  if (kind === "declined") return { success: false, error: message, declined: true };
+  // Amber's clipboard flow rejects with a bare string, not an Error.
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
+  if (kind === "declined") return { success: false, error: message || SIGNER_DECLINED, declined: true };
   return { success: false, error: message };
 }
 

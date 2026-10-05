@@ -24,7 +24,11 @@ export type SignerErrorKind =
   | "cancelled"
   /** The signer said no — the reader declined its prompt, or it refuses this app. */
   | "declined"
-  /** No answer in time: a prompt never seen, a bunker gone quiet. Worth asking again. */
+  /**
+   * No answer in time: a prompt never seen, a bunker gone quiet. Worth asking again.
+   * Only our typed deadline (`RemoteSignerTimeoutError`), which every signer here
+   * throws — never a message that says "timeout", which a relay sends too.
+   */
   | "timeout"
   /** No signer to ask: the extension isn't in this browser (yet). */
   | "missing"
@@ -52,8 +56,6 @@ const messageOf = (error: unknown) =>
  * rejects with the bare string "Canceled".
  */
 const DECLINED = /reject|denied|declin|cancel|refus|not (allowed|authori[sz]ed|permitted)|permission/i;
-/** Timeouts from libraries that don't throw our typed one. */
-const TIMED_OUT = /time(d)?[\s-]?out/i;
 /** nostr-tools' NIP-44 and NIP-04 decrypt failures, as an extension relays them. */
 const BAD_PAYLOAD = /invalid (mac|payload|padding|base64)|unknown (encryption )?version|invalid.*length|payload must/i;
 
@@ -65,7 +67,6 @@ export function classifySignerError(error: unknown): SignerErrorKind {
   if (error instanceof SignerMismatchError) return "wrong-account";
 
   const message = messageOf(error);
-  if (TIMED_OUT.test(message)) return "timeout";
   if (BAD_PAYLOAD.test(message)) return "bad-payload";
   if (DECLINED.test(message)) return "declined";
   return "unknown";

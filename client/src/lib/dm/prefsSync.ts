@@ -269,6 +269,9 @@ async function publishNow(pubkey: string, { attempt = 0, first = false } = {}): 
   // a timer can't fix those. The next change or the next time Messages opens retries.
   if (res.deferred || res.cancelled || res.declined || res.signerUnreachable || res.error === "Not logged in") return;
   if (res.error === "Could not encrypt") return;
+  // A timer is nobody's act: through an extension or bunker it would be a prompt
+  // out of nowhere. Theirs retries on the next change, or when Messages opens.
+  if (hasExternalSigner(account)) return;
   if (attempt < MAX_RETRIES) schedule(pubkey, RETRY_MS, attempt + 1);
 }
 

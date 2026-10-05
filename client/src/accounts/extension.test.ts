@@ -106,3 +106,32 @@ describe("BrainstormExtensionAccount", () => {
     expect(restored.pubkey).toBe(pubkey);
   });
 });
+
+describe("confirmProfile", () => {
+  it("asks once while a slow answer is pending, and that answer covers the run after it", async () => {
+    vi.useFakeTimers();
+    // The reader takes 40s to unlock the extension: longer than the 30s a confirmation stands.
+    const nostr = install({ getPublicKey: vi.fn(() => new Promise((ok) => setTimeout(() => ok(pubkey), 40_000))) });
+    const signer = new TimedExtensionSigner();
+    signer.owner = pubkey;
+
+    const first = signer.confirmProfile();
+    await vi.advanceTimersByTimeAsync(35_000);
+    const during = signer.confirmProfile();
+    await vi.advanceTimersByTimeAsync(5_000);
+    await Promise.all([first, during]);
+    await signer.confirmProfile();
+
+    expect(nostr.getPublicKey).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks again once a failed confirmation is past, rather than keeping the failure", async () => {
+    const nostr = install({ getPublicKey: vi.fn(async () => undefined) });
+    const signer = new TimedExtensionSigner();
+    signer.owner = pubkey;
+    await expect(signer.confirmProfile()).rejects.toBeInstanceOf(SignerDeclinedError);
+    nostr.getPublicKey.mockImplementation(async () => pubkey);
+    await expect(signer.confirmProfile()).resolves.toBeUndefined();
+    expect(nostr.getPublicKey).toHaveBeenCalledTimes(2);
+  });
+});

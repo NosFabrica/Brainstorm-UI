@@ -368,9 +368,9 @@ export async function publishAssistantPointer(
 ): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
-  // The self-heal on app load is nobody's request, so a Locked Account that can't
-  // open silently is left alone and syncs its pointer on a later load.
-  if (background && !(await canSignSilently(account))) return { success: false, deferred: true };
+  // The self-heal on app load is nobody's request: a Locked Account that can't open
+  // silently, or a signer that would prompt, is left to the manual publish.
+  if (background && !(await canSignUnasked(account))) return { success: false, deferred: true };
 
   try {
     const signed = await signAs(account, {

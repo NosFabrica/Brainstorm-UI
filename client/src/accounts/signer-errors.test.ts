@@ -21,7 +21,7 @@ const CASES: [string, unknown, SignerErrorKind][] = [
   ["an extension without a grant", new Error("Permission not granted"), "declined"],
   ["Amber's clipboard flow, a bare string", "Canceled", "declined"],
   ["our deadline", new RemoteSignerTimeoutError(), "timeout"],
-  ["a library's own deadline", new Error("Request timed out"), "timeout"],
+  ["a relay's timeout is not the signer's", new Error("COUNT timeout"), "unknown"],
   ["no extension in this browser", new ExtensionMissingError("Signer extension missing"), "missing"],
   ["an extension on another profile", new SignerMismatchError("Signer signed with wrong pubkey"), "wrong-account"],
   ["NIP-44 MAC", new Error("invalid MAC"), "bad-payload"],

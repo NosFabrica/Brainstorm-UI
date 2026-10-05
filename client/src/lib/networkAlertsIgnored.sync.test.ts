@@ -98,6 +98,17 @@ describe("the flush that runs on app load", () => {
     expect(publishAlertPrefs).not.toHaveBeenCalled();
   });
 
+  it("does not prompt again every fifteen seconds after the signer declined", async () => {
+    vi.useFakeTimers();
+    publishAlertPrefs.mockResolvedValue({ success: false, error: "denied", declined: true });
+
+    await lib.flushIgnoredToNostr(OBSERVER);
+    publishAlertPrefs.mockClear();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(publishAlertPrefs).not.toHaveBeenCalled();
+  });
+
   // A relay failure is the case the retry was written for, and it stays.
   it("still retries a genuine relay failure", async () => {
     vi.useFakeTimers();
