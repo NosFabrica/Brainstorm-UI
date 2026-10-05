@@ -23,6 +23,7 @@ vi.mock("@/lib/eventStore", () => ({
     getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
     getEvent: () => undefined,
     add: (event: NostrEvent) => event,
+    insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
   },
 }));
 

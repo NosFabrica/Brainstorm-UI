@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { FileText } from "lucide-react";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useQuery } from "@tanstack/react-query";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
-import { fetchEventsByIds, fetchProfileMap } from "@/services/nostr";
+import { fetchEventsByIds } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { eventPath } from "@/lib/shareId";
 import { useTagNotes } from "@/hooks/useTags";
@@ -50,14 +51,8 @@ export function TaggedNotes({ authorPubkey, slug }: { authorPubkey: string; slug
   const notes = useMemo(() => (notesQuery.data ?? []) as unknown as MinimalEvent[], [notesQuery.data]);
 
   const authors = useMemo(() => Array.from(new Set(notes.map((n) => n.pubkey).filter(Boolean) as string[])), [notes]);
-  const profilesQuery = useQuery({
-    queryKey: ["tag-note-profiles", authors.join(",")],
-    queryFn: () => fetchProfileMap(authors),
-    enabled: authors.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data;
+  const profileMap = useLiveProfiles(authors);
+  const profiles = profileMap;
 
   // Keep the service's ordering (most-vouched first) rather than relay order.
   const ordered = useMemo(() => {

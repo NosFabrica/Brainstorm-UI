@@ -10,7 +10,12 @@ import { nip19, type NostrEvent } from "nostr-tools";
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
 vi.mock("@/services/nostr", () => ({ fetchProfileMap: vi.fn(() => Promise.resolve(new Map())) }));
 vi.mock("@/lib/eventStore", () => ({
-  eventStore: { getReplaceable: () => undefined, getEvent: () => undefined, add: (e: NostrEvent) => e },
+  eventStore: {
+    getReplaceable: () => undefined,
+    getEvent: () => undefined,
+    add: (e: NostrEvent) => e,
+    insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
+  },
 }));
 
 import { ThingCard, magnetOf } from "./thingCards";

@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useLocation } from "wouter";
 import { MessagesSquare, Loader2, Flame, Clock, Heart, Repeat2, MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
-import { fetchEventsByFilter, fetchProfileMap, fetchEventsByIds } from "@/services/nostr";
+import { fetchEventsByFilter, fetchEventsByIds } from "@/services/nostr";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { eventPath } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -155,14 +156,8 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
     eventsById.forEach((e) => s.add(e.pubkey));
     return Array.from(s);
   }, [notes, eventsById]);
-  const profilesQuery = useQuery({
-    queryKey: ["thread-profiles", profilePubkeys.join(",")],
-    queryFn: () => fetchProfileMap(profilePubkeys),
-    enabled: profilePubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data ?? new Map();
+  const profileMap = useLiveProfiles(profilePubkeys);
+  const profiles = profileMap;
   // Trust scores for the feed's authors (the module's own `scores` map is
   // ENGAGEMENT, not trust). Shared session cache; house POV.
   const authorScoreOf = useAuthorScores(useMemo(() => notes.map((n) => n.pubkey), [notes]));

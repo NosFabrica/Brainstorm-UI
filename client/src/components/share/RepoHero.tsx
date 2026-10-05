@@ -13,8 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { useLiveProfile } from "@/hooks/useLiveProfile";
-import { fetchProfileMap } from "@/services/nostr";
+import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { Chip } from "@/components/ui/chip";
 import { eventPath } from "@/lib/shareId";
@@ -89,11 +88,7 @@ export function RepoHero({ event }: { event: RepoEvent }) {
     }
   };
 
-  const [activity, setActivity] = useState<NostrEvent[]>([]);
-
-  const [activityAuthors, setActivityAuthors] = useState<
-    Map<string, { name?: string; displayName?: string; bot?: boolean }>
-  >(new Map());
+  const [activityItems, setActivityItems] = useState<NostrEvent[]>([]);
   const [activityStatuses, setActivityStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
   const [activityComments, setActivityComments] = useState<Map<string, number>>(new Map());
   const [activityOpen, setActivityOpen] = useState(false);
@@ -101,19 +96,9 @@ export function RepoHero({ event }: { event: RepoEvent }) {
   useEffect(() => {
     if (!address) return;
     let alive = true;
-    void fetchRepoActivity(address).then(async (items) => {
+    void fetchRepoActivity(address).then((items) => {
       if (!alive) return;
-      // Who filed each one — the profile says "agent" when the event does not.
-      const pubkeys = [...new Set(items.map((i) => i.pubkey))];
-      const profiles = pubkeys.length ? await fetchProfileMap(pubkeys).catch(() => new Map()) : new Map();
-      if (!alive) return;
-      const authors = new Map<string, { name?: string; displayName?: string; bot?: boolean }>();
-      for (const [pk, c] of profiles as Map<string, { name?: string; display_name?: string; bot?: boolean }>) {
-        authors.set(pk, { name: c.name, displayName: c.display_name, bot: c.bot === true });
-      }
-      setActivityAuthors(authors);
-      // People's items first, agents' after — nothing hidden, each marked.
-      setActivity(peopleBeforeAgents(items, (i) => ({ event: i, author: authors.get(i.pubkey) })));
+      setActivityItems(items);
       // What became of each, and how much talk it drew — one request each for the page.
       const ids = items.map((i) => i.id);
       if (ids.length) {
@@ -129,6 +114,20 @@ export function RepoHero({ event }: { event: RepoEvent }) {
       alive = false;
     };
   }, [address]);
+  // Who filed each one — the profile says "agent" when the event does not.
+  const activityProfiles = useLiveProfiles(activityItems.map((i) => i.pubkey));
+  const activityAuthors = useMemo(() => {
+    const authors = new Map<string, { name?: string; displayName?: string; bot?: boolean }>();
+    for (const [pk, c] of activityProfiles) {
+      authors.set(pk, { name: c.name, displayName: c.display_name, bot: (c as { bot?: unknown }).bot === true });
+    }
+    return authors;
+  }, [activityProfiles]);
+  // People's items first, agents' after — nothing hidden, each marked.
+  const activity = useMemo(
+    () => peopleBeforeAgents(activityItems, (i) => ({ event: i, author: activityAuthors.get(i.pubkey) })),
+    [activityItems, activityAuthors],
+  );
 
   // The numbers: issues, patches, who contributed, when anything last happened.
   const [counts, setCounts] = useState<RepoCounts | null>(null);

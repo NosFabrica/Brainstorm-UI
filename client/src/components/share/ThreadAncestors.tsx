@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchEventsByIds, fetchProfileMap } from "@/services/nostr";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import { fetchEventsByIds } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
@@ -50,14 +51,8 @@ export function ThreadAncestors({ note, relayHints }: { note: MinimalEvent; rela
     return Array.from(set);
   }, [root, parent]);
 
-  const profilesQuery = useQuery({
-    queryKey: ["thread-ancestor-profiles", mentionPks.join(",")],
-    queryFn: () => fetchProfileMap(mentionPks),
-    enabled: mentionPks.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = (profilesQuery.data as Map<string, ProfileLite>) ?? new Map<string, ProfileLite>();
+  const profileMap = useLiveProfiles(mentionPks);
+  const profiles = (profileMap as Map<string, ProfileLite>) ?? new Map<string, ProfileLite>();
 
   if (!parentId && !rootId) return null; // not a reply
   if (!root && !parent) return null; // ancestors couldn't be fetched (deleted / off relays)

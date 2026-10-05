@@ -10,13 +10,14 @@
  */
 import { useEffect, useState } from "react";
 import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
-import { fetchEventsByIds, fetchProfileMap } from "@/services/nostr";
+import { fetchEventsByIds } from "@/services/nostr";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 
 export type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 /** The quoted note, its author, and the people it mentions — so a name never shows as a key. */
 export type QuotedNote = { event: MinimalEvent; author?: ProfileLite; profiles: Map<string, ProfileLite> };
 
-const settled = new Map<string, QuotedNote | null>();
+const settled = new Map<string, MinimalEvent | null>();
 const pending = new Map<string, Promise<void>>();
 
 function resolve(ids: string[]): Promise<void> {
@@ -25,41 +26,17 @@ function resolve(ids: string[]): Promise<void> {
   if (inFlight) return inFlight;
   const p = fetchEventsByIds(ids)
     .catch(() => [])
-    .then(async (events) => {
-      const people = [
-        ...new Set(
-          events.flatMap((e) => [
-            e.pubkey,
-            ...analyzeNote(e as MinimalEvent).mentionPubkeys,
-            ...analyzeNote(e as MinimalEvent).replyToPubkeys,
-          ]),
-        ),
-      ];
-      const profiles = (people.length ? await fetchProfileMap(people).catch(() => new Map()) : new Map()) as Map<
-        string,
-        ProfileLite
-      >;
-      for (const id of ids) {
-        const event = events.find((e) => e.id === id);
-        settled.set(id, event ? { event: event as MinimalEvent, author: profiles.get(event.pubkey), profiles } : null);
-      }
+    .then((events) => {
+      for (const id of ids) settled.set(id, (events.find((e) => e.id === id) as MinimalEvent | undefined) ?? null);
     });
   pending.set(key, p);
   return p;
 }
 
-function known(ids: string[]): { notes: QuotedNote[]; ids: ReadonlySet<string> } {
-  const notes: QuotedNote[] = [];
-  const found = new Set<string>();
-  for (const id of ids) {
-    const q = settled.get(id);
-    if (q) {
-      notes.push(q);
-      found.add(id);
-    }
-  }
-  return { notes, ids: found };
-}
+const peopleOf = (e: MinimalEvent) => {
+  const refs = analyzeNote(e);
+  return [e.pubkey, ...refs.mentionPubkeys, ...refs.replyToPubkeys];
+};
 
 export function useQuotedNotes(ids: string[]): { notes: QuotedNote[]; ids: ReadonlySet<string> } {
   const key = ids.join(",");
@@ -75,7 +52,11 @@ export function useQuotedNotes(ids: string[]): { notes: QuotedNote[]; ids: Reado
       alive = false;
     };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return known(ids);
+
+  const events = ids.map((id) => settled.get(id)).filter((e): e is MinimalEvent => !!e);
+  const profiles = useLiveProfiles([...new Set(events.flatMap(peopleOf))]) as Map<string, ProfileLite>;
+  const notes = events.map((event) => ({ event, author: profiles.get(event.pubkey), profiles }));
+  return { notes, ids: new Set(events.map((e) => e.id)) };
 }
 
 /** Test seam. */

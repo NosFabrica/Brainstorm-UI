@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
-import { fetchProfileMap, fetchRecentByKinds } from "@/services/nostr";
+import { fetchRecentByKinds } from "@/services/nostr";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { fetchSimilarListings } from "@/services/search";
 import { APP_TAGS, LISTING_KIND, isSellable, parseListing } from "@/lib/listing";
 import { productsFromEvents, splitVariantTitle, type ProductCard } from "@/lib/listingVariants";
@@ -30,7 +31,6 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
   const [mineTotal, setMineTotal] = useState(0);
   const [options, setOptions] = useState<{ id: string; pubkey: string; label: string }[]>([]);
   const [similar, setSimilar] = useState<NostrEvent[]>([]);
-  const [sellers, setSellers] = useState<Map<string, SearchResult>>(new Map());
 
   useEffect(() => {
     let alive = true;
@@ -69,36 +69,28 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
       if (!alive) return;
       const rows = sellable(evs).slice(0, 4);
       setSimilar(rows);
-      const pks = [...new Set(rows.map((e) => e.pubkey))];
-      if (pks.length === 0) return;
-      void fetchProfileMap(pks).then((map) => {
-        if (!alive) return;
-        const next = new Map<string, SearchResult>();
-        for (const [pk, c] of map) {
-          const p = c as {
-            name?: string;
-            display_name?: string;
-            displayName?: string;
-            picture?: string;
-            nip05?: string;
-          };
-          next.set(pk, {
-            pubkey: pk,
-            npub: nip19.npubEncode(pk),
-            name: p.name,
-            displayName: p.display_name ?? p.displayName,
-            picture: p.picture,
-            nip05: p.nip05,
-          });
-        }
-        setSellers(next);
-      });
     });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on event identity
   }, [event.id]);
+
+  const sellerProfiles = useLiveProfiles(similar.map((e) => e.pubkey));
+  const sellers = useMemo(() => {
+    const next = new Map<string, SearchResult>();
+    for (const [pk, p] of sellerProfiles) {
+      next.set(pk, {
+        pubkey: pk,
+        npub: nip19.npubEncode(pk),
+        name: p.name,
+        displayName: p.display_name ?? (p as { displayName?: string }).displayName,
+        picture: p.picture,
+        nip05: p.nip05,
+      });
+    }
+    return next;
+  }, [sellerProfiles]);
 
   if (mine.length === 0 && similar.length === 0 && options.length === 0) return null;
   return (

@@ -1,11 +1,10 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useLocation } from "wouter";
 import { BookOpen, Loader2, ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { NetworkArticleCard } from "@/components/dashboard/NetworkArticleCard";
 import { useNetworkArticles } from "@/hooks/useNetworkArticles";
-import { fetchProfileMap } from "@/services/nostr";
 
 /**
  * "Reading from your network" — long-form from accounts two-plus hops out,
@@ -25,14 +24,8 @@ export function NetworkArticlesModule({ observer, enabled }: { observer: string;
   const hasMore = articles.length > top.length;
 
   const pubkeys = useMemo(() => top.map((a) => a.event.pubkey), [top]);
-  const profilesQuery = useQuery({
-    queryKey: ["network-articles-profiles", pubkeys.join(",")],
-    queryFn: () => fetchProfileMap(pubkeys),
-    enabled: pubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data ?? new Map();
+  const profileMap = useLiveProfiles(pubkeys);
+  const profiles = profileMap;
 
   // Nothing to show and nothing coming — stay out of the way rather than render
   // an empty card on the dashboard.

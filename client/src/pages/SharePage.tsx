@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRoute, useLocation, Link, Redirect } from "wouter";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MessageSquare,
@@ -36,7 +37,6 @@ import {
   fetchRecentByKinds,
   fetchLiveStreams,
   fetchEventsByIds,
-  fetchProfileMap,
   fetchOutboxRelayList,
   fetchProfilePrefs,
   publishProfilePrefs,
@@ -279,26 +279,20 @@ export default function SharePage() {
       prefs.pinnedFollowers.length > 0 ? prefs.pinnedFollowers : (followedByQuery.data ?? []).map((e) => e.pubkey),
     [prefs.pinnedFollowers, followedByQuery.data],
   );
-  const followedByProfilesQuery = useQuery({
-    queryKey: ["share-followedby-profiles", effectiveFollowerPubkeys.join(",")],
-    queryFn: () => fetchProfileMap(effectiveFollowerPubkeys),
-    enabled: effectiveFollowerPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const followedByProfiles = useLiveProfiles(effectiveFollowerPubkeys);
   const followedByScores = useMemo(
     () => new Map((followedByQuery.data ?? []).map((e) => [e.pubkey, e.influence])),
     [followedByQuery.data],
   );
   const topFollowers = useMemo(() => {
-    const profs = followedByProfilesQuery.data;
+    const profs = followedByProfiles;
     return effectiveFollowerPubkeys.map((pk) => ({
       pubkey: pk,
       score01: followedByScores.get(pk) ?? null,
       name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
       picture: profs?.get(pk)?.picture,
     }));
-  }, [effectiveFollowerPubkeys, followedByProfilesQuery.data, followedByScores]);
+  }, [effectiveFollowerPubkeys, followedByProfiles, followedByScores]);
 
   // A wider follower list (resolved) for the owner's "Followed by" picker — only
   // fetched while the Customize panel is open.
@@ -317,21 +311,15 @@ export default function SharePage() {
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const candidateProfilesQuery = useQuery({
-    queryKey: ["share-candidate-profiles", (followerCandidatesQuery.data ?? []).join(",")],
-    queryFn: () => fetchProfileMap(followerCandidatesQuery.data ?? []),
-    enabled: (followerCandidatesQuery.data?.length ?? 0) > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const candidateProfiles = useLiveProfiles(followerCandidatesQuery.data ?? []);
   const followerCandidates = useMemo(() => {
-    const profs = candidateProfilesQuery.data;
+    const profs = candidateProfiles;
     return (followerCandidatesQuery.data ?? []).map((pk) => ({
       pubkey: pk,
       name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
       picture: profs?.get(pk)?.picture,
     }));
-  }, [followerCandidatesQuery.data, candidateProfilesQuery.data]);
+  }, [followerCandidatesQuery.data, candidateProfiles]);
 
   const overviewQuery = useQuery({
     queryKey: ["share-overview", pubkey],

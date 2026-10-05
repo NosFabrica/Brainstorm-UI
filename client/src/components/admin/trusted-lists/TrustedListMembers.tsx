@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Loader2 } from "lucide-react";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { PersonCell } from "@/components/admin/billing/DivergenceRows";
 import { useToast } from "@/hooks/use-toast";
 import { copyToClipboard } from "@/lib/clipboard";
-import { fetchProfileMap } from "@/services/nostr";
 import { loadTrustedList } from "./listMembers";
 
 /** One published list's members, read back from the relay it went to. */
@@ -27,11 +27,7 @@ export function TrustedListMembers({
   });
   const pubkeys = list.data?.members.map((m) => m.pubkey) ?? [];
   // Names and pictures are best-effort: a member without a kind-0 still shows.
-  const profiles = useQuery({
-    queryKey: ["trusted-list-profiles", signingPubkey, dTag],
-    queryFn: () => fetchProfileMap(pubkeys),
-    enabled: pubkeys.length > 0,
-  });
+  const profilesMap = useLiveProfiles(pubkeys);
 
   const note = "text-xs text-slate-500 dark:text-slate-400";
   return (
@@ -77,7 +73,7 @@ export function TrustedListMembers({
           </div>
           <ul className="space-y-1">
             {list.data.members.map((m) => {
-              const p = profiles.data?.get(m.pubkey);
+              const p = profilesMap?.get(m.pubkey);
               return (
                 <li key={m.pubkey} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                   <PersonCell

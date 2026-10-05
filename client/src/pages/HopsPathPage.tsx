@@ -1,5 +1,6 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
@@ -8,7 +9,6 @@ import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileMap } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { reportUser, followUser, fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
@@ -136,13 +136,7 @@ export default function HopsPathPage() {
 
   const subject = useLiveProfile(toPubkey, relayHints).profile;
 
-  const profilesQuery = useQuery({
-    queryKey: ["hops-profiles", networkKey],
-    queryFn: () => fetchProfileMap(accounts),
-    enabled: accounts.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const profileMap = useLiveProfiles(accounts);
 
   // Your own scores for the same accounts, in one batch; the house's come from useAuthorScores.
   const myScoresQuery = useQuery({
@@ -185,7 +179,7 @@ export default function HopsPathPage() {
   if (!eligible) return <Redirect to={`/p/${rawId}`} replace />;
 
   const subjectName = subject?.display_name || subject?.name || shortNpub(npubFromPubkey(toPubkey));
-  const profs = profilesQuery.data;
+  const profs = profileMap;
   const myFollows = followingQuery.data;
 
   // Weak link = the DECISION-MAKER, not the scammer: the last trusted account before

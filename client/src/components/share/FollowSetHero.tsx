@@ -5,7 +5,8 @@
  * row with avatar, tier ring, and name, into their profile. The search
  * card shows five faces; this page is where the other +12 live.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import { ListChecks } from "lucide-react";
@@ -13,8 +14,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { eventStore } from "@/lib/eventStore";
-import { fetchProfileMap } from "@/services/nostr";
 import { Chip } from "@/components/ui/chip";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
@@ -35,40 +34,9 @@ function npubOf(pubkey: string): string {
   }
 }
 
-/** Store-first profiles for a set of pubkeys, one batched relay fallback. */
+/** Profiles for a set of pubkeys, live. */
 function useProfiles(pubkeys: string[]): Map<string, MemberProfile> {
-  const [map, setMap] = useState<Map<string, MemberProfile>>(new Map());
-  const key = pubkeys.join(",");
-  useEffect(() => {
-    const known = new Map<string, MemberProfile>();
-    const missing: string[] = [];
-    for (const pk of pubkeys) {
-      const stored = eventStore.getReplaceable(0, pk);
-      if (stored) {
-        try {
-          known.set(pk, JSON.parse(stored.content) as MemberProfile);
-        } catch {
-          /* unparseable — npub row */
-        }
-      } else missing.push(pk);
-    }
-    setMap(known);
-    if (missing.length === 0) return;
-    let alive = true;
-    void fetchProfileMap(missing).then((res) => {
-      if (!alive || res.size === 0) return;
-      setMap((prev) => {
-        const next = new Map(prev);
-        for (const [pk, content] of res) next.set(pk, content as MemberProfile);
-        return next;
-      });
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return map;
+  return useLiveProfiles(pubkeys) as Map<string, MemberProfile>;
 }
 
 const ROSTER_FOLD = 25;

@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { MessagesSquare, Loader2 } from "lucide-react";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
-import { fetchEventsByFilter, fetchProfileMap, fetchEventsByIds } from "@/services/nostr";
+import { fetchEventsByFilter, fetchEventsByIds } from "@/services/nostr";
 import { eventPath } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -57,14 +58,8 @@ export function ProfileRecentPosts({ pubkey, limit = 3 }: { pubkey: string; limi
     eventsById.forEach((e) => s.add(e.pubkey));
     return Array.from(s);
   }, [pubkey, eventsById]);
-  const profilesQuery = useQuery({
-    queryKey: ["profile-recent-profiles", profilePubkeys.join(",")],
-    queryFn: () => fetchProfileMap(profilePubkeys),
-    enabled: profilePubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data ?? new Map();
+  const profileMap = useLiveProfiles(profilePubkeys);
+  const profiles = profileMap;
 
   if (notesQuery.isLoading && notes.length === 0) {
     return (

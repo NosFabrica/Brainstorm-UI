@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import {
   ShieldAlert,
   ShieldCheck,
@@ -34,7 +34,6 @@ import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import type { NetworkAlertEntry } from "@/services/api";
-import { fetchProfileMap } from "@/services/nostr";
 import { unfollowUser, muteUser, reportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
@@ -486,14 +485,8 @@ export function NetworkAlertsModule({
 
   // Resolve names/avatars for every flagged account (batched).
   const flaggedPubkeys = useMemo(() => flagged.map((e) => e.pubkey), [flagged]);
-  const profilesQuery = useQuery({
-    queryKey: ["network-alerts-profiles", flaggedPubkeys.join(",")],
-    queryFn: () => fetchProfileMap(flaggedPubkeys),
-    enabled: flaggedPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles: Map<string, ProfileLite> = profilesQuery.data ?? new Map();
+  const profileMap = useLiveProfiles(flaggedPubkeys);
+  const profiles: Map<string, ProfileLite> = profileMap;
 
   // Deltas: compute "new since last visit" once per snapshot; establish a silent
   // baseline on the first-ever visit (nothing is "new" then).

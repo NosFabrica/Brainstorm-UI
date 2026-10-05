@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { MessageButton } from "@/components/messages/MessageButton";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useRoute, Redirect, Link } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { Loader2, Users, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
+import { fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
@@ -137,13 +138,7 @@ export default function ConnectionListPage() {
   const pubkeys = useMemo(() => toPubkeys(items), [items]);
   const influence = useMemo(() => toInfluenceMap(items), [items]);
 
-  const profilesQuery = useQuery({
-    queryKey: ["conn-profiles", pubkeys.join(",")],
-    queryFn: () => fetchProfileMap(pubkeys),
-    enabled: pubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const profileMap = useLiveProfiles(pubkeys);
 
   // For the "reporters" view, fetch the actual NIP-56 (kind 1984) reports from
   // relays so each row can show the report's type, time, and reason — the same
@@ -186,7 +181,6 @@ export default function ConnectionListPage() {
   const subject = (liveSubject ?? {}) as Record<string, string | undefined>;
   const subjectName =
     subject.display_name || subject.name || (pubkey ? npubFromPubkey(pubkey).slice(0, 12) + "…" : "this profile");
-  const profileMap = profilesQuery.data;
   const loading = connQuery.isLoading;
 
   // "What does verified mean?" popover — POV-aware so it nudges the right next

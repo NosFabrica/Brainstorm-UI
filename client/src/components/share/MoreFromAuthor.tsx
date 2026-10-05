@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import { fetchEventsByFilter } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { outboxRelays } from "@/lib/relayRouting";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -72,20 +73,14 @@ export function MoreFromAuthor({
     return Array.from(set);
   }, [notes, pubkey]);
 
-  const mentionProfilesQuery = useQuery({
-    queryKey: ["more-from-mentions", mentionPks.join(",")],
-    queryFn: () => fetchProfileMap(mentionPks),
-    enabled: mentionPks.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const mentionProfiles = useLiveProfiles(mentionPks);
 
   const profiles = useMemo(() => {
     const m = new Map<string, ProfileLite>([[pubkey, author ?? {}]]);
-    const resolved = mentionProfilesQuery.data;
+    const resolved = mentionProfiles;
     if (resolved) for (const [pk, p] of resolved) m.set(pk, p as ProfileLite);
     return m;
-  }, [pubkey, author, mentionProfilesQuery.data]);
+  }, [pubkey, author, mentionProfiles]);
 
   if (!notes.length) return null;
 
