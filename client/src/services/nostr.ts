@@ -1314,6 +1314,9 @@ export async function publishRelaysFor(signedEvent: NostrEvent, extraRelays: str
  * `extraRelays` is genuinely extra — it is UNIONED with the routed set, never a
  * replacement for it. (This argument used to be named `relays` and was silently
  * ignored, which is why `services/tags.ts` had to hand-roll `pool.publish`.)
+ *
+ * A published event lands in the EventStore, after the publish so routing above
+ * still reads the old copy; store-first reads then see our own write.
  */
 export async function publishToRelays(
   signedEvent: NostrEvent,
@@ -1338,7 +1341,10 @@ export async function publishToRelays(
           .then((r) => ({ ok: r.ok, from: url, message: r.message })),
       { need: opts.need, timeoutMs },
     );
-    if (accepted.length) return { success: true, relay: accepted[0], accepted: accepted.length, total };
+    if (accepted.length) {
+      eventStore.add(signedEvent);
+      return { success: true, relay: accepted[0], accepted: accepted.length, total };
+    }
     return { success: false, error: failed[0]?.message || "All relays failed", accepted: 0, total };
   }
 
@@ -1349,7 +1355,10 @@ export async function publishToRelays(
     const accepted = responses.filter((r) => r.ok).length;
     const total = responses.length || writeRelays.length;
     const succeeded = responses.find((r) => r.ok);
-    if (succeeded) return { success: true, relay: succeeded.from, accepted, total };
+    if (succeeded) {
+      eventStore.add(signedEvent);
+      return { success: true, relay: succeeded.from, accepted, total };
+    }
     return { success: false, error: responses[0]?.message || "All relays failed", accepted: 0, total };
   } catch {
     return { success: false, error: "All relays failed", accepted: 0, total: writeRelays.length };
@@ -1405,10 +1414,6 @@ export async function publishProfile(content: Record<string, unknown>, tags: str
     res = await publishToRelays(signed);
   }
   if (res.success) {
-    // The store outranks the display cache in `useActiveAccountDisplay`, and it is
-    // store-first, so without this the edit reverts on the next render and the old
-    // kind-0 is written back over the cache. Reload was the only way out.
-    eventStore.add(signed);
     try {
       cacheProfile(content as unknown as ProfileContent, account.pubkey);
     } catch {}
@@ -1441,11 +1446,7 @@ async function publishRelayListAs(account: BrainstormAccount, relays: string[]):
   try {
     const signed = await signAs(account, { kind: 10002, tags, content: "" });
     if (signed.kind !== 10002) return { success: false, error: "Signer returned an unexpected event kind" };
-    const res = await publishToRelays(signed);
-    // After the publish, not before: `publishToRelays` routes by the list in the
-    // store, so the new list would otherwise decide where it is itself announced.
-    if (res.success) eventStore.add(signed);
-    return res;
+    return await publishToRelays(signed);
   } catch (e) {
     return signingFailure(e);
   }
