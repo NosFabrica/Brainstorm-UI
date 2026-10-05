@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { nip19 } from "nostr-tools";
+import { Link } from "wouter";
 import { ExternalLink, MapPin, MessageCircle, ShoppingBag, Truck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
@@ -17,6 +18,15 @@ import { ListingOptions } from "@/components/share/ListingOptions";
 import type { NostrEvent } from "nostr-tools";
 
 type ListingEvent = Pick<NostrEvent, "id" | "pubkey" | "kind" | "created_at" | "tags">;
+
+/**
+ * The two ways to act, sized as a store sizes them: the leading one filled,
+ * the other outlined, both a full thumb tall and sharing the row on a phone.
+ */
+const BUTTON =
+  "inline-flex h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-semibold transition sm:flex-none sm:px-5";
+const BUY_BUTTON = `${BUTTON} bg-brand-primary text-white shadow-sm shadow-brand-primary/20 hover:opacity-90`;
+const SECOND_BUTTON = `${BUTTON} border border-slate-200 bg-white text-slate-800 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100`;
 
 /** A description longer than this many characters opens folded. */
 const DESCRIPTION_FOLD = 600;
@@ -165,8 +175,19 @@ export function ListingHero({
         </div>
       )}
 
+      {/* The brand above the product, as a store names it: small, and the way
+          to the seller's page. */}
+      {sellerName && sellerNpub && (
+        <Link
+          href={`/p/${sellerNpub}`}
+          className="mt-5 inline-block text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
+          data-testid="listing-hero-vendor"
+        >
+          {sellerName}
+        </Link>
+      )}
       <h1
-        className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl"
+        className={`${sellerName && sellerNpub ? "mt-1" : "mt-5"} text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-[1.75rem]`}
         style={{ fontFamily: "var(--font-display)" }}
         data-testid="listing-hero-title"
       >
@@ -174,19 +195,19 @@ export function ListingHero({
       </h1>
 
       {/* The price, in words, where a shopper looks for it: the seller's own
-          price leads, the buyer's money beside it. */}
-      <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5" data-testid="listing-hero-price-line">
+          price large, the buyer's money quietly beside it. */}
+      <p className="mt-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5" data-testid="listing-hero-price-line">
         {l.price ? (
           <>
             <span
-              className="text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100"
+              className="text-2xl font-semibold tabular-nums tracking-tight text-slate-900 dark:text-slate-100"
               data-testid="listing-hero-price"
             >
               {formatListingPrice(l.price)}
             </span>
             {converted && (
               <span
-                className="text-sm tabular-nums text-slate-500 dark:text-slate-400"
+                className="text-sm tabular-nums text-slate-400 dark:text-slate-500"
                 data-testid="listing-hero-price-converted"
               >
                 {converted}
@@ -195,7 +216,7 @@ export function ListingHero({
           </>
         ) : (
           <span
-            className="text-sm font-medium text-slate-500 dark:text-slate-400"
+            className="text-base font-medium text-slate-500 dark:text-slate-400"
             data-testid="listing-hero-price-unknown"
           >
             Price on request
@@ -203,19 +224,12 @@ export function ListingHero({
         )}
       </p>
 
-      {/* Who is selling, and who vouches for them: the reason to buy here. */}
+      {/* Who follows the seller, and where the thing is: the reason to buy here. */}
       <div
-        className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400"
+        className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400"
         data-testid="listing-hero-seller"
       >
-        {sellerName && (
-          <span>
-            Sold by <span className="font-semibold text-slate-700 dark:text-slate-200">{sellerName}</span>
-          </span>
-        )}
         <FollowedByLine pubkey={event.pubkey} npub={sellerNpub} personal={pov === "mywot"} />
-      </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
         {l.location && (
           <span className="inline-flex items-center gap-1">
             <MapPin className="h-3.5 w-3.5" /> {l.location}
@@ -223,41 +237,37 @@ export function ListingHero({
         )}
       </div>
 
+      {/* What it is, then how to get it: one quiet rule between the two. */}
+      <hr className="mt-5 border-slate-100 dark:border-slate-800" />
+
       {/* Where a shopper chooses: the product's options, right above the way to buy. */}
-      <ListingOptions event={event as ListingEvent} className="mt-3" />
+      <ListingOptions event={event as ListingEvent} className="mt-5" />
 
       {/* Actions — the seller's app and the seller's shop. */}
-      <div ref={actionsRef} className="mt-4 flex flex-wrap items-center gap-2" data-testid="listing-hero-actions">
-        <a
-          href={nostrUriFor(event.pubkey)}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          data-testid="listing-hero-message"
-        >
-          <MessageCircle className="h-4 w-4" /> Message seller
-        </a>
+      <div ref={actionsRef} className="mt-5 flex flex-wrap items-center gap-2.5" data-testid="listing-hero-actions">
         {app ? (
           <a
             href={app.url}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className={BUY_BUTTON}
             data-testid="listing-hero-shop"
             title={`Opens ${app.host} in a new tab`}
           >
-            <img src={app.icon} alt="" className="h-3.5 w-3.5 rounded-sm" /> Buy on {app.name}{" "}
-            <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+            <img src={app.icon} alt="" className="h-4 w-4 rounded bg-white p-px" /> Buy on {app.name}{" "}
+            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
           </a>
         ) : l.shopUrl && shopHost ? (
           <a
             href={l.shopUrl}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className={BUY_BUTTON}
             data-testid="listing-hero-shop"
             title={`Opens ${shopHost} in a new tab`}
           >
             <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit {shopHost}{" "}
-            <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
           </a>
         ) : websiteHost ? (
           // No shop on the listing and no marketplace we know (The Bitcoin
@@ -266,14 +276,21 @@ export function ListingHero({
             href={sellerWebsite!}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:border-brand-accent/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className={BUY_BUTTON}
             data-testid="listing-hero-shop"
             title={`Opens ${websiteHost} in a new tab`}
           >
             <Favicon host={websiteHost} className="h-3.5 w-3.5" /> Visit {websiteHost}{" "}
-            <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
           </a>
         ) : null}
+        <a
+          href={nostrUriFor(event.pubkey)}
+          className={buy ? SECOND_BUTTON : BUY_BUTTON}
+          data-testid="listing-hero-message"
+        >
+          <MessageCircle className="h-4 w-4" /> Message seller
+        </a>
       </div>
       <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
         Messaging opens your Nostr app. Payment happens with the seller, in their app.

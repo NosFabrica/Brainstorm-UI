@@ -342,14 +342,21 @@ describe("ListingHero", () => {
       expect(line.contains(screen.getByTestId("listing-hero-price"))).toBe(true);
     });
 
-    it("says who is selling and who follows them, between the price and the buttons", () => {
+    // A store's product page names the brand above the product: small, and a
+    // way to the seller's page. Who follows them sits under the price.
+    it("names the seller above the title, as a way to their page, and who follows them under the price", () => {
       render(<ListingHero event={listing([])} sellerName="Barattolo" />);
-      const seller = screen.getByTestId("listing-hero-seller");
-      expect(seller).toHaveTextContent("Sold by Barattolo");
+      const vendor = screen.getByTestId("listing-hero-vendor");
+      expect(vendor).toHaveTextContent("Barattolo");
+      expect(vendor.getAttribute("href")).toMatch(/^\/p\/npub1/);
+      expect(before(vendor, screen.getByTestId("listing-hero-title"))).toBe(true);
+
+      const trust = screen.getByTestId("listing-hero-seller");
       expect(screen.getByTestId("followed-by")).toHaveAttribute("data-pubkey", SELLER);
       expect(screen.getByTestId("followed-by")).toHaveAttribute("data-personal", "false");
-      expect(before(screen.getByTestId("listing-hero-price-line"), seller)).toBe(true);
-      expect(before(seller, screen.getByTestId("listing-hero-actions"))).toBe(true);
+      expect(trust.contains(screen.getByTestId("followed-by"))).toBe(true);
+      expect(before(screen.getByTestId("listing-hero-price-line"), trust)).toBe(true);
+      expect(before(trust, screen.getByTestId("listing-hero-actions"))).toBe(true);
     });
 
     it("reads the seller's following through the reader's own perspective when they chose it", () => {
@@ -361,7 +368,7 @@ describe("ListingHero", () => {
 
     it("names no seller it was not told, but still shows who follows them", () => {
       render(<ListingHero event={listing([])} />);
-      expect(screen.getByTestId("listing-hero-seller")).not.toHaveTextContent("Sold by");
+      expect(screen.queryByTestId("listing-hero-vendor")).toBeNull();
       expect(screen.getByTestId("followed-by")).toBeInTheDocument();
     });
   });

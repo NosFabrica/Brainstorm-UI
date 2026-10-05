@@ -223,6 +223,8 @@ describe("ListingRelated", () => {
       // One is chosen — the one being read — so the row only names what it is.
       expect(row).toHaveTextContent("Size");
       expect(row).not.toHaveTextContent("Choose");
+      // And says which one, in words, beside the name — "Size: 6XL".
+      expect(screen.getByTestId("listing-options-heading")).toHaveTextContent("Size: 6XL");
       expect(chips().map((c) => c.textContent)).toEqual(["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL"]);
       const current = chips().filter((c) => c.getAttribute("aria-current") === "true");
       expect(current.map((c) => c.textContent)).toEqual(["6XL"]);
