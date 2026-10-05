@@ -12,7 +12,7 @@ import type { EventTemplate } from "applesauce-accounts";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "./local-account";
 import { isUnlockCancelled } from "./local-signer";
-import { isRemoteSignerTimeout } from "./remote-signer";
+import { classifySignerError } from "./signer-errors";
 import type { BrainstormAccount } from "./metadata";
 
 /** Thrown where an event must be signed and no Account is active. */
@@ -61,14 +61,20 @@ export type PublishOutcome = {
 const SIGNER_SILENT =
   "Your signer didn't answer. Open it and check for a pending request — or connect it again from your account menu.";
 
+/** NIP-07 has no "profile changed" event: the first anyone hears of a switch is a signature by someone else. */
+const SIGNER_OTHER_PROFILE =
+  "Your signer is on a different profile than this account. Switch back to it in your signer, then try again.";
+
 export function signingFailure(error: unknown, fallback = "Signing failed"): PublishOutcome {
-  if (isUnlockCancelled(error)) return { success: false, cancelled: true };
+  const kind = classifySignerError(error);
+  if (kind === "cancelled") return { success: false, cancelled: true };
   // Flagged, not just worded: a signer that has gone quiet is waiting on a person
   // to open or re-pair it, so a caller with a retry timer must stop rather than
   // re-ask every few seconds — each attempt burning another 30s deadline.
-  if (isRemoteSignerTimeout(error)) {
+  if (kind === "timeout") {
     return { success: false, error: SIGNER_SILENT, signerUnreachable: true };
   }
+  if (kind === "wrong-account") return { success: false, error: SIGNER_OTHER_PROFILE };
   return { success: false, error: error instanceof Error ? error.message : fallback };
 }
 
@@ -103,19 +109,6 @@ function withClientTag(tags: string[][]): string[][] {
 export function signAs(account: BrainstormAccount, template: UnsignedTemplate): Promise<NostrEvent> {
   const tags = UNTAGGED_KINDS.has(template.kind) ? template.tags : withClientTag(template.tags);
   return account.signEvent({ created_at: Math.floor(Date.now() / 1000), ...template, tags });
-}
-
-/**
- * Whether a signing error is the signer saying no — the reader declining the
- * prompt in their extension or bunker, or cancelling our unlock — rather than
- * the signer failing to answer at all (no extension, a dropped bunker, a
- * timeout). Only a "no" is the reader's decision; the rest is worth trying again.
- */
-export function signerSaidNo(error: unknown): boolean {
-  if (isUnlockCancelled(error)) return true;
-  if (isRemoteSignerTimeout(error)) return false;
-  const message = error instanceof Error ? error.message : String(error);
-  return /reject|denied|declin|cancel|refus|not (allowed|authori[sz]ed|permitted)|permission/i.test(message);
 }
 
 /**

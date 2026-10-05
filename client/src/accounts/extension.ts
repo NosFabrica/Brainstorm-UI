@@ -7,7 +7,7 @@
  * verifying `undefined`, which nothing could tell from a fault — relay sign-in
  * filed it as "didn't go through" and asked again — and a declined decrypt handed
  * `undefined` to the gift-wrap parser, which remembered the message as unreadable
- * for good. Here every empty answer is an `ExtensionDeclinedError`.
+ * for good. Here every empty answer is a `SignerDeclinedError`.
  *
  * **Every request ends.** Nostash answers only allow and deny: close its prompt tab
  * without choosing, or let it fail inside (a bad MAC, the wrong profile selected),
@@ -24,18 +24,13 @@ import { ExtensionMissingError, ExtensionSigner } from "applesauce-signers";
 
 import type { AccountMetadata } from "./metadata";
 import { withTimeout } from "./remote-signer";
+import { SignerDeclinedError } from "./signer-errors";
 
 export const EXTENSION_TIMEOUT_MS = 90_000;
 
 const LATE = "Your signer extension didn't answer. Open it and check for a request waiting there.";
 
-/** The extension answered with nothing: the reader declined (Nostash, Nostore). */
-export class ExtensionDeclinedError extends Error {
-  constructor(message = "Your signer extension declined the request.") {
-    super(message);
-    this.name = "ExtensionDeclinedError";
-  }
-}
+const declined = () => new SignerDeclinedError("Your signer extension declined the request.");
 
 type Cipher = {
   encrypt(pubkey: string, plaintext: string): Promise<unknown>;
@@ -55,23 +50,34 @@ function extension(): Nip07 {
 }
 
 const answered = <T>(value: T): NonNullable<T> => {
-  if (value === undefined || value === null) throw new ExtensionDeclinedError();
+  if (value === undefined || value === null) throw declined();
   return value as NonNullable<T>;
 };
 
 /** A cipher's answer is a string, or it is no answer — `""` is a real plaintext. */
 async function text(request: () => Promise<unknown>): Promise<string> {
   const result = await withTimeout(Promise.resolve().then(request), EXTENSION_TIMEOUT_MS, LATE);
-  if (typeof result !== "string") throw new ExtensionDeclinedError();
+  if (typeof result !== "string") throw declined();
   return result;
 }
 
+/**
+ * Absent only when the extension is here and lacks it. An extension that hasn't
+ * injected yet may well have it — Nostash injects through a script tag, often
+ * after the DM engine has started — so that is asked when called, and fails as
+ * "missing" (try again later) rather than "can't" (pause for good).
+ */
 function timedCipher(pick: (nostr: Nip07) => Cipher | undefined) {
   const nostr = (window as unknown as { nostr?: Nip07 }).nostr;
-  if (!nostr || !pick(nostr)) return undefined;
+  if (nostr && !pick(nostr)) return undefined;
+  const cipher = () => {
+    const found = pick(extension());
+    if (!found) throw new Error("Your signer extension can't encrypt (no NIP-44).");
+    return found;
+  };
   return {
-    encrypt: (pubkey: string, plaintext: string) => text(() => pick(extension())!.encrypt(pubkey, plaintext)),
-    decrypt: (pubkey: string, ciphertext: string) => text(() => pick(extension())!.decrypt(pubkey, ciphertext)),
+    encrypt: (pubkey: string, plaintext: string) => text(() => cipher().encrypt(pubkey, plaintext)),
+    decrypt: (pubkey: string, ciphertext: string) => text(() => cipher().decrypt(pubkey, ciphertext)),
   };
 }
 

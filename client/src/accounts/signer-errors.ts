@@ -1,0 +1,81 @@
+/**
+ * What a signer meant when a request failed — answered once, here, for every
+ * feature that asks one.
+ *
+ * Each caller used to decide for itself, by matching the error's text: login had
+ * one list of "refused" words, relay sign-in another, private messages a third
+ * plus its own idea of a timeout. A signer whose "no" fell between them — Nostash
+ * resolving `undefined` — was a refusal in one place, a fault in another and an
+ * unreadable message in a third. Callers now map these kinds to what they do;
+ * the deciding lives here.
+ *
+ * Typed errors first: the ones this app's own signers throw are certain. Text
+ * comes last, for what arrives from outside as a bare string — a NIP-46 bunker's
+ * `error` field, an extension's rejection, Amber's "Canceled".
+ */
+import { SignerMismatchError } from "applesauce-accounts";
+import { ExtensionMissingError } from "applesauce-signers";
+
+import { isUnlockCancelled } from "./local-signer";
+import { isRemoteSignerTimeout } from "./remote-signer";
+
+export type SignerErrorKind =
+  /** The reader dismissed our own unlock prompt: a key held here, never asked. */
+  | "cancelled"
+  /** The signer said no — the reader declined its prompt, or it refuses this app. */
+  | "declined"
+  /** No answer in time: a prompt never seen, a bunker gone quiet. Worth asking again. */
+  | "timeout"
+  /** No signer to ask: the extension isn't in this browser (yet). */
+  | "missing"
+  /** The signer answered as someone else — an extension switched to another profile. */
+  | "wrong-account"
+  /** A decrypt the signer attempted and couldn't open: the ciphertext, not the signer. */
+  | "bad-payload"
+  | "unknown";
+
+/** Thrown when a signer answers with nothing — the reader declined (Nostash, Nostore). */
+export class SignerDeclinedError extends Error {
+  constructor(message = "Your signer declined the request.") {
+    super(message);
+    this.name = "SignerDeclinedError";
+  }
+}
+
+const nameOf = (error: unknown) => (error as { name?: unknown })?.name;
+const messageOf = (error: unknown) =>
+  error instanceof Error ? error.message : typeof error === "string" ? error : String(error ?? "");
+
+/**
+ * nos2x rejects with "denied"; others with "User rejected…"; NIP-46 bunkers send
+ * free text such as "user rejected" or "not authorized"; Amber's clipboard flow
+ * rejects with the bare string "Canceled".
+ */
+const DECLINED = /reject|denied|declin|cancel|refus|not (allowed|authori[sz]ed|permitted)|permission/i;
+/** Timeouts from libraries that don't throw our typed one. */
+const TIMED_OUT = /time(d)?[\s-]?out/i;
+/** nostr-tools' NIP-44 and NIP-04 decrypt failures, as an extension relays them. */
+const BAD_PAYLOAD = /invalid (mac|payload|padding|base64)|unknown (encryption )?version|invalid.*length|payload must/i;
+
+export function classifySignerError(error: unknown): SignerErrorKind {
+  if (isUnlockCancelled(error)) return "cancelled";
+  if (isRemoteSignerTimeout(error)) return "timeout";
+  if (error instanceof SignerDeclinedError || nameOf(error) === "SignerDeclinedError") return "declined";
+  if (error instanceof ExtensionMissingError) return "missing";
+  if (error instanceof SignerMismatchError) return "wrong-account";
+
+  const message = messageOf(error);
+  if (TIMED_OUT.test(message)) return "timeout";
+  if (BAD_PAYLOAD.test(message)) return "bad-payload";
+  if (DECLINED.test(message)) return "declined";
+  return "unknown";
+}
+
+/**
+ * The reader's own "no" — their signer declined, or they dismissed our unlock.
+ * Only that is a decision to respect; everything else is worth trying again.
+ */
+export function signerSaidNo(error: unknown): boolean {
+  const kind = classifySignerError(error);
+  return kind === "declined" || kind === "cancelled";
+}

@@ -8,7 +8,8 @@ import { startRelayAuth } from "./services/relayAuth";
 import { startDirectMessages } from "./services/dm";
 import { pool } from "./lib/relayPool";
 import { accountManager } from "./accounts";
-import { canSignSilently, signAs, signerSaidNo } from "./accounts/signing";
+import { canSignSilently, signAs } from "./accounts/signing";
+import { signerSaidNo } from "./accounts/signer-errors";
 import "./index.css";
 
 // From the first moment: support-ticket diagnostics can carry what the

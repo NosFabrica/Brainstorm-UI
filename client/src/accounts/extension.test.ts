@@ -3,14 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { EventTemplate } from "nostr-tools";
 
-import {
-  BrainstormExtensionAccount,
-  EXTENSION_TIMEOUT_MS,
-  ExtensionDeclinedError,
-  TimedExtensionSigner,
-} from "./extension";
+import { BrainstormExtensionAccount, EXTENSION_TIMEOUT_MS, TimedExtensionSigner } from "./extension";
 import { isRemoteSignerTimeout } from "./remote-signer";
-import { signerSaidNo } from "./signing";
+import { SignerDeclinedError, signerSaidNo } from "./signer-errors";
 
 const sk = generateSecretKey();
 const pubkey = getPublicKey(sk);
@@ -53,21 +48,21 @@ describe("TimedExtensionSigner", () => {
   it("throws a declined error, which reads as the signer saying no, for a declined signature", async () => {
     install({ signEvent: async () => undefined });
     const error = await new TimedExtensionSigner().signEvent(template).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(ExtensionDeclinedError);
+    expect(error).toBeInstanceOf(SignerDeclinedError);
     expect(signerSaidNo(error)).toBe(true);
   });
 
   it("throws a declined error for a declined login", async () => {
     install({ getPublicKey: async () => undefined });
-    await expect(new TimedExtensionSigner().getPublicKey()).rejects.toBeInstanceOf(ExtensionDeclinedError);
-    await expect(BrainstormExtensionAccount.fromExtension()).rejects.toBeInstanceOf(ExtensionDeclinedError);
+    await expect(new TimedExtensionSigner().getPublicKey()).rejects.toBeInstanceOf(SignerDeclinedError);
+    await expect(BrainstormExtensionAccount.fromExtension()).rejects.toBeInstanceOf(SignerDeclinedError);
   });
 
   it("throws a declined error for a declined decrypt, never handing `undefined` on", async () => {
     install({ nip44: { encrypt: async () => undefined, decrypt: async () => undefined } });
     const signer = new TimedExtensionSigner();
-    await expect(signer.nip44!.decrypt(pubkey, "x")).rejects.toBeInstanceOf(ExtensionDeclinedError);
-    await expect(signer.nip44!.encrypt(pubkey, "x")).rejects.toBeInstanceOf(ExtensionDeclinedError);
+    await expect(signer.nip44!.decrypt(pubkey, "x")).rejects.toBeInstanceOf(SignerDeclinedError);
+    await expect(signer.nip44!.encrypt(pubkey, "x")).rejects.toBeInstanceOf(SignerDeclinedError);
   });
 
   it("has no nip44 when the extension has none", () => {

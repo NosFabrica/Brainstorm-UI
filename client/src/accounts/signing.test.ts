@@ -15,7 +15,6 @@ import {
   NoSignerError,
   requireActiveAccount,
   signAs,
-  signerSaidNo,
   signingFailure,
 } from "./signing";
 import { RemoteSignerTimeoutError } from "./remote-signer";
@@ -240,21 +239,5 @@ describe("whether an account can sign silently", () => {
 
     await expect(canSignSilently(account)).resolves.toBe(false);
     expect(requestPassword).not.toHaveBeenCalled();
-  });
-});
-
-describe("signerSaidNo", () => {
-  it("is the reader's own no: a declined prompt, or a cancelled unlock", () => {
-    expect(signerSaidNo(new UnlockCancelled())).toBe(true);
-    expect(signerSaidNo(new Error("User rejected the request"))).toBe(true);
-    expect(signerSaidNo(new Error("denied"))).toBe(true);
-    expect(signerSaidNo(new Error("Permission not granted"))).toBe(true);
-  });
-
-  it("is not a signer that couldn't answer at all", () => {
-    expect(signerSaidNo(new RemoteSignerTimeoutError())).toBe(false);
-    expect(signerSaidNo(new Error("window.nostr not found"))).toBe(false);
-    expect(signerSaidNo(new Error("Closed"))).toBe(false);
-    expect(signerSaidNo(new NoSignerError())).toBe(false);
   });
 });
