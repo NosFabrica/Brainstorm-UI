@@ -24,10 +24,11 @@ export function ItemLine({
   testId: string;
 }) {
   const picture = shown.image ?? shown.listImage;
+  // A list's logo sits on white in both themes: logos are drawn for a white ground, and many carry one.
   return (
     <>
       <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 ${shown.image ? "rounded-full" : "rounded-lg"}`}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden text-slate-400 dark:text-slate-500 ${shown.image ? "rounded-full" : "rounded-lg"} ${!shown.image && shown.listImage ? "bg-white" : "bg-slate-100 dark:bg-slate-800"}`}
       >
         {picture ? (
           <img
