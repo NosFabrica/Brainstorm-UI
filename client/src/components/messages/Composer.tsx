@@ -5,6 +5,8 @@ import type { DmMessage } from "@/lib/dm/store";
 import { TIMER_CHOICES } from "@/lib/dm/prefs";
 import { MAX_ATTACHMENT_BYTES } from "@/lib/dm/fileCrypto";
 import { formatBytes } from "@/lib/formatBytes";
+import { useEditingText } from "@/hooks/useEditingText";
+import { cn } from "@/lib/utils";
 import { firstName, type Profiles } from "./people";
 
 export function Composer({
@@ -93,10 +95,18 @@ export function Composer({
   // pointer-down and -up, the button would move out from under the finger, and
   // the tap would be lost. Keeping focus also keeps the phone keyboard up.
   const keepFocus = (e: React.MouseEvent) => e.preventDefault();
+  const editing = useEditingText();
 
   const timerLabel = TIMER_CHOICES.find((c) => c.seconds === timer)?.label;
   return (
-    <div className="shrink-0 border-t border-border bg-card px-4 pb-3 pt-3 sm:px-6 sm:pb-4">
+    <div
+      className={cn(
+        "shrink-0 border-t border-border bg-card px-4 pb-3 pt-3 sm:px-6 sm:pb-4",
+        // While typing the tab bar steps aside and the composer reaches the bottom edge:
+        // keep the box above the phone's home indicator.
+        editing && "pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]",
+      )}
+    >
       {replyTo && (
         <div className="mb-2 flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-[13px] dark:bg-slate-800">
           <span className="min-w-0 flex-1 truncate">
@@ -172,7 +182,7 @@ export function Composer({
             placeholder={disabled ?? placeholder}
             disabled={!!disabled}
             aria-label="Message"
-            className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-1 py-[11px] text-[15px] leading-snug outline-none [field-sizing:content] placeholder:text-slate-400"
+            className="max-h-40 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-1 py-[11px] text-[15px] leading-snug outline-none [field-sizing:content] placeholder:text-slate-400"
             data-testid="dm-composer"
           />
           {showMic && !busy ? (

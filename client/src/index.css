@@ -694,6 +694,16 @@ body,
 }
 
 /*
+ * viewport-fit=cover (index.html) lets the page run under a notched phone's
+ * edges so the bottom insets are real. Sideways that only matters in
+ * landscape, where the notch would otherwise sit over content.
+ */
+body {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/*
  * Admin is the exception: its tables scroll horizontally across many columns,
  * where the scrollbar is the only cue that more columns exist and how far along
  * you are — ScrollableTable even mirrors a second one above the table. AdminPage
