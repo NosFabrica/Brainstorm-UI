@@ -76,6 +76,13 @@ describe("AlertsBanner", () => {
     expect(screen.getByTestId("alerts-banner-manage")).toHaveAttribute("href", "/alerts");
   });
 
+  it("is a polite status for screen readers, not an alert that interrupts every visit", async () => {
+    answer([entry(pk("a"), 1)]);
+    show();
+    expect(await screen.findByRole("status")).toHaveTextContent("1 person you follow is flagged");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("leaves out accounts you acted on, and ones you ignored unless they got worse", async () => {
     // acted on b; ignored c at 10 reports (still 10); ignored d at 4 (now 10: escalated)
     markActed(ME, pk("b"));

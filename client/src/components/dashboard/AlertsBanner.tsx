@@ -46,6 +46,8 @@ export function AlertsBanner({ observer, enabled }: { observer: string; enabled:
     <Alert
       variant="destructive"
       className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between [&>svg]:static [&>svg~*]:pl-0"
+      // A count that waits on the dashboard, not an emergency: announced politely, once.
+      role="status"
       data-testid="alerts-banner"
     >
       <div className="flex min-w-0 items-center gap-3">
