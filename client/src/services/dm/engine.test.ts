@@ -560,6 +560,35 @@ describe("DmEngine", () => {
     expect(engine.store.room(room)).toBeUndefined();
   });
 
+  it.each([
+    ["refused", "Your signer extension declined the request."],
+    ["wrong-account", "Your signer extension is on a different profile."],
+    ["cancelled", "Cancelled"],
+  ] as const)("a send the signer didn't sign (%s) leaves no bubble, only the error", async (reason, error) => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    const sealSigner: SealSigner = {
+      ...me.sealSigner,
+      signSeal: async () => {
+        throw new Error(error);
+      },
+    };
+    const engine = new DmEngine(me.account({ sealSigner, classify: () => reason }), {
+      ...net,
+      ...clock(),
+      now: () => NOW,
+    });
+    await engine.start();
+    await settle();
+    const room = roomKey([me.pubkey, ana.pubkey]);
+    const sent = await engine.send(room, "draft stays");
+    // No message: the composer keeps the draft, and sending it again asks the signer again.
+    expect(sent).toEqual({ ok: false, error });
+    expect(engine.store.room(room)).toBeUndefined();
+    expect(net.published).toEqual([]);
+  });
+
   it("a wrap the signer keeps refusing can't hold the inbox shut", async () => {
     const me = person();
     const ana = person();

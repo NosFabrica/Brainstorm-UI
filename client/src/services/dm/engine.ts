@@ -1117,18 +1117,11 @@ export class DmEngine {
         wraps.push({ recipient: target.pk, wrap, relays: target.relays.slice(0, MAX_INBOX_RELAYS) });
       }
     } catch (error) {
-      const reason = this.account.classify(error);
-      if (reason === "cancelled") {
-        this.store.remove([rumor.id]);
-        return { ok: false, error: "Cancelled" };
-      }
-      this.store.patch(rumor.id, {
-        outgoing: {
-          status: "failed",
-          deliveries: [],
-          error: error instanceof Error ? error.message : "Signing failed",
-        },
-      });
+      // Nothing was signed, so there is nothing to resend: a bubble kept here would
+      // offer a Retry that can't do anything, beside the draft the composer keeps.
+      // The draft is the retry — sent again, it asks the signer again.
+      this.store.remove([rumor.id]);
+      if (this.account.classify(error) === "cancelled") return { ok: false, error: "Cancelled" };
       return { ok: false, error: error instanceof Error ? error.message : "Signing failed" };
     }
 
