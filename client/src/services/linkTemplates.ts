@@ -17,7 +17,7 @@ const TIMEOUT_MS = 8000;
 const byId = new Map<string, UrlTemplate>();
 
 /** The templates these links pin, by id. Only well-formed templates are kept. */
-export async function fetchTemplates(refs: LinkRef[]): Promise<Map<string, UrlTemplate>> {
+export async function fetchTemplates(refs: Pick<LinkRef, "templateId" | "relay">[]): Promise<Map<string, UrlTemplate>> {
   const missing = [...new Set(refs.map((r) => r.templateId))].filter((id) => !byId.has(id));
   if (missing.length) {
     const relays = [...new Set([...refs.map((r) => r.relay).filter(Boolean), ...dictionaryRelays()])];

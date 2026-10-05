@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { withdrawOwnCopy } from "@/services/conceptCopy";
 import { useDictionary } from "@/hooks/useDictionary";
-import { useProfile } from "@/hooks/useProfile";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useWotItems } from "@/hooks/useWotItems";
 import { useConceptItems } from "@/hooks/useConceptItems";
 import { useNearViewport } from "@/hooks/useNearViewport";
@@ -469,7 +469,7 @@ function FieldsSection({ fields, display }: { fields: FieldDecl[]; display: Disp
 }
 
 function Who({ pubkey }: { pubkey: string }) {
-  const profile = useProfile(pubkey);
+  const { profile } = useLiveProfile(pubkey);
   const name = profile?.display_name || profile?.name;
   return (
     <Link href={`/p/${pubkey}`} className="font-medium text-brand-link hover:underline">
