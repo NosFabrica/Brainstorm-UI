@@ -10,14 +10,18 @@ import { loadDictionary } from "@/services/dictionary";
  * account alone.
  *
  * `enabled: false` reads nothing — for a surface only some readers get.
+ * `anonymous` reads the lists with no account too — search, which anyone uses,
+ * signed in or not; a reader with no account sees Brainstorm's definitions
+ * (ADR 0004). Without it, no account means nothing read: the Dictionary page
+ * is an account's own.
  */
-export function useDictionary(enabled = true) {
+export function useDictionary(enabled = true, { anonymous = false }: { anonymous?: boolean } = {}) {
   const { pubkey, taPubkey, settled } = useDictionaryReader();
   const query = useQuery({
     queryKey: ["dictionary", pubkey, taPubkey],
     // Headers and copies only: a concept's items load when its row or entry shows them (useConceptItems).
     queryFn: () => loadDictionary({ pubkey, taPubkey }, undefined, undefined, { items: false }),
-    enabled: enabled && !!pubkey && settled,
+    enabled: enabled && (anonymous || !!pubkey) && settled,
     staleTime: 5 * 60_000,
   });
   return { ...query, pubkey, taPubkey };
