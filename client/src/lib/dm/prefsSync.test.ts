@@ -189,6 +189,18 @@ describe("pinning a chat", () => {
     stop();
   });
 
+  it("asks an extension when the reader pins: their act, their signer's prompt", async () => {
+    vi.useFakeTimers();
+    activeAccount.mockReturnValue({ pubkey: PK, external: true });
+    joinedDevice();
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
+    expect(publishAlertPrefs.mock.calls[0][2]).toMatchObject({ background: false });
+    stop();
+  });
+
   it("doesn't publish for changes that don't sync", async () => {
     vi.useFakeTimers();
     joinedDevice();

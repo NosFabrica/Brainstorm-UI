@@ -72,7 +72,7 @@ describe("publishing the synced chat prefs", () => {
   it("puts only ciphertext on the wire, readable with the account's own key", async () => {
     activeAccount.mockReturnValue(account(true));
 
-    const res = await nostr.publishAlertPrefs(blob, nostr.DM_PREFS_D_TAG, { background: true });
+    const res = await nostr.publishAlertPrefs(blob, nostr.DM_PREFS_D_TAG);
 
     expect(res.success).toBe(true);
     const event = publish.mock.calls[0][1] as { kind: number; tags: string[][]; content: string };
@@ -85,10 +85,21 @@ describe("publishing the synced chat prefs", () => {
     expect(JSON.parse(nip44.decrypt(event.content, toSelf))).toEqual(blob);
   });
 
+  it("leaves a write nobody asked for to a signer that would prompt for it", async () => {
+    // An extension or bunker: every encrypt and signature is a prompt in its own app.
+    activeAccount.mockReturnValue(account(true));
+
+    const res = await nostr.publishAlertPrefs(blob, nostr.DM_PREFS_D_TAG, { background: true });
+
+    expect(res).toEqual({ success: false, deferred: true });
+    expect(signAs).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it("publishes nothing when the account can't encrypt", async () => {
     activeAccount.mockReturnValue(account(false));
 
-    const res = await nostr.publishAlertPrefs(blob, nostr.DM_PREFS_D_TAG, { background: true });
+    const res = await nostr.publishAlertPrefs(blob, nostr.DM_PREFS_D_TAG);
 
     expect(res).toEqual({ success: false, error: "Could not encrypt" });
     expect(signAs).not.toHaveBeenCalled();
@@ -148,7 +159,7 @@ describe("reading the synced chat prefs before replacing them", () => {
   });
 
   it("stamps the publish with the created_at it's given", async () => {
-    await nostr.publishAlertPrefs(blob, nostr.DM_PREFS_D_TAG, { background: true, createdAt: 777 });
+    await nostr.publishAlertPrefs(blob, nostr.DM_PREFS_D_TAG, { createdAt: 777 });
     expect((publish.mock.calls[0][1] as { created_at: number }).created_at).toBe(777);
   });
 });

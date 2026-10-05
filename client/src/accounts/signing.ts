@@ -160,6 +160,16 @@ export function canSignSilently(account: BrainstormAccount): Promise<boolean> {
 }
 
 /**
+ * Whether this Account can sign with nobody asked at all: a key held here that
+ * opens without our modal. An extension or bunker shows its own prompt for
+ * every request, so work the user didn't start — a sync riding on a page load —
+ * waits for them to do something instead.
+ */
+export async function canSignUnasked(account: BrainstormAccount): Promise<boolean> {
+  return !hasExternalSigner(account) && (await canSignSilently(account));
+}
+
+/**
  * Whether signing goes through an EXTERNAL signer (extension/bunker) that shows
  * its own approval prompt. Distinct from `canSignSilently`, which answers "will
  * OUR unlock modal appear" — extension accounts are "silent" by that measure

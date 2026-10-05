@@ -238,6 +238,8 @@ async function publishNow(pubkey: string, { attempt = 0, first = false } = {}): 
     if (!plan.publish) return;
     return publishNow(pubkey, { attempt, first: true });
   }
+  const account = activeAccount();
+  if (account?.pubkey !== pubkey) return;
   const createdAt = Math.max(Math.floor(Date.now() / 1000), (lastCreatedAt.get(pubkey) ?? 0) + 1);
   const res = await publishAlertPrefs(
     fitDmPrefsPayload({
@@ -248,8 +250,10 @@ async function publishNow(pubkey: string, { attempt = 0, first = false } = {}): 
       accepted: prefs.accepted,
     }),
     DM_PREFS_D_TAG,
-    // Nobody asked to unlock for a pin: a Locked Account defers to the next sync.
-    { background: true, createdAt },
+    // Nobody asked to unlock for a pin: a Locked key defers to the next sync. An
+    // extension's prompt is its own, and this only runs for one on the reader's
+    // act (a pin, Messages opening), so it is asked.
+    { background: !hasExternalSigner(account), createdAt },
   ).catch((): PublishOutcome => ({ success: false, error: "All relays failed" }));
   // Signed out or switched while it was out: the row may be gone, and must stay gone.
   if (activeAccount()?.pubkey !== pubkey) return;
