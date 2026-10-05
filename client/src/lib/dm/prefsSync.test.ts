@@ -213,9 +213,11 @@ describe("pinning a chat", () => {
   });
 
   it("stamps an edit past the copy it last saw, so a fast clock elsewhere can't undo it", () => {
-    prefs.applySyncedDmPrefs(PK, {}, joined(Date.now() + 600_000));
+    // One reading of the clock: read again after the edit and a millisecond's tick makes the two equal.
+    const seen = Date.now() + 600_000;
+    prefs.applySyncedDmPrefs(PK, {}, joined(seen));
     prefs.setRoomPinned(PK, ROOM, true);
-    expect(prefs.readDmPrefs(PK).sync!.at).toBeGreaterThan(Date.now() + 600_000);
+    expect(prefs.readDmPrefs(PK).sync!.at).toBeGreaterThan(seen);
   });
 
   it("doesn't publish again once the account's copy was adopted over it", async () => {
