@@ -560,6 +560,51 @@ describe("DmEngine", () => {
     expect(engine.store.room(room)).toBeUndefined();
   });
 
+  it("a discarded message stays gone after a reload, though the reader's own copy reached their relay", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    const cache = memoryCache();
+    // Ana's relay is down; the reader's own takes their copy.
+    const transport: DmTransport = {
+      ...net.transport,
+      publish: async (relay, event) =>
+        relay === "wss://ana.example/" ? { ok: false, message: "down" } : net.transport.publish(relay, event),
+    };
+    const time = clock();
+    const first = new DmEngine(me.account(), {
+      ...net,
+      transport,
+      cache,
+      sealer: plainSealer,
+      ...time,
+      now: () => NOW,
+    });
+    await first.start();
+    await settle();
+    const room = roomKey([me.pubkey, ana.pubkey]);
+    const sent = await first.send(room, "never mind");
+    expect(sent.message?.outgoing?.status).toBe("failed");
+    first.discard(sent.message!.id);
+    time.flush(); // write what discard remembered
+    await settle();
+    first.stop();
+    await settle();
+
+    const second = new DmEngine(me.account(), {
+      ...net,
+      transport,
+      cache,
+      sealer: plainSealer,
+      ...clock(),
+      now: () => NOW,
+    });
+    await second.start();
+    await settle();
+    await settle();
+    expect(second.store.room(room)).toBeUndefined();
+  });
+
   it.each([
     ["refused", "Your signer extension declined the request."],
     ["wrong-account", "Your signer extension is on a different profile."],
