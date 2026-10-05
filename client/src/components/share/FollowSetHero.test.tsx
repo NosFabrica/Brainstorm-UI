@@ -6,7 +6,7 @@
  * this, clicking a "Verified Human" card landed on a blank event page.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 
@@ -67,7 +67,7 @@ describe("FollowSetHero", () => {
 
     // Members are ROWS into their profiles — the whole point of the page.
     const row = await screen.findByTestId(`set-member-${ALICE}`);
-    expect(row).toHaveTextContent("alice");
+    await waitFor(() => expect(row).toHaveTextContent("alice"));
     expect(row.getAttribute("href")).toBe(`/p/${nip19.npubEncode(ALICE)}`);
     // Rings ride every face.
     expect([...row.querySelectorAll("span")].some((el) => el.className.includes("shadow-[0_0_0"))).toBe(true);

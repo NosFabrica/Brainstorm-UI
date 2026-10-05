@@ -32,6 +32,12 @@ const trackProfiles = <T>(pubkeys: string[], ask: Promise<T>) => track(pubkeys.m
 /** Test seam. */
 export function __resetAskedProfiles(): void {
   __resetAsks();
+  if (batch) {
+    clearTimeout(batch.quiet);
+    clearTimeout(batch.max);
+  }
+  queued = new Set();
+  batch = null;
 }
 
 /** Start the ask a profile page would make on mount, ahead of it — e.g. on a search click. */
@@ -92,6 +98,48 @@ export function useLiveProfile(
 const NO_PROFILES: Map<string, ProfileContent> = new Map();
 
 /**
+ * Lists of people are asked for together. Names arriving over a second or so —
+ * a thread's replies streaming in — would otherwise leave as one small batch
+ * each, and every batch costs a search ask plus relay-list warm-ups. Each
+ * request waits for a short quiet spell, capped, then everyone queued goes out
+ * as one `fetchProfileMap`.
+ */
+const LIST_QUIET_MS = 250;
+const LIST_MAX_WAIT_MS = 1000;
+let queued = new Set<string>();
+let batch: {
+  promise: Promise<unknown>;
+  resolve: (m: unknown) => void;
+  quiet?: ReturnType<typeof setTimeout>;
+  max: ReturnType<typeof setTimeout>;
+} | null = null;
+
+function flushProfiles(): void {
+  if (!batch) return;
+  const { resolve, quiet, max } = batch;
+  clearTimeout(quiet);
+  clearTimeout(max);
+  const due = claimDue([...queued]);
+  queued = new Set();
+  batch = null;
+  if (!due.length) return resolve(new Map());
+  trackProfiles(due, fetchProfileMap(due)).then(resolve, () => resolve(new Map()));
+}
+
+function queueProfiles(pubkeys: string[]): Promise<unknown> {
+  if (!pubkeys.length) return Promise.resolve(new Map());
+  pubkeys.forEach((pk) => queued.add(pk));
+  if (!batch) {
+    let resolve!: (m: unknown) => void;
+    const promise = new Promise((r) => (resolve = r));
+    batch = { promise, resolve, max: setTimeout(flushProfiles, LIST_MAX_WAIT_MS) };
+  }
+  clearTimeout(batch.quiet);
+  batch.quiet = setTimeout(flushProfiles, LIST_QUIET_MS);
+  return batch.promise;
+}
+
+/**
  * Names and avatars for a list of people — the ones a note mentions, a
  * thread's repliers, a face pile. Every held copy renders at once, however
  * old; the rest are asked for in one batch (fetchProfileMap), and any newer
@@ -120,7 +168,6 @@ export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> 
     if (!key) return;
     const pubkeys = key.split(",");
     const joined = new Set(pubkeys.map((pk) => inFlightFor(askKey(pk))).filter((ask) => !!ask));
-    const due = claimDue(pubkeys);
     let alive = true;
     const take = (found: unknown) => {
       if (!alive || !(found instanceof Map) || !found.size) return;
@@ -128,7 +175,7 @@ export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> 
     };
     // Asks already out for some of these people answer this list too.
     joined.forEach((ask) => ask.then(take, () => {}));
-    if (due.length) trackProfiles(due, fetchProfileMap(due)).then(take, () => {});
+    queueProfiles(pubkeys.filter((pk) => !inFlightFor(askKey(pk)))).then(take, () => {});
     return () => {
       alive = false;
     };

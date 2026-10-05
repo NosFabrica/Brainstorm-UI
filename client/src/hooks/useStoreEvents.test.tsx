@@ -92,4 +92,23 @@ describe("useStoreEvents", () => {
     expect(ask).not.toHaveBeenCalled();
     expect(result.current.loading).toBe(false);
   });
+
+  it("with stream off, holds the list it mounted with until the ask settles", async () => {
+    const pk = "f".repeat(64);
+    eventStore.add(note(pk, 10));
+    let answer!: (v: NostrEvent[]) => void;
+    const ask = vi.fn(() => new Promise<NostrEvent[]>((resolve) => (answer = resolve)));
+    const { result } = renderHook(() =>
+      useStoreEvents(`feed:${pk}`, [{ kinds: [1], authors: [pk] }], ask, { minMs: 60_000, stream: false }),
+    );
+    expect(result.current.events).toHaveLength(1);
+
+    act(() => {
+      eventStore.add(note(pk, 20));
+    });
+    expect(result.current.events).toHaveLength(1);
+
+    await act(async () => answer([]));
+    await waitFor(() => expect(result.current.events.map((e) => e.created_at)).toEqual([20, 10]));
+  });
 });

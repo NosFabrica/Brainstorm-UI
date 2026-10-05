@@ -152,7 +152,8 @@ describe("the article reader — a stub whose summary is a link to a note", () =
         "Some days posting here feels like nobody's listening.",
       ),
     );
-    expect(screen.getByTestId("article-summary")).toHaveTextContent("Derek Ross");
+    // Names are asked for in one batch, a beat after the note lands.
+    await waitFor(() => expect(screen.getByTestId("article-summary")).toHaveTextContent("Derek Ross"));
     expect(screen.getByTestId("article-summary")).not.toHaveTextContent("https://");
   });
 

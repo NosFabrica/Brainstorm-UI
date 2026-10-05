@@ -13,11 +13,11 @@ import { __useCacheStore } from "@/lib/eventCache";
 const refreshMock = vi.fn<(pubkey: string, opts: { relayHints?: string[] }) => Promise<NostrEvent | null>>(
   () => new Promise(() => {}), // the relays never finish
 );
-const profileMapMock = vi.fn(async () => new Map());
+const profileMapMock = vi.fn(async (_pks: string[]) => new Map());
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   refreshProfileEvent: (pubkey: string, opts: { relayHints?: string[] }) => refreshMock(pubkey, opts),
-  fetchProfileMap: () => profileMapMock(),
+  fetchProfileMap: (pks: string[]) => profileMapMock(pks),
 }));
 
 import { __resetAskedProfiles, useLiveProfile, useLiveProfiles } from "./useLiveProfile";
@@ -150,10 +150,21 @@ describe("useLiveProfiles", () => {
     let answer!: (m: Map<string, unknown>) => void;
     profileMapMock.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
     renderHook(() => useLiveProfiles([pk]));
+    await waitFor(() => expect(profileMapMock).toHaveBeenCalledTimes(1));
     const second = renderHook(() => useLiveProfiles([pk]));
+    await new Promise((resolve) => setTimeout(resolve, 300));
     expect(profileMapMock).toHaveBeenCalledTimes(1);
 
     await act(async () => answer(new Map([[pk, { name: "frank" }]])));
     expect(second.result.current.get(pk)?.name).toBe("frank");
+  });
+
+  it("people asked for by lists mounting close together go out as one batch", async () => {
+    const a = "9".repeat(64);
+    const b = "a".repeat(63) + "9";
+    renderHook(() => useLiveProfiles([a]));
+    renderHook(() => useLiveProfiles([b]));
+    await waitFor(() => expect(profileMapMock).toHaveBeenCalledTimes(1));
+    expect(profileMapMock.mock.calls[0][0]).toEqual(expect.arrayContaining([a, b]));
   });
 });

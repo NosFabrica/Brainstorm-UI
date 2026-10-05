@@ -109,7 +109,7 @@ describe("EmbeddedNoteCard", () => {
     };
     renderWithProviders(<EmbeddedNoteCard event={note} author={{ name: "Hope With ₿itcoin" }} />);
     const quoted = await screen.findByTestId("embedded-quote");
-    expect(quoted).toHaveTextContent("Derek Ross");
+    await waitFor(() => expect(quoted).toHaveTextContent("Derek Ross"));
     expect(quoted).toHaveTextContent("Some days posting here feels like nobody's listening.");
     await waitFor(() => expect(screen.queryByText("↳ quoted note")).toBeNull());
   });

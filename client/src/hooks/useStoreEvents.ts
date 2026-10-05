@@ -17,6 +17,10 @@ const DEFAULT_WINDOW: AskWindow = { minMs: 5 * 60_000 };
  * the copies the store did not keep. `key` names the ask: one per key per
  * window, shared by every mount.
  *
+ * `stream: false` shows what the store held at mount until that ask settles,
+ * then the store live: for lists other asks key on (a note's tags, a pin), so
+ * they ask once rather than once per arriving event.
+ *
  * `loading` is true only while nothing matches and the first ask is out;
  * `settled` once that ask has finished. Asks keyed on these events (their
  * parents, their reactions) wait for `settled`: a key that changes with every
@@ -26,7 +30,7 @@ export function useStoreEvents(
   key: string | null,
   filters: Filter[] | null,
   ask: () => Promise<unknown>,
-  window: AskWindow = DEFAULT_WINDOW,
+  { stream = true, ...window }: AskWindow & { stream?: boolean } = DEFAULT_WINDOW,
 ): { events: NostrEvent[]; loading: boolean; settled: boolean } {
   const filtersKey = filters ? JSON.stringify(filters) : "";
   const stored = use$(() => (filters?.length ? eventStore.timeline(filters) : undefined), [filtersKey]) ?? NONE;
@@ -67,5 +71,8 @@ export function useStoreEvents(
   }, [stored, answer, filtersKey]);
 
   const done = !!key && settled?.key === key;
-  return { events, loading: !!key && !events.length && !done, settled: done };
+  // What was held when this key mounted, kept until its ask settles.
+  const atMount = useMemo(() => events, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = stream || done ? events : atMount;
+  return { events: shown, loading: !!key && !shown.length && !done, settled: done };
 }
