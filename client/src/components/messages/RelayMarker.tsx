@@ -159,7 +159,7 @@ export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry }
       >
         <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
         <MarkerIcon state={state} opening={opening} />
-        <span className="truncate">
+        <span className={problem ? "min-w-0 break-words" : "truncate"}>
           {relayHost(url)} · {label}
         </span>
         {action}
@@ -180,7 +180,8 @@ export function RelayMarker({ progress, variant, onAdvance, onVisible, onRetry }
       data-state={state}
     >
       <MarkerIcon state={state} opening={opening} />
-      <span className="min-w-0 flex-1 truncate">
+      {/* A login problem is read to be acted on: it wraps rather than losing its reason. */}
+      <span className={cn("min-w-0 flex-1", problem ? "break-words" : "truncate")}>
         {relayHost(url)} · {label}
       </span>
       {action}
