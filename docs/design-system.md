@@ -111,6 +111,11 @@ row, a seller's shelf and page, "More for sale", the popup's count).
 - The parent is never one of its own options. On a product page the options are chips named
   by their spec value under the option's name (`Size  XS S M …`), sizes small to large, the
   one being read marked; each chip is that option's own listing, with its own buy link.
+- The options row sits where a shopper chooses: inside the product card, under the title and
+  above the buy buttons (`ListingOptions`), not below the description.
+- The seller's categories are how a listing is found, not what a buyer reads first: under the
+  description, five at first with `+N more`, each once (no plural or case repeats) and never
+  the seller's own name (`categoriesToShow`).
 - Hidden means not shown: a hidden option is not offered, and a hidden parent hides its options.
 
 ### KindPill — `components/ui/kind-pill.tsx`

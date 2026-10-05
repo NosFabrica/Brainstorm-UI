@@ -232,6 +232,26 @@ function parseAuction(ev: EventLike): Listing | null {
   };
 }
 
+/**
+ * A listing's categories as a reader wants them: each once (a seller tags
+ * "hoodie", "hoodies" and "Hoodie" to be found, not to be read three times)
+ * and never the seller's own name, which the page already says. The first
+ * spelling of each is kept, in the seller's order.
+ */
+export function categoriesToShow(categories: readonly string[], sellerName?: string | null): string[] {
+  const keyOf = (c: string) => c.trim().toLowerCase().replace(/\s+/g, " ").replace(/s$/, "");
+  const seller = sellerName ? keyOf(sellerName) : null;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of categories) {
+    const key = keyOf(c);
+    if (!key || key === seller || seen.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+  }
+  return out;
+}
+
 /** For sale now: not sold, not hidden, and any status the seller left open. */
 export function isSellable(l: Listing): boolean {
   return (

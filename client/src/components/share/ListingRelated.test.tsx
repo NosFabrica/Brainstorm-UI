@@ -24,6 +24,19 @@ vi.mock("@/services/search", async (importOriginal) => ({
 }));
 
 import { ListingRelated } from "./ListingRelated";
+import { ListingOptions } from "./ListingOptions";
+
+/**
+ * The product page's two halves that read one seller's shelf: the options by
+ * the buy button (ListingOptions, inside the hero) and what else the seller
+ * has (ListingRelated). Rendered together, as the page does.
+ */
+const Page = ({ event, sellerName }: { event: NostrEvent; sellerName?: string }) => (
+  <>
+    <ListingOptions event={event} />
+    <ListingRelated event={event} sellerName={sellerName} />
+  </>
+);
 
 const SELLER = "ab".repeat(32);
 const OTHER = "cd".repeat(32);
@@ -173,7 +186,7 @@ describe("ListingRelated", () => {
       variant("tee-m", "Tee — M", 800),
       listing(SELLER, "mug", "Mug", 700),
     ]);
-    render(<ListingRelated event={self} sellerName="Born To Be Free" />);
+    render(<Page event={self} sellerName="Born To Be Free" />);
     const options = await screen.findByTestId("listing-options");
     const chips = within(options).getAllByRole("link");
     expect(chips.map((c) => c.textContent)).toEqual(["L", "M"]);
@@ -204,7 +217,7 @@ describe("ListingRelated", () => {
 
     it("on one size's page: every size in order, this one marked, and the parent is not a size", async () => {
       recentMock.mockResolvedValue([parent, ...kids, mug]);
-      render(<ListingRelated event={kids[0]} sellerName="Satoshoes" />);
+      render(<Page event={kids[0]} sellerName="Satoshoes" />);
       const row = await screen.findByTestId("listing-options");
       expect(row).toHaveTextContent("Size");
       expect(chips().map((c) => c.textContent)).toEqual(["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL"]);
@@ -221,7 +234,7 @@ describe("ListingRelated", () => {
 
     it("on the product's own page: all ten sizes, none marked", async () => {
       recentMock.mockResolvedValue([parent, ...kids, mug]);
-      render(<ListingRelated event={parent} sellerName="Satoshoes" />);
+      render(<Page event={parent} sellerName="Satoshoes" />);
       await screen.findByTestId("listing-options");
       expect(chips()).toHaveLength(10);
       expect(chips().filter((c) => c.tagName === "A")).toHaveLength(10);
@@ -231,7 +244,7 @@ describe("ListingRelated", () => {
     it("asks for the family itself, so sizes beyond the seller's newest listings are still offered", async () => {
       recentMock.mockResolvedValue([kids[0], mug]);
       familyMock.mockResolvedValue([parent, ...kids]);
-      render(<ListingRelated event={kids[0]} sellerName="Satoshoes" />);
+      render(<Page event={kids[0]} sellerName="Satoshoes" />);
       await screen.findByTestId("listing-options");
       expect(familyMock).toHaveBeenCalledWith(SELLER, P);
       expect(chips()).toHaveLength(10);
@@ -239,7 +252,7 @@ describe("ListingRelated", () => {
 
     it("asks for no family for a listing that is not part of one", async () => {
       recentMock.mockResolvedValue([mug, listing(SELLER, "soap", "Soap", 400)]);
-      render(<ListingRelated event={mug} sellerName="Satoshoes" />);
+      render(<Page event={mug} sellerName="Satoshoes" />);
       await screen.findByTestId("listing-more-from-seller");
       expect(familyMock).not.toHaveBeenCalled();
       expect(screen.queryByTestId("listing-options")).toBeNull();
