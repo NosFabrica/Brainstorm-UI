@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { fetchEventsByFilter } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -36,24 +36,23 @@ export function MoreFromAuthor({
 }) {
   const relays = useMemo(() => Array.from(new Set([...relayHints, ...PROFILE_RELAYS])), [relayHints]);
 
-  const q = useQuery({
-    queryKey: ["more-from-author", pubkey, excludeId ?? ""],
+  const q = useStoreEvents(
+    pubkey ? `more-from-author:${pubkey}` : null,
+    pubkey ? [{ authors: [pubkey], kinds: [1], limit: 12 }] : null,
     // The author's own write relays first — "more from this author" is exactly
     // the query the outbox model exists for, and a prolific author who does not
     // publish to the big shared relays looks silent without it.
-    queryFn: async () =>
+    async () =>
       fetchEventsByFilter({ authors: [pubkey], kinds: [1], limit: 12 }, await outboxRelays(pubkey, relays), 6000),
-    enabled: !!pubkey,
-    staleTime: 60_000,
-    retry: false,
-  });
+    { minMs: 60_000 },
+  );
 
   const notes = useMemo(() => {
     // Normalized opening of the post being viewed — catches rebroadcast variants
     // (different id + slightly different trailing text) so it never re-appears.
     const sig = (s: string) => s.replace(/\s+/g, " ").trim().slice(0, 60).toLowerCase();
     const skipSig = excludeContent ? sig(excludeContent) : "";
-    const evs = ((q.data ?? []) as MinimalEvent[]).filter(
+    const evs = ((q.events ?? []) as MinimalEvent[]).filter(
       (e) => e.id !== excludeId && !(skipSig && skipSig.length > 12 && sig(e.content || "") === skipSig),
     );
     // Prefer original posts (no reply `e` tag) so the strip reads as their work,
@@ -62,7 +61,7 @@ export function MoreFromAuthor({
     const pick = originals.length >= 2 ? originals : evs;
     return pick.sort((a, b) => b.created_at - a.created_at).slice(0, 4);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keep pre-lint deps; excludeContent tracks excludeId
-  }, [q.data, excludeId]);
+  }, [q.events, excludeId]);
 
   // Resolve every referenced pubkey (@-mentions AND reply targets) so notes
   // render mentions as names and the "Replying to @…" line resolves too — not

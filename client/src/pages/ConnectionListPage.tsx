@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { MessageButton } from "@/components/messages/MessageButton";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useRoute, Redirect, Link } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Loader2, Users, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
+import { fetchReportsForPubkey, reportAbout, type ReportMetadata } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
@@ -144,21 +145,20 @@ export default function ConnectionListPage() {
   // relays so each row can show the report's type, time, and reason — the same
   // data the profile page surfaces. Progressive: rows render from the API first,
   // then annotate as reports resolve. Rows with no matched report stay plain.
-  const reportsQuery = useQuery({
-    queryKey: ["conn-reports", pubkey],
-    queryFn: () => fetchReportsForPubkey(pubkey),
-    enabled: !!pubkey && cfg?.kind === "reported_by",
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const reportsQuery = useStoreEvents(
+    pubkey && cfg?.kind === "reported_by" ? `conn-reports:${pubkey}` : null,
+    pubkey && cfg?.kind === "reported_by" ? [{ kinds: [1984], "#p": [pubkey] }] : null,
+    // Fills the store; the reports are read back from it below.
+    async () => void (await fetchReportsForPubkey(pubkey)),
+  );
   const reportMap = useMemo(() => {
     const m = new Map<string, ReportMetadata>();
-    for (const r of reportsQuery.data ?? []) {
+    for (const r of reportsQuery.events.map((e) => reportAbout(e, pubkey))) {
       const prev = m.get(r.reporterPubkey);
       if (!prev || r.timestamp > prev.timestamp) m.set(r.reporterPubkey, r);
     }
     return m;
-  }, [reportsQuery.data]);
+  }, [reportsQuery.events, pubkey]);
 
   // Guard rails — bad share id or unknown list type.
   // `replace`, never push. wouter's <Redirect> PUSHES by default, and these are

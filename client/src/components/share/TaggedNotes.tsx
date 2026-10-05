@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { FileText } from "lucide-react";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
-import { useQuery } from "@tanstack/react-query";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { fetchEventsByIds } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
@@ -40,15 +40,13 @@ export function TaggedNotes({ authorPubkey, slug }: { authorPubkey: string; slug
     return Array.from(set);
   }, [tagged]);
 
-  const notesQuery = useQuery({
-    queryKey: ["tag-note-events", ids.join(","), relays.length],
-    queryFn: () => fetchEventsByIds(ids, relays),
-    enabled: ids.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const notesQuery = useStoreEvents(
+    ids.length ? `tag-note-events:${ids.join(",")}:${relays.join(",")}` : null,
+    ids.length ? [{ ids }] : null,
+    () => fetchEventsByIds(ids, relays),
+  );
 
-  const notes = useMemo(() => (notesQuery.data ?? []) as unknown as MinimalEvent[], [notesQuery.data]);
+  const notes = useMemo(() => (notesQuery.events ?? []) as unknown as MinimalEvent[], [notesQuery.events]);
 
   const authors = useMemo(() => Array.from(new Set(notes.map((n) => n.pubkey).filter(Boolean) as string[])), [notes]);
   const profileMap = useLiveProfiles(authors);
@@ -63,7 +61,7 @@ export function TaggedNotes({ authorPubkey, slug }: { authorPubkey: string; slug
   if (isLoading || !tagged?.length) return null;
   // We know posts carry this tag but couldn't fetch them — say so rather than
   // rendering an empty section that reads as "there are none".
-  if (!ordered.length && !notesQuery.isLoading) {
+  if (!ordered.length && !notesQuery.loading) {
     return (
       <section className="mt-8" data-testid="tag-notes-unreachable">
         <SectionLabel count={tagged.length} />
@@ -83,7 +81,7 @@ export function TaggedNotes({ authorPubkey, slug }: { authorPubkey: string; slug
   return (
     <section className="mt-8" data-testid="tag-notes">
       <SectionLabel count={tagged.length} />
-      {missing > 0 && !notesQuery.isLoading && (
+      {missing > 0 && !notesQuery.loading && (
         <p className="-mt-2 mb-3 text-[11px] text-slate-400 dark:text-slate-500" data-testid="tag-notes-missing">
           {missing === 1 ? "1 isn't" : `${missing} aren't`} on the relays we can reach.
         </p>

@@ -1,5 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRoute, useLocation, Link, Redirect } from "wouter";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -34,7 +36,6 @@ import { WavlakeSongCard } from "@/components/search/cards";
 import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
 import {
-  fetchRecentByKinds,
   fetchLiveStreams,
   fetchEventsByIds,
   fetchOutboxRelayList,
@@ -366,101 +367,42 @@ export default function SharePage() {
     retry: false,
   });
 
-  const notesQuery = useQuery({
-    queryKey: ["share-notes", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [1, 6], 5, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const notesQuery = useRecentByKinds(pubkey, [1, 6], 5, relayHints);
 
-  const photosQuery = useQuery({
-    queryKey: ["share-photos", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [20], 12, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const photosQuery = useRecentByKinds(pubkey, [20], 12, relayHints);
 
-  const articlesQuery = useQuery({
-    queryKey: ["share-articles", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [30023], 5, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const articlesQuery = useRecentByKinds(pubkey, [30023], 5, relayHints);
 
   // A wider net of recent notes used ONLY to harvest images for the photo grid,
   // so it can fill 3/6/9 even when the latest 5 notes happen to be text-only.
-  const photoNotesQuery = useQuery({
-    queryKey: ["share-photo-notes", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [1], 40, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const photoNotesQuery = useRecentByKinds(pubkey, [1], 40, relayHints);
 
-  const videosQuery = useQuery({
-    queryKey: ["share-videos", pubkey],
-    // NIP-71: normal (21) and short (22) videos, plus their addressable
-    // twins (34235 / 34236) — Divine publishes shorts as 34236.
-    queryFn: () => fetchRecentByKinds(pubkey, [21, 22, 34235, 34236], 4, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // NIP-71: normal (21) and short (22) videos, plus their addressable
+  // twins (34235 / 34236) — Divine publishes shorts as 34236.
+  const videosQuery = useRecentByKinds(pubkey, [21, 22, 34235, 34236], 4, relayHints);
 
-  const musicQuery = useQuery({
-    queryKey: ["share-music", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [31337], 3, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const musicQuery = useRecentByKinds(pubkey, [31337], 3, relayHints);
 
-  const liveQuery = useQuery({
-    queryKey: ["share-live", pubkey],
-    queryFn: () => fetchLiveStreams(pubkey, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // Authored by the streaming platform, not the person: no store filter names them, so the ask's answer is the list.
+  const liveQuery = useStoreEvents(pubkey ? `share-live:${pubkey}` : null, null, () =>
+    fetchLiveStreams(pubkey, { relayHints }),
+  );
 
   // NIP-38 user status (kind 30315): a "general" line ("what I'm up to") and an
   // optional "music" now-playing line. Shown in the hero under the name.
-  const statusQuery = useQuery({
-    queryKey: ["share-status", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [30315], 4, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const statusQuery = useRecentByKinds(pubkey, [30315], 4, relayHints);
 
   // Featured = the first pin from the NIP-51 pin list (kind 10001), resolved.
-  const pinsQuery = useQuery({
-    queryKey: ["share-pins", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [10001], 1, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const pinnedId = pinsQuery.data?.[0]?.tags.find((t) => t[0] === "e")?.[1] as string | undefined;
-  const pinnedQuery = useQuery({
-    queryKey: ["share-pinned", pinnedId],
-    queryFn: () => fetchEventsByIds([pinnedId as string], relayHints),
-    enabled: !!pinnedId,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const pinsQuery = useRecentByKinds(pubkey, [10001], 1, relayHints);
+  const pinnedId = pinsQuery.events?.[0]?.tags.find((t) => t[0] === "e")?.[1] as string | undefined;
+  const pinnedQuery = useStoreEvents(
+    pinnedId ? `share-pinned:${pinnedId}` : null,
+    pinnedId ? [{ ids: [pinnedId] }] : null,
+    () => fetchEventsByIds([pinnedId as string], relayHints),
+  );
 
   // Calendar events (NIP-52, kind 31922 date / 31923 time).
-  const eventsQuery = useQuery({
-    queryKey: ["share-events", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [31922, 31923], 8, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const eventsQuery = useRecentByKinds(pubkey, [31922, 31923], 8, relayHints);
 
   // NIP-65 (kind 10002) relay list → "Active on N relays" presence signal.
   const relaysQuery = useQuery({
@@ -519,13 +461,13 @@ export default function SharePage() {
    */
   const lastPostedAt = useMemo(() => {
     const arrays = [
-      notesQuery.data,
-      photosQuery.data,
-      articlesQuery.data,
-      photoNotesQuery.data,
-      videosQuery.data,
-      musicQuery.data,
-      eventsQuery.data,
+      notesQuery.events,
+      photosQuery.events,
+      articlesQuery.events,
+      photoNotesQuery.events,
+      videosQuery.events,
+      musicQuery.events,
+      eventsQuery.events,
     ];
     let newest = 0;
     const nowSec = Math.floor(Date.now() / 1000);
@@ -538,13 +480,13 @@ export default function SharePage() {
       }
     return newest;
   }, [
-    notesQuery.data,
-    photosQuery.data,
-    articlesQuery.data,
-    photoNotesQuery.data,
-    videosQuery.data,
-    musicQuery.data,
-    eventsQuery.data,
+    notesQuery.events,
+    photosQuery.events,
+    articlesQuery.events,
+    photoNotesQuery.events,
+    videosQuery.events,
+    musicQuery.events,
+    eventsQuery.events,
   ]);
   const overview = overviewQuery.data as { influence?: number | null; counts?: Record<string, number> } | undefined;
   // The overview score is viewer-relative: house/network POV when logged out,
@@ -604,11 +546,11 @@ export default function SharePage() {
         out.push({ url: u, id: ev.id, pubkey: ev.pubkey });
       }
     };
-    for (const ev of photosQuery.data ?? []) add(ev, extractImageUrls(ev.content, ev.tags, { allImeta: true }));
-    for (const ev of photoNotesQuery.data ?? []) add(ev, extractImageUrls(ev.content, ev.tags));
-    for (const ev of notesQuery.data ?? []) add(ev, extractImageUrls(ev.content, ev.tags));
+    for (const ev of photosQuery.events ?? []) add(ev, extractImageUrls(ev.content, ev.tags, { allImeta: true }));
+    for (const ev of photoNotesQuery.events ?? []) add(ev, extractImageUrls(ev.content, ev.tags));
+    for (const ev of notesQuery.events ?? []) add(ev, extractImageUrls(ev.content, ev.tags));
     return out.slice(0, 9);
-  }, [photosQuery.data, photoNotesQuery.data, notesQuery.data, brokenPhotos]);
+  }, [photosQuery.events, photoNotesQuery.events, notesQuery.events, brokenPhotos]);
 
   // Align the photo grid to full rows of 3 (3/6/9) so it never looks ragged;
   // fall back to whatever exists when there are fewer than 3.
@@ -619,7 +561,7 @@ export default function SharePage() {
 
   const articles = useMemo(
     () =>
-      (articlesQuery.data ?? []).map((ev) => {
+      (articlesQuery.events ?? []).map((ev) => {
         const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
         return {
           id: ev.id,
@@ -629,12 +571,12 @@ export default function SharePage() {
           ts: ev.created_at,
         };
       }),
-    [articlesQuery.data],
+    [articlesQuery.events],
   );
 
   const videos = useMemo(
     () =>
-      (videosQuery.data ?? [])
+      (videosQuery.events ?? [])
         .map((ev) => {
           const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
           return {
@@ -646,12 +588,12 @@ export default function SharePage() {
           };
         })
         .filter((v) => v.url || v.poster),
-    [videosQuery.data],
+    [videosQuery.events],
   );
 
   const tracks = useMemo(
     () =>
-      (musicQuery.data ?? []).map((ev) => {
+      (musicQuery.events ?? []).map((ev) => {
         const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
         const genres = ev.tags
           .filter((t) => t[0] === "t")
@@ -668,7 +610,7 @@ export default function SharePage() {
           ts: ev.created_at,
         };
       }),
-    [musicQuery.data],
+    [musicQuery.events],
   );
 
   // The person's Wavlake catalogue beside their relay tracks: Joe Martin
@@ -699,7 +641,7 @@ export default function SharePage() {
 
   // NIP-53 live streams (kind 30311) → live now + upcoming only (no replays).
   const liveStreams = useMemo(() => {
-    const evs = (liveQuery.data ?? []) as MinimalEvent[];
+    const evs = (liveQuery.events ?? []) as MinimalEvent[];
     const nowSec = Math.floor(Date.now() / 1000);
     const parsed = evs.map((ev) => {
       const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
@@ -733,11 +675,11 @@ export default function SharePage() {
       .sort((a, b) => a.starts - b.starts)
       .slice(0, 2);
     return { liveNow, upcoming, has: liveNow.length + upcoming.length > 0 };
-  }, [liveQuery.data]);
+  }, [liveQuery.events]);
 
   // NIP-38 status: latest non-expired "general" line + optional "music" now-playing.
   const status = useMemo(() => {
-    const evs = (statusQuery.data ?? []) as MinimalEvent[];
+    const evs = (statusQuery.events ?? []) as MinimalEvent[];
     const nowSec = Math.floor(Date.now() / 1000);
     const pick = (d: string) => {
       const matches = evs
@@ -751,7 +693,7 @@ export default function SharePage() {
       return text || null;
     };
     return { general: pick("general"), music: pick("music") };
-  }, [statusQuery.data]);
+  }, [statusQuery.events]);
 
   // "Posts about" — top hashtags across the notes + articles we already fetched.
   const topics = useMemo(() => {
@@ -771,21 +713,21 @@ export default function SharePage() {
           }
         }
     };
-    add((notesQuery.data ?? []) as MinimalEvent[]);
-    add((articlesQuery.data ?? []) as MinimalEvent[]);
+    add((notesQuery.events ?? []) as MinimalEvent[]);
+    add((articlesQuery.events ?? []) as MinimalEvent[]);
     // Top 6 by frequency — capped so the row stays a single line (TopicChips also
     // clips any overflow, so it never wraps to a second line on mobile).
     return [...counts.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
       .map(([t]) => t);
-  }, [notesQuery.data, articlesQuery.data]);
+  }, [notesQuery.events, articlesQuery.events]);
 
-  const featured = ((pinnedQuery.data ?? [])[0] ?? null) as MinimalEvent | null;
+  const featured = ((pinnedQuery.events ?? [])[0] ?? null) as MinimalEvent | null;
 
   // NIP-52 calendar events → upcoming (soonest-first) + a small past group.
   const calendarEvents = useMemo(() => {
-    const evs = (eventsQuery.data ?? []) as MinimalEvent[];
+    const evs = (eventsQuery.events ?? []) as MinimalEvent[];
     const nowSec = Math.floor(Date.now() / 1000);
     const parsed = evs
       .map((ev) => {
@@ -802,7 +744,7 @@ export default function SharePage() {
       .sort((a, b) => b.start - a.start)
       .slice(0, 2);
     return { upcoming, past };
-  }, [eventsQuery.data]);
+  }, [eventsQuery.events]);
 
   // Rich-note references: collect the pubkeys + event ids the notes mention /
   // reply to / quote / repost, then resolve them in two batched relay queries so
@@ -810,7 +752,7 @@ export default function SharePage() {
   // The featured post counts too: pinned months ago, it is rarely among the
   // latest notes, and without it here its @mentions read as "@nprofile1q…"
   // (Joe Martin's pinned music video, 2026-09-05).
-  const noteEvents = useMemo(() => (notesQuery.data ?? []) as MinimalEvent[], [notesQuery.data]);
+  const noteEvents = useMemo(() => (notesQuery.events ?? []) as MinimalEvent[], [notesQuery.events]);
   // Everything these notes refer to — quoted events, articles, and a profile
   // for everyone mentioned, answered or quoted, plus the bio's own mentions —
   // through the hook the search page shares (one recipe, both pages).
@@ -903,7 +845,7 @@ export default function SharePage() {
 
   const profileLoading = liveProfile.loading;
   const hasContent =
-    (notesQuery.data?.length ?? 0) > 0 ||
+    (notesQuery.events?.length ?? 0) > 0 ||
     photos.length > 0 ||
     articles.length > 0 ||
     sellingCount > 0 ||
@@ -1533,7 +1475,7 @@ export default function SharePage() {
               className={orderClass("articles")}
             >
               <div className="space-y-3">
-                {(articlesQuery.data ?? []).map((ev) => (
+                {(articlesQuery.events ?? []).map((ev) => (
                   <EmbeddedArticleCard
                     key={ev.id}
                     event={ev as MinimalEvent}

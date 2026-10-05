@@ -1538,16 +1538,21 @@ export interface MuteMetadata {
   timestamp: number;
 }
 
-export async function fetchReportsForPubkey(targetPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {
-  const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], "#p": [targetPubkey] }, timeoutMs);
-  return events.map((event) => ({
+/** A kind-1984 event as a report about `targetPubkey`. */
+export function reportAbout(event: NostrEvent, targetPubkey: string): ReportMetadata {
+  return {
     reporterPubkey: event.pubkey,
     targetPubkey,
     // The `p` tag naming the target carries the NIP-56 report type.
     reportType: event.tags.find((tag) => tag[0] === "p" && tag[1] === targetPubkey && tag[2])?.[2] ?? "other",
     timestamp: event.created_at,
     reason: event.content || "",
-  }));
+  };
+}
+
+export async function fetchReportsForPubkey(targetPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {
+  const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], "#p": [targetPubkey] }, timeoutMs);
+  return events.map((event) => reportAbout(event, targetPubkey));
 }
 
 export async function fetchReportsByPubkey(reporterPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {

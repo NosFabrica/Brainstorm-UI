@@ -4,6 +4,7 @@ import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { fetchProfileMap, refreshProfileEvent } from "@/services/nostr";
 import { profileContentOf } from "@/lib/profileContent";
 import { eventStore } from "@/lib/eventStore";
+import { __resetAsks, claim, inFlightFor, isDue, track } from "@/lib/askOnce";
 import { newerEvent, useHeldReplaceable, useHeldReplaceables } from "@/hooks/useHeldEvents";
 
 /**
@@ -11,35 +12,26 @@ import { newerEvent, useHeldReplaceable, useHeldReplaceables } from "@/hooks/use
  * 10–15 minutes, picked per ask so a page of hundreds asked together doesn't
  * come due together.
  */
-const ASK_MIN_MS = 10 * 60_000;
-const ASK_SPREAD_MS = 5 * 60_000;
-const askedUntil = new Map<string, number>();
-const inFlight = new Map<string, Promise<unknown>>();
+const ASK_WINDOW = { minMs: 10 * 60_000, spreadMs: 5 * 60_000 };
+const askKey = (pubkey: string) => `profile:${pubkey}`;
 
 /**
  * The people here due an ask, claimed. Only an ask that FOUND something covers
  * the next mount: someone still not in the store is asked again.
  */
 function claimDue(pubkeys: string[]): string[] {
-  const now = Date.now();
   const due = pubkeys.filter(
-    (pk) => !inFlight.has(pk) && ((askedUntil.get(pk) ?? 0) <= now || !eventStore.getReplaceable(0, pk)),
+    (pk) => !inFlightFor(askKey(pk)) && (isDue(askKey(pk)) || !eventStore.getReplaceable(0, pk)),
   );
-  due.forEach((pk) => askedUntil.set(pk, now + ASK_MIN_MS + Math.random() * ASK_SPREAD_MS));
+  due.forEach((pk) => claim(askKey(pk), ASK_WINDOW));
   return due;
 }
 
-function track<T>(pubkeys: string[], ask: Promise<T>): Promise<T> {
-  pubkeys.forEach((pk) => inFlight.set(pk, ask));
-  const clear = () => pubkeys.forEach((pk) => inFlight.get(pk) === ask && inFlight.delete(pk));
-  ask.then(clear, clear);
-  return ask;
-}
+const trackProfiles = <T>(pubkeys: string[], ask: Promise<T>) => track(pubkeys.map(askKey), ask);
 
 /** Test seam. */
 export function __resetAskedProfiles(): void {
-  askedUntil.clear();
-  inFlight.clear();
+  __resetAsks();
 }
 
 /** Start the ask a profile page would make on mount, ahead of it — e.g. on a search click. */
@@ -49,11 +41,11 @@ export function warmProfile(pubkey: string, relayHints: string[] = []): void {
 
 function askOnce(pubkey: string, relayHints: string[]): Promise<unknown> | undefined {
   return claimDue([pubkey]).length
-    ? track(
+    ? trackProfiles(
         [pubkey],
         refreshProfileEvent(pubkey, { relayHints }).catch(() => null),
       )
-    : inFlight.get(pubkey);
+    : inFlightFor(askKey(pubkey));
 }
 
 /**
@@ -127,7 +119,7 @@ export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> 
   useEffect(() => {
     if (!key) return;
     const pubkeys = key.split(",");
-    const joined = new Set(pubkeys.filter((pk) => inFlight.has(pk)).map((pk) => inFlight.get(pk)!));
+    const joined = new Set(pubkeys.map((pk) => inFlightFor(askKey(pk))).filter((ask) => !!ask));
     const due = claimDue(pubkeys);
     let alive = true;
     const take = (found: unknown) => {
@@ -136,7 +128,7 @@ export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> 
     };
     // Asks already out for some of these people answer this list too.
     joined.forEach((ask) => ask.then(take, () => {}));
-    if (due.length) track(due, fetchProfileMap(due)).then(take, () => {});
+    if (due.length) trackProfiles(due, fetchProfileMap(due)).then(take, () => {});
     return () => {
       alive = false;
     };
