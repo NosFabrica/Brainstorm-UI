@@ -5632,6 +5632,10 @@ export default function AdminPage() {
                                         setActiveTab("trusted-lists");
                                         window.scrollTo({ top: 0 });
                                       }}
+                                      dictionary={{
+                                        taPubkey: u.ta_pubkey,
+                                        name: prof?.name || `${npub.slice(0, 12)}…`,
+                                      }}
                                       testIdSuffix={i}
                                     />
                                   </td>
@@ -5843,6 +5847,10 @@ export default function AdminPage() {
                                 setTrustedListsObserver(u.pubkey);
                                 setActiveTab("trusted-lists");
                                 window.scrollTo({ top: 0 });
+                              }}
+                              dictionary={{
+                                taPubkey: u.ta_pubkey,
+                                name: prof?.name || `${npub.slice(0, 12)}…`,
                               }}
                               testIdSuffix={`card-${i}`}
                             />

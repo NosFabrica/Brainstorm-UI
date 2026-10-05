@@ -908,7 +908,10 @@ export async function fetchListingFamily(
 
 /** Any filter against the search relay, with the lens it requires; EOSE or
  *  timeout resolves, never rejects. */
-function fetchFromSearchRelayByFilters(filters: Record<string, unknown>[], timeoutMs: number): Promise<NostrEvent[]> {
+export function fetchFromSearchRelayByFilters(
+  filters: Record<string, unknown>[],
+  timeoutMs: number,
+): Promise<NostrEvent[]> {
   return new Promise((resolve) => {
     let relay: ReturnType<typeof searchRelay>;
     try {
