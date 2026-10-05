@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
-import { fetchRecentByKinds } from "@/services/nostr";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { fetchSimilarListings } from "@/services/search";
 import { APP_TAGS, LISTING_KIND, isSellable, parseListing } from "@/lib/listing";
@@ -9,6 +8,7 @@ import { productsFromEvents, splitVariantTitle, type ProductCard } from "@/lib/l
 import { eventPath } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { ListingCard } from "@/components/search/cards";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 
 type ListingLike = Pick<NostrEvent, "id" | "pubkey" | "kind" | "created_at" | "tags">;
 
@@ -26,35 +26,33 @@ const sellable = (evs: NostrEvent[]) =>
  * is selling is the point of a web-of-trust shop.
  */
 export function ListingRelated({ event, sellerName }: { event: ListingLike; sellerName?: string }) {
-  const [mine, setMine] = useState<ProductCard<NostrEvent>[]>([]);
-  // Everything the seller has, counted, for the row's door to their page.
-  const [mineTotal, setMineTotal] = useState(0);
-  const [options, setOptions] = useState<{ id: string; pubkey: string; label: string }[]>([]);
   const [similar, setSimilar] = useState<NostrEvent[]>([]);
+  const address = addressOf(event);
+
+  // As deep as the profile's shelf asks: a seller's newest listings can be
+  // a run of hidden copies (Staci's shop, 2026-09-24), and thirty of those
+  // left this row empty while her profile showed 36 products.
+  const sellerEvents = useRecentByKinds(event.pubkey, [LISTING_KIND], 100).events;
+  // The seller's things as products. The product this listing belongs to
+  // gives its other sizes as options; the rest are "more for sale" — counted,
+  // for the row's door to their page.
+  const { mine, mineTotal, options } = useMemo(() => {
+    const products = productsFromEvents(sellerEvents);
+    const isThis = (m: { id: string; pubkey: string; d: string }) =>
+      m.id === event.id || `${LISTING_KIND}:${m.pubkey}:${m.d}` === address;
+    const own = products.find((p) => p.group.members.some(isThis));
+    const others = products.filter((p) => p !== own);
+    return {
+      mine: others.slice(0, 4) as ProductCard<NostrEvent>[],
+      mineTotal: others.length,
+      options: (own?.group.members ?? [])
+        .filter((m) => !isThis(m))
+        .map((m) => ({ id: m.id, pubkey: m.pubkey, label: splitVariantTitle(m.title).option ?? m.title })),
+    };
+  }, [sellerEvents, event.id, address]);
 
   useEffect(() => {
     let alive = true;
-    const address = addressOf(event);
-    // As deep as the profile's shelf asks: a seller's newest listings can be
-    // a run of hidden copies (Staci's shop, 2026-09-24), and thirty of those
-    // left this row empty while her profile showed 36 products.
-    void fetchRecentByKinds(event.pubkey, [LISTING_KIND], 100).then((evs) => {
-      if (!alive) return;
-      // The seller's things as products. The product this listing belongs to
-      // gives its other sizes as options; the rest are "more for sale".
-      const products = productsFromEvents(evs);
-      const isThis = (m: { id: string; pubkey: string; d: string }) =>
-        m.id === event.id || `${LISTING_KIND}:${m.pubkey}:${m.d}` === address;
-      const own = products.find((p) => p.group.members.some(isThis));
-      setOptions(
-        (own?.group.members ?? [])
-          .filter((m) => !isThis(m))
-          .map((m) => ({ id: m.id, pubkey: m.pubkey, label: splitVariantTitle(m.title).option ?? m.title })),
-      );
-      const others = products.filter((p) => p !== own);
-      setMineTotal(others.length);
-      setMine(others.slice(0, 4));
-    });
     // The listing's categories as the seller wrote them AND lower-cased — the
     // relay's tag filter is exact, marketplaces are not. App identifiers
     // (shopstr, plebeian…) stay out: they would match a whole catalogue.

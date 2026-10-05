@@ -7,7 +7,7 @@
  * to clickable domain chips. The row body opens the in-app event page —
  * a div-with-navigate, so the external anchors inside stay legal HTML.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { dlistOfEvent, parseDListMusician, parseDListSong } from "@/lib/dlists";
 import { Link, useLocation } from "wouter";
@@ -46,6 +46,7 @@ import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/sear
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { MediaImg } from "@/components/ui/media-img";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 
 function ago(created_at: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - created_at);
@@ -303,25 +304,10 @@ export function Snippet({
  */
 function QuotedNoteCard({ id, uri, query }: { id: string; uri: string; query: string }) {
   const [, navigate] = useLocation();
-  const [quoted, setQuoted] = useState<NostrEvent | null>(() => eventStore.getEvent(id) ?? null);
-  const [missing, setMissing] = useState(false);
-  useEffect(() => {
-    if (quoted) return;
-    let alive = true;
-    fetchEventsByIds([id])
-      .then((list) => {
-        if (!alive) return;
-        const hit = list.find((e) => e.id === id);
-        if (hit) setQuoted(hit);
-        else setMissing(true);
-      })
-      .catch(() => {
-        if (alive) setMissing(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [id, quoted]);
+  const held = !!eventStore.getEvent(id);
+  const lookup = useStoreEvents(held ? null : `quoted:${id}`, [{ ids: [id] }], () => fetchEventsByIds([id]));
+  const quoted = (lookup.events[0] as NostrEvent | undefined) ?? null;
+  const missing = !quoted && lookup.settled;
   if (missing) {
     return (
       <Link

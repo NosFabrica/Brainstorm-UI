@@ -2,8 +2,8 @@
 /**
  * How far the viewer's network reaches: the people they follow (their own
  * kind-3) and friends of friends (a sampled two-hop set from those follows'
- * contact lists — the dashboard's reading-feed graph, reused). One fetch per
- * viewer per session; signed out there is no "you", so it is empty and ready.
+ * contact lists — the dashboard's reading-feed graph, reused). Signed out
+ * there is no "you", so it is empty and ready.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -22,7 +22,7 @@ vi.mock("@/services/socialActions", () => ({
 vi.mock("@/services/nostr", () => ({ fetchEventsByAuthors: (...a: unknown[]) => eventsMock(...a) }));
 vi.mock("@/lib/relays", () => ({ CONTENT_RELAYS: ["wss://x"] }));
 
-import { useNetworkReach, __resetNetworkReach } from "./useNetworkReach";
+import { useNetworkReach } from "./useNetworkReach";
 
 function Probe({ me }: { me?: string }) {
   const r = useNetworkReach(me);
@@ -36,7 +36,6 @@ function Probe({ me }: { me?: string }) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  __resetNetworkReach();
 });
 
 describe("useNetworkReach", () => {
@@ -48,6 +47,7 @@ describe("useNetworkReach", () => {
 
   it("builds direct follows and friends-of-friends from real contact lists", async () => {
     contactsMock.mockResolvedValue({
+      id: "a".repeat(64),
       kind: 3,
       pubkey: ME,
       tags: [
@@ -59,6 +59,7 @@ describe("useNetworkReach", () => {
     });
     eventsMock.mockResolvedValue([
       {
+        id: "b".repeat(64),
         kind: 3,
         pubkey: F1,
         tags: [

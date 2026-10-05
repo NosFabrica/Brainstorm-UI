@@ -75,8 +75,6 @@ vi.mock("@/components/share/ShareButton", () => ({ ShareButton: () => null }));
 vi.mock("@/components/share/EntityMenu", () => ({ EntityMenu: () => null }));
 
 import { ArticleScreen } from "./ArticleScreen";
-import { __resetQuotedNotes } from "@/hooks/useQuotedNotes";
-import { __resetLinkedArticles } from "@/hooks/useLinkedArticles";
 
 const npub = nip19.npubEncode(DEREK);
 const nevent = nip19.neventEncode({ id: QUOTED.id });
@@ -102,10 +100,7 @@ const open = (content: string, tags?: string[][]) =>
     </QueryClientProvider>,
   );
 
-beforeEach(() => {
-  __resetQuotedNotes();
-  __resetLinkedArticles();
-});
+beforeEach(() => {});
 
 const expectRendered = async () => {
   const body = screen.getByTestId("article-body");

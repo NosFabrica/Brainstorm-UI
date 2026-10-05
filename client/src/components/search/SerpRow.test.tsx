@@ -27,14 +27,18 @@ vi.mock("@/services/nostr", () => ({
 // The real store verifies signatures (and jsdom's TextEncoder trips @noble),
 // so known-profile lookups are faked per test.
 const knownProfiles = new Map<string, NostrEvent>();
-vi.mock("@/lib/eventStore", () => ({
-  eventStore: {
-    getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
-    getEvent: () => undefined,
-    add: (event: NostrEvent) => event,
-    insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
-  },
-}));
+vi.mock("@/lib/eventStore", async () => {
+  const { of } = await import("rxjs");
+  return {
+    eventStore: {
+      timeline: () => of([]),
+      getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
+      getEvent: () => undefined,
+      add: (event: NostrEvent) => event,
+      insert$: { subscribe: () => ({ unsubscribe: () => {} }) },
+    },
+  };
+});
 import { nip19 } from "nostr-tools";
 // Link metadata comes from the link-preview service — faked so the row can
 // prove it turns a plain link into a card when the answer exists.

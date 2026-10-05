@@ -56,13 +56,9 @@ vi.mock("@/services/unfurl", () => ({ fetchUnfurl: async () => null }));
 
 import { EmbeddedNoteCard } from "./EmbeddedNoteCard";
 import { NoteContent } from "./NoteContent";
-import { __resetLinkedArticles } from "@/hooks/useLinkedArticles";
-import { __resetQuotedNotes } from "@/hooks/useQuotedNotes";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  __resetLinkedArticles();
-  __resetQuotedNotes();
 });
 
 describe("EmbeddedNoteCard", () => {
