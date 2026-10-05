@@ -520,7 +520,9 @@ export function ChatView({
 
       <div
         ref={scroller}
-        className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-5 sm:px-7"
+        // Vertical only. A scroller with overflow-y:auto scrolls sideways too the moment
+        // anything is wider than it; on a phone that was a thread you could drag left.
+        className="flex min-h-0 flex-1 touch-pan-y flex-col gap-2.5 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-7"
         data-testid="dm-thread"
       >
         <HistoryCard

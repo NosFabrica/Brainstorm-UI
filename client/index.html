@@ -2,7 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- viewport-fit=cover: without it an installed iPhone app reports every safe-area inset as
+         0, so the tab bar, sheets and the Messages composer that pad by them sat on the home bar. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
     <!-- No-flash theme: set class="dark" synchronously before first paint.
          Honors an explicit "dark" choice, and "system" when the OS prefers dark.
          Fresh visitors (no stored choice) stay LIGHT — we don't auto-dark a

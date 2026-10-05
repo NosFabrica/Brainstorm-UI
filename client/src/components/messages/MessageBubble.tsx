@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { AlertTriangle, Check, CheckCheck, Info, Loader2, Reply, SmilePlus, Timer, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Delivery, DmMessage } from "@/lib/dm/store";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FileMessage } from "./FileMessage";
 import { DmLinkPreview, firstPreviewableLink } from "./DmLinkPreview";
+import { MessageSheet } from "./MessageSheet";
 import { PersonAvatar, clockTime, firstName, type Profiles } from "./people";
 
 const URL_RE = /(https?:\/\/[^\s<>"')\]]+)/g;
@@ -42,6 +43,10 @@ function Linked({ text }: { text: string }) {
 }
 
 export const QUICK_REACTIONS = ["+", "😂", "🙏", "🔥", "😮"];
+
+/** How long a finger rests on a message before its menu opens, and how far it may drift. */
+const HOLD_MS = 450;
+const HOLD_SLOP_PX = 8;
 
 /**
  * A message no relay took. One held by a relay that wants the sender signed in says
@@ -199,21 +204,50 @@ export const MessageBubble = memo(function MessageBubble({
     grouped.set(label, { count: g.count + 1, mine: g.mine || r.author === me });
   }
 
-  const [actionsShown, setActionsShown] = useState(false);
-  // The reaction menu renders in a portal and takes focus, so focus-within no longer
-  // holds the row visible: track it, or the row fades and leaves the menu under nothing.
+  // Desktop: the buttons beside a bubble, shown on hover. The reaction menu renders in a
+  // portal and takes focus, so focus-within no longer holds the row visible: track it.
   const [reactOpen, setReactOpen] = useState(false);
+  // Touch: holding the bubble opens one menu. A tap does nothing, and the buttons never
+  // join the layout — beside a wide bubble they pushed the row past the screen edge.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const hold = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
+  const endHold = () => {
+    if (hold.current) clearTimeout(hold.current.timer);
+    hold.current = null;
+  };
+  const touchHold = {
+    onPointerDown: (e: React.PointerEvent) => {
+      if (e.pointerType !== "touch" || (e.target as HTMLElement).closest("a,button,input,textarea")) return;
+      endHold();
+      hold.current = {
+        x: e.clientX,
+        y: e.clientY,
+        timer: setTimeout(() => {
+          hold.current = null;
+          navigator.vibrate?.(10);
+          setSheetOpen(true);
+        }, HOLD_MS),
+      };
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const h = hold.current;
+      if (h && Math.hypot(e.clientX - h.x, e.clientY - h.y) > HOLD_SLOP_PX) endHold();
+    },
+    onPointerUp: endHold,
+    onPointerCancel: endHold,
+    // The phone's own long-press menu (select, look up) would open on top of ours.
+    onContextMenu: (e: React.MouseEvent) => {
+      if (window.matchMedia?.("(hover: none)").matches) e.preventDefault();
+    },
+  };
   const actions = (
     <span
       className={cn(
         // Revealed on hover only where there is hover: iOS Safari treats a tap that would
         // reveal content through :hover as hover alone and drops the click, so every link,
-        // preview and reply quote in a bubble took two taps. Touch reveals them by tapping
-        // the bubble instead.
-        "flex shrink-0 items-center gap-0.5 self-center opacity-0 transition-opacity focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100",
-        // On touch the hidden row would still hold its width beside the bubble, halving it
-        // on a phone: take it out of the layout until a tap shows it.
-        actionsShown || reactOpen ? "opacity-100" : "[@media(hover:none)]:hidden",
+        // preview and reply quote in a bubble took two taps. Touch holds the bubble instead.
+        "flex shrink-0 items-center gap-0.5 self-center opacity-0 transition-opacity focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:none)]:hidden",
+        reactOpen && "opacity-100",
         mine ? "order-first" : "",
       )}
     >
@@ -258,10 +292,7 @@ export const MessageBubble = memo(function MessageBubble({
         mine ? "justify-end" : "justify-start",
         highlight && "bg-amber-200/50 dark:bg-amber-400/15",
       )}
-      onClick={(e) => {
-        // A tap on the bubble itself (not a link, button or the actions) shows its actions on touch.
-        if (!(e.target as HTMLElement).closest("a,button,[role=menu],input,textarea")) setActionsShown((v) => !v);
-      }}
+      {...touchHold}
       data-testid="dm-message"
       data-message-id={message.id}
       data-mine={mine ? "true" : undefined}
@@ -271,23 +302,18 @@ export const MessageBubble = memo(function MessageBubble({
           {showAuthor && <PersonAvatar pubkey={message.author} profiles={profiles} size={32} />}
         </span>
       )}
-      <div className={cn("flex max-w-[85%] flex-col gap-1 sm:max-w-[78%]", mine ? "items-end" : "items-start")}>
+      <div className={cn("flex min-w-0 max-w-[85%] flex-col gap-1 sm:max-w-[78%]", mine ? "items-end" : "items-start")}>
         {!mine && group && showAuthor && (
           <span className="px-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
             {firstName(message.author, profiles)}
           </span>
         )}
-        <div
-          className={cn(
-            "flex items-center gap-1",
-            // A shown row that doesn't fit beside a wide bubble wraps below it on touch.
-            mine ? "justify-end [@media(hover:none)]:flex-wrap-reverse" : "[@media(hover:none)]:flex-wrap",
-          )}
-        >
+        <div className={cn("flex max-w-full items-center gap-1", mine && "justify-end")}>
           {!mine ? null : actions}
           <div
             className={cn(
-              "min-w-0 rounded-[18px] text-[15px] leading-[1.45]",
+              // Held on touch: no text selection or callout competing with the menu.
+              "min-w-0 rounded-[18px] text-[15px] leading-[1.45] [@media(hover:none)]:select-none [@media(hover:none)]:[-webkit-touch-callout:none]",
               file && !replyTo ? "p-1" : "px-3.5 py-2.5",
               mine
                 ? "rounded-br-md bg-brand-primary text-white"
@@ -313,7 +339,7 @@ export const MessageBubble = memo(function MessageBubble({
                     <span className="block font-semibold">
                       {replyTo.author === me ? "You" : firstName(replyTo.author, profiles)}
                     </span>
-                    <span className="line-clamp-2 opacity-90">
+                    <span className="line-clamp-2 opacity-90 [overflow-wrap:anywhere]">
                       {replyTo.kind === FILE_KIND ? "A file" : replyTo.rumor.content}
                     </span>
                   </>
@@ -333,7 +359,9 @@ export const MessageBubble = memo(function MessageBubble({
               <FileMessage meta={file} mine={mine} autoOpen={autoOpenFiles} />
             ) : (
               <>
-                <p className="whitespace-pre-wrap break-words">
+                {/* `anywhere`, not `break-word`: only it lets an npub or a long id shrink the
+                    bubble's minimum width, so one can't push the thread sideways. */}
+                <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
                   <Linked text={message.rumor.content} />
                 </p>
                 {previewUrl && <DmLinkPreview url={previewUrl} mine={mine} />}
@@ -374,6 +402,15 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         </span>
       </div>
+      <MessageSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        reactions={QUICK_REACTIONS}
+        text={file ? null : message.rumor.content}
+        onReact={(r) => onReact(message, r)}
+        onReply={() => onReply(message)}
+        onDetails={() => onDetails(message)}
+      />
     </div>
   );
 });
