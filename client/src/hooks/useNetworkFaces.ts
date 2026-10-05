@@ -1,5 +1,9 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
+import { fetchEventsByFilter } from "@/services/nostr";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { apiClient } from "@/services/api";
 import { lookupTrustSignals } from "@/services/trustSignals";
@@ -44,7 +48,7 @@ function parseFollowerEntries(res: unknown): { pubkey: string; influence: number
 /**
  * The handful of people in your network who've posted most recently — split into
  * follows and followers — for the small "active recently" avatar clusters on the
- * dashboard's Your Network tiles.
+ * dashboard's Your Network tiles. Faces fill in as notes and profiles land.
  *
  * Honest by construction: a face only appears if we actually saw a recent note
  * from them (ranked by its timestamp). We deliberately don't claim "online" —
@@ -52,62 +56,84 @@ function parseFollowerEntries(res: unknown): { pubkey: string; influence: number
  * app already knows: your real kind-3 follows and the backend's follower list;
  * one batched note query covers both sets, then one profile fetch for the pics.
  */
-export function useNetworkFaces(observer: string, enabled: boolean) {
-  return useQuery<NetworkFaces>({
-    queryKey: ["network-faces", observer],
-    enabled: enabled && !!observer,
+export function useNetworkFaces(observer: string, enabled: boolean): { data: NetworkFaces | undefined } {
+  const on = enabled && !!observer;
+  const contacts = useStoreReplaceable(3, on ? observer : null, () => fetchContactList(observer));
+  const followersQuery = useQuery({
+    queryKey: ["network-faces-followers", observer],
+    enabled: on,
+    staleTime: 5 * 60_000,
+    retry: false,
+    queryFn: () =>
+      apiClient.getUserConnections(observer, "followed_by", { limit: 100, order: "desc" }).catch(() => null),
+  });
+
+  const following = useMemo(() => Array.from(getFollowedPubkeys((contacts.event as never) ?? null)), [contacts.event]);
+  const followerEntries = useMemo(
+    () => parseFollowerEntries(followersQuery.data).filter((e) => e.pubkey !== observer),
+    [followersQuery.data, observer],
+  );
+  const followers = useMemo(() => followerEntries.map((e) => e.pubkey), [followerEntries]);
+  // Both sources in before the note ask: an author set that grows as they land would re-key it.
+  const sourcesIn = contacts.settled && followersQuery.isFetched;
+  const authors = useMemo(
+    () => (sourcesIn ? Array.from(new Set([...following, ...followers])).slice(0, MAX_AUTHORS) : []),
+    [sourcesIn, following, followers],
+  );
+  const authorsKey = authors.join(",");
+  const notesFilter = useMemo(() => ({ kinds: [1], authors, limit: 200 }), [authorsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const notes = useStoreEvents(
+    on && authors.length ? `network-faces:${authorsKey}` : null,
+    authors.length ? [notesFilter] : null,
+    () => fetchEventsByFilter(notesFilter).catch(() => []),
+  );
+
+  const lastActive = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const ev of notes.events) if (ev.created_at > (m.get(ev.pubkey) ?? 0)) m.set(ev.pubkey, ev.created_at);
+    return m;
+  }, [notes.events]);
+  const pick = (set: string[]) =>
+    set
+      .filter((pk) => lastActive.has(pk))
+      .sort((a, b) => (lastActive.get(b) ?? 0) - (lastActive.get(a) ?? 0))
+      .slice(0, FACES);
+  const followingTop = pick(following);
+  const followersTop = pick(followers);
+  const need = Array.from(new Set([...followingTop, ...followersTop]));
+  const profiles = useLiveProfiles(need);
+
+  // The following-side faces come from the contact list with no score. At most
+  // FACES×2 of them made the cut, so fetching house influence for the gaps is
+  // bounded — without it, half the pile would sit unringed next to a ringed half.
+  const scoreByPk = useMemo(() => new Map(followerEntries.map((e) => [e.pubkey, e.influence])), [followerEntries]);
+  const unscored = need.filter((pk) => scoreByPk.get(pk) == null).sort();
+  const extraScores = useQuery({
+    queryKey: ["network-faces-scores", unscored.join(",")],
+    enabled: notes.settled && unscored.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
     queryFn: async () => {
-      const [following, followersRes] = await Promise.all([
-        fetchContactList(observer)
-          .then((c) => Array.from(getFollowedPubkeys(c)))
-          .catch(() => [] as string[]),
-        apiClient.getUserConnections(observer, "followed_by", { limit: 100, order: "desc" }).catch(() => null),
-      ]);
-      const followerEntries = parseFollowerEntries(followersRes).filter((e) => e.pubkey !== observer);
-      const followers = followerEntries.map((e) => e.pubkey);
-      const scoreByPk = new Map(followerEntries.map((e) => [e.pubkey, e.influence]));
-      const authors = Array.from(new Set([...following, ...followers])).slice(0, MAX_AUTHORS);
-      if (authors.length === 0) return { following: [], followers: [] };
-
-      const events = await fetchEventsByFilter({ kinds: [1], authors, limit: 200 }).catch(() => []);
-      const lastActive = new Map<string, number>();
-      for (const ev of events) {
-        const at = (ev as { created_at?: number }).created_at ?? 0;
-        if (at > (lastActive.get(ev.pubkey) ?? 0)) lastActive.set(ev.pubkey, at);
-      }
-
-      const pick = (set: string[]) =>
-        set
-          .filter((pk) => lastActive.has(pk))
-          .sort((a, b) => (lastActive.get(b) ?? 0) - (lastActive.get(a) ?? 0))
-          .slice(0, FACES);
-      const followingTop = pick(following);
-      const followersTop = pick(followers);
-
-      const need = Array.from(new Set([...followingTop, ...followersTop]));
-      const profiles = need.length ? await fetchProfileMap(need).catch(() => new Map()) : new Map();
-      // The following-side faces come from the contact list with no score. At
-      // most FACES×2 of them made the cut, so fetching house influence for the
-      // gaps is bounded (one batched call for ≤10 pubkeys) —
-      // without it, half the pile would sit unringed next to a ringed half.
+      const out = new Map<string, number>();
       await Promise.allSettled(
-        need
-          .filter((pk) => scoreByPk.get(pk) == null)
-          .map(async (pk) => {
-            const { influence } = await lookupTrustSignals(pk);
-            if (influence !== null) scoreByPk.set(pk, influence);
-          }),
+        unscored.map(async (pk) => {
+          const { influence } = await lookupTrustSignals(pk);
+          if (influence !== null) out.set(pk, influence);
+        }),
       );
-      const toFace = (pk: string): NetworkFace => ({
-        pubkey: pk,
-        picture: profiles.get(pk)?.picture,
-        name: profiles.get(pk)?.display_name || profiles.get(pk)?.name,
-        lastActive: lastActive.get(pk) ?? 0,
-        score01: scoreByPk.get(pk) ?? null,
-      });
-      return { following: followingTop.map(toFace), followers: followersTop.map(toFace) };
+      return out;
     },
   });
+
+  if (!on) return { data: undefined };
+  if (sourcesIn && authors.length === 0) return { data: { following: [], followers: [] } };
+  if (!notes.settled && !notes.events.length) return { data: undefined };
+  const toFace = (pk: string): NetworkFace => ({
+    pubkey: pk,
+    picture: profiles.get(pk)?.picture,
+    name: profiles.get(pk)?.display_name || profiles.get(pk)?.name,
+    lastActive: lastActive.get(pk) ?? 0,
+    score01: scoreByPk.get(pk) ?? extraScores.data?.get(pk) ?? null,
+  });
+  return { data: { following: followingTop.map(toFace), followers: followersTop.map(toFace) } };
 }

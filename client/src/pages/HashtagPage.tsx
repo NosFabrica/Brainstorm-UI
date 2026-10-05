@@ -9,7 +9,10 @@ import { EntityMenu } from "@/components/share/EntityMenu";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
-import { searchContentByHashtag, rankHashtagEvents, type SortMode } from "@/lib/contentSearch";
+import { scoreHashtagAuthors, rankHashtagEvents, type SortMode } from "@/lib/contentSearch";
+import { fetchNotesByHashtag } from "@/services/nostr";
+import { isBlankEvent } from "@/lib/blankEvent";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { getActivePreset, presetDisplayLabel, presetDescription, type TrustPreset } from "@/services/trustThreshold";
 import { eventPath } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -121,15 +124,28 @@ export default function HashtagPage() {
   const [sort, setSort] = useState<SortMode>("latest");
   const [preset, setPreset] = useState<TrustPreset>(() => getActivePreset());
 
-  const contentQuery = useQuery({
-    queryKey: ["hashtag-content", tag],
-    queryFn: () => searchContentByHashtag(tag),
-    enabled: !!tag,
+  const hashtagFilter = useMemo(() => ({ kinds: [1, 30023], "#t": [tag], limit: 100 }), [tag]);
+  const notes = useStoreEvents(
+    tag ? `hashtag:${tag}` : null,
+    tag ? [hashtagFilter] : null,
+    () => fetchNotesByHashtag(tag),
+    {
+      minMs: 60_000,
+    },
+  );
+  const candidates = useMemo(() => notes.events.filter((e) => !isBlankEvent(e)), [notes.events]);
+  // Scored once the notes are in, so the trust lookups aren't re-keyed per arriving note.
+  const scoredAuthors = useMemo(
+    () => (notes.settled ? Array.from(new Set(candidates.map((e) => e.pubkey))).join(",") : ""),
+    [notes.settled, candidates],
+  );
+  const scoresQuery = useQuery({
+    queryKey: ["hashtag-scores", scoredAuthors],
+    queryFn: () => scoreHashtagAuthors(candidates),
+    enabled: !!scoredAuthors,
     staleTime: 60_000,
   });
-
-  const candidates = useMemo(() => contentQuery.data?.events ?? [], [contentQuery.data]);
-  const scores = useMemo(() => contentQuery.data?.scores ?? new Map<string, number>(), [contentQuery.data]);
+  const scores = useMemo(() => scoresQuery.data ?? new Map<string, number>(), [scoresQuery.data]);
 
   // Page-local filter + sort: strictness (threshold) and Top/Latest re-apply instantly.
   // Auto-widen: a near-empty page is a worse first impression than a slightly
@@ -171,7 +187,7 @@ export default function HashtagPage() {
   const authorPubkeys = useMemo(() => [...new Set(events.map((ev) => ev.pubkey))], [events]);
   const { profiles, eventsById, addrByCoord } = useNoteRefs(events as MinimalEvent[], { extraPubkeys: authorPubkeys });
 
-  const loading = contentQuery.isLoading;
+  const loading = notes.loading || (!!scoredAuthors && scoresQuery.isLoading);
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/t/${tag}` : "";
 
   return (

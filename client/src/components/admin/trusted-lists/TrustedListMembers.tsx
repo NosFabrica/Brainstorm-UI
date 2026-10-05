@@ -22,7 +22,7 @@ export function TrustedListMembers({
 }) {
   const { toast } = useToast();
   const list = useQuery({
-    queryKey: ["trusted-list", signingPubkey, dTag],
+    queryKey: ["trusted-list", observer, signingPubkey, dTag],
     queryFn: () => loadTrustedList({ observer, signingPubkey, dTag }),
   });
   const pubkeys = list.data?.members.map((m) => m.pubkey) ?? [];
