@@ -15,16 +15,21 @@
  * so that one request held every later one — sends, decrypts, logins — until a
  * reload. The deadline is generous, as for the login challenge, because a person
  * may be unlocking the extension; the point is only that it ends.
+ *
+ * **A wrong profile is not a broken message.** An extension switched to another
+ * profile decrypts with that profile's key, and the failure looks exactly like a
+ * corrupt ciphertext. Before a decrypt failure is blamed on the message, the
+ * extension is asked who it is now (`confirmProfile`).
  */
 import { ExtensionAccount } from "applesauce-accounts/accounts";
-import type { SerializedAccount } from "applesauce-accounts";
+import { SignerMismatchError, type SerializedAccount } from "applesauce-accounts";
 import { isHexKey } from "applesauce-core/helpers";
 import { verifyEvent, type EventTemplate, type VerifiedEvent } from "applesauce-core/helpers/event";
 import { ExtensionMissingError, ExtensionSigner } from "applesauce-signers";
 
 import type { AccountMetadata } from "./metadata";
 import { withTimeout } from "./remote-signer";
-import { SignerDeclinedError } from "./signer-errors";
+import { classifySignerError, SignerDeclinedError } from "./signer-errors";
 
 export const EXTENSION_TIMEOUT_MS = 90_000;
 
@@ -67,7 +72,7 @@ async function text(request: () => Promise<unknown>): Promise<string> {
  * after the DM engine has started — so that is asked when called, and fails as
  * "missing" (try again later) rather than "can't" (pause for good).
  */
-function timedCipher(pick: (nostr: Nip07) => Cipher | undefined) {
+function timedCipher(pick: (nostr: Nip07) => Cipher | undefined, signer: TimedExtensionSigner) {
   const nostr = (window as unknown as { nostr?: Nip07 }).nostr;
   if (nostr && !pick(nostr)) return undefined;
   const cipher = () => {
@@ -77,17 +82,38 @@ function timedCipher(pick: (nostr: Nip07) => Cipher | undefined) {
   };
   return {
     encrypt: (pubkey: string, plaintext: string) => text(() => cipher().encrypt(pubkey, plaintext)),
-    decrypt: (pubkey: string, ciphertext: string) => text(() => cipher().decrypt(pubkey, ciphertext)),
+    decrypt: async (pubkey: string, ciphertext: string) => {
+      try {
+        return await text(() => cipher().decrypt(pubkey, ciphertext));
+      } catch (error) {
+        // A ciphertext that won't open is the message's fault — or a key that isn't
+        // this account's. Only the extension can say which; ask before blaming it.
+        if (classifySignerError(error) === "bad-payload") await signer.confirmProfile();
+        throw error;
+      }
+    },
   };
 }
 
+/** How long one "still on this profile" answer stands, so a run of broken messages asks once. */
+const PROFILE_CONFIRMED_MS = 30_000;
+
 /** The library's signer, with a deadline on every request and a declined one thrown. */
 export class TimedExtensionSigner extends ExtensionSigner {
+  /**
+   * The account this signer signs for. NIP-07 has no "profile changed" event, and
+   * a decrypt with another profile's key fails exactly like a corrupt message —
+   * which is remembered as unreadable for good. Signing is guarded by the Account
+   * (`SignerMismatchError`); decrypting is guarded here, against this.
+   */
+  owner?: string;
+  private confirmed?: { at: number; check: Promise<void> };
+
   get nip04() {
-    return timedCipher((nostr) => nostr.nip04);
+    return timedCipher((nostr) => nostr.nip04, this);
   }
   get nip44() {
-    return timedCipher((nostr) => nostr.nip44);
+    return timedCipher((nostr) => nostr.nip44, this);
   }
 
   async getPublicKey(): Promise<string> {
@@ -104,6 +130,28 @@ export class TimedExtensionSigner extends ExtensionSigner {
     if (!verifyEvent(event as VerifiedEvent)) throw new Error("Extension returned an invalid event");
     return event as VerifiedEvent;
   }
+
+  /**
+   * Resolves while the extension is still on `owner`'s profile; throws
+   * `SignerMismatchError` once it isn't. Asks the extension afresh — its cached
+   * pubkey is the one from sign-in — and when it can't say (declined, no answer)
+   * that error stands instead: unconfirmed is never "the message is broken".
+   */
+  confirmProfile(): Promise<void> {
+    const owner = this.owner;
+    if (!owner) return Promise.resolve();
+    if (this.confirmed && Date.now() - this.confirmed.at < PROFILE_CONFIRMED_MS) return this.confirmed.check;
+    const check = (async () => {
+      const now = answered(await withTimeout(extension().getPublicKey(), EXTENSION_TIMEOUT_MS, LATE));
+      if (now !== owner) throw new SignerMismatchError("Your signer extension is on a different profile.");
+    })();
+    this.confirmed = { at: Date.now(), check };
+    // Only a confirmed match stands; a failure is asked again next time.
+    check.catch(() => {
+      if (this.confirmed?.check === check) this.confirmed = undefined;
+    });
+    return check;
+  }
 }
 
 /**
@@ -114,6 +162,7 @@ export class TimedExtensionSigner extends ExtensionSigner {
 export class BrainstormExtensionAccount<Metadata = AccountMetadata> extends ExtensionAccount<Metadata> {
   constructor(pubkey: string, signer: ExtensionSigner = new TimedExtensionSigner()) {
     super(pubkey, signer);
+    if (signer instanceof TimedExtensionSigner) signer.owner = pubkey;
   }
 
   static fromJSON<Metadata = AccountMetadata>(

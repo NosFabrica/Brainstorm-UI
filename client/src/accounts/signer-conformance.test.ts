@@ -19,11 +19,14 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrivateKeySigner } from "applesauce-signers";
-import { generateSecretKey } from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import type { EventTemplate } from "nostr-tools";
 
 import { accountManager } from "@/accounts";
 import { CHAT_KIND, makeRumor, unwrapGiftWrap, UnwrapError, wrapRumor } from "@/lib/dm/giftWrap";
+import { pool } from "@/lib/relayPool";
 import { dmAccountFor } from "@/services/dm";
+import { publishAlertPrefs } from "@/services/nostr";
 import type { SignerFailure } from "@/services/dm/engine";
 import { BrainstormExtensionAccount, EXTENSION_TIMEOUT_MS } from "./extension";
 import type { BrainstormAccount } from "./metadata";
@@ -89,7 +92,8 @@ async function openMessage(account: BrainstormAccount, fake: FakeExtension): Pro
 }
 
 type Expected = {
-  login: "ok" | "PERMISSION_DENIED" | "SIGN_CANCELLED" | "silent" | "other-profile";
+  /** "ok" signs in as whichever profile the extension is on now. */
+  login: "ok" | "PERMISSION_DENIED" | "SIGN_CANCELLED" | "silent";
   publish: "ok" | "declined" | "unreachable" | "other-profile";
   /** Whether relay sign-in records the reader's "no" and stops asking. */
   relaySaidNo?: boolean;
@@ -114,8 +118,8 @@ const MATRIX: [ExtensionBehaviour, Expected][] = [
     { login: "silent", publish: "unreachable", relaySaidNo: false, message: "unreachable", selfEncryption: false },
   ],
   ["no-nip44", { login: "ok", publish: "ok", message: "no-nip44", selfEncryption: false }],
-  // Its messages and self-encryption are the open gaps, below.
-  ["switched-profile", { login: "other-profile", publish: "other-profile", relaySaidNo: false }],
+  // Its self-encryption is covered where it would reach relays, below.
+  ["switched-profile", { login: "ok", publish: "other-profile", relaySaidNo: false, message: "wrong-account" }],
 ];
 
 beforeEach(() => {
@@ -136,15 +140,13 @@ describe.each(MATRIX)("an extension that %s", (behaviour, expected) => {
 
     if (expected.login === "ok") {
       expect(error).toBeUndefined();
-      expect(value?.pubkey).toBe(fake.pubkey);
+      expect(value?.pubkey).toBe(fake.currentPubkey);
       return;
     }
     const { code, message } = error as { code: string; message: string };
     if (expected.login === "silent") {
       expect(code).toBe("EXTENSION_FAILED");
       expect(message).toMatch(/didn't answer/);
-    } else if (expected.login === "other-profile") {
-      expect(message).toMatch(/different profile/);
     } else {
       expect(code).toBe(expected.login);
     }
@@ -200,6 +202,19 @@ describe.each(MATRIX)("an extension that %s", (behaviour, expected) => {
   }
 });
 
+describe("an extension that switches profile mid-login", () => {
+  it("says so, rather than that signing failed", async () => {
+    installExtension("works");
+    const other = generateSecretKey();
+    const nostr = (globalThis as unknown as { window: { nostr: Record<string, unknown> } }).window.nostr;
+    nostr.signEvent = async (t: EventTemplate) => finalizeEvent(t, other);
+    const { handleLogin } = await import("./login-flow");
+    const { error } = await settled(handleLogin());
+    expect((error as Error).message).toMatch(/different profile/);
+    expect(accountManager.active).toBeUndefined();
+  });
+});
+
 describe("an extension that injects late", () => {
   it("is still found by login, within the wait", async () => {
     const fake = installExtension("works", { after: 500 });
@@ -246,11 +261,35 @@ describe("an extension that injects after private messages started", () => {
   });
 });
 
-describe("open gaps", () => {
-  // A switched profile decrypts with the wrong key, and the MAC failure reads as a
-  // broken payload — remembered as unreadable. NIP-07 can't say which key it used.
-  it.todo("a switched profile's failed decrypt is not remembered as broken");
-  // encryptToSelf on a switched profile seals to the wrong key without an error,
-  // so DM prefs sync could publish a copy this account can't open.
-  it.todo("a switched profile can't publish a self-encrypted copy it can't read back");
+describe("a message that really won't open", () => {
+  it("is still remembered as broken once the extension confirms its profile — asked once for a run of them", async () => {
+    const fake = installExtension("works");
+    const account = new BrainstormExtensionAccount(fake.pubkey) as unknown as BrainstormAccount;
+    const dm = dmAccountFor(account);
+    // Sealed for someone else: no key this account holds can open it.
+    const stranger = getPublicKey(generateSecretKey());
+    const wraps = await Promise.all([1, 2, 3].map(() => messageTo(stranger, "not yours")));
+    const opened = await settled(Promise.allSettled(wraps.map((wrap) => unwrapGiftWrap(wrap, dm.decrypt!))));
+    for (const result of opened.value!) {
+      const error = result.status === "rejected" ? result.reason : undefined;
+      expect(error instanceof UnwrapError ? "broken" : dm.classify(error)).toBe("broken");
+    }
+    expect(fake.calls.filter((call) => call === "getPublicKey")).toHaveLength(1);
+  });
+});
+
+describe("a self-encrypted copy from a switched profile", () => {
+  it("never reaches a relay: signing it fails as the wrong profile", async () => {
+    const fake = installExtension("switched-profile");
+    const account = new BrainstormExtensionAccount(fake.pubkey) as unknown as BrainstormAccount;
+    accountManager.addAccount(account);
+    accountManager.setActive(account);
+    const publish = vi.spyOn(pool, "publish");
+
+    const { value: outcome } = await settled(publishAlertPrefs({ muted: [] }, "test-prefs"));
+
+    expect(outcome?.success).toBe(false);
+    expect(outcome?.error).toMatch(/different profile/);
+    expect(publish).not.toHaveBeenCalled();
+  });
 });

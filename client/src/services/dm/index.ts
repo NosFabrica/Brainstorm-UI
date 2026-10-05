@@ -29,6 +29,8 @@ function classifyFor(account: BrainstormAccount) {
     if (kind === "cancelled") return "cancelled";
     // Ran out of time, or the extension isn't here yet: not a "no", and not the message's fault.
     if (kind === "timeout" || kind === "missing") return "unreachable";
+    // The extension is on another profile: its key can't open these, but this account's can.
+    if (kind === "wrong-account") return "wrong-account";
     // A key held here can't say no: once unlocked, any failure is the payload's.
     if (account instanceof LocalAccount) return "broken";
     // A payload that won't decrypt is broken for good; anything else is the

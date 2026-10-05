@@ -356,6 +356,33 @@ describe("DmEngine", () => {
     expect(engine.store.rooms()).toHaveLength(1);
   });
 
+  it("holds the queue while the signer is on another profile, and opens it once it's back", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "hi", NOW - 60));
+    let switched = true;
+    const base = me.account();
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          if (switched) throw new Error("Your signer extension is on a different profile.");
+          return base.decrypt!(from, text);
+        },
+        classify: () => "wrong-account",
+      }),
+      { ...net, ...clock(), now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    expect(engine.state()).toMatchObject({ paused: "wrong-account", queued: 1, failed: 0 });
+    switched = false;
+    engine.allowDecrypt();
+    await settle();
+    expect(engine.store.rooms()).toHaveLength(1);
+    engine.stop();
+  });
+
   it("sends again once a relay that wanted a login signs the sender in", async () => {
     const me = person();
     const ana = person();

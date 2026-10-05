@@ -78,7 +78,7 @@ export interface DmTransport {
   onAuthenticated(relay: string, callback: () => void): () => void;
 }
 
-export type SignerFailure = "cancelled" | "unreachable" | "refused" | "broken";
+export type SignerFailure = "cancelled" | "unreachable" | "refused" | "wrong-account" | "broken";
 
 export interface DmAccount {
   pubkey: string;
@@ -119,7 +119,7 @@ interface OutboxEntry {
   deliveries: Delivery[];
 }
 
-export type DmPause = "waiting" | "cancelled" | "unreachable" | "refused" | "no-nip44";
+export type DmPause = "waiting" | "cancelled" | "unreachable" | "refused" | "wrong-account" | "no-nip44";
 
 export interface DmEngineState {
   status: "starting" | "no-inbox" | "ready" | "stopped";

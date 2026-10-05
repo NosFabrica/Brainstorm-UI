@@ -115,6 +115,11 @@ export function signAs(account: BrainstormAccount, template: UnsignedTemplate): 
  * NIP-44 encrypt to the Account's own key. Through the Account, never
  * `window.nostr` — reaching for the extension directly silently fails for a
  * remote signer, and signs as the wrong identity when both are present.
+ *
+ * An extension switched to another profile seals this to the wrong key without
+ * an error — nothing in NIP-07 says which key it used. What stops that copy is the
+ * signature every caller puts on it next (`signAs` → `SignerMismatchError`), so
+ * a ciphertext from here must never be kept or sent unsigned.
  */
 export async function encryptToSelf(account: BrainstormAccount, plaintext: string): Promise<string | null> {
   try {

@@ -23,12 +23,14 @@ export type ExtensionBehaviour =
   | "never-answers"
   /** An extension without NIP-44: signs, can't encrypt. */
   | "no-nip44"
-  /** Switched to another profile since sign-in: signs as someone else. */
+  /** Switched to another profile since sign-in: answers, signs and decrypts as someone else. */
   | "switched-profile";
 
 export type FakeExtension = {
   /** The identity the account was signed in as. */
   pubkey: string;
+  /** The profile the extension is on now: `pubkey`, unless it switched. */
+  currentPubkey: string;
   /** Its secret key, to build what a counterparty would send. */
   secretKey: Uint8Array;
   /** Calls made, by method, to tell "asked" from "never asked". */
@@ -48,6 +50,7 @@ export function installExtension(
   const pubkey = getPublicKey(secretKey);
   // The key it actually signs with: another profile's, once switched.
   const signingKey = behaviour === "switched-profile" ? generateSecretKey() : secretKey;
+  const currentPubkey = getPublicKey(signingKey);
   const calls: string[] = [];
 
   const answer = <T>(method: string, work: () => T): Promise<T> => {
@@ -60,8 +63,7 @@ export function installExtension(
   const conversation = (counterparty: string) => nip44.getConversationKey(signingKey, counterparty);
 
   const nostr = {
-    // Asked at sign-in, before any profile switch.
-    getPublicKey: () => answer("getPublicKey", () => pubkey),
+    getPublicKey: () => answer("getPublicKey", () => currentPubkey),
     signEvent: (template: EventTemplate) => answer("signEvent", () => finalizeEvent(template, signingKey)),
     nip44:
       behaviour === "no-nip44"
@@ -80,7 +82,7 @@ export function installExtension(
   >);
   if (after === undefined) win.nostr = nostr;
   else setTimeout(() => (win.nostr = nostr), after);
-  return { pubkey, secretKey, calls };
+  return { pubkey, currentPubkey, secretKey, calls };
 }
 
 /** No extension at all. */
