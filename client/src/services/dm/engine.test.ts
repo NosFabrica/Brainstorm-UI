@@ -356,6 +356,33 @@ describe("DmEngine", () => {
     expect(engine.store.rooms()).toHaveLength(1);
   });
 
+  it("holds the queue while the signer is on another profile, and opens it once it's back", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "hi", NOW - 60));
+    let switched = true;
+    const base = me.account();
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          if (switched) throw new Error("Your signer extension is on a different profile.");
+          return base.decrypt!(from, text);
+        },
+        classify: () => "wrong-account",
+      }),
+      { ...net, ...clock(), now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    expect(engine.state()).toMatchObject({ paused: "wrong-account", queued: 1, failed: 0 });
+    switched = false;
+    engine.allowDecrypt();
+    await settle();
+    expect(engine.store.rooms()).toHaveLength(1);
+    engine.stop();
+  });
+
   it("sends again once a relay that wanted a login signs the sender in", async () => {
     const me = person();
     const ana = person();
@@ -531,6 +558,80 @@ describe("DmEngine", () => {
     expect(sent.message?.outgoing?.status).toBe("failed");
     engine.discard(sent.message!.id);
     expect(engine.store.room(room)).toBeUndefined();
+  });
+
+  it("a discarded message stays gone after a reload, though the reader's own copy reached their relay", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    const cache = memoryCache();
+    // Ana's relay is down; the reader's own takes their copy.
+    const transport: DmTransport = {
+      ...net.transport,
+      publish: async (relay, event) =>
+        relay === "wss://ana.example/" ? { ok: false, message: "down" } : net.transport.publish(relay, event),
+    };
+    const time = clock();
+    const first = new DmEngine(me.account(), {
+      ...net,
+      transport,
+      cache,
+      sealer: plainSealer,
+      ...time,
+      now: () => NOW,
+    });
+    await first.start();
+    await settle();
+    const room = roomKey([me.pubkey, ana.pubkey]);
+    const sent = await first.send(room, "never mind");
+    expect(sent.message?.outgoing?.status).toBe("failed");
+    first.discard(sent.message!.id);
+    time.flush(); // write what discard remembered
+    await settle();
+    first.stop();
+    await settle();
+
+    const second = new DmEngine(me.account(), {
+      ...net,
+      transport,
+      cache,
+      sealer: plainSealer,
+      ...clock(),
+      now: () => NOW,
+    });
+    await second.start();
+    await settle();
+    await settle();
+    expect(second.store.room(room)).toBeUndefined();
+  });
+
+  it.each([
+    ["refused", "Your signer extension declined the request."],
+    ["wrong-account", "Your signer extension is on a different profile."],
+    ["cancelled", "Cancelled"],
+  ] as const)("a send the signer didn't sign (%s) leaves no bubble, only the error", async (reason, error) => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    const sealSigner: SealSigner = {
+      ...me.sealSigner,
+      signSeal: async () => {
+        throw new Error(error);
+      },
+    };
+    const engine = new DmEngine(me.account({ sealSigner, classify: () => reason }), {
+      ...net,
+      ...clock(),
+      now: () => NOW,
+    });
+    await engine.start();
+    await settle();
+    const room = roomKey([me.pubkey, ana.pubkey]);
+    const sent = await engine.send(room, "draft stays");
+    // No message: the composer keeps the draft, and sending it again asks the signer again.
+    expect(sent).toEqual({ ok: false, error });
+    expect(engine.store.room(room)).toBeUndefined();
+    expect(net.published).toEqual([]);
   });
 
   it("a wrap the signer keeps refusing can't hold the inbox shut", async () => {

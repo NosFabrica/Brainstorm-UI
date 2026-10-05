@@ -12,7 +12,7 @@ import type { EventTemplate } from "applesauce-accounts";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "./local-account";
 import { isUnlockCancelled } from "./local-signer";
-import { isRemoteSignerTimeout } from "./remote-signer";
+import { classifySignerError } from "./signer-errors";
 import type { BrainstormAccount } from "./metadata";
 
 /** Thrown where an event must be signed and no Account is active. */
@@ -39,6 +39,8 @@ export type PublishOutcome = {
   deferred?: boolean;
   /** The remote signer never answered — a person has to open or re-pair it. */
   signerUnreachable?: boolean;
+  /** The signer said no, or answered as another profile: asking again on a timer only asks again. */
+  declined?: boolean;
   relay?: string;
   accepted?: number;
   total?: number;
@@ -61,15 +63,38 @@ export type PublishOutcome = {
 const SIGNER_SILENT =
   "Your signer didn't answer. Open it and check for a pending request — or connect it again from your account menu.";
 
+const SIGNER_DECLINED = "Your signer declined the request.";
+
+/** NIP-07 has no "profile changed" event: the first anyone hears of a switch is a signature by someone else. */
+const SIGNER_OTHER_PROFILE =
+  "Your signer is on a different profile than this account. Switch back to it in your signer, then try again.";
+
 export function signingFailure(error: unknown, fallback = "Signing failed"): PublishOutcome {
-  if (isUnlockCancelled(error)) return { success: false, cancelled: true };
+  const kind = classifySignerError(error);
+  if (kind === "cancelled") return { success: false, cancelled: true };
   // Flagged, not just worded: a signer that has gone quiet is waiting on a person
   // to open or re-pair it, so a caller with a retry timer must stop rather than
   // re-ask every few seconds — each attempt burning another 30s deadline.
-  if (isRemoteSignerTimeout(error)) {
+  if (kind === "timeout") {
     return { success: false, error: SIGNER_SILENT, signerUnreachable: true };
   }
-  return { success: false, error: error instanceof Error ? error.message : fallback };
+  if (kind === "wrong-account") return { success: false, error: SIGNER_OTHER_PROFILE, declined: true };
+  // Amber's clipboard flow rejects with a bare string, not an Error.
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
+  if (kind === "declined") return { success: false, error: message || SIGNER_DECLINED, declined: true };
+  return { success: false, error: message };
+}
+
+/**
+ * What to tell someone whose publish threw: null for a cancel (they know), the
+ * signer's own words when it said no, answered as another profile or went
+ * quiet, and `network` for anything else — never "check your connection" for
+ * a request they just declined.
+ */
+export function signingProblem(error: unknown, network: string): string | null {
+  const outcome = signingFailure(error, "");
+  if (outcome.cancelled) return null;
+  return (outcome.declined || outcome.signerUnreachable) && outcome.error ? outcome.error : network;
 }
 
 /** The Account every user-published event is signed by, or undefined when signed out. */
@@ -106,22 +131,14 @@ export function signAs(account: BrainstormAccount, template: UnsignedTemplate): 
 }
 
 /**
- * Whether a signing error is the signer saying no — the reader declining the
- * prompt in their extension or bunker, or cancelling our unlock — rather than
- * the signer failing to answer at all (no extension, a dropped bunker, a
- * timeout). Only a "no" is the reader's decision; the rest is worth trying again.
- */
-export function signerSaidNo(error: unknown): boolean {
-  if (isUnlockCancelled(error)) return true;
-  if (isRemoteSignerTimeout(error)) return false;
-  const message = error instanceof Error ? error.message : String(error);
-  return /reject|denied|declin|cancel|refus|not (allowed|authori[sz]ed|permitted)|permission/i.test(message);
-}
-
-/**
  * NIP-44 encrypt to the Account's own key. Through the Account, never
  * `window.nostr` — reaching for the extension directly silently fails for a
  * remote signer, and signs as the wrong identity when both are present.
+ *
+ * An extension switched to another profile seals this to the wrong key without
+ * an error — nothing in NIP-07 says which key it used. What stops that copy is the
+ * signature every caller puts on it next (`signAs` → `SignerMismatchError`), so
+ * a ciphertext from here must never be kept or sent unsigned.
  */
 export async function encryptToSelf(account: BrainstormAccount, plaintext: string): Promise<string | null> {
   try {
@@ -155,6 +172,16 @@ export async function decryptFromSelf(account: BrainstormAccount, ciphertext: st
 export function canSignSilently(account: BrainstormAccount): Promise<boolean> {
   if (!(account instanceof LocalAccount) || !account.locked) return Promise.resolve(true);
   return account.unlockSilently();
+}
+
+/**
+ * Whether this Account can sign with nobody asked at all: a key held here that
+ * opens without our modal. An extension or bunker shows its own prompt for
+ * every request, so work the user didn't start — a sync riding on a page load —
+ * waits for them to do something instead.
+ */
+export async function canSignUnasked(account: BrainstormAccount): Promise<boolean> {
+  return !hasExternalSigner(account) && (await canSignSilently(account));
 }
 
 /**

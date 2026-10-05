@@ -28,6 +28,7 @@ export function SyncDetails() {
       cancelled: "your signer is locked",
       unreachable: "your signer isn't answering",
       refused: "your signer declined to open them",
+      "wrong-account": "your signer is on a different profile",
       "no-nip44": "your signer can't open private messages (no NIP-44)",
     }[state.paused];
   const more = state.history.relays.some((r) => r.state === "idle" || r.state === "loading" || r.retrying);

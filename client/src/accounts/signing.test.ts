@@ -15,10 +15,12 @@ import {
   NoSignerError,
   requireActiveAccount,
   signAs,
-  signerSaidNo,
   signingFailure,
+  signingProblem,
 } from "./signing";
 import { RemoteSignerTimeoutError } from "./remote-signer";
+import { SignerDeclinedError } from "./signer-errors";
+import { SignerMismatchError } from "applesauce-accounts";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 /** An Account that signs without asking — an extension or a bunker. */
@@ -243,18 +245,28 @@ describe("whether an account can sign silently", () => {
   });
 });
 
-describe("signerSaidNo", () => {
-  it("is the reader's own no: a declined prompt, or a cancelled unlock", () => {
-    expect(signerSaidNo(new UnlockCancelled())).toBe(true);
-    expect(signerSaidNo(new Error("User rejected the request"))).toBe(true);
-    expect(signerSaidNo(new Error("denied"))).toBe(true);
-    expect(signerSaidNo(new Error("Permission not granted"))).toBe(true);
+describe("signingProblem", () => {
+  const NET = "Check your connection and try again.";
+
+  it("says nothing for a cancel, and the signer's own words for a no or a wrong profile", () => {
+    expect(signingProblem(new UnlockCancelled(), NET)).toBeNull();
+    expect(signingProblem(new SignerDeclinedError("Your signer extension declined the request."), NET)).toBe(
+      "Your signer extension declined the request.",
+    );
+    expect(signingProblem(new SignerMismatchError("other profile"), NET)).toMatch(/different profile/);
+    expect(signingProblem(new RemoteSignerTimeoutError(), NET)).toMatch(/didn't answer/);
   });
 
-  it("is not a signer that couldn't answer at all", () => {
-    expect(signerSaidNo(new RemoteSignerTimeoutError())).toBe(false);
-    expect(signerSaidNo(new Error("window.nostr not found"))).toBe(false);
-    expect(signerSaidNo(new Error("Closed"))).toBe(false);
-    expect(signerSaidNo(new NoSignerError())).toBe(false);
+  it('keeps a decline that came as a bare string — Amber\'s "Canceled" — off the network message', () => {
+    expect(signingProblem("Canceled", NET)).toBe("Canceled");
+    expect(signingProblem(new Error(""), NET)).toBe(NET);
+  });
+
+  it("doesn't take a relay's timeout for a signer that went quiet", () => {
+    expect(signingProblem(new Error("COUNT timeout"), NET)).toBe(NET);
+  });
+
+  it("leaves anything else to the caller's network wording", () => {
+    expect(signingProblem(new Error("relay exploded"), NET)).toBe(NET);
   });
 });
