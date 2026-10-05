@@ -1,6 +1,20 @@
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import { Archive, BellOff, ChevronDown, EyeOff, Flag, Pin, Search, Settings2, SquarePen, Timer, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Archive,
+  BellOff,
+  ChevronDown,
+  EyeOff,
+  Flag,
+  Loader2,
+  Pin,
+  Search,
+  Settings2,
+  SquarePen,
+  Timer,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
 import type { DmRoom } from "@/lib/dm/store";
@@ -136,6 +150,42 @@ function interleave(rooms: DmRoom[], relays: RelayProgress[]): Item[] {
   return items.sort((a, b) => b.at - a.at || (a.kind === "marker" ? 1 : -1));
 }
 
+/**
+ * The inbox's history, said once: servers that aren't answering (with Retry),
+ * else older messages still on their way, else nothing. Replaces a row per
+ * relay in the list; a chat keeps its per-relay markers ("Keep looking").
+ */
+function HistoryStatus({ relays, onRetry }: { relays: RelayProgress[]; onRetry: (url: string) => void }) {
+  const silent = relays.filter((r) => r.state === "stalled");
+  const loading = relays.some((r) => r.state === "loading" || (r.opening ?? 0) > 0);
+  if (!silent.length && !loading) return null;
+  return (
+    <p
+      className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500 dark:text-slate-400"
+      data-testid="dm-history-status"
+    >
+      {silent.length ? (
+        <>
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+          {silent.length === 1 ? "1 server isn't responding" : `${silent.length} servers aren't responding`}
+          <button
+            type="button"
+            onClick={() => silent.forEach((r) => onRetry(r.url))}
+            className="ml-auto rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Retry
+          </button>
+        </>
+      ) : (
+        <>
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+          Loading older messages…
+        </>
+      )}
+    </p>
+  );
+}
+
 export function ConversationList({
   engine,
   state,
@@ -213,6 +263,9 @@ export function ConversationList({
   const items = useMemo(() => interleave(flowing, state.history.relays), [flowing, state.history.relays]);
   const [showArchived, setShowArchived] = useState(false);
   const requestCount = shelves.requests.length + shelves.low.length;
+  // A server has answered once the live subscription settles, or once any relay has
+  // delivered a page of history — one silent relay can hold "settled" off indefinitely.
+  const answered = state.liveSettled || state.history.relays.some((r) => r.state === "done" || r.pages > 0);
 
   return (
     <RowNearContext.Provider value={onPeopleNear ?? null}>
@@ -315,6 +368,14 @@ export function ConversationList({
               className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
               data-testid="dm-room-scroll"
             >
+              {tab === "requests" && (rooms.length > 0 || shelves.low.length > 0) && (
+                <p
+                  className="px-3 pb-1 pt-2 text-xs text-slate-500 dark:text-slate-400"
+                  data-testid="dm-requests-explainer"
+                >
+                  From people you don't follow, sorted by who your network trusts.
+                </p>
+              )}
               {tab === "requests" && rooms.length === 0 && shelves.low.length === 0 && (
                 <p className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">
                   No requests. People you don't follow land here, sorted by how your web of trust sees them.
@@ -322,7 +383,9 @@ export function ConversationList({
               )}
               {tab === "chats" && rooms.length === 0 && state.status === "ready" && (
                 <p className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">
-                  {state.history.loading || !state.liveSettled ? "Loading your messages…" : "No chats yet."}
+                  {/* Until any server answers; after that an empty inbox is empty, however
+                      long the slow ones take — they're the quiet line below. */}
+                  {answered ? "No chats yet." : "Loading your messages…"}
                 </p>
               )}
               {pinned.map((room) => (
@@ -354,11 +417,18 @@ export function ConversationList({
                     key={`m:${item.progress.url}`}
                     progress={item.progress}
                     variant="list"
+                    // Each relay's marker still pages its history as it scrolls into view, but
+                    // says nothing: a reader shouldn't need to know what a relay is to read their
+                    // messages. Only a relay that wants them signed in speaks up, since that needs
+                    // them. The rest is the one line under the list.
+                    quiet={item.progress.state !== "auth"}
                     onAdvance={advance}
                     onRetry={retry}
                   />
                 ),
               )}
+
+              <HistoryStatus relays={state.history.relays} onRetry={retry} />
 
               {tab === "chats" && shelves.archived.length > 0 && (
                 <div className="mt-3">
@@ -400,7 +470,7 @@ export function ConversationList({
                     data-testid="dm-low-trust-toggle"
                   >
                     <ChevronDown className={cn("h-4 w-4 transition-transform", !showLow && "-rotate-90")} />
-                    {shelves.low.length} below your trust threshold
+                    Low trust · {shelves.low.length} (previews hidden)
                   </button>
                   {showLow &&
                     shelves.low.map((room) => (
