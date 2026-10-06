@@ -2,10 +2,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { EventTemplate } from "nostr-tools";
+import { SignerMismatchError } from "applesauce-accounts";
 
 import { BrainstormExtensionAccount, EXTENSION_TIMEOUT_MS, TimedExtensionSigner } from "./extension";
 import { isRemoteSignerTimeout } from "./remote-signer";
-import { SignerDeclinedError, signerSaidNo } from "./signer-errors";
+import { classifySignerError, SignerDeclinedError, signerSaidNo } from "./signer-errors";
 
 const sk = generateSecretKey();
 const pubkey = getPublicKey(sk);
@@ -63,6 +64,45 @@ describe("TimedExtensionSigner", () => {
     const signer = new TimedExtensionSigner();
     await expect(signer.nip44!.decrypt(pubkey, "x")).rejects.toBeInstanceOf(SignerDeclinedError);
     await expect(signer.nip44!.encrypt(pubkey, "x")).rejects.toBeInstanceOf(SignerDeclinedError);
+  });
+
+  it("blames the message, not the signer, when it opens our own test but not this (Alby)", async () => {
+    // Alby resolves `undefined` for a ciphertext it can't open, and opens anything else.
+    const nostr = install({
+      nip44: {
+        encrypt: vi.fn(async (_: string, plaintext: string) => `sealed:${plaintext}`),
+        decrypt: vi.fn(async (_: string, ciphertext: string) =>
+          ciphertext.startsWith("sealed:") ? ciphertext.slice(7) : undefined,
+        ),
+      },
+    });
+    const signer = new TimedExtensionSigner();
+    signer.owner = pubkey;
+
+    const errors = await Promise.all(
+      ["spam1", "spam2", "spam3"].map((c) => signer.nip44!.decrypt(pubkey, c).catch((e: unknown) => e)),
+    );
+
+    for (const error of errors) {
+      expect(classifySignerError(error)).toBe("bad-payload");
+      expect(signerSaidNo(error)).toBe(false);
+    }
+    // One test message covers the whole run.
+    expect(nostr.nip44.encrypt).toHaveBeenCalledTimes(1);
+  });
+
+  it("still finds a wrong profile behind an empty decrypt", async () => {
+    install({
+      getPublicKey: async () => getPublicKey(generateSecretKey()),
+      nip44: {
+        encrypt: async (_: string, plaintext: string) => `sealed:${plaintext}`,
+        decrypt: async (_: string, ciphertext: string) =>
+          ciphertext.startsWith("sealed:") ? ciphertext.slice(7) : undefined,
+      },
+    });
+    const signer = new TimedExtensionSigner();
+    signer.owner = pubkey;
+    await expect(signer.nip44!.decrypt(pubkey, "x")).rejects.toBeInstanceOf(SignerMismatchError);
   });
 
   it("has no nip44 when the extension has none", () => {
