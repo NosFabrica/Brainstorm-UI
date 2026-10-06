@@ -108,8 +108,9 @@ export function Composer({
       className={cn(
         "shrink-0 border-t border-border bg-card px-4 pb-3 pt-3 sm:px-6 sm:pb-4",
         // While typing the tab bar steps aside and the composer reaches the bottom edge:
-        // keep the box above the phone's home indicator.
-        editing && "pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]",
+        // keep the box above the phone's home indicator — unless the keyboard is over it
+        // (MessagesPage sets --bs-bottom-inset to 0 then).
+        editing && "pb-[calc(0.75rem+var(--bs-bottom-inset,env(safe-area-inset-bottom,0px)))]",
       )}
     >
       {replyTo && (
@@ -187,7 +188,7 @@ export function Composer({
             placeholder={disabled ?? placeholder}
             disabled={!!disabled}
             aria-label="Message"
-            className="max-h-40 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-1 py-[11px] text-[15px] leading-snug outline-none [field-sizing:content] placeholder:text-slate-400"
+            className="max-h-40 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-1 py-[11px] text-[15px] leading-snug outline-none [field-sizing:content] placeholder:truncate placeholder:text-slate-400"
             data-testid="dm-composer"
           />
           {showMic && !busy ? (

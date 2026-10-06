@@ -80,6 +80,7 @@ import { PersonContentChips } from "@/components/search/PersonContentChips";
 import { PersonTagLabel } from "@/components/search/PersonTagLabel";
 import { IntentSuggestionRow } from "@/components/search/IntentSuggestionRow";
 import { SEARCH_BOX_CLASS, SEARCH_CLEAR_CLASS, SEARCH_ICON_CLASS } from "@/components/search/searchBoxChrome";
+import { isTouchScreen } from "@/lib/touchScreen";
 
 const NO_PUBKEYS: string[] = [];
 
@@ -499,8 +500,19 @@ export function SearchBox({
     [boxRef],
   );
 
+  /**
+   * On a touch screen a search, a pick or a "See all" is done typing: the keyboard goes,
+   * as native search does, and the tab bar (hidden while a field has focus) comes back
+   * over what opened. Kept, it covered the results, and iOS kept the page scrolled up
+   * under the status bar for the field. A desktop keeps the box focused for the next query.
+   */
+  const doneTyping = () => {
+    if (isTouchScreen()) (document.activeElement as HTMLElement | null)?.blur?.();
+  };
+
   /** Leave for a page the box picked: the panels close, and the host hears of it. */
   const leave = (path: string) => {
+    doneTyping();
     setShowSuggestions(false);
     setFocused(false);
     onLeave?.();
@@ -508,6 +520,7 @@ export function SearchBox({
   };
 
   const goToProfile = (result: SearchResult) => {
+    doneTyping();
     setShowSuggestions(false);
     setFocused(false);
     onLeave?.();
@@ -533,6 +546,7 @@ export function SearchBox({
 
   const runSearch = (q: string) => {
     cancelSuggest();
+    doneTyping();
     if (onSearch) {
       onSearch(q);
       return;
@@ -542,6 +556,7 @@ export function SearchBox({
   };
 
   const browse = (tab: string) => {
+    doneTyping();
     if (onBrowse) onBrowse(tab);
     else leave(`/?t=${encodeURIComponent(tab)}`);
   };
@@ -691,12 +706,6 @@ export function SearchBox({
             // `typed`, not `value`: a soft keyboard's action key commits text and submits
             // in one event, and React has not re-rendered yet.
             runSearch(typed);
-            // On a touch screen a search is done typing: the keyboard goes, as native
-            // search does, and the tab bar (hidden while a field has focus) comes back
-            // over the results. A desktop keeps the box focused for the next query.
-            if (window.matchMedia?.("(pointer: coarse)").matches) {
-              (document.activeElement as HTMLElement | null)?.blur?.();
-            }
           }}
           onKeyDown={(e) => {
             setEngaged(true);

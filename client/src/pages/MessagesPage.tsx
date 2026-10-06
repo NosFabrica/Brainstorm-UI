@@ -10,6 +10,7 @@ import { MessageSquare } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useEditingText } from "@/hooks/useEditingText";
+import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { useToast } from "@/hooks/use-toast";
 import { logout } from "@/accounts/login-flow";
 import { useDmEngine, useDmPrefs, useDmState, useShelves } from "@/hooks/useDirectMessages";
@@ -134,9 +135,12 @@ export default function MessagesPage() {
   const showChat = !!roomKey || composing;
   const setup = state.status === "no-inbox";
   const editing = useEditingText();
+  // Typing on a phone: held to the space above the keyboard, which iOS scrolls the page under.
+  const keyboardBox = useKeyboardViewport(editing);
 
   return (
     <div
+      style={keyboardBox}
       className={cn(
         "flex flex-col bg-background text-foreground",
         // The phone tab bar steps aside while a field has focus but keeps its share of the
