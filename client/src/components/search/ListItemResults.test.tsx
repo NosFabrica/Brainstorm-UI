@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
  * List items among the Everything results: "github vcavallo" shows the
- * GitHub account — to admins only, while the Dictionary is an internal demo.
+ * GitHub account — to everyone, signed in or not. (The Dictionary tab in
+ * Settings stays admin-only; that's SettingsPage's concern, not this one.)
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -13,9 +14,10 @@ const { GITHUB, BOOKS } = vi.hoisted(() => ({
 }));
 const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
 
-let admin = true;
+// Who's reading: an admin, anyone signed in, or a signed-out visitor (null).
+let viewer: { pubkey: string; isAdmin: boolean } | null = { pubkey: "1".repeat(64), isAdmin: true };
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
-  useActiveAccountDisplay: () => ({ pubkey: "1".repeat(64), isAdmin: admin }),
+  useActiveAccountDisplay: () => viewer,
 }));
 vi.mock("@/config/dictionary", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -56,8 +58,8 @@ const books = entryOf(
 
 const dictionaryAsked = vi.fn();
 vi.mock("@/hooks/useDictionary", () => ({
-  useDictionary: (enabled?: boolean) => {
-    dictionaryAsked(enabled);
+  useDictionary: (enabled?: boolean, opts?: unknown) => {
+    dictionaryAsked(enabled, opts);
     return { data: enabled === false ? undefined : [github, books] };
   },
 }));
@@ -95,24 +97,29 @@ vi.mock("@/components/dictionary/DListItemCard", () => ({
 import { ListItemResults } from "./ListItemResults";
 
 beforeEach(() => {
-  admin = true;
+  viewer = { pubkey: "1".repeat(64), isAdmin: true };
   dictionaryAsked.mockClear();
   itemsAsked.mockClear();
 });
 
 describe("ListItemResults", () => {
-  it("shows an admin the GitHub accounts 'github vcavallo' finds, under the list's name", () => {
+  it("shows the GitHub accounts 'github vcavallo' finds, under the list's name", () => {
     render(<ListItemResults query="github vcavallo" onTabChange={() => {}} />);
     expect(screen.getByTestId("serp-section-list-items")).toHaveTextContent("GitHub Accounts");
     expect(screen.getAllByTestId("item-card").map((c) => c.textContent)).toEqual(["vcavallo", "vcavallo-bot"]);
   });
 
-  it("shows nothing, and reads nothing, to anyone who is not an admin", () => {
-    admin = false;
-    const { container } = render(<ListItemResults query="github vcavallo" onTabChange={() => {}} />);
-    expect(container).toBeEmptyDOMElement();
-    expect(dictionaryAsked).toHaveBeenCalledWith(false);
-    expect(itemsAsked).toHaveBeenCalledWith(undefined, false);
+  it("shows them to anyone signed in, admin or not", () => {
+    viewer = { pubkey: "1".repeat(64), isAdmin: false };
+    render(<ListItemResults query="github vcavallo" onTabChange={() => {}} />);
+    expect(screen.getAllByTestId("item-card").map((c) => c.textContent)).toEqual(["vcavallo", "vcavallo-bot"]);
+  });
+
+  it("shows them to a signed-out visitor too, reading the lists with no account", () => {
+    viewer = null;
+    render(<ListItemResults query="github vcavallo" onTabChange={() => {}} />);
+    expect(screen.getAllByTestId("item-card").map((c) => c.textContent)).toEqual(["vcavallo", "vcavallo-bot"]);
+    expect(dictionaryAsked).toHaveBeenCalledWith(true, { anonymous: true });
   });
 
   it("shows nothing when the words name no list, and leaves the items unread", () => {
