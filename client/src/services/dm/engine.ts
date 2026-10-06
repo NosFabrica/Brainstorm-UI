@@ -83,7 +83,15 @@ export interface DmTransport {
  * a timeout or a broken payload — Alby locked since this page enabled it
  * ("Password is not set") — so it may never have asked the reader at all.
  */
-export type SignerFailure = "cancelled" | "unreachable" | "refused" | "failed" | "wrong-account" | "broken";
+export type SignerFailure =
+  | "cancelled"
+  | "unreachable"
+  | "refused"
+  | "failed"
+  | "wrong-account"
+  | "broken"
+  /** The signer asked us to slow down: not a failure, a pace. */
+  | "rate-limited";
 
 export interface DmAccount {
   pubkey: string;
@@ -103,7 +111,10 @@ export interface DmEngineDeps {
   cache?: DmCacheBackend | null;
   sealer?: Sealer;
   now?: () => number;
-  /** How many wraps open at once. A remote signer answers one at a time anyway. */
+  /**
+   * The most wraps open at once. Default 2; more for a NIP-46 signer, which answers
+   * many at a time. The engine runs below it whenever the signer pushes back.
+   */
   concurrency?: number;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
@@ -115,6 +126,8 @@ export interface DmEngineDeps {
   onOnline?: (callback: () => void) => () => void;
   /** How long one wrap may take to open before its slot is taken back (default 45s). */
   decryptTimeoutMs?: number;
+  /** Milliseconds, for telling a signer that is answering from one waiting on a person (default Date.now). */
+  clockMs?: () => number;
 }
 
 /** A message waiting in the outbox: its signed wraps, so a retry needs no signer. */
@@ -200,7 +213,16 @@ export class DmEngine {
   private readonly me: string;
   private readonly now: () => number;
   private readonly cache: DmCacheBackend | null;
-  private readonly concurrency: number;
+  /** The ceiling, and how many may be open right now — halved when the signer pushes back. */
+  private readonly maxConcurrency: number;
+  private concurrency: number;
+  /** Opened since the last step up or down: a full round of them earns one more slot. */
+  private paceOk = 0;
+  /** Set while backing off after "rate limited": nothing new is asked until it fires. */
+  private paceTimer: unknown;
+  private paceTries = 0;
+  /** When a wrap last opened (ms): a signer answering now has no prompt open. */
+  private lastOpenedAt = -Infinity;
 
   private inbox: string[] = [];
   private status: DmEngineState["status"] = "starting";
@@ -278,7 +300,8 @@ export class DmEngine {
     this.store = new DmStore(this.me);
     this.now = deps.now ?? (() => Math.floor(Date.now() / 1000));
     this.cache = deps.cache ?? null;
-    this.concurrency = deps.concurrency ?? 2;
+    this.maxConcurrency = deps.concurrency ?? 2;
+    this.concurrency = this.maxConcurrency;
   }
 
   get pubkey(): string {
@@ -325,6 +348,8 @@ export class DmEngine {
     this.stopOnline?.();
     if (this.resumeTimer !== undefined)
       (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.resumeTimer);
+    if (this.paceTimer !== undefined)
+      (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.paceTimer);
     const clearTimer = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
     if (this.stateTimer !== undefined) clearTimer(this.stateTimer);
     this.stateTimer = undefined;
@@ -822,6 +847,7 @@ export class DmEngine {
 
   private pump() {
     if (this.stopped || !this.allowed || this.paused || !this.account.decrypt) return;
+    if (this.paceTimer !== undefined) return;
     while (this.running < this.concurrency) {
       // Newest first, so the latest messages appear before the backlog.
       const next = this.takeNext();
@@ -858,10 +884,12 @@ export class DmEngine {
   private async open(item: Queued) {
     const { wrap } = item;
     try {
-      const { rumor } = await this.withDeadline(unwrapGiftWrap(wrap, this.account.decrypt!));
+      const { rumor } = await this.withDeadline(unwrapGiftWrap(wrap, this.account.decrypt!), this.answering());
       if (this.stopped) return;
       this.seen.add(wrap.id);
       this.openedCount++;
+      this.lastOpenedAt = this.clockMs();
+      this.paceUp();
       const now = this.now();
       // NIP-17: a message to the reader names them. One that doesn't would make
       // a room without them in it — it can't be opened or answered.
@@ -893,6 +921,17 @@ export class DmEngine {
           : error instanceof DecryptTimeout
             ? "unreachable"
             : this.account.classify(error);
+      if (kind === "rate-limited" || (error instanceof DecryptTimeout && error.answering)) {
+        // Asked too fast — said so, or a request dropped while the signer was
+        // answering the rest: this wrap goes back as it was, no refusal counted and
+        // the reader never bothered, and opening slows down and carries on by itself.
+        this.requeue(item);
+        this.paceDown(true);
+        return;
+      }
+      // A request the signer never answered, with others in flight: likely the same
+      // pushback, without the words. Fewer at once when opening resumes.
+      if (kind === "unreachable") this.paceDown(false);
       if (kind === "broken") {
         // The payload itself can't open, ever: remembered, so it isn't asked again.
         this.seen.add(wrap.id);
@@ -939,12 +978,14 @@ export class DmEngine {
    * arriving and nothing opens. Past the deadline the slot is taken back, the
    * wrap goes back in the queue, and opening resumes after a pause.
    */
-  private withDeadline<T>(work: Promise<T>): Promise<T> {
-    const ms = this.deps.decryptTimeoutMs ?? DECRYPT_TIMEOUT_MS;
+  private withDeadline<T>(work: Promise<T>, answering = false): Promise<T> {
+    // A signer answering others by the second has no prompt open: one request it sits
+    // on for this long was dropped (Amethyst, past its rate limit, drops them silently).
+    const ms = answering ? ANSWERING_TIMEOUT_MS : (this.deps.decryptTimeoutMs ?? DECRYPT_TIMEOUT_MS);
     const set = this.deps.setTimer ?? ((fn, wait) => setTimeout(fn, wait));
     const clear = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
     return new Promise<T>((resolve, reject) => {
-      const timer = set(() => reject(new DecryptTimeout()), ms);
+      const timer = set(() => reject(new DecryptTimeout(answering)), ms);
       work.then(
         (v) => {
           clear(timer);
@@ -956,6 +997,47 @@ export class DmEngine {
         },
       );
     });
+  }
+
+  /**
+   * The signer pushed back: half as many at once, and after "rate limited" a pause
+   * before asking again — longer each time it repeats, back to the start once a
+   * message opens. Once per pushback: the others in flight come back limited too.
+   */
+  private paceDown(wait: boolean) {
+    if (this.paceTimer !== undefined) return;
+    this.concurrency = Math.max(1, Math.floor(this.concurrency / 2));
+    this.paceOk = 0;
+    if (!wait) return;
+    const ms = RATE_LIMIT_WAIT_MS[Math.min(this.paceTries++, RATE_LIMIT_WAIT_MS.length - 1)];
+    this.paceTimer = (this.deps.setTimer ?? ((fn, t) => setTimeout(fn, t)))(() => {
+      this.paceTimer = undefined;
+      if (this.stopped) return;
+      this.changed();
+      this.pump();
+    }, ms);
+  }
+
+  private clockMs(): number {
+    return (this.deps.clockMs ?? Date.now)();
+  }
+
+  /** Whether the signer opened something just now — answering, not waiting on a person. */
+  private answering(): boolean {
+    return this.clockMs() - this.lastOpenedAt < ANSWERING_TIMEOUT_MS;
+  }
+
+  /**
+   * A message opened: a full round at this pace earns one more at once, up to the
+   * ceiling. Not while backing off — those were asked before the signer pushed back.
+   */
+  private paceUp() {
+    if (this.paceTimer !== undefined) return;
+    this.paceTries = 0;
+    if (this.concurrency >= this.maxConcurrency) return;
+    if (++this.paceOk < this.concurrency) return;
+    this.concurrency++;
+    this.paceOk = 0;
   }
 
   private scheduleResume() {
@@ -1349,7 +1431,8 @@ export class DmEngine {
 const DECRYPT_TIMEOUT_MS = 45_000;
 
 class DecryptTimeout extends Error {
-  constructor() {
+  /** Timed out while the signer was answering others: dropped, not waiting on a person. */
+  constructor(readonly answering = false) {
     super("The signer didn't answer in time");
   }
 }
@@ -1362,6 +1445,14 @@ const CAPPED_LIVE_AT = 200;
 const LIVE_ANSWER_WAIT_MS = 20_000;
 /** After a signer timeout, opening resumes by itself after these waits, then waits for the reader. */
 const RESUME_AFTER_MS = [5_000, 15_000, 45_000];
+/**
+ * A signer that opened a message this recently is answering, not prompting: a request
+ * it holds this long was dropped. Well past a NIP-46 round trip (~0.7s) times the two
+ * a wrap takes, far short of the 45s a person unlocking an extension gets.
+ */
+const ANSWERING_TIMEOUT_MS = 10_000;
+/** After a signer says "rate limited", asking again waits this long — the last one repeats. */
+const RATE_LIMIT_WAIT_MS = [2_000, 5_000, 10_000, 30_000];
 
 /** A relay's next history page waits until fewer than this many of its wraps are still unopened. */
 const PAGE_BACKLOG = 50;

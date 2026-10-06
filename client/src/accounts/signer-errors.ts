@@ -36,6 +36,8 @@ export type SignerErrorKind =
   | "wrong-account"
   /** A decrypt the signer attempted and couldn't open: the ciphertext, not the signer. */
   | "bad-payload"
+  /** The signer (or its relay) asked us to slow down: Amethyst's "rate limited". Ask again later. */
+  | "rate-limited"
   | "unknown";
 
 /** Thrown when a signer answers with nothing — the reader declined (Nostash, Nostore). */
@@ -69,6 +71,8 @@ export const messageOf = (error: unknown) =>
  * rejects with the bare string "Canceled".
  */
 const DECLINED = /reject|denied|declin|cancel|refus|not (allowed|authori[sz]ed|permitted)|permission/i;
+/** A signer, or a relay on its behalf (NIP-01's `rate-limited:` prefix), asking for fewer requests. */
+const RATE_LIMITED = /rate[- ]?limit|too many requests|slow down/i;
 /** nostr-tools' NIP-44 and NIP-04 decrypt failures, as an extension relays them. */
 const BAD_PAYLOAD = /invalid (mac|payload|padding|base64)|unknown (encryption )?version|invalid.*length|payload must/i;
 
@@ -82,6 +86,7 @@ export function classifySignerError(error: unknown): SignerErrorKind {
   if (error instanceof SignerMismatchError) return "wrong-account";
 
   const message = messageOf(error);
+  if (RATE_LIMITED.test(message)) return "rate-limited";
   if (BAD_PAYLOAD.test(message)) return "bad-payload";
   if (DECLINED.test(message)) return "declined";
   return "unknown";
