@@ -41,7 +41,7 @@ describe("RelayAuditControl", () => {
     expect(result).toHaveTextContent((1599).toLocaleString());
 
     fireEvent.click(screen.getByRole("button", { name: /resync relay/i }));
-    await waitFor(() => expect(resync).toHaveBeenCalledWith(PK, "relay"));
+    await waitFor(() => expect(resync).toHaveBeenCalledWith(PK));
     expect(await screen.findByRole("button", { name: /resync queued/i })).toBeDisabled();
   });
 

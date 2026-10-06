@@ -11,7 +11,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
 const ACTIVITY_KEY = ["/api/admin/activity"];
@@ -19,7 +18,7 @@ const USERS_KEY = ["/api/admin/users"];
 
 /**
  * Admin action: force a full re-assert (resync) of one observer's published
- * state on the relay and/or Vespa. Confirms first — it re-pushes the observer's
+ * state on the relay. Confirms first — it re-pushes the observer's
  * entire above-cutoff set, so it's heavier than a normal recompute trigger.
  *
  * Renders its own trigger button by default; pass `open`/`onOpenChange` (and
@@ -42,7 +41,6 @@ export function ResyncControl({
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
-  const [target, setTarget] = useState("both");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +48,7 @@ export function ResyncControl({
     setBusy(true);
     setError(null);
     try {
-      await apiClient.resyncObserver(pubkey, target);
+      await apiClient.resyncObserver(pubkey);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ACTIVITY_KEY }),
         queryClient.invalidateQueries({ queryKey: USERS_KEY }),
@@ -58,7 +56,7 @@ export function ResyncControl({
       setOpen(false);
       toast({
         title: "Resync queued",
-        description: `${pubkey.slice(0, 12)}… (${target})`,
+        description: `${pubkey.slice(0, 12)}…`,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
@@ -95,20 +93,6 @@ export function ResyncControl({
               recompute — use for drift repair.
             </DialogDescription>
           </DialogHeader>
-
-          <div className="flex items-center gap-2">
-            <Label htmlFor="resync-target">Target</Label>
-            <select
-              id="resync-target"
-              className="h-9 rounded-md border px-2 text-sm"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-            >
-              <option value="both">Both (relay + Vespa)</option>
-              <option value="relay">Relay only</option>
-              <option value="vespa">Vespa only</option>
-            </select>
-          </div>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 
