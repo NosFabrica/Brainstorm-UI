@@ -1277,7 +1277,13 @@ export default function NetworkPage() {
 
               {/* Desktop pill rows — hidden on mobile */}
               <div>
-                <div className="hidden items-center gap-1.5 sm:flex sm:flex-wrap" data-testid="row-group-filters-graph">
+                {/* One row, whatever the counts: the pills share the width and shrink, the
+                    label truncating last. The badge is the count for the current view; the
+                    "N verified of M total" detail stays in the tooltip. */}
+                <div
+                  className="hidden items-center gap-1.5 sm:flex sm:flex-nowrap"
+                  data-testid="row-group-filters-graph"
+                >
                   <span className="mr-1 shrink-0 self-center border-r border-slate-200/60 pr-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:text-slate-500">
                     Graph
                   </span>
@@ -1298,7 +1304,7 @@ export default function NetworkPage() {
                                 setActiveGroup(group.key);
                                 setCurrentPage(1);
                               }}
-                              className={`flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium transition-all ${
+                              className={`flex min-w-0 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium transition-all ${
                                 isActive
                                   ? "border border-brand-primary bg-brand-primary text-white"
                                   : "border border-slate-200/60 bg-white/60 text-slate-600 hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800"
@@ -1306,15 +1312,15 @@ export default function NetworkPage() {
                               data-testid={`button-filter-${group.key}`}
                             >
                               <group.Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
-                              <span>{group.shortLabel}</span>
+                              <span className="min-w-0 truncate">{group.shortLabel}</span>
                               <span
-                                className={`whitespace-nowrap rounded-full px-1.5 py-0.5 text-xs font-bold ${
+                                className={`shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-xs font-bold tabular-nums ${
                                   isActive
                                     ? "bg-white/20 text-white"
                                     : `${group.bgColor} ${group.color} ${group.borderColor} border`
                                 }`}
                               >
-                                {showVerified ? `${count}/${totalCount}` : count}
+                                {count}
                               </span>
                             </button>
                           </TooltipTrigger>
