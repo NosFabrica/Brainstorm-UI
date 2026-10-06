@@ -85,8 +85,8 @@ export const usersApi = {
     return await response.json();
   },
 
-  async getUserByPubkey(pubkey: string) {
-    const response = await optionalAuthFetch(`${getBrainstormApi()}/user/${pubkey}`, {
+  async getUserByPubkey(pubkey: string, opts?: { house?: boolean }) {
+    const response = await (opts?.house ? fetch : optionalAuthFetch)(`${getBrainstormApi()}/user/${pubkey}`, {
       signal: AbortSignal.timeout(60000),
     });
     if (!response.ok) {
@@ -95,9 +95,9 @@ export const usersApi = {
     return await response.json();
   },
 
-  async getUserOverview(pubkey: string) {
+  async getUserOverview(pubkey: string, opts?: { house?: boolean }) {
     const url = `${getBrainstormApi()}/user/${pubkey}/overview`;
-    const response = await optionalAuthFetch(url, {
+    const response = await (opts?.house ? fetch : optionalAuthFetch)(url, {
       signal: AbortSignal.timeout(30000),
     });
     if (!response.ok) {
