@@ -1277,9 +1277,8 @@ export default function NetworkPage() {
 
               {/* Desktop pill rows — hidden on mobile */}
               <div>
-                {/* One row, whatever the counts: the pills share the width and shrink, the
-                    label truncating last. The badge is the count for the current view; the
-                    "N verified of M total" detail stays in the tooltip. */}
+                {/* One row, whatever the counts: the pills grow from their natural width and
+                    shrink together, the label truncating last. */}
                 <div
                   className="hidden items-center gap-1.5 sm:flex sm:flex-nowrap"
                   data-testid="row-group-filters-graph"
@@ -1311,7 +1310,8 @@ export default function NetworkPage() {
                               }`}
                               data-testid={`button-filter-${group.key}`}
                             >
-                              <group.Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
+                              {/* No icon: the words say which way the relationship runs, and the
+                                  room goes to the verified/total count instead. */}
                               <span className="min-w-0 truncate">{group.shortLabel}</span>
                               <span
                                 className={`shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-xs font-bold tabular-nums ${
@@ -1320,7 +1320,7 @@ export default function NetworkPage() {
                                     : `${group.bgColor} ${group.color} ${group.borderColor} border`
                                 }`}
                               >
-                                {count}
+                                {showVerified ? `${count}/${totalCount}` : count}
                               </span>
                             </button>
                           </TooltipTrigger>
