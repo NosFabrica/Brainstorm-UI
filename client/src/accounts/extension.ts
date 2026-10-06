@@ -16,6 +16,11 @@
  * reload. The deadline is generous, as for the login challenge, because a person
  * may be unlocking the extension; the point is only that it ends.
  *
+ * **An empty decrypt is not always a "no".** Alby resolves `undefined` for a
+ * ciphertext it can't open — one spam wrap read as a refusal and held the whole
+ * inbox shut. An empty decrypt is followed by a round trip of our own
+ * (`confirmCipher`): if the signer opens that, the message is what failed.
+ *
  * **A wrong profile is not a broken message.** An extension switched to another
  * profile decrypts with that profile's key, and the failure looks exactly like a
  * corrupt ciphertext. Before a decrypt failure is blamed on the message, the
@@ -29,7 +34,7 @@ import { ExtensionMissingError, ExtensionSigner } from "applesauce-signers";
 
 import type { AccountMetadata } from "./metadata";
 import { withTimeout } from "./remote-signer";
-import { classifySignerError, SignerDeclinedError } from "./signer-errors";
+import { classifySignerError, SignerCouldNotDecryptError, SignerDeclinedError } from "./signer-errors";
 
 export const EXTENSION_TIMEOUT_MS = 90_000;
 
@@ -59,10 +64,15 @@ const answered = <T>(value: T): NonNullable<T> => {
   return value as NonNullable<T>;
 };
 
-/** A cipher's answer is a string, or it is no answer — `""` is a real plaintext. */
-async function text(request: () => Promise<unknown>): Promise<string> {
+/** A cipher's answer: a string, or `undefined` for no answer — `""` is a real plaintext. */
+async function ask(request: () => Promise<unknown>): Promise<string | undefined> {
   const result = await withTimeout(Promise.resolve().then(request), EXTENSION_TIMEOUT_MS, LATE);
-  if (typeof result !== "string") throw declined();
+  return typeof result === "string" ? result : undefined;
+}
+
+async function text(request: () => Promise<unknown>): Promise<string> {
+  const result = await ask(request);
+  if (result === undefined) throw declined();
   return result;
 }
 
@@ -88,7 +98,12 @@ function timedCipher(
     encrypt: (pubkey: string, plaintext: string) => text(() => cipher().encrypt(pubkey, plaintext)),
     decrypt: async (pubkey: string, ciphertext: string) => {
       try {
-        return await text(() => cipher().decrypt(pubkey, ciphertext));
+        const plaintext = await ask(() => cipher().decrypt(pubkey, ciphertext));
+        if (plaintext !== undefined) return plaintext;
+        // Nostash's "no", or Alby's "couldn't open this". A signer that opens our
+        // own test message just now didn't say no to this one.
+        await signer.confirmCipher(nip, cipher);
+        throw new SignerCouldNotDecryptError();
       } catch (error) {
         // A ciphertext that won't open is the message's fault — or a key that isn't
         // this account's. Only the extension can say which; ask before blaming it.
@@ -99,8 +114,10 @@ function timedCipher(
   };
 }
 
-/** How long one "still on this profile" answer stands, so a run of broken messages asks once. */
+/** How long one confirmation stands, so a run of broken messages asks once. */
 const PROFILE_CONFIRMED_MS = 30_000;
+
+type Confirmation = { at?: number; check: Promise<void> };
 
 /** The library's signer, with a deadline on every request and a declined one thrown. */
 export class TimedExtensionSigner extends ExtensionSigner {
@@ -111,8 +128,8 @@ export class TimedExtensionSigner extends ExtensionSigner {
    * (`SignerMismatchError`); decrypting is guarded here, against this.
    */
   owner?: string;
-  /** The last confirmation: `at` once it answered, absent while it is still asking. */
-  private confirmed?: { at?: number; check: Promise<void> };
+  /** The last confirmation of each kind: `at` once it answered, absent while it is still asking. */
+  private confirmed = new Map<string, Confirmation>();
 
   get nip04() {
     return timedCipher("NIP-04", (nostr) => nostr.nip04, this);
@@ -145,19 +162,42 @@ export class TimedExtensionSigner extends ExtensionSigner {
   confirmProfile(): Promise<void> {
     const owner = this.owner;
     if (!owner) return Promise.resolve();
-    const last = this.confirmed;
-    if (last && (last.at === undefined || Date.now() - last.at < PROFILE_CONFIRMED_MS)) return last.check;
-    const entry: { at?: number; check: Promise<void> } = { check: Promise.resolve() };
-    entry.check = (async () => {
+    return this.confirm("profile", async () => {
       const now = answered(await withTimeout(extension().getPublicKey(), EXTENSION_TIMEOUT_MS, LATE));
       if (now !== owner) throw new SignerMismatchError("Your signer extension is on a different profile.");
+    });
+  }
+
+  /**
+   * Resolves when the extension opens a message of our own — sealed to itself
+   * and opened again — so an empty decrypt was that message's fault; throws the
+   * decline when it answers this with nothing too.
+   */
+  confirmCipher(nip: string, cipher: () => Cipher): Promise<void> {
+    return this.confirm(nip, async () => {
+      const self = this.owner ?? (await this.getPublicKey());
+      const probe = `brainstorm-${Date.now()}`;
+      const sealed = await text(() => cipher().encrypt(self, probe));
+      const opened = await text(() => cipher().decrypt(self, sealed));
+      if (opened !== probe) throw new Error("Your signer extension opened a test message wrongly.");
+    });
+  }
+
+  /**
+   * One question in flight per kind, and a recent yes stands; a failure is
+   * asked again next time.
+   */
+  private confirm(kind: string, question: () => Promise<void>): Promise<void> {
+    const last = this.confirmed.get(kind);
+    if (last && (last.at === undefined || Date.now() - last.at < PROFILE_CONFIRMED_MS)) return last.check;
+    const entry: Confirmation = { check: Promise.resolve() };
+    entry.check = question().then(() => {
       // From the answer, not the ask: a slow unlock still covers the run that follows.
       entry.at = Date.now();
-    })();
-    this.confirmed = entry;
-    // Only a confirmed match stands; a failure is asked again next time.
+    });
+    this.confirmed.set(kind, entry);
     entry.check.catch(() => {
-      if (this.confirmed === entry) this.confirmed = undefined;
+      if (this.confirmed.get(kind) === entry) this.confirmed.delete(kind);
     });
     return entry.check;
   }

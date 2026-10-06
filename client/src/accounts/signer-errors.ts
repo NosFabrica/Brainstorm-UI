@@ -46,6 +46,18 @@ export class SignerDeclinedError extends Error {
   }
 }
 
+/**
+ * Thrown when a signer answers a decrypt with nothing yet opens our own test
+ * message at once: Alby resolves `undefined` for a ciphertext it can't open
+ * (spam, a corrupt wrap) instead of rejecting. The message, not the signer.
+ */
+export class SignerCouldNotDecryptError extends Error {
+  constructor(message = "Your signer couldn't open this message.") {
+    super(message);
+    this.name = "SignerCouldNotDecryptError";
+  }
+}
+
 const nameOf = (error: unknown) => (error as { name?: unknown })?.name;
 /** The text of whatever a signer threw — an Error, Amber's bare string, anything. */
 export const messageOf = (error: unknown) =>
@@ -64,6 +76,8 @@ export function classifySignerError(error: unknown): SignerErrorKind {
   if (isUnlockCancelled(error)) return "cancelled";
   if (isRemoteSignerTimeout(error)) return "timeout";
   if (error instanceof SignerDeclinedError || nameOf(error) === "SignerDeclinedError") return "declined";
+  if (error instanceof SignerCouldNotDecryptError || nameOf(error) === "SignerCouldNotDecryptError")
+    return "bad-payload";
   if (error instanceof ExtensionMissingError) return "missing";
   if (error instanceof SignerMismatchError) return "wrong-account";
 
