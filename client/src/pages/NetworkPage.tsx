@@ -1145,11 +1145,14 @@ export default function NetworkPage() {
                   </div>
                 </div>
                 {/* Desktop: Verified + NOSTR inline on the right */}
-                <div className="hidden shrink-0 items-center gap-3 sm:flex">
+                <div className="hidden shrink-0 items-center gap-4 sm:flex">
+                  {/* The switch is the only thing that says on/off; the words stay the
+                      same colour either way and tell you what flipping it does. */}
                   <label
-                    className="flex cursor-pointer select-none items-center gap-2"
+                    className="flex cursor-pointer select-none items-center gap-2.5"
                     data-testid="toggle-verified-only"
                   >
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Verified only</span>
                     <Switch
                       checked={verifiedOnly}
                       onCheckedChange={(checked) => {
@@ -1159,11 +1162,6 @@ export default function NetworkPage() {
                       className="data-[state=checked]:bg-brand-primary"
                       data-testid="switch-verified-only"
                     />
-                    <span
-                      className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-brand-primary dark:text-brand-link" : "text-slate-400 dark:text-slate-500"}`}
-                    >
-                      Verified
-                    </span>
                   </label>
                   <div
                     className="flex shrink-0 items-center gap-1.5 rounded-full border border-brand-primary/20 bg-brand-primary/10 px-2 py-1 text-xs font-bold uppercase tracking-wider text-brand-primary dark:text-brand-link"
@@ -1184,27 +1182,18 @@ export default function NetworkPage() {
                 <span>NOSTR</span>
               </div>
 
-              {/* Mobile: Verified toggle — full-width settings-style row */}
-              <div className="mt-3 sm:hidden">
+              {/* Mobile: the same switch as a quiet settings row — a hairline above it,
+                  no filled card or icon, so it reads as a setting and not a banner. */}
+              <div className="mt-3 border-t border-slate-200/70 pt-3 dark:border-slate-800 sm:hidden">
                 <label
-                  className="flex cursor-pointer select-none items-center justify-between gap-3 rounded-xl border border-brand-primary/15 bg-brand-primary/10 px-3 py-2.5 dark:border-brand-primary/25 dark:bg-brand-primary/10"
+                  className="flex cursor-pointer select-none items-center justify-between gap-3"
                   data-testid="toggle-verified-only-mobile"
                 >
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <div
-                      className={`shrink-0 rounded-lg p-1.5 transition-colors ${verifiedOnly ? "bg-brand-primary/15 text-brand-primary dark:bg-brand-primary/10 dark:text-brand-link" : "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"}`}
-                    >
-                      <ShieldCheck className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div
-                        className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-brand-primary dark:text-brand-link" : "text-slate-600 dark:text-slate-300"}`}
-                      >
-                        Verified
-                      </div>
-                      <div className="text-[10px] leading-tight text-slate-400 dark:text-slate-500">
-                        Show only verified accounts
-                      </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-slate-700 dark:text-slate-200">Verified only</div>
+                    <div className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">
+                      Hide accounts {perspective.pov === "personalized" ? "your" : "Brainstorm's"} network doesn't vouch
+                      for
                     </div>
                   </div>
                   <Switch
