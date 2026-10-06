@@ -34,8 +34,10 @@ export function useKeyboardViewport(active: boolean, target: RefObject<HTMLEleme
 
     let last = "";
     const pin = () => {
-      // Shorter than the window: something (the keyboard, its accessory bar) covers the bottom edge.
-      const covered = vv.height < window.innerHeight - 1;
+      // Shorter than the layout viewport: the keyboard (or its accessory bar) covers the
+      // bottom edge. Not `innerHeight`: iOS shrinks that with the keyboard too, so the two
+      // matched, the home-indicator padding stayed, and a band sat under the composer.
+      const covered = vv.height < document.documentElement.clientHeight - 1;
       const next = `${vv.offsetTop}|${vv.height}|${covered}`;
       if (next === last) return;
       last = next;

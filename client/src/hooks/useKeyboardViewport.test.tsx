@@ -16,6 +16,8 @@ function phone({ touch = true } = {}) {
     removeEventListener: (type: string, fn: () => void) => listeners.get(type)?.delete(fn),
   };
   vi.stubGlobal("visualViewport", vv);
+  // The layout viewport: iOS keeps it full height while the keyboard is up (innerHeight shrinks).
+  Object.defineProperty(document.documentElement, "clientHeight", { value: window.innerHeight, configurable: true });
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: touch && q === "(pointer: coarse)" }));
   const keyboard = (height: number, offsetTop: number) => {
     vv.height = height;
@@ -62,6 +64,17 @@ describe("useKeyboardViewport", () => {
     for (let h = 800; h > 400; h -= 20) keyboard(h, 0); // the keyboard sliding up
     expect(renders).toBe(before);
     expect(target.current.style.height).toBe("420px");
+  });
+
+  it("drops the safe-area padding even when innerHeight shrinks with the keyboard, as on iOS", () => {
+    const { keyboard } = phone();
+    const target = page();
+    renderHook(() => useKeyboardViewport(true, target));
+    const full = window.innerHeight;
+    Object.defineProperty(window, "innerHeight", { value: 400, configurable: true });
+    keyboard(400, 0);
+    expect(target.current.style.getPropertyValue("--bs-bottom-inset")).toBe("0px");
+    Object.defineProperty(window, "innerHeight", { value: full, configurable: true });
   });
 
   it("keeps the safe-area padding while nothing covers the bottom edge", () => {
