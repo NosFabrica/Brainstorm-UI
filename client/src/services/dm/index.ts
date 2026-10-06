@@ -7,7 +7,7 @@ import type { NostrEvent } from "nostr-tools";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "@/accounts/local-account";
 import { isUnlockCancelled } from "@/accounts/local-signer";
-import { classifySignerError } from "@/accounts/signer-errors";
+import { classifySignerError, SignerDeclinedError } from "@/accounts/signer-errors";
 import { canSignSilently, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { eventStore } from "@/lib/eventStore";
@@ -33,10 +33,25 @@ function classifyFor(account: BrainstormAccount) {
     if (kind === "wrong-account") return "wrong-account";
     // A key held here can't say no: once unlocked, any failure is the payload's.
     if (account instanceof LocalAccount) return "broken";
-    // A payload that won't decrypt is broken for good; anything else is the
-    // signer saying no, which must never be remembered as "unreadable".
-    return kind === "bad-payload" ? "broken" : "refused";
+    // A payload that won't decrypt is broken for good.
+    if (kind === "bad-payload") return "broken";
+    // Only a "no" is a no. Anything else — Alby locked since this page enabled it
+    // ("Password is not set") — failed without asking anyone: calling it a decline
+    // told the reader they had refused a prompt they never saw. Neither is ever
+    // remembered as "unreadable".
+    return kind === "declined" ? "refused" : "failed";
   };
+}
+
+/**
+ * The signer's own words, for the reader to act on: Alby's "permission denied"
+ * (this site blocked in its settings) or "Password is not set" (locked). Not our
+ * own wrapper for a signer that answered nothing — that says nothing new.
+ */
+function explainSignerError(error: unknown): string | undefined {
+  if (error instanceof SignerDeclinedError) return undefined;
+  const text = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return text.trim().slice(0, 200) || undefined;
 }
 
 export function dmAccountFor(account: BrainstormAccount): DmAccount {
@@ -56,6 +71,7 @@ export function dmAccountFor(account: BrainstormAccount): DmAccount {
     // own app, so they wait until the reader opens Messages.
     canOpenInBackground: async () => account instanceof LocalAccount && (await canSignSilently(account)),
     classify: classifyFor(account),
+    explain: explainSignerError,
   };
 }
 
