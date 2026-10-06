@@ -56,6 +56,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [failureOpen, setFailureOpen] = useState(false);
   const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
+  /** Opened by asking for the key form, not by an extension failing. */
+  const [keyFirst, setKeyFirst] = useState(false);
   const [failureMessage, setFailureMessage] = useState("");
   const [remoteOpen, setRemoteOpen] = useState(false);
 
@@ -117,6 +119,7 @@ export default function LoginPage() {
       if (err instanceof LoginError) {
         setFailureCode(err.code);
         setFailureMessage(err.message);
+        setKeyFirst(false);
         setFailureOpen(true);
       } else {
         setError(err instanceof Error ? err.message : "Couldn't complete sign-in. Please try again.");
@@ -127,6 +130,7 @@ export default function LoginPage() {
   };
 
   const openNsec = () => {
+    setKeyFirst(true);
     setFailureCode("NO_EXTENSION");
     setFailureMessage("Paste your key to sign in.");
     setFailureOpen(true);
@@ -413,6 +417,7 @@ export default function LoginPage() {
         errorMessage={failureMessage}
         onLoginSuccess={handleNsecLoginSuccess}
         onRetryExtension={handleRetryExtension}
+        startWithKey={keyFirst}
       />
 
       <RemoteSignerModal

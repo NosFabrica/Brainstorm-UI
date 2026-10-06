@@ -66,6 +66,26 @@ function paste(value: string) {
   fireEvent.change(screen.getByTestId("input-nsec"), { target: { value } });
 }
 
+describe("asked for the key form", () => {
+  it("opens on it, without blaming a missing extension or offering one", () => {
+    renderWithProviders(
+      <KeySignInModal
+        open
+        onOpenChange={() => {}}
+        errorCode="NO_EXTENSION"
+        errorMessage=""
+        onLoginSuccess={onLoginSuccess}
+        onRetryExtension={onRetryExtension}
+        startWithKey
+      />,
+    );
+    expect(screen.getByTestId("text-key-signin-title").textContent).toBe("Sign in with your key");
+    expect(screen.getByTestId("input-nsec")).toBeTruthy();
+    expect(screen.queryByTestId("button-retry-extension")).toBeNull();
+    expect(screen.queryByTestId("text-no-extension-hint")).toBeNull();
+  });
+});
+
 beforeEach(() => {
   loginWithPastedKey.mockClear();
   setRecoveryPassword.mockClear();

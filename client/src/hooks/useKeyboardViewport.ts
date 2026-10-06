@@ -1,5 +1,8 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useLayoutEffect, type RefObject } from "react";
 import { isTouchScreen } from "@/lib/touchScreen";
+
+/** Every property the pin sets, so letting go removes exactly these. */
+const PINNED = ["position", "left", "right", "top", "height", "z-index", "--bs-bottom-inset"];
 
 /**
  * Pins a one-screen page to what is visible above the on-screen keyboard.
@@ -11,42 +14,47 @@ import { isTouchScreen } from "@/lib/touchScreen";
  * viewport is the one thing that does know: fixed to its offset and height, the page
  * stays put wherever iOS scrolls the document.
  *
- * Only while `active` (a field has focus) and only on a touch screen; otherwise
- * `undefined`, and the page keeps its own sizing.
+ * Written straight onto `target`, not through React: the visual viewport reports every
+ * frame of the keyboard's slide and of any pan while it is up, and a state update per
+ * event re-rendered the whole Messages page each time — a frame behind the compositor.
+ * A layout effect, so the pin is on before the first editing frame paints and off
+ * before the first one after.
  *
  * Also sets `--bs-bottom-inset`: 0 while the keyboard covers the home indicator, so a
  * bar at the page's foot drops the safe-area padding it keeps for it — else an empty
  * band sat between the composer and the keyboard.
+ *
+ * Only while `active` (a field has focus) and only on a touch screen.
  */
-export function useKeyboardViewport(active: boolean): CSSProperties | undefined {
-  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
-
-  useEffect(() => {
+export function useKeyboardViewport(active: boolean, target: RefObject<HTMLElement | null>): void {
+  useLayoutEffect(() => {
+    const el = target.current;
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    if (!active || !vv || !isTouchScreen()) {
-      setBox(null);
-      return;
-    }
-    const sync = () => setBox({ top: vv.offsetTop, height: vv.height });
-    sync();
-    vv.addEventListener("resize", sync);
-    vv.addEventListener("scroll", sync);
-    return () => {
-      vv.removeEventListener("resize", sync);
-      vv.removeEventListener("scroll", sync);
-    };
-  }, [active]);
+    if (!active || !el || !vv || !isTouchScreen()) return;
 
-  if (!box) return undefined;
-  // Shorter than the window: something (the keyboard, its accessory bar) covers the bottom edge.
-  const covered = box.height < window.innerHeight - 1;
-  return {
-    position: "fixed",
-    left: 0,
-    right: 0,
-    top: box.top,
-    height: box.height,
-    zIndex: 30,
-    ...(covered && { "--bs-bottom-inset": "0px" }),
-  } as CSSProperties;
+    let last = "";
+    const pin = () => {
+      // Shorter than the window: something (the keyboard, its accessory bar) covers the bottom edge.
+      const covered = vv.height < window.innerHeight - 1;
+      const next = `${vv.offsetTop}|${vv.height}|${covered}`;
+      if (next === last) return;
+      last = next;
+      el.style.position = "fixed";
+      el.style.left = "0px";
+      el.style.right = "0px";
+      el.style.top = `${vv.offsetTop}px`;
+      el.style.height = `${vv.height}px`;
+      el.style.zIndex = "30";
+      if (covered) el.style.setProperty("--bs-bottom-inset", "0px");
+      else el.style.removeProperty("--bs-bottom-inset");
+    };
+    pin();
+    vv.addEventListener("resize", pin);
+    vv.addEventListener("scroll", pin);
+    return () => {
+      vv.removeEventListener("resize", pin);
+      vv.removeEventListener("scroll", pin);
+      for (const property of PINNED) el.style.removeProperty(property);
+    };
+  }, [active, target]);
 }

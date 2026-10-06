@@ -4,7 +4,7 @@
  * `/messages/<npub>[+<npub>…]` for a chat — a room is the set of people in it,
  * so its URL is just them.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams, useSearch } from "wouter";
 import { MessageSquare } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -136,11 +136,12 @@ export default function MessagesPage() {
   const setup = state.status === "no-inbox";
   const editing = useEditingText();
   // Typing on a phone: held to the space above the keyboard, which iOS scrolls the page under.
-  const keyboardBox = useKeyboardViewport(editing);
+  const pageRef = useRef<HTMLDivElement>(null);
+  useKeyboardViewport(editing, pageRef);
 
   return (
     <div
-      style={keyboardBox}
+      ref={pageRef}
       className={cn(
         "flex flex-col bg-background text-foreground",
         // The phone tab bar steps aside while a field has focus but keeps its share of the
