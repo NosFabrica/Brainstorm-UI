@@ -147,7 +147,7 @@ export function SyncDetails() {
         >
           <span>
             On hold: {state.queued.toLocaleString()} {state.queued === 1 ? "message" : "messages"} to open first, and{" "}
-            {heldBy}.
+            {heldBy}.{state.pauseDetail && <> Your signer said: “{state.pauseDetail}”</>}
           </span>
           {state.paused !== "no-nip44" && (
             <Button size="sm" variant="outline" onClick={() => engine.allowDecrypt()}>
@@ -157,7 +157,7 @@ export function SyncDetails() {
         </div>
       )}
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        {state.setAside > 0 && "Set aside: your signer kept declining these while it opened others. "}
+        {state.setAside > 0 && "Set aside: your signer kept turning these down while it opened others. "}
         Checking again re-reads every relay from the newest message down to the first; messages already on this device
         aren't opened twice.
       </p>

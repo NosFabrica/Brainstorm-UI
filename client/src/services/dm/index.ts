@@ -7,7 +7,7 @@ import type { NostrEvent } from "nostr-tools";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "@/accounts/local-account";
 import { isUnlockCancelled } from "@/accounts/local-signer";
-import { classifySignerError, SignerDeclinedError } from "@/accounts/signer-errors";
+import { classifySignerError, messageOf, SignerDeclinedError } from "@/accounts/signer-errors";
 import { canSignSilently, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { eventStore } from "@/lib/eventStore";
@@ -43,15 +43,20 @@ function classifyFor(account: BrainstormAccount) {
   };
 }
 
+/** A bunker can send a whole JSON-RPC error; the notice quotes a line, not a page. */
+const EXPLAIN_MAX = 200;
+
 /**
  * The signer's own words, for the reader to act on: Alby's "permission denied"
  * (this site blocked in its settings) or "Password is not set" (locked). Not our
  * own wrapper for a signer that answered nothing — that says nothing new.
  */
 function explainSignerError(error: unknown): string | undefined {
-  if (error instanceof SignerDeclinedError) return undefined;
-  const text = error instanceof Error ? error.message : typeof error === "string" ? error : "";
-  return text.trim().slice(0, 200) || undefined;
+  // By name too, as classifySignerError checks it: a copy from another bundle chunk is still ours.
+  if (error instanceof SignerDeclinedError || (error as { name?: unknown })?.name === "SignerDeclinedError")
+    return undefined;
+  const text = messageOf(error).trim();
+  return text.length > EXPLAIN_MAX ? `${text.slice(0, EXPLAIN_MAX - 1)}…` : text || undefined;
 }
 
 export function dmAccountFor(account: BrainstormAccount): DmAccount {

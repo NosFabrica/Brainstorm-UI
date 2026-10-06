@@ -47,7 +47,8 @@ export class SignerDeclinedError extends Error {
 }
 
 const nameOf = (error: unknown) => (error as { name?: unknown })?.name;
-const messageOf = (error: unknown) =>
+/** The text of whatever a signer threw — an Error, Amber's bare string, anything. */
+export const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : typeof error === "string" ? error : String(error ?? "");
 
 /**

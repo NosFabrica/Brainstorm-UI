@@ -158,7 +158,7 @@ export function InboxNotices({ engine, state }: { engine: DmEngine | null; state
             : state.paused === "wrong-account"
               ? "Your signer is on a different profile than this account. Switch back to it, then try again."
               : state.paused === "failed"
-                ? "Your signer couldn't open messages. If it's locked, unlock it, then try again."
+                ? "Your signer couldn't open messages. Check that it's unlocked and connected, then try again."
                 : // Alby says no without a prompt once this site is set to "always deny".
                   "Your signer declined to open messages. If it didn't ask you, check whether it blocks this site.",
       detail: state.pauseDetail,

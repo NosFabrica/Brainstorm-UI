@@ -267,6 +267,28 @@ describe("an extension that injects after private messages started", () => {
   });
 });
 
+describe("what private messages quote from the signer", () => {
+  it.each([
+    ["locked", "Password is not set"],
+    ["rejects", "User rejected the request"],
+    // Our own wrapper for an empty answer says nothing the notice doesn't.
+    ["answers-nothing", undefined],
+  ] as const)("an extension that %s: %s", async (behaviour, quoted) => {
+    const fake = installExtension(behaviour);
+    const account = new BrainstormExtensionAccount(fake.pubkey) as unknown as BrainstormAccount;
+    const dm = dmAccountFor(account);
+    const { error } = await settled(unwrapGiftWrap(await messageTo(fake.pubkey, "hi"), dm.decrypt!));
+    expect(dm.explain?.(error)).toBe(quoted);
+  });
+
+  it("a page-long error, cut to a line", () => {
+    const dm = dmAccountFor(new BrainstormExtensionAccount("a".repeat(64)) as unknown as BrainstormAccount);
+    const quoted = dm.explain?.(new Error("x".repeat(500)));
+    expect(quoted).toHaveLength(200);
+    expect(quoted?.endsWith("…")).toBe(true);
+  });
+});
+
 describe("a message that really won't open", () => {
   it("is still remembered as broken once the extension confirms its profile — asked once for a run of them", async () => {
     const fake = installExtension("works");
