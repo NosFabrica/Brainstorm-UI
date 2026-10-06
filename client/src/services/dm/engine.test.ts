@@ -966,6 +966,351 @@ describe("DmEngine", () => {
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("slow signer");
   });
 
+  it("slows down when the signer says rate limited, and carries on by itself — no notice, no refusal", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    for (let i = 0; i < 3; i++) net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, `m${i}`, NOW - 60 - i));
+    let limited = 2;
+    const base = me.account();
+    const time = clock();
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          if (limited-- > 0) throw new Error("rate limited");
+          return base.decrypt!(from, text);
+        },
+        classify: () => "rate-limited",
+      }),
+      { ...net, ...time, concurrency: 1, now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    // Backing off: still waiting, but nothing for the reader to do.
+    expect(engine.state()).toMatchObject({ paused: undefined, queued: 3, failed: 0 });
+    time.flush(); // the first wait elapses; asked again, limited again
+    await settle();
+    expect(engine.state()).toMatchObject({ paused: undefined, queued: 3 });
+    time.flush();
+    for (let i = 0; i < 10; i++) await settle();
+    expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0, setAside: 0 });
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m0");
+  });
+
+  it("treats a request the signer skipped — it answered later ones — as a pace, not a signer gone quiet", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    const wraps = [];
+    for (let i = 0; i < 3; i++) wraps.push(await wrapFrom(ana, me.pubkey, `m${i}`, NOW - 60 - i));
+    wraps.forEach((w) => net.hold("wss://in.example/", w));
+    const base = me.account();
+    const time = clock();
+    let skip = true;
+    const engine = new DmEngine(
+      me.account({
+        // Amethyst past its limit: m1's request is never answered, m2's (asked after) is.
+        decrypt: (from, text) => {
+          if (skip && text === wraps[1].content) {
+            skip = false;
+            return new Promise<string>(() => {});
+          }
+          return base.decrypt!(from, text);
+        },
+        classify: () => "unreachable",
+      }),
+      { ...net, ...time, concurrency: 2, now: () => NOW },
+    );
+    await engine.start();
+    for (let i = 0; i < 8; i++) await settle();
+    expect(engine.state().queued).toBe(1);
+    time.flush(); // one check later: m2 was answered after m1 was asked, so m1 was dropped
+    await settle();
+    expect(engine.state().paused).toBeUndefined();
+    time.flush(); // the back-off passes; m1 is asked again
+    for (let i = 0; i < 8; i++) await settle();
+    expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0 });
+  });
+
+  it("keeps waiting on a person who approves each request in order, without asking twice", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    for (let i = 0; i < 2; i++) net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, `m${i}`, NOW - 60 - i));
+    const base = me.account();
+    const time = clock();
+    const asked: string[] = [];
+    const approve: (() => void)[] = [];
+    let now = 0; // a person takes seconds per tap
+    const engine = new DmEngine(
+      me.account({
+        // Amber, asking each time: nothing comes back until the person taps, in order.
+        decrypt: (from, text) => {
+          asked.push(text);
+          return new Promise<string>((ok) => approve.push(() => void base.decrypt!(from, text).then(ok)));
+        },
+        classify: () => "unreachable",
+      }),
+      { ...net, ...time, concurrency: 4, clockMs: () => now, now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    expect(asked).toHaveLength(1); // one prompt at a time until the first is answered
+    time.flush(); // ten seconds pass, the person hasn't tapped: still waiting, not re-asked
+    await settle();
+    expect(engine.state().paused).toBeUndefined();
+    expect(new Set(asked).size).toBe(asked.length);
+    now += 6_000;
+    approve.shift()!(); // the wrap
+    for (let i = 0; i < 4; i++) await settle();
+    now += 6_000;
+    approve.shift()!(); // its seal
+    for (let i = 0; i < 6; i++) await settle();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("m0");
+    // Opened at a person's pace: the next one, waiting on its tap, is still not asked twice.
+    time.flush();
+    for (let i = 0; i < 4; i++) await settle();
+    expect(engine.state().paused).toBeUndefined();
+    expect(new Set(asked).size).toBe(asked.length);
+  });
+
+  it("asks one at a time until the first opens, then the ceiling, and half after a pushback", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    for (let i = 0; i < 40; i++) net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, `m${i}`, NOW - 60 - i));
+    const base = me.account();
+    const time = clock();
+    let inFlight = 0;
+    let peak = 0;
+    let calls = 0;
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          const n = ++calls;
+          inFlight++;
+          peak = Math.max(peak, inFlight);
+          await settle();
+          inFlight--;
+          if (n === 5) throw new Error("rate limited");
+          return base.decrypt!(from, text);
+        },
+        classify: () => "rate-limited",
+      }),
+      { ...net, ...time, concurrency: 8, now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    expect(peak).toBe(1); // slow start: one request until the signer has answered
+    for (let i = 0; i < 4; i++) await settle();
+    expect(peak).toBe(8); // then the burst, until the signer says "rate limited"
+    for (let i = 0; i < 6; i++) await settle();
+    peak = 0;
+    time.flush(); // the back-off passes: half as many at once
+    await settle();
+    expect(peak).toBe(4);
+    for (let i = 0; i < 80; i++) await settle();
+    expect(engine.state()).toMatchObject({ queued: 0, failed: 0 });
+  });
+
+  it("backs off once, at half the pace, for a whole burst a fast signer stopped answering", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    for (let i = 0; i < 20; i++) net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, `m${i}`, NOW - 60 - i));
+    const base = me.account();
+    const time = clock();
+    let calls = 0;
+    let asleep = true;
+    let inFlight = 0;
+    let peak = 0;
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          // The first wrap opens (both steps); then the phone locks mid-burst.
+          if (++calls > 2 && asleep) return new Promise<string>(() => {});
+          inFlight++;
+          peak = Math.max(peak, inFlight);
+          await settle();
+          inFlight--;
+          return base.decrypt!(from, text);
+        },
+        classify: () => "unreachable",
+      }),
+      { ...net, ...time, concurrency: 8, decryptTimeoutMs: 10_000, now: () => NOW },
+    );
+    await engine.start();
+    for (let i = 0; i < 4; i++) await settle();
+    time.flush(); // every request in the burst goes unanswered: a signer that was fast, gone silent
+    await settle();
+    expect(engine.state().paused).toBeUndefined(); // a pace, not "your signer didn't answer"
+    asleep = false;
+    peak = 0;
+    time.flush(); // the back-off passes — half the ceiling, not one
+    await settle();
+    expect(peak).toBe(4);
+  });
+
+  it("reuses a seal it already opened when the rest of the wrap is asked again", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    const wrap = await wrapFrom(ana, me.pubkey, "once", NOW - 60);
+    net.hold("wss://in.example/", wrap);
+    const base = me.account();
+    const time = clock();
+    let wrapAsks = 0;
+    let limited = true;
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          if (text === wrap.content) wrapAsks++;
+          else if (limited) {
+            limited = false;
+            throw new Error("rate limited"); // the seal's step, pushed back
+          }
+          return base.decrypt!(from, text);
+        },
+        classify: () => "rate-limited",
+      }),
+      { ...net, ...time, concurrency: 1, now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    time.flush();
+    for (let i = 0; i < 6; i++) await settle();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("once");
+    expect(wrapAsks).toBe(1);
+  });
+
+  it("asks nothing more of a wrap once its deadline has passed, even if the first step answers late", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    const wrap = await wrapFrom(ana, me.pubkey, "late", NOW - 60);
+    net.hold("wss://in.example/", wrap);
+    const base = me.account();
+    const time = clock();
+    let calls = 0;
+    let answerLate: () => void = () => {};
+    const engine = new DmEngine(
+      me.account({
+        decrypt: (from, text) => {
+          calls++;
+          if (calls === 1)
+            return new Promise<string>((ok) => (answerLate = () => void base.decrypt!(from, text).then(ok)));
+          return base.decrypt!(from, text);
+        },
+        classify: () => "unreachable",
+      }),
+      { ...net, ...time, concurrency: 1, decryptTimeoutMs: 10_000, now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    time.flush(); // given up on
+    await settle();
+    expect(engine.state().paused).toBe("unreachable");
+    answerLate(); // the person taps "allow" at last
+    for (let i = 0; i < 6; i++) await settle();
+    expect(calls).toBe(1); // no second prompt for the seal
+    time.flush(); // resuming: the seal it gave up is reused, only the rest is asked
+    for (let i = 0; i < 6; i++) await settle();
+    expect(calls).toBe(2);
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("late");
+  });
+
+  it("tells the reader once every back-off has passed and the signer still says rate limited", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "stuck", NOW - 60));
+    const time = clock();
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async () => {
+          throw new Error("rate limited");
+        },
+        classify: () => "rate-limited",
+        explain: (e) => (e as Error).message,
+      }),
+      { ...net, ...time, concurrency: 1, now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    for (let round = 0; round < 4; round++) {
+      expect(engine.state().paused).toBeUndefined();
+      time.flush();
+      await settle();
+    }
+    expect(engine.state()).toMatchObject({ paused: "unreachable", pauseDetail: "rate limited", queued: 1 });
+  });
+
+  it("asks again at once when the reader taps Try again during a back-off", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "now", NOW - 60));
+    const base = me.account();
+    let limited = true;
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          if (limited) {
+            limited = false;
+            throw new Error("rate limited");
+          }
+          return base.decrypt!(from, text);
+        },
+        classify: () => "rate-limited",
+      }),
+      { ...net, ...clock(), concurrency: 1, now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    expect(engine.state().queued).toBe(1);
+    engine.allowDecrypt(); // no timer flushed: the reader's tap is enough
+    for (let i = 0; i < 6; i++) await settle();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("now");
+  });
+
+  it("opens nothing while a message is being sealed, so the send isn't the one refused", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    const base = me.account();
+    let releaseSeal: () => void = () => {};
+    let opened = 0;
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          opened++;
+          return base.decrypt!(from, text);
+        },
+        sealSigner: {
+          ...me.sealSigner,
+          signSeal: async (t) => {
+            await new Promise<void>((ok) => (releaseSeal = ok));
+            return me.sealSigner.signSeal(t);
+          },
+        },
+      }),
+      { ...net, ...clock(), now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    const sent = engine.send(roomKey([me.pubkey, ana.pubkey]), "hi");
+    for (let i = 0; i < 4; i++) await settle();
+    net.live.get("wss://in.example/")!.h.onEvent(await wrapFrom(ana, me.pubkey, "while sealing", NOW - 5));
+    for (let i = 0; i < 4; i++) await settle();
+    expect(opened).toBe(0);
+    releaseSeal();
+    for (let i = 0; i < 4; i++) await settle();
+    releaseSeal(); // the sender's own copy
+    expect((await sent).ok).toBe(true);
+    for (let i = 0; i < 6; i++) await settle();
+    expect(opened).toBeGreaterThan(0);
+  });
+
   it("takes back a decrypt slot the signer never answers, instead of freezing every later message", async () => {
     const me = person();
     const ana = person();
@@ -980,7 +1325,7 @@ describe("DmEngine", () => {
         decrypt: (from, text) => (hang ? new Promise<string>(() => {}) : base.decrypt!(from, text)),
         classify: () => "refused",
       }),
-      { ...net, ...time, concurrency: 1, now: () => NOW },
+      { ...net, ...time, concurrency: 1, decryptTimeoutMs: 10_000, now: () => NOW },
     );
     await engine.start();
     await settle();

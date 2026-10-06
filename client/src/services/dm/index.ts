@@ -6,6 +6,7 @@
 import type { NostrEvent } from "nostr-tools";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "@/accounts/local-account";
+import { RemoteAccount } from "@/accounts/remote-signer";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { classifySignerError, messageOf, SignerDeclinedError } from "@/accounts/signer-errors";
 import { canSignSilently, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
@@ -29,6 +30,8 @@ function classifyFor(account: BrainstormAccount) {
     if (kind === "cancelled") return "cancelled";
     // Ran out of time, or the extension isn't here yet: not a "no", and not the message's fault.
     if (kind === "timeout" || kind === "missing") return "unreachable";
+    // Asked too fast: a pace to keep, never a fault — not even for a key held here.
+    if (kind === "rate-limited") return "rate-limited";
     // The extension is on another profile: its key can't open these, but this account's can.
     if (kind === "wrong-account") return "wrong-account";
     // A key held here can't say no: once unlocked, any failure is the payload's.
@@ -59,11 +62,32 @@ function explainSignerError(error: unknown): string | undefined {
   return text.length > EXPLAIN_MAX ? `${text.slice(0, EXPLAIN_MAX - 1)}…` : text || undefined;
 }
 
+/**
+ * The most wraps a NIP-46 signer opens at once. Each wrap is two round trips (the
+ * wrap, then its seal) through the bunker's relay to the signer app and back, about
+ * 0.7s each: one at a time, a 240-message inbox took over five minutes to open. A
+ * signer that limits its rate (Amethyst: a burst of ~40, then "rate limited") is
+ * met by the engine slowing down and carrying on, not by a lower ceiling here.
+ */
+export const REMOTE_DECRYPT_CONCURRENCY = 6;
+
+/**
+ * Opening messages, past the Account's request queue for a NIP-46 signer only. The
+ * queue runs every request one at a time; a bunker answers each by its id, so there
+ * is nothing to keep in order — and decrypts don't prompt once allowed. Signing and
+ * sealing still queue: those are where a signer asks, and where order matters.
+ */
+function openerFor(account: BrainstormAccount) {
+  if (account instanceof RemoteAccount) return account.signer.nip44;
+  return account.nip44;
+}
+
 export function dmAccountFor(account: BrainstormAccount): DmAccount {
   const nip44 = account.nip44;
+  const opener = openerFor(account);
   return {
     pubkey: account.pubkey,
-    decrypt: nip44 ? (counterparty, ciphertext) => nip44.decrypt(counterparty, ciphertext) : undefined,
+    decrypt: opener ? (counterparty, ciphertext) => opener.decrypt(counterparty, ciphertext) : undefined,
     sealSigner: nip44
       ? {
           pubkey: account.pubkey,
@@ -97,6 +121,7 @@ function startFor(account: BrainstormAccount | undefined) {
     // can open it unasked; an extension or bunker would prompt, so it waits for Messages.
     if (account instanceof LocalAccount) void hydrateDmPrefs(account.pubkey);
     current = new DmEngine(dmAccountFor(account), {
+      concurrency: account instanceof RemoteAccount ? REMOTE_DECRYPT_CONCURRENCY : undefined,
       transport: poolTransport,
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
       cache: dmCacheBackend(),
