@@ -49,6 +49,12 @@ The new **Failure Breakdown** panel groups failures by the error text we already
 **Why:** the Overview tab's trend windows (1h/24h/7d/30d) are computed from the latest activity records fetched client-side (`GET /admin/activity`, now `size=500` with a fallback). On a busy instance 7d/30d still under-sample, so a true **"All time"** or **custom date range** can't be honest from the client. The UI now shows a "last N records since <date>" caption + "range exceeds loaded data" note as a stopgap.
 **Needed:** either a **date-range parameter** on `/admin/activity` (from/to) or a **pre-aggregated time-series** endpoint (buckets per day) so the Overview can offer real long-range and custom windows.
 
+## 7c. Network Alerts — who reported, per account, in the alerts payload
+
+**Why:** `/alerts` now shows who reported each flagged account, grouped as people the observer follows, verified, unverified. `/networkAlerts` only returns `verifiedReporterCount`, so the grouping needs `GET /user/{pubkey}/connections?kind=reported_by` per account — fine when a row is opened, too many requests to show it on every collapsed row (up to 100).
+**UI today:** the grouping appears when a row is opened (`components/alerts/AlertDetails.tsx`).
+**Needed:** two counts per `NetworkAlertEntry`, from the observer's perspective: `reportersFollowedByObserver` (reporters the observer follows) and `reportersVerifiedForObserver` (reporters at or above the verified line). With them the collapsed row can say "2 people you follow · 4 verified" without a request per row.
+
 ## 7. Orphaned client methods — decide
 
 `getBrainstormRequest(requestId)` and `createBrainstormRequest()` exist in `api.ts` but nothing calls them. Either surface a "manually create a calc request" admin tool, or remove them.
