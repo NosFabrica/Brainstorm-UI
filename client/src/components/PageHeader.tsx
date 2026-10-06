@@ -8,7 +8,10 @@ import { type ReactNode } from "react";
  * music as the About / How-Search / Personalization pages.
  *
  * `size="hero"` is for full marketing headers (text-4xl→5xl); the default
- * `"page"` is the slightly more compact app-page size (text-3xl→4xl).
+ * `"page"` is the slightly more compact app-page size (text-3xl→4xl);
+ * `"compact"` is for a page the reader visits daily (the dashboard): one line
+ * of title on a phone, the kicker only from `sm` up, so the product starts
+ * inside the first screen.
  */
 export function PageHeader({
   kicker,
@@ -22,13 +25,15 @@ export function PageHeader({
   kicker: string;
   title: ReactNode;
   subtitle?: ReactNode;
-  size?: "page" | "hero";
+  size?: "page" | "hero" | "compact";
   className?: string;
   testId?: string;
   /** Something that acts on the page's subject, seated beside the title — a ⋯. */
   actions?: ReactNode;
 }) {
-  const titleSize = size === "hero" ? "text-4xl sm:text-5xl" : "text-3xl sm:text-4xl";
+  const compact = size === "compact";
+  const titleSize =
+    size === "hero" ? "text-4xl sm:text-5xl" : compact ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl";
   const h1 = (
     <h1
       className={`font-brand ${titleSize} font-bold leading-[1.1] tracking-tight text-slate-900 dark:text-slate-100 ${actions ? "min-w-0 break-words" : ""}`}
@@ -38,7 +43,7 @@ export function PageHeader({
   );
   return (
     <header className={`max-w-3xl ${className}`} data-testid={testId}>
-      <div className="mb-5 flex items-center gap-2.5">
+      <div className={compact ? "mb-3 hidden items-center gap-2.5 sm:flex" : "mb-5 flex items-center gap-2.5"}>
         <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.25em] text-brand-accent">
           {kicker}
         </span>
@@ -53,7 +58,11 @@ export function PageHeader({
         h1
       )}
       {subtitle && (
-        <p className="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600 dark:text-slate-300">{subtitle}</p>
+        <p
+          className={`max-w-2xl leading-relaxed text-slate-600 dark:text-slate-300 ${compact ? "mt-2 text-sm sm:text-base" : "mt-5 text-lg"}`}
+        >
+          {subtitle}
+        </p>
       )}
     </header>
   );

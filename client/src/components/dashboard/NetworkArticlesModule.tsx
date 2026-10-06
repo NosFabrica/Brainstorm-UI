@@ -46,7 +46,10 @@ export function NetworkArticlesModule({ observer, enabled }: { observer: string;
         >
           Reading from your network
         </span>
-        <span className="ml-auto text-[11px] text-slate-400 dark:text-slate-500">Beyond who you follow</span>
+        {/* The caption wrapped the title onto two lines on a phone; it's a gloss, so it waits for `sm`. */}
+        <span className="ml-auto hidden text-[11px] text-slate-400 dark:text-slate-500 sm:inline">
+          Beyond who you follow
+        </span>
       </div>
 
       {isLoading && top.length === 0 ? (

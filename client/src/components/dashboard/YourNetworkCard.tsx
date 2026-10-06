@@ -44,7 +44,6 @@ export function YourNetworkCard({
   onHopChange,
   health,
   onNavigate,
-  wide = false,
   followersFaces = [],
   followingFaces = [],
 }: {
@@ -58,8 +57,6 @@ export function YourNetworkCard({
   onHopChange: (v: number[]) => void;
   health: HealthSlice[];
   onNavigate: (path: string) => void;
-  /** Full-width layout: the three sections sit side by side instead of stacked. */
-  wide?: boolean;
   /** Up to 5 recently-active followers / follows, shown as a small avatar cluster. */
   followersFaces?: NetworkFace[];
   followingFaces?: NetworkFace[];
@@ -191,18 +188,15 @@ export function YourNetworkCard({
           </span>
         </div>
 
-        {/* Wide (all-clear) → four equal cells on one row. `contents` dissolves
-            the followers/following wrapper so its two tiles join the same 4-col
-            grid, and items-stretch makes every box share one height. */}
-        <div className={wide ? "grid gap-3 lg:grid-cols-4 lg:items-stretch" : "flex flex-col gap-3"}>
-          {/* Social graph */}
-          <div className={wide ? "contents" : "grid grid-cols-2 gap-2"}>
-            {statTile("Followers", followers, <Award className="h-3 w-3" />, "followed_by", followersFaces)}
-            {statTile("Following", following, <UserPlus className="h-3 w-3" />, "following", followingFaces)}
-          </div>
+        {/* One grid, two shapes by width: on a phone the two counts share a row
+            and reach and health take a full row each (the old `wide` prop stacked
+            all four full-width there); from `lg` all four sit on one row. */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:items-stretch">
+          {statTile("Followers", followers, <Award className="h-3 w-3" />, "followed_by", followersFaces)}
+          {statTile("Following", following, <UserPlus className="h-3 w-3" />, "following", followingFaces)}
 
           {/* Extended reach + hop slider */}
-          <div className="flex h-full flex-col space-y-2 rounded-lg border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/80">
+          <div className="col-span-2 flex h-full flex-col space-y-2 rounded-lg border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/80 lg:col-span-1">
             <div className="flex items-center justify-between">
               <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 <Network className="h-3 w-3" /> Extended reach
@@ -242,7 +236,7 @@ export function YourNetworkCard({
           {/* Trust health — compact stacked bar + legend, full detail on /network.
             Same boxed chrome as Extended Reach so the two align on one baseline
             when the card goes wide. */}
-          <div className="flex h-full flex-col space-y-2 rounded-lg border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/80">
+          <div className="col-span-2 flex h-full flex-col space-y-2 rounded-lg border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-900/80 lg:col-span-1">
             <div className="flex items-center justify-between">
               <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Trust health
