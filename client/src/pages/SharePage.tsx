@@ -87,6 +87,8 @@ import {
 } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useStickyBarVisible } from "@/hooks/useStickyBarVisible";
+import { cn } from "@/lib/utils";
 import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { FollowButton } from "@/components/share/FollowButton";
@@ -138,6 +140,9 @@ export default function SharePage() {
   const npub = pubkey ? safeNpub(pubkey) : "";
   const openLightbox = useLightbox();
   const loggedIn = useHasSession();
+  // The in-page "Join free"; the sticky one steps aside while it is on screen.
+  const inlineJoinRef = useRef<HTMLAnchorElement>(null);
+  const stickyJoinShown = useStickyBarVisible(inlineJoinRef);
   const [zapOpen, setZapOpen] = useState(false);
   // The pen beside Zap: each press asks the Trust reviews line to open its composer.
   const [composeRequest, setComposeRequest] = useState(0);
@@ -1363,6 +1368,7 @@ export default function SharePage() {
                       {/* CTA — right on desktop, full-width below on mobile */}
                       <div className="shrink-0 sm:text-right">
                         <Link
+                          ref={inlineJoinRef}
                           href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
                           className="inline-flex h-11 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-brand-primary px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover sm:w-auto"
                           data-testid="share-wot-cta"
@@ -1698,17 +1704,26 @@ export default function SharePage() {
           </p>
         </div>
 
-        {/* Sticky mobile Join bar — a persistent CTA as a logged-out visitor scrolls. */}
+        {/* Sticky mobile Join bar — a persistent CTA as a logged-out visitor scrolls.
+            It sits on the tab bar, which already clears the home indicator, so it adds
+            no safe-area padding of its own (that was an empty band between the two).
+            Out of the way while the reader scrolls down or the in-page one is in view:
+            the pair took a quarter of the screen the whole way down. */}
         {!loggedIn && (
           <>
-            <div className="h-20 sm:hidden" aria-hidden />
+            <div className="h-16 sm:hidden" aria-hidden />
             <div
-              className="fixed inset-x-0 bottom-[var(--bs-bottom-chrome,0px)] z-40 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:hidden"
+              className={cn(
+                "fixed inset-x-0 bottom-[max(var(--bs-bottom-chrome,0px),env(safe-area-inset-bottom))] z-40 border-t border-slate-200 bg-white/95 px-4 py-2 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] backdrop-blur transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none dark:border-slate-800 dark:bg-slate-900/95 sm:hidden",
+                !stickyJoinShown && "pointer-events-none translate-y-full opacity-0",
+              )}
+              aria-hidden={!stickyJoinShown || undefined}
               data-testid="share-invite-sticky"
             >
               <Link
                 href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
-                className="inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
+                tabIndex={stickyJoinShown ? undefined : -1}
+                className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
                 data-testid="share-wot-cta-sticky"
               >
                 Join free — connect with {displayName.split(" ")[0] || displayName} <ArrowRight className="h-4 w-4" />

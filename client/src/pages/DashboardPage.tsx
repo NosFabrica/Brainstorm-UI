@@ -1118,10 +1118,6 @@ export default function DashboardPage() {
                 app-wide pill. Failures are carried by the alert above, so the
                 status line stands down rather than promising a time estimate. */}
             {showOnboarding && <SetupProgressCard queueAhead={queuePosition} showStatus={!isErrorState} />}
-
-            {/* Someone put a public label on you. Nothing else in the app would
-                ever tell you — self-hides when there's nothing new. */}
-            <TaggedYouModule />
           </div>
 
           {activateModal}
@@ -1177,6 +1173,12 @@ export default function DashboardPage() {
               </motion.div>
             )}
           </div>
+
+          {/* Someone put a public label on you. Nothing else in the app would
+              ever tell you — self-hides when there's nothing new. Under "Your
+              Network", not above it: it arrives a moment after the page, and up
+              top it shoved the network card ~270px down under a reader's thumb. */}
+          <TaggedYouModule />
 
           {/* Discovery, not a following feed: long-form from accounts two-plus
               hops out that the graph vouches for. Renders nothing until there's

@@ -9,6 +9,7 @@ import { LoginPicker } from "@/components/LoginPicker";
 import { KeySignInModal } from "@/components/KeySignInModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
+import { isInstalledPhoneApp } from "@/lib/installedApp";
 import { Wordmark } from "@/components/Wordmark";
 import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
 import { HERO_SOLO } from "@/lib/heroScenes";
@@ -70,6 +71,9 @@ export default function LoginPage() {
     }
   })();
   const hasAccounts = identities.length > 0;
+  // Installed to a phone's home screen, no extension can reach the app: the signer app
+  // leads instead of a button that can only fail.
+  const [installedApp] = useState(isInstalledPhoneApp);
   const nextPath = getNextPath();
   const inviterPubkey = getInviterPubkey();
 
@@ -243,33 +247,35 @@ export default function LoginPage() {
             )}
 
             <div className={hasAccounts ? "space-y-3" : "mt-6 space-y-3"}>
-              <Button
-                onClick={onLogin}
-                disabled={loading}
-                variant="neutral"
-                size="lg"
-                className="w-full"
-                data-testid="button-signin-extension"
-              >
-                {loading ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="square"
-                    aria-hidden="true"
-                  >
-                    <path d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108" />
-                    <path d="M2 11.1914H14.88" />
-                    <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
-                  </svg>
-                )}
-                <span>{loading ? "Connecting…" : "Sign in with your extension"}</span>
-                <ArrowRight />
-              </Button>
+              {!installedApp && (
+                <Button
+                  onClick={onLogin}
+                  disabled={loading}
+                  variant="neutral"
+                  size="lg"
+                  className="w-full"
+                  data-testid="button-signin-extension"
+                >
+                  {loading ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="square"
+                      aria-hidden="true"
+                    >
+                      <path d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108" />
+                      <path d="M2 11.1914H14.88" />
+                      <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
+                    </svg>
+                  )}
+                  <span>{loading ? "Connecting…" : "Sign in with your extension"}</span>
+                  <ArrowRight />
+                </Button>
+              )}
 
               {/* One row for every remote signer — nsec.app, Amber's bunker mode,
                 Keycast, anything self-hosted. Their differences are absorbed at
@@ -277,7 +283,7 @@ export default function LoginPage() {
                 choices there are. */}
               <Button
                 type="button"
-                variant="outline"
+                variant={installedApp ? "neutral" : "outline"}
                 size="lg"
                 onClick={() => setRemoteOpen(true)}
                 className="w-full"
