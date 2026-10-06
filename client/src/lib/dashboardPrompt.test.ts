@@ -28,6 +28,19 @@ describe("dashboardPrompt", () => {
     });
   });
 
+  it("the unpublished assistant comes last — a nicety, after anything owed", () => {
+    expect(
+      dashboardPrompt({ activatePending: false, consentDue: false, inviteDue: true, assistantDue: true })?.key,
+    ).toBe("invite");
+    expect(
+      dashboardPrompt({ activatePending: false, consentDue: false, inviteDue: false, assistantDue: true }),
+    ).toEqual({
+      key: "assistant",
+      label: "Your assistant isn't published yet",
+      action: "Publish assistant",
+    });
+  });
+
   it("nothing to prompt → no line at all", () => {
     expect(dashboardPrompt({ activatePending: false, consentDue: false, inviteDue: false })).toBeNull();
   });

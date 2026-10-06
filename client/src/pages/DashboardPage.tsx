@@ -6,9 +6,6 @@ import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { ladderFor, type Bucket } from "@/lib/trustLadder";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
-import { PresetBadge } from "@/components/PresetBadge";
-import amethystLogoImg from "@/assets/amethyst-logo.webp";
-import nostriaIconImg from "../assets/nostria-icon.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -26,9 +23,8 @@ import { useShareUrl } from "@/hooks/useShareUrl";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, ShieldAlert, Info, RefreshCw, X, ChevronDown, Keyboard } from "lucide-react";
+import { Loader2, ShieldAlert, RefreshCw, Keyboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BrainLogo } from "@/components/BrainLogo";
 import {
   ASSISTANT_UPDATED_EVENT,
   getCurrentAssistantPubkey,
@@ -118,7 +114,6 @@ export default function DashboardPage() {
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
   const [networkViewMode] = useState<"trust" | "activity">("trust");
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
-  const [wotExpanded, setWotExpanded] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
   const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(user?.pubkey));
   // In-app-created accounts consent at the calculate step (or implicitly, for
@@ -337,13 +332,6 @@ export default function DashboardPage() {
 
   const verifiedFollowersCount = stats?.followed_by?.verified ?? 0;
   const verifiedFollowingCount = stats?.following?.verified ?? 0;
-
-  const grapeRankScoreNum = grapeRank
-    ? ([grapeRank.average, grapeRank.score, grapeRank.graperank, grapeRank.confidence, grapeRank.value].find(
-        (v): v is number => typeof v === "number",
-      ) ?? null)
-    : null;
-  const grapeRankScore = grapeRankScoreNum !== null ? grapeRankScoreNum.toFixed(4) : null;
 
   const queuePosition = grapeRank
     ? typeof grapeRank.how_many_others_with_priority === "number"
@@ -760,6 +748,7 @@ export default function DashboardPage() {
       !nip85Dismissed &&
       (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)),
     inviteDue: publishDone && !inviteCardSeen && !isRecalculating,
+    assistantDue: publishDone && nip85Activated && !assistantDismissed && !assistantPubkey && !nip85CreatedInApp,
   });
 
   // One modal instance, reachable from both the takeover and the dashboard.
@@ -840,214 +829,7 @@ export default function DashboardPage() {
                   it. All it adds is a fourth "Awaiting calculation" — and on mobile it
                   stacks directly above the CalculatingNotice, so the duplication is
                   unmissable. It returns the moment scores land. */}
-              {isFirstSession && !calcDone ? null : nip85Activated && publishDone ? (
-                <Card
-                  className="relative w-full max-w-sm self-start overflow-hidden md:self-end"
-                  data-testid="badge-nip85-active"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setWotExpanded((v) => !v)}
-                    aria-expanded={wotExpanded}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/60"
-                    data-testid="button-wot-expand"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand-accent/20 bg-brand-accent/10">
-                      <BrainLogo size={14} className="text-brand-deep" />
-                    </div>
-                    <span
-                      className="shrink-0 text-[13px] font-semibold text-slate-900 dark:text-slate-100"
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
-                      Your network
-                    </span>
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 dark:border-emerald-500/25 dark:bg-emerald-500/10">
-                      <span className="relative flex h-1.5 w-1.5">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      </span>
-                      <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Active</span>
-                    </span>
-                    <span className="flex-1" />
-                    <ChevronDown
-                      className={`h-4 w-4 shrink-0 text-slate-400 transition-transform dark:text-slate-500 ${wotExpanded ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  {wotExpanded && (
-                    <div className="border-t border-slate-100 px-3.5 pb-3.5 dark:border-slate-800/60">
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-                        {history?.last_time_calculated_graperank && (
-                          <span>
-                            Updated{" "}
-                            {formatTimestamp(
-                              new Date(
-                                history.last_time_calculated_graperank.endsWith("Z")
-                                  ? history.last_time_calculated_graperank
-                                  : history.last_time_calculated_graperank + "Z",
-                              ),
-                            )}
-                          </span>
-                        )}
-                        <span
-                          title="Published as a NIP-85 declaration so compatible apps can read your scores"
-                          className="inline-flex items-center"
-                        >
-                          <Info className="h-3 w-3 text-slate-300 dark:text-slate-600" />
-                        </span>
-                        {grapeRank?.graperank_preset_used && (
-                          <span className="inline-flex items-center gap-1">
-                            <span>Trust</span>
-                            <PresetBadge
-                              preset={grapeRank.graperank_preset_used}
-                              size="xs"
-                              testId="badge-dashboard-preset-used"
-                            />
-                          </span>
-                        )}
-                      </div>
-
-                      <AnimatePresence initial={false}>
-                        {!assistantDismissed && !assistantPubkey && !nip85CreatedInApp && (
-                          <motion.div
-                            key="assistant-inline-prompt"
-                            initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
-                            animate={{ opacity: 1, height: "auto", marginTop: 6, marginBottom: 6 }}
-                            exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
-                            transition={{ duration: 0.25, ease: "easeInOut" }}
-                            className="overflow-hidden"
-                            data-testid="container-assistant-inline-prompt"
-                          >
-                            <div className="from-brand-accent/8 flex items-center gap-2.5 rounded-lg border border-brand-accent/20 bg-gradient-to-br via-white to-brand-primary/10 px-2.5 py-2 dark:bg-slate-800/50 dark:bg-none">
-                              <img
-                                src="/assistant-default.webp"
-                                alt=""
-                                aria-hidden="true"
-                                className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-brand-accent/30"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).src = "/assistant-default.jpg";
-                                }}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p
-                                  className="truncate text-[11px] font-semibold leading-tight text-slate-900 dark:text-slate-100"
-                                  style={{ fontFamily: "var(--font-display)" }}
-                                >
-                                  Publish your assistant
-                                </p>
-                                <p className="truncate text-[10px] leading-tight text-slate-500 dark:text-slate-400">
-                                  Speak your scores to compatible apps
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => publishAssistantMutation.mutate()}
-                                disabled={publishAssistantMutation.isPending}
-                                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-gradient-to-br from-brand-primary to-brand-deep px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white shadow-sm transition-all hover:shadow-md hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-brand-accent/40 disabled:cursor-not-allowed disabled:opacity-70"
-                                data-testid="button-assistant-inline-publish"
-                              >
-                                {publishAssistantMutation.isPending ? (
-                                  <>
-                                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                                    Publishing
-                                  </>
-                                ) : (
-                                  "Publish"
-                                )}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAssistantDismissedStorage(true);
-                                  setAssistantDismissed(true);
-                                }}
-                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-accent/40 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                                aria-label="Dismiss publish assistant prompt"
-                                data-testid="button-assistant-inline-dismiss"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800/60">
-                        <div className="mb-2.5 flex items-center gap-1.5">
-                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
-                            Readable in compatible apps
-                          </span>
-                          <div className="group/info relative">
-                            <button
-                              type="button"
-                              className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-accent/40 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                              onClick={(e) => e.currentTarget.focus()}
-                              aria-label="What are Compatible Clients?"
-                              data-testid="button-compatible-clients-info"
-                            >
-                              <Info className="h-2 w-2" />
-                            </button>
-                            <div
-                              className="pointer-events-none invisible fixed left-4 right-4 top-1/2 z-[100] -translate-y-1/2 rounded-xl border border-white/15 bg-slate-900/95 p-3 text-xs leading-relaxed text-slate-200 opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-200 group-focus-within/info:pointer-events-auto group-focus-within/info:visible group-focus-within/info:opacity-100 group-hover/info:pointer-events-auto group-hover/info:visible group-hover/info:opacity-100 sm:absolute sm:bottom-full sm:left-1/2 sm:right-auto sm:top-auto sm:mb-2 sm:w-80 sm:-translate-x-1/2 sm:translate-y-0"
-                              data-testid="tooltip-compatible-clients"
-                            >
-                              Apps that read the personalized Verification Scores Brainstorm publishes for you — so your
-                              network travels with you across the apps you use.
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <a
-                            href="https://amethyst.social/#"
-                            target="_blank"
-                            rel="noopener"
-                            className="group/client flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 shadow-sm transition-all hover:border-brand-accent hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900"
-                            data-testid="link-compatible-amethyst"
-                          >
-                            <img src={amethystLogoImg} alt="Amethyst" className="h-5 w-5 rounded-md" />
-                            <span className="text-[10px] font-semibold text-slate-700 transition-colors group-hover/client:text-brand-deep dark:text-slate-200">
-                              Amethyst
-                            </span>
-                          </a>
-                          <a
-                            href="https://www.nostria.app/"
-                            target="_blank"
-                            rel="noopener"
-                            className="group/client flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2 py-1.5 shadow-sm transition-all hover:border-orange-300 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900"
-                            data-testid="link-compatible-nostria"
-                          >
-                            <img
-                              src={nostriaIconImg}
-                              alt="Nostria"
-                              className="h-5 w-5 rounded-md bg-white object-contain"
-                            />
-                            <span className="text-[10px] font-semibold text-slate-700 transition-colors group-hover/client:text-orange-700 dark:text-slate-200">
-                              Nostria
-                            </span>
-                          </a>
-                        </div>
-                        <button
-                          onClick={() => setRecalcConfirmOpen(true)}
-                          disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                          className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-accent/15 bg-brand-deep/[0.06] px-3 py-2 text-brand-deep transition-all hover:border-brand-accent/30 hover:bg-brand-deep/[0.12] disabled:pointer-events-none disabled:opacity-40"
-                          data-testid="button-recalculate-wot-card"
-                        >
-                          {triggerGrapeRankMutation.isPending ? (
-                            <>
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              <span className="text-[11px] font-semibold tracking-wide">Calculating</span>
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="h-3 w-3" />
-                              <span className="text-[11px] font-semibold tracking-wide">Recalculate</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              ) : (
+              {isFirstSession && !calcDone ? null : (
                 // One slim line: the label, the state, when, and two text actions.
                 // It used to be a two-storey card with a boxed Recalculate button;
                 // the state is the news, the rest is reference. Activation pending
@@ -1066,29 +848,7 @@ export default function DashboardPage() {
                       data-testid="text-overall-trust-score-sub"
                     >
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      Recalculating...
-                    </span>
-                  ) : grapeRankScore ? (
-                    <span
-                      className="font-semibold text-slate-700 dark:text-slate-200"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      Score: {grapeRankScore}
-                    </span>
-                  ) : publishDone ? (
-                    <span
-                      className="font-semibold text-emerald-600 dark:text-emerald-400"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      Complete
-                    </span>
-                  ) : justFollowed ? (
-                    <span
-                      className="flex items-center gap-1 font-medium text-brand-primary"
-                      data-testid="text-overall-trust-score-sub"
-                    >
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Calculating…
+                      Recalculating…
                     </span>
                   ) : isErrorState ? (
                     <span className="font-medium text-red-500" data-testid="text-overall-trust-score-sub">
@@ -1098,13 +858,30 @@ export default function DashboardPage() {
                           ? "Publishing failed"
                           : "Action needed"}
                     </span>
-                  ) : isRecalculation ? (
+                  ) : isRecalculation || justFollowed ? (
                     <span
                       className="flex items-center gap-1 font-medium text-brand-primary"
                       data-testid="text-overall-trust-score-sub"
                     >
                       <Loader2 className="h-3 w-3 animate-spin" />
                       {calcDone ? "Publishing…" : "Calculating…"}
+                    </span>
+                  ) : publishDone && nip85Activated ? (
+                    // Published AND other apps can find them: the one green pill.
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      data-testid="text-overall-trust-score-sub"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                      Active
+                    </span>
+                  ) : publishDone ? (
+                    // Not "Score: 0.4321" or "Complete": what the reader has, in a word.
+                    <span
+                      className="font-semibold text-emerald-600 dark:text-emerald-400"
+                      data-testid="text-overall-trust-score-sub"
+                    >
+                      Scores ready
                     </span>
                   ) : (
                     <span
@@ -1166,15 +943,19 @@ export default function DashboardPage() {
                   onClick={() => {
                     if (prompt.key === "activate") navigate("/setup/activate");
                     else if (prompt.key === "consent") setNip85ModalOpen(true);
+                    else if (prompt.key === "assistant") publishAssistantMutation.mutate();
                     else {
                       setInviteShareOpen(true);
                       markInviteCardSeen();
                     }
                   }}
+                  disabled={prompt.key === "assistant" && publishAssistantMutation.isPending}
                   className="inline-flex items-center gap-1 rounded font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                   data-testid={`dashboard-prompt-${prompt.key}`}
                 >
-                  {prompt.action} →
+                  {prompt.key === "assistant" && publishAssistantMutation.isPending
+                    ? "Publishing…"
+                    : `${prompt.action} →`}
                 </button>
                 {/* Activation has no "not now" by design: it self-hides once signed. */}
                 {prompt.key !== "activate" && (
@@ -1182,7 +963,10 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => {
                       if (prompt.key === "invite") markInviteCardSeen();
-                      else {
+                      else if (prompt.key === "assistant") {
+                        setAssistantDismissedStorage(true);
+                        setAssistantDismissed(true);
+                      } else {
                         try {
                           const pk = user?.pubkey;
                           if (pk)

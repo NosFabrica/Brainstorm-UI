@@ -45,8 +45,10 @@ vi.mock("@/hooks/useVerifiedNoFollows", () => ({ useVerifiedNoFollows: () => "ha
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 vi.mock("@/accounts/display", () => ({ identityHas: () => false }));
-// The relay verdict: no kind-10040 names Brainstorm, so activation is pending.
-vi.mock("@/hooks/useTrustProviderStatus", () => ({ useTrustProviderStatus: () => ({ data: "none" }) }));
+// The relay verdict: "none" — no kind-10040 names Brainstorm, so activation is
+// pending — unless a test flips it to "brainstorm" for the activated cohort.
+let provider: "none" | "brainstorm" = "none";
+vi.mock("@/hooks/useTrustProviderStatus", () => ({ useTrustProviderStatus: () => ({ data: provider }) }));
 vi.mock("@/hooks/useSelf", () => ({
   useSelfOverview: () => ({
     isSuccess: true,
@@ -83,6 +85,7 @@ function show() {
 
 beforeEach(() => {
   localStorage.clear();
+  provider = "none";
   // A returning user: scores existed before this visit, and the invite card was never seen.
   localStorage.setItem(accountKey("brainstorm_calc_completed", ME), "true");
 });
@@ -99,8 +102,8 @@ describe("DashboardPage for a returning user", () => {
     expect(screen.queryByTestId("card-activate-brainstorm")).toBeNull();
     expect(screen.queryByTestId("card-invite-grow")).toBeNull();
     expect(screen.queryByTestId("card-nip85-cta")).toBeNull();
-    // The strip's status no longer repeats the prompt: it says the scores are there.
-    expect(screen.getByTestId("text-overall-trust-score-sub")).not.toHaveTextContent("Not visible");
+    // The strip's status no longer repeats the prompt: it says what the reader has.
+    expect(screen.getByTestId("text-overall-trust-score-sub")).toHaveTextContent("Scores ready");
     expect(screen.getAllByText(/Activate/)).toHaveLength(1);
   });
 
@@ -120,5 +123,21 @@ describe("DashboardPage for a returning user", () => {
     const header = await screen.findByTestId("section-dashboard-header-copy");
     expect(header).toHaveTextContent("Welcome back, Relay Outpost");
     expect(header).not.toHaveTextContent("active and growing");
+  });
+
+  it("an activated user gets the same one-line strip — Active, updated, Recalculate, insights — not a fold", async () => {
+    provider = "brainstorm";
+    localStorage.setItem(accountKey("brainstorm_invite_card_seen", ME), "true");
+    show();
+    const strip = await screen.findByTestId("card-overall-trust-score");
+    expect(strip).toHaveTextContent("Active");
+    expect(within(strip).getByTestId("button-trigger-graperank")).toHaveTextContent("Recalculate");
+    expect(within(strip).getByTestId("link-view-insights")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-wot-expand")).toBeNull();
+    expect(screen.queryByTestId("badge-nip85-active")).toBeNull();
+    // Nothing owed and the invite already seen: the unpublished assistant is the one line.
+    const prompt = screen.getByTestId("dashboard-prompt");
+    expect(prompt).toHaveTextContent("Your assistant isn't published yet");
+    expect(within(prompt).getByRole("button", { name: /Publish assistant/ })).toBeInTheDocument();
   });
 });
