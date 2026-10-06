@@ -40,7 +40,7 @@ function serviceWorkerPlugin(): Plugin {
     name: "service-worker",
     apply: "build",
     async generateBundle(_options, bundle) {
-      const { shell, routes, missing } = precacheLists(bundle as unknown as Record<string, BuiltFile>);
+      const { entry, shell, routes, missing } = precacheLists(bundle as unknown as Record<string, BuiltFile>);
       if (missing.length) this.warn(`sw: no chunk for ${missing.join(", ")} — rename in sw/precache APP_SCREENS`);
       const source = fs.readFileSync(path.resolve(__dirname, "client", "src", "sw", "sw.ts"), "utf8");
       const { code } = await transformWithEsbuild(source, "sw.ts", {
@@ -51,6 +51,7 @@ function serviceWorkerPlugin(): Plugin {
         define: {
           __SW_BUILD_ID__: JSON.stringify(BUILD_ID),
           __SW_PRECACHE__: JSON.stringify(shell),
+          __SW_ENTRY__: JSON.stringify(`/${entry}`),
           __SW_ROUTES__: JSON.stringify(routes),
         },
       });

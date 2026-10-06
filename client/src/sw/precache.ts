@@ -54,10 +54,11 @@ function closure(bundle: Record<string, BuiltFile>, start: string, into: Set<str
 export function precacheLists(
   bundle: Record<string, BuiltFile>,
   screens: string[] = APP_SCREENS,
-): { shell: string[]; routes: string[]; missing: string[] } {
+): { entry: string; shell: string[]; routes: string[]; missing: string[] } {
   const shell = new Set<string>();
-  for (const file of Object.values(bundle))
-    if (file.type === "chunk" && file.isEntry) closure(bundle, file.fileName, shell);
+  const entries = Object.values(bundle).filter((file) => file.type === "chunk" && file.isEntry);
+  if (entries.length !== 1) throw new Error(`sw: expected one entry chunk, found ${entries.length}`);
+  closure(bundle, entries[0].fileName, shell);
   // Fonts the CSS points at are assets of the CSS, not of a chunk.
   for (const file of Object.values(bundle))
     if (file.type === "asset" && SHELL_FONT.test(file.fileName)) shell.add(file.fileName);
@@ -73,6 +74,7 @@ export function precacheLists(
   }
   for (const file of shell) routes.delete(file);
   return {
+    entry: entries[0].fileName,
     shell: [...shell].sort(),
     routes: [...routes].sort(),
     missing: screens.filter((name) => !found.has(name)),

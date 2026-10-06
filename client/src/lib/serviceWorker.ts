@@ -53,9 +53,10 @@ function buildIdOf(worker: ServiceWorker): Promise<string | null> {
 }
 
 /** A worker finished installing behind the one running this page. */
-async function consider(worker: ServiceWorker) {
-  // No controller: the first install, which takes the page over by itself.
-  if (!navigator.serviceWorker.controller) return;
+async function consider(worker: ServiceWorker, reg: ServiceWorkerRegistration) {
+  // Nothing active: the first install, which takes the page over by itself. (Not
+  // "no controller": a hard reload leaves the page uncontrolled with an update waiting.)
+  if (!reg.active) return;
   if ((await buildIdOf(worker)) === BUILD_ID) {
     // The page already runs this build: nothing on screen changes.
     worker.postMessage({ type: "SKIP_WAITING" });
@@ -71,9 +72,18 @@ export function registerServiceWorker(): void {
   const container = navigator.serviceWorker;
 
   container.addEventListener("controllerchange", () => {
-    // Only for the reader's own "Reload": a quiet swap must not reload under them.
-    if (!reloading) return;
-    window.location.reload();
+    if (reloading) {
+      window.location.reload();
+      return;
+    }
+    // Never reloaded under the reader. But another tab's quiet swap can put a newer
+    // build in charge of this older page, whose next screen's chunk is no longer
+    // kept: say a new version is ready, as for an update found here.
+    const controller = container.controller;
+    if (controller)
+      void buildIdOf(controller).then((id) => {
+        if (id !== BUILD_ID) setUpdateReady(true);
+      });
   });
   container.addEventListener("message", (event: MessageEvent) => {
     const data = event.data as { type?: string; url?: unknown } | null;
@@ -85,13 +95,14 @@ export function registerServiceWorker(): void {
       .register("/sw.js", { updateViaCache: "none" })
       .then((reg) => {
         registration = reg;
-        if (reg.waiting) void consider(reg.waiting);
-        reg.addEventListener("updatefound", () => {
-          const worker = reg.installing;
+        const watch = (worker: ServiceWorker | null) =>
           worker?.addEventListener("statechange", () => {
-            if (worker.state === "installed") void consider(worker);
+            if (worker.state === "installed") void consider(worker, reg);
           });
-        });
+        if (reg.waiting) void consider(reg.waiting, reg);
+        // Already installing: the browser's own check on this load beat our register().
+        watch(reg.installing);
+        reg.addEventListener("updatefound", () => watch(reg.installing));
         // An installed app keeps its main screens too, so it opens any of them offline.
         if (isInstalledApp()) void container.ready.then((ready) => ready.active?.postMessage({ type: "WARM_ROUTES" }));
       })

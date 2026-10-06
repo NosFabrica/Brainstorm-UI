@@ -597,6 +597,52 @@ describe("DmEngine", () => {
     expect(second.store.room(room)?.last?.outgoing?.status).toBe("sent");
   });
 
+  it("sends what waited when the app comes back, within the retry budget only the connection resets", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    let tries = 0;
+    const transport: DmTransport = {
+      ...net.transport,
+      publish: async () => {
+        tries++;
+        return { ok: false, message: "blocked" };
+      },
+    };
+    let resume!: () => void;
+    let reconnect!: () => void;
+    const engine = new DmEngine(me.account(), {
+      ...net,
+      transport,
+      ...clock(),
+      onResume: (cb) => {
+        resume = cb;
+        return () => {};
+      },
+      onOnline: (cb) => {
+        reconnect = cb;
+        return () => {};
+      },
+      now: () => NOW,
+    });
+    await engine.start();
+    await settle();
+    await engine.send(roomKey([me.pubkey, ana.pubkey]), "refused everywhere");
+    await settle();
+    const afterSend = tries;
+    // Twenty returns to the tab: ten retries, then it stops asking.
+    for (let i = 0; i < 20; i++) {
+      resume();
+      await settle();
+    }
+    const perTry = 2; // two relays
+    expect(tries - afterSend).toBe(10 * perTry);
+    // The connection coming back starts the budget over.
+    reconnect();
+    await settle();
+    expect(tries - afterSend).toBe(11 * perTry);
+  });
+
   it("discards an undelivered message on request", async () => {
     const me = person();
     const ana = person();

@@ -63,6 +63,30 @@ describe("onAppResume", () => {
     expect(seen).toEqual([5000]);
   });
 
+  it("waits for the reader when the connection comes back in the background, and counts the whole absence", () => {
+    const seen: number[] = [];
+    const stop = onAppResume((away) => seen.push(away), now);
+    hide();
+    clock += 60 * 60_000;
+    window.dispatchEvent(new Event("online"));
+    expect(seen).toEqual([]);
+    clock += 60 * 60_000;
+    show();
+    stop();
+    expect(seen).toEqual([2 * 60 * 60_000]);
+  });
+
+  it("says how it came back", () => {
+    const seen: string[] = [];
+    const stop = onAppResume((_away, how) => seen.push(how), now);
+    hide();
+    show();
+    clock += 5000;
+    window.dispatchEvent(new Event("online"));
+    stop();
+    expect(seen).toEqual(["visible", "online"]);
+  });
+
   it("hears nothing once stopped", () => {
     const listener = vi.fn();
     onAppResume(listener, now)();

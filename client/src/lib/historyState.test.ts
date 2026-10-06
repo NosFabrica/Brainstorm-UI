@@ -38,6 +38,20 @@ describe("history depth", () => {
     expect(historyDepth()).toBe(1);
   });
 
+  it("keeps a redirect's entry as deep as the one it replaced", async () => {
+    const { trackHistoryEntry, historyDepth } = await load();
+    trackHistoryEntry();
+    // A short link or old profile URL, redirected with `replace` (state wiped).
+    window.history.replaceState(null, "", "/p/npub1");
+    trackHistoryEntry();
+    expect(historyDepth()).toBe(0);
+    window.history.pushState({}, "", "/e/note1");
+    trackHistoryEntry();
+    window.history.replaceState(null, "", "/e/nevent1");
+    trackHistoryEntry();
+    expect(historyDepth()).toBe(1);
+  });
+
   it("reads a cold deep link as depth 0 even when the tab has other history", async () => {
     const { historyDepth } = await load();
     window.history.pushState({}, "", "/t/bitcoin");

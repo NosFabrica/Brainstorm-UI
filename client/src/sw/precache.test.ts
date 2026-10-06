@@ -32,6 +32,10 @@ const BUILD = bundle([
 ]);
 
 describe("precacheLists", () => {
+  it("names the entry script, which a page of this build loads", () => {
+    expect(precacheLists(BUILD, ["MessagesPage"]).entry).toBe("assets/index.js");
+  });
+
   it("keeps the entry with everything it imports, its CSS and the Latin fonts as the shell", () => {
     expect(precacheLists(BUILD, ["MessagesPage"]).shell).toEqual([
       "assets/figtree-latin-wght-normal-abc.woff2",

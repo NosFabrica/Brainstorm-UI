@@ -10,8 +10,13 @@ pins people to an old build.
 ## The rule
 
 - **Page loads go to the network first.** The cached shell answers only when the
-  network fails, errors, or takes longer than 4s (`SHELL_TIMEOUT_MS`). A deploy
-  reaches everyone on their next launch, as it did before the worker.
+  network fails, errors, or takes longer than 4s (`SLOW_NETWORK_MS`); config.js,
+  which the page waits on before it runs, is on the same clock. A deploy reaches
+  everyone on their next launch, as it did before the worker. The cache keeps
+  only its own build's HTML, so the offline shell always matches the assets
+  beside it.
+- **A deploy downloads only what changed.** Installing copies the hashed files
+  the previous build's cache already holds.
 - **Hashed assets come from the cache.** Their names change with their content,
   so a cached copy is never stale. The shell (the entry, its imports, its CSS, the
   Latin fonts) is cached at install; the main screens' chunks only in an installed

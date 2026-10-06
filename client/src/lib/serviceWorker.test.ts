@@ -25,17 +25,28 @@ function worker(id: string | null) {
   return w;
 }
 
-function install({ waiting, controlled = true }: { waiting: ReturnType<typeof worker> | null; controlled?: boolean }) {
+function install({
+  waiting,
+  installing = null,
+  controlled = true,
+  firstInstall = false,
+}: {
+  waiting: ReturnType<typeof worker> | null;
+  installing?: ReturnType<typeof worker> | null;
+  controlled?: boolean;
+  firstInstall?: boolean;
+}) {
   const listeners: Record<string, ((e: unknown) => void)[]> = {};
   const reg = {
     waiting,
-    active: { postMessage: vi.fn() },
+    installing,
+    active: firstInstall ? null : { postMessage: vi.fn() },
     update: vi.fn(() => Promise.resolve()),
     addEventListener: vi.fn(),
     showNotification: vi.fn(() => Promise.resolve()),
   };
   const container = {
-    controller: controlled ? {} : null,
+    controller: (controlled ? worker(BUILD_ID) : null) as ReturnType<typeof worker> | null,
     ready: Promise.resolve(reg),
     register: vi.fn(() => Promise.resolve(reg)),
     getRegistration: vi.fn(() => Promise.resolve(reg)),
@@ -90,12 +101,43 @@ describe("taking a deploy", () => {
 
   it("leaves a first install alone: it takes the page over by itself", async () => {
     const w = worker("whatever");
-    install({ waiting: w, controlled: false });
+    install({ waiting: w, controlled: false, firstInstall: true });
     const { result } = renderHook(() => useAppUpdate());
     registerServiceWorker();
     await settle();
     expect(w.posted).toEqual([]);
     expect(result.current).toBe(false);
+  });
+
+  it("takes up an update waiting behind a hard-reloaded (uncontrolled) page", async () => {
+    install({ waiting: worker("a-newer-build"), controlled: false });
+    const { result } = renderHook(() => useAppUpdate());
+    registerServiceWorker();
+    await settle();
+    expect(result.current).toBe(true);
+  });
+
+  it("watches a worker already installing when it registers", async () => {
+    const w = worker(BUILD_ID);
+    const listeners: (() => void)[] = [];
+    w.addEventListener = vi.fn((_type: string, fn: () => void) => listeners.push(fn));
+    install({ waiting: null, installing: w });
+    registerServiceWorker();
+    await settle();
+    listeners.forEach((fn) => fn());
+    await settle();
+    expect(w.posted).toContainEqual({ type: "SKIP_WAITING" });
+  });
+
+  it("tells an older page when another tab's swap put a newer build in charge", async () => {
+    const { container, fire } = install({ waiting: null });
+    const { result } = renderHook(() => useAppUpdate());
+    registerServiceWorker();
+    await settle();
+    container.controller = worker("a-newer-build");
+    fire("controllerchange", {});
+    await settle();
+    expect(result.current).toBe(true);
   });
 
   it("reloads on the reader's Reload, and only then", async () => {
