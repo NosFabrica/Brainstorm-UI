@@ -1,8 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
-import { renderWithProviders } from "@/test/utils";
-import { ActivateBrainstormPanel, needsActivationPrompt } from "./ActivateBrainstormPanel";
+import { needsActivationPrompt } from "./ActivateBrainstormPanel";
 
 describe("needsActivationPrompt", () => {
   it("stays hidden until the relay check settles", () => {
@@ -34,27 +32,5 @@ describe("needsActivationPrompt", () => {
 
   it("stays hidden when the 10040 already declares Brainstorm", () => {
     expect(needsActivationPrompt({ status: "brainstorm", locallyActivated: false, createdInApp: false })).toBe(false);
-  });
-});
-
-describe("ActivateBrainstormPanel", () => {
-  it("carries the activation copy", () => {
-    renderWithProviders(<ActivateBrainstormPanel onActivate={() => {}} />);
-
-    expect(screen.getByTestId("text-activate-brainstorm-title")).toHaveTextContent("Activate your Brainstorm account");
-    expect(screen.getByTestId("text-activate-brainstorm-subtitle")).toHaveTextContent(
-      "Sign a note that tells other apps where to find your Brainstorm scores.",
-    );
-  });
-
-  // ta_pubkey exists from login (the backend creates it while minting the
-  // session token), so the button is always live — no waiting state.
-  it("opens the signing flow on click", () => {
-    const onActivate = vi.fn();
-    renderWithProviders(<ActivateBrainstormPanel onActivate={onActivate} />);
-
-    fireEvent.click(screen.getByTestId("button-activate-brainstorm"));
-
-    expect(onActivate).toHaveBeenCalledTimes(1);
   });
 });

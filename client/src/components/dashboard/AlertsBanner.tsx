@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { useAlertPrefs } from "@/hooks/useAlertPrefs";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
@@ -43,37 +42,40 @@ export function AlertsBanner({ observer, enabled }: { observer: string; enabled:
   if (counts.follows === 0) return null;
 
   return (
+    // One row at every width: the red tint and the shield carry the attention, so
+    // the way in is a text link, not a full-width button competing with the
+    // page's real call to action.
     <Alert
       variant="destructive"
-      className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between [&>svg]:static [&>svg~*]:pl-0"
+      className="flex items-center gap-3 px-4 py-2.5 [&>svg]:static [&>svg~*]:pl-0"
       // A count that waits on the dashboard, not an emergency: announced politely, once.
       role="status"
       data-testid="alerts-banner"
     >
-      <div className="flex min-w-0 items-center gap-3">
-        <ShieldAlert className="h-5 w-5 shrink-0" />
-        <div className="min-w-0">
-          <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {people(counts.follows)} flagged
-            {counts.followsNew > 0 && (
-              <Chip tone="danger" size="sm" data-testid="alerts-banner-new">
-                {counts.followsNew} new
-              </Chip>
-            )}
-          </p>
-          {counts.wider > 0 && (
-            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400" data-testid="alerts-banner-wider">
-              Also {counts.wider}
-              {counts.widerIsFloor ? "+" : ""} flagged in your wider network
-            </p>
+      <ShieldAlert className="h-4 w-4 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+          {people(counts.follows)} flagged
+          {counts.followsNew > 0 && (
+            <Chip tone="danger" size="sm" data-testid="alerts-banner-new">
+              {counts.followsNew} new
+            </Chip>
           )}
-        </div>
+        </p>
+        {counts.wider > 0 && (
+          <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400" data-testid="alerts-banner-wider">
+            Also {counts.wider}
+            {counts.widerIsFloor ? "+" : ""} flagged in your wider network
+          </p>
+        )}
       </div>
-      <Button asChild size="sm" className="shrink-0">
-        <Link href="/alerts" data-testid="alerts-banner-manage">
-          Manage alerts <ArrowRight className="ml-1 h-4 w-4" />
-        </Link>
-      </Button>
+      <Link
+        href="/alerts"
+        className="inline-flex shrink-0 items-center gap-1 rounded text-sm font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+        data-testid="alerts-banner-manage"
+      >
+        Manage <ArrowRight className="h-3.5 w-3.5" />
+      </Link>
     </Alert>
   );
 }
