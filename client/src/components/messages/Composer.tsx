@@ -29,6 +29,7 @@ export function Composer({
   /** Disappearing timer in seconds, 0 for off. */
   timer: number;
   disabled?: string;
+  /** Resolves false when nothing was sent and no bubble shows it: the composer restores the draft. */
   onSend: (text: string) => Promise<boolean>;
   onSendFile: (file: File) => Promise<boolean>;
   /** Focus the field on mount — after Accept and reply. */
@@ -46,22 +47,23 @@ export function Composer({
     if (autoFocus) area.current?.focus();
   }, [autoFocus]);
 
-  const send = async () => {
+  // The field empties at once: the message's own bubble shows it sending, sent or
+  // failed. Only a send that never made a bubble (no signer, no inbox relays, the
+  // signer said no) hands the draft back — in front of anything typed since.
+  const send = () => {
     const value = text.trim();
     if (!value || busy || disabled) return;
-    setBusy(true);
-    const sent = await onSend(value);
-    setBusy(false);
-    if (sent) {
-      setText("");
-      area.current?.focus();
-    }
+    setText("");
+    area.current?.focus();
+    void onSend(value).then((sent) => {
+      if (!sent) setText((cur) => (cur.trim() ? `${value}\n${cur}` : value));
+    });
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      void send();
+      send();
     }
   };
 
@@ -199,7 +201,7 @@ export function Composer({
           ) : (
             <button
               type="button"
-              onClick={() => void send()}
+              onClick={send}
               disabled={!text.trim() || busy || !!disabled}
               aria-label="Send"
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-primary text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"

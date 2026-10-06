@@ -395,12 +395,15 @@ export function ChatView({
   const send = async (text: string) => {
     if (!engine) return false;
     const subject = !view.messages.length ? initialSubject : undefined;
-    const result = await engine.send(roomKey, text, { replyTo: replyTo?.id, timer, subject });
+    // Cleared with the field, so the next message isn't a reply too; given back with the draft.
+    const reply = replyTo;
+    setReplyTo(null);
+    const result = await engine.send(roomKey, text, { replyTo: reply?.id, timer, subject });
     if (!result.ok && !result.message) {
       sendError(result);
+      if (reply) setReplyTo((cur) => cur ?? reply);
       return false;
     }
-    setReplyTo(null);
     return true;
   };
   const attach = async (file: File) => {
