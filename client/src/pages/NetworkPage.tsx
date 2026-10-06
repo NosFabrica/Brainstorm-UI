@@ -54,8 +54,12 @@ import {
   type NetworkCardActions,
   type NetworkCardView,
 } from "@/components/network/cardContext";
-import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { useHasSession } from "@/hooks/useHasSession";
+import { PovToggle, TrustScoreModal, useScorePov } from "@/components/score/TrustScorePov";
+import { networkPerspective } from "@/lib/networkPerspective";
+import { presetDisplayLabel } from "@/services/trustThreshold";
+import { UNKNOWN_EXPLAINER, ladderFor } from "@/lib/trustLadder";
 
 /**
  * The Network row expander now uses the lightweight `/user/:pk/overview`
@@ -251,10 +255,19 @@ export default function NetworkPage() {
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
-  const overviewQuery = useSelfOverview(user?.pubkey);
+  // Whose scores this page shows (lib/networkPerspective): the reader's own when
+  // they chose it and have a calculation, else Brainstorm's — the rule the profile
+  // connection lists follow. Said under the title; every read below asks for it.
+  const signedIn = useHasSession();
+  const { pov: scorePov } = useScorePov();
+  const perspective = networkPerspective({ signedIn, calcDone, scorePov });
+  const house = perspective.house;
+  const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
+
+  const overviewQuery = useSelfOverview(user?.pubkey, { house });
   // Preset-driven server-side, so nothing preset-shaped rides the queryKey —
   // a preset change invalidates instead (`invalidatePresetDrivenReads`).
-  const statsQuery = useSelfStats(user?.pubkey);
+  const statsQuery = useSelfStats(user?.pubkey, { house });
 
   // Track which kinds the user has visited so each kind only fetches once mounted.
   // "flagged" is a derived view that scopes to currently-loaded sections — it
@@ -266,6 +279,43 @@ export default function NetworkPage() {
   // low_and_reported_by_2_or_more_trusted_pubkeys); FE UI names differ.
   // When activeGroup is the derived "flagged" view, drop filters so the
   // cross-kind flag derivation sees unfiltered loaded items.
+  // The trust filters: this page's own filter keys, each wearing the ladder rung it
+  // selects. "All" has no colour. The keys stay the page's vocabulary; the words and
+  // colours are the ladder's, so a rename there is a rename here.
+  const trustFilterChoices = useMemo((): { key: TrustTier; label: string; color: string | null; tooltip: string }[] => {
+    const ladder = ladderFor(granularity);
+    const rung = (key: string) => ladder.find((r) => r.key === key);
+    const tooltips: Record<TrustTier, string> = {
+      all: "Show all trust levels",
+      verified: "At or above your verified line",
+      high: "Highest Verification Score in your network",
+      medium: "Above-average Verification Score",
+      neutral: "Average Verification Score",
+      low: "Below-average Verification Score",
+      unverified: granularity === "simple" ? UNKNOWN_EXPLAINER : "No Verification Score calculated yet",
+      flagged: "Low trust accounts reported by 2+ of your trusted contacts",
+    };
+    const choice = (
+      key: TrustTier,
+      rungKey: string,
+    ): { key: TrustTier; label: string; color: string | null; tooltip: string } => {
+      const r = rung(rungKey);
+      return { key, label: r?.label ?? key, color: r?.color ?? null, tooltip: tooltips[key] };
+    };
+    const all = { key: "all" as TrustTier, label: "All", color: null, tooltip: tooltips.all };
+    return granularity === "simple"
+      ? [all, choice("verified", "verified"), choice("unverified", "unknown"), choice("flagged", "flagged")]
+      : [
+          all,
+          choice("high", "high"),
+          choice("medium", "trusted"),
+          choice("neutral", "neutral"),
+          choice("low", "low"),
+          choice("unverified", "unverified"),
+          choice("flagged", "flagged"),
+        ];
+  }, [granularity]);
+
   const isFlaggedView = activeGroup === "flagged";
   const UI_TO_GR_TIER: Record<string, NonNullable<Parameters<typeof useSelfConnections>[2]>["tier"]> = {
     high: "high",
@@ -283,6 +333,7 @@ export default function NetworkPage() {
   // list and the stats-derived header count agree by construction.
   const filterOpts = {
     order: sortDirection,
+    house,
     tier: mappedTier,
     verifiedOnly: !isFlaggedView && (verifiedOnly || trustFilter === "verified") && mappedTier === undefined,
     // Pager needs the filtered total per section (overview/stats can't express
@@ -320,6 +371,7 @@ export default function NetworkPage() {
   const flaggedConn = useSelfConnections(user?.pubkey, "flagged", {
     enabled: loadedKinds.has("flagged"),
     order: sortDirection,
+    house,
   });
 
   // Lookup the currently-active connection query so we can fetch the next
@@ -428,37 +480,40 @@ export default function NetworkPage() {
     }
   }, []);
 
-  const fetchTrustScores = useCallback(async (pubkeys: string[]) => {
-    const unfetched = pubkeys.filter((pk) => !trustCache.current.has(pk));
-    if (unfetched.length === 0) {
-      return;
-    }
-    const batchSize = 8;
-    for (let i = 0; i < unfetched.length; i += batchSize) {
-      const batch = unfetched.slice(i, i + batchSize);
-      const results = await Promise.allSettled(
-        batch.map(async (pk) => {
-          const res = await apiClient.getUserByPubkey(pk);
-          return res?.data ?? null;
-        }),
-      );
-      results.forEach((res, idx) => {
-        const pk = batch[idx];
-        if (res.status === "fulfilled") {
-          const graph = res.value?.graph ?? res.value;
-          const influence = graph?.influence;
-          trustCache.current.set(pk, typeof influence === "number" ? influence : null);
-          graphDataCache.current.set(pk, {
-            muted_by: toPubkeys(graph?.muted_by),
-            reported_by: toPubkeys(graph?.reported_by),
-          });
-        } else {
-          trustCache.current.set(pk, null);
-        }
-      });
-      setTrustLoadedCount((prev) => prev + batch.length);
-    }
-  }, []);
+  const fetchTrustScores = useCallback(
+    async (pubkeys: string[]) => {
+      const unfetched = pubkeys.filter((pk) => !trustCache.current.has(pk));
+      if (unfetched.length === 0) {
+        return;
+      }
+      const batchSize = 8;
+      for (let i = 0; i < unfetched.length; i += batchSize) {
+        const batch = unfetched.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+          batch.map(async (pk) => {
+            const res = await apiClient.getUserByPubkey(pk, { house });
+            return res?.data ?? null;
+          }),
+        );
+        results.forEach((res, idx) => {
+          const pk = batch[idx];
+          if (res.status === "fulfilled") {
+            const graph = res.value?.graph ?? res.value;
+            const influence = graph?.influence;
+            trustCache.current.set(pk, typeof influence === "number" ? influence : null);
+            graphDataCache.current.set(pk, {
+              muted_by: toPubkeys(graph?.muted_by),
+              reported_by: toPubkeys(graph?.reported_by),
+            });
+          } else {
+            trustCache.current.set(pk, null);
+          }
+        });
+        setTrustLoadedCount((prev) => prev + batch.length);
+      }
+    },
+    [house],
+  );
 
   const toggleExpanded = useCallback((pk: string) => {
     // The actual fetch is driven by `expandedDetailQuery` below — useQuery
@@ -516,9 +571,9 @@ export default function NetworkPage() {
     reporting: SectionStats;
   };
   const expandedStatsQuery = useQuery<StatsResponse | null>({
-    queryKey: ["profile-stats", (expandedPubkey ?? "").toLowerCase(), trustPreset],
+    queryKey: ["profile-stats", (expandedPubkey ?? "").toLowerCase(), trustPreset, house],
     queryFn: async () => {
-      const res = await apiClient.getUserStats(expandedPubkey!);
+      const res = await apiClient.getUserStats(expandedPubkey!, { house });
       return res?.data ?? null;
     },
     enabled: !!expandedPubkey,
@@ -821,8 +876,9 @@ export default function NetworkPage() {
       viewMode,
       socialPending: social.isAnyPending,
       socialListsLoading: social.listsLoading,
+      pov: perspective.pov,
     }),
-    [viewMode, social.isAnyPending, social.listsLoading],
+    [viewMode, social.isAnyPending, social.listsLoading, perspective.pov],
   );
 
   // Items arrive from the backend already in the requested order (the `order`
@@ -1037,6 +1093,31 @@ export default function NetworkPage() {
               subtitle="Browse and manage your social graph connections."
               testId="section-network-header"
             />
+            {/* Whose scores these are, said once where every row's ring and coin follow it. */}
+            <div
+              className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600 dark:text-slate-300"
+              data-testid="network-perspective"
+            >
+              <span>
+                {perspective.label}
+                {trustPreset && (
+                  <span className="text-slate-400 dark:text-slate-500">
+                    {" "}
+                    · {presetDisplayLabel(trustPreset)} preset
+                  </span>
+                )}
+              </span>
+              <PovToggle canPersonalize={perspective.canPersonalize} avatarUrl={user?.picture} className="shrink-0" />
+              <button
+                type="button"
+                onClick={() => setScoreExplainOpen(true)}
+                className="text-xs font-medium text-brand-link hover:underline"
+                data-testid="network-perspective-explain"
+              >
+                What is this?
+              </button>
+            </div>
+            <TrustScoreModal open={scoreExplainOpen} onOpenChange={setScoreExplainOpen} />
           </div>
 
           <Card
@@ -1183,24 +1264,13 @@ export default function NetworkPage() {
                     className="w-full rounded-lg border border-slate-200 bg-white/90 px-2.5 py-2 text-xs font-medium text-slate-700 shadow-sm focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary/20 dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-200"
                     data-testid="select-trust-filter-mobile"
                   >
-                    <option value="all">All</option>
-                    {/* Labels from TIER_LABELS; the `value` keys are this page's
-                        own filter vocabulary and must not follow the rename. */}
-                    {granularity === "simple" ? (
-                      <>
-                        <option value="verified">Verified</option>
-                        <option value="unverified">Unknown</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="high">{TIER_LABELS.high}</option>
-                        <option value="medium">{TIER_LABELS.trusted}</option>
-                        <option value="neutral">{TIER_LABELS.neutral}</option>
-                        <option value="low">{TIER_LABELS.low}</option>
-                        <option value="unverified">{TIER_LABELS.unverified}</option>
-                      </>
-                    )}
-                    {getGroupPubkeys("flagged").length > 0 && <option value="flagged">Flagged</option>}
+                    {trustFilterChoices
+                      .filter((c) => c.key !== "flagged" || getGroupPubkeys("flagged").length > 0)
+                      .map((c) => (
+                        <option key={c.key} value={c.key}>
+                          {c.label}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>
@@ -1268,167 +1338,51 @@ export default function NetworkPage() {
 
               <div className="my-0.5 hidden border-t border-slate-200/60 dark:border-slate-800 sm:block" />
 
+              {/* The trust filters in the ladder's own words and colours (lib/trustLadder),
+                  the same ones the avatar rings and coins wear — one trust language on the
+                  page, not a third set of hand-drawn rings. */}
               <div className="hidden gap-1.5 sm:flex sm:flex-wrap sm:gap-2" data-testid="row-trust-filters">
                 <span className="mr-1 shrink-0 self-center border-r border-slate-200/60 pr-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:text-slate-500">
                   Trust
                 </span>
-                {(
-                  [
-                    {
-                      key: "all" as TrustTier,
-                      label: "All",
-                      shortLabel: "All",
-                      icon: null,
-                      ringFill: 0,
-                      tooltip: "Show all trust levels",
-                    },
-                    {
-                      key: "verified" as TrustTier,
-                      label: "Verified",
-                      shortLabel: "Verified",
-                      icon: "text-cyan-500",
-                      ringFill: 1,
-                      tooltip: "At or above your verified line",
-                    },
-                    {
-                      key: "high" as TrustTier,
-                      label: TIER_LABELS.high,
-                      shortLabel: "High",
-                      icon: "text-emerald-600",
-                      ringFill: 0.9,
-                      tooltip: "Highest Verification Score in your network",
-                    },
-                    {
-                      key: "medium" as TrustTier,
-                      label: TIER_LABELS.trusted,
-                      shortLabel: "Med",
-                      icon: "text-sky-500",
-                      ringFill: 0.65,
-                      tooltip: "Above-average Verification Score",
-                    },
-                    {
-                      key: "neutral" as TrustTier,
-                      label: "Neutral",
-                      shortLabel: "Neutral",
-                      icon: "text-brand-link",
-                      ringFill: 0.37,
-                      tooltip: "Average Verification Score",
-                    },
-                    {
-                      key: "low" as TrustTier,
-                      label: TIER_LABELS.low,
-                      shortLabel: "Low",
-                      icon: "text-amber-500",
-                      ringFill: 0.12,
-                      tooltip: "Below-average Verification Score",
-                    },
-                    {
-                      key: "unverified" as TrustTier,
-                      label: granularity === "simple" ? "Unknown" : "Unverified",
-                      shortLabel: granularity === "simple" ? "Unknown" : "Unverified",
-                      icon: "text-zinc-400",
-                      ringFill: 0,
-                      tooltip: "No Verification Score calculated yet",
-                    },
-                    {
-                      key: "flagged" as TrustTier,
-                      label: "Flagged",
-                      shortLabel: "Flagged",
-                      icon: "flagged",
-                      ringFill: 0,
-                      tooltip: "Low trust accounts reported by 2+ of your trusted contacts",
-                    },
-                  ] as const
-                )
-                  .filter((tier) =>
-                    granularity === "simple"
-                      ? tier.key === "all" ||
-                        tier.key === "verified" ||
-                        tier.key === "unverified" ||
-                        tier.key === "flagged"
-                      : tier.key !== "verified",
-                  )
-                  .map((tier) => {
-                    const isActive = trustFilter === tier.key;
-                    return (
-                      <UITooltip key={tier.key} delayDuration={500}>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTrustFilter(tier.key);
-                              setCurrentPage(1);
-                            }}
-                            className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                              isActive
-                                ? tier.key === "flagged"
-                                  ? "border border-red-600 bg-red-600 text-white"
-                                  : "border border-brand-primary bg-brand-primary text-white"
-                                : tier.key === "flagged"
-                                  ? "border border-red-200 bg-white/60 text-red-500 hover:border-red-300 hover:bg-red-50 dark:border-red-500/25 dark:bg-slate-900/60 dark:hover:border-red-500/40 dark:hover:bg-red-500/10"
-                                  : "border border-slate-200/60 bg-white/60 text-slate-500 hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-800"
-                            }`}
-                            data-testid={`button-trust-filter-${tier.key}`}
-                          >
-                            {tier.key === "flagged" ? (
-                              <svg
-                                className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : "text-red-500"}`}
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-                                <line x1="4" y1="22" x2="4" y2="15" />
-                              </svg>
-                            ) : (
-                              tier.icon &&
-                              tier.icon !== "flagged" && (
-                                <svg
-                                  className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : tier.icon}`}
-                                  viewBox="0 0 44 44"
-                                >
-                                  <circle
-                                    cx="22"
-                                    cy="22"
-                                    r="18"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                    opacity="0.3"
-                                  />
-                                  <circle
-                                    cx="22"
-                                    cy="22"
-                                    r="18"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                    strokeLinecap="round"
-                                    style={{
-                                      strokeDasharray: `${2 * Math.PI * 18}`,
-                                      strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`,
-                                      transform: "rotate(-90deg)",
-                                      transformOrigin: "center",
-                                    }}
-                                  />
-                                </svg>
-                              )
-                            )}
-                            <span>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="bottom"
-                          className={`border border-l-2 border-slate-300 bg-white backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-brand-primary"} px-2.5 py-1.5 text-slate-700 shadow-lg dark:text-slate-200`}
+                {trustFilterChoices.map((choice) => {
+                  const isActive = trustFilter === choice.key;
+                  return (
+                    <UITooltip key={choice.key} delayDuration={500}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTrustFilter(choice.key);
+                            setCurrentPage(1);
+                          }}
+                          aria-pressed={isActive}
+                          className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                            isActive
+                              ? "border-brand-primary bg-brand-primary text-white"
+                              : "border-slate-200/60 bg-white/60 text-slate-600 hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800"
+                          }`}
+                          data-testid={`button-trust-filter-${choice.key}`}
                         >
-                          <p className="text-xs font-medium">{tier.tooltip}</p>
-                        </TooltipContent>
-                      </UITooltip>
-                    );
-                  })}
+                          {choice.color && (
+                            <span
+                              aria-hidden
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: choice.color }}
+                            />
+                          )}
+                          <span>{choice.label}</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="bottom"
+                        className="border border-l-2 border-slate-300 border-l-brand-primary bg-white px-2.5 py-1.5 text-slate-700 shadow-lg backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      >
+                        <p className="text-xs font-medium">{choice.tooltip}</p>
+                      </TooltipContent>
+                    </UITooltip>
+                  );
+                })}
               </div>
 
               <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">

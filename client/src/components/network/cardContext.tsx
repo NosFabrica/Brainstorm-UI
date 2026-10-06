@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { GroupKey } from "./networkGroups";
+import type { ScorePov } from "@/components/score/TrustScorePov";
 
 type SocialResult = Promise<{ success: boolean; error?: string }>;
 
@@ -34,6 +35,8 @@ export interface NetworkCardView {
   viewMode: "grid" | "list";
   socialPending: boolean;
   socialListsLoading: boolean;
+  /** Whose scores the page is showing — Brainstorm's or the reader's own (lib/networkPerspective). */
+  pov: ScorePov;
 }
 
 const NetworkCardActionsContext = createContext<NetworkCardActions | null>(null);

@@ -7,10 +7,12 @@ type ConnectionKind = "followed_by" | "following" | "muted_by" | "muting" | "rep
 const FIRST_PAGE_LIMIT = 200;
 const NEXT_PAGE_LIMIT = 100;
 
-export function useSelfOverview(pubkey: string | undefined) {
+/** `house`: Brainstorm's perspective (an unauthenticated read) rather than the reader's own. */
+export function useSelfOverview(pubkey: string | undefined, opts?: { house?: boolean }) {
+  const house = opts?.house ?? false;
   return useQuery({
-    queryKey: ["/user/overview", pubkey],
-    queryFn: () => apiClient.getUserOverview(pubkey!),
+    queryKey: ["/user/overview", pubkey, house],
+    queryFn: () => apiClient.getUserOverview(pubkey!, { house }),
     enabled: !!pubkey,
     staleTime: 60_000,
   });
@@ -30,10 +32,11 @@ export function useSelfHistory(pubkey: string | undefined) {
   });
 }
 
-export function useSelfStats(pubkey: string | undefined) {
+export function useSelfStats(pubkey: string | undefined, opts?: { house?: boolean }) {
+  const house = opts?.house ?? false;
   return useQuery({
-    queryKey: ["/user/stats", pubkey],
-    queryFn: () => apiClient.getUserStats(pubkey!),
+    queryKey: ["/user/stats", pubkey, house],
+    queryFn: () => apiClient.getUserStats(pubkey!, { house }),
     enabled: !!pubkey,
     staleTime: 60_000,
   });
@@ -51,14 +54,17 @@ export function useSelfConnections(
     tier?: Tier;
     verifiedOnly?: boolean;
     withTotal?: boolean;
+    /** Brainstorm's perspective (an unauthenticated read) rather than the reader's own. */
+    house?: boolean;
   },
 ) {
   const order: "asc" | "desc" = opts?.order ?? "desc";
+  const house = opts?.house ?? false;
   const tier = opts?.tier;
   const verifiedOnly = opts?.verifiedOnly ?? false;
   const withTotal = opts?.withTotal ?? false;
   const query = useInfiniteQuery({
-    queryKey: ["/user/connections", pubkey, kind, order, tier ?? null, verifiedOnly, withTotal],
+    queryKey: ["/user/connections", pubkey, kind, order, tier ?? null, verifiedOnly, withTotal, house],
     queryFn: ({ pageParam }) =>
       apiClient.getUserConnections(pubkey!, kind, {
         limit: pageParam ? NEXT_PAGE_LIMIT : FIRST_PAGE_LIMIT,
@@ -69,6 +75,7 @@ export function useSelfConnections(
         // `total` is only needed once for the pager — request it on the first
         // page only; cursor pages reuse pages[0].data.total.
         with_total: withTotal && !pageParam,
+        house,
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: ConnectionsPage) => lastPage?.data?.next_cursor ?? undefined,
