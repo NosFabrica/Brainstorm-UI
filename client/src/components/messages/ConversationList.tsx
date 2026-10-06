@@ -1,4 +1,14 @@
-import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "wouter";
 import {
   AlertTriangle,
@@ -57,7 +67,9 @@ function preview(room: DmRoom, me: string, profiles: Profiles): string {
 /** Told the people of each row as it comes near the screen, so their names and pictures load. */
 const RowNearContext = createContext<((pubkeys: string[]) => void) | null>(null);
 
-function RoomRow({
+// Memoized: the list re-renders on every engine snapshot (sync progress, several a
+// second while a big inbox loads), and a row's room only changes when its messages do.
+const RoomRow = memo(function RoomRow({
   room,
   me,
   profiles,
@@ -138,7 +150,7 @@ function RoomRow({
       </span>
     </Link>
   );
-}
+});
 
 type Item = { kind: "room"; room: DmRoom; at: number } | { kind: "marker"; progress: RelayProgress; at: number };
 

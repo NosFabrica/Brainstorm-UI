@@ -299,13 +299,16 @@ export function ChatView({
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const lastId = view.messages.at(-1)?.id;
+  const lastMine = view.messages.at(-1)?.author === me;
   useEffect(() => {
     atBottom.current = true;
   }, [roomKey]);
+  // A new message brings the thread down only for a reader already there, or one who
+  // just sent it: someone scrolled up to read (or arrived from search) keeps their place.
   useEffect(() => {
     const el = scroller.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [lastId, roomKey]);
+    if (el && (atBottom.current || lastMine)) el.scrollTop = el.scrollHeight;
+  }, [lastId, lastMine, roomKey]);
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
@@ -353,10 +356,12 @@ export function ChatView({
     if (!jumpTo) return;
     if (byId.has(jumpTo)) {
       const el = scroller.current?.querySelector(`[data-message-id="${CSS.escape(jumpTo)}"]`);
-      if (!el) return;
-      atBottom.current = false;
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-      setFlash(jumpTo);
+      // A blank message (a rename) is held but has no bubble: nothing to bring into view.
+      if (el) {
+        atBottom.current = false;
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        setFlash(jumpTo);
+      }
       setJumpTo(null);
     } else if (historyPhase === "end") {
       setNotFound((prev) => new Set(prev).add(jumpTo));
@@ -395,22 +400,30 @@ export function ChatView({
   const send = async (text: string) => {
     if (!engine) return false;
     const subject = !view.messages.length ? initialSubject : undefined;
-    const result = await engine.send(roomKey, text, { replyTo: replyTo?.id, timer, subject });
+    // Cleared with the field, so the next message isn't a reply too; given back with the draft.
+    const reply = replyTo;
+    setReplyTo(null);
+    const result = await engine.send(roomKey, text, { replyTo: reply?.id, timer, subject });
     if (!result.ok && !result.message) {
       sendError(result);
+      if (reply) setReplyTo((cur) => cur ?? reply);
       return false;
     }
-    setReplyTo(null);
     return true;
   };
   const attach = async (file: File) => {
     if (!engine) return false;
-    const result = await sendFile(engine, roomKey, file, { replyTo: replyTo?.id, timer });
+    // As with text: a group's first message names it, even when it's a photo; and a
+    // reply picked while this one uploads is the next message's, not cleared by this one.
+    const subject = !view.messages.length ? initialSubject : undefined;
+    const reply = replyTo;
+    setReplyTo(null);
+    const result = await sendFile(engine, roomKey, file, { replyTo: reply?.id, timer, subject });
     if (!result.ok && !result.message) {
       sendError(result);
+      if (reply) setReplyTo((cur) => cur ?? reply);
       return false;
     }
-    setReplyTo(null);
     return true;
   };
 

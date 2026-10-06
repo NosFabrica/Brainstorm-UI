@@ -212,7 +212,7 @@ export async function sendFile(
   engine: DmEngine,
   room: string,
   file: File,
-  opts: { replyTo?: string; timer?: number } = {},
+  opts: { replyTo?: string; timer?: number; subject?: string } = {},
 ): Promise<SendResult> {
   const enc = await encryptFile(new Uint8Array(await file.arrayBuffer()));
   let url: string;

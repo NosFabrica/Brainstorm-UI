@@ -5,7 +5,7 @@ import type { Delivery, DmMessage } from "@/lib/dm/store";
 import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
 import { askRelayAuthAgain, relayAuthProblemFor } from "@/services/relayAuth";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
-import { fileMetaOf, reactionLabel } from "@/lib/dm/rooms";
+import { fileMetaOf, reactionAuthors, reactionLabel } from "@/lib/dm/rooms";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -197,12 +197,10 @@ export const MessageBubble = memo(function MessageBubble({
   const mine = message.author === me;
   const file = message.kind === FILE_KIND ? fileMetaOf(message.rumor) : undefined;
   const previewUrl = !file && linkPreviews ? firstPreviewableLink(message.rumor.content) : null;
+  // Counted per person: the same reaction sent twice is still one.
   const grouped = new Map<string, { count: number; mine: boolean }>();
-  for (const r of reactions) {
-    const label = reactionLabel(r.rumor.content);
-    const g = grouped.get(label) ?? { count: 0, mine: false };
-    grouped.set(label, { count: g.count + 1, mine: g.mine || r.author === me });
-  }
+  for (const [label, authors] of reactionAuthors(reactions))
+    grouped.set(label, { count: authors.size, mine: authors.has(me) });
 
   // Desktop: the buttons beside a bubble, shown on hover. The reaction menu renders in a
   // portal and takes focus, so focus-within no longer holds the row visible: track it.
@@ -376,7 +374,9 @@ export const MessageBubble = memo(function MessageBubble({
               <button
                 key={label}
                 type="button"
-                onClick={() => onReact(message, label === "❤️" ? "+" : label)}
+                // Yours already: NIP-25 has no undo inside a wrap, and another tap would only send it again.
+                onClick={() => !g.mine && onReact(message, label === "❤️" ? "+" : label)}
+                aria-pressed={g.mine}
                 className={cn(
                   "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs font-semibold",
                   g.mine
