@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useState } from "react";
 
 /** How far the page must move one way before the bar changes its mind — a jitter isn't a direction. */
 const SLACK = 8;
@@ -14,9 +14,13 @@ const TOP = 80;
  * for part of it. It comes back the moment the reader scrolls up, as Safari's own
  * toolbar does.
  */
-export function useStickyBarVisible(inline: RefObject<Element | null>): boolean {
+export function useStickyBarVisible(): { shown: boolean; inlineRef: (el: Element | null) => void } {
   const [readingDown, setReadingDown] = useState(false);
   const [inlineShown, setInlineShown] = useState(false);
+  // State, not a ref object: the in-page call to action mounts after the profile loads
+  // (or when the reader signs out on the page), and an effect keyed on a ref object
+  // never ran again to watch it — both buttons showed at once.
+  const [inline, inlineRef] = useState<Element | null>(null);
 
   useEffect(() => {
     let last = window.scrollY;
@@ -33,12 +37,14 @@ export function useStickyBarVisible(inline: RefObject<Element | null>): boolean 
   }, []);
 
   useEffect(() => {
-    const el = inline.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (!inline || typeof IntersectionObserver === "undefined") {
+      setInlineShown(false);
+      return;
+    }
     const io = new IntersectionObserver(([entry]) => setInlineShown(entry.isIntersecting));
-    io.observe(el);
+    io.observe(inline);
     return () => io.disconnect();
   }, [inline]);
 
-  return !readingDown && !inlineShown;
+  return { shown: !readingDown && !inlineShown, inlineRef };
 }

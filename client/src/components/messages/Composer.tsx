@@ -188,7 +188,12 @@ export function Composer({
             placeholder={disabled ?? placeholder}
             disabled={!!disabled}
             aria-label="Message"
-            className="max-h-40 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-1 py-[11px] text-[15px] leading-snug outline-none [field-sizing:content] placeholder:truncate placeholder:text-slate-400"
+            className={cn(
+              "max-h-40 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-1 py-[11px] text-[15px] leading-snug outline-none [field-sizing:content] placeholder:text-slate-400",
+              // A long group name ends in "…" on one line rather than wrapping and being
+              // cropped; a reason the field is off is read in full.
+              !disabled && "placeholder:truncate",
+            )}
             data-testid="dm-composer"
           />
           {showMic && !busy ? (
