@@ -312,10 +312,15 @@ export function ChatView({
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
+    let height = el.clientHeight;
     const stick = () => {
+      height = el.clientHeight;
       if (atBottom.current) el.scrollTop = el.scrollHeight;
     };
     const onScroll = () => {
+      // The pane got shorter (the phone keyboard came up) and a scroll event beat the
+      // ResizeObserver here: that is a resize, not the reader leaving the bottom.
+      if (el.clientHeight !== height) return stick();
       atBottom.current = el.scrollHeight - el.clientHeight - el.scrollTop < 48;
     };
     const resized = new ResizeObserver(stick);

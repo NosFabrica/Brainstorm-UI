@@ -28,6 +28,7 @@ import { useProfileMap } from "@/hooks/useProfileMap";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
+import { isTouchScreen } from "@/lib/touchScreen";
 
 // Example prompts the empty search box gently cycles through to teach
 // first-time visitors what they can search for. The first entry is the
@@ -668,7 +669,10 @@ export default function Landing() {
             busy={hasSearched && isSearching}
             onPeopleSuggested={onPeopleSuggested}
             onSuggestionsChange={setDropdownOpen}
-            autoFocus={!hasSearched}
+            // Not on a touch screen: there it opens the keyboard over the page the moment it
+            // loads — every launch of the installed iPhone app — and iOS scrolls the page up
+            // under the status bar to show the field.
+            autoFocus={!hasSearched && !isTouchScreen()}
             placeholder={
               <span
                 className={`${SEARCH_PLACEHOLDER_CLASS} transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
