@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Loader2, Mic, Paperclip, Send, Timer, Trash2, X } from "lucide-react";
 import { canRecordVoice, useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import type { DmMessage } from "@/lib/dm/store";
+import { FILE_KIND } from "@/lib/dm/giftWrap";
 import { TIMER_CHOICES } from "@/lib/dm/prefs";
 import { MAX_ATTACHMENT_BYTES } from "@/lib/dm/fileCrypto";
 import { formatBytes } from "@/lib/formatBytes";
@@ -55,9 +56,11 @@ export function Composer({
     if (!value || busy || disabled) return;
     setText("");
     area.current?.focus();
-    void onSend(value).then((sent) => {
-      if (!sent) setText((cur) => (cur.trim() ? `${value}\n${cur}` : value));
-    });
+    void onSend(value)
+      .catch(() => false)
+      .then((sent) => {
+        if (!sent) setText((cur) => (cur.trim() ? `${value}\n${cur}` : value));
+      });
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -113,7 +116,7 @@ export function Composer({
         <div className="mb-2 flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-[13px] dark:bg-slate-800">
           <span className="min-w-0 flex-1 truncate">
             Replying to <strong>{replyTo.author === me ? "yourself" : firstName(replyTo.author, profiles)}</strong> ·{" "}
-            {replyTo.rumor.content}
+            {replyTo.kind === FILE_KIND ? "A file" : replyTo.rumor.content}
           </span>
           <button
             type="button"

@@ -99,6 +99,18 @@ export function reactionLabel(content: string): string {
   return c.length > 8 ? c.slice(0, 8) : c;
 }
 
+/** Who sent each reaction, by how it reads: the same one twice from one person counts once. */
+export function reactionAuthors(reactions: { author: string; rumor: Pick<Rumor, "content"> }[]) {
+  const out = new Map<string, Set<string>>();
+  for (const r of reactions) {
+    const label = reactionLabel(r.rumor.content);
+    const authors = out.get(label) ?? new Set<string>();
+    authors.add(r.author);
+    out.set(label, authors);
+  }
+  return out;
+}
+
 /** A kind-15 file message's metadata (NIP-17 "File Message"). */
 export interface FileMeta {
   url: string;

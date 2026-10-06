@@ -234,6 +234,8 @@ export class DmEngine {
   private liveSince = 0;
   /** Past this, history stops waiting for slow live answers (see waitingForLive). */
   private liveWaitOver = false;
+  /** Bumped by each live connection, so an earlier one's wait timer can't end this one's. */
+  private liveGeneration = 0;
   private resumeTries = 0;
   private resumeTimer: unknown;
 
@@ -242,7 +244,13 @@ export class DmEngine {
   private readonly sendAuthWaits = new Map<string, () => void>();
   /** Messages not yet delivered to everyone; kept across reloads and retried. */
   private readonly outbox = new Set<string>();
-  private readonly retrying = new Set<string>();
+  /**
+   * Message → its publish, until every relay has answered. Only one at a time per
+   * message: two would publish the same wraps and overwrite each other's results.
+   */
+  private readonly publishing = new Map<string, Promise<void>>();
+  /** The newest `created_at` this engine gave a rumor (see `stamp`). */
+  private lastStamp = 0;
   /** Automatic tries per message since the connection last came back. */
   private readonly attempts = new Map<string, number>();
   private stopOnline?: () => void;
@@ -409,8 +417,10 @@ export class DmEngine {
     const since = this.floor - WRAP_JITTER_SECONDS;
     this.liveSince = since;
     this.liveWaitOver = false;
+    const generation = ++this.liveGeneration;
     // History waits for each relay's live answer (canPage); after a while, not any more.
     (this.deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms)))(() => {
+      if (generation !== this.liveGeneration) return;
       this.liveWaitOver = true;
       this.changed();
     }, LIVE_ANSWER_WAIT_MS);
@@ -466,15 +476,14 @@ export class DmEngine {
     const count = this.liveCount.get(relay) ?? 0;
     this.liveOldest.delete(relay);
     this.liveCount.delete(relay);
-    const cursors = this.pager?.cursors;
-    if (!cursors || oldest === undefined) return;
-    if (!cursors.hasPosition(relay)) {
-      cursors.startBelow(relay, oldest);
+    const pager = this.pager;
+    if (!pager || oldest === undefined) return;
+    if (!pager.cursors.hasPosition(relay)) {
+      pager.startBelow(relay, oldest);
       return;
     }
     const capped = count >= CAPPED_LIVE_AT && oldest > this.liveSince + 3600;
-    const loading = this.pager?.snapshot().relays.find((r) => r.url === relay)?.state === "loading";
-    if (capped && !loading) cursors.restartBelow(relay, oldest);
+    if (capped) pager.restartBelow(relay, oldest);
   }
 
   private get liveSynced(): boolean {
@@ -500,6 +509,8 @@ export class DmEngine {
     let at = this.now();
     for (const q of this.queue.values()) if (q.wrap.created_at < at) at = q.wrap.created_at;
     for (const q of this.opening.values()) if (q.wrap.created_at < at) at = q.wrap.created_at;
+    // Set aside isn't cached either: the next visit must ask for those again too.
+    for (const q of this.setAsideItems.values()) if (q.wrap.created_at < at) at = q.wrap.created_at;
     // Saved every few minutes, not on every tick: a minute here is lost to the 2-day overlap anyway.
     if (throttle && this.lastSeen !== undefined && at >= this.lastSeen && at - this.lastSeen < 300) return;
     this.lastSeen = at;
@@ -734,7 +745,7 @@ export class DmEngine {
   flushOutbox(): void {
     if (this.stopped || this.status !== "ready" || !this.online) return;
     for (const id of this.outbox) {
-      if (this.retrying.has(id) || this.store.message(id)?.outgoing?.status === "sending") continue;
+      if (this.publishing.has(id) || this.store.message(id)?.outgoing?.status === "sending") continue;
       // A relay that keeps refusing isn't asked forever; Retry, or the connection coming back, starts over.
       const tries = this.attempts.get(id) ?? 0;
       if (tries >= MAX_AUTO_RETRIES) continue;
@@ -748,6 +759,8 @@ export class DmEngine {
     const message = this.store.message(messageId);
     const status = message?.outgoing?.status;
     if (!message || (status !== "failed" && status !== "queued")) return;
+    // A retry is on its way out: it can't be called back now.
+    if (this.publishing.has(messageId)) return;
     this.outbox.delete(messageId);
     this.attempts.delete(messageId);
     this.outgoing.delete(messageId);
@@ -1090,7 +1103,7 @@ export class DmEngine {
     const text = content.trim();
     if (!text) return { ok: false, error: "Nothing to send" };
     const others = room.split(",").filter((pk) => pk && pk !== this.me);
-    const now = this.now();
+    const now = this.stamp();
     const expiration = opts.timer ? now + opts.timer : undefined;
     const rumor = makeRumor({
       pubkey: this.me,
@@ -1102,6 +1115,17 @@ export class DmEngine {
     return this.deliver(rumor, others, expiration);
   }
 
+  /**
+   * A `created_at` for a rumor of ours: now, but always past the last one. Seconds
+   * are coarse: two sends in one would sort by hash, so out of order half the time
+   * (here and for them), and the same text twice would be one rumor id — one bubble,
+   * whose second signing, turned down, would take the first one away with it.
+   */
+  private stamp(): number {
+    this.lastStamp = Math.max(this.now(), this.lastStamp + 1);
+    return this.lastStamp;
+  }
+
   /** React to a message (NIP-25 inside a wrap). "+" is a like. */
   async react(target: DmMessage, content: string): Promise<SendResult> {
     const others = target.room.split(",").filter((pk) => pk && pk !== this.me);
@@ -1110,7 +1134,7 @@ export class DmEngine {
     const rumor = makeRumor({
       pubkey: this.me,
       kind: REACTION_KIND,
-      created_at: this.now(),
+      created_at: this.stamp(),
       tags: [["e", target.id], ...named.map((pk) => ["p", pk]), ["k", String(target.kind)]],
       content: content || "+",
     });
@@ -1170,15 +1194,9 @@ export class DmEngine {
   async resend(messageId: string): Promise<SendResult> {
     const wraps = this.outgoing.get(messageId);
     if (!wraps) return { ok: false, error: "Nothing to resend" };
-    // One resend at a time per message: two would publish the same wraps and overwrite each other's results.
-    if (this.retrying.has(messageId)) return { ok: false, error: "Already sending" };
-    this.retrying.add(messageId);
-    try {
-      const message = await this.publishWraps(messageId, wraps, true);
-      return { ok: message?.outgoing?.status !== "failed", message };
-    } finally {
-      this.retrying.delete(messageId);
-    }
+    if (this.publishing.has(messageId)) return { ok: false, error: "Already sending" };
+    const message = await this.publishWraps(messageId, wraps, true);
+    return { ok: message?.outgoing?.status !== "failed", message };
   }
 
   /**
@@ -1187,7 +1205,11 @@ export class DmEngine {
    * timeout shouldn't hold the composer. The rest land in the store as they come.
    */
   private async publishWraps(messageId: string, wraps: OutgoingWrap[], onlyFailed = false) {
-    const previous = this.store.message(messageId)?.outgoing?.deliveries ?? [];
+    const out = this.store.message(messageId)?.outgoing;
+    const previous = out?.deliveries ?? [];
+    // A retry shows as sending from the start, not once the first relay answers: until
+    // then its bubble would still read failed, offering a Discard that can't call it back.
+    if (out && out.status !== "sending") this.store.patch(messageId, { outgoing: { ...out, status: "sending" } });
     const accepted = (recipient: string, relay: string) =>
       previous.some((d) => d.recipient === recipient && d.relay === relay && d.ok);
     const deliveries: Delivery[] = [];
@@ -1236,6 +1258,12 @@ export class DmEngine {
       update(true);
       this.settleOutbox(messageId);
     });
+    // Held until the last relay answers, not just until the early return below.
+    this.publishing.set(messageId, settled);
+    const done = () => {
+      if (this.publishing.get(messageId) === settled) this.publishing.delete(messageId);
+    };
+    settled.then(done, done);
     await Promise.race([early, settled]);
     return this.store.message(messageId);
   }
@@ -1255,7 +1283,8 @@ export class DmEngine {
           const refused = this.store
             .message(id)
             ?.outgoing?.deliveries.some((d) => d.relay === relay && !d.ok && d.auth);
-          if (refused) void this.resend(id);
+          // Still out on its first try: resend once that has heard from every relay.
+          if (refused) void (this.publishing.get(id) ?? Promise.resolve()).then(() => this.resend(id));
         }
       });
     });

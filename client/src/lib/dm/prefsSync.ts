@@ -100,7 +100,8 @@ export function reconcileDmPrefs(
       write: {
         fields: merged,
         sync: ahead
-          ? { at: Math.max(now, remote.updatedAt + 1), dirty: true, joined: true }
+          ? // Based on the account's copy as read: a publish that doesn't land merges onto it next time.
+            { at: Math.max(now, remote.updatedAt + 1), dirty: true, joined: true, base: theirs }
           : { at: remote.updatedAt, dirty: false, joined: true },
       },
       publish: ahead,

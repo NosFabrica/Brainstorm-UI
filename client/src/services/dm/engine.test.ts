@@ -226,6 +226,23 @@ describe("DmEngine", () => {
     expect(sent.messages).toHaveLength(1);
   });
 
+  it("keeps two sends in the same second apart, and in the order they were sent", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    const engine = new DmEngine(me.account(), { ...net, ...clock(), now: () => NOW });
+    await engine.start();
+    await settle();
+
+    const room = roomKey([me.pubkey, ana.pubkey]);
+    // The same text twice in one second used to be one rumor id: one bubble for two sends.
+    await Promise.all([engine.send(room, "ok"), engine.send(room, "ok"), engine.send(room, "see you")]);
+    const sent = engine.store.room(room)!.messages;
+    expect(sent.map((m) => m.rumor.content)).toEqual(["ok", "ok", "see you"]);
+    expect(new Set(sent.map((m) => m.id)).size).toBe(3);
+    expect(sent.every((m) => m.outgoing?.status === "sent")).toBe(true);
+  });
+
   it("won't send to someone with no inbox relays", async () => {
     const me = person();
     const stranger = person();

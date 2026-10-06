@@ -115,6 +115,19 @@ describe("reconciling this device with the account's copy", () => {
     expect(plan.write?.fields.pinned).toEqual([OTHER_ROOM, ROOM]);
   });
 
+  it("bases a first merge on the account's copy, so a removal there before it lands still wins", () => {
+    const first = sync.reconcileDmPrefs(local({ pinned: [ROOM] }), remote, 999);
+    expect(first.write?.sync.base).toEqual({ pinned: [OTHER_ROOM], muted: [], accepted: [] });
+    // The publish never landed (a locked key, a declined prompt); meanwhile the phone unpinned OTHER_ROOM.
+    const merged = { pinned: first.write!.fields.pinned!, muted: [], accepted: [] };
+    const next = sync.reconcileDmPrefs(
+      local({ ...merged, sync: first.write!.sync }),
+      { updatedAt: 500, pinned: [], muted: [], accepted: [] },
+      1200,
+    );
+    expect(next.write?.fields.pinned).toEqual([ROOM]);
+  });
+
   it("keeps this device's list for a field the account's copy doesn't carry", () => {
     const plan = sync.reconcileDmPrefs(local({ muted: [ROOM], sync: joined(100) }), { updatedAt: 200 }, 999);
     expect(plan.write?.fields).toEqual({});

@@ -97,6 +97,7 @@ export function searchMessages(
   const out: SearchResults = { rooms: [], hits: [], searched: 0 };
   if (!words.length) return out;
   const limit = opts.limit ?? 200;
+  const found: { room: DmRoom; message: DmMessage }[] = [];
   for (const room of rooms) {
     const title = fold(opts.titleOf(room));
     if (words.every((w) => title.includes(w))) out.rooms.push(room);
@@ -105,10 +106,13 @@ export function searchMessages(
       out.searched++;
       const folded = foldedOf(message);
       if (!words.every((w) => folded.includes(w))) continue;
-      out.hits.push({ room, message, ...snippetOf(message.rumor.content, words) });
+      found.push({ room, message });
     }
   }
-  out.hits.sort((a, b) => b.message.createdAt - a.message.createdAt);
-  out.hits = out.hits.slice(0, limit);
+  // Snippets only for the hits shown: a common word can match thousands.
+  found.sort((a, b) => b.message.createdAt - a.message.createdAt);
+  out.hits = found
+    .slice(0, limit)
+    .map(({ room, message }) => ({ room, message, ...snippetOf(message.rumor.content, words) }));
   return out;
 }
