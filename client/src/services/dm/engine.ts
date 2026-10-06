@@ -40,6 +40,7 @@ import {
 import { Heap } from "@/lib/dm/heap";
 import { DmStore, messageFromRumor, type Delivery, type DmMessage, type OutgoingStatus } from "@/lib/dm/store";
 import { chatTags } from "@/lib/dm/rooms";
+import { onAppResume } from "@/lib/appResume";
 import { MAX_INBOX_RELAYS, type DmRelayLookup } from "@/lib/dm/inboxRelays";
 import {
   FAILED_RULES,
@@ -111,7 +112,7 @@ export interface DmEngineDeps {
   clearRepeating?: (handle: unknown) => void;
   /** Whether the device has a connection (navigator.onLine). */
   online?: () => boolean;
-  /** Calls back when the connection comes back; returns a stop function. */
+  /** Calls back when the connection or the app comes back; returns a stop function. */
   onOnline?: (callback: () => void) => () => void;
   /** How long one wrap may take to open before its slot is taken back (default 45s). */
   decryptTimeoutMs?: number;
@@ -308,7 +309,7 @@ export class DmEngine {
     // Stopped during the lookup (an account switch): register nothing that would outlive it.
     if (this.stopped) return;
     this.flushOutbox();
-    this.stopOnline = (this.deps.onOnline ?? onWindowOnline)(() => {
+    this.stopOnline = (this.deps.onOnline ?? onComeBack)(() => {
       this.attempts.clear();
       this.flushOutbox();
     });
@@ -1381,8 +1382,7 @@ const MAX_AUTO_RETRIES = 10;
 
 const onlineNow = () => (typeof navigator === "undefined" ? true : navigator.onLine !== false);
 
-function onWindowOnline(callback: () => void): () => void {
-  if (typeof window === "undefined") return () => {};
-  window.addEventListener("online", callback);
-  return () => window.removeEventListener("online", callback);
+/** Back online, or back in front: an installed app's sends wait out a suspension too. */
+function onComeBack(callback: () => void): () => void {
+  return onAppResume(() => callback());
 }

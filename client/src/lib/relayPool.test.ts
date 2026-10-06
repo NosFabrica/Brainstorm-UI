@@ -10,11 +10,11 @@
  * that can answer have answered.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BehaviorSubject, combineLatest, filter, firstValueFrom, take, toArray } from "rxjs";
+import { BehaviorSubject, combineLatest, filter, firstValueFrom, from, take, toArray } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import { RelayPool } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
-import { createPool, warmRelay } from "./relayPool";
+import { createPool, relayWake$, wakeableBackoff, wakeRelays, warmRelay } from "./relayPool";
 
 /**
  * A relay on a fake socket. `answer` is what it says to any REQ: an event
@@ -249,5 +249,39 @@ describe("warming a relay", () => {
     expect(opened).toHaveLength(1);
     // Still open after the read: the keep-alive holds it for the next one.
     expect(relay.connected).toBe(true);
+  });
+});
+
+describe("the app coming back", () => {
+  it("cuts a dropped relay's reconnect backoff short", () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const relay = pool.relay("wss://asleep.example/");
+    // Dropped while away, many times over: the library's next try is minutes out.
+    relay.attempts$.next(12);
+    (relay as unknown as { startReconnectTimer(e: Error): void }).startReconnectTimer(new Error("suspended"));
+    expect(relay.ready).toBe(false);
+    wakeRelays(pool);
+    expect(relay.ready).toBe(true);
+    expect(relay.attempts$.value).toBe(0);
+  });
+
+  it("leaves a relay that is ready alone", () => {
+    const pool = createPool({ WebSocket: FakeSocket as unknown as typeof WebSocket });
+    const relay = pool.relay("wss://awake.example/");
+    relay.attempts$.next(2);
+    wakeRelays(pool);
+    expect(relay.ready).toBe(true);
+    expect(relay.attempts$.value).toBe(2);
+  });
+
+  it("ends a live subscription's wait to retry", () => {
+    const delay = wakeableBackoff(30_000);
+    let fired = false;
+    // The 25th retry would wait 25s.
+    const sub = from(delay(new Error("down"), 25)).subscribe(() => (fired = true));
+    expect(fired).toBe(false);
+    relayWake$.next();
+    expect(fired).toBe(true);
+    sub.unsubscribe();
   });
 });

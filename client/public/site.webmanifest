@@ -1,15 +1,62 @@
 {
+  "id": "/",
   "name": "Brainstorm — Web of Trust for Nostr",
   "short_name": "Brainstorm",
   "description": "Build trust scores from your own connections — not an algorithm. The decentralized Web of Trust layer for Nostr.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#ffffff",
-  "theme_color": "#0a0e18",
+  "theme_color": "#ffffff",
+  "categories": ["social", "utilities"],
+  "lang": "en",
+  "dir": "ltr",
   "icons": [
-    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
-    { "src": "/favicon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
-    { "src": "/apple-touch-icon.png", "type": "image/png", "sizes": "180x180", "purpose": "any" }
-  ]
+    { "src": "/icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" },
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Search",
+      "url": "/",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Messages",
+      "url": "/messages",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/search-narrow.webp",
+      "sizes": "780x1688",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Search through the people you trust"
+    },
+    {
+      "src": "/screenshots/search-wide.webp",
+      "sizes": "1280x800",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "Search through the people you trust"
+    }
+  ],
+  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
+  "share_target": {
+    "action": "/open",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
+  "protocol_handlers": [{ "protocol": "web+nostr", "url": "/open?text=%s" }]
 }

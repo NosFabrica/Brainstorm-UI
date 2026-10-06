@@ -24,7 +24,7 @@ import {
   type Observable,
 } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
-import { pool } from "@/lib/relayPool";
+import { pool, wakeableBackoff } from "@/lib/relayPool";
 import type { DmTransport, PublishResult } from "./engine";
 
 /** How long a refused publish waits for services/relayAuth to sign in. */
@@ -43,7 +43,10 @@ const reasonOf = (error: unknown) =>
 export const poolTransport: DmTransport = {
   live(url, f, handlers) {
     const relay = pool.relay(url);
-    const sub = relay.subscription([f], { reconnect: Infinity, resubscribe: Infinity }).subscribe({
+    // Reconnects for as long as it lives, waiting at most 30s between tries — and
+    // not at all once the app comes back to the foreground (lib/relayPool).
+    const reconnect = { count: Infinity, delay: wakeableBackoff(), resetOnSuccess: true };
+    const sub = relay.subscription([f], { reconnect, resubscribe: Infinity }).subscribe({
       next: (message) => (message === "EOSE" ? handlers.onEose() : handlers.onEvent(message as NostrEvent)),
       error: () => handlers.onAuthRequired(false),
     });

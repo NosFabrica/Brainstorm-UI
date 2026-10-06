@@ -873,10 +873,15 @@ describe("Safari's chrome on the home page", () => {
     meta.name = "theme-color";
     meta.content = "#0a0e18";
     document.head.appendChild(meta);
+    // The app's own background, which the meta goes back to following (lib/themeColor).
+    document.body.style.backgroundColor = "rgb(243, 243, 241)";
+  });
+  afterEach(() => {
+    document.body.style.backgroundColor = "";
   });
   const themeColor = () => document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!.content;
 
-  it("takes the page's own color while it is up, follows the theme, and gives the ink back", async () => {
+  it("takes the page's own color while it is up, follows the theme, and hands back to the app's", async () => {
     const { unmount } = render(<Landing />);
     expect(themeColor()).toBe("#ffffff");
     // The body too: the tab bar's reserved space under a one-screen page showed its gray.
@@ -886,8 +891,8 @@ describe("Safari's chrome on the home page", () => {
     document.documentElement.classList.remove("dark");
     await waitFor(() => expect(themeColor()).toBe("#ffffff"));
     unmount();
-    expect(themeColor()).toBe("#0a0e18");
-    expect(document.body.style.backgroundColor).toBe("");
+    expect(themeColor()).toBe("rgb(243, 243, 241)");
+    expect(document.body.style.backgroundColor).toBe("rgb(243, 243, 241)");
   });
 });
 

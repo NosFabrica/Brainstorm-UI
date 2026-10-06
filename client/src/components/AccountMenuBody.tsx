@@ -19,6 +19,7 @@ import {
   CalendarClock,
   Gauge,
   MessageCircle,
+  Smartphone,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
@@ -48,6 +49,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { AppKey } from "@/components/AppsLauncher";
 import { Nip05Handle } from "@/components/Nip05Check";
+import { useInstallApp } from "@/components/InstallApp";
 
 /**
  * Where "add another account" goes. Adding one is an errand, not a destination, so
@@ -481,6 +483,7 @@ export function AccountMenuBody({
           onClick={() => onNavigate("/settings")}
           testId="dropdown-settings"
         />
+        <InstallAppRow close={close} />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
         <MenuRow
           icon={LifeBuoy}
@@ -528,6 +531,23 @@ export function AccountMenuBody({
 // a hard border.
 function MenuDivider() {
   return <div className="mx-3 border-t border-slate-900/[0.16] dark:border-white/[0.16]" />;
+}
+
+/** "Install the app", where this browser can — never inside the installed app itself. */
+function InstallAppRow({ close }: { close: () => void }) {
+  const { offer, install } = useInstallApp();
+  if (!offer) return null;
+  return (
+    <MenuRow
+      icon={Smartphone}
+      label="Install the app"
+      onClick={() => {
+        close();
+        install();
+      }}
+      testId="dropdown-install-app"
+    />
+  );
 }
 
 function MenuRow({

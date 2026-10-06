@@ -125,6 +125,39 @@ trust-sorted Requests. UI: `pages/MessagesPage.tsx` and `components/messages/`;
 inbox relays (kind 10050) and preferences: Settings › Trust & search.
 Rationale: [docs/adr/0004-nip17-private-messages.md](docs/adr/0004-nip17-private-messages.md).
 
+## Installed app (PWA)
+
+The app installs to a home screen, dock or Start menu from `client/public/site.webmanifest`
+(icons, maskable icons, shortcuts, screenshots, a share target and a `web+nostr:` handler,
+both landing on `/open` → `lib/openTarget`). iOS reads its own tags from `index.html`:
+`apple-mobile-web-app-*`, the full-bleed `apple-touch-icon.png`, and a launch image per
+screen size. `scripts/pwa-assets.mjs` draws all the raster art from `favicon.svg`;
+`lib/pwaAssets.test.ts` holds the manifest, the files and `index.html` to each other.
+
+- **Service worker** (`client/src/sw/sw.ts`, served as `/sw.js`): page loads
+  network-first with the cached shell as the offline/slow fallback, hashed assets
+  cache-first, everything else untouched. Updates wait for the page:
+  `lib/serviceWorker` swaps a same-build worker in quietly and shows
+  `AppUpdatePrompt` to an older page. Rationale: [docs/adr/0006](docs/adr/0006-service-worker-network-first-shell.md).
+- **Notifications** go through the worker (`showAppNotification`); a tapped one
+  focuses the open app and navigates (`onOpenUrl`). The unread count is also on the
+  app icon (`lib/appBadge`).
+- **Coming back** (`lib/appResume` → `services/appResume`): relays skip their
+  reconnect backoff (`wakeRelays`; the DM live subscription's retry is woken too),
+  a newer build is looked for, and after 10 minutes away the API queries are
+  refetched (the app has no pull-to-refresh). The DM outbox retries on return.
+- **In the installed app only**: Back in the header on screens reached in-app
+  (`HeaderBar`; there is no browser toolbar), persistent storage asked for at
+  sign-in (`lib/persistentStorage`), the main screens precached, and on iOS a note
+  on `/login` that the app's sign-in is separate from Safari's.
+- **Install offer**: "Install the app" in the account menu, opening Chrome's
+  prompt (`lib/installPrompt`) or the Share-sheet steps on iOS (`InstallApp`).
+- **Status bar**: `theme-color` follows the page's background (`lib/themeColor`).
+- **Fonts** are bundled (`@fontsource`), not fetched from Google, so an offline
+  launch has them.
+
+Real-device checks before shipping a change here: `docs/agents/pwa-checklist.md`.
+
 ## External Dependencies
 
 - **Nostr Protocol:** Interacts with various Nostr relays (e.g., damus, nostr.band, nos.lol) for metadata fetching and event publishing.

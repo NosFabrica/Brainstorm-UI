@@ -1,8 +1,9 @@
-import { defineConfig } from "vite";
+import { defineConfig, transformWithEsbuild, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { precacheLists, type BuiltFile } from "./client/src/sw/precache";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,9 +24,47 @@ function spaFallbackPlugin() {
   };
 }
 
+/**
+ * This build's id, in the page (`__BUILD_ID__`) and in its service worker: the
+ * page asks a waiting worker for its id, and reloads for it only when the two
+ * differ (lib/serviceWorker).
+ */
+const BUILD_ID = process.env.BUILD_ID || Date.now().toString(36);
+
+/**
+ * /sw.js: client/src/sw/sw.ts transpiled on its own — a worker is one classic
+ * script — with this build's id and file lists stamped in (sw/precache).
+ */
+function serviceWorkerPlugin(): Plugin {
+  return {
+    name: "service-worker",
+    apply: "build",
+    async generateBundle(_options, bundle) {
+      const { shell, routes, missing } = precacheLists(bundle as unknown as Record<string, BuiltFile>);
+      if (missing.length) this.warn(`sw: no chunk for ${missing.join(", ")} — rename in sw/precache APP_SCREENS`);
+      const source = fs.readFileSync(path.resolve(__dirname, "client", "src", "sw", "sw.ts"), "utf8");
+      const { code } = await transformWithEsbuild(source, "sw.ts", {
+        loader: "ts",
+        format: "iife",
+        target: "es2020",
+        minify: true,
+        define: {
+          __SW_BUILD_ID__: JSON.stringify(BUILD_ID),
+          __SW_PRECACHE__: JSON.stringify(shell),
+          __SW_ROUTES__: JSON.stringify(routes),
+        },
+      });
+      this.emitFile({ type: "asset", fileName: "sw.js", source: code });
+    },
+  };
+}
+
 export default defineConfig({
   appType: "spa",
-  plugins: [react(), spaFallbackPlugin()],
+  plugins: [react(), spaFallbackPlugin(), serviceWorkerPlugin()],
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "client", "src"),

@@ -29,7 +29,9 @@ Single-context layout — [`CONTEXT.md`](CONTEXT.md) + [`docs/adr/`](docs/adr/) 
 
 ### Running the UI
 
-Locally against staging, for a browser check: `docs/agents/run-ui.md`.
+Locally against staging, for a browser check: `docs/agents/run-ui.md`. The installed app
+(PWA) — service worker, manifest, notifications — is in ARCHITECTURE.md; real-device
+checks: `docs/agents/pwa-checklist.md`.
 
 ### Shipping to staging
 

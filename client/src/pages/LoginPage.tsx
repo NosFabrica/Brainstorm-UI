@@ -10,6 +10,7 @@ import { KeySignInModal } from "@/components/KeySignInModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
 import { isInstalledPhoneApp } from "@/lib/installedApp";
+import { isIOS } from "@/lib/platform";
 import { Wordmark } from "@/components/Wordmark";
 import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
 import { HERO_SOLO } from "@/lib/heroScenes";
@@ -209,6 +210,14 @@ export default function LoginPage() {
                 Pick up where you left off and keep building your network.
               </p>
             </div>
+
+            {/* iOS gives a Home Screen app storage of its own: someone signed in in
+              Safari arrives here signed out, and should hear that it's once only. */}
+            {installedApp && !hasAccounts && isIOS() && (
+              <p className="mb-4 text-sm text-muted-foreground" data-testid="login-installed-app-note">
+                The app keeps its own sign-in, separate from Safari's — sign in once here and it stays.
+              </p>
+            )}
 
             {/* Sent here from a payment that belongs to another account on this
               device: say which account to pick before they pick one. */}
