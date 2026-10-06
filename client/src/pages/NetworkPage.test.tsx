@@ -6,7 +6,7 @@
  * and the toggle on it changes which perspective the connections are asked for.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -125,13 +125,19 @@ describe("NetworkPage controls", () => {
     expect(dotOf("flagged")).toBe(rgb(TRUST_TIER_COLORS.flagged));
   });
 
-  it("says whose scores these are, and the toggle changes whose the connections are asked for", async () => {
+  it("says whose scores these are — the switch itself lives in the account menu, not here", async () => {
     show();
     const line = await screen.findByTestId("network-perspective");
     expect(line).toHaveTextContent("Scores from your perspective · Default preset");
+    expect(within(line).queryByTestId("pov-toggle")).toBeNull();
     expect(connectionsAsked).toHaveBeenCalledWith("followed_by", false);
+  });
 
-    fireEvent.click(within(line).getByTestId("pov-toggle-global"));
-    expect(setPerspective).toHaveBeenCalledWith("nosfabrica");
+  it("follows the perspective chosen in the menu: Brainstorm's means the house view is asked for", async () => {
+    perspective = "nosfabrica";
+    show();
+    const line = await screen.findByTestId("network-perspective");
+    expect(line).toHaveTextContent("Scores from Brainstorm's perspective");
+    expect(connectionsAsked).toHaveBeenCalledWith("followed_by", true);
   });
 });

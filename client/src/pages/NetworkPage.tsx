@@ -56,7 +56,7 @@ import {
 } from "@/components/network/cardContext";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { useHasSession } from "@/hooks/useHasSession";
-import { PovToggle, TrustScoreModal, useScorePov } from "@/components/score/TrustScorePov";
+import { TrustScoreModal, useScorePov } from "@/components/score/TrustScorePov";
 import { networkPerspective } from "@/lib/networkPerspective";
 import { presetDisplayLabel } from "@/services/trustThreshold";
 import { UNKNOWN_EXPLAINER, ladderFor } from "@/lib/trustLadder";
@@ -1107,7 +1107,8 @@ export default function NetworkPage() {
                   </span>
                 )}
               </span>
-              <PovToggle canPersonalize={perspective.canPersonalize} avatarUrl={user?.picture} className="shrink-0" />
+              {/* No switch here: the perspective is changed in the account menu, on every
+                  page. This line only says which one these scores are from. */}
               <button
                 type="button"
                 onClick={() => setScoreExplainOpen(true)}

@@ -15,7 +15,8 @@ import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { InfoHint } from "@/components/InfoHint";
-import { TrustScoreModal, useScorePov, PovToggle } from "@/components/score/TrustScorePov";
+import { TrustScoreModal, useScorePov } from "@/components/score/TrustScorePov";
+import { networkPerspective } from "@/lib/networkPerspective";
 import { useHasSession } from "@/hooks/useHasSession";
 import { PersonListRow } from "@/components/PersonListRow";
 import { TIER_LABELS } from "@/services/trustThreshold";
@@ -298,12 +299,22 @@ export default function ConnectionListPage() {
               {cfg.subtitle(subjectName)}
             </p>
           )}
-          {/* The POV lens sits LEFT, in the primary reading path, on its own line
-              (both breakpoints) — it reframes every score and the tier buckets,
-              so it reads as the list's lens, not a right-rail utility like the
-              filter. Left-aligned = one clean content edge + better discovery. */}
-          <div className="mt-3">
-            <PovToggle canPersonalize={signedIn && calcDone} avatarUrl={me?.picture} className="shrink-0" />
+          {/* Whose scores these are, on its own line in the reading path — it
+              reframes every score and the tier buckets. The switch itself lives in
+              the account menu, on every page; this line only states the result. */}
+          <div
+            className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600 dark:text-slate-300"
+            data-testid="conn-perspective"
+          >
+            <span>{networkPerspective({ signedIn, calcDone, scorePov }).label}</span>
+            <button
+              type="button"
+              onClick={() => setScoreExplainOpen(true)}
+              className="text-xs font-medium text-brand-link hover:underline"
+              data-testid="conn-perspective-explain"
+            >
+              What is this?
+            </button>
           </div>
 
           {filtersOpen && (
