@@ -356,6 +356,41 @@ describe("DmEngine", () => {
     expect(engine.store.rooms()).toHaveLength(1);
   });
 
+  it("holds the queue on a signer error that isn't a no, quoting it, until the reader tries again", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "hi", NOW - 60));
+    let locked = true;
+    const base = me.account();
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          if (locked) throw new Error("Password is not set");
+          return base.decrypt!(from, text);
+        },
+        classify: () => "failed",
+        explain: (error) => (error as Error).message,
+      }),
+      { ...net, ...clock(), now: () => NOW },
+    );
+    await engine.start();
+    await settle();
+    engine.allowDecrypt();
+    await settle();
+    expect(engine.state()).toMatchObject({
+      paused: "failed",
+      pauseDetail: "Password is not set",
+      queued: 1,
+      failed: 0,
+    });
+    locked = false;
+    engine.allowDecrypt();
+    expect(engine.state().pauseDetail).toBeUndefined();
+    await settle();
+    expect(engine.store.rooms()).toHaveLength(1);
+  });
+
   it("holds the queue while the signer is on another profile, and opens it once it's back", async () => {
     const me = person();
     const ana = person();
@@ -634,38 +669,41 @@ describe("DmEngine", () => {
     expect(net.published).toEqual([]);
   });
 
-  it("a wrap the signer keeps refusing can't hold the inbox shut", async () => {
-    const me = person();
-    const ana = person();
-    const troll = person();
-    const net = network({ [me.pubkey]: ["wss://in.example/"] });
-    net.hold("wss://in.example/", await wrapFrom(troll, me.pubkey, "poison", NOW - 10));
-    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "hello", NOW - 600));
-    const base = me.account();
-    const engine = new DmEngine(
-      me.account({
-        // An extension that errors on one sender's payload, opaquely.
-        decrypt: async (from, text) => {
-          if (from === troll.pubkey) throw new Error("something went wrong");
-          return base.decrypt!(from, text);
-        },
-        classify: () => "refused",
-      }),
-      { ...net, ...clock(), now: () => NOW },
-    );
-    await engine.start();
-    await settle();
-    engine.allowDecrypt();
-    await settle();
-    // Unlucky first: the newest wrap is the troll's, and the signer "refused".
-    // The seal decrypt is the troll's; the wrap decrypt (ephemeral key) works.
-    if (engine.state().paused) engine.allowDecrypt();
-    await settle();
-    await settle();
-    expect(engine.store.rooms().map((r) => r.last?.rumor.content)).toEqual(["hello"]);
-    // Set aside for this visit — not remembered as unreadable, and retried on request.
-    expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0, setAside: 1 });
-  });
+  it.each(["refused", "failed"] as const)(
+    "a wrap the signer keeps turning down (%s) can't hold the inbox shut",
+    async (kind) => {
+      const me = person();
+      const ana = person();
+      const troll = person();
+      const net = network({ [me.pubkey]: ["wss://in.example/"] });
+      net.hold("wss://in.example/", await wrapFrom(troll, me.pubkey, "poison", NOW - 10));
+      net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "hello", NOW - 600));
+      const base = me.account();
+      const engine = new DmEngine(
+        me.account({
+          // An extension that errors on one sender's payload, opaquely.
+          decrypt: async (from, text) => {
+            if (from === troll.pubkey) throw new Error("something went wrong");
+            return base.decrypt!(from, text);
+          },
+          classify: () => kind,
+        }),
+        { ...net, ...clock(), now: () => NOW },
+      );
+      await engine.start();
+      await settle();
+      engine.allowDecrypt();
+      await settle();
+      // Unlucky first: the newest wrap is the troll's, and the signer "refused".
+      // The seal decrypt is the troll's; the wrap decrypt (ephemeral key) works.
+      if (engine.state().paused) engine.allowDecrypt();
+      await settle();
+      await settle();
+      expect(engine.store.rooms().map((r) => r.last?.rumor.content)).toEqual(["hello"]);
+      // Set aside for this visit — not remembered as unreadable, and retried on request.
+      expect(engine.state()).toMatchObject({ paused: undefined, queued: 0, failed: 0, setAside: 1 });
+    },
+  );
 
   it("never hands a malformed payload to the signer", async () => {
     const me = person();

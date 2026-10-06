@@ -1,7 +1,7 @@
 /**
  * The states between "signed in" and "reading messages": no inbox relays yet,
  * inbox relays that want a NIP-42 login, a signer that hasn't opened anything
- * (or said no), a signer that can't do NIP-44 at all.
+ * (said no, or failed without asking), a signer that can't do NIP-44 at all.
  */
 import { useState } from "react";
 import { Inbox, KeyRound, Loader2, Lock, Plug } from "lucide-react";
@@ -99,6 +99,8 @@ export function InboxNotices({ engine, state }: { engine: DmEngine | null; state
     key: string;
     icon: React.ReactNode;
     text: string;
+    /** The signer's own words, quoted under the text. */
+    detail?: string;
     action?: React.ReactNode;
     variant?: "warning" | "default";
   }[] = [];
@@ -141,6 +143,7 @@ export function InboxNotices({ engine, state }: { engine: DmEngine | null; state
   if (
     state.paused === "cancelled" ||
     state.paused === "refused" ||
+    state.paused === "failed" ||
     state.paused === "unreachable" ||
     state.paused === "wrong-account"
   )
@@ -154,7 +157,11 @@ export function InboxNotices({ engine, state }: { engine: DmEngine | null; state
             ? "Your signer didn't answer, so new messages are still sealed."
             : state.paused === "wrong-account"
               ? "Your signer is on a different profile than this account. Switch back to it, then try again."
-              : "Your signer declined to open messages.",
+              : state.paused === "failed"
+                ? "Your signer couldn't open messages. Check that it's unlocked and connected, then try again."
+                : // Alby says no without a prompt once this site is set to "always deny".
+                  "Your signer declined to open messages. If it didn't ask you, check whether it blocks this site.",
+      detail: state.pauseDetail,
       action: (
         <Button size="sm" variant="outline" onClick={() => engine?.allowDecrypt()}>
           {state.paused === "cancelled" ? "Unlock" : "Try again"}
@@ -173,7 +180,14 @@ export function InboxNotices({ engine, state }: { engine: DmEngine | null; state
         >
           <span className="flex gap-2">
             <span className="mt-0.5 shrink-0">{n.icon}</span>
-            {n.text}
+            <span className="flex flex-col gap-0.5">
+              {n.text}
+              {n.detail && (
+                <span className="break-words text-xs opacity-80" data-testid="dm-notice-detail">
+                  Your signer said: “{n.detail}”
+                </span>
+              )}
+            </span>
           </span>
           {n.action && <span className="pl-6">{n.action}</span>}
         </Alert>

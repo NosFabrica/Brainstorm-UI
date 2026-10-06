@@ -93,8 +93,8 @@ async function openMessage(account: BrainstormAccount, fake: FakeExtension): Pro
 
 type Expected = {
   /** "ok" signs in as whichever profile the extension is on now. */
-  login: "ok" | "PERMISSION_DENIED" | "SIGN_CANCELLED" | "silent";
-  publish: "ok" | "declined" | "unreachable" | "other-profile";
+  login: "ok" | "PERMISSION_DENIED" | "SIGN_CANCELLED" | "silent" | "failed";
+  publish: "ok" | "declined" | "unreachable" | "other-profile" | "failed";
   /** Whether relay sign-in records the reader's "no" and stops asking. */
   relaySaidNo?: boolean;
   /** What opening a private message comes to. "broken" is remembered for good. */
@@ -117,6 +117,8 @@ const MATRIX: [ExtensionBehaviour, Expected][] = [
     "never-answers",
     { login: "silent", publish: "unreachable", relaySaidNo: false, message: "unreachable", selfEncryption: false },
   ],
+  // Not a no: it never asked. Private messages must say it failed, not that the reader declined.
+  ["locked", { login: "failed", publish: "failed", relaySaidNo: false, message: "failed", selfEncryption: false }],
   ["no-nip44", { login: "ok", publish: "ok", message: "no-nip44", selfEncryption: false }],
   // Its self-encryption is covered where it would reach relays, below.
   ["switched-profile", { login: "ok", publish: "other-profile", relaySaidNo: false, message: "wrong-account" }],
@@ -147,6 +149,9 @@ describe.each(MATRIX)("an extension that %s", (behaviour, expected) => {
     if (expected.login === "silent") {
       expect(code).toBe("EXTENSION_FAILED");
       expect(message).toMatch(/didn't answer/);
+    } else if (expected.login === "failed") {
+      expect(code).toBe("EXTENSION_FAILED");
+      expect(message).toMatch(/Password is not set/);
     } else {
       expect(code).toBe(expected.login);
     }
@@ -167,6 +172,7 @@ describe.each(MATRIX)("an extension that %s", (behaviour, expected) => {
     expect(outcome.cancelled).toBeFalsy();
     expect(!!outcome.signerUnreachable).toBe(expected.publish === "unreachable");
     if (expected.publish === "declined") expect(classifySignerError(error)).toBe("declined");
+    if (expected.publish === "failed") expect(classifySignerError(error)).toBe("unknown");
     if (expected.publish === "other-profile") expect(outcome.error).toMatch(/different profile/);
   });
 
@@ -258,6 +264,28 @@ describe("an extension that injects after private messages started", () => {
     installExtension("works", { secretKey: fake.secretKey });
     const { value } = await settled(unwrapGiftWrap(await messageTo(fake.pubkey, "late"), dm.decrypt!));
     expect(value?.rumor.content).toBe("late");
+  });
+});
+
+describe("what private messages quote from the signer", () => {
+  it.each([
+    ["locked", "Password is not set"],
+    ["rejects", "User rejected the request"],
+    // Our own wrapper for an empty answer says nothing the notice doesn't.
+    ["answers-nothing", undefined],
+  ] as const)("an extension that %s: %s", async (behaviour, quoted) => {
+    const fake = installExtension(behaviour);
+    const account = new BrainstormExtensionAccount(fake.pubkey) as unknown as BrainstormAccount;
+    const dm = dmAccountFor(account);
+    const { error } = await settled(unwrapGiftWrap(await messageTo(fake.pubkey, "hi"), dm.decrypt!));
+    expect(dm.explain?.(error)).toBe(quoted);
+  });
+
+  it("a page-long error, cut to a line", () => {
+    const dm = dmAccountFor(new BrainstormExtensionAccount("a".repeat(64)) as unknown as BrainstormAccount);
+    const quoted = dm.explain?.(new Error("x".repeat(500)));
+    expect(quoted).toHaveLength(200);
+    expect(quoted?.endsWith("…")).toBe(true);
   });
 });
 

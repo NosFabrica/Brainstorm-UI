@@ -21,6 +21,8 @@ export type ExtensionBehaviour =
   | "answers-nothing"
   /** Nostash with its prompt tab closed unanswered, or failing inside: never settles. */
   | "never-answers"
+  /** Alby locked since the page enabled it: every request rejects "Password is not set", no prompt. */
+  | "locked"
   /** An extension without NIP-44: signs, can't encrypt. */
   | "no-nip44"
   /** Switched to another profile since sign-in: answers, signs and decrypts as someone else. */
@@ -57,6 +59,7 @@ export function installExtension(
     calls.push(method);
     if (behaviour === "rejects") return Promise.reject(new Error("User rejected the request"));
     if (behaviour === "answers-nothing") return Promise.resolve(undefined as T);
+    if (behaviour === "locked") return Promise.reject(new Error("Password is not set"));
     if (behaviour === "never-answers") return never();
     return Promise.resolve().then(work);
   };

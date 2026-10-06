@@ -78,7 +78,12 @@ export interface DmTransport {
   onAuthenticated(relay: string, callback: () => void): () => void;
 }
 
-export type SignerFailure = "cancelled" | "unreachable" | "refused" | "wrong-account" | "broken";
+/**
+ * `refused`: the signer said no. `failed`: it threw something that isn't a no,
+ * a timeout or a broken payload — Alby locked since this page enabled it
+ * ("Password is not set") — so it may never have asked the reader at all.
+ */
+export type SignerFailure = "cancelled" | "unreachable" | "refused" | "failed" | "wrong-account" | "broken";
 
 export interface DmAccount {
   pubkey: string;
@@ -88,6 +93,8 @@ export interface DmAccount {
   /** Whether opening messages can start without the reader asking. */
   canOpenInBackground(): Promise<boolean>;
   classify(error: unknown): SignerFailure;
+  /** The signer's own words for a failure, when they are its and not ours. */
+  explain?(error: unknown): string | undefined;
 }
 
 export interface DmEngineDeps {
@@ -119,7 +126,7 @@ interface OutboxEntry {
   deliveries: Delivery[];
 }
 
-export type DmPause = "waiting" | "cancelled" | "unreachable" | "refused" | "wrong-account" | "no-nip44";
+export type DmPause = "waiting" | "cancelled" | "unreachable" | "refused" | "failed" | "wrong-account" | "no-nip44";
 
 export interface DmEngineState {
   status: "starting" | "no-inbox" | "ready" | "stopped";
@@ -140,6 +147,11 @@ export interface DmEngineState {
   queued: number;
   /** Why opening is on hold, if it is. */
   paused?: DmPause;
+  /**
+   * What the signer said when it stopped opening (`refused`, `failed`) — "permission
+   * denied", "Password is not set": the one clue to a signer that never prompted.
+   */
+  pauseDetail?: string;
   /** Wraps that can never be opened (a broken payload). */
   failed: number;
   /**
@@ -212,6 +224,7 @@ export class DmEngine {
   private running = 0;
   private allowed = false;
   private paused?: DmPause;
+  private pauseDetail?: string;
   private failed = 0;
   private readonly setAsideItems = new Map<string, Queued>();
   private readonly receivedBy = new Map<string, Set<string>>();
@@ -789,6 +802,7 @@ export class DmEngine {
     }
     this.allowed = true;
     if (this.paused !== "no-nip44") this.paused = undefined;
+    this.pauseDetail = undefined;
     this.changed();
     this.pump();
   }
@@ -885,7 +899,8 @@ export class DmEngine {
       // wrap, not the signer — a stranger can't hold the whole inbox shut. Set
       // aside for this visit only: a signer's error is not proof the message is
       // unreadable, and remembering it as such would lose it for good.
-      if (kind === "refused" && item.refusals > 0 && this.openedCount > item.openedAtRefusal) {
+      const turnedDown = kind === "refused" || kind === "failed";
+      if (turnedDown && item.refusals > 0 && this.openedCount > item.openedAtRefusal) {
         this.seen.add(wrap.id);
         this.setAsideItems.set(wrap.id, item);
         return;
@@ -894,10 +909,11 @@ export class DmEngine {
       // and try this one after the rest next time.
       this.requeue({
         ...item,
-        refusals: item.refusals + (kind === "refused" ? 1 : 0),
+        refusals: item.refusals + (turnedDown ? 1 : 0),
         openedAtRefusal: this.openedCount,
       });
       this.paused = kind;
+      this.pauseDetail = turnedDown ? this.account.explain?.(error) : undefined;
       // Didn't answer in time (a busy bunker, an extension's own timeout): try
       // again by itself, waiting longer each time, before asking the reader.
       if (kind === "unreachable") this.scheduleResume();
@@ -1263,6 +1279,7 @@ export class DmEngine {
       // In flight too: a wrap being opened is still waiting, as far as the reader can tell.
       queued: this.queue.size + this.opening.size,
       paused: this.paused ?? (!this.allowed && this.queue.size ? "waiting" : undefined),
+      pauseDetail: this.pauseDetail,
       failed: this.failed,
       setAside: this.setAsideItems.size,
       downloading: this.downloading,
