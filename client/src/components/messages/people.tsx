@@ -4,6 +4,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { npubFromPubkey } from "@/lib/shareId";
 import { cn } from "@/lib/utils";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 import type { DmRoom } from "@/lib/dm/store";
 
 export type Profiles = Map<string, ProfileContent>;
@@ -35,6 +36,34 @@ export function roomTitle(room: Pick<DmRoom, "participants" | "subject">, me: st
   if (others.length === 1) return nameOf(others[0], profiles);
   const names = others.map((pk) => firstName(pk, profiles));
   return names.length === 2 ? `${names[0]} and ${names[1]}` : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}
+
+/** `nameOf` (or `firstName`) as an element: the person's NIP-30 emoji drawn. */
+export function PersonName({
+  pubkey,
+  profiles,
+  first = false,
+}: {
+  pubkey: string;
+  profiles: Profiles;
+  first?: boolean;
+}) {
+  return <ProfileEmojiText pubkey={pubkey} text={first ? firstName(pubkey, profiles) : nameOf(pubkey, profiles)} />;
+}
+
+/** `roomTitle` as an element: a one-to-one chat's title is the person, emoji and all. */
+export function RoomTitle({
+  room,
+  me,
+  profiles,
+}: {
+  room: Pick<DmRoom, "participants" | "subject">;
+  me: string;
+  profiles: Profiles;
+}) {
+  const others = room.participants.filter((pk) => pk !== me);
+  if (!room.subject && others.length === 1) return <PersonName pubkey={others[0]} profiles={profiles} />;
+  return <>{roomTitle(room, me, profiles)}</>;
 }
 
 export function PersonAvatar({

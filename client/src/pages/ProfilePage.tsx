@@ -50,6 +50,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
 import { Badge } from "@/components/ui/badge";
+import { EmojiText } from "@/components/ui/custom-emoji";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
@@ -1741,7 +1742,11 @@ export default function ProfilePage() {
           </a>
         );
       }
-      return <span key={i}>{part}</span>;
+      return (
+        <span key={i}>
+          <EmojiText text={part} tags={liveNostrProfile.event} />
+        </span>
+      );
     });
   };
 
@@ -2658,9 +2663,14 @@ export default function ProfilePage() {
                             style={{ fontFamily: "var(--font-display)" }}
                             data-testid="text-profile-title-seed"
                           >
-                            {displayNostrProfile?.display_name ||
-                              displayNostrProfile?.name ||
-                              displayNpub.slice(0, 18) + "..."}
+                            <EmojiText
+                              text={
+                                displayNostrProfile?.display_name ||
+                                displayNostrProfile?.name ||
+                                displayNpub.slice(0, 18) + "..."
+                              }
+                              tags={liveNostrProfile.event}
+                            />
                           </h3>
                           <Badge
                             variant="secondary"
@@ -2717,7 +2727,7 @@ export default function ProfilePage() {
                     className="mb-4 line-clamp-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
                     style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
                   >
-                    {displayNostrProfile.about}
+                    <EmojiText text={displayNostrProfile.about} tags={liveNostrProfile.event} />
                   </p>
                 )}
                 <div className="animate-pulse space-y-3">
@@ -2801,9 +2811,14 @@ export default function ProfilePage() {
                             style={{ fontFamily: "var(--font-display)" }}
                             data-testid="text-profile-title"
                           >
-                            {displayNostrProfile?.display_name ||
-                              displayNostrProfile?.name ||
-                              displayNpub.slice(0, 18) + "..."}
+                            <EmojiText
+                              text={
+                                displayNostrProfile?.display_name ||
+                                displayNostrProfile?.name ||
+                                displayNpub.slice(0, 18) + "..."
+                              }
+                              tags={liveNostrProfile.event}
+                            />
                           </h3>
                           <Nip05Handle
                             nip05={displayNostrProfile?.nip05}

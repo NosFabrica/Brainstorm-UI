@@ -10,6 +10,7 @@ import { relativeEventTime } from "@/lib/calendarEvent";
 import liveDefault from "@/assets/live-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 /**
  * A live-stream watch hero for kind-30311 (NIP-53) on /e: an embedded HLS player
@@ -239,13 +240,13 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
         style={{ fontFamily: "var(--font-display)" }}
         data-testid="live-hero-title"
       >
-        {title}
+        <EmojiText text={title} tags={event} />
       </h1>
 
       {summary && summary !== title && (
         // Links are links and people are names — the same inline renderer the
         // event page uses for its About.
-        <ReadingText text={summary} className="mt-3" />
+        <ReadingText text={summary} tags={event.tags} className="mt-3" />
       )}
 
       {watchUrl && canEmbed && (

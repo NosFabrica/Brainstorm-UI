@@ -31,6 +31,7 @@ import { kindLabel } from "@/lib/kindLabel";
 import type { SearchResult } from "@/lib/profileSearch";
 import { clip, who } from "@/lib/resultReaders";
 import { summaryOf, type ResultSummary } from "@/lib/resultSummary";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 /** The event a row is about, as one line: whose, and what it says — or what it is, when its words are only a link. */
 function quoteOf(target: NostrEvent): string {
@@ -103,7 +104,9 @@ export const AllResultRow = memo(function AllResultRow({
               <DefaultAvatarImg />
             </AvatarFallback>
           </Avatar>
-          <span className="min-w-0 truncate text-xs font-medium text-slate-600 dark:text-slate-300">{authorName}</span>
+          <span className="min-w-0 truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+            <ProfileEmojiText pubkey={pubkey} text={authorName} />
+          </span>
           <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">· {ago(event.created_at)}</span>
           <span className="flex-1" />
           <Chip
@@ -123,7 +126,7 @@ export const AllResultRow = memo(function AllResultRow({
                 className="line-clamp-2 break-words text-base font-semibold leading-snug text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100"
                 data-testid="all-row-title"
               >
-                <Headline text={summary.title} query={query} />
+                <Headline text={summary.title} query={query} tags={event.tags} />
               </p>
             )}
             {words && summary.code ? (
@@ -138,7 +141,7 @@ export const AllResultRow = memo(function AllResultRow({
                 className={`${summary.title ? "mt-0.5 line-clamp-3" : "line-clamp-4"} break-words text-sm leading-[1.5] text-slate-600 dark:text-slate-300`}
                 data-testid="all-row-body"
               >
-                <Headline text={words} query={query} />
+                <Headline text={words} query={query} tags={event.tags} />
               </p>
             ) : (
               summary.shape && (
@@ -160,7 +163,7 @@ export const AllResultRow = memo(function AllResultRow({
                 className="mt-1.5 line-clamp-1 break-all border-l-2 border-slate-200 pl-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
                 data-testid="all-row-ref"
               >
-                <Headline text={quoteOf(target)} query={query} />
+                <Headline text={quoteOf(target)} query={query} tags={target.tags} />
               </p>
             )}
             {facts.length > 0 && (

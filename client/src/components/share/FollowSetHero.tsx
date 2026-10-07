@@ -15,6 +15,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { Chip } from "@/components/ui/chip";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type SetEvent = {
@@ -66,13 +67,17 @@ export function FollowSetHero({ event }: { event: SetEvent }) {
               className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              {title}
+              <EmojiText text={title} tags={event} />
             </h1>
             <Chip size="sm" tone="info">
               {members.length} {members.length === 1 ? "member" : "members"}
             </Chip>
           </div>
-          {description && <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-300">{description}</p>}
+          {description && (
+            <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-300">
+              <EmojiText text={description} tags={event} />
+            </p>
+          )}
         </div>
         <div
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800"

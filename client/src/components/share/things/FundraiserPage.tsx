@@ -34,6 +34,7 @@ import {
   useProfileContent,
   type PageEvent,
 } from "./shared";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 interface Gift {
   id: string;
@@ -120,7 +121,9 @@ export function FundraiserHero({
         </div>
       )}
       <Kicker icon={HandHeart}>{detail.zapGoal ? "Zap goal" : "Fundraiser"}</Kicker>
-      <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
+      <PageTitle testId="thing-page-title">
+        <EmojiText text={thing.title} tags={thing.emoji} />
+      </PageTitle>
 
       {detail.goalSats !== null && (
         <div
@@ -229,7 +232,7 @@ export function FundraiserHero({
           ))}
         </div>
       )}
-      {story && <ReadingText text={story} className="mt-4" testId="thing-page-description" />}
+      {story && <ReadingText text={story} tags={thing.emoji} className="mt-4" testId="thing-page-description" />}
 
       {detail.zapGoal && !detail.ended && lud16 && (
         <ZapModal

@@ -285,6 +285,21 @@ describe("DmEngine", () => {
     expect(room.messages).toHaveLength(1);
   });
 
+  it("a custom emoji reaction carries its NIP-30 tag", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://mine.example/"], [ana.pubkey]: ["wss://ana.example/"] });
+    net.hold("wss://mine.example/", await wrapFrom(ana, me.pubkey, "lunch?", NOW - 10));
+    const engine = new DmEngine(me.account(), { ...net, ...clock(), now: () => NOW });
+    await engine.start();
+    await settle();
+    const target = engine.store.rooms()[0].last!;
+    await engine.react(target, ":soapbox:", { code: "soapbox", url: "https://example.com/soapbox.png" });
+    const sent = engine.store.room(target.room)!.reactions.get(target.id)![0].rumor;
+    expect(sent.content).toBe(":soapbox:");
+    expect(sent.tags).toContainEqual(["emoji", "soapbox", "https://example.com/soapbox.png"]);
+  });
+
   it("keeps opened messages sealed in the cache and catches up from the last visit", async () => {
     const me = person();
     const ana = person();

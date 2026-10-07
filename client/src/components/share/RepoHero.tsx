@@ -32,6 +32,7 @@ import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitStateOf, peopleBeforeAg
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { MessageSquare } from "lucide-react";
 import { ReadingText } from "@/components/share/ReadingText";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type RepoEvent = {
@@ -177,7 +178,7 @@ export function RepoHero({ event }: { event: RepoEvent }) {
             className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            {name}
+            <EmojiText text={name} tags={event} />
           </h1>
           {publisherNpub && (
             <Link
@@ -199,7 +200,9 @@ export function RepoHero({ event }: { event: RepoEvent }) {
             </Link>
           )}
           {description && !longDescription && (
-            <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-300">{description}</p>
+            <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-300">
+              <EmojiText text={description} tags={event} />
+            </p>
           )}
           {/* Where it came from and where it went. */}
           {(forkedFrom || forks.length > 0) && (
@@ -244,7 +247,9 @@ export function RepoHero({ event }: { event: RepoEvent }) {
 
       {/* A README-length description is prose, not a tagline — it reads
           below the identity, not squeezed beside the glyph. */}
-      {longDescription && <ReadingText text={description!} className="mt-3" testId="repo-hero-description" />}
+      {longDescription && (
+        <ReadingText text={description!} tags={event.tags} className="mt-3" testId="repo-hero-description" />
+      )}
 
       {/* Is it alive, and who is behind it — the numbers the card already has,
           one strip, the app page's anatomy. */}

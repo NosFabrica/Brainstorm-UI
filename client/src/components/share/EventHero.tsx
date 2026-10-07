@@ -31,6 +31,7 @@ import { eventPath } from "@/lib/shareId";
 import eventDefault from "@/assets/event-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 type Profile = { name?: string; display_name?: string; picture?: string };
 
@@ -181,7 +182,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
             style={{ fontFamily: "var(--font-display)" }}
             data-testid="event-hero-title"
           >
-            {e.title}
+            <EmojiText text={e.title} tags={event} />
           </h1>
           {/* The host, ringed — the one thing no ticketing site can show. */}
           {hostNpub && (
@@ -301,7 +302,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           data-testid="event-hero-description"
         >
           <h2 className="mb-2 text-sm font-bold text-slate-900 dark:text-slate-100">About</h2>
-          <ReadingText text={e.summary} />
+          <ReadingText text={e.summary} tags={event.tags} />
           {firstLink && (
             <div className="mt-3">
               <LinkPreviewCard url={firstLink} />

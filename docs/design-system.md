@@ -195,9 +195,31 @@ headlines, captions and section heads in unmarked text (`lib/noteBlocks.ts`).
 Don't hand-roll `whitespace-pre-line text-sm leading-relaxed` for these.
 
 ```tsx
-<ReadingText text={listing.description} className="mt-4" />
+<ReadingText text={listing.description} tags={event.tags} className="mt-4" />
 <ReadingText tokens={tokens} size="post" renderToken={rich} />   // NoteContent
 ```
+
+Pass the event's `tags` whenever the text came from an event: they carry its
+custom emoji (below).
+
+## Custom emoji (NIP-30) — `components/ui/custom-emoji.tsx`, `lib/customEmoji.ts`
+
+An event's `["emoji", shortcode, url]` tags turn `:shortcode:` in its text into
+an inline picture. Text from an event is never shown bare: it goes through a
+renderer that knows the event's tags.
+
+| Text                                         | Use                                                                    |
+| -------------------------------------------- | ---------------------------------------------------------------------- |
+| A note body                                  | `NoteContent tags={event.tags}`                                        |
+| A description, summary or article as prose   | `ReadingText tags={event.tags}`                                        |
+| Markdown                                     | `MarkdownBody tags`, or `useMarkdownEmoji` for your own react-markdown |
+| A title, a caption, a one-line field         | `<EmojiText text={title} tags={event} />`                              |
+| A person's name or bio, from a profile map   | `<ProfileEmojiText pubkey={pk} text={name} />` (reads their kind 0)    |
+| A Thing's title or description (`lib/thing`) | `thing.emoji`                                                          |
+
+An event without emoji tags is never scanned. Plain-string sinks (document
+titles, `aria-label`, toasts, OS notifications, share images) keep the
+`:shortcode:` text.
 
 ## Also use the existing themed primitives
 
