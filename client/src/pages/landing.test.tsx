@@ -122,6 +122,8 @@ vi.mock("@/lib/wavlake", async (importOriginal) => ({
   searchWavlakeTracks: async () => [],
   searchWavlake: async () => ({ artists: [], albums: [], songs: [] }),
   fetchWavlakeTrending: async () => [],
+  // A person's artist page on Wavlake (useArtistCatalogue): offline here.
+  findWavlakeArtist: async () => null,
 }));
 vi.mock("@/components/feed/HomeFeed", () => ({ HomeFeed: () => null }));
 vi.mock("@/components/FinishSetupBanner", () => ({ FinishSetupBanner: () => null }));
@@ -129,6 +131,12 @@ vi.mock("@/components/AccountCards", () => ({ AccountCards: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 
 import Landing from "./landing";
+
+// Offline: the BTC price (mempool.space) for fiat price lines is not under test.
+vi.mock("@/lib/exchangeRate", async (orig) => ({
+  ...(await orig<typeof import("@/lib/exchangeRate")>()),
+  fetchBtcRates: async () => null,
+}));
 
 const fParam = () => new URLSearchParams(window.location.search).get("f");
 

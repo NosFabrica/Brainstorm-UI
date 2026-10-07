@@ -96,6 +96,13 @@ vi.mock("@/components/ZapModal", () => ({
 import { KnowledgePanel } from "./KnowledgePanel";
 import { closePlayer, trackMeta } from "@/lib/audioPlayer";
 
+// Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
+vi.mock("@/lib/nip05", async (orig) => ({
+  ...(await orig<typeof import("@/lib/nip05")>()),
+  verifyNip05: async () => "unknown",
+  resolveNip05: async () => null,
+}));
+
 function noteHit(id: string, pubkey: string, name: string, created_at: number, tags: string[][] = []) {
   return {
     event: { id, kind: 1, pubkey, tags, content: "x", created_at, sig: "s" } as NostrEvent,

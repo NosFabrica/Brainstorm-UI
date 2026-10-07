@@ -1,6 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { TRUST_RELAYS, NIP85_AUTHOR_PUBKEYS, Z_HANDLE_PUBKEYS } from "@/config/tagging";
 import { conceptNostrUserTag } from "@/lib/tagging-sdk/profile-tagging.js";
+
+// Offline: no house observer's /.well-known (a test that wants one stubs fetch itself).
+beforeEach(() => vi.stubGlobal("fetch", async () => ({ ok: false, json: async () => ({}) })));
+afterEach(() => vi.unstubAllGlobals());
 
 /**
  * WHERE the trust read goes — issue #41 B1-proper.

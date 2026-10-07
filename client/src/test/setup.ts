@@ -25,6 +25,34 @@ if (hasDom) {
   };
 }
 
+// No test reaches the network. Each starts with a fetch that refuses and remembers;
+// a test that mocks fetch (vi.stubGlobal, vi.spyOn) replaces it as before. One that
+// asked the network anyway fails in afterEach — code under test usually swallows
+// fetch errors, which is how 26 requests to wavlake, mempool.space, NIP-05 hosts and
+// the test API went unnoticed (slow, and flaky offline). TEST_FETCH_GUARD=warn
+// reports instead of failing.
+const unmocked: string[] = [];
+const refuse = (input: RequestInfo | URL) => {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  unmocked.push(url);
+  return Promise.reject(new TypeError(`unmocked fetch in a test: ${url}`));
+};
+const realFetch = globalThis.fetch;
+beforeEach(() => {
+  unmocked.length = 0;
+  // Only ever in place of the real one: a suite's own mock (some stub once, at the
+  // top of the file) stays.
+  if (globalThis.fetch === realFetch) globalThis.fetch = refuse as typeof fetch;
+});
+afterEach(() => {
+  if (!unmocked.length) return;
+  const urls = [...new Set(unmocked)];
+  unmocked.length = 0;
+  const message = `This test reached the network (mock fetch): ${urls.join(", ")}`;
+  if (process.env.TEST_FETCH_GUARD === "warn") console.warn(`[fetch-guard] ${message}`);
+  else throw new Error(message);
+});
+
 // jsdom has no matchMedia either, and usePrefersReducedMotion calls it at
 // MODULE LOAD (so any suite importing the share components needs it).
 if (hasDom && typeof window.matchMedia === "undefined") {
