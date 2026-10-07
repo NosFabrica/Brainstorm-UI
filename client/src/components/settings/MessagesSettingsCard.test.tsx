@@ -4,7 +4,7 @@
  * says whether it's working, and one that isn't answering can be swapped for a
  * suggested server in a click — published only when the reader says so.
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { DmEngineState } from "@/services/dm/engine";
 
@@ -88,27 +88,35 @@ describe("MessagesSettingsCard servers", () => {
 });
 
 describe("MessagesSettingsCard notifications", () => {
-  const standalone = (on: boolean) =>
+  /** A browser tab, a desktop's installed app, or a phone's. */
+  const as = (where: "tab" | "desktop app" | "phone app") =>
     vi.stubGlobal("matchMedia", (q: string) => ({
-      matches: on && q === "(display-mode: standalone)",
+      matches:
+        (q === "(display-mode: standalone)" && where !== "tab") || (q === "(pointer: coarse)" && where === "phone app"),
       addEventListener: () => {},
       removeEventListener: () => {},
     }));
+  afterEach(() => vi.unstubAllGlobals());
 
   it("in a tab, speaks of the browser and the tab", () => {
-    standalone(false);
+    as("tab");
     render(<MessagesSettingsCard />);
     expect(screen.getByText("Browser notifications")).toBeInTheDocument();
     expect(screen.getByText(/While Brainstorm is open in a tab/)).toBeInTheDocument();
-    vi.unstubAllGlobals();
   });
 
-  it("in the installed app, promises only while it's open — there's no tab to keep open", () => {
-    standalone(true);
+  it("in a phone's installed app, says the phone pauses it — there's no tab to keep open", () => {
+    as("phone app");
     render(<MessagesSettingsCard />);
     expect(screen.getByText("Notifications", { selector: "label, label *" })).toBeInTheDocument();
-    expect(screen.getByText(/While the app is open/)).toBeInTheDocument();
+    expect(screen.getByText(/your phone pauses it/)).toBeInTheDocument();
     expect(screen.queryByText(/open in a tab/)).toBeNull();
-    vi.unstubAllGlobals();
+  });
+
+  it("in a desktop's installed app, promises while it's open, and nothing about phones", () => {
+    as("desktop app");
+    render(<MessagesSettingsCard />);
+    expect(screen.getByText(/While the app is open\./)).toBeInTheDocument();
+    expect(screen.queryByText(/phone/)).toBeNull();
   });
 });

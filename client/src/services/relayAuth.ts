@@ -219,6 +219,10 @@ export function startRelayAuth<A extends ActiveAccount>({
         pubkey: account.pubkey,
         signEvent: async (draft: EventTemplate) => {
           let timer: ReturnType<typeof setTimeout> | undefined;
+          let watching: Subscription | undefined;
+          // The challenge this login answers. makeAuthEvent always tags it; a draft
+          // without one can't be told stale, so it is never called stale.
+          const signedFor = draft.tags.find((t) => t[0] === "challenge")?.[1];
           try {
             const signed = await Promise.race([
               sign(account, draft),
@@ -232,9 +236,28 @@ export function startRelayAuth<A extends ActiveAccount>({
                   reject(timedOut);
                 }, signTimeoutMs);
               }),
+              // Ended the moment the relay drops its challenge (applesauce nulls it on
+              // close), not when the signer answers or this times out: ended late, it
+              // recorded "your signer didn't answer" over the fresh login that had already
+              // gone through, and its timeout's queue abort cancelled that fresh login.
+              // The queue is let go now, as the timeout would have later: the fresh login
+              // can't be in it yet (it waits for the new challenge), and it mustn't wait
+              // behind a request nobody needs — an extension's deadline (90s) is past its own.
+              new Promise<never>((_, reject) => {
+                if (signedFor === undefined) return;
+                let ended = false;
+                watching = relay.challenge$.subscribe((now) => {
+                  // Once: by the next emission (the new challenge) the fresh login may be queued.
+                  if (now === signedFor || ended) return;
+                  ended = true;
+                  const stale = new StaleChallenge();
+                  (account as { abortQueue?: (reason?: unknown) => void }).abortQueue?.(stale);
+                  reject(stale);
+                });
+              }),
             ]);
-            const signedFor = draft.tags.find((t) => t[0] === "challenge")?.[1];
-            if (relay.challenge !== signedFor) throw new StaleChallenge();
+            // Belt and braces: the answer and the drop can land in the same tick.
+            if (signedFor !== undefined && relay.challenge !== signedFor) throw new StaleChallenge();
             return signed;
           } catch (error) {
             // No answer isn't a "no": it's a login that didn't go through.
@@ -242,6 +265,7 @@ export function startRelayAuth<A extends ActiveAccount>({
             throw error;
           } finally {
             clearTimeout(timer);
+            watching?.unsubscribe();
           }
         },
       };

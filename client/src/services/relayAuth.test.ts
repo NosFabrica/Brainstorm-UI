@@ -158,6 +158,78 @@ describe("startRelayAuth", () => {
     expect(relayAuthProblems().get(GATED)).toBeUndefined();
   });
 
+  it("never reports a stale login that the signer never answers — its fresh one went through", async () => {
+    let calls = 0;
+    const sign = vi.fn(() => (++calls === 1 ? new Promise<typeof signed>(() => {}) : Promise.resolve(signed)));
+    const { gated } = setup({ sign, signTimeoutMs: 30 });
+    gated.challenge$.next("old-connection");
+    await tick();
+    gated.challenge$.next(null); // the socket drops while the signer is (not) answering
+    gated.challenge$.next("new-connection");
+    await tick();
+    expect(gated.authenticatedAs).toBe(PK);
+    await new Promise((ok) => setTimeout(ok, 60)); // past the old login's deadline
+    expect(relayAuthProblems().get(GATED)).toBeUndefined();
+  });
+
+  it("lets a fresh login go at once, not behind a stale one the signer never answers", async () => {
+    // As applesauce's Account: one signer request at a time; abortQueue rejects every
+    // waiting one and frees the queue.
+    let chain: Promise<unknown> = Promise.resolve();
+    const waiting = new Set<(reason: unknown) => void>();
+    let signerCalls = 0;
+    const queued = {
+      pubkey: PK,
+      abortQueue: vi.fn((reason?: unknown) => {
+        for (const reject of waiting) reject(reason);
+        waiting.clear();
+        chain = Promise.resolve();
+      }),
+      signEvent: vi.fn((_draft: unknown) => {
+        const run = new Promise<typeof signed>((ok, no) => {
+          waiting.add(no);
+          chain.then(() =>
+            // The old request hangs, as an extension's does for 90s; the fresh one is answered.
+            ++signerCalls === 1 ? undefined : ok(signed),
+          );
+        });
+        chain = run.catch(() => {});
+        return run;
+      }),
+    };
+    const pool = fakePool();
+    const gated = fakeRelay(GATED);
+    pool.relays.set(gated.url, gated);
+    startRelayAuth({
+      pool: pool as never,
+      active$: new BehaviorSubject<Account | undefined>(queued as never),
+      signTimeoutMs: 30,
+    });
+    gated.challenge$.next("old-connection");
+    await tick();
+    gated.challenge$.next(null); // dropped: the old login ends, the queue is let go
+    expect(queued.abortQueue).toHaveBeenCalledTimes(1);
+    gated.challenge$.next("new-connection");
+    await tick();
+    expect(gated.authenticatedAs).toBe(PK); // not stuck behind the old request
+    await new Promise((ok) => setTimeout(ok, 60)); // past every deadline
+    expect(queued.abortQueue).toHaveBeenCalledTimes(1); // nothing aborted the fresh login
+    expect(relayAuthProblems().get(GATED)).toBeUndefined();
+  });
+
+  it("never calls a login stale when its draft carries no challenge to compare", async () => {
+    const { gated } = setup();
+    gated.authenticate.mockImplementationOnce(async (signer: Pick<Account, "pubkey" | "signEvent">) => {
+      await signer.signEvent({ kind: 22242, tags: [], content: "", created_at: 1 });
+      gated.authenticatedAs = signer.pubkey;
+      return { ok: true, from: GATED };
+    });
+    gated.challenge$.next("c1");
+    await tick();
+    expect(gated.authenticatedAs).toBe(PK);
+    expect(relayAuthProblems().get(GATED)).toBeUndefined();
+  });
+
   it("stays quiet for a signed-out reader", async () => {
     const { active$, gated } = setup();
     active$.next(undefined);

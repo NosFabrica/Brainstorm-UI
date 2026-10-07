@@ -33,7 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { playChime } from "@/lib/chime";
 import { dedupeRelays } from "@/lib/relayRouting";
 import { cn } from "@/lib/utils";
-import { isInstalledApp } from "@/lib/installedApp";
+import { isInstalledApp, isInstalledPhoneApp } from "@/lib/installedApp";
 import { useDmRelays } from "@/hooks/useDmRelays";
 
 const REACH: { value: DmReach; label: string; hint: string }[] = [
@@ -76,9 +76,11 @@ function ToggleRow({
 
 function NotificationSettings({ pubkey, notify }: { pubkey: string; notify: DmNotifyPrefs }) {
   const [permission, setPermission] = useState(permissionNow);
-  // Installed, there is no tab and no browser to point at. And on a phone the system
-  // pauses the app soon after it leaves the screen, so "while it's open" is the promise.
+  // Installed, there is no tab to keep open. On a phone the system also pauses the app
+  // soon after it leaves the screen, so "while it's open" is the promise; a desktop's
+  // installed app runs on, and its permission still lives in the browser's site settings.
   const [installed] = useState(isInstalledApp);
+  const [onPhone] = useState(isInstalledPhoneApp);
   const desktopOn = notify.desktop && permission === "granted";
   const setDesktop = async (on: boolean) => {
     if (!on) return setNotifyPrefs(pubkey, { desktop: false });
@@ -92,9 +94,11 @@ function NotificationSettings({ pubkey, notify }: { pubkey: string; notify: DmNo
       <div>
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</h3>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          {installed
-            ? "While the app is open — on a phone it stops listening soon after you switch away."
-            : "While Brainstorm is open in a tab."}{" "}
+          {onPhone
+            ? "While the app is open — your phone pauses it soon after you switch away."
+            : installed
+              ? "While the app is open."
+              : "While Brainstorm is open in a tab."}{" "}
           Muted chats, and requests below your trust threshold, stay quiet.
         </p>
       </div>
@@ -103,8 +107,8 @@ function NotificationSettings({ pubkey, notify }: { pubkey: string; notify: DmNo
         label={installed ? "Notifications" : "Browser notifications"}
         hint={
           permission === "denied"
-            ? installed
-              ? "Blocked in this app's notification settings."
+            ? onPhone
+              ? "Blocked in your phone's notification settings for this app."
               : "Blocked in your browser's site settings."
             : permission === "unsupported"
               ? "This browser doesn't offer them."
