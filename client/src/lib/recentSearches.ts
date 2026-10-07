@@ -62,6 +62,15 @@ export function recentKey(item: RecentItem): string {
       : `query:${item.q.toLowerCase()}`;
 }
 
+/**
+ * The tab a recent reopens on. Top was `everything` once, and All is never
+ * reopened by a recent: it is only for a reader who clicks it. Both are Top —
+ * on write, and on read for records saved before this.
+ */
+function recentTab(tab: string): string {
+  return tab === "everything" || tab === "all" ? "top" : tab;
+}
+
 // Tolerate old records: pre-profile entries were bare { q, t } with no `type`.
 function normalize(e: Record<string, unknown> | null): RecentItem | null {
   if (!e || typeof e.t !== "number") return null;
@@ -91,9 +100,7 @@ function normalize(e: Record<string, unknown> | null): RecentItem | null {
       npub: e.npub,
       label: e.label,
       picture: typeof e.picture === "string" ? e.picture : undefined,
-      // Top was `everything` once, and All is never reopened by a recent:
-      // it is only for a reader who clicks it (both reopen on Top).
-      tab: e.tab === "everything" || e.tab === "all" ? "top" : e.tab,
+      tab: recentTab(e.tab),
       words: typeof e.words === "string" ? e.words : "",
       t: e.t,
     };
@@ -172,7 +179,7 @@ export interface RecentScopedInput {
 /** A search of one person's things on one tab — "vinney's media", with any words typed beside the pill. */
 export function pushRecentScoped(s: RecentScopedInput): RecentItem[] {
   const pubkey = (s.pubkey || "").toLowerCase();
-  const tab = (s.tab || "").trim();
+  const tab = recentTab((s.tab || "").trim());
   if (!pubkey || !s.npub || !tab) return getRecentItems();
   return unshift({
     type: "scoped",

@@ -64,6 +64,8 @@ describe("pushRecentScoped", () => {
     expect(getRecentItems()[0]).toMatchObject({ type: "scoped", tab: "top" });
     pushRecentScoped({ pubkey: VINNEY, npub, label: "vinney", tab: "all" });
     expect(getRecentItems()[0]).toMatchObject({ type: "scoped", tab: "top" });
+    // Stored as Top, not only read as Top.
+    expect(Object.values(localStorage).join()).not.toMatch(/"tab":"(everything|all)"/);
   });
 
   it("words typed under the scope are part of the search remembered", () => {

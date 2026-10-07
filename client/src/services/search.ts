@@ -173,10 +173,15 @@ export function askMintReviewsOnly<F extends { kinds?: number[]; "#k"?: string[]
 /**
  * Neither Top nor All names kinds: Top's sections each ask their own
  * (bandKindsForTab), and All is deliberately unconstrained — every
- * kind the relay indexes, in the relay's order.
+ * kind the relay indexes, in the relay's order. (Top with a typed sort:
+ * is that same kind-less list.)
  */
+export function isKindlessTab(tab: SearchTab): tab is "top" | "all" {
+  return tab === "top" || tab === "all";
+}
+
 export function kindsForTab(tab: SearchTab): number[] | undefined {
-  return tab === "top" || tab === "all" ? undefined : TAB_KINDS[tab];
+  return isKindlessTab(tab) ? undefined : TAB_KINDS[tab];
 }
 
 /**

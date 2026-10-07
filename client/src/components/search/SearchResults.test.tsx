@@ -404,6 +404,42 @@ describe("SearchResults", () => {
       expect(new URLSearchParams(window.location.search).get("t")).toBe("all");
     });
 
+    // Best match needs words to match: a person scope (or a wordless browse) on All is newest first.
+    it("asks newest first when there are no words to match", () => {
+      setUrlTab("all");
+      const npub = nip19.npubEncode("4".repeat(64));
+      render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
+      expect(mainStreamCalls()[0][0]).toBe(`from:${npub} sort:recent`);
+    });
+
+    // The verticals' gates hold on the kind-less list too: no sold listing, no game state as a song.
+    it("drops what the Shop and Music tabs would drop", async () => {
+      setUrlTab("all");
+      render(<SearchResults query="cashmere" pov="nosfabrica" />);
+      const seller = "9".repeat(64);
+      const forSale = ev("l1", 30402, seller, "", [
+        ["d", "l1"],
+        ["title", "Cashmere scarf"],
+        ["price", "100", "USD"],
+      ]);
+      const sold = ev("l2", 30402, seller, "", [
+        ["d", "l2"],
+        ["title", "Cashmere coat"],
+        ["price", "300", "USD"],
+        ["status", "sold"],
+      ]);
+      const gameState = ev("t2", 31337, "e".repeat(64), '{"players":[]}', [["d", "TOMB-7703"]]);
+      emit({
+        hits: [forSale, sold, gameState].map((event) => ({ event, author: null, rank: null })),
+        eose: true,
+        timeMs: 100,
+      });
+      const results = await screen.findByTestId("container-search-results");
+      expect(results).toHaveTextContent("Cashmere scarf");
+      expect(results).not.toHaveTextContent("Cashmere coat");
+      expect(results.children).toHaveLength(1);
+    });
+
     it("an old ?t=everything link opens Top, never All", () => {
       setUrlTab("everything");
       render(<SearchResults query="liverpool" pov="nosfabrica" />);
@@ -419,9 +455,13 @@ describe("SearchResults", () => {
       expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "all" });
     });
 
-    it("draws a kind with no card of its own as a row that reads its name", async () => {
-      setUrlTab("all");
-      render(<SearchResults query="La Tarantella" pov="nosfabrica" />);
+    // Top with a typed sort: is the same kind-less list, and draws it the same way.
+    it.each([
+      ["all", "La Tarantella"],
+      [null, "La Tarantella sort:recent"],
+    ])("draws a kind with no card of its own as a row that reads its name (tab %s)", async (tab, query) => {
+      setUrlTab(tab);
+      render(<SearchResults query={query} pov="nosfabrica" />);
       const place = ev("place1", 39999, "4".repeat(64), "", [
         ["d", "osm-way-995734197"],
         ["name", "La Tarantella - Recoleta"],
