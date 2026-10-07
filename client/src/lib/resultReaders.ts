@@ -35,16 +35,63 @@ export interface ReaderResult {
   body?: string | null;
   facts?: string[];
   ref?: ResultRef | null;
+  /** Who the row is from when the event's signer is a service: a zap receipt's payer, not the wallet's key. */
+  by?: string | null;
   /** The content is code: shown as it is, not read as prose. */
   code?: boolean;
   /** The content is private on purpose — said, not read. */
   encrypted?: boolean;
 }
 
-const HEX64 = /^[0-9a-f]{64}$/i;
+// ---- shared by the All tab's reading (lib/resultSummary, components/search/AllResults) ----
+
+export const HEX64 = /^[0-9a-f]{64}$/i;
+/** A `d` that is a UUID, a hex blob or a bare timestamp is never a name. */
+export const OPAQUE_D = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{10,})$/i;
+
+/** The first non-empty value of the first of `names` the event carries. */
+export const tagValue = (ev: { tags: string[][] }, ...names: string[]): string | null => {
+  for (const name of names) {
+    const v = ev.tags.find((t) => t[0] === name && typeof t[1] === "string" && t[1].trim())?.[1];
+    if (v) return v.trim();
+  }
+  return null;
+};
+
+/** A url or relay as its host: "wss://nos.lol/" → "nos.lol". */
+export const hostOf = (url: string) =>
+  url
+    .replace(/^(?:wss?|https?):\/\//i, "")
+    .replace(/[/?#].*$/, "")
+    .replace(/\/+$/, "");
+
+/**
+ * Text cut to `n` characters says it was cut — and is cut between words, so a
+ * `nostr:npub…` token is never left half there (a half token shows as a key).
+ */
+export const clip = (text: string, n: number) => {
+  if (text.length <= n) return text;
+  const cut = text.slice(0, n - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > n * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
+};
+
+/** The first `max` of a list, and how many more there are. */
+export const firstOf = (items: string[], max: number, sep = ", ") =>
+  items.length > max ? `${items.slice(0, max).join(sep)} and ${items.length - max} more` : items.join(sep);
+
+/** Facts, at most `max`, the rest counted in one more. */
+const someFacts = (facts: string[], max: number) =>
+  facts.length > max ? [...facts.slice(0, max), `+${facts.length - max} more`] : facts;
+
+/** The first lines of a block of code or text, and "…" when there are more. */
+const firstLines = (text: string, n: number) => {
+  const lines = text.split("\n");
+  return lines.length > n ? `${lines.slice(0, n).join("\n")}\n…` : text;
+};
 
 const tagsOf = (ev: ReaderEvent, name: string) => ev.tags.filter((t) => t[0] === name && typeof t[1] === "string");
-const tagOf = (ev: ReaderEvent, name: string): string | null => tagsOf(ev, name)[0]?.[1]?.trim() || null;
+const tagOf = (ev: ReaderEvent, name: string): string | null => tagValue(ev, name);
 const lastTag = (ev: ReaderEvent, name: string): string[] | null => tagsOf(ev, name).at(-1) ?? null;
 
 /** A person as the row writes them: a token it renders as their name. */
@@ -71,7 +118,6 @@ export function people(pubkeys: string[], max = 3): string {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const hostOf = (url: string) => url.replace(/^(?:wss?|https?):\/\//i, "").replace(/\/+$/, "");
 
 /** The `e` or `a` an event points at — NIP-25 and NIP-57 name the target last. */
 function refOf(ev: ReaderEvent, prefer: "first" | "last" = "last"): ResultRef | null {
@@ -146,7 +192,10 @@ function readList(ev: ReaderEvent): ReaderResult {
     .filter((c) => c.n > 0)
     .sort((a, b) => b.n - a.n);
   const total = counts.reduce((sum, c) => sum + c.n, 0);
-  const facts = counts.slice(0, 3).map((c) => plural(c.n, c.one, c.many));
+  const facts = someFacts(
+    counts.map((c) => plural(c.n, c.one, c.many)),
+    3,
+  );
   const encrypted = contentShape(ev.content).kind === "encrypted";
   if (encrypted) facts.push("and private items");
   // A preview of what is in it, in the list's own terms.
@@ -157,11 +206,11 @@ function readList(ev: ReaderEvent): ReaderResult {
   const preview = peopleIn.length
     ? people(peopleIn)
     : hashtags.length
-      ? hashtags.slice(0, 8).join(" ")
+      ? firstOf(hashtags, 8, " ")
       : hosts.length
-        ? `${hosts.slice(0, 4).join(", ")}${hosts.length > 4 ? ` and ${hosts.length - 4} more` : ""}`
+        ? firstOf(hosts, 4)
         : emoji.length
-          ? emoji.slice(0, 8).join(" ")
+          ? firstOf(emoji, 8, " ")
           : "";
   return {
     // Nothing in the open and nothing sealed: say so. Sealed only: the row says it is private.
@@ -189,7 +238,7 @@ read([5], (ev) => {
   return {
     title: `Deleted ${plural(n, "event")}`,
     body: ev.content.trim() || null,
-    facts: kinds.slice(0, 3),
+    facts: someFacts(kinds, 3),
     ref: refOf(ev, "first"),
   };
 });
@@ -208,10 +257,7 @@ read([8], (ev) => {
   const badge = tagOf(ev, "a");
   const d = badge?.split(":").slice(2).join(":") || null;
   // A badge's `d` is often a UUID: then the badge itself, quoted below, says its name.
-  const name =
-    d && !/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{10,})$/i.test(d)
-      ? d
-      : null;
+  const name = d && !OPAQUE_D.test(d) ? d : null;
   const to = tagsOf(ev, "p").map((t) => t[1]);
   return {
     title: name ? `Awarded the “${name}” badge` : "Awarded a badge",
@@ -228,25 +274,33 @@ read([15], (ev) => ({
   facts: unique([tagOf(ev, "file-type"), tagOf(ev, "p") ? `to ${who(tagOf(ev, "p"))}` : null]),
 }));
 
-read([43], (ev) => {
-  let reason: string | null = null;
+/** A NIP-28 moderation's public reason: `{"reason": "Spam"}`. */
+function reasonOf(content: string): string | null {
   try {
-    const parsed = JSON.parse(ev.content) as { reason?: unknown };
-    reason = typeof parsed?.reason === "string" ? parsed.reason : null;
+    const parsed = JSON.parse(content) as { reason?: unknown };
+    return typeof parsed?.reason === "string" && parsed.reason.trim() ? parsed.reason.trim() : null;
   } catch {
-    reason = ev.content.trim() || null;
+    return content.trim() || null;
   }
+}
+
+read([43], (ev) => {
+  const reason = reasonOf(ev.content);
   return { title: "Hid a message", body: null, facts: reason ? [reason] : [], ref: refOf(ev) };
 });
 
-read([44], (ev) => ({ title: `Muted ${who(tagOf(ev, "p"))}`, body: null, encrypted: true }));
+// Public, unlike a mute list: the reason is JSON anyone can read.
+read([44], (ev) => {
+  const reason = reasonOf(ev.content);
+  return { title: `Muted ${who(tagOf(ev, "p"))}`, body: null, facts: reason ? [reason] : [] };
+});
 
 read([62], (ev) => {
   const relays = tagsOf(ev, "relay").map((t) => t[1]);
   return {
     title: "Asked relays to erase everything they posted",
     body: ev.content.trim() || null,
-    facts: relays.includes("ALL_RELAYS") ? ["All relays"] : relays.slice(0, 3).map(hostOf),
+    facts: relays.includes("ALL_RELAYS") ? ["All relays"] : someFacts(relays.map(hostOf), 3),
   };
 });
 
@@ -266,7 +320,7 @@ read([1312], (ev) => {
 
 read([1337], (ev) => ({
   title: tagOf(ev, "name") ?? tagOf(ev, "title"),
-  body: ev.content.trim().split("\n").slice(0, 6).join("\n") || null,
+  body: firstLines(ev.content.trim(), 6) || null,
   facts: unique([tagOf(ev, "l"), tagOf(ev, "extension") ? `.${tagOf(ev, "extension")}` : null]),
   code: true,
 }));
@@ -290,10 +344,10 @@ read([1985], (ev) => {
   const persons = tagsOf(ev, "p").map((t) => t[1]);
   return {
     title: labels.length
-      ? `Labelled ${labels
-          .slice(0, 3)
-          .map((l) => `“${l}”`)
-          .join(", ")}`
+      ? `Labelled ${firstOf(
+          labels.map((l) => `“${l}”`),
+          3,
+        )}`
       : "Labelled",
     body: persons.length ? people(persons) : ev.content.trim() || null,
     facts: unique([ns, targets ? plural(targets, "event") : null]),
@@ -309,7 +363,7 @@ read([4550], (ev) => {
 read([9021, 9022], (ev) => ({
   title: ev.kind === 9021 ? "Asked to join a group" : "Asked to leave a group",
   body: ev.content.trim() || null,
-  facts: tagOf(ev, "h") ? [tagOf(ev, "h")!.slice(0, 16)] : [],
+  facts: tagOf(ev, "h") ? [clip(tagOf(ev, "h")!, 17)] : [],
 }));
 
 read([9321], (ev) => {
@@ -347,7 +401,8 @@ read([9735], (ev) => {
   return {
     title: `⚡ ${receipt.msats ? sats(receipt.msats / 1000) : "Zap"} to ${who(tagOf(ev, "p"))}`,
     body: receipt.memo || null,
-    facts: receipt.pubkey ? [`from ${who(receipt.pubkey)}`] : [],
+    // A receipt is signed by the recipient's wallet service; the row is the payer's.
+    by: receipt.pubkey,
     ref: refOf(ev),
   };
 });
@@ -364,7 +419,7 @@ read([9737], (ev) => {
 
 read([11871], (ev) => {
   const kinds = unique(tagsOf(ev, "k").map((t) => (/^\d+$/.test(t[1]) ? kindTypeLabel(Number(t[1])) : null)));
-  return { title: "Attests to what others publish", body: ev.content.trim() || null, facts: kinds.slice(0, 4) };
+  return { title: "Attests to what others publish", body: ev.content.trim() || null, facts: someFacts(kinds, 4) };
 });
 
 read([30382, 30383, 30384, 30385], (ev) => {
@@ -378,7 +433,7 @@ read([30382, 30383, 30384, 30385], (ev) => {
         ? { addr: d }
         : null;
   return {
-    title: ev.kind === 30385 ? `Score for ${d.slice(0, 60) || "an identifier"}` : "Score for an event",
+    title: ev.kind === 30385 ? `Score for ${clip(d, 60) || "an identifier"}` : "Score for an event",
     body: null,
     facts: scoreFacts(ev),
     ref,
@@ -458,13 +513,18 @@ function readJob(ev: ReaderEvent): ReaderResult | null {
     const input = tagsOf(ev, "i").find((t) => t[2] === "event");
     return {
       title: null,
-      body: text || ev.content.trim().split("\n").slice(0, 4).join("\n") || null,
-      facts: params.slice(0, 3),
+      body: text || firstLines(ev.content.trim(), 4) || null,
+      facts: someFacts(params, 3),
       ref: input && HEX64.test(input[1]) ? { id: input[1] } : null,
       code: !text && !!ev.content.trim(),
     };
   }
-  if (ev.kind >= 6000 && ev.kind < 7000) return { body: ev.content.trim() || null, ref: refOf(ev, "first") };
+  // A job result (6969 is a zap poll, not one): ciphertext said as private; JSON and
+  // words left to the generic reading, which knows a payload from prose.
+  if (ev.kind >= 6000 && ev.kind < 7000 && ev.kind !== 6969) {
+    const sealed = ev.tags.some((t) => t[0] === "encrypted") || contentShape(ev.content).kind === "encrypted";
+    return sealed ? { body: null, encrypted: true, ref: refOf(ev, "first") } : { ref: refOf(ev, "first") };
+  }
   if (ev.kind === 7000) {
     const status = tagsOf(ev, "status")[0];
     return {

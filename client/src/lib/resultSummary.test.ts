@@ -163,3 +163,37 @@ describe("a note's markdown", () => {
     expect(s.body).toBe("Joined by Fiatjaf and Vitor.");
   });
 });
+
+describe("audit fixes", () => {
+  it("a short title is not cut out of the sentence that holds it", () => {
+    expect(
+      summarizeResult(
+        ev(30402, [
+          ["d", "x"],
+          ["title", "Chair"],
+          ["summary", "A beautiful oak chair for you"],
+          ["price", "1", "USD"],
+        ]),
+      ).body,
+    ).toBe("A beautiful oak chair for you");
+    const jack = summarizeResult(ev(0, [], JSON.stringify({ name: "Jack", about: "Jack of all trades" })));
+    expect(jack.body).toBe("Jack of all trades");
+  });
+
+  it("markdown marks go only where they pair: names, sums and tags keep theirs", () => {
+    expect(markdownExcerpt("ping @john_doe about __init__ and 5 * 3")).toBe("ping @john_doe about init and 5 * 3");
+    expect(markdownExcerpt("if a < b and c > d, *really* `x`")).toBe("if a < b and c > d, really x");
+    expect(markdownExcerpt("<b>bold</b> :smile_face:")).toBe("bold :smile_face:");
+  });
+
+  it("a website fact is its host, and a missing one leaves no separator", () => {
+    const s = summarizeResult(ev(0, [], JSON.stringify({ name: "A", nip05: "a@x.com", website: "https://x.com/me" })));
+    expect(s.facts).toEqual(["a@x.com", "x.com"]);
+  });
+
+  it("a bare npub in the words is a person, not a key", () => {
+    const npub = nip19.npubEncode("b".repeat(64));
+    const s = summarizeResult(ev(1, [], `thanks @${npub} and ${npub}!`));
+    expect(s.body).toBe(`thanks nostr:${npub} and nostr:${npub}!`);
+  });
+});

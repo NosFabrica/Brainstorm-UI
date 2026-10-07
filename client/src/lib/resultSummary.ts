@@ -11,7 +11,6 @@
  * (listings, calendar events, tracks, things, profiles) read through it, so a
  * row and the kind's own page agree.
  */
-import { nip19 } from "nostr-tools";
 import { contentShape } from "@/lib/contentShape";
 import { formatEventDate, parseCalendarEvent, shortPlace } from "@/lib/calendarEvent";
 import { formatListingPrice, parseListing } from "@/lib/listing";
@@ -20,8 +19,8 @@ import { describeDesignation } from "@/lib/nip85Declaration";
 import { describeThing, THING_KINDS } from "@/lib/thing";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
 import { wikiPlainText } from "@/lib/wiki";
-import { eventPath } from "@/lib/shareId";
-import { readKind, who, type ResultRef } from "@/lib/resultReaders";
+import { eventPath, profilePath } from "@/lib/shareId";
+import { OPAQUE_D, hostOf, readKind, tagValue, who, type ResultRef } from "@/lib/resultReaders";
 
 export type { ResultRef } from "@/lib/resultReaders";
 
@@ -47,19 +46,13 @@ export interface ResultSummary {
   href: string;
   /** The event this one is about — a reaction's note, a zap's post — quoted in a line once resolved. */
   ref: ResultRef | null;
-  /** The event it is about, when it travels inside this one (a repost carries its note). */
-  embedded: SummaryEvent | null;
   /** The body is code: shown as written, in a monospace face. */
   code: boolean;
+  /** Who the row is from, when not the signer (a zap receipt's payer, not the wallet service). */
+  by: string | null;
 }
 
-const tagOf = (ev: SummaryEvent, ...names: string[]): string | null => {
-  for (const name of names) {
-    const v = ev.tags.find((t) => t[0] === name && typeof t[1] === "string" && t[1].trim())?.[1];
-    if (v) return v.trim();
-  }
-  return null;
-};
+const tagOf = tagValue;
 
 /** A `summary` or `description` that is words — a zap receipt's `description` is its request, as JSON. */
 const proseTag = (ev: SummaryEvent): string | null => {
@@ -68,9 +61,6 @@ const proseTag = (ev: SummaryEvent): string | null => {
 };
 
 const isHttp = (u: string | null | undefined): u is string => !!u && /^https?:\/\//i.test(u);
-
-/** A `d` that is a UUID, a hex blob or a bare timestamp is never a title. */
-const OPAQUE_D = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|\d{10,})$/i;
 
 function genericTitle(ev: SummaryEvent): string | null {
   const named = tagOf(ev, "title", "name", "subject");
@@ -102,7 +92,7 @@ export function markdownExcerpt(md: string): string {
     .replace(/```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)/g, " ") // fenced code
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ") // images
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // links keep their words
-    .replace(/<[^>]+>/g, " ") // inline html
+    .replace(/<\/?[a-z][a-z0-9-]*(?:\s[^<>\n]*)?\/?>/gi, " ") // html tags, not "a < b > c"
     .split("\n")
     .map((l) =>
       l
@@ -110,7 +100,11 @@ export function markdownExcerpt(md: string): string {
         .replace(/^\s*(?:[-*_=]\s*){3,}$/, "") // rules
         .replace(/^\s*>\s?/, "") // quotes
         .replace(/^\s*(?:[-*+]|\d+\.)\s+/, "") // list markers
-        .replace(/(\*\*|__|\*|_|`)/g, ""),
+        // Emphasis and code marks only where they pair around words: `@john_doe`,
+        // `5 * 3` and `:smile_face:` keep theirs.
+        .replace(/(\*\*|__)(?=\S)(.+?\S)\1/g, "$2")
+        .replace(/(^|[\s(["'])([*_])(?=\S)(.+?\S)\2(?=$|[\s).,!?:;"'\]])/g, "$1$3")
+        .replace(/`([^`\n]+)`/g, "$1"),
     )
     .filter((l) => l.trim() && !/^\s*\|?[\s:|-]*\|[\s:|-]*$/.test(l))
     .join(" ")
@@ -216,14 +210,6 @@ function refFromTags(ev: SummaryEvent): ResultRef | null {
   return a ? { addr: a[1], relay: a[2] || undefined } : null;
 }
 
-function profilePathOf(pubkey: string): string {
-  try {
-    return `/p/${nip19.npubEncode(pubkey)}`;
-  } catch {
-    return `/p/${pubkey}`;
-  }
-}
-
 /**
  * The words without the title said again: long-form opens with its own heading
  * (often behind a byline — "Bitcoin Magazine Senate Banking…"), and two lines
@@ -231,10 +217,14 @@ function profilePathOf(pubkey: string): string {
  */
 function withoutTitle(body: string | null, title: string | null): string | null {
   if (!body || !title) return body;
-  // The whole title, as words — "T" is not found inside "Short".
+  if (body.trim().toLowerCase() === title.trim().toLowerCase()) return null;
+  // Only a heading-sized title is a heading said again: "Jack" opening "Jack of all
+  // trades", or "chair" inside "A beautiful oak chair", is the sentence itself.
+  if (title.trim().split(/\s+/).length < 3) return body;
+  // The whole title, as words — at the start, or behind a short byline.
   const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const m = new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}(?=$|[^\\p{L}\\p{N}])`, "iu").exec(body);
-  if (!m || m.index > 60) return body;
+  if (!m || m.index > 40) return body;
   const rest = body.slice(m.index + m[0].length).replace(/^[\s:.,—–-]+/, "");
   return rest || null;
 }
@@ -253,9 +243,22 @@ export function summaryOf(ev: SummaryEvent): ResultSummary {
   return s;
 }
 
+/**
+ * A bare `npub1…` (or `@npub1…`) in someone's words is a person: written as the
+ * token the row renders as their name, never as the key.
+ */
+const BARE_KEY = /(^|[^:\w/])@?((?:npub1|nprofile1)[02-9ac-hj-np-z]{20,})/gi;
+const namePeople = (text: string | null) => (text ? text.replace(BARE_KEY, "$1nostr:$2") : text);
+
 export function summarizeResult(ev: SummaryEvent): ResultSummary {
   const s = summarizeKind(ev);
-  return { ...s, body: s.code ? s.body : withoutTitle(s.body, s.title) };
+  return {
+    ...s,
+    title: namePeople(s.title),
+    body: s.code ? s.body : namePeople(withoutTitle(s.body, s.title)),
+    // A link in a fact is its host: the row draws no URLs, and "· " before nothing says nothing.
+    facts: s.facts.map((f) => (/^https?:\/\//i.test(f) ? hostOf(f) : f)).filter((f) => f.trim()),
+  };
 }
 
 const EVENT_SHAPE = (v: unknown): v is SummaryEvent => {
@@ -289,8 +292,8 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
     facts: [],
     href: eventPath(ev),
     ref: null,
-    embedded: null,
     code: false,
+    by: null,
   };
   const fillFromContent = (s: ResultSummary): ResultSummary => {
     const json = contentShape(ev.content).kind === "json" ? jsonWords(ev.content) : null;
@@ -317,7 +320,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       // Their face is already the byline's, beside their name: no second one on the right.
       image: null,
       facts: [str("nip05"), str("website")].filter((f): f is string => !!f).slice(0, 2),
-      href: profilePathOf(ev.pubkey),
+      href: profilePath(ev.pubkey) || base.href,
     };
   }
 
@@ -405,7 +408,6 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
         body: s.body,
         image: s.image,
         facts: [`Repost of ${who(of)}`],
-        embedded: inner,
       };
     }
     return { ...base, title: null, body: null, facts: [`Repost of ${who(of)}`], ref: refFromTags(ev) };
@@ -415,17 +417,20 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
   const read = readKind(ev);
   if (read) {
     const tagBody = proseTag(ev);
+    // A reader that leaves the words to the content gets the generic reading, label and all.
+    const generic = read.body === undefined && !read.code ? contentWords(ev) : null;
     const body = read.code
       ? (read.body ?? null)
-      : (tagBody ?? (read.body !== undefined ? read.body : (contentWords(ev).body ?? tagOf(ev, "alt"))));
+      : (tagBody ?? (generic ? (generic.body ?? tagOf(ev, "alt")) : (read.body ?? null)));
     return {
       ...base,
       title: read.title ?? base.title,
       body: body && !read.code ? markdownExcerpt(body) : body,
-      shape: read.encrypted && !body ? "encrypted" : null,
+      shape: body ? null : read.encrypted ? "encrypted" : (generic?.shape ?? null),
       facts: read.facts ?? [],
       ref: read.ref ?? null,
       code: !!read.code,
+      by: read.by ?? null,
     };
   }
 

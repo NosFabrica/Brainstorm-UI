@@ -47,7 +47,8 @@ describe("the kinds whose meaning is in their tags", () => {
       ]),
     );
     expect(s.title).toBe(`⚡ 21 sats to ${npub(B)}`);
-    expect(s.facts).toEqual([`from ${npub(C)}`]);
+    // The row is the payer's; the signer is their recipient's wallet service.
+    expect(s.by).toBe(C);
     expect(s.body).toBe("great post");
     expect(s.ref).toMatchObject({ id: NOTE });
   });
@@ -66,7 +67,6 @@ describe("the kinds whose meaning is in their tags", () => {
     );
     expect(s.body).toBe("hello world");
     expect(s.facts).toEqual([`Repost of ${npub(B)}`]);
-    expect(s.embedded?.id).toBe(NOTE);
     // Without the note inside, it points at it.
     expect(
       summarizeResult(
@@ -205,5 +205,43 @@ describe("Tapestry's trusted lists", () => {
     );
     expect(s.title).toBe("Bitcoin Meetup");
     expect(s.facts).toEqual(["2 people"]);
+  });
+});
+
+// The audit (2026-10-07): what the row lost, said wrong, or cut without saying so.
+describe("the row says what it means", () => {
+  it("a channel mute's reason is public, not encrypted", () => {
+    const s = summarizeResult(ev(44, [["p", B]], JSON.stringify({ reason: "spam" })));
+    expect(s.shape).toBeNull();
+    expect(s.facts).toEqual(["spam"]);
+  });
+
+  it("a job result is never JSON or ciphertext as words; a zap poll is not a job", () => {
+    const json = summarizeResult(ev(6300, [["e", NOTE]], JSON.stringify([["e", NOTE]])));
+    expect(json.body).toBeNull();
+    expect(json.shape).toBe("json");
+    const sealed = summarizeResult(ev(6302, [["encrypted"]], "A".repeat(80)));
+    expect(sealed.shape).toBe("encrypted");
+    expect(summarizeResult(ev(6969, [], "Which one?")).body).toBe("Which one?");
+  });
+
+  it("a cut list says how many more", () => {
+    const tags = Array.from({ length: 10 }, (_, i) => ["t", `tag${i}`]);
+    expect(summarizeResult(ev(10015, tags)).body).toMatch(/#tag7 and 2 more$/);
+    const labels = summarizeResult(
+      ev(1985, [
+        ["l", "a"],
+        ["l", "b"],
+        ["l", "c"],
+        ["l", "d"],
+        ["e", NOTE],
+      ]),
+    );
+    expect(labels.title).toBe("Labelled “a”, “b”, “c” and 1 more");
+  });
+
+  it("cut code ends in an ellipsis line", () => {
+    const s = summarizeResult(ev(1337, [], Array.from({ length: 9 }, (_, i) => `line ${i}`).join("\n")));
+    expect(s.body?.split("\n").at(-1)).toBe("…");
   });
 });

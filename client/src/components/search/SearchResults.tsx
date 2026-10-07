@@ -2374,7 +2374,7 @@ export function SearchResults({
                   // Every kind, in the relay's order, one row shape: the pill says which is which.
                   <AllResults
                     hits={displayHits.map((d) => d.hit)}
-                    settled={!!snapshot?.eose}
+                    settled={!!snapshot?.eose && !snapshot.loadingMore}
                     scoreOf={scoreOf}
                     query={query}
                   />
