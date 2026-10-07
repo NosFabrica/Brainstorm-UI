@@ -68,6 +68,23 @@ export function strategyFor(url: URL, request: { method: string; mode: string },
 /** The cache key every page load shares: the SPA is one document whatever the path. */
 export const SHELL_KEY = "/";
 
+/**
+ * Kept at install, beside the shell: what a page loads outside the hashed bundle.
+ * The wordmark included — art under /brand/ is otherwise kept only when a page this
+ * worker controls asks for it, and the first page an installed app opens isn't one
+ * (on iOS its storage starts empty, so the worker installs during that load): its
+ * first launch offline showed a broken image where the wordmark goes.
+ */
+export const INSTALL_EXTRAS = [
+  "/config.js",
+  "/site.webmanifest",
+  "/icons/icon-192.png",
+  "/icons/badge-96.png",
+  "/brand/wordmark.svg",
+  "/brand/wordmark-white.svg",
+  "/brand/wordmark-black.svg",
+];
+
 // --- The worker -------------------------------------------------------------
 // Typed by hand: the project's tsconfig carries the DOM library, and the
 // WebWorker one can't sit beside it.
@@ -182,7 +199,7 @@ function startWorker(scope: WorkerScope): void {
         await cache.put(SHELL_KEY, page);
         const kept = await Promise.all(__SW_PRECACHE__.map((file) => keepHashed(cache, asPath(file))));
         if (kept.includes(false)) throw new Error("the shell could not be fetched whole");
-        await fill(["/config.js", "/site.webmanifest", "/icons/icon-192.png", "/icons/badge-96.png"], true);
+        await fill(INSTALL_EXTRAS, true);
       })(),
     );
   });

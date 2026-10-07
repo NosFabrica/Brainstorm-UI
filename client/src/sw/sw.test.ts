@@ -1,5 +1,7 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { strategyFor } from "./sw";
+import { INSTALL_EXTRAS, strategyFor } from "./sw";
 
 const ORIGIN = "https://brainstorm.world";
 const page = { method: "GET", mode: "navigate" };
@@ -48,5 +50,19 @@ describe("what the worker does with a request", () => {
     expect(strategyFor(new URL("https://brainstormserver.nosfabrica.com/user/self"), fetch, ORIGIN)).toBeNull();
     expect(strategyFor(at("/assets/index-abc.js"), { method: "POST", mode: "cors" }, ORIGIN)).toBeNull();
     expect(strategyFor(at("/something.json"), fetch, ORIGIN)).toBeNull();
+  });
+});
+
+describe("what the worker keeps when it installs", () => {
+  it("keeps the wordmark, so an installed app's first launch offline isn't missing it", () => {
+    for (const file of ["/brand/wordmark.svg", "/brand/wordmark-white.svg", "/brand/wordmark-black.svg"])
+      expect(INSTALL_EXTRAS).toContain(file);
+  });
+
+  it("names only files the build ships, each one served from what it kept", () => {
+    for (const file of INSTALL_EXTRAS) {
+      expect(existsSync(resolve(__dirname, "../../public", file.slice(1))), file).toBe(true);
+      expect(strategyFor(at(file), fetch, ORIGIN), file).not.toBeNull();
+    }
   });
 });
