@@ -50,6 +50,7 @@ export interface DraftDisplay {
   image: string | null;
   link: string | null;
   media: string | null;
+  location: string | null;
   /** As typed; published only when it's an http(s) URL. */
   listImage: string;
 }
@@ -143,13 +144,13 @@ export function initialDraft(
         type: f.type,
       });
   }
-  const { title, summary, image, link, media, listImage } = base.display;
+  const { title, summary, image, link, media, location, listImage } = base.display;
   return {
     singular: base.singular,
     plural: base.plural,
     description: base.description ?? "",
     fields: rows,
-    display: { title, summary, image, link, media, listImage: listImage ?? "" },
+    display: { title, summary, image, link, media, location, listImage: listImage ?? "" },
     links: base.links.map((l) => ({ ...l, bindings: l.bindings.map(([p, f]) => [p, f] as [string, string]) })),
   };
 }
@@ -204,6 +205,7 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
       image: pick(draft.display.image),
       link: pick(draft.display.link),
       media: pick(draft.display.media),
+      location: pick(draft.display.location),
       listImage: draft.display.listImage.trim() || null,
     }),
   );

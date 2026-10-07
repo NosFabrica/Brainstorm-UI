@@ -44,6 +44,7 @@ describe("parseDisplayHints", () => {
       image: "avatar",
       link: null,
       media: null,
+      location: null,
       listImage: "https://github.githubassets.com/favicons/favicon.svg",
     });
   });
@@ -188,5 +189,57 @@ describe("link and media roles", () => {
       ]),
     );
     expect(presentItem({ tags: [["page", "https://example.org/x"]] }, plain, true).link?.label).toBe("example.org");
+  });
+});
+
+describe("location role", () => {
+  // A BTC Map import, as Mise En Place files it: `g` once per precision, coarse to fine in any order.
+  const placeFields = [
+    ["required", "name"],
+    ["recommended", "g", "Geohash of the location"],
+  ];
+  const place = {
+    tags: [
+      ["name", "La Tarantella - Recoleta"],
+      ["g", "6ex019"],
+      ["g", "6ex01945p"],
+      ["g", "6ex0"],
+    ],
+  };
+  const mapped = definitionOf(header([...placeFields, ["display", "location", "g"]]));
+
+  it("reads the field's most precise geohash, wherever it sits", () => {
+    const { location, locationField } = presentItem(place, mapped, true);
+    expect(locationField).toBe("g");
+    expect(location?.geohash).toBe("6ex01945p");
+    expect(location?.lat).toBeCloseTo(-25.30647, 4);
+    expect(location?.lon).toBeCloseTo(-57.58726, 4);
+  });
+
+  it("skips values that aren't geohashes, and is null when none is", () => {
+    const odd = {
+      tags: [
+        ["name", "x"],
+        ["g", "nope!"],
+        ["g", "6ex0"],
+      ],
+    };
+    expect(presentItem(odd, mapped, true).location?.geohash).toBe("6ex0");
+    expect(
+      presentItem(
+        {
+          tags: [
+            ["name", "x"],
+            ["g", "-25.3,-57.5"],
+          ],
+        },
+        mapped,
+        true,
+      ).location,
+    ).toBeNull();
+  });
+
+  it("needs the role: a declared g alone is no location", () => {
+    expect(presentItem(place, definitionOf(header(placeFields)), true).location).toBeNull();
   });
 });

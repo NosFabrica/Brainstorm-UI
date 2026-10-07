@@ -90,16 +90,17 @@ The header says which declared field plays which part. The tag is role-first, on
 role:
 
 ```
-["display", "title" | "summary" | "image" | "link" | "media", <declared field>]
+["display", "title" | "summary" | "image" | "link" | "media" | "location", <declared field>]
 ```
 
-| Role      | Meaning                                | Value must be                        |
-| --------- | -------------------------------------- | ------------------------------------ |
-| `title`   | The item's name, its largest text      | any                                  |
-| `summary` | The line or snippet under the title    | any                                  |
-| `image`   | The item's own picture (avatar, cover) | http(s) URL                          |
-| `link`    | The item's own page somewhere          | http(s) URL                          |
-| `media`   | A playable file                        | http(s) URL to audio or video (§3.2) |
+| Role       | Meaning                                | Value must be                        |
+| ---------- | -------------------------------------- | ------------------------------------ |
+| `title`    | The item's name, its largest text      | any                                  |
+| `summary`  | The line or snippet under the title    | any                                  |
+| `image`    | The item's own picture (avatar, cover) | http(s) URL                          |
+| `link`     | The item's own page somewhere          | http(s) URL                          |
+| `media`    | A playable file                        | http(s) URL to audio or video (§3.2) |
+| `location` | Where the item is, offered as a map    | a geohash (§3.4)                     |
 
 Rules:
 
@@ -107,16 +108,16 @@ Rules:
   does, and never invents one.
 - If a role is named twice, the first one wins.
 - Unknown roles are ignored.
-- A value that fails its rule (not http(s), not media) means "no such thing" for that
-  item. It is not an error.
+- A value that fails its rule (not http(s), not media, not a geohash) means "no such thing"
+  for that item. It is not an error.
 
 ### 3.1 Without hints
 
-| Part               | Default                                                                      |
-| ------------------ | ---------------------------------------------------------------------------- |
-| title              | the first **required** field, else the first declared field                  |
-| summary            | a declared `summary`, else a declared `description`, never the title's field |
-| image, link, media | none                                                                         |
+| Part                         | Default                                                                      |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| title                        | the first **required** field, else the first declared field                  |
+| summary                      | a declared `summary`, else a declared `description`, never the title's field |
+| image, link, media, location | none                                                                         |
 
 **The choice is per definition, never per item.** An item missing its title field reads
 "Untitled \<singular name\>". It does not borrow another field, so the same field always
@@ -143,6 +144,23 @@ One image every item of the list wears: a logo or an icon. It's used where an it
 `image` of its own (tiles, the kicker on an item page). Prefer a content-addressed URL
 (e.g. Blossom `https://…/<sha256>.png`) so the bytes can't change under the list. Serve it
 through an image proxy if you have one, so readers don't contact the image's host.
+
+### 3.4 Location
+
+The field's values are [geohashes](https://en.wikipedia.org/wiki/Geohash): base 32, each
+character a smaller cell (6 characters ≈ 1 km, 9 ≈ 5 m). That's NIP-52's `g` tag, which an
+event often carries once per precision (`["g","6ex01945p"]`, `["g","6ex019"]`, …), so:
+
+- **The most precise value counts:** the longest that decodes, wherever it sits among the
+  field's values. A value outside the geohash alphabet is skipped.
+- **A geohash, not coordinates.** It keeps the one-field-per-role rule; a pair of `lat`/`lon`
+  fields would need a role naming two fields. Lists that carry both can still link out by
+  coordinates through a URL template (§5.2).
+
+Brainstorm offers the place on the item's page as OpenStreetMap's embedded map, **loaded
+only when the reader asks**, so opening a page contacts no map server. A cell of 6
+characters or more (≈ 1 km and under) is a spot and gets a pin; a coarser one is framed as
+the area it is, with no pin to suggest a precision it doesn't have.
 
 ## 4. Concepts, copies, and which definition governs
 
@@ -274,8 +292,8 @@ labelled by its field's description (§5.1).
 
 These aren't protocol rules, but they're what makes the conventions above read well.
 
-- **Show each field once.** A field used as title, summary, image, link or media, or bound
-  in a link template, isn't listed again. Declared fields nothing uses, plus undeclared
+- **Show each field once.** A field used as title, summary, image, link, media or location,
+  or bound in a link template, isn't listed again. Declared fields nothing uses, plus undeclared
   tags (§2.3), go in a collapsed "More fields". An item the definition fully covers shows
   no table at all.
 - **Flag a missing required field** on the item, once.
@@ -346,7 +364,7 @@ podcastindex.org.
 
 ## 8. Open questions for the spec
 
-1. **Names.** `display`, its five roles, the header's `image`, `link`, `url-template`: are
+1. **Names.** `display`, its six roles, the header's `image`, `link`, `url-template`: are
    these the right names, and do they belong in the DList NIP, in
    `decentralized-lists-compat.md` beside `item-kind`, or in a separate draft?
 2. **Element 3 of a field declaration:** a description or a source
@@ -389,6 +407,7 @@ then the Protocol-Spec docs-mode workflow.
 | How an item reads (defaults)   | `client/src/lib/itemPresentation.ts`                         |
 | Link templates and safety      | `client/src/lib/linkTemplates.ts`                            |
 | Media kind                     | `client/src/lib/mediaKind.ts` (`mediaKindOfUrl`)             |
+| Geohash, the map of a place    | `client/src/lib/geohash.ts`                                  |
 | Precedence and agreement       | `client/src/lib/conceptResolution.ts`, `docs/adr/0004-…`     |
 | Writing a copy, withdrawing it | `client/src/lib/conceptCopy.ts`                              |
 | Reading (index and hub)        | `client/src/services/listReads.ts`, `services/dictionary.ts` |

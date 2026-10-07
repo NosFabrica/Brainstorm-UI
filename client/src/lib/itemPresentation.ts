@@ -15,6 +15,7 @@
 import { DISPLAY_HINTS_ENABLED } from "@/config/dictionary";
 import { fieldCell, httpUrl } from "@/lib/dlistFields";
 import { NO_HINTS } from "@/lib/displayHints";
+import { decodeGeohash, type GeohashCell } from "@/lib/geohash";
 import { mediaKindOfUrl } from "@/lib/mediaKind";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
 
@@ -33,11 +34,27 @@ export interface ItemPresentation {
   /** The item's playable file, and what it plays as (lib/mediaKind). */
   media: { url: string; kind: "audio" | "video" } | null;
   mediaField: string | null;
+  /** Where the item is: the most precise geohash its `location` field gives (lib/geohash). */
+  location: (GeohashCell & { geohash: string }) | null;
+  locationField: string | null;
   /** The list's image, worn by every item. */
   listImage: string | null;
 }
 
 const SUMMARY_NAMES = ["summary", "description"];
+
+/** Of a field's values, the longest that decodes: an event carries `g` once per precision, coarse to fine in any order. */
+function mostPreciseGeohash(item: { tags: string[][] }, field: string | null) {
+  if (!field) return null;
+  let best: (GeohashCell & { geohash: string }) | null = null;
+  for (const t of item.tags) {
+    if (t[0] !== field || !t[1]) continue;
+    const geohash = t[1].trim().toLowerCase();
+    const cell = decodeGeohash(geohash);
+    if (cell && geohash.length > (best?.geohash.length ?? 0)) best = { ...cell, geohash };
+  }
+  return best;
+}
 
 export function presentItem(
   item: { tags: string[][] },
@@ -75,6 +92,8 @@ export function presentItem(
     linkField: hints.link,
     media: mediaUrl && (mediaKind === "audio" || mediaKind === "video") ? { url: mediaUrl, kind: mediaKind } : null,
     mediaField: hints.media,
+    location: mostPreciseGeohash(item, hints.location),
+    locationField: hints.location,
     listImage: hints.listImage,
   };
 }
