@@ -39,6 +39,7 @@ import { useNoteRefs } from "@/hooks/useNoteRefs";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
+  isKindlessTab,
   searchStream,
   TAB_KINDS,
   type SearchHit,
@@ -85,6 +86,8 @@ import {
   type ListGroupView,
 } from "@/components/search/cards";
 import { ThingCard } from "@/components/search/thingCards";
+import { SerpRow } from "@/components/search/SerpRow";
+import { AllResults } from "@/components/search/AllResults";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
 import {
@@ -97,7 +100,7 @@ import {
 import { EventDateTile } from "@/components/share/EventDateTile";
 import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
-import { parseListing } from "@/lib/listing";
+import { isSellable, parseListing } from "@/lib/listing";
 import { describeThing, oneCardPerChannel, THING_KINDS, type ThingDetail } from "@/lib/thing";
 import { collapseDuplicateListings } from "@/lib/listingDuplicates";
 import { cardGroupOf, foldProductHits } from "@/lib/listingVariants";
@@ -158,6 +161,22 @@ const SHOP_KINDS = new Set(TAB_KINDS.shop);
 const SHOP_PLACE_KINDS = new Set([30017, 30019]);
 /** NIP-52 calendars: collections of events, with no date of their own. */
 const CALENDAR_KIND = 31924;
+/**
+ * Top with a typed sort: is a kind-less list drawn with the verticals' cards, so
+ * their gates hold there too — or it shows what they hide: a listing sold,
+ * hidden or priceless; a stall or calendar with nothing to name it; a 31337 that
+ * is game state, not a song (whose card draws nothing). All has no such gate:
+ * it is every kind the relay answered, each as a row that says what it is.
+ */
+function showableUnfiltered(event: NostrEvent): boolean {
+  if (SHOP_PLACE_KINDS.has(event.kind) || event.kind === CALENDAR_KIND) return describeThing(event) !== null;
+  if (SHOP_KINDS.has(event.kind)) {
+    const listing = parseListing(event);
+    return !!listing && isSellable(listing);
+  }
+  if (MUSIC_KINDS.has(event.kind)) return parseTrack(event) !== null && !isTestTrack(event);
+  return true;
+}
 /** The tabs made only of kinds lib/thing reads — one ThingCard each, in a grid. */
 const isThingTab = (tab: SearchTab) => tab === "communities" || tab === "fundraisers" || tab === "reviews";
 /** What a thing tab holds — kind 38000 also carries prediction markets and ballots, which are not reviews. */
@@ -211,11 +230,16 @@ function profilesOf(hits: SearchHit[]) {
   return map;
 }
 
-/** Google's row: five verticals in view, the long tail behind More ▾.
+/** Google's row: the verticals in view, the long tail behind More ▾.
  *  Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
- *  Articles is the first thing behind More. */
+ *  Articles is the first thing behind More.
+ *  Top is the composed page and the default. All, after it, is the
+ *  relay's answer with no kinds asked and nothing composed — every kind it
+ *  indexes, in its order. It is noisy, so it is never anyone's default: only
+ *  a click on it gets there. */
 const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
-  { key: "everything", label: "Everything" },
+  { key: "top", label: "Top" },
+  { key: "all", label: "All" },
   { key: "people", label: "People" },
   { key: "notes", label: "Notes" },
   { key: "media", label: "Media" },
@@ -390,17 +414,20 @@ function tabFromUrl(): SearchTab {
     const t = new URLSearchParams(window.location.search).get("t");
     // The old combined tab's deep links keep working.
     if (t === "code") return "repos";
+    // `everything` was the composed page before it was Top; its links — and the
+    // recent searches that saved it — still mean Top, never the raw list.
+    if (t === "everything") return "top";
     if (t && TAB_KEYS.has(t as SearchTab)) return t as SearchTab;
   } catch {
     /* default below */
   }
-  return "everything";
+  return "top";
 }
 
 function writeTabToUrl(tab: SearchTab) {
   try {
     const url = new URL(window.location.href);
-    if (tab === "everything") url.searchParams.delete("t");
+    if (tab === "top") url.searchParams.delete("t");
     else url.searchParams.set("t", tab);
     window.history.replaceState({}, "", url.pathname + url.search);
   } catch {
@@ -788,11 +815,11 @@ export function SearchResults({
   // Set from the first render, never undefined: given undefined the panel would
   // ask the relay itself once, before the sections had a chance to answer.
   const [sections, setSections] = useState<PanelSections>({ people: null, events: null });
-  // The Media tab and the composed Everything page both lead with it; the
+  // The Media tab and the composed Top page both lead with it; the
   // Music tab leads with the person's own tracks the same way.
-  const leadsEverything = tab === "everything" && !/(^|\s)sort:/i.test(query);
+  const leadsTop = tab === "top" && !/(^|\s)sort:/i.test(query);
   const leadsMusic = tab === "music" && !scopeOf(query);
-  const leadWho = (tab === "media" || leadsEverything || leadsMusic) && panelPerson ? panelPerson : null;
+  const leadWho = (tab === "media" || leadsTop || leadsMusic) && panelPerson ? panelPerson : null;
   const leadEvents = useRecentByKinds(leadWho?.pubkey, leadsMusic ? [31337] : [1, 20, 21, 22, 34235, 34236], 40).events;
   const personMedia = useMemo<SearchHit[]>(
     () =>
@@ -807,14 +834,15 @@ export function SearchResults({
   const [syntaxOpen, setSyntaxOpen] = useState(false);
   useSyntaxSheetShortcut(useCallback(() => setSyntaxOpen(true), []));
 
-  // Everything composes its own purpose-ranked section streams — unless the
+  // Top composes its own purpose-ranked section streams — unless the
   // user typed a sort:, which is them choosing ONE order for one list.
+  // All never composes: one kind-less list, as the relay sends it.
   // A price sort is the page's own order, not the relay's: it leaves the
   // query before the relay sees it, and the cards are sorted below.
   const priceSort = tab === "shop" ? priceSortOf(query) : null;
   const relayQuery = priceSort ? applyFilters(query, { sort: null }) : query;
   const userSorted = /(^|\s)sort:/i.test(relayQuery);
-  const composed = tab === "everything" && !userSorted;
+  const composed = tab === "top" && !userSorted;
   // Content tabs land on what's fresh by default; People keeps trust rank,
   // and a typed sort: is always honored verbatim.
   // A browse (no words) asking for a sort the relay cannot run over the whole
@@ -826,13 +854,14 @@ export function SearchResults({
   // match had it first, the other comedian lists behind it (relay probe,
   // 2026-09-07). A wordless browse still asks newest — there is nothing to match.
   // Recipes and specs are articles by kind and by nature — evergreen too.
-  const articlesByRelevance = (tab === "articles" || tab === "recipes" || tab === "nips") && !!queryWords(query);
+  // All asks best match too, as the relay's own page does — with words: a
+  // wordless browse or a person scope has nothing to match, so it is newest.
+  const byRelevance =
+    (tab === "articles" || tab === "recipes" || tab === "nips" || tab === "all") && !!queryWords(query);
   // The kinds the box asked for (`kind:30078`) — a spec card leads with them.
   const searchedKinds = useMemo(() => (liftQuery(query).kinds ?? []).map(String), [query]);
   const effectiveQuery =
-    !userSorted && tab !== "everything" && tab !== "people" && !articlesByRelevance
-      ? `${safeQuery} sort:recent`.trim()
-      : safeQuery;
+    !userSorted && tab !== "top" && tab !== "people" && !byRelevance ? `${safeQuery} sort:recent`.trim() : safeQuery;
 
   // Where the reader was when this search left the page. Read in a layout
   // cleanup: on a navigation the app scrolls to the top in its own layout
@@ -846,7 +875,7 @@ export function SearchResults({
 
   // What the composed page was showing when the reader last left it, so coming
   // back from a result paints at once instead of restarting every section.
-  const composedKey = rememberKey(query, "everything", pov, userPubkey);
+  const composedKey = rememberKey(query, "top", pov, userPubkey);
   const composedMemory = useRef(composed ? recallComposed(composedKey) : null);
   // Coming back beats the typeahead: memory holds every section, the typeahead
   // only the people it had already found.
@@ -996,6 +1025,7 @@ export function SearchResults({
     if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
     // The people on a matched tag lead the People tab, once each.
     if (tab === "people") return mergeCarrierHits(base, leadPeople);
+    if (tab === "top") return base.filter((h) => showableUnfiltered(h.event));
     // Only what lib/thing can name is a result — decided here, like the Shop,
     // so "Nothing found" and the counts agree with the cards — and one card
     // per NIP-28 channel.
@@ -1782,7 +1812,7 @@ export function SearchResults({
   return (
     <QuietTrustChrome>
       <div className="mx-auto mt-4 w-full max-w-2xl text-left sm:mt-5 lg:max-w-[62rem]" data-testid="search-results">
-        {/* One quiet row, Google's anatomy: five tabs (scrolling on phones),
+        {/* One quiet row, Google's anatomy: six tabs (scrolling on phones),
           then pinned at the right edge — More ▾, the perspective control and
           Filters — so nothing a person needs ever scrolls out of view. */}
         <div
@@ -1959,7 +1989,7 @@ export function SearchResults({
                   {scopedTo && hiddenBelowLine === 0 ? (
                     (() => {
                       const who = scopedName ?? "This person";
-                      const thing = tab === "everything" ? "anything" : tabLabel(tab).toLowerCase();
+                      const thing = isKindlessTab(tab) ? "anything" : tabLabel(tab).toLowerCase();
                       const others = { chips: (scopedContent.get(scopedTo)?.chips ?? []).filter((c) => c.tab !== tab) };
                       return (
                         <EmptyState
@@ -1982,15 +2012,15 @@ export function SearchResults({
                                   testId="scoped-empty-chips"
                                 />
                               )}
-                              {tab !== "everything" && (
+                              {!isKindlessTab(tab) && (
                                 // The page reads its tab once, on mount: a link that only rewrites the URL
                                 // moved nothing. It switches the tab in place, the way the chips do; the
                                 // href stays for a middle-click or a copied link.
                                 <Link
-                                  href={scopedSearchHref(scopedTo, "everything", scope?.rest)}
+                                  href={scopedSearchHref(scopedTo, "top", scope?.rest)}
                                   onClick={(e) => {
                                     e.preventDefault();
-                                    changeTab("everything");
+                                    changeTab("top");
                                   }}
                                   className="text-xs font-semibold text-brand-link hover:underline"
                                   data-testid="scoped-empty-all"
@@ -2340,7 +2370,15 @@ export function SearchResults({
                     </p>
                   </div>
                 )}
-                {tab === "music" ? (
+                {tab === "all" ? (
+                  // Every kind, in the relay's order, one row shape: the pill says which is which.
+                  <AllResults
+                    hits={displayHits.map((d) => d.hit)}
+                    settled={!!snapshot?.eose && !snapshot.loadingMore}
+                    scoreOf={scoreOf}
+                    query={query}
+                  />
+                ) : tab === "music" ? (
                   <MusicResults
                     hits={displayHits.map((d) => d.hit)}
                     query={query}
@@ -2526,10 +2564,14 @@ export function SearchResults({
                           );
                         if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
                         if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
-                        // Open-set posture: an unmapped kind renders as media-style
-                        // generic rather than vanishing — the relay may index new kinds
-                        // before this UI learns them.
-                        return wrap(<MediaCard {...typed} />);
+                        // Open-set posture: an unmapped kind renders rather than vanishing —
+                        // the relay may index new kinds before this UI learns them. With
+                        // something to show it is a media card; without, the composed
+                        // page's generic row, which reads a `name` tag, a kind label and an
+                        // `alt` line (a kind-39999 place has no content and no picture, and
+                        // was a blank media tile).
+                        if (mediaUrlOf(event) !== null) return wrap(<MediaCard {...typed} />);
+                        return wrap(<SerpRow {...typed} query={query} />);
                       })}
                   </div>
                 )}

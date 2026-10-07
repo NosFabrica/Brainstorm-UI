@@ -62,7 +62,7 @@ Tag chips on people rows in search (`components/search/PersonTagChips.tsx`): eve
 
 ## Result rows — `components/search/SerpRow.tsx`, `sections.tsx`
 
-The rows on the Everything page and the home feed follow Google's result proportions (the team, 2026-09-29: "do I need glasses?"). Reading text on a result row is never below 14px, meta never below 12px; pills are the exception.
+The rows on the Top page and the home feed follow Google's result proportions (the team, 2026-09-29: "do I need glasses?"). Reading text on a result row is never below 14px, meta never below 12px; pills are the exception.
 
 | Element                                        | Size                                                                                |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------- |

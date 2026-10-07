@@ -9,6 +9,7 @@
  */
 import { sourceAppFor } from "@/lib/sourceApp";
 import { kind38000Format } from "@/lib/thing";
+import { KIND_NAMES } from "@/lib/kindFamily";
 
 /** The structural minimum every caller has — a hit, a share card, a page's event. */
 export type KindEvent = {
@@ -193,8 +194,10 @@ export function kindTypeLabel(kind: number): string {
       return "Status";
     case 31990:
       return "App handler";
+    // Every other kind the relay's own UI names (lib/kindFamily) — a mixed
+    // list (the All tab) holds them all; the number only for the unnamed.
     default:
-      return `Kind ${kind}`;
+      return KIND_NAMES[kind] ?? `Kind ${kind}`;
   }
 }
 

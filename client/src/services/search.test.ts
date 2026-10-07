@@ -342,12 +342,8 @@ describe("searchStream — grouped", () => {
 
   it("opens one REQ carrying a filter per member", async () => {
     controllable();
-    searchStream(
-      "bitcoin sort:recent",
-      { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" },
-      () => {},
-    );
-    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, () => {});
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-top" }, () => {});
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-top" }, () => {});
     await settle();
 
     expect(reqMock).toHaveBeenCalledTimes(1);
@@ -372,10 +368,10 @@ describe("searchStream — grouped", () => {
     controllable();
     const notes: SearchSnapshot[] = [];
 
-    searchStream("dvm spec:", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) =>
+    searchStream("dvm spec:", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-top" }, (s) =>
       notes.push(s),
     );
-    searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica", limit: 5, group: "search-everything" }, () => {});
+    searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica", limit: 5, group: "search-top" }, () => {});
     await settle();
 
     const filters = reqMock.mock.calls[0][0] as { kinds?: number[] }[];
@@ -387,14 +383,10 @@ describe("searchStream — grouped", () => {
     const { subject } = controllable();
     const notes: SearchSnapshot[] = [];
     const people: SearchSnapshot[] = [];
-    searchStream(
-      "bitcoin sort:recent",
-      { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" },
-      (s) => notes.push(s),
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-top" }, (s) =>
+      notes.push(s),
     );
-    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) =>
-      people.push(s),
-    );
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-top" }, (s) => people.push(s));
     await settle();
 
     subject.next(frame(ev("p1", 0, "b".repeat(64), JSON.stringify({ name: "jack" }))));
@@ -415,12 +407,12 @@ describe("searchStream — grouped", () => {
     const people: SearchSnapshot[] = [];
     const stopNotes = searchStream(
       "bitcoin sort:recent",
-      { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" },
+      { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-top" },
       (s) => notes.push(s),
     );
     const stopPeople = searchStream(
       "bitcoin",
-      { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" },
+      { tab: "people", pov: "nosfabrica", limit: 8, group: "search-top" },
       (s) => people.push(s),
     );
     await settle();
@@ -442,14 +434,10 @@ describe("searchStream — grouped", () => {
     const { subject } = controllable();
     const notes: SearchSnapshot[] = [];
     const people: SearchSnapshot[] = [];
-    searchStream(
-      "bitcoin sort:recent",
-      { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" },
-      (s) => notes.push(s),
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-top" }, (s) =>
+      notes.push(s),
     );
-    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) =>
-      people.push(s),
-    );
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-top" }, (s) => people.push(s));
     await settle();
 
     subject.error(new Error("socket gone"));
@@ -460,11 +448,11 @@ describe("searchStream — grouped", () => {
 
   it("does not let two members of a group ask for the same kind — the second gets its own REQ", async () => {
     controllable();
-    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
-    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-top" }, () => {});
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", group: "search-top" }, () => {});
     // A second notes stream would be handed the first one's events by the
     // kind routing, so it is put on a REQ of its own instead.
-    searchStream("nostr", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
+    searchStream("nostr", { tab: "notes", pov: "nosfabrica", group: "search-top" }, () => {});
     await settle();
 
     expect(reqMock).toHaveBeenCalledTimes(2);
@@ -477,8 +465,8 @@ describe("searchStream — grouped", () => {
 
   it("leaves a kindless stream out of the group — it would swallow every event", async () => {
     controllable();
-    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
-    searchStream("bitcoin", { tab: "everything", pov: "nosfabrica", group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-top" }, () => {});
+    searchStream("bitcoin", { tab: "top", pov: "nosfabrica", group: "search-top" }, () => {});
     await settle();
     expect(reqMock).toHaveBeenCalledTimes(2);
     expect((reqMock.mock.calls[0][0] as unknown[]).length ?? 1).toBe(1);
@@ -486,7 +474,7 @@ describe("searchStream — grouped", () => {
 
   it("leaves an ungrouped stream on its own REQ", async () => {
     controllable();
-    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-top" }, () => {});
     searchStream("bitcoin", { tab: "people", pov: "nosfabrica" }, () => {});
     await settle();
     expect(reqMock).toHaveBeenCalledTimes(2);
@@ -2713,7 +2701,8 @@ describe("kindsForTab", () => {
   it("maps every vertical and leaves Everything unconstrained", () => {
     expect(kindsForTab("people")).toEqual([0]);
     expect(kindsForTab("notes")).toEqual(TAB_KINDS.notes);
-    expect(kindsForTab("everything")).toBeUndefined();
+    expect(kindsForTab("top")).toBeUndefined();
+    expect(kindsForTab("all")).toBeUndefined();
   });
 
   // Option A for NIPs in search: a spec (kind 30817, Markdown, addressable —

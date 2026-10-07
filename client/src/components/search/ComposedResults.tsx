@@ -1,5 +1,5 @@
 /**
- * The composed Everything page — Google's front-page anatomy, honestly
+ * The composed Top page — Google's front-page anatomy, honestly
  * earned: parallel sections, each ranked by what matters for THAT section.
  * People answer in ~0.5s and paint first; Latest asks the relay for
  * sort:recent (the news cluster — where the Liverpool fan's transfer news
@@ -172,17 +172,17 @@ function stillLoading(snapshot: SearchSnapshot | null): boolean {
   return !snapshot || (!snapshot.eose && snapshot.hits.length === 0);
 }
 
-const EVERYTHING: SearchGroup = "search-everything";
+const TOP: SearchGroup = "search-top";
 
 /** How long the Happening list must stop changing before its RSVPs are asked for. */
 const RSVP_SETTLE_MS = 400;
 
 /**
- * What the Everything page asks each section for. index.html's head start asks
+ * What the Top page asks each section for. index.html's head start asks
  * the same thing before the bundle lands, so the two must agree — headStart.test
  * holds them to it.
  */
-export const EVERYTHING_SECTIONS = {
+export const TOP_SECTIONS = {
   people: { limit: 8, recent: false },
   notes: { limit: 10, recent: true },
   // Articles lead with relevance where words were typed, which is the only
@@ -283,7 +283,7 @@ function ComposedResultsBody({
     // cards must not paint for someone reading through their own.
     if (remembered) return { ...EMPTY_SEEDS, ...remembered };
     if (userPubkey || pov !== "nosfabrica") return EMPTY_SEEDS;
-    const forTab = (tab: Exclude<SearchTab, "everything">): SearchHit[] => {
+    const forTab = (tab: Exclude<SearchTab, "top" | "all">): SearchHit[] => {
       const kinds = new Set(bandKindsForTab(tab));
       return head.events
         .filter((event) => kinds.has(event.kind))
@@ -317,8 +317,8 @@ function ComposedResultsBody({
     return hits.reduce((newest, h) => Math.max(newest, h.event.created_at), 0) || undefined;
   };
 
-  const people = useSectionStream(query, "people", pov, userPubkey, EVERYTHING_SECTIONS.people.limit, {
-    group: EVERYTHING,
+  const people = useSectionStream(query, "people", pov, userPubkey, TOP_SECTIONS.people.limit, {
+    group: TOP,
     seed: seeds.people,
     since: sinceFor("people"),
     provisionalSeed: peopleSeedIsGuess,
@@ -327,8 +327,8 @@ function ComposedResultsBody({
   // scattered timestamps read as random) — the relay sorts, we ask for
   // recent. People stays trust-ranked; there are no timestamps to scatter.
   const fresh = `${query} sort:recent`.trim();
-  const latest = useSectionStream(fresh, "notes", pov, userPubkey, EVERYTHING_SECTIONS.notes.limit, {
-    group: EVERYTHING,
+  const latest = useSectionStream(fresh, "notes", pov, userPubkey, TOP_SECTIONS.notes.limit, {
+    group: TOP,
     seed: seeds.notes,
     since: sinceFor("notes"),
   });
@@ -339,18 +339,18 @@ function ComposedResultsBody({
     "articles",
     pov,
     userPubkey,
-    EVERYTHING_SECTIONS.articles.limit,
-    { group: EVERYTHING, seed: seeds.articles, since: sinceFor("articles") },
+    TOP_SECTIONS.articles.limit,
+    { group: TOP, seed: seeds.articles, since: sinceFor("articles") },
   );
   // Happening = calendar events AND live streams, two verticals since the
   // Events split; events lead (a meetup you can still attend beats a replay).
-  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, EVERYTHING_SECTIONS.events.limit, {
-    group: EVERYTHING,
+  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, TOP_SECTIONS.events.limit, {
+    group: TOP,
     seed: seeds.events,
     since: sinceFor("events"),
   });
-  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, EVERYTHING_SECTIONS.live.limit, {
-    group: EVERYTHING,
+  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, TOP_SECTIONS.live.limit, {
+    group: TOP,
     seed: seeds.live,
     since: sinceFor("live"),
   });
@@ -364,23 +364,23 @@ function ComposedResultsBody({
       ),
     [happeningEvents, happeningLive],
   );
-  const media = useSectionStream(fresh, "media", pov, userPubkey, EVERYTHING_SECTIONS.media.limit, {
-    group: EVERYTHING,
+  const media = useSectionStream(fresh, "media", pov, userPubkey, TOP_SECTIONS.media.limit, {
+    group: TOP,
     seed: seeds.media,
     since: sinceFor("media"),
   });
   // Listen: native tracks (kind 31337) that match the words — best match, not
   // recency, because "jazz" should find jazz. The kind is abused for game
   // state and ad-skip data, so only hits that parse as a song count.
-  const music = useSectionStream(query, "music", pov, userPubkey, EVERYTHING_SECTIONS.music.limit, {
-    group: EVERYTHING,
+  const music = useSectionStream(query, "music", pov, userPubkey, TOP_SECTIONS.music.limit, {
+    group: TOP,
     seed: seeds.music,
     since: sinceFor("music"),
   });
   // Shop: things for sale that match the words — best match, since "cashmere"
   // should find cashmere. Sold, hidden and priceless are gated (lib/listing).
-  const shop = useSectionStream(query, "shop", pov, userPubkey, EVERYTHING_SECTIONS.shop.limit, {
-    group: EVERYTHING,
+  const shop = useSectionStream(query, "shop", pov, userPubkey, TOP_SECTIONS.shop.limit, {
+    group: TOP,
     seed: seeds.shop,
     since: sinceFor("shop"),
   });
@@ -392,12 +392,10 @@ function ComposedResultsBody({
     const typed = liftQuery(query).kinds ?? [];
     // Placed means a section ASKS for it: a calendar or a stall is in its tab
     // but no band shows it, so a typed kind:31924 gets a section of its own.
-    const placed = new Set(
-      (Object.keys(EVERYTHING_SECTIONS) as SeedTab[]).flatMap((tab) => bandKindsForTab(tab) ?? []),
-    );
+    const placed = new Set((Object.keys(TOP_SECTIONS) as SeedTab[]).flatMap((tab) => bandKindsForTab(tab) ?? []));
     return typed.filter((k) => !placed.has(k));
   }, [query]);
-  const byKind = useSectionStream(query, "everything", pov, userPubkey, 20, {
+  const byKind = useSectionStream(query, "top", pov, userPubkey, 20, {
     kinds: unplacedKinds,
     enabled: unplacedKinds.length > 0,
   });
@@ -459,14 +457,17 @@ function ComposedResultsBody({
     }
     return sets;
   }, [carriers.byPubkey]);
+  // Every section's authors, the typed kind's included: without its scores the
+  // floor let below-the-line accounts through there, and Verified only dropped
+  // every one of its hits.
   const allHits = useMemo(
     () => [
-      ...[people, latest, articles, happening, media, music, shop]
+      ...[people, latest, articles, happening, media, music, shop, byKind]
         .flatMap((s) => s?.hits ?? [])
         .map((h) => h.event.pubkey),
       ...carriers.people.map((c) => c.pubkey),
     ],
-    [people, latest, articles, happening, media, music, shop, carriers.people],
+    [people, latest, articles, happening, media, music, shop, byKind, carriers.people],
   );
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
   // Their order, taken once when they land and held for the query.

@@ -918,7 +918,7 @@ export default function SharePage() {
   const searchIcon = (
     <button
       type="button"
-      onClick={() => setLocation(scopedSearchHref(pubkey, "everything"))}
+      onClick={() => setLocation(scopedSearchHref(pubkey, "top"))}
       className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"
       title={searchLabel}
       aria-label={searchLabel}

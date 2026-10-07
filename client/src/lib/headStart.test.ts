@@ -9,7 +9,7 @@ import { join } from "node:path";
 import type { NostrEvent } from "nostr-tools";
 import { takeHeadStart, __resetHeadStart } from "./headStart";
 import { bandKindsForTab } from "@/services/search";
-import { EVERYTHING_SECTIONS } from "@/components/search/ComposedResults";
+import { TOP_SECTIONS } from "@/components/search/ComposedResults";
 
 const added: NostrEvent[] = [];
 vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: NostrEvent) => added.push(e) } }));
@@ -81,8 +81,8 @@ describe("the inline script in index.html", () => {
     expect(asked).toEqual(
       tabs.map((tab) => ({
         kinds: [...(bandKindsForTab(tab) ?? [])],
-        recent: EVERYTHING_SECTIONS[tab].recent,
-        limit: EVERYTHING_SECTIONS[tab].limit,
+        recent: TOP_SECTIONS[tab].recent,
+        limit: TOP_SECTIONS[tab].limit,
       })),
     );
   });
