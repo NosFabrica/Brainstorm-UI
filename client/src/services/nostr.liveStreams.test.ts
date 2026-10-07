@@ -87,4 +87,19 @@ describe("fetchLiveStreams", () => {
     const out = await p;
     expect(out.map((e) => e.id)).toEqual(["new"]);
   });
+
+  // Asked on its own with the lens it requires, the search relay is not in the other
+  // leg too: PROFILE_RELAYS includes it, and the same filters reached it twice
+  // (probed 2026-10-07, a person's streams and media on the knowledge panel).
+  it("asks the search relay once — the relay leg leaves it out", async () => {
+    requestAllMock.mockResolvedValue([]);
+    const { SEARCH_RELAY } = await import("@/lib/relays");
+    const p = fetchLiveStreams(CHANNEL, { timeoutMs: 300 });
+    await vi.waitFor(() => expect(requestAllMock).toHaveBeenCalled());
+    const relays = (requestAllMock.mock.calls[0] as unknown[])[0] as string[];
+    expect(relays.length).toBeGreaterThan(0);
+    expect(relays).not.toContain(SEARCH_RELAY);
+    subjects.forEach((s) => s.next({ type: "EOSE" }));
+    await p;
+  });
 });

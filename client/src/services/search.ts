@@ -32,6 +32,8 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
 import { RECIPE_TAGS } from "@/lib/sourceApp";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { readProfileRows } from "@/lib/eventCache";
+import type { FirstPage } from "@/lib/headStart";
 
 export type SearchTab =
   | "top"
@@ -285,9 +287,22 @@ export interface SearchParams {
    * (bandKindsForTab), still narrowed by a typed `kind:`.
    */
   band?: boolean;
+  /**
+   * The first page's answer already on its way — All's head start (lib/headStart),
+   * asked while the bundle loaded. Followed in place of asking; should it fail,
+   * the relay is asked after all. Further pages ask as usual.
+   */
+  firstPage?: FirstPage;
 }
 
-const DEFAULT_LIMIT = 100;
+/** A page's size — index.html's head start for All asks the same (headStart.test holds it). */
+export const DEFAULT_LIMIT = 100;
+/** How long a page's unknown authors wait to be asked together, at most (EOSE asks at once): a streaming list's… */
+const AUTHOR_BATCH_MS = 1000;
+/** …and a best-match page's, which ends (EOSE) soon after its first hits anyway. */
+const AUTHOR_BATCH_MAX_MS = 4000;
+/** The device's own copies are read for whoever arrived within this long of each other. */
+const DEVICE_PEEK_MS = 150;
 /**
  * How deep best match will go. It has no cursor, so each further page is a
  * bigger ask that repeats the ranking so far — and the relay sends MORE than
@@ -562,11 +577,57 @@ export function searchStream(
       emit({});
     };
 
+    // A recent-sorted page streams; a best-match one arrives over seconds and ends.
+    const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
+
+    // Authors the store does not hold are asked of the relay together: a best-match
+    // page's at its end (capped), a streaming list's every second. Asked per arrival,
+    // a page that trickled in sent a REQ of one or two authors each time (probed
+    // 2026-10-07: five kind-0 REQs of 4, 2, 1, 1, 1 for one All search). The device's
+    // own copies don't wait for that: they are read as the authors arrive.
+    const authorWait = recent ? AUTHOR_BATCH_MS : AUTHOR_BATCH_MAX_MS;
+    const pendingAuthors = new Set<string>();
+    let authorTimer: ReturnType<typeof setTimeout> | undefined;
+    const peeked = new Set<string>();
+    let peekTimer: ReturnType<typeof setTimeout> | undefined;
+    const peekDevice = () => {
+      peekTimer = undefined;
+      const batch = [...pendingAuthors].filter((pk) => !peeked.has(pk));
+      batch.forEach((pk) => peeked.add(pk));
+      if (!batch.length) return;
+      // What this device already holds names the row now; the queue still asks the relay
+      // for what it lacks (and refreshes an old copy) when the page's authors go.
+      void readProfileRows(batch)
+        .then((rows) => {
+          if (cancelled) return;
+          for (const row of rows.values()) {
+            try {
+              if (!eventStore.add(row.event)) continue;
+            } catch {
+              continue; // the store verifies, and a bad copy is no name
+            }
+            applyProfile(row.event);
+          }
+        })
+        .catch(() => undefined);
+    };
+    const askAuthors = () => {
+      clearTimeout(authorTimer);
+      authorTimer = undefined;
+      if (cancelled) return;
+      for (const pubkey of pendingAuthors)
+        if (!wantedAuthors.has(pubkey)) wantedAuthors.set(pubkey, wantProfile(pubkey, applyProfile));
+      pendingAuthors.clear();
+    };
     const noteAuthor = (event: NostrEvent): SearchResult | null => {
       if (event.kind === 0) return kind0ToSearchResult(event);
       const known = eventStore.getReplaceable(0, event.pubkey);
       if (known) return kind0ToSearchResult(known);
-      if (!wantedAuthors.has(event.pubkey)) wantedAuthors.set(event.pubkey, wantProfile(event.pubkey, applyProfile));
+      if (!wantedAuthors.has(event.pubkey) && !pendingAuthors.has(event.pubkey)) {
+        pendingAuthors.add(event.pubkey);
+        authorTimer ??= setTimeout(askAuthors, authorWait);
+        peekTimer ??= setTimeout(peekDevice, DEVICE_PEEK_MS);
+      }
       return null;
     };
 
@@ -575,6 +636,7 @@ export function searchStream(
     // ever fill their names in.
     if (seed.length) {
       for (const hit of hits) if (!hit.author) hit.author = noteAuthor(hit.event);
+      askAuthors();
       emit({});
     }
 
@@ -585,7 +647,7 @@ export function searchStream(
     // returns that second again, and a best-match page is a bigger ask that
     // repeats the whole ranking so far (probed 2026-09-09: the top of the
     // ranking is stable as the limit grows).
-    const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
+    let headStart = params.firstPage;
     const pageSubs: { unsubscribe: () => void }[] = [];
 
     // A union whose filters ask pairwise-disjoint kinds (Reviews: the ratings and relay
@@ -656,7 +718,27 @@ export function searchStream(
       const open = (o: {
         error: (err: unknown) => void;
         next: (msg: { type: string; event?: NostrEvent; reason?: string }) => void;
-      }) => (canGroup ? joinGroupReq(relay, params.group!, page[0], o) : relay.req(page).subscribe(o));
+      }) => {
+        const ask = () => (canGroup ? joinGroupReq(relay, params.group!, page[0], o) : relay.req(page).subscribe(o));
+        // The first page only, once: a head start already asked it.
+        const follow = headStart;
+        headStart = undefined;
+        if (!follow) return ask();
+        let asked: { unsubscribe: () => void } | null = null;
+        const followed = follow({
+          next: (msg) => o.next(msg),
+          // It ended without an answer: ask the relay after all.
+          error: () => {
+            asked ??= cancelled ? null : ask();
+          },
+        });
+        return {
+          unsubscribe: () => {
+            followed.unsubscribe();
+            asked?.unsubscribe();
+          },
+        };
+      };
       const sub = open({
         error: (err: unknown) => {
           clearTimeout(deadline);
@@ -706,6 +788,7 @@ export function searchStream(
           } else if (msg.type === "EOSE") {
             eose = true;
             loadingMore = false;
+            askAuthors();
             // A guess the search did not stand behind does not stay on screen.
             if (params.provisionalSeed && !closeAtEose && seeded.size > 0) {
               for (let i = hits.length - 1; i >= 0; i--) {
@@ -788,6 +871,9 @@ export function searchStream(
     );
     unsubscribe = () => {
       for (const sub of pageSubs) sub.unsubscribe();
+      clearTimeout(authorTimer);
+      clearTimeout(peekTimer);
+      pendingAuthors.clear();
       wantedAuthors.forEach((withdraw) => withdraw());
       wantedAuthors.clear();
     };

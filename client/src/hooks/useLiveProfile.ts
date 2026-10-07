@@ -123,7 +123,7 @@ function flushProfiles(): void {
   queued = new Set();
   batch = null;
   if (!due.length) return resolve(new Map());
-  trackProfiles(due, fetchProfileMap(due)).then(resolve, () => resolve(new Map()));
+  trackProfiles(due, fetchProfileMap(due, undefined, { warm: false })).then(resolve, () => resolve(new Map()));
 }
 
 function queueProfiles(pubkeys: string[]): Promise<unknown> {

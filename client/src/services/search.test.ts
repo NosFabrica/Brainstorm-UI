@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable, Subject, of, throwError } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
+import type { SearchParams } from "./search";
 import { nip19 } from "nostr-tools";
 
 interface ReqFrame {
@@ -53,6 +54,13 @@ vi.mock("@/services/trustSource", () => ({
 }));
 const getReplaceableMock = vi.fn<(kind: number, pubkey: string) => NostrEvent | undefined>(() => undefined);
 const storeAddMock = vi.fn((event: unknown) => event);
+// The device's own profile copies (IndexedDB), read for a page's authors as they arrive.
+const deviceProfiles = vi.hoisted(() => new Map<string, { event: unknown; at: number }>());
+vi.mock("@/lib/eventCache", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  readProfileRows: async (pubkeys: string[]) =>
+    new Map(pubkeys.flatMap((pk) => (deviceProfiles.has(pk) ? [[pk, deviceProfiles.get(pk)!]] : []))),
+}));
 vi.mock("@/lib/eventStore", () => ({
   eventStore: {
     getReplaceable: (kind: number, pubkey: string) => getReplaceableMock(kind, pubkey),
@@ -1253,6 +1261,8 @@ describe("author hydration", () => {
 });
 
 describe("author hydration on a slow relay", () => {
+  // A best-match page's unknown authors are asked together: at its end, or 4s after the first.
+  const AUTHOR_WAIT = 4200;
   const EOSE_FRAME: ReqFrame = { type: "EOSE", from: "wss://x", id: "h" };
   const author = (i: number) => i.toString(16).padStart(64, "0");
   const profile = (pk: string, name: string) => frame(ev(`p-${name}`, 0, pk, JSON.stringify({ name })));
@@ -1277,6 +1287,31 @@ describe("author hydration on a slow relay", () => {
     return { handle, page: calls[0] };
   }
 
+  // Probed 2026-10-07: a best-match page trickling in over seconds sent a kind-0 REQ of
+  // one or two authors per arrival. They wait, together, for the page's end or a second.
+  it("asks a page's unknown authors together — at EOSE, or a second after the first", async () => {
+    const calls = multiReq();
+    const { page } = await streamNotes(calls, []);
+    for (let i = 1; i <= 3; i++) {
+      page.subject.next(frame(ev(`n${i}`, 1, author(i))));
+      await vi.advanceTimersByTimeAsync(200);
+    }
+    expect(hydrations(calls)).toHaveLength(0);
+    page.subject.next(EOSE_FRAME);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(hydrations(calls)).toHaveLength(1);
+    expect(hydrations(calls)[0].filter.authors).toHaveLength(3);
+  });
+
+  it("a list that streams on (sort:recent) asks its authors every second", async () => {
+    const calls = multiReq();
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica" }, () => {});
+    await vi.advanceTimersByTimeAsync(0);
+    calls[0].subject.next(frame(ev("n1", 1, author(1))));
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(hydrations(calls)).toHaveLength(1);
+  });
+
   it("gives every author their profile when answers arrive after the next lookup started", async () => {
     const calls = multiReq();
     const snaps: SearchSnapshot[] = [];
@@ -1284,9 +1319,9 @@ describe("author hydration on a slow relay", () => {
     const [alice, bob] = [author(1), author(2)];
 
     page.subject.next(frame(ev("n1", 1, alice)));
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
     page.subject.next(frame(ev("n2", 1, bob)));
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
     const [first, second] = hydrations(calls);
     expect(first.closed).toBe(false);
 
@@ -1304,7 +1339,7 @@ describe("author hydration on a slow relay", () => {
     const calls = multiReq();
     const { page } = await streamNotes(calls, []);
     page.subject.next(frame(ev("n1", 1, author(1))));
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
     const [lookup] = hydrations(calls);
     lookup.subject.next(EOSE_FRAME);
     await vi.advanceTimersByTimeAsync(0);
@@ -1316,7 +1351,7 @@ describe("author hydration on a slow relay", () => {
     const { handle, page } = await streamNotes(calls, []);
     for (let i = 1; i <= 3; i++) {
       page.subject.next(frame(ev(`n${i}`, 1, author(i))));
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
     }
     expect(hydrations(calls)).toHaveLength(3);
     handle();
@@ -1333,7 +1368,7 @@ describe("author hydration on a slow relay", () => {
     const alice = author(1);
     calls[0].subject.next(frame(ev("n1", 1, alice)));
     calls[1].subject.next(frame(ev("m1", 20, alice)));
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
 
     const lookups = hydrations(calls);
     expect(lookups).toHaveLength(1);
@@ -1351,13 +1386,14 @@ describe("author hydration on a slow relay", () => {
       ["media", 20],
       ["articles", 30023],
     ];
-    for (const [tab] of sections) searchStream("bitcoin", { tab, pov: "nosfabrica" }, () => {});
+    // Streaming lists (sort:recent) ask their authors every second — inside the lookups' deadline.
+    for (const [tab] of sections) searchStream("bitcoin sort:recent", { tab, pov: "nosfabrica" }, () => {});
     await vi.advanceTimersByTimeAsync(0);
     // One new author per flush window, rotating through the sections.
     for (let n = 1; n <= 6; n++) {
       const i = (n - 1) % sections.length;
       calls[i].subject.next(frame(ev(`e${n}`, sections[i][1], author(n))));
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(1200);
     }
     expect(openLookups(calls)).toHaveLength(4);
 
@@ -1376,9 +1412,9 @@ describe("author hydration on a slow relay", () => {
     await vi.advanceTimersByTimeAsync(0);
     const alice = author(1);
     calls[0].subject.next(frame(ev("n1", 1, alice)));
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
     calls[1].subject.next(frame(ev("m1", 20, alice)));
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
 
     const lookups = hydrations(calls);
     expect(lookups).toHaveLength(1);
@@ -1397,7 +1433,7 @@ describe("author hydration on a slow relay", () => {
     const alice = author(1);
     calls[0].subject.next(frame(ev("n1", 1, alice)));
     calls[1].subject.next(frame(ev("m1", 20, alice)));
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
 
     leaving();
     const [lookup] = hydrations(calls);
@@ -1418,7 +1454,7 @@ describe("author hydration on a slow relay", () => {
         .filter((c) => (c.filter.kinds as number[] | undefined)?.[0] !== 0)
         .at(-1)!
         .subject.next(frame(ev(id, kind, alice)));
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
     };
 
     await showAlice("n1", "notes", 1);
@@ -1437,14 +1473,14 @@ describe("author hydration on a slow relay", () => {
     const calls = multiReq();
     const { page } = await streamNotes(calls, []);
     page.subject.next(frame(ev("n1", 1, author(1))));
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
     await vi.advanceTimersByTimeAsync(10_000);
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
     expect(hydrations(calls)).toHaveLength(2);
     expect(hydrations(calls)[1].filter.authors).toEqual([author(1)]);
 
     await vi.advanceTimersByTimeAsync(10_000);
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
     expect(hydrations(calls)).toHaveLength(2);
   });
 
@@ -1452,7 +1488,7 @@ describe("author hydration on a slow relay", () => {
     const calls = multiReq();
     const { page } = await streamNotes(calls, []);
     page.subject.next(frame(ev("n1", 1, author(1))));
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(AUTHOR_WAIT);
     const [lookup] = hydrations(calls);
     await vi.advanceTimersByTimeAsync(10_000);
     expect(lookup.closed).toBe(true);
@@ -1460,15 +1496,17 @@ describe("author hydration on a slow relay", () => {
 
   it("keeps at most 4 profile lookups open and sends waiting authors when one finishes", async () => {
     const calls = multiReq();
-    const { page } = await streamNotes(calls, []);
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica" }, () => {});
+    await vi.advanceTimersByTimeAsync(0);
+    const page = calls[0];
     for (let i = 1; i <= 6; i++) {
       page.subject.next(frame(ev(`n${i}`, 1, author(i))));
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(1200);
     }
     expect(openLookups(calls)).toHaveLength(4);
 
     hydrations(calls)[0].subject.next(EOSE_FRAME);
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(1200);
     const open = openLookups(calls);
     expect(open).toHaveLength(4);
     expect(open.at(-1)!.filter.authors).toEqual([author(5), author(6)]);
@@ -2778,5 +2816,84 @@ describe("bandKindsForTab", () => {
     await settle();
     expect(reqMock).not.toHaveBeenCalled();
     expect(snap).toMatchObject({ hits: [], eose: true });
+  });
+});
+
+// All's question is asked by index.html while the bundle loads; its first page follows
+// that request instead of asking the relay the same question again (lib/headStart).
+describe("a first page already on its way", () => {
+  it("is followed in place of a REQ — its hits and its end are the page's", async () => {
+    const calls = multiReq();
+    const snaps: SearchSnapshot[] = [];
+    let observer: { next: (m: { type: string; event?: NostrEvent }) => void } | null = null;
+    searchStream(
+      "bitcoin",
+      {
+        tab: "all",
+        pov: "nosfabrica",
+        firstPage: Object.assign(
+          (o: Parameters<NonNullable<SearchParams["firstPage"]>>[0]) => ((observer = o), { unsubscribe: () => {} }),
+          { release: () => {} },
+        ),
+      },
+      (s) => snaps.push(s),
+    );
+    await tick();
+    observer!.next({ type: "EVENT", event: ev("h1", 1) });
+    observer!.next({ type: "EOSE" });
+    await tick();
+    expect(calls.filter((c) => !(c.filter.kinds as number[] | undefined)?.includes(0))).toHaveLength(0);
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["h1"]);
+    expect(snaps.at(-1)!.eose).toBe(true);
+  });
+
+  it("asks the relay after all when it ends without an answer", async () => {
+    const calls = multiReq();
+    let observer: { error: (e: unknown) => void } | null = null;
+    searchStream(
+      "bitcoin",
+      {
+        tab: "all",
+        pov: "nosfabrica",
+        firstPage: Object.assign(
+          (o: Parameters<NonNullable<SearchParams["firstPage"]>>[0]) => ((observer = o), { unsubscribe: () => {} }),
+          { release: () => {} },
+        ),
+      },
+      () => {},
+    );
+    await tick();
+    expect(calls).toHaveLength(0);
+    observer!.error(new Error("closed"));
+    await tick();
+    expect(calls).toHaveLength(1);
+    const asked = calls[0].filter as unknown;
+    const filter = (Array.isArray(asked) ? asked[0] : asked) as { search?: string; kinds?: number[] };
+    expect(filter.search).toMatch(/^bitcoin observer:/);
+    expect(filter.kinds).toBeUndefined();
+  });
+});
+
+// The relay's batch waits for the page's end; the device's own copies do not.
+describe("authors this device already knows", () => {
+  it("are named as they arrive, before the page ends", async () => {
+    vi.useFakeTimers();
+    __resetAuthorProfileQueue();
+    try {
+      const calls = multiReq();
+      const snaps: SearchSnapshot[] = [];
+      const alice = "a".repeat(64);
+      deviceProfiles.set(alice, { event: ev("p-alice", 0, alice, JSON.stringify({ name: "alice" })), at: Date.now() });
+      searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, (s) => snaps.push(s));
+      await vi.advanceTimersByTimeAsync(0);
+      calls[0].subject.next(frame(ev("n1", 1, alice)));
+      await vi.advanceTimersByTimeAsync(300);
+      expect(snaps.at(-1)!.hits[0].author?.name).toBe("alice");
+      // …and no relay lookup yet: that waits for the page's end.
+      expect(calls.filter((c) => (c.filter.kinds as number[] | undefined)?.[0] === 0)).toHaveLength(0);
+    } finally {
+      deviceProfiles.clear();
+      vi.useRealTimers();
+    }
   });
 });

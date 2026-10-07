@@ -455,6 +455,41 @@ describe("SearchResults", () => {
       expect(within(results).queryAllByRole("button")).toHaveLength(0);
     });
 
+    // All is the relay's answer, one list: no knowledge panel, so none of its probes
+    // (probed 2026-10-07: 3 of a plain search's 12 REQs, 11 of a person search's 19).
+    it("has no knowledge panel and asks none of its probes", async () => {
+      setUrlTab("all");
+      render(<SearchResults query="bitcoin" pov="nosfabrica" />);
+      await act(async () => {});
+      const probes = streamMock.mock.calls.filter(([q, p]) =>
+        isPanelProbe(String(q), p as { tab?: string; limit?: number }),
+      );
+      expect(probes).toHaveLength(0);
+      expect(suggestMock).not.toHaveBeenCalled();
+    });
+
+    // A vertical keeps the person card (Media and Music lead with that person) but not
+    // the topic, apps and events rails: kinds the tab leaves out, each a search of its own.
+    it("a vertical tab asks for the panel's person, not its rails", async () => {
+      setUrlTab("notes");
+      render(<SearchResults query="bitcoin" pov="nosfabrica" />);
+      await act(async () => {});
+      const probes = streamMock.mock.calls.filter(([q, p]) =>
+        isPanelProbe(String(q), p as { tab?: string; limit?: number }),
+      );
+      expect(probes).toHaveLength(0);
+      expect(suggestMock).toHaveBeenCalled();
+    });
+
+    it("Top keeps the rails", async () => {
+      render(<SearchResults query="bitcoin" pov="nosfabrica" />);
+      await act(async () => {});
+      const probes = streamMock.mock.calls.filter(([q, p]) =>
+        isPanelProbe(String(q), p as { tab?: string; limit?: number }),
+      );
+      expect(probes.length).toBeGreaterThan(0);
+    });
+
     it("an old ?t=everything link opens Top, never All", () => {
       setUrlTab("everything");
       render(<SearchResults query="liverpool" pov="nosfabrica" />);

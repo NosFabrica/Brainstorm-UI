@@ -7,8 +7,10 @@ import { resolveHouseObserver } from "./services/trustSource";
 import { startRelayAuth } from "./services/relayAuth";
 import { startDirectMessages } from "./services/dm";
 import { pool } from "./lib/relayPool";
+import { SEARCH_RELAY } from "./lib/relays";
+import { warmSearchRelay } from "./lib/searchRelay";
 import { accountManager } from "./accounts";
-import { canSignSilently, signAs } from "./accounts/signing";
+import { canSignSilently, canSignUnasked, signAs } from "./accounts/signing";
 import { signerSaidNo } from "./accounts/signer-errors";
 import { registerServiceWorker } from "./lib/serviceWorker";
 import { startAppResume } from "./services/appResume";
@@ -42,6 +44,12 @@ if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
 // Asking now means the first search doesn't wait for it in series.
 void resolveHouseObserver();
 
+// A page opened on a search (`?q=`) opens the search socket now, not when the results
+// mount: its handshake (and, signed in, its NIP-42 login below) overlaps the app's own
+// start instead of standing in front of the first REQ. Other routes open it when a
+// search box is focused (SearchBox), as before.
+if (new URLSearchParams(window.location.search).get("q")) warmSearchRelay();
+
 // Relays that gate reads or writes behind a NIP-42 login: never waited on
 // (lib/relayPool), answered with the account's signer wherever they ask.
 // Never with our Unlock modal unless the reader is in Messages.
@@ -52,6 +60,11 @@ startRelayAuth({
   sign: signAs,
   // Only the reader's own "no" is a rejection; a missing or silent signer is worth another go.
   isRejection: signerSaidNo,
+  // Our own search relay: signed in up front, the moment it challenges — before any read
+  // is refused — so a search never waits on a refusal and a login round trip.
+  upFront: [SEARCH_RELAY],
+  // …and only with a key held here: an extension or bunker would prompt on every load.
+  canSignUnasked,
 });
 
 // Private messages (NIP-17) follow the Active Account from sign-in, not from the
