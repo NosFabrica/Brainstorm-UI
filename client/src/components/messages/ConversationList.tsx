@@ -78,6 +78,7 @@ const RoomRow = memo(function RoomRow({
   selected,
   hidePreview,
   showTrust,
+  loading,
 }: {
   room: DmRoom;
   me: string;
@@ -88,6 +89,8 @@ const RoomRow = memo(function RoomRow({
   hidePreview?: boolean;
   /** A request: say who vouches for the sender. */
   showTrust?: boolean;
+  /** Messages are still being fetched or opened: a not-loaded row may just not be there yet. */
+  loading?: boolean;
 }) {
   const unread = selected || prefs.muted.includes(room.key) ? 0 : unreadIn(room, me, prefs);
   const timer = roomTimer(prefs, room.key) > 0;
@@ -123,10 +126,16 @@ const RoomRow = memo(function RoomRow({
           {prefs.pinned.includes(room.key) && (
             <Pin className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label="Pinned" />
           )}
-          <span className="ml-auto shrink-0 text-xs text-slate-500 dark:text-slate-400">{listTime(room.lastAt)}</span>
+          {!room.notLoaded && (
+            <span className="ml-auto shrink-0 text-xs text-slate-500 dark:text-slate-400">{listTime(room.lastAt)}</span>
+          )}
         </span>
         <span className="flex items-center gap-2">
-          {hidePreview ? (
+          {room.notLoaded ? (
+            <span className="truncate text-sm text-slate-500 dark:text-slate-400" data-testid="dm-room-not-loaded">
+              {loading ? "Loading…" : "Older messages aren't loaded yet"}
+            </span>
+          ) : hidePreview ? (
             <span className="flex items-center gap-1.5 truncate text-sm text-slate-500 dark:text-slate-400">
               <EyeOff className="h-3.5 w-3.5" /> Preview hidden · low trust
             </span>
@@ -322,6 +331,11 @@ export function ConversationList({
   // A server has answered once the live subscription settles, or once any relay has
   // delivered a page of history — one silent relay can hold "settled" off indefinitely.
   const answered = state.liveSettled || state.history.relays.some((r) => r.state === "done" || r.pages > 0);
+  // Messages still on their way: not answered yet, or wraps (cached or fetched) still being opened.
+  // A pinned chat with nothing loaded may only be waiting on these.
+  const stillLoading = !answered || state.history.relays.some((r) => (r.opening ?? 0) > 0);
+  // Pinned chats are listed before any of their messages load, so they don't make an inbox non-empty.
+  const loadedChats = rooms.some((r) => !r.notLoaded);
 
   return (
     <RowNearContext.Provider value={onPeopleNear ?? null}>
@@ -437,7 +451,7 @@ export function ConversationList({
                   No requests. People you don't follow land here, sorted by how your web of trust sees them.
                 </p>
               )}
-              {tab === "chats" && rooms.length === 0 && state.status === "ready" && (
+              {tab === "chats" && !loadedChats && state.status === "ready" && (!answered || rooms.length === 0) && (
                 <p className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">
                   {/* Until any server answers; after that an empty inbox is empty, however
                       long the slow ones take — they're the quiet line below. */}
@@ -453,6 +467,7 @@ export function ConversationList({
                   scoreOf={shelves.scoreOf}
                   prefs={prefs}
                   selected={room.key === selectedKey}
+                  loading={room.notLoaded && stillLoading}
                 />
               ))}
               {pinned.length > 0 && flowing.length > 0 && <div className="mx-3 my-1 border-t border-border" />}
@@ -511,6 +526,7 @@ export function ConversationList({
                         scoreOf={shelves.scoreOf}
                         prefs={prefs}
                         selected={room.key === selectedKey}
+                        loading={room.notLoaded && stillLoading}
                       />
                     ))}
                 </div>
