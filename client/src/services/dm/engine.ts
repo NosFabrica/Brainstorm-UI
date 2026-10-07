@@ -40,6 +40,7 @@ import {
 import { Heap } from "@/lib/dm/heap";
 import { DmStore, messageFromRumor, type Delivery, type DmMessage, type OutgoingStatus } from "@/lib/dm/store";
 import { chatTags } from "@/lib/dm/rooms";
+import { onAppResume } from "@/lib/appResume";
 import { MAX_INBOX_RELAYS, type DmRelayLookup } from "@/lib/dm/inboxRelays";
 import {
   FAILED_RULES,
@@ -124,6 +125,8 @@ export interface DmEngineDeps {
   online?: () => boolean;
   /** Calls back when the connection comes back; returns a stop function. */
   onOnline?: (callback: () => void) => () => void;
+  /** Calls back when the app comes back to the foreground; returns a stop function. */
+  onResume?: (callback: () => void) => () => void;
   /** How long one wrap may take to open before its slot is taken back (default 45s). */
   decryptTimeoutMs?: number;
   /** Milliseconds, for timing how fast the signer answers (default Date.now). */
@@ -344,10 +347,17 @@ export class DmEngine {
     // Stopped during the lookup (an account switch): register nothing that would outlive it.
     if (this.stopped) return;
     this.flushOutbox();
-    this.stopOnline = (this.deps.onOnline ?? onWindowOnline)(() => {
+    const stopOnline = (this.deps.onOnline ?? onWindowOnline)(() => {
       this.attempts.clear();
       this.flushOutbox();
     });
+    // Back in front: send what waited, within each message's retry budget — a tab
+    // switch is not the connection coming back, and must not reset it.
+    const stopResume = (this.deps.onResume ?? onComeBack)(() => this.flushOutbox());
+    this.stopOnline = () => {
+      stopOnline();
+      stopResume();
+    };
     const repeat = this.deps.setRepeating ?? ((fn, ms) => setInterval(fn, ms));
     this.ticker = repeat(() => this.tick(), 60_000);
   }
@@ -1559,4 +1569,9 @@ function onWindowOnline(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   window.addEventListener("online", callback);
   return () => window.removeEventListener("online", callback);
+}
+
+/** Back in front: an installed app's sends wait out a suspension too. */
+function onComeBack(callback: () => void): () => void {
+  return onAppResume(() => callback());
 }

@@ -30,6 +30,9 @@ import { MobileTabBar } from "@/components/MobileTabBar";
 import { NowPlayingBar } from "@/components/search/NowPlayingBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { DmNotifications } from "@/components/messages/DmNotifications";
+import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
+import { InstallAppDialog } from "@/components/InstallApp";
+import { openTarget } from "@/lib/openTarget";
 import { DmShelvesProvider } from "@/hooks/useDirectMessages";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
@@ -170,6 +173,15 @@ function SoloPlayback() {
 // The search experience now lives on the home page (`/`). Old `/search` links
 // (and `/search?q=...` deep links) redirect to `/` preserving the query so they
 // keep working.
+/** `/open`: something shared to the installed app, or a `web+nostr:` link (lib/openTarget). */
+function OpenRedirect() {
+  let search = "";
+  try {
+    search = window.location.search || "";
+  } catch {}
+  return <Redirect to={openTarget(search)} replace />;
+}
+
 function SearchRedirect() {
   let search = "";
   try {
@@ -233,6 +245,7 @@ function Router() {
             <Route path="/messages">{() => <RequireAuth component={MessagesPage} />}</Route>
             <Route path="/messages/:slug">{() => <RequireAuth component={MessagesPage} />}</Route>
             <Route path="/search" component={SearchRedirect} />
+            <Route path="/open" component={OpenRedirect} />
             {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
             <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
             {/* Short share links resolve here, then continue to /p/. */}
@@ -309,6 +322,8 @@ function App() {
               <NowPlayingBar />
               <CommandPalette />
               <DmNotifications />
+              <AppUpdatePrompt />
+              <InstallAppDialog />
               <MobileSearchOverlay />
               <ScoringStatusBar />
               <AutoScoreReturning />

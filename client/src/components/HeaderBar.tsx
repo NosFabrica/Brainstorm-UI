@@ -1,10 +1,39 @@
 import { type ReactNode, useEffect, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ArrowLeft, Search } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { HeaderSearchBox } from "@/components/HeaderSearchBox";
 import { openMobileSearch } from "@/components/MobileSearchOverlay";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { historyDepth, trackHistoryEntry } from "@/lib/historyState";
+import { isInstalledPhoneApp } from "@/lib/installedApp";
+
+/**
+ * The screens the phone tab bar opens, plus sign-in: a Back arrow there has
+ * nowhere sensible to go. Messages draws its own (the chat's way back to the list).
+ */
+const ROOTS = ["/", "/dashboard", "/network", "/login"];
+const isRoot = (path: string) => ROOTS.includes(path) || path.startsWith("/messages");
+
+/**
+ * A Back arrow for the installed phone app on any other screen it got to from
+ * inside the app. It has no browser toolbar, and an iPhone has no system Back:
+ * without one, the way back from a profile opened from search is the tab bar,
+ * which drops the search.
+ */
+function useInstalledAppBack(): (() => void) | null {
+  const [location] = useLocation();
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [installed] = useState(isInstalledPhoneApp);
+  useEffect(() => {
+    if (!installed) return;
+    // Stamp the entry first (idempotent; App does the same a moment later), so a
+    // screen just navigated to counts what sits behind it.
+    trackHistoryEntry();
+    setCanGoBack(!isRoot(location) && historyDepth() > 0);
+  }, [installed, location]);
+  return canGoBack ? () => window.history.back() : null;
+}
 
 /** Tailwind's `sm` — below it the box is the magnifier, and the sheet does the searching. */
 const SM = 640;
@@ -42,6 +71,9 @@ export function HeaderBar({
   testId?: string;
 }) {
   const isPhone = useIsMobile(SM);
+  const appBack = useInstalledAppBack();
+  // A page's own Back (to a named place) wins over the installed app's plain one.
+  const backButton = back ?? (appBack && { label: "Back", onClick: appBack });
 
   // Frost-on-scroll: transparent at the very top so the bar blends with the
   // hero/banner, then a clean frosted surface + hairline + soft shadow once the
@@ -75,12 +107,12 @@ export function HeaderBar({
         }
       >
         <div className="flex shrink-0 items-center gap-3">
-          {back && (
+          {backButton && (
             <button
               type="button"
-              onClick={back.onClick}
-              aria-label={back.label}
-              title={back.label}
+              onClick={backButton.onClick}
+              aria-label={backButton.label}
+              title={backButton.label}
               className="-ml-2 shrink-0 rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
               data-testid="header-back"
             >

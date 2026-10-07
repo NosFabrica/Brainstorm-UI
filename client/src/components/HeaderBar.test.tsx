@@ -10,6 +10,8 @@ import "@testing-library/jest-dom/vitest";
 vi.mock("@/components/HeaderSearchBox", () => ({ HeaderSearchBox: () => <div data-testid="header-box" /> }));
 const openMock = vi.fn();
 vi.mock("@/components/MobileSearchOverlay", () => ({ openMobileSearch: () => openMock() }));
+let installed = false;
+vi.mock("@/lib/installedApp", () => ({ isInstalledPhoneApp: () => installed }));
 
 import { HeaderBar } from "./HeaderBar";
 
@@ -19,7 +21,14 @@ function at(width: number) {
 afterEach(() => {
   cleanup();
   at(1024);
+  installed = false;
+  window.history.replaceState(null, "", "/");
 });
+
+/** An in-app trip: `depth` screens deep, now at `path`. */
+function visit(path: string, depth: number) {
+  window.history.replaceState({ bsDepth: depth }, "", path);
+}
 
 describe("the header bar", () => {
   it("mounts the search box on a wide screen, with no magnifier", () => {
@@ -54,5 +63,34 @@ describe("the header bar", () => {
     expect(back).toHaveAttribute("aria-label", "Back to Staci");
     fireEvent.click(back);
     expect(onClick).toHaveBeenCalled();
+  });
+
+  describe("in the installed phone app, with no browser Back to fall back on", () => {
+    it("offers Back on a screen reached from inside the app, and goes back", () => {
+      installed = true;
+      visit("/p/npub1abc", 2);
+      const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+      render(<HeaderBar />);
+      fireEvent.click(screen.getByTestId("header-back"));
+      expect(back).toHaveBeenCalled();
+      back.mockRestore();
+    });
+
+    it("not on a tab's own screen, nor where nothing in the app sits behind", () => {
+      installed = true;
+      visit("/dashboard", 3);
+      render(<HeaderBar />);
+      expect(screen.queryByTestId("header-back")).toBeNull();
+      cleanup();
+      visit("/p/npub1abc", 0);
+      render(<HeaderBar />);
+      expect(screen.queryByTestId("header-back")).toBeNull();
+    });
+
+    it("never in a browser tab, which has its own", () => {
+      visit("/p/npub1abc", 2);
+      render(<HeaderBar />);
+      expect(screen.queryByTestId("header-back")).toBeNull();
+    });
   });
 });

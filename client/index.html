@@ -5,6 +5,10 @@
     <!-- viewport-fit=cover: without it an installed iPhone app reports every safe-area inset as
          0, so the tab bar, sheets and the Messages composer that pad by them sat on the home bar. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
+    <!-- The page's own background, so the status bar and Android's task switcher
+         read as part of it. Light here; the theme script below darkens it before
+         first paint, and lib/themeColor follows the page from then on. -->
+    <meta name="theme-color" content="#ffffff" />
     <!-- No-flash theme: set class="dark" synchronously before first paint.
          Honors an explicit "dark" choice, and "system" when the OS prefers dark.
          Fresh visitors (no stored choice) stay LIGHT — we don't auto-dark a
@@ -17,6 +21,10 @@
           var osDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
           if (t === "dark" || (t === "system" && osDark)) {
             document.documentElement.classList.add("dark");
+            // The status bar and Android's task switcher, dark from the first frame
+            // too (lib/themeColor keeps it on the page's colour after that).
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute("content", "#0b0f19");
           }
         } catch (e) {}
       })();
@@ -31,7 +39,6 @@
       content="Brainstorm, Nostr, Web of Trust, WoT, GrapeRank, decentralized, trust scores, social graph, NIP-85, reputation"
     />
     <meta name="author" content="Brainstorm" />
-    <meta name="theme-color" content="#0a0e18" />
 
     <link rel="canonical" href="https://brainstorm.nosfabrica.com/" />
 
@@ -67,7 +74,173 @@
          iOS honours; the manifest's short_name covers Android/Chrome. -->
     <meta name="apple-mobile-web-app-title" content="Brainstorm" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <!-- Deprecated in Chrome's eyes (it logs so), but iOS shows the launch images
+         below only to a page that declares itself web-app capable. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- "default": the status bar is its own strip above the page, painted the
+         theme-color. "black-translucent" would run the page under it, and no
+         header pads for the top inset. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="/site.webmanifest" />
+    <!-- iOS launch screens. iOS has no manifest splash: without an image that
+         matches the screen exactly it shows a blank one. Drawn by
+         scripts/pwa-assets.mjs, which prints these; pwaAssets.test.ts holds the
+         two to each other. -->
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1320x2868.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1260x2736.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1206x2622.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1290x2796.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1179x2556.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1284x2778.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1170x2532.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1125x2436.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1242x2688.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/828x1792.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1242x2208.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/750x1334.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/640x1136.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 1032px) and (device-height: 1376px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/2064x2752.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 1032px) and (device-height: 1376px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2752x2064.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/2048x2732.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2732x2048.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1210px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1668x2420.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1210px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2420x1668.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1668x2388.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2388x1668.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1640x2360.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2360x1640.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1668x2224.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2224x1668.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1620x2160.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2160x1620.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1488x2266.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2266x1488.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1536x2048.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2048x1536.png"
+    />
     <script src="/config.js"></script>
     <!-- Filled in at container start from the same env config.js gets: the API
          and relay origins, so their DNS + TCP + TLS happen while the app boots
@@ -197,13 +370,9 @@
         }
       })();
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Brand fonts only (Design System v1.0): Figtree (interface) + IBM Plex Mono (technical/metadata). -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Brand fonts (Design System v1.0) are bundled, not fetched from Google:
+         main.tsx imports them, so they ship hashed beside the app and the
+         installed app has them with no connection (sw.ts keeps them). -->
   </head>
   <body>
     <div id="root"></div>

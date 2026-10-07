@@ -10,6 +10,18 @@ import { pool } from "./lib/relayPool";
 import { accountManager } from "./accounts";
 import { canSignSilently, signAs } from "./accounts/signing";
 import { signerSaidNo } from "./accounts/signer-errors";
+import { registerServiceWorker } from "./lib/serviceWorker";
+import { startAppResume } from "./services/appResume";
+import { keepStorageForInstalledApp } from "./lib/persistentStorage";
+import { startInstallPrompt } from "./lib/installPrompt";
+// Brand fonts, bundled: Figtree (interface, upright and italic) + IBM Plex Mono
+// (technical/metadata). Each face's subsets load only when a page uses them.
+import "@fontsource-variable/figtree/wght.css";
+import "@fontsource-variable/figtree/wght-italic.css";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
+import "@fontsource/ibm-plex-mono/600.css";
+import "@fontsource/ibm-plex-mono/700.css";
 import "./index.css";
 
 // From the first moment: support-ticket diagnostics can carry what the
@@ -46,6 +58,21 @@ startRelayAuth({
 // first visit to Messages: the live subscription warms the inbox and the unread
 // badge while the reader is elsewhere (services/dm).
 startDirectMessages();
+
+// The installed app's offline shell, its updates and its notifications (lib/serviceWorker).
+registerServiceWorker();
+
+// Chrome's install prompt fires once, early: kept for the account menu's "Install the app".
+startInstallPrompt();
+
+// Back from the background: reconnect, look for a deploy, refresh what went stale.
+startAppResume();
+
+// Signed in to the installed app: its account and caches are worth keeping through
+// a device's storage clean-up (lib/persistentStorage).
+accountManager.active$.subscribe((account) => {
+  if (account) keepStorageForInstalledApp();
+});
 
 createRoot(document.getElementById("root")!).render(
   <ThemeProvider>

@@ -29,6 +29,7 @@ import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 import { isTouchScreen } from "@/lib/touchScreen";
+import { syncThemeColor } from "@/lib/themeColor";
 
 // Example prompts the empty search box gently cycles through to teach
 // first-time visitors what they can search for. The first entry is the
@@ -136,14 +137,14 @@ export default function Landing() {
   // Safari's chrome takes this page's own color while it is up. iOS Safari paints the
   // theme-color past the page's end — into the strip its toolbar gives up when the box
   // takes focus — and the app's ink (#0a0e18) ran as a black band under the white home
-  // screen, with the status bar above it just as dark. Restored on the way out.
+  // screen, with the status bar above it just as dark. On the way out it goes back to
+  // following the app's background (lib/themeColor).
   // The body takes it too: the phone tab bar's reserved space (body padding) stays while the
   // bar steps aside for typing — releasing it reflowed every page on each focus — and under a
   // one-screen page that space showed the app's gray.
   // Read off <html>'s `dark` class, which lib/theme toggles, so a theme switch follows.
   useEffect(() => {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    const before = meta?.content;
     const root = document.documentElement;
     const body = document.body;
     const bodyBefore = body.style.backgroundColor;
@@ -158,8 +159,8 @@ export default function Landing() {
     themeChange.observe(root, { attributes: true, attributeFilter: ["class"] });
     return () => {
       themeChange.disconnect();
-      if (meta && before != null) meta.content = before;
       body.style.backgroundColor = bodyBefore;
+      syncThemeColor();
     };
   }, []);
   // The box — the one every search surface shares (components/search/SearchBox).

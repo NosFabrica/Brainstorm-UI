@@ -63,10 +63,10 @@
 
   /* Brand typography (Design System v1.0): Figtree for interface content,
      IBM Plex Mono for technical info / metadata. */
-  --font-sans: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-display: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: "Figtree Variable", "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Figtree Variable", "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   /* Brand signature — top-level page title + logo wordmark. */
-  --font-brand: "Figtree", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-brand: "Figtree Variable", "Figtree", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
   --radius: 0.75rem;
 

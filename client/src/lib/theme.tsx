@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { syncThemeColor } from "./themeColor";
 
 // OS-aware theming (Design System v1.0, dark mode). Three-state choice:
 //   "system" — live-tracks the OS via matchMedia
@@ -40,6 +41,7 @@ function resolve(choice: ThemeChoice): ResolvedTheme {
 function apply(resolved: ResolvedTheme): void {
   if (typeof document === "undefined") return;
   document.documentElement.classList.toggle("dark", resolved === "dark");
+  syncThemeColor();
 }
 
 interface ThemeContextValue {
