@@ -33,7 +33,7 @@ import { verifyEvent, type EventTemplate, type VerifiedEvent } from "applesauce-
 import { ExtensionMissingError, ExtensionSigner } from "applesauce-signers";
 
 import type { AccountMetadata } from "./metadata";
-import { withTimeout } from "./remote-signer";
+import { isRemoteSignerTimeout, withTimeout } from "./remote-signer";
 import { classifySignerError, SignerCouldNotDecryptError, SignerDeclinedError } from "./signer-errors";
 
 export const EXTENSION_TIMEOUT_MS = 90_000;
@@ -80,47 +80,31 @@ function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
 export const EXTENSION_LOCK = "brainstorm-nip07";
 
 /**
- * A decrypt this quiet, from an extension that answered one in a blink lately, is a
- * request it won't answer — Nostash never replies to a decrypt that fails (spam, a
- * corrupt wrap, another key's): its error goes nowhere and the page waits forever.
- * Waited out, each such wrap held every message behind it for the full timeout.
+ * How long a decrypt may go unanswered before we look into it. Nostash never answers
+ * a decrypt it can't perform (spam, a corrupt wrap, another key's) — its error goes
+ * nowhere — so a wrap like that held the account's queue for EXTENSION_TIMEOUT_MS on
+ * every visit. Its answers otherwise come back in well under a second; this is long
+ * past any slow one. The request is never let go sooner: Nostash keeps one reply slot
+ * for every request, so a late answer to a request we stopped waiting for would land
+ * on the next one — measured, it stored messages under the wrong gift wraps.
  */
-export const SILENT_DECRYPT_MS = 5_000;
+export const EXTENSION_DECRYPT_MS = 30_000;
 /** An answer this fast had no person in the way: no approval prompt is open. */
 const QUICK_ANSWER_MS = 2_000;
 /** How long a quick answer vouches that prompts are already allowed. */
 const STILL_QUICK_MS = 120_000;
-const SILENT = Symbol("silent");
 
-/**
- * A cipher's answer: a string, or `undefined` for no answer — `""` is a real plaintext.
- * With `giveUpWhenSilent`, `SILENT` once the extension has said nothing for
- * SILENT_DECRYPT_MS and the check says it isn't waiting on a person.
- */
-async function ask(
-  request: () => Promise<unknown>,
-  giveUpWhenSilent?: () => boolean,
-): Promise<string | undefined | typeof SILENT> {
+/** A cipher's answer: a string, or `undefined` for no answer — `""` is a real plaintext. */
+async function ask(request: () => Promise<unknown>, deadlineMs = EXTENSION_TIMEOUT_MS): Promise<string | undefined> {
   return oneAtATime(async () => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const asked = withTimeout(Promise.resolve().then(request), EXTENSION_TIMEOUT_MS, LATE);
-    const silent = new Promise<typeof SILENT>((resolve) => {
-      if (!giveUpWhenSilent) return;
-      timer = setTimeout(() => giveUpWhenSilent() && resolve(SILENT), SILENT_DECRYPT_MS);
-    });
-    try {
-      const result = await Promise.race([asked, silent]);
-      if (result === SILENT) return SILENT;
-      return typeof result === "string" ? result : undefined;
-    } finally {
-      clearTimeout(timer);
-    }
+    const result = await withTimeout(Promise.resolve().then(request), deadlineMs, LATE);
+    return typeof result === "string" ? result : undefined;
   });
 }
 
 async function text(request: () => Promise<unknown>): Promise<string> {
   const result = await ask(request);
-  if (result === undefined || result === SILENT) throw declined();
+  if (result === undefined) throw declined();
   return result;
 }
 
@@ -147,17 +131,23 @@ function timedCipher(
     decrypt: async (pubkey: string, ciphertext: string) => {
       try {
         const started = Date.now();
-        const plaintext = await ask(
-          () => cipher().decrypt(pubkey, ciphertext),
-          () => signer.answersQuickly(),
-        );
-        if (typeof plaintext === "string") {
+        let plaintext: string | undefined;
+        try {
+          plaintext = await ask(() => cipher().decrypt(pubkey, ciphertext), EXTENSION_DECRYPT_MS);
+        } catch (error) {
+          // Silent for EXTENSION_DECRYPT_MS from an extension that had been answering by
+          // itself (no prompt open): Nostash's way of failing. If it opens our own test
+          // message now, the wrap is what failed — remembered, so it costs this once.
+          if (!isRemoteSignerTimeout(error) || !signer.answersQuickly()) throw error;
+          await signer.confirmCipher(nip, cipher);
+          throw new SignerCouldNotDecryptError();
+        }
+        if (plaintext !== undefined) {
           signer.noteAnswer(Date.now() - started);
           return plaintext;
         }
-        // Nostash's "no" or its silence, or Alby's "couldn't open this". A signer that
-        // opens our own test message just now didn't say no to this one: the message
-        // is what failed.
+        // Nostash's "no", or Alby's "couldn't open this". A signer that opens our
+        // own test message just now didn't say no to this one: the message is what failed.
         await signer.confirmCipher(nip, cipher);
         throw new SignerCouldNotDecryptError();
       } catch (error) {

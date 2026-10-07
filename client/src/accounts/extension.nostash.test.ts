@@ -12,7 +12,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateSecretKey, getPublicKey, nip44 } from "nostr-tools";
 
-import { SILENT_DECRYPT_MS, TimedExtensionSigner } from "./extension";
+import { EXTENSION_DECRYPT_MS, TimedExtensionSigner } from "./extension";
 import { classifySignerError } from "./signer-errors";
 
 const sk = generateSecretKey();
@@ -20,7 +20,7 @@ const me = getPublicKey(sk);
 const seal = (text: string) => nip44.encrypt(text, nip44.getConversationKey(sk, me));
 
 /** Nostash's background page: storage is async; the mutex is let go once a request starts. */
-function nostash() {
+function nostash({ slowMs = 0, slow = new Set<string>() } = {}) {
   let sendResponse: (v: unknown) => void = () => {}; // Nostash's shared reply slot
   const storage = () => new Promise((r) => setTimeout(r, 1)); // browser.storage.local.get
   const background = async (
@@ -32,6 +32,7 @@ function nostash() {
     sendResponse = reply; // complete(): `sendResponse = validations[payload]`
     const run = async () => {
       await storage(); // getPrivKey
+      if (payload.cipherText && slow.has(payload.cipherText)) await new Promise((r) => setTimeout(r, slowMs));
       const key = nip44.getConversationKey(sk, payload.pubKey);
       return kind === "nip44.decrypt"
         ? nip44.decrypt(payload.cipherText!, key)
@@ -83,17 +84,16 @@ afterEach(() => {
 });
 
 describe("Nostash: a decrypt it never answers", () => {
-  it("is called unreadable after a few seconds of silence, and the next message opens at once", async () => {
+  it("is called unreadable once it outlasts the decrypt deadline, and the next message opens", async () => {
     nostash();
     const s = signer();
     expect(await s.nip44!.decrypt(me, seal("hello"))).toBe("hello"); // answered in a blink
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const started = Date.now();
     const stuck = s.nip44!.decrypt(me, "AnotAValidCiphertext").catch((e: unknown) => e);
-    await vi.advanceTimersByTimeAsync(SILENT_DECRYPT_MS + 1_000);
-    const error = await stuck;
-    expect(classifySignerError(error)).toBe("bad-payload");
-    expect(Date.now() - started).toBeLessThan(15_000); // not the 90s timeout
+    await vi.advanceTimersByTimeAsync(EXTENSION_DECRYPT_MS + 1_000);
+    expect(classifySignerError(await stuck)).toBe("bad-payload");
+    expect(Date.now() - started).toBeLessThan(60_000); // not the 90s extension timeout
     expect(await s.nip44!.decrypt(me, seal("next"))).toBe("next");
   });
 
@@ -101,10 +101,24 @@ describe("Nostash: a decrypt it never answers", () => {
     nostash();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const s = signer();
-    let settled = false;
-    void s.nip44!.decrypt(me, "AnotAValidCiphertext").catch(() => (settled = true));
-    await vi.advanceTimersByTimeAsync(SILENT_DECRYPT_MS * 3);
-    expect(settled).toBe(false);
+    let error: unknown;
+    void s.nip44!.decrypt(me, "AnotAValidCiphertext").catch((e: unknown) => (error = e));
+    await vi.advanceTimersByTimeAsync(EXTENSION_DECRYPT_MS + 1_000);
+    expect(classifySignerError(error)).toBe("timeout"); // not blamed on the message
+  });
+
+  it("waits out a slow answer instead of letting the next request cross it", async () => {
+    const slowOne = seal("slow");
+    nostash({ slowMs: 12_000, slow: new Set([slowOne]) });
+    vi.stubGlobal("navigator", { locks: lockManager() });
+    const s = signer();
+    expect(await s.nip44!.decrypt(me, seal("warm"))).toBe("warm");
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const a = s.nip44!.decrypt(me, slowOne);
+    const b = s.nip44!.decrypt(me, seal("quick"));
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(await a).toBe("slow");
+    expect(await b).toBe("quick");
   });
 });
 

@@ -129,6 +129,15 @@ export interface DmEngineDeps {
   onResume?: (callback: () => void) => () => void;
   /** How long one wrap may take to open before its slot is taken back (default 45s). */
   decryptTimeoutMs?: number;
+  /**
+   * Give up early on a request the signer seems to have dropped (it answered a later
+   * one, or has been answering fast and this one sat a whole check). For NIP-46, where
+   * Amethyst drops requests past its rate limit. Never for an extension: its requests
+   * run one at a time behind the one still out, so asking again only queues behind it,
+   * and the extension's own verdict on the wrap (accounts/extension) would land on a
+   * request already abandoned — the wrap stalled the inbox on every visit.
+   */
+  dropDetection?: boolean;
   /** Milliseconds, for timing how fast the signer answers (default Date.now). */
   clockMs?: () => number;
 }
@@ -1050,7 +1059,7 @@ export class DmEngine {
         const step = Math.min(ANSWERING_TIMEOUT_MS, limit - waited);
         timer = set(() => {
           waited += step;
-          if (this.answeredUpTo > seq || this.lastOpenMs < FAST_OPEN_MS) giveUp(true);
+          if (this.deps.dropDetection && (this.answeredUpTo > seq || this.lastOpenMs < FAST_OPEN_MS)) giveUp(true);
           else if (waited >= limit) giveUp(false);
           else arm();
         }, step);
