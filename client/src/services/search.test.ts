@@ -2810,3 +2810,44 @@ describe("bandKindsForTab", () => {
     expect(snap).toMatchObject({ hits: [], eose: true });
   });
 });
+
+// All's question is asked by index.html while the bundle loads; its first page follows
+// that request instead of asking the relay the same question again (lib/headStart).
+describe("a first page already on its way", () => {
+  it("is followed in place of a REQ — its hits and its end are the page's", async () => {
+    const calls = multiReq();
+    const snaps: SearchSnapshot[] = [];
+    let observer: { next: (m: { type: string; event?: NostrEvent }) => void } | null = null;
+    searchStream(
+      "bitcoin",
+      { tab: "all", pov: "nosfabrica", firstPage: (o) => ((observer = o), { unsubscribe: () => {} }) },
+      (s) => snaps.push(s),
+    );
+    await tick();
+    observer!.next({ type: "EVENT", event: ev("h1", 1) });
+    observer!.next({ type: "EOSE" });
+    await tick();
+    expect(calls.filter((c) => !(c.filter.kinds as number[] | undefined)?.includes(0))).toHaveLength(0);
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["h1"]);
+    expect(snaps.at(-1)!.eose).toBe(true);
+  });
+
+  it("asks the relay after all when it ends without an answer", async () => {
+    const calls = multiReq();
+    let observer: { error: (e: unknown) => void } | null = null;
+    searchStream(
+      "bitcoin",
+      { tab: "all", pov: "nosfabrica", firstPage: (o) => ((observer = o), { unsubscribe: () => {} }) },
+      () => {},
+    );
+    await tick();
+    expect(calls).toHaveLength(0);
+    observer!.error(new Error("closed"));
+    await tick();
+    expect(calls).toHaveLength(1);
+    const asked = calls[0].filter as unknown;
+    const filter = (Array.isArray(asked) ? asked[0] : asked) as { search?: string; kinds?: number[] };
+    expect(filter.search).toMatch(/^bitcoin observer:/);
+    expect(filter.kinds).toBeUndefined();
+  });
+});

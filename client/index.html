@@ -252,8 +252,11 @@
          question while the bundle is still downloading and parks the answer on
          window.__headStart for the app to adopt (lib/headStart.ts). It never
          renders anything and never retries: if any of it fails the app behaves
-         exactly as it did before. The section filters mirror ComposedResults —
-         headStart.test.ts holds them to it. -->
+         exactly as it did before. The section filters mirror ComposedResults,
+         and All's one filter mirrors its search — headStart.test.ts holds them
+         to it. All's answer is not taken and closed but FOLLOWED: a best-match
+         page takes the relay seconds, longer than the bundle, and the app
+         carries on with this request rather than asking the question again. -->
     <script>
       (function () {
         try {
@@ -264,9 +267,17 @@
           // sort: …) changes what some sections ask for, and a head start that
           // asked a different question is worse than none.
           // An unsubstituted "__VITE_…__" placeholder is not a relay (runtimeEnv.ts).
-          // Only Top (the default) is composed; `everything` is its old name. All never is.
-          if (!q || !/^wss?:\/\//.test(url || "") || (tab && tab !== "top" && tab !== "everything") || /[:#]/.test(q))
-            return;
+          // Top (the default; `everything` is its old name) and All. The verticals are not.
+          var kind = !tab || tab === "top" || tab === "everything" ? "top" : tab === "all" ? "all" : null;
+          if (!q || !kind || !/^wss?:\/\//.test(url || "") || /[:#]/.test(q)) return;
+          // All's answer is a hundred results of any kind — long-form included — and on a
+          // thin link it competes with the bundle for the same bandwidth: measured on Fast
+          // 3G, the page painted ~4s LATER with it than without. Only on a normal link,
+          // judged as lib/connection judges it (save-data, 2g, 3g are slow; unknown is not).
+          if (kind === "all") {
+            var net = navigator.connection;
+            if (net && (net.saveData === true || /(^|-)2g$|^3g$/.test(net.effectiveType || ""))) return;
+          }
           // Signed in: the app reads through that reader's own Perspective, which
           // this cannot ask for, so it would collect an answer nobody adopts
           // (accounts/persist.ts clears this key on sign-out).
@@ -274,7 +285,25 @@
           var fresh = q + " sort:recent";
           // `complete` means the relay said EOSE: one REQ, one EOSE, so every
           // filter finished. A CLOSED is an ending, not a completion.
-          var head = { query: q, events: [], eose: false, complete: false, socket: null };
+          // `failed`: it ended without an answer — the app asks for itself.
+          // `listeners`: the app following All's answer as it arrives.
+          var head = {
+            query: q,
+            tab: kind,
+            events: [],
+            eose: false,
+            complete: false,
+            failed: false,
+            listeners: [],
+            socket: null,
+          };
+          var tell = function (m) {
+            for (var i = 0; i < head.listeners.length; i++) {
+              try {
+                head.listeners[i](m);
+              } catch (e) {}
+            }
+          };
           window.__headStart = head;
           var socket = new WebSocket(url);
           head.socket = socket;
@@ -312,23 +341,32 @@
           socket.onmessage = function (e) {
             try {
               var m = JSON.parse(e.data);
+              if (m[1] !== "head") return;
               if (m[0] === "EVENT") head.events.push(m[2]);
               else if (m[0] === "EOSE") {
                 head.eose = true;
                 head.complete = true;
-              } else if (m[0] === "CLOSED") head.eose = true;
+              } else if (m[0] === "CLOSED") {
+                head.eose = true;
+                head.failed = !head.complete;
+              } else return;
+              tell(m);
             } catch (err) {
               /* not a frame we know */
             }
           };
-          socket.onerror = function () {
+          socket.onerror = socket.onclose = function () {
+            if (head.complete) return;
             head.eose = true;
+            head.failed = true;
+            tell(["CLOSED", "head", "socket closed"]);
           };
           Promise.all([open, observer]).then(function (both) {
             // No Perspective, no head start: an unranked read would answer a
             // different question from the one the app is about to ask.
             if (!both[1]) {
               head.eose = true;
+              head.failed = true;
               try {
                 socket.close();
               } catch (e) {}
@@ -339,10 +377,16 @@
             // it is about to ask the same question itself.
             if (socket.readyState !== 1) {
               head.eose = true;
+              head.failed = true;
               return;
             }
             var perspective = " observer:" + both[1];
             try {
+              // All: the one kind-less, best-match search the tab asks (services/search DEFAULT_LIMIT).
+              if (kind === "all") {
+                socket.send(JSON.stringify(["REQ", "head", { search: q + perspective, limit: 100 }]));
+                return;
+              }
               socket.send(
                 JSON.stringify([
                   "REQ",
@@ -359,6 +403,7 @@
               );
             } catch (e) {
               head.eose = true;
+              head.failed = true;
             }
           });
           // Nobody came for it: let the socket go rather than hold it open.

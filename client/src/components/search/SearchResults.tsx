@@ -88,6 +88,7 @@ import {
 import { ThingCard } from "@/components/search/thingCards";
 import { SerpRow } from "@/components/search/SerpRow";
 import { AllResults } from "@/components/search/AllResults";
+import { followHeadStart } from "@/lib/headStart";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
 import {
@@ -924,10 +925,21 @@ export function SearchResults({
       ? { hits: remembered.hits, eose: false, timeMs: null, error: null }
       : null;
     setSnapshot(latest);
-    const handle = searchStream(effectiveQuery, { tab, pov, userPubkey, limit, seed: remembered?.hits }, (snap) => {
-      latest = snap;
-      setSnapshot(snap);
-    });
+    // All's question was asked while the bundle loaded (index.html, lib/headStart): its
+    // first page follows that request rather than asking again — for the house's
+    // Perspective, at the default depth, on a first visit to this search only.
+    const firstPage =
+      tab === "all" && !remembered && !userPubkey && pov === "nosfabrica" && limit === undefined
+        ? (followHeadStart(effectiveQuery) ?? undefined)
+        : undefined;
+    const handle = searchStream(
+      effectiveQuery,
+      { tab, pov, userPubkey, limit, seed: remembered?.hits, firstPage },
+      (snap) => {
+        latest = snap;
+        setSnapshot(snap);
+      },
+    );
     streamRef.current = handle;
     let pending: number | ReturnType<typeof setTimeout> | null = null;
     if (restoreScroll != null && restoreScroll > 0) {

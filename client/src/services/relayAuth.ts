@@ -24,7 +24,9 @@
  * another account, signed out — is dropped from the pool: NIP-42 has no
  * sign-out, so a fresh, anonymous connection is the only way back, and the next
  * read opens one. Relays that challenge without refusing anything are left
- * alone: no prompt, and no pubkey handed to a relay that did not need it.
+ * alone: no prompt, and no pubkey handed to a relay that did not need it —
+ * except our own (`upFront`: the search relay), answered the moment it
+ * challenges, so its first read never waits on a refusal and a login.
  *
  * Nobody asked for this login, so it never raises our Unlock modal: a key that
  * can't sign silently waits until the reader is in Messages
@@ -143,6 +145,7 @@ export function startRelayAuth<A extends ActiveAccount>({
   sign = (account, draft) => account.signEvent(draft) as Promise<NostrEvent>,
   isRejection = () => true,
   signTimeoutMs = SIGN_TIMEOUT_MS,
+  upFront = [],
 }: {
   pool: AuthPool;
   active$: Observable<A | undefined>;
@@ -154,7 +157,14 @@ export function startRelayAuth<A extends ActiveAccount>({
   isRejection?: (error: unknown) => boolean;
   /** How long the signer gets to answer a login (SIGN_TIMEOUT_MS). */
   signTimeoutMs?: number;
+  /**
+   * Relays answered as soon as they challenge, refusal or not: our own, which are
+   * owed the reader's key and whose first read should not wait on a refusal.
+   * Still only with a signer that signs without asking (or in Messages).
+   */
+  upFront?: string[];
 }): () => void {
+  const eager = new Set(upFront.map((url) => normalizeURL(url)));
   // Who answers a challenge right now: the active account, whoever it is.
   const signer$: Observable<A | undefined> = active$.pipe(
     distinctUntilChanged(),
@@ -206,8 +216,9 @@ export function startRelayAuth<A extends ActiveAccount>({
     const evaluate = ([challenge, read, publish, account, interactive]: Inputs) => {
       const signedInAs = relay.authenticatedAs;
       if (signedInAs && signedInAs !== account?.pubkey) return drop(relay);
-      // Only a relay that refused something: no prompt, and no pubkey, for one that didn't need it.
-      if (!challenge || !account || signedInAs || !(read || publish)) return;
+      // Only a relay that refused something — or one of ours, answered up front: no prompt,
+      // and no pubkey, for anyone else's that didn't need it.
+      if (!challenge || !account || signedInAs || !(read || publish || eager.has(url))) return;
       // Refused, or failed: waits for the reader (or for Messages to open), whatever the challenge.
       if (problemOf(account.pubkey, url)) return;
       const key = `${account.pubkey} ${challenge}`;

@@ -128,6 +128,42 @@ describe("startRelayAuth", () => {
     expect(polite.authenticate).not.toHaveBeenCalled();
   });
 
+  // Our own search relay: answered the moment it challenges, so its first read never
+  // waits on a refusal and a login — and still never for a signed-out reader.
+  it("answers a relay named up front as soon as it challenges, refusal or not", async () => {
+    const pool = fakePool();
+    const ours = fakeRelay("wss://search.example/", { gated: false });
+    const polite = fakeRelay("wss://polite.example/", { gated: false });
+    pool.relays.set(ours.url, ours);
+    pool.relays.set(polite.url, polite);
+    const active$ = new BehaviorSubject<Account | undefined>(undefined);
+    startRelayAuth({ pool: pool as never, active$, upFront: ["wss://search.example"] });
+    ours.challenge$.next("c1");
+    polite.challenge$.next("c1");
+    await tick();
+    expect(ours.authenticate).not.toHaveBeenCalled();
+    active$.next(account);
+    await tick();
+    expect(ours.authenticate).toHaveBeenCalledTimes(1);
+    expect(ours.authenticatedAs).toBe(PK);
+    expect(polite.authenticate).not.toHaveBeenCalled();
+  });
+
+  it("asks nobody to unlock for an up-front login: a signer that would prompt waits", async () => {
+    const pool = fakePool();
+    const ours = fakeRelay("wss://search.example/", { gated: false });
+    pool.relays.set(ours.url, ours);
+    startRelayAuth({
+      pool: pool as never,
+      active$: new BehaviorSubject<Account | undefined>(account),
+      upFront: ["wss://search.example/"],
+      canSignQuietly: async () => false,
+    });
+    ours.challenge$.next("c1");
+    await tick();
+    expect(ours.authenticate).not.toHaveBeenCalled();
+  });
+
   it("signs the login through the given signer (signAs, in the app)", async () => {
     const sign = vi.fn(async () => signed);
     const { gated } = setup({ sign });

@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { NostrEvent } from "nostr-tools";
-import { takeHeadStart, __resetHeadStart } from "./headStart";
-import { bandKindsForTab } from "@/services/search";
+import { followHeadStart, takeHeadStart, __resetHeadStart, type PageMessage } from "./headStart";
+import { DEFAULT_LIMIT, bandKindsForTab } from "@/services/search";
 import { TOP_SECTIONS } from "@/components/search/ComposedResults";
 
 const added: NostrEvent[] = [];
@@ -66,6 +66,82 @@ describe("takeHeadStart", () => {
   });
 });
 
+/** All's head start, as the inline script parks it: still listening, or ended. */
+function parkAll(
+  query: string,
+  events: NostrEvent[],
+  state: { eose?: boolean; complete?: boolean; failed?: boolean } = {},
+) {
+  const socket = { close: vi.fn() };
+  const head = {
+    query,
+    tab: "all",
+    events,
+    eose: !!state.eose,
+    complete: !!state.complete,
+    failed: !!state.failed,
+    listeners: [] as ((frame: unknown[]) => void)[],
+    socket,
+  };
+  (window as unknown as { __headStart?: unknown }).__headStart = head;
+  return { head, socket };
+}
+const follow = (query: string) => {
+  const got: PageMessage[] = [];
+  const errors: unknown[] = [];
+  const page = followHeadStart(query);
+  const sub = page?.({ next: (m) => got.push(m), error: (e) => errors.push(e) });
+  return { page, sub, got, errors };
+};
+
+// All's first page takes the relay seconds — longer than the bundle — so the app follows
+// the head start's request rather than closing it and asking the same question again.
+describe("followHeadStart", () => {
+  it("hands over what came, then what comes, then the end — and lets the socket go", () => {
+    const { head, socket } = parkAll("bitcoin", [ev("a", 1)]);
+    const { got } = follow("bitcoin");
+    expect(got.map((m) => m.event?.id ?? m.type)).toEqual(["a"]);
+    head.listeners.forEach((l) => l(["EVENT", "head", ev("b", 1)]));
+    expect(socket.close).not.toHaveBeenCalled();
+    head.listeners.forEach((l) => l(["EOSE", "head"]));
+    expect(got.map((m) => m.event?.id ?? m.type)).toEqual(["a", "b", "EOSE"]);
+    expect(socket.close).toHaveBeenCalled();
+    expect(head.listeners).toHaveLength(0);
+  });
+
+  it("replays a finished answer at once", () => {
+    parkAll("bitcoin", [ev("a", 1)], { eose: true, complete: true });
+    expect(follow("bitcoin").got.map((m) => m.event?.id ?? m.type)).toEqual(["a", "EOSE"]);
+  });
+
+  it("errors when the head start ends without an answer — the caller asks the relay", () => {
+    const { head } = parkAll("bitcoin", []);
+    const { errors } = follow("bitcoin");
+    head.listeners.forEach((l) => l(["CLOSED", "head", "rate-limited"]));
+    expect(errors).toHaveLength(1);
+  });
+
+  it("is nothing for a failed one, a different question, or Top's", () => {
+    const failed = parkAll("bitcoin", [], { eose: true, failed: true });
+    expect(followHeadStart("bitcoin")).toBeNull();
+    expect(failed.socket.close).toHaveBeenCalled();
+    __resetHeadStart();
+    parkAll("bitcoin", []);
+    expect(followHeadStart("nostr")).toBeNull();
+    __resetHeadStart();
+    park("bitcoin", [ev("a", 1)]);
+    expect(followHeadStart("bitcoin")).toBeNull();
+  });
+
+  it("stops listening when the page is left, and closes the socket", () => {
+    const { head, socket } = parkAll("bitcoin", []);
+    const { sub } = follow("bitcoin");
+    sub!.unsubscribe();
+    expect(head.listeners).toHaveLength(0);
+    expect(socket.close).toHaveBeenCalled();
+  });
+});
+
 describe("the inline script in index.html", () => {
   const html = readFileSync(join(__dirname, "../../index.html"), "utf8");
   const asked = [...html.matchAll(/\{ kinds: \[([\d, ]+)\], search: (q|fresh) \+ perspective, limit: (\d+) \}/g)].map(
@@ -85,6 +161,15 @@ describe("the inline script in index.html", () => {
         limit: TOP_SECTIONS[tab].limit,
       })),
     );
+  });
+
+  it("asks All's one search exactly as the tab asks it: no kinds, best match, a page deep", () => {
+    expect(html).toContain(`["REQ", "head", { search: q + perspective, limit: ${DEFAULT_LIMIT} }]`);
+  });
+
+  it("leaves All's head start out on a slow link, judged as lib/connection judges one", () => {
+    // A hundred results of any kind compete with the bundle on a thin link (Fast 3G: ~4s later).
+    expect(html).toMatch(/net\.saveData === true \|\| \/\(\^\|-\)2g\$\|\^3g\$\/\.test\(net\.effectiveType/);
   });
 
   it("keeps the house observer where services/trustSource looks for it", () => {

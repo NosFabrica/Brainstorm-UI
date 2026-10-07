@@ -32,6 +32,7 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
 import { RECIPE_TAGS } from "@/lib/sourceApp";
 import { isBlankEvent } from "@/lib/blankEvent";
+import type { FirstPage } from "@/lib/headStart";
 
 export type SearchTab =
   | "top"
@@ -285,9 +286,16 @@ export interface SearchParams {
    * (bandKindsForTab), still narrowed by a typed `kind:`.
    */
   band?: boolean;
+  /**
+   * The first page's answer already on its way — All's head start (lib/headStart),
+   * asked while the bundle loaded. Followed in place of asking; should it fail,
+   * the relay is asked after all. Further pages ask as usual.
+   */
+  firstPage?: FirstPage;
 }
 
-const DEFAULT_LIMIT = 100;
+/** A page's size — index.html's head start for All asks the same (headStart.test holds it). */
+export const DEFAULT_LIMIT = 100;
 /** How long a page's unknown authors wait to be asked together, at most (EOSE asks at once): a streaming list's… */
 const AUTHOR_BATCH_MS = 1000;
 /** …and a best-match page's, which ends (EOSE) soon after its first hits anyway. */
@@ -612,6 +620,7 @@ export function searchStream(
     // repeats the whole ranking so far (probed 2026-09-09: the top of the
     // ranking is stable as the limit grows).
     const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
+    let headStart = params.firstPage;
     const pageSubs: { unsubscribe: () => void }[] = [];
 
     // A union whose filters ask pairwise-disjoint kinds (Reviews: the ratings and relay
@@ -682,7 +691,27 @@ export function searchStream(
       const open = (o: {
         error: (err: unknown) => void;
         next: (msg: { type: string; event?: NostrEvent; reason?: string }) => void;
-      }) => (canGroup ? joinGroupReq(relay, params.group!, page[0], o) : relay.req(page).subscribe(o));
+      }) => {
+        const ask = () => (canGroup ? joinGroupReq(relay, params.group!, page[0], o) : relay.req(page).subscribe(o));
+        // The first page only, once: a head start already asked it.
+        const follow = headStart;
+        headStart = undefined;
+        if (!follow) return ask();
+        let asked: { unsubscribe: () => void } | null = null;
+        const followed = follow({
+          next: (msg) => o.next(msg),
+          // It ended without an answer: ask the relay after all.
+          error: () => {
+            asked ??= cancelled ? null : ask();
+          },
+        });
+        return {
+          unsubscribe: () => {
+            followed.unsubscribe();
+            asked?.unsubscribe();
+          },
+        };
+      };
       const sub = open({
         error: (err: unknown) => {
           clearTimeout(deadline);
