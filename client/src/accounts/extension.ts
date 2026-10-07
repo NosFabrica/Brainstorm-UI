@@ -70,40 +70,95 @@ const answered = <T>(value: T): NonNullable<T> => {
  * get each other's answers — measured on Nostash 2.1 in Safari: eight decrypts at
  * once came back shifted onto the wrong requests, some never at all. The Account
  * queue already keeps one tab to one at a time; a Web Lock does it across tabs. The
- * lock is held only while we wait: a request given up on lets it go.
+ * lock is held while we wait for the answer, and let go at the request's deadline —
+ * the extension may still answer after that (a prompt approved late); the decrypt
+ * path asks again before it blames a message, which contains that.
+ *
+ * The wait for the lock is capped too: a tab holding it with its timers frozen (iOS
+ * suspends a backgrounded Safari tab) would otherwise block sign-in, sending and
+ * opening messages in every other tab for as long as it stayed frozen.
  */
-function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
+async function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
   const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
   if (!locks) return work();
-  return locks.request(EXTENSION_LOCK, () => work()) as Promise<T>;
+  const waiting = new AbortController();
+  const giveUp = setTimeout(() => waiting.abort(), LOCK_WAIT_MS);
+  let granted = false;
+  try {
+    return (await locks.request(EXTENSION_LOCK, { signal: waiting.signal }, () => {
+      granted = true;
+      clearTimeout(giveUp);
+      return work();
+    })) as T;
+  } catch (error) {
+    if (!granted && waiting.signal.aborted) throw new ExtensionBusyError();
+    throw error;
+  } finally {
+    clearTimeout(giveUp);
+  }
 }
 export const EXTENSION_LOCK = "brainstorm-nip07";
+/** Longer than any one holder needs (a 90s prompt, plus a check): past this, the holder is stuck. */
+export const LOCK_WAIT_MS = 100_000;
+
+/** Never reached the extension: another tab held it past LOCK_WAIT_MS. Worth asking again. */
+export class ExtensionBusyError extends Error {
+  constructor() {
+    super("Your signer extension is busy in another Brainstorm tab.");
+    this.name = "ExtensionBusyError";
+  }
+}
 
 /**
  * How long a decrypt may go unanswered before we look into it. Nostash never answers
  * a decrypt it can't perform (spam, a corrupt wrap, another key's) — its error goes
  * nowhere — so a wrap like that held the account's queue for EXTENSION_TIMEOUT_MS on
  * every visit. Its answers otherwise come back in well under a second; this is long
- * past any slow one. The request is never let go sooner: Nostash keeps one reply slot
- * for every request, so a late answer to a request we stopped waiting for would land
- * on the next one — measured, it stored messages under the wrong gift wraps.
+ * past any slow one. Not shorter: Nostash keeps one reply slot for every request, so
+ * a late answer to a request we stopped waiting for lands on the next one — with a
+ * 5s cut, measured, it stored messages under the wrong gift wraps.
  */
 export const EXTENSION_DECRYPT_MS = 30_000;
+/**
+ * The second ask, once the extension has just answered our test message: it is
+ * awake and answering, so a wrap it can open comes back in a blink. A wrap is
+ * blamed only after this second silence — one lost request (iOS unloading the
+ * extension mid-request, a prompt read for a long time) never costs a message.
+ */
+export const EXTENSION_RETRY_DECRYPT_MS = 10_000;
+/**
+ * The engine's deadline for one wrap from an extension: everything above, in the
+ * worst case — the wait for the lock, both asks and the checks between them. The
+ * signer's own deadlines end every request; this only frees a slot they somehow didn't.
+ */
+export const EXTENSION_WRAP_DEADLINE_MS = LOCK_WAIT_MS + EXTENSION_DECRYPT_MS + EXTENSION_RETRY_DECRYPT_MS + 4 * 10_000;
 /** An answer this fast had no person in the way: no approval prompt is open. */
 const QUICK_ANSWER_MS = 2_000;
 /** How long a quick answer vouches that prompts are already allowed. */
 const STILL_QUICK_MS = 120_000;
 
-/** A cipher's answer: a string, or `undefined` for no answer — `""` is a real plaintext. */
-async function ask(request: () => Promise<unknown>, deadlineMs = EXTENSION_TIMEOUT_MS): Promise<string | undefined> {
+/**
+ * A cipher's answer: a string, or `undefined` for no answer — `""` is a real plaintext.
+ * `onAnswered` hears how long the extension itself took — from when it was asked, not
+ * from when we started waiting for the lock: an answer that waited 20s behind another
+ * tab still came back in a blink, and counting the wait hid that.
+ */
+async function ask(
+  request: () => Promise<unknown>,
+  deadlineMs = EXTENSION_TIMEOUT_MS,
+  onAnswered?: (tookMs: number) => void,
+): Promise<string | undefined> {
   return oneAtATime(async () => {
+    const asked = Date.now();
     const result = await withTimeout(Promise.resolve().then(request), deadlineMs, LATE);
-    return typeof result === "string" ? result : undefined;
+    if (typeof result !== "string") return undefined;
+    onAnswered?.(Date.now() - asked);
+    return result;
   });
 }
 
-async function text(request: () => Promise<unknown>): Promise<string> {
-  const result = await ask(request);
+async function text(request: () => Promise<unknown>, onAnswered?: (tookMs: number) => void): Promise<string> {
+  const result = await ask(request, EXTENSION_TIMEOUT_MS, onAnswered);
   if (result === undefined) throw declined();
   return result;
 }
@@ -130,22 +185,25 @@ function timedCipher(
     encrypt: (pubkey: string, plaintext: string) => text(() => cipher().encrypt(pubkey, plaintext)),
     decrypt: async (pubkey: string, ciphertext: string) => {
       try {
-        const started = Date.now();
+        const noteAnswer = (tookMs: number) => signer.noteAnswer(tookMs);
         let plaintext: string | undefined;
         try {
-          plaintext = await ask(() => cipher().decrypt(pubkey, ciphertext), EXTENSION_DECRYPT_MS);
+          plaintext = await ask(() => cipher().decrypt(pubkey, ciphertext), EXTENSION_DECRYPT_MS, noteAnswer);
         } catch (error) {
           // Silent for EXTENSION_DECRYPT_MS from an extension that had been answering by
-          // itself (no prompt open): Nostash's way of failing. If it opens our own test
-          // message now, the wrap is what failed — remembered, so it costs this once.
+          // itself (no prompt open): Nostash's way of failing — or one request lost.
+          // Awake (it opens our own test message) and silent again on a second ask:
+          // the wrap is what failed, remembered so it costs this once.
           if (!isRemoteSignerTimeout(error) || !signer.answersQuickly()) throw error;
           await signer.confirmCipher(nip, cipher);
-          throw new SignerCouldNotDecryptError();
+          try {
+            plaintext = await ask(() => cipher().decrypt(pubkey, ciphertext), EXTENSION_RETRY_DECRYPT_MS, noteAnswer);
+          } catch (again) {
+            if (!isRemoteSignerTimeout(again)) throw again;
+            throw new SignerCouldNotDecryptError();
+          }
         }
-        if (plaintext !== undefined) {
-          signer.noteAnswer(Date.now() - started);
-          return plaintext;
-        }
+        if (plaintext !== undefined) return plaintext;
         // Nostash's "no", or Alby's "couldn't open this". A signer that opens our
         // own test message just now didn't say no to this one: the message is what failed.
         await signer.confirmCipher(nip, cipher);
@@ -237,7 +295,12 @@ export class TimedExtensionSigner extends ExtensionSigner {
       const self = this.owner ?? (await this.getPublicKey());
       const probe = `brainstorm-${Date.now()}`;
       const sealed = await text(() => cipher().encrypt(self, probe));
-      const opened = await text(() => cipher().decrypt(self, sealed));
+      // Answered by itself, quickly: it still opens decrypts without a prompt — which keeps
+      // a long run of unreadable wraps (each one silence, then this) from looking like one.
+      const opened = await text(
+        () => cipher().decrypt(self, sealed),
+        (tookMs) => this.noteAnswer(tookMs),
+      );
       if (opened !== probe) throw new Error("Your signer extension opened a test message wrongly.");
     });
   }

@@ -7,6 +7,7 @@ import type { NostrEvent } from "nostr-tools";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "@/accounts/local-account";
 import { RemoteAccount } from "@/accounts/remote-signer";
+import { BrainstormExtensionAccount, EXTENSION_WRAP_DEADLINE_MS } from "@/accounts/extension";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { classifySignerError, messageOf, SignerDeclinedError } from "@/accounts/signer-errors";
 import { canSignSilently, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
@@ -82,6 +83,22 @@ function openerFor(account: BrainstormAccount) {
   return account.nip44;
 }
 
+/**
+ * How the engine opens wraps for this account's kind of signer.
+ * - NIP-46: several at once, and a request the signer dropped is given up early.
+ * - An extension: one at a time — its requests queue one at a time anyway, and a
+ *   second wrap waiting behind a 30s silence ran out its deadline before it was even
+ *   asked, showing "unreachable" and losing the extension's verdict on the first.
+ *   Its deadline covers the signer's own worst case, so the signer always decides
+ *   first; never given up early.
+ */
+export function engineOptionsFor(account: BrainstormAccount) {
+  if (account instanceof RemoteAccount) return { concurrency: REMOTE_DECRYPT_CONCURRENCY, dropDetection: true };
+  if (account instanceof BrainstormExtensionAccount)
+    return { concurrency: 1, dropDetection: false, decryptTimeoutMs: EXTENSION_WRAP_DEADLINE_MS };
+  return { dropDetection: false };
+}
+
 export function dmAccountFor(account: BrainstormAccount): DmAccount {
   const nip44 = account.nip44;
   const opener = openerFor(account);
@@ -121,8 +138,7 @@ function startFor(account: BrainstormAccount | undefined) {
     // can open it unasked; an extension or bunker would prompt, so it waits for Messages.
     if (account instanceof LocalAccount) void hydrateDmPrefs(account.pubkey);
     current = new DmEngine(dmAccountFor(account), {
-      concurrency: account instanceof RemoteAccount ? REMOTE_DECRYPT_CONCURRENCY : undefined,
-      dropDetection: account instanceof RemoteAccount,
+      ...engineOptionsFor(account),
       transport: poolTransport,
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
       cache: dmCacheBackend(),
