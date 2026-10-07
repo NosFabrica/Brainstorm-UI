@@ -96,7 +96,9 @@ describe("summarizeResult — any kind as the All tab's row", () => {
   });
 
   it("an opaque d is never a title; a readable one is", () => {
-    expect(summarizeResult(ev(30001, [["d", "a3f1c2d4e5f60718"]])).title).toBeNull();
+    expect(summarizeResult(ev(31234, [["d", "a3f1c2d4e5f60718"]])).title).toBeNull();
+    expect(summarizeResult(ev(31234, [["d", "reading-list"]])).title).toBe("reading-list");
+    // A list keeps its own name, however empty.
     expect(summarizeResult(ev(30001, [["d", "reading-list"]])).title).toBe("reading-list");
   });
 

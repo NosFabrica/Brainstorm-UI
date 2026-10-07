@@ -87,7 +87,7 @@ import {
 } from "@/components/search/cards";
 import { ThingCard } from "@/components/search/thingCards";
 import { SerpRow } from "@/components/search/SerpRow";
-import { AllResultRow } from "@/components/search/AllResultRow";
+import { AllResults } from "@/components/search/AllResults";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
 import {
@@ -2372,17 +2372,12 @@ export function SearchResults({
                 )}
                 {tab === "all" ? (
                   // Every kind, in the relay's order, one row shape: the pill says which is which.
-                  <div className="space-y-2.5" data-testid="container-search-results">
-                    {displayHits.map(({ hit }) => (
-                      <AllResultRow
-                        key={hit.event.id}
-                        event={hit.event}
-                        author={hit.author}
-                        score={scoreOf(hit.event.pubkey)}
-                        query={query}
-                      />
-                    ))}
-                  </div>
+                  <AllResults
+                    hits={displayHits.map((d) => d.hit)}
+                    settled={!!snapshot?.eose}
+                    scoreOf={scoreOf}
+                    query={query}
+                  />
                 ) : tab === "music" ? (
                   <MusicResults
                     hits={displayHits.map((d) => d.hit)}
