@@ -31,6 +31,7 @@ import {
   SafeImg,
   useAuthors,
 } from "./shared";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 const dOf = (e: PageEvent) => e.tags.find((t) => t[0] === "d")?.[1] ?? "";
 const addressOf = (e: PageEvent) => `${e.kind}:${e.pubkey}:${dOf(e)}`;
@@ -72,7 +73,9 @@ export function CalendarHero({ thing, detail }: { thing: Thing; detail: Detail<"
         </span>
         <div className="min-w-0 flex-1">
           <Kicker icon={CalendarDays}>Calendar</Kicker>
-          <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
+          <PageTitle testId="thing-page-title">
+            <EmojiText text={thing.title} tags={thing.emoji} />
+          </PageTitle>
           {detail.location && (
             <p className="mt-1 flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400">
               <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> {detail.location}
@@ -81,7 +84,9 @@ export function CalendarHero({ thing, detail }: { thing: Thing; detail: Detail<"
         </div>
         <SafeImg src={thing.image} className="h-20 w-20 shrink-0 rounded-2xl object-cover" fallback={null} />
       </div>
-      {thing.description && <ReadingText text={thing.description} className="mt-4" testId="thing-page-description" />}
+      {thing.description && (
+        <ReadingText text={thing.description} tags={thing.emoji} className="mt-4" testId="thing-page-description" />
+      )}
       <Topics topics={detail.topics} />
     </div>
   );
@@ -200,8 +205,12 @@ export function BadgeHero({ thing }: { thing: Thing }) {
       </span>
       <div className="mt-4 min-w-0 flex-1 sm:ml-5 sm:mt-2">
         <Kicker icon={Award}>Badge</Kicker>
-        <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
-        {thing.description && <ReadingText text={thing.description} className="mt-3" testId="thing-page-description" />}
+        <PageTitle testId="thing-page-title">
+          <EmojiText text={thing.title} tags={thing.emoji} />
+        </PageTitle>
+        {thing.description && (
+          <ReadingText text={thing.description} tags={thing.emoji} className="mt-3" testId="thing-page-description" />
+        )}
       </div>
     </div>
   );
@@ -280,8 +289,12 @@ export function EmojiPackHero({ thing, detail }: { thing: Thing; detail: Detail<
   return (
     <div data-testid="thing-page-emoji">
       <Kicker icon={Smile}>Emoji pack · {detail.emoji.length}</Kicker>
-      <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
-      {thing.description && <ReadingText text={thing.description} className="mt-3" testId="thing-page-description" />}
+      <PageTitle testId="thing-page-title">
+        <EmojiText text={thing.title} tags={thing.emoji} />
+      </PageTitle>
+      {thing.description && (
+        <ReadingText text={thing.description} tags={thing.emoji} className="mt-3" testId="thing-page-description" />
+      )}
       <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Tap an emoji to copy its shortcode.</p>
       <div
         className="mt-2 grid grid-cols-4 gap-1 rounded-2xl bg-slate-50 p-2 dark:bg-slate-800/40 sm:grid-cols-6 md:grid-cols-8"
@@ -329,13 +342,17 @@ export function PlaylistHero({ thing, detail }: { thing: Thing; detail: Detail<"
       </span>
       <div className="min-w-0 flex-1">
         <Kicker icon={Disc3}>{PLAYLIST_WORD[detail.variant]}</Kicker>
-        <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
+        <PageTitle testId="thing-page-title">
+          <EmojiText text={thing.title} tags={thing.emoji} />
+        </PageTitle>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           {[detail.artist, detail.tracks > 0 && `${detail.tracks} ${detail.tracks === 1 ? "track" : "tracks"}`]
             .filter(Boolean)
             .join(" · ")}
         </p>
-        {thing.description && <ReadingText text={thing.description} className="mt-3" testId="thing-page-description" />}
+        {thing.description && (
+          <ReadingText text={thing.description} tags={thing.emoji} className="mt-3" testId="thing-page-description" />
+        )}
       </div>
     </div>
   );

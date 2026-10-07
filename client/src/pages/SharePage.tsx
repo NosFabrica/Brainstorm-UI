@@ -25,6 +25,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { EmojiText } from "@/components/ui/custom-emoji";
 import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
 import { scopedSearchHref } from "@/lib/searchSyntax";
@@ -688,7 +689,7 @@ export default function SharePage() {
         })
         .sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
       const text = matches[0]?.content?.trim();
-      return text || null;
+      return text ? { text, tags: matches[0].tags } : null;
     };
     return { general: pick("general"), music: pick("music") };
   }, [statusQuery.events]);
@@ -1113,7 +1114,7 @@ export default function SharePage() {
                     style={{ fontFamily: "var(--font-display)" }}
                     data-testid="share-name"
                   >
-                    {displayName}
+                    <EmojiText text={displayName} tags={liveProfile.event} />
                   </h1>
                   <TierWordChip score01={coinScore01} flagged={isFlagged} />
                   {/* "Identity confirmed" — trusted reviewers said this is really them.
@@ -1157,19 +1158,21 @@ export default function SharePage() {
                 {/* The bio: three lines at rest, all of it on a tap. Right under the
               identity — where every network puts it (Benjamin, 2026-09-08: it
               sat below a status, the key and an empty tag row). */}
-                {!isHidden("bio") && profile.about && <ProfileBio text={profile.about} profiles={noteProfiles} />}
+                {!isHidden("bio") && profile.about && (
+                  <ProfileBio text={profile.about} profiles={noteProfiles} tags={liveProfile.event?.tags} />
+                )}
                 {/* NIP-38 status — a live "now" line, quiet, under the bio (general + now-playing). */}
                 {!isHidden("status") && status.general && (
                   <p
                     className="mt-1 text-sm leading-snug text-slate-600 dark:text-slate-300"
                     data-testid="share-status"
                   >
-                    {status.general}
+                    <EmojiText text={status.general.text} tags={status.general.tags} />
                   </p>
                 )}
                 {!isHidden("status") && status.music && (
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="share-status-music">
-                    ♪ {status.music}
+                    ♪ <EmojiText text={status.music.text} tags={status.music.tags} />
                   </p>
                 )}
 
@@ -1356,11 +1359,11 @@ export default function SharePage() {
                             className="mt-0.5 text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
                             style={{ fontFamily: "var(--font-display)" }}
                           >
-                            Connect with {displayName}
+                            Connect with <EmojiText text={displayName} tags={liveProfile.event} />
                           </h3>
                           <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
                             Real humans, not bots — join a network you own and you're instantly connected to{" "}
-                            {displayName}.
+                            <EmojiText text={displayName} tags={liveProfile.event} />.
                           </p>
                         </div>
                       </div>
@@ -1727,7 +1730,9 @@ export default function SharePage() {
                 className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
                 data-testid="share-wot-cta-sticky"
               >
-                Join free — connect with {displayName.split(" ")[0] || displayName} <ArrowRight className="h-4 w-4" />
+                Join free — connect with{" "}
+                <EmojiText text={displayName.split(" ")[0] || displayName} tags={liveProfile.event} />{" "}
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </>

@@ -47,6 +47,8 @@ import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { MediaImg } from "@/components/ui/media-img";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { splitCustomEmoji } from "@/lib/customEmoji";
 
 function ago(created_at: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - created_at);
@@ -141,7 +143,7 @@ export function dlistTypeFor(event: {
  */
 /** A headline's text with its people named and its links and event keys
  *  dropped — the story tiles and media captions use it too. */
-export function Headline({ text, query }: { text: string; query: string }) {
+export function Headline({ text, query, tags }: { text: string; query: string; tags?: string[][] }) {
   const parts = text.split(TOKEN_SPLIT_RE).filter((p) => !/^https?:\/\//i.test(p) && !EVENT_REF_RE.test(p));
   return (
     <>
@@ -149,24 +151,31 @@ export function Headline({ text, query }: { text: string; query: string }) {
         /^nostr:/i.test(part) ? (
           <MentionChip key={i} uri={part} plain />
         ) : (
-          <Marked key={i} text={part.replace(/\s{2,}/g, " ")} query={query} />
+          <Marked key={i} text={part.replace(/\s{2,}/g, " ")} query={query} tags={tags} />
         ),
       )}
     </>
   );
 }
 
-/** Bold the query terms in a run of plain text. */
-function Marked({ text, query }: { text: string; query: string }) {
+/** Bold the query terms in a run of plain text, its NIP-30 emoji drawn when the event has tags for them. */
+function Marked({ text, query, tags }: { text: string; query: string; tags?: string[][] }) {
+  const pieces = tags ? splitCustomEmoji(text, tags) : [{ type: "text" as const, value: text }];
   return (
     <>
-      {highlightTerms(text, query).map((seg, i) =>
-        seg.hit ? (
-          <mark key={i} className="bg-transparent font-semibold text-slate-900 dark:text-white">
-            {seg.text}
-          </mark>
+      {pieces.map((p, j) =>
+        p.type === "emoji" ? (
+          <CustomEmojiImg key={j} code={p.code} url={p.url} />
         ) : (
-          <span key={i}>{seg.text}</span>
+          highlightTerms(p.value, query).map((seg, i) =>
+            seg.hit ? (
+              <mark key={`${j}.${i}`} className="bg-transparent font-semibold text-slate-900 dark:text-white">
+                {seg.text}
+              </mark>
+            ) : (
+              <span key={`${j}.${i}`}>{seg.text}</span>
+            ),
+          )
         ),
       )}
     </>
@@ -266,11 +275,14 @@ export function Snippet({
   query,
   lines = 3,
   hide,
+  tags,
 }: {
   text: string;
   query: string;
   lines?: 2 | 3;
   hide?: string | null;
+  /** The event's tags: its NIP-30 emoji are drawn. */
+  tags?: string[][];
 }) {
   const parts = unwrapMarkdownLinks(text).split(TOKEN_SPLIT_RE);
   return (
@@ -290,7 +302,7 @@ export function Snippet({
         // A quoted event renders as the post beneath the row, not as its key.
         if (EVENT_REF_RE.test(part)) return null;
         if (/^nostr:/i.test(part)) return <MentionChip key={i} uri={part} />;
-        return <Marked key={i} text={part} query={query} />;
+        return <Marked key={i} text={part} query={query} tags={tags} />;
       })}
     </p>
   );
@@ -335,7 +347,7 @@ function QuotedNoteCard({ id, uri, query }: { id: string; uri: string; query: st
         <MentionChip uri={`nostr:${nip19.npubEncode(quoted.pubkey)}`} />
       </div>
       <div className="mt-0.5 text-[13px] [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
-        <Snippet text={quoted.content.slice(0, 240)} query={query} lines={2} />
+        <Snippet text={quoted.content.slice(0, 240)} query={query} lines={2} tags={quoted.tags} />
       </div>
     </div>
   );
@@ -379,7 +391,7 @@ function AuthorLine({
           centring boxes of two font sizes leaves the meta riding high. */}
       <div className="flex min-w-0 items-baseline gap-1.5 leading-5">
         <span className="truncate text-sm font-medium text-slate-600 dark:text-slate-300">
-          {author ? getDisplayLabel(author) : "Unknown"}
+          {author ? <ProfileEmojiText pubkey={author.pubkey} text={getDisplayLabel(author)} /> : "Unknown"}
         </span>
         <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
         {type && TypeIcon ? (
@@ -646,7 +658,7 @@ export function SerpRow({
         />
         {title && (
           <div className="mt-1.5 text-lg font-semibold leading-[1.3] text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100 sm:text-xl [&>p]:text-lg [&>p]:font-semibold [&>p]:leading-[1.3] sm:[&>p]:text-xl">
-            <Snippet text={title} query={query} lines={2} />
+            <Snippet text={title} query={query} lines={2} tags={event.tags} />
           </div>
         )}
         {shapeLine && (
@@ -659,7 +671,13 @@ export function SerpRow({
         )}
         {body && (
           <div className={title ? "mt-1.5" : "mt-2"}>
-            <Snippet text={shown} query={query} lines={title ? 2 : 3} hide={linkedArticle ? cardLink : thumbUrl} />
+            <Snippet
+              text={shown}
+              query={query}
+              lines={title ? 2 : 3}
+              hide={linkedArticle ? cardLink : thumbUrl}
+              tags={event.tags}
+            />
             {/* X's "Translate post" for text in another language — on-device, quiet. */}
             <TranslateLine text={body.slice(0, 1000)} />
           </div>

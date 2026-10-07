@@ -163,6 +163,7 @@ export function usePostTagComment(authorPubkey: string | undefined, slug: string
             author: viewerPubkey,
             content: content.trim(),
             createdAt: Math.floor(Date.now() / 1000),
+            tags: [],
           },
           ...(previous ?? []),
         ]);

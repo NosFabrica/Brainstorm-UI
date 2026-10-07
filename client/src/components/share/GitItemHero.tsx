@@ -17,6 +17,7 @@ import {
 import { gitItemTitleOf, parsePatch } from "@/lib/gitPatch";
 import { eventPath } from "@/lib/shareId";
 import { MarkdownBody } from "./MarkdownBody";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 type GitItem = { id: string; kind: number; pubkey: string; content: string; tags: string[][]; created_at: number };
 
@@ -87,7 +88,7 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
         style={{ fontFamily: "var(--font-display)" }}
         data-testid="git-item-title"
       >
-        {title}
+        <EmojiText text={title} tags={event} />
       </h1>
       <div
         className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400"
@@ -240,7 +241,7 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
       ) : (
         event.content?.trim() && (
           <div className="mt-3" data-testid="git-item-body">
-            <MarkdownBody text={event.content} />
+            <MarkdownBody text={event.content} tags={event.tags} />
           </div>
         )
       )}

@@ -28,6 +28,7 @@ import { articleSummary, wikiToMarkdown } from "@/lib/wiki";
 import { prepareArticleBody } from "@/lib/articleBody";
 import { htmlToText, looksLikeHtml, stripStrayHtml } from "@/lib/htmlText";
 import { ReadingText } from "@/components/share/ReadingText";
+import { EmojiText, ProfileEmojiText, useMarkdownEmoji } from "@/components/ui/custom-emoji";
 import { Chip } from "@/components/ui/chip";
 import { KindPill } from "@/components/ui/kind-pill";
 import { specKindTags } from "@/lib/kindLabel";
@@ -208,22 +209,42 @@ const REHYPE_PLUGINS: import("unified").PluggableList = [[rehypeSanitize, SANITI
  * trust score, comments and newer versions land; none of those change the
  * body, so none of them should parse it again.
  */
-export const ArticleBody = memo(function ArticleBody({ body, fromHtml }: { body: string; fromHtml: boolean }) {
+export const ArticleBody = memo(function ArticleBody({
+  body,
+  fromHtml,
+  tags,
+}: {
+  body: string;
+  fromHtml: boolean;
+  /** The article's tags: its NIP-30 emoji are drawn in the text. */
+  tags?: string[][];
+}) {
+  // An article without emoji tags keeps the module-level plugins and components.
+  const { remarkPlugins, components, tags: emoji } = useMarkdownEmoji(tags, REMARK_PLUGINS, mdComponents);
   return !fromHtml && isMarkdown(body) ? (
     // `nostr:` references stay links (the sanitizer would strip the scheme), and
     // bare ones in the text are linked first — feat/client-links-native.
     <ReactMarkdown
-      remarkPlugins={REMARK_PLUGINS}
+      remarkPlugins={remarkPlugins}
       rehypePlugins={REHYPE_PLUGINS}
       urlTransform={keepNostrUrls}
-      components={mdComponents}
+      components={components}
     >
       {linkNostrUris(body)}
     </ReactMarkdown>
   ) : (
     // Plain text: markdown would fold its single line breaks into
     // one paragraph; the reading renderer keeps them.
-    <ReadingText text={body} normalized size="post" headline={false} media embed={articleEmbed} className="not-prose" />
+    <ReadingText
+      text={body}
+      tags={emoji}
+      normalized
+      size="post"
+      headline={false}
+      media
+      embed={articleEmbed}
+      className="not-prose"
+    />
   );
 });
 
@@ -432,7 +453,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            {title}
+            <EmojiText text={title} tags={ev} />
           </h1>
           {summaryEmbed ? (
             <div className="mt-3" data-testid="article-summary">
@@ -440,7 +461,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             </div>
           ) : summary ? (
             <p className="mt-2 text-lg leading-snug text-slate-500 dark:text-slate-400" data-testid="article-summary">
-              {summary}
+              <EmojiText text={summary} tags={ev} />
             </p>
           ) : null}
           {/* A spec's details, read out of its front matter and tags: its
@@ -543,7 +564,9 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
               </span>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">{authorName}</span>
+                  <span className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
+                    <ProfileEmojiText pubkey={ev.pubkey} text={authorName} />
+                  </span>
                   <TierWordChip score01={score01} />
                   <Nip05Check nip05={profile.nip05} pubkey={ev.pubkey} className="h-4 w-4 shrink-0 text-sky-500" />
                 </div>
@@ -588,7 +611,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
             className="article-prose prose prose-slate mt-6 max-w-none dark:prose-invert prose-headings:font-bold prose-a:text-brand-link prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto prose-img:rounded-xl"
             data-testid="article-body"
           >
-            <ArticleBody body={prepared.body} fromHtml={fromHtml} />
+            <ArticleBody body={prepared.body} fromHtml={fromHtml} tags={ev.tags} />
           </div>
 
           {/* Comments — teaser-gated for anon, trust-filterable for members (same as /e). */}

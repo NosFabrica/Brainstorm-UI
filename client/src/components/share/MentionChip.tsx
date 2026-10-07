@@ -8,6 +8,7 @@ import { Link } from "wouter";
 import { ProfileImg } from "@/components/ui/profile-img";
 import { nip19 } from "nostr-tools";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 export function mentionPubkey(uri: string): string | null {
   try {
@@ -33,7 +34,12 @@ export function MentionChip({
   if (!pubkey) return <span>{uri}</span>;
   const npub = nip19.npubEncode(pubkey);
   const name = profile?.display_name || profile?.name || `${npub.slice(0, 10)}…`;
-  if (plain) return <span data-testid="mention-name">@{name}</span>;
+  if (plain)
+    return (
+      <span data-testid="mention-name">
+        @<ProfileEmojiText pubkey={pubkey} text={name} />
+      </span>
+    );
   return (
     <span onClick={(e) => e.stopPropagation()}>
       <Link
@@ -49,7 +55,9 @@ export function MentionChip({
             className="h-3.5 w-3.5 shrink-0 rounded-full object-cover"
           />
         )}
-        <span className="truncate">@{name}</span>
+        <span className="truncate">
+          @<ProfileEmojiText pubkey={pubkey} text={name} />
+        </span>
       </Link>
     </span>
   );

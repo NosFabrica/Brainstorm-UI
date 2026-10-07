@@ -1485,6 +1485,8 @@ export interface TagComment {
   author: string;
   content: string;
   createdAt: number;
+  /** The comment's tags: its NIP-30 emoji among them. */
+  tags: string[][];
 }
 
 /**
@@ -1524,6 +1526,7 @@ export async function fetchTagComments(authorPubkey: string, slug: string): Prom
       author: ev.pubkey,
       content: ev.content,
       createdAt: ev.created_at,
+      tags: ev.tags,
     }))
     .sort((a, b) => b.createdAt - a.createdAt);
 }

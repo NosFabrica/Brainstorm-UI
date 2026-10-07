@@ -39,6 +39,7 @@ import {
 } from "@/services/search";
 import { formatBytes } from "@/lib/formatBytes";
 import { ReadingText } from "@/components/share/ReadingText";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type AppEvent = {
@@ -334,7 +335,7 @@ export function AppHero({ event }: { event: AppEvent }) {
             className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            {name}
+            <EmojiText text={name} tags={event} />
           </h1>
           {/* Who signed this build — the trust story, right under the name. */}
           {publisherNpub && (
@@ -356,7 +357,11 @@ export function AppHero({ event }: { event: AppEvent }) {
               </span>
             </Link>
           )}
-          {summary && <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-300">{summary}</p>}
+          {summary && (
+            <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-300">
+              <EmojiText text={summary} tags={event} />
+            </p>
+          )}
           {/* Facts: platforms, license, and how alive the app is. */}
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
             {platforms.map((p) => (

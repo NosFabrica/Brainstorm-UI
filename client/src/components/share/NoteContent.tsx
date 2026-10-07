@@ -28,6 +28,7 @@ import { clientRef } from "@/lib/clientLinks";
 import { useClientLink } from "@/hooks/useClientLink";
 import { useLightbox } from "@/components/share/Lightbox";
 import { MediaImg } from "@/components/ui/media-img";
+import { CustomEmojiImg } from "@/components/ui/custom-emoji";
 
 /** Human-readable track name from a raw audio URL. Falls back to "Audio" for
  *  non-descriptive filenames (numeric ids, hashes/uuids) like `…/32939084.mp3`. */
@@ -69,6 +70,8 @@ function NoteLiveVideo({ url }: { url: string }) {
   );
 }
 
+const NO_TAGS: string[][] = [];
+
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
 /**
@@ -84,7 +87,7 @@ export function NoteContent({
   profiles,
   linkCard = false,
   imageOpensThread = false,
-  tags = [],
+  tags = NO_TAGS,
   authorName,
   embeddedIds,
   embeddedCoords,
@@ -110,7 +113,7 @@ export function NoteContent({
   /** In a clickable feed card: render images as cropped thumbnails whose click
    *  bubbles up to open the thread (instead of a lightbox). */
   imageOpensThread?: boolean;
-  /** The event's tags — used to enrich the audio player (artwork + title). */
+  /** The event's tags — its NIP-30 emoji, and the audio player's artwork + title. */
   tags?: string[][];
   /** The note author's display name — shown as the audio player's "artist". */
   authorName?: string;
@@ -118,7 +121,7 @@ export function NoteContent({
   // On the event's own page, whatever markup the text came in (HTML, a
   // GitHub comment's stray tags) is cleaned first; feeds keep the raw text.
   const text = useMemo(() => (reading ? normalizeMarkup(content) : content), [reading, content]);
-  const tokens = useMemo(() => parseNoteContent(text), [text]);
+  const tokens = useMemo(() => parseNoteContent(text, tags), [text, tags]);
   // Shared metadata for a rich audio/podcast player: the note's own image as
   // artwork and its title/first-line as the track name (falling back per-URL).
   const audioCover = extractImageUrls(text, tags)[0];
@@ -140,6 +143,8 @@ export function NoteContent({
     switch (token.type) {
       case "text":
         return <span key={i}>{token.value}</span>;
+      case "emoji":
+        return <CustomEmojiImg key={i} code={token.code} url={token.url} />;
       case "url":
         if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
         if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;

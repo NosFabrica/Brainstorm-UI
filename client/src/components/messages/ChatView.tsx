@@ -66,11 +66,14 @@ import {
   shortDate,
   shortNpub,
   type Profiles,
+  PersonName,
+  RoomTitle,
 } from "./people";
 import type { RelayProgress } from "@/lib/dm/pager";
 import { askRelayAuthAgain } from "@/services/relayAuth";
 import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
 import { authProblemLabel, refusedAmong } from "./RelayMarker";
+import type { CustomEmoji } from "@/lib/customEmoji";
 
 type Item =
   | { kind: "day"; key: string; label: string }
@@ -281,7 +284,8 @@ export function ChatView({
   const byId = useMemo(() => new Map(view.messages.map((m) => [m.id, m])), [view.messages]);
   // Stable, so a bubble re-renders only when its own message, reactions or reply do.
   const onReact = useCallback(
-    (m: DmMessage, content: string) => void engine?.react(m, content).then((r) => !r.ok && sendError(r)),
+    (m: DmMessage, content: string, emoji?: CustomEmoji) =>
+      void engine?.react(m, content, emoji).then((r) => !r.ok && sendError(r)),
     [engine, sendError],
   );
   const onResend = useCallback((m: DmMessage) => void engine?.resend(m.id), [engine]);
@@ -451,7 +455,9 @@ export function ChatView({
         </button>
         <RoomAvatar room={view} me={me} profiles={profiles} scoreOf={scoreOf} size={40} />
         <span className="flex min-w-0 flex-col">
-          <span className="truncate text-base font-bold">{title}</span>
+          <span className="truncate text-base font-bold">
+            <RoomTitle room={{ ...view, subject: view.subject ?? initialSubject }} me={me} profiles={profiles} />
+          </span>
           <span className="truncate font-mono text-xs text-slate-500 dark:text-slate-400">{subtitle}</span>
         </span>
         <span className="ml-auto flex items-center gap-1">
@@ -564,7 +570,9 @@ export function ChatView({
                 className="mx-auto max-w-md text-center text-xs text-slate-500 dark:text-slate-400"
                 data-testid="dm-subject-change"
               >
-                <span className="font-semibold">{item.author === me ? "You" : firstName(item.author, profiles)}</span>{" "}
+                <span className="font-semibold">
+                  {item.author === me ? "You" : <PersonName pubkey={item.author} profiles={profiles} first />}
+                </span>{" "}
                 named the chat{" "}
                 <span className="font-semibold text-slate-700 dark:text-slate-200">“{item.subject}”</span>
               </p>

@@ -9,6 +9,7 @@ import { extractVideoPoster, extractVideoUrls } from "@/lib/noteContent";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { ReadingText } from "@/components/share/ReadingText";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 export function VideoHero({ event }: { event: MinimalEvent }) {
   const speed = useConnectionSpeed();
@@ -48,10 +49,10 @@ export function VideoHero({ event }: { event: MinimalEvent }) {
           style={{ fontFamily: "var(--font-display)" }}
           data-testid="video-hero-title"
         >
-          {title}
+          <EmojiText text={title} tags={event} />
         </h1>
       )}
-      {summary && summary !== title && <ReadingText text={summary} className="mt-3" />}
+      {summary && summary !== title && <ReadingText text={summary} tags={event.tags} className="mt-3" />}
     </div>
   );
 }

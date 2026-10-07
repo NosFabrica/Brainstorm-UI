@@ -28,6 +28,7 @@ import { MentionChip } from "@/components/share/MentionChip";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { GH_REF_RE, splitProse } from "@/components/share/NotesInline";
 import { kindTypeLabel } from "@/lib/kindLabel";
+import { CustomEmojiImg } from "@/components/ui/custom-emoji";
 
 export type ReadingSize = "post" | "body";
 
@@ -195,8 +196,11 @@ export function ReadingText({
   after,
   className = "",
   testId,
+  tags,
 }: {
   text?: string;
+  /** The event's tags, when `text` is parsed here: its NIP-30 emoji are drawn. */
+  tags?: string[][];
   /** Already-parsed tokens (NoteContent parses once for everything it does). */
   tokens?: NoteToken[];
   /** The text `tokens` came from — code blocks show it verbatim. */
@@ -227,7 +231,7 @@ export function ReadingText({
     () => (given ? undefined : normalized ? text || "" : normalizeMarkup(text || "")),
     [given, text, normalized],
   );
-  const tokens = useMemo(() => given ?? parseNoteContent(plain ?? ""), [given, plain]);
+  const tokens = useMemo(() => given ?? parseNoteContent(plain ?? "", tags), [given, plain, tags]);
   const blocks = useMemo(
     () => toNoteBlocks(tokens, { headline, source: source ?? plain }),
     [tokens, headline, source, plain],
@@ -274,6 +278,8 @@ export function ReadingText({
       case "audio":
       case "live":
         return <ReadingLink key={key} url={t.value} />;
+      case "emoji":
+        return <CustomEmojiImg key={key} code={t.code} url={t.url} />;
       case "hashtag":
         return (
           <button

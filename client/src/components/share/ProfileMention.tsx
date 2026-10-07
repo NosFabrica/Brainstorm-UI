@@ -3,10 +3,18 @@
  * — as `@Name`, opening their profile through the share page's navigation.
  */
 import { useShareNav } from "@/components/share/ShareNavContext";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { decodeNostrEntity } from "@/lib/noteRefs";
 
 export function ProfileMention({ npub, name, picture }: { npub: string; name?: string; picture?: string }) {
   const requestNav = useShareNav();
-  const label = name ? `@${name}` : `@${npub.slice(0, 10)}…`;
+  const label = name ? (
+    <>
+      @<ProfileEmojiText pubkey={decodeNostrEntity(npub).pubkey} text={name} />
+    </>
+  ) : (
+    `@${npub.slice(0, 10)}…`
+  );
   return (
     <button
       type="button"

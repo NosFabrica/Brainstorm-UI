@@ -26,6 +26,7 @@ import {
   SafeImg,
   useAuthors,
 } from "./shared";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 type Json = Record<string, unknown>;
 
@@ -81,7 +82,9 @@ export function ShopPlaceHero({ event, thing, detail }: { event: PageEvent; thin
         </span>
         <div className="min-w-0 flex-1">
           <Kicker icon={Store}>{detail.variant === "stall" ? "Shop" : "Marketplace"}</Kicker>
-          <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
+          <PageTitle testId="thing-page-title">
+            <EmojiText text={thing.title} tags={thing.emoji} />
+          </PageTitle>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {detail.variant === "stall"
               ? detail.currency
@@ -91,7 +94,9 @@ export function ShopPlaceHero({ event, thing, detail }: { event: PageEvent; thin
           </p>
         </div>
       </div>
-      {thing.description && <ReadingText text={thing.description} className="mt-4" testId="thing-page-description" />}
+      {thing.description && (
+        <ReadingText text={thing.description} tags={thing.emoji} className="mt-4" testId="thing-page-description" />
+      )}
       {zones.length > 0 && (
         <div className="mt-4">
           <InfoBox label="Shipping" icon={Truck} testId="thing-page-shipping">

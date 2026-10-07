@@ -131,7 +131,7 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
 
       {description && description !== title && (
         <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800/60">
-          <ReadingText text={description} />
+          <ReadingText text={description} tags={event.tags} />
         </div>
       )}
     </div>

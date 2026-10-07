@@ -8,6 +8,7 @@
  */
 
 import { nip19 } from "nostr-tools";
+import { splitCustomEmoji } from "@/lib/customEmoji";
 
 export type NoteToken =
   | { type: "text"; value: string }
@@ -18,7 +19,9 @@ export type NoteToken =
   | { type: "live"; value: string }
   /** `url`: the web link the entity was found inside (njump, primal, …). */
   | { type: "mention"; bech32: string; url?: string }
-  | { type: "hashtag"; value: string };
+  | { type: "hashtag"; value: string }
+  /** A NIP-30 custom emoji; `value` is the `:shortcode:` as written. */
+  | { type: "emoji"; value: string; code: string; url: string };
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
@@ -165,7 +168,12 @@ export function trimProse(url: string): string {
   return out;
 }
 
-export function parseNoteContent(content: string): NoteToken[] {
+/**
+ * `tags` are the event's: with NIP-30 emoji tags among them, `:shortcode:` in
+ * the text becomes an `emoji` token. Only text runs are searched, so a URL or
+ * an entity keeps its colons.
+ */
+export function parseNoteContent(content: string, tags?: string[][]): NoteToken[] {
   const text = content || "";
   const tokens: NoteToken[] = [];
   let lastIndex = 0;
@@ -205,7 +213,12 @@ export function parseNoteContent(content: string): NoteToken[] {
   if (lastIndex < text.length) {
     tokens.push({ type: "text", value: text.slice(lastIndex) });
   }
-  return tokens;
+  return tags ? withCustomEmoji(tokens, tags) : tokens;
+}
+
+function withCustomEmoji(tokens: NoteToken[], tags: string[][]): NoteToken[] {
+  if (!tags.some((t) => t[0] === "emoji")) return tokens;
+  return tokens.flatMap((t): NoteToken[] => (t.type === "text" ? splitCustomEmoji(t.value, tags) : [t]));
 }
 
 /**

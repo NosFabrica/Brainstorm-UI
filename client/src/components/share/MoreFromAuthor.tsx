@@ -7,6 +7,7 @@ import { outboxRelays } from "@/lib/relayRouting";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -85,7 +86,9 @@ export function MoreFromAuthor({
 
   return (
     <section className="mt-8" data-testid="more-from-author">
-      <h2 className="mb-3 text-sm font-bold text-slate-900 dark:text-slate-100">More from {authorName}</h2>
+      <h2 className="mb-3 text-sm font-bold text-slate-900 dark:text-slate-100">
+        More from <ProfileEmojiText pubkey={pubkey} text={authorName} />
+      </h2>
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         {notes.map((n) => (
           <EmbeddedNoteCard

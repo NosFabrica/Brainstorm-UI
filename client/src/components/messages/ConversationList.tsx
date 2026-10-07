@@ -47,7 +47,8 @@ import { useNearViewport } from "@/hooks/useNearViewport";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { Input } from "@/components/ui/input";
-import { RoomAvatar, firstName, listTime, roomTitle, type Profiles } from "./people";
+import { RoomAvatar, firstName, listTime, roomTitle, type Profiles, RoomTitle } from "./people";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 export type InboxTab = "chats" | "requests";
 
@@ -118,7 +119,9 @@ const RoomRow = memo(function RoomRow({
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex items-center gap-1.5">
-          <span className="truncate text-[15px] font-semibold">{roomTitle(room, me, profiles)}</span>
+          <span className="truncate text-[15px] font-semibold">
+            <RoomTitle room={room} me={me} profiles={profiles} />
+          </span>
           {timer && <Timer className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label="Disappearing messages on" />}
           {prefs.muted.includes(room.key) && (
             <BellOff className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label="Muted" />
@@ -146,7 +149,8 @@ const RoomRow = memo(function RoomRow({
                 unread ? "font-semibold text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400",
               )}
             >
-              {preview(room, me, profiles)}
+              {/* The last message's own emoji tags: a NIP-30 `:shortcode:` in it is drawn. */}
+              <EmojiText text={preview(room, me, profiles)} tags={room.last?.rumor.tags} />
             </span>
           )}
           {unread > 0 && (

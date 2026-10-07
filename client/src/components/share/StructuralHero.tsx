@@ -106,7 +106,7 @@ export function StructuralHero({ event }: { event: StructuralEvent }) {
           {JSON.stringify(JSON.parse(event.content), null, 2)}
         </pre>
       )}
-      {shape.kind === "text" && <ReadingText text={event.content} className="mt-3" />}
+      {shape.kind === "text" && <ReadingText text={event.content} tags={event.tags} className="mt-3" />}
 
       {tags.length > 0 && (
         <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">

@@ -35,6 +35,7 @@ import {
   useFetched,
   type PageEvent,
 } from "./shared";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 const tagOf = (e: PageEvent, k: string) => e.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
 
@@ -54,7 +55,9 @@ export function MarketHero({ event, thing, detail }: { event: PageEvent; thing: 
   return (
     <div data-testid="thing-page-market">
       <Kicker icon={TrendingUp}>Prediction market</Kicker>
-      <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
+      <PageTitle testId="thing-page-title">
+        <EmojiText text={thing.title} tags={thing.emoji} />
+      </PageTitle>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {status && (
           <Chip size="sm" tone={status.tone}>
@@ -68,7 +71,9 @@ export function MarketHero({ event, thing, detail }: { event: PageEvent; thing: 
         )}
         {detail.category && <span className="text-xs text-slate-500 dark:text-slate-400">{detail.category}</span>}
       </div>
-      {thing.description && <ReadingText text={thing.description} className="mt-4" testId="thing-page-description" />}
+      {thing.description && (
+        <ReadingText text={thing.description} tags={thing.emoji} className="mt-4" testId="thing-page-description" />
+      )}
       {detail.outcomes.length > 0 && (
         <div className="mt-4">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -184,7 +189,9 @@ export function BallotHero({ thing, detail }: { thing: Thing; detail: Detail<"ba
   return (
     <div data-testid="thing-page-ballot">
       <Kicker icon={Vote}>Ballot</Kicker>
-      <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
+      <PageTitle testId="thing-page-title">
+        <EmojiText text={thing.title} tags={thing.emoji} />
+      </PageTitle>
       <div className="mt-4">
         <InfoBox label="Answers" icon={Vote} testId="thing-page-answers">
           {detail.answers.length ? (

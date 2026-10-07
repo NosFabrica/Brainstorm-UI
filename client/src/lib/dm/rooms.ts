@@ -5,6 +5,7 @@
  */
 import { nip19 } from "nostr-tools";
 import { CHAT_KIND, FILE_KIND, REACTION_KIND, type Rumor } from "./giftWrap";
+import { reactionEmoji, type CustomEmoji } from "@/lib/customEmoji";
 
 const isHex64 = (v: string) => /^[0-9a-f]{64}$/.test(v);
 
@@ -91,22 +92,39 @@ export function reactionTargetOf(rumor: Pick<Rumor, "kind" | "tags">): string | 
   return es[es.length - 1]?.[1];
 }
 
-/** How a reaction reads: NIP-25's "+" is a like; anything else is shown as sent. */
-export function reactionLabel(content: string): string {
+/**
+ * How a reaction reads: NIP-25's "+" is a like; a NIP-30 custom emoji is its
+ * whole `:shortcode:` (drawn from `reactionEmojis`); anything else is shown as sent.
+ */
+export function reactionLabel(content: string, tags?: string[][]): string {
   const c = content.trim();
   if (!c || c === "+") return "❤️";
   if (c === "-") return "👎";
+  const emoji = tags && reactionEmoji({ content: c, tags });
+  if (emoji) return `:${emoji.code}:`;
   return c.length > 8 ? c.slice(0, 8) : c;
 }
 
+type ReactionLike = { author: string; rumor: Pick<Rumor, "content"> & { tags?: string[][] } };
+
 /** Who sent each reaction, by how it reads: the same one twice from one person counts once. */
-export function reactionAuthors(reactions: { author: string; rumor: Pick<Rumor, "content"> }[]) {
+export function reactionAuthors(reactions: ReactionLike[]) {
   const out = new Map<string, Set<string>>();
   for (const r of reactions) {
-    const label = reactionLabel(r.rumor.content);
+    const label = reactionLabel(r.rumor.content, r.rumor.tags);
     const authors = out.get(label) ?? new Set<string>();
     authors.add(r.author);
     out.set(label, authors);
+  }
+  return out;
+}
+
+/** The custom emoji among the reactions, by their label: the picture each one is drawn with. */
+export function reactionEmojis(reactions: ReactionLike[]): Map<string, CustomEmoji> {
+  const out = new Map<string, CustomEmoji>();
+  for (const r of reactions) {
+    const emoji = r.rumor.tags && reactionEmoji({ content: r.rumor.content.trim(), tags: r.rumor.tags });
+    if (emoji && !out.has(`:${emoji.code}:`)) out.set(`:${emoji.code}:`, emoji);
   }
   return out;
 }

@@ -18,10 +18,13 @@ const LONG_ENOUGH = 160;
 export function ProfileBio({
   text,
   profiles,
+  tags,
   collapsedLines = 3,
 }: {
   text: string;
   profiles?: Map<string, ProfileLite>;
+  /** The kind-0's tags: its NIP-30 emoji are drawn. */
+  tags?: string[][];
   collapsedLines?: 2 | 3 | 4;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -34,7 +37,7 @@ export function ProfileBio({
         className={`break-words text-sm leading-snug text-slate-600 dark:text-slate-300 ${expanded || !hasMore ? "whitespace-pre-line" : `whitespace-normal ${clamp}`}`}
         data-testid="share-bio-text"
       >
-        <ShareBio text={text} profiles={profiles} />
+        <ShareBio text={text} profiles={profiles} tags={tags} />
       </p>
       {hasMore && (
         <button

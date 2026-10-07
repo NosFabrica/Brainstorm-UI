@@ -13,6 +13,7 @@ import { nip19 } from "nostr-tools";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { parseZapReceipt } from "@/services/search";
 import { contentShape } from "@/lib/contentShape";
+import { reactionEmoji } from "@/lib/customEmoji";
 
 export type ReaderEvent = {
   id: string;
@@ -131,9 +132,11 @@ function refOf(ev: ReaderEvent, prefer: "first" | "last" = "last"): ResultRef | 
 
 const sats = (n: number) => `${Math.round(n).toLocaleString()} sats`;
 
-/** A reaction's content, as the mark it is. */
-function reactionMark(content: string): string {
-  const c = content.trim();
+/** A reaction's content, as the mark it is. A NIP-30 custom emoji stays its whole `:shortcode:`, for the row to draw. */
+function reactionMark(ev: ReaderEvent): string {
+  const custom = reactionEmoji(ev);
+  if (custom) return `:${custom.code}:`;
+  const c = ev.content.trim();
   if (!c || c === "+") return "❤";
   if (c === "-") return "👎";
   return c.length > 12 ? `${c.slice(0, 12)}…` : c;
@@ -246,7 +249,7 @@ read([5], (ev) => {
 read([7, 17], (ev) => {
   const to = lastTag(ev, "p")?.[1];
   return {
-    title: `Reacted ${reactionMark(ev.content)}`,
+    title: `Reacted ${reactionMark(ev)}`,
     body: null,
     facts: to ? [`to ${who(to)}`] : [],
     ref: refOf(ev),

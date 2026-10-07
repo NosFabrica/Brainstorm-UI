@@ -39,6 +39,7 @@ import {
   type PageEvent,
   useAuthors,
 } from "./shared";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 const tagOf = (e: PageEvent, k: string) => e.tags.find((t) => t[0] === k)?.[1];
 
@@ -60,7 +61,9 @@ export function LearningHero({ event, thing, detail }: { event: PageEvent; thing
         </div>
       )}
       <Kicker icon={GraduationCap}>Learning resource</Kicker>
-      <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
+      <PageTitle testId="thing-page-title">
+        <EmojiText text={thing.title} tags={thing.emoji} />
+      </PageTitle>
       {detail.creator && (
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           {detail.creator}
@@ -89,7 +92,9 @@ export function LearningHero({ event, thing, detail }: { event: PageEvent; thing
       {thing.link && (
         <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">Opens {hostOf(thing.link)} in a new tab.</p>
       )}
-      {thing.description && <ReadingText text={thing.description} className="mt-4" testId="thing-page-description" />}
+      {thing.description && (
+        <ReadingText text={thing.description} tags={thing.emoji} className="mt-4" testId="thing-page-description" />
+      )}
       <div className="mt-4">
         <InfoBox label="About this resource" icon={GraduationCap} testId="thing-page-facts">
           <FactRows
@@ -166,7 +171,9 @@ export function TorrentHero({ thing, detail }: { thing: Thing; detail: Detail<"t
         </span>
         <div className="min-w-0 flex-1">
           <Kicker icon={Download}>Torrent · {TORRENT_WORD[detail.category]}</Kicker>
-          <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
+          <PageTitle testId="thing-page-title">
+            <EmojiText text={thing.title} tags={thing.emoji} />
+          </PageTitle>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {[
               detail.files.length > 0 && `${detail.files.length} ${detail.files.length === 1 ? "file" : "files"}`,
@@ -188,7 +195,9 @@ export function TorrentHero({ thing, detail }: { thing: Thing; detail: Detail<"t
         {magnet && <CopyButton value={magnet} label="Copy magnet link" />}
       </Actions>
       {magnet && <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">Opens in your torrent client.</p>}
-      {thing.description && <ReadingText text={thing.description} className="mt-4" testId="thing-page-description" />}
+      {thing.description && (
+        <ReadingText text={thing.description} tags={thing.emoji} className="mt-4" testId="thing-page-description" />
+      )}
       {detail.infoHash && (
         <div className="mt-4">
           <InfoBox label="Info hash" icon={Hash}>

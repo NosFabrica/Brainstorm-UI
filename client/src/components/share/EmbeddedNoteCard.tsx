@@ -17,6 +17,7 @@ import { isBlankEvent } from "@/lib/blankEvent";
 import { DeletedStub } from "@/components/share/DeletedStub";
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { describeThing, THING_KINDS } from "@/lib/thing";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -122,7 +123,9 @@ export function EmbeddedNoteCard({
               <DefaultAvatarImg />
             </AvatarFallback>
           </Avatar>
-          <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+          <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <ProfileEmojiText pubkey={event.pubkey} text={name} />
+          </span>
           {nip05Verified && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
         </a>
         <div className="ml-auto flex shrink-0 items-center gap-2">

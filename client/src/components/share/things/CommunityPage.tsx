@@ -22,6 +22,7 @@ import {
   type PageEvent,
   SafeImg,
 } from "./shared";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 const PLACE = {
   moderated: { word: "Community", icon: Users, posts: "Recent posts" },
@@ -63,7 +64,9 @@ export function CommunityHero({ thing, detail }: { thing: Thing; detail: Detail<
         </span>
         <div className="min-w-0 flex-1">
           <Kicker icon={place.icon}>{place.word}</Kicker>
-          <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
+          <PageTitle testId="thing-page-title">
+            <EmojiText text={thing.title} tags={thing.emoji} />
+          </PageTitle>
           {detail.variant === "group" && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               <Chip size="sm" tone={detail.isOpen ? "success" : "slate"}>
@@ -81,7 +84,9 @@ export function CommunityHero({ thing, detail }: { thing: Thing; detail: Detail<
           )}
         </div>
       </div>
-      {thing.description && <ReadingText text={thing.description} className="mt-4" testId="thing-page-description" />}
+      {thing.description && (
+        <ReadingText text={thing.description} tags={thing.emoji} className="mt-4" testId="thing-page-description" />
+      )}
       {detail.rules && (
         <div className="mt-4">
           <InfoBox label="Rules" icon={ScrollText} testId="thing-page-rules">

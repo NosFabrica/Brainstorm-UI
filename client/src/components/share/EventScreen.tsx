@@ -66,6 +66,7 @@ import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { Nip05Check } from "@/components/Nip05Check";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string; website?: string };
 export type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -517,7 +518,7 @@ function EventView({
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-[15px] font-bold leading-tight text-slate-900 dark:text-slate-100">
-                        {authorName}
+                        <ProfileEmojiText pubkey={authorPk} text={authorName} />
                       </span>
                       <Nip05Check
                         nip05={profile.nip05}
