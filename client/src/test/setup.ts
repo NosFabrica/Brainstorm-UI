@@ -53,6 +53,12 @@ afterEach(() => {
   else throw new Error(message);
 });
 
+// No Web Locks unless a test brings its own. Node has them, and they are process-wide:
+// a signer request a test leaves hanging under fake timers (never reaching its
+// timeout) held accounts/extension's lock into every later test in the file.
+if (typeof navigator !== "undefined" && "locks" in navigator)
+  Object.defineProperty(navigator, "locks", { value: undefined, configurable: true, writable: true });
+
 // jsdom has no matchMedia either, and usePrefersReducedMotion calls it at
 // MODULE LOAD (so any suite importing the share components needs it).
 if (hasDom && typeof window.matchMedia === "undefined") {

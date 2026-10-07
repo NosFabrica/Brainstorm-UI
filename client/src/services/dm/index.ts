@@ -122,6 +122,7 @@ function startFor(account: BrainstormAccount | undefined) {
     if (account instanceof LocalAccount) void hydrateDmPrefs(account.pubkey);
     current = new DmEngine(dmAccountFor(account), {
       concurrency: account instanceof RemoteAccount ? REMOTE_DECRYPT_CONCURRENCY : undefined,
+      dropDetection: account instanceof RemoteAccount,
       transport: poolTransport,
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
       cache: dmCacheBackend(),

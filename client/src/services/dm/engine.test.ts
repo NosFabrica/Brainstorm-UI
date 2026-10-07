@@ -1065,7 +1065,7 @@ describe("DmEngine", () => {
         },
         classify: () => "unreachable",
       }),
-      { ...net, ...time, concurrency: 2, now: () => NOW },
+      { ...net, ...time, concurrency: 2, dropDetection: true, now: () => NOW },
     );
     await engine.start();
     for (let i = 0; i < 8; i++) await settle();
@@ -1183,7 +1183,7 @@ describe("DmEngine", () => {
         },
         classify: () => "unreachable",
       }),
-      { ...net, ...time, concurrency: 8, decryptTimeoutMs: 10_000, now: () => NOW },
+      { ...net, ...time, concurrency: 8, decryptTimeoutMs: 10_000, dropDetection: true, now: () => NOW },
     );
     await engine.start();
     for (let i = 0; i < 4; i++) await settle();

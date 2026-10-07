@@ -33,7 +33,7 @@ import { verifyEvent, type EventTemplate, type VerifiedEvent } from "applesauce-
 import { ExtensionMissingError, ExtensionSigner } from "applesauce-signers";
 
 import type { AccountMetadata } from "./metadata";
-import { withTimeout } from "./remote-signer";
+import { isRemoteSignerTimeout, withTimeout } from "./remote-signer";
 import { classifySignerError, SignerCouldNotDecryptError, SignerDeclinedError } from "./signer-errors";
 
 export const EXTENSION_TIMEOUT_MS = 90_000;
@@ -64,10 +64,42 @@ const answered = <T>(value: T): NonNullable<T> => {
   return value as NonNullable<T>;
 };
 
+/**
+ * One request at a time to the extension, across every Brainstorm tab. Nostash keeps
+ * the reply for a request in one shared variable, so two requests in flight at once
+ * get each other's answers — measured on Nostash 2.1 in Safari: eight decrypts at
+ * once came back shifted onto the wrong requests, some never at all. The Account
+ * queue already keeps one tab to one at a time; a Web Lock does it across tabs. The
+ * lock is held only while we wait: a request given up on lets it go.
+ */
+function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (!locks) return work();
+  return locks.request(EXTENSION_LOCK, () => work()) as Promise<T>;
+}
+export const EXTENSION_LOCK = "brainstorm-nip07";
+
+/**
+ * How long a decrypt may go unanswered before we look into it. Nostash never answers
+ * a decrypt it can't perform (spam, a corrupt wrap, another key's) — its error goes
+ * nowhere — so a wrap like that held the account's queue for EXTENSION_TIMEOUT_MS on
+ * every visit. Its answers otherwise come back in well under a second; this is long
+ * past any slow one. The request is never let go sooner: Nostash keeps one reply slot
+ * for every request, so a late answer to a request we stopped waiting for would land
+ * on the next one — measured, it stored messages under the wrong gift wraps.
+ */
+export const EXTENSION_DECRYPT_MS = 30_000;
+/** An answer this fast had no person in the way: no approval prompt is open. */
+const QUICK_ANSWER_MS = 2_000;
+/** How long a quick answer vouches that prompts are already allowed. */
+const STILL_QUICK_MS = 120_000;
+
 /** A cipher's answer: a string, or `undefined` for no answer — `""` is a real plaintext. */
-async function ask(request: () => Promise<unknown>): Promise<string | undefined> {
-  const result = await withTimeout(Promise.resolve().then(request), EXTENSION_TIMEOUT_MS, LATE);
-  return typeof result === "string" ? result : undefined;
+async function ask(request: () => Promise<unknown>, deadlineMs = EXTENSION_TIMEOUT_MS): Promise<string | undefined> {
+  return oneAtATime(async () => {
+    const result = await withTimeout(Promise.resolve().then(request), deadlineMs, LATE);
+    return typeof result === "string" ? result : undefined;
+  });
 }
 
 async function text(request: () => Promise<unknown>): Promise<string> {
@@ -98,10 +130,24 @@ function timedCipher(
     encrypt: (pubkey: string, plaintext: string) => text(() => cipher().encrypt(pubkey, plaintext)),
     decrypt: async (pubkey: string, ciphertext: string) => {
       try {
-        const plaintext = await ask(() => cipher().decrypt(pubkey, ciphertext));
-        if (plaintext !== undefined) return plaintext;
+        const started = Date.now();
+        let plaintext: string | undefined;
+        try {
+          plaintext = await ask(() => cipher().decrypt(pubkey, ciphertext), EXTENSION_DECRYPT_MS);
+        } catch (error) {
+          // Silent for EXTENSION_DECRYPT_MS from an extension that had been answering by
+          // itself (no prompt open): Nostash's way of failing. If it opens our own test
+          // message now, the wrap is what failed — remembered, so it costs this once.
+          if (!isRemoteSignerTimeout(error) || !signer.answersQuickly()) throw error;
+          await signer.confirmCipher(nip, cipher);
+          throw new SignerCouldNotDecryptError();
+        }
+        if (plaintext !== undefined) {
+          signer.noteAnswer(Date.now() - started);
+          return plaintext;
+        }
         // Nostash's "no", or Alby's "couldn't open this". A signer that opens our
-        // own test message just now didn't say no to this one.
+        // own test message just now didn't say no to this one: the message is what failed.
         await signer.confirmCipher(nip, cipher);
         throw new SignerCouldNotDecryptError();
       } catch (error) {
@@ -130,6 +176,17 @@ export class TimedExtensionSigner extends ExtensionSigner {
   owner?: string;
   /** The last confirmation of each kind: `at` once it answered, absent while it is still asking. */
   private confirmed = new Map<string, Confirmation>();
+  /** When a decrypt was last answered in under QUICK_ANSWER_MS. */
+  private quickAt = -Infinity;
+
+  noteAnswer(tookMs: number): void {
+    if (tookMs < QUICK_ANSWER_MS) this.quickAt = Date.now();
+  }
+
+  /** Answering by itself lately: a silence now is a request it dropped, not a prompt open. */
+  answersQuickly(): boolean {
+    return Date.now() - this.quickAt < STILL_QUICK_MS;
+  }
 
   get nip04() {
     return timedCipher("NIP-04", (nostr) => nostr.nip04, this);
@@ -141,14 +198,16 @@ export class TimedExtensionSigner extends ExtensionSigner {
   async getPublicKey(): Promise<string> {
     const nostr = extension();
     if (this.pubkey) return this.pubkey;
-    const key = answered(await withTimeout(nostr.getPublicKey(), EXTENSION_TIMEOUT_MS, LATE));
+    const key = answered(await oneAtATime(() => withTimeout(nostr.getPublicKey(), EXTENSION_TIMEOUT_MS, LATE)));
     if (typeof key !== "string" || !isHexKey(key)) throw new Error("Extension returned an invalid public key");
     this.pubkey = key;
     return key;
   }
 
   async signEvent(template: EventTemplate): Promise<VerifiedEvent> {
-    const event = answered(await withTimeout(extension().signEvent(template), EXTENSION_TIMEOUT_MS, LATE));
+    const event = answered(
+      await oneAtATime(() => withTimeout(extension().signEvent(template), EXTENSION_TIMEOUT_MS, LATE)),
+    );
     if (!verifyEvent(event as VerifiedEvent)) throw new Error("Extension returned an invalid event");
     return event as VerifiedEvent;
   }
@@ -163,7 +222,7 @@ export class TimedExtensionSigner extends ExtensionSigner {
     const owner = this.owner;
     if (!owner) return Promise.resolve();
     return this.confirm("profile", async () => {
-      const now = answered(await withTimeout(extension().getPublicKey(), EXTENSION_TIMEOUT_MS, LATE));
+      const now = answered(await oneAtATime(() => withTimeout(extension().getPublicKey(), EXTENSION_TIMEOUT_MS, LATE)));
       if (now !== owner) throw new SignerMismatchError("Your signer extension is on a different profile.");
     });
   }
