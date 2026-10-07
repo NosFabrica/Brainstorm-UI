@@ -169,7 +169,13 @@ describe("display hints in the copy (provisional)", () => {
   it("publishes the chosen roles and the list image, before the b", () => {
     const draft = initialDraft(community, null, items);
     draft.fields[1] = { ...draft.fields[1], enabled: true };
-    draft.display = { title: "description", summary: null, image: null, listImage: " https://x.example/gh.svg " };
+    draft.display = {
+      title: "description",
+      summary: null,
+      image: null,
+      facts: [],
+      listImage: " https://x.example/gh.svg ",
+    };
     const tags = copyTemplate(community, draft).tags;
     expect(tags.slice(-3)).toEqual([
       ["display", "title", "description"],
@@ -180,7 +186,7 @@ describe("display hints in the copy (provisional)", () => {
 
   it("drops a role whose field this version doesn't include", () => {
     const draft = initialDraft(community, null, items);
-    draft.display = { title: "description", summary: null, image: null, listImage: "" };
+    draft.display = { title: "description", summary: null, image: null, facts: [], listImage: "" };
     expect(copyTemplate(community, draft).tags.some((t) => t[0] === "display")).toBe(false);
   });
 
@@ -202,6 +208,7 @@ describe("display hints in the copy (provisional)", () => {
       link: null,
       media: null,
       location: null,
+      facts: [],
       listImage: "https://x.example/gh.svg",
     });
   });
@@ -288,5 +295,42 @@ describe("field types and the link and media roles", () => {
     const tags = copyTemplate(community, draft).tags;
     expect(tags).toContainEqual(["display", "link", "page"]);
     expect(tags).toContainEqual(["display", "media", "clip"]);
+  });
+});
+
+describe("facts in the copy (provisional)", () => {
+  it("publishes facts in field order, a label only when one is typed, none for a field left out", () => {
+    const draft = initialDraft(community, null, items);
+    draft.fields[1] = { ...draft.fields[1], enabled: true };
+    draft.display = {
+      ...draft.display,
+      facts: [
+        { field: "description", label: " Who " },
+        { field: "github-username", label: "" },
+        { field: "note", label: "Note" },
+      ],
+    };
+    const facts = copyTemplate(community, draft).tags.filter((t) => t[0] === "display" && t[1] === "fact");
+    expect(facts).toEqual([
+      ["display", "fact", "github-username"],
+      ["display", "fact", "description", "Who"],
+    ]);
+  });
+
+  it("starts from the current version's facts, a missing label as empty", () => {
+    const mine = definitionOf(
+      header(ME, [
+        ["names", "GitHub Account", "GitHub Accounts"],
+        ["required", "github-username"],
+        ["optional", "description"],
+        ["display", "fact", "description", "Who"],
+        ["display", "fact", "github-username"],
+        ["b", COMMUNITY, "pointer"],
+      ]),
+    );
+    expect(initialDraft(community, mine, items).display.facts).toEqual([
+      { field: "description", label: "Who" },
+      { field: "github-username", label: "" },
+    ]);
   });
 });

@@ -14,7 +14,7 @@
  */
 import { DISPLAY_HINTS_ENABLED } from "@/config/dictionary";
 import { fieldCell, httpUrl } from "@/lib/dlistFields";
-import { NO_HINTS } from "@/lib/displayHints";
+import { factLabel, NO_HINTS } from "@/lib/displayHints";
 import { decodeGeohash, type GeohashCell } from "@/lib/geohash";
 import { mediaKindOfUrl } from "@/lib/mediaKind";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
@@ -37,6 +37,10 @@ export interface ItemPresentation {
   /** Where the item is: the most precise geohash its `location` field gives (lib/geohash). */
   location: (GeohashCell & { geohash: string }) | null;
   locationField: string | null;
+  /** The definition's facts this item has a value for, labelled, in the header's order. */
+  facts: { field: string; label: string; value: string; href: string | null; extra: number }[];
+  /** Every field named as a fact, so a page needn't list it again. */
+  factFields: string[];
   /** The list's image, worn by every item. */
   listImage: string | null;
 }
@@ -77,6 +81,16 @@ export function presentItem(
   const linkHost = linkHref ? new URL(linkHref).host : null;
   const mediaUrl = httpUrl(valueOf(hints.media));
   const mediaKind = mediaUrl ? mediaKindOfUrl(mediaUrl) : null;
+  // A field another role already shows isn't a fact as well: each field shows once.
+  const byRole = new Set([titleField, summaryField, hints.image, hints.link, hints.media, hints.location]);
+  const factHints = hints.facts.filter((f) => !byRole.has(f.field));
+  const facts = factHints.flatMap((f) => {
+    const decl = fields.find((d) => d.name === f.field);
+    const cell = decl ? fieldCell(item, decl) : null;
+    return cell?.value == null
+      ? []
+      : [{ field: f.field, label: factLabel(f), value: cell.value, href: cell.href, extra: cell.extra }];
+  });
 
   return {
     title: valueOf(titleField),
@@ -94,6 +108,8 @@ export function presentItem(
     mediaField: hints.media,
     location: mostPreciseGeohash(item, hints.location),
     locationField: hints.location,
+    facts,
+    factFields: factHints.map((f) => f.field),
     listImage: hints.listImage,
   };
 }

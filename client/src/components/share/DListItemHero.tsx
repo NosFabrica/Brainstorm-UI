@@ -12,6 +12,8 @@
  * - Its links (useItemView): its own `link` field, and those built from the
  *   URL templates the definition names. A definition that names neither gives
  *   no link — no concept has code of its own.
+ * - Its facts, as "label: value" — the fields the definition names with a
+ *   `fact` hint, in its order.
  * - Its `media` field, played: audio in the app's track card, video inline.
  * - Its `location` field, on a map — OpenStreetMap's, loaded only when the
  *   reader asks for it.
@@ -138,6 +140,31 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
           )}
         </div>
       </div>
+
+      {shown.facts.length > 0 && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm" data-testid="dlist-item-facts">
+          {shown.facts.map((f) => (
+            <div key={f.field} className="contents" data-testid="dlist-item-fact" data-field={f.field}>
+              <dt className="text-slate-500 dark:text-slate-400">{f.label}</dt>
+              <dd className="min-w-0 break-words text-slate-900 dark:text-slate-100">
+                {f.href ? (
+                  <a
+                    href={f.href}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="text-brand-link hover:underline"
+                  >
+                    {f.value}
+                  </a>
+                ) : (
+                  f.value
+                )}
+                {f.extra > 0 && <span className="ml-2 text-xs text-slate-400">+{f.extra} more</span>}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
       {shown.media && (
         <div data-testid="dlist-item-media" data-media-kind={shown.media.kind}>

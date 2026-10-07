@@ -51,6 +51,8 @@ export interface DraftDisplay {
   link: string | null;
   media: string | null;
   location: string | null;
+  /** Fields listed on the item's page; a label as typed, "" for none. Published in field order. */
+  facts: { field: string; label: string }[];
   /** As typed; published only when it's an http(s) URL. */
   listImage: string;
 }
@@ -144,13 +146,22 @@ export function initialDraft(
         type: f.type,
       });
   }
-  const { title, summary, image, link, media, location, listImage } = base.display;
+  const { title, summary, image, link, media, location, facts, listImage } = base.display;
   return {
     singular: base.singular,
     plural: base.plural,
     description: base.description ?? "",
     fields: rows,
-    display: { title, summary, image, link, media, location, listImage: listImage ?? "" },
+    display: {
+      title,
+      summary,
+      image,
+      link,
+      media,
+      location,
+      facts: facts.map((f) => ({ field: f.field, label: f.label ?? "" })),
+      listImage: listImage ?? "",
+    },
     links: base.links.map((l) => ({ ...l, bindings: l.bindings.map(([p, f]) => [p, f] as [string, string]) })),
   };
 }
@@ -206,6 +217,10 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
       link: pick(draft.display.link),
       media: pick(draft.display.media),
       location: pick(draft.display.location),
+      facts: [...enabled].flatMap((field) => {
+        const fact = draft.display.facts.find((f) => f.field === field);
+        return fact ? [{ field, label: fact.label.trim() || null }] : [];
+      }),
       listImage: draft.display.listImage.trim() || null,
     }),
   );

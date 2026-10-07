@@ -46,7 +46,7 @@ import { useWotItems } from "@/hooks/useWotItems";
 import { useConceptItems } from "@/hooks/useConceptItems";
 import { useNearViewport } from "@/hooks/useNearViewport";
 import { DISPLAY_HINTS_ENABLED, dictionaryRelays, offersOwnVersion } from "@/config/dictionary";
-import { DISPLAY_ROLES, type DisplayHints } from "@/lib/displayHints";
+import { DISPLAY_ROLES, FACT_ROLE, type DisplayHints } from "@/lib/displayHints";
 import type { LinkRef } from "@/lib/linkTemplates";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { avatarSrc } from "@/lib/avatarSrc";
@@ -422,7 +422,10 @@ function LinksSection({ refs }: { refs: LinkRef[] }) {
 
 function FieldsSection({ fields, display }: { fields: FieldDecl[]; display: DisplayHints | null }) {
   // The roles the definition gives its fields (provisional display hints), shown on the field.
-  const rolesOf = (name: string) => DISPLAY_ROLES.filter((role) => display?.[role] === name);
+  const rolesOf = (name: string) => [
+    ...DISPLAY_ROLES.filter((role) => display?.[role] === name),
+    ...(display?.facts.some((f) => f.field === name) ? [FACT_ROLE] : []),
+  ];
   return (
     <section className="space-y-3" data-testid="dictionary-fields">
       <SectionHeader kicker="Fields" />

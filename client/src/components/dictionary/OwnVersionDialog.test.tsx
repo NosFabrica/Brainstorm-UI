@@ -124,3 +124,18 @@ describe("OwnVersionDialog", () => {
     expect(onPublished).not.toHaveBeenCalled();
   });
 });
+
+describe("OwnVersionDialog — facts", () => {
+  it("a field ticked as a fact shows in the preview, with the label typed for it", async () => {
+    open();
+    await userEvent.click(screen.getByTestId("own-version-fact-github-username"));
+    expect(preview()).toContain('["display","fact","github-username"]');
+    const label = screen.getByTestId("own-version-fact-label-github-username");
+    expect(label).toHaveAttribute("placeholder", "Github username");
+    await userEvent.type(label, "Handle");
+    expect(preview()).toContain('["display","fact","github-username","Handle"]');
+    await userEvent.click(screen.getByTestId("own-version-fact-github-username"));
+    expect(preview()).not.toContain('"fact"');
+    expect(screen.queryByTestId("own-version-fact-label-github-username")).toBeNull();
+  });
+});
