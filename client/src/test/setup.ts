@@ -15,10 +15,13 @@ const hasDom = typeof window !== "undefined";
 // script rather than in this file.
 
 // api.ts captures VITE_API_URL at module load — provide a stable test base URL.
+// `.invalid` (RFC 6761) fails to resolve at once everywhere. It was `test.local`,
+// which macOS sends to multicast DNS: a test that reached the network unmocked
+// (the house observer's /.well-known lookup) waited ~5s and timed out, on a Mac only.
 if (hasDom) {
   window.__ENV__ = {
-    VITE_API_URL: "http://test.local",
-    VITE_NIP85_RELAY_URL: "wss://test.local",
+    VITE_API_URL: "http://test.invalid",
+    VITE_NIP85_RELAY_URL: "wss://test.invalid",
   };
 }
 

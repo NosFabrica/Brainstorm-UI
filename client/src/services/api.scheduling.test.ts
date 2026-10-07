@@ -54,7 +54,7 @@ describe("apiClient.getSchedulingPolicies", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://test.local/admin/scheduling");
+    expect(url).toBe("http://test.invalid/admin/scheduling");
     expect((options.headers as Record<string, string>).access_token).toBe("test-token");
     expect(result).toEqual(policies);
   });
@@ -110,7 +110,7 @@ describe("apiClient scheduling policy mutations", () => {
     const result = await apiClient.createSchedulingPolicy(body);
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://test.local/admin/scheduling");
+    expect(url).toBe("http://test.invalid/admin/scheduling");
     expect(options.method).toBe("POST");
     expect((options.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
     expect(JSON.parse(options.body as string)).toEqual(body);
@@ -133,7 +133,7 @@ describe("apiClient scheduling policy mutations", () => {
     const result = await apiClient.updateSchedulingPolicy(2, { name: "Renamed" });
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://test.local/admin/scheduling/2");
+    expect(url).toBe("http://test.invalid/admin/scheduling/2");
     expect(options.method).toBe("PATCH");
     expect(JSON.parse(options.body as string)).toEqual({ name: "Renamed" });
     expect(result).toEqual(updated);
@@ -145,7 +145,7 @@ describe("apiClient scheduling policy mutations", () => {
     await apiClient.deleteSchedulingPolicy(2);
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://test.local/admin/scheduling/2");
+    expect(url).toBe("http://test.invalid/admin/scheduling/2");
     expect(options.method).toBe("DELETE");
   });
 
@@ -172,7 +172,7 @@ describe("apiClient.assignUserScheduling", () => {
     const result = await apiClient.assignUserScheduling(PK, 2);
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(`http://test.local/admin/users/${PK}/scheduling`);
+    expect(url).toBe(`http://test.invalid/admin/users/${PK}/scheduling`);
     expect(options.method).toBe("PUT");
     expect(JSON.parse(options.body as string)).toEqual({ scheduling_id: 2 });
     expect(result).toEqual(detail);
@@ -206,7 +206,7 @@ describe("apiClient.clearUserSchedulingOverride", () => {
     const result = await apiClient.clearUserSchedulingOverride(PK);
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(`http://test.local/admin/users/${PK}/scheduling/override`);
+    expect(url).toBe(`http://test.invalid/admin/users/${PK}/scheduling/override`);
     expect(options.method).toBe("DELETE");
     expect(options.body).toBeUndefined();
     expect(result).toEqual(detail);
@@ -239,7 +239,7 @@ describe("apiClient.getSchedulingStats", () => {
 
     const result = await apiClient.getSchedulingStats();
 
-    expect(fetchMock.mock.calls[0][0]).toBe("http://test.local/admin/scheduling/stats");
+    expect(fetchMock.mock.calls[0][0]).toBe("http://test.invalid/admin/scheduling/stats");
     expect(result).toEqual(stats);
   });
 });
@@ -265,7 +265,7 @@ describe("apiClient scheduling policy users", () => {
     const result = await apiClient.getSchedulingPolicyUsers(2, { page: 1, size: 20 });
 
     const [url] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://test.local/admin/scheduling/2/users?page=1&size=20");
+    expect(url).toBe("http://test.invalid/admin/scheduling/2/users?page=1&size=20");
     expect(result).toEqual(page);
   });
 
@@ -276,7 +276,7 @@ describe("apiClient scheduling policy users", () => {
     const result = await apiClient.assignPolicyUsers(2, pubkeys);
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://test.local/admin/scheduling/2/users");
+    expect(url).toBe("http://test.invalid/admin/scheduling/2/users");
     expect(options.method).toBe("PUT");
     expect(JSON.parse(options.body as string)).toEqual({ pubkeys });
     expect(result).toEqual({ assigned: 2 });
