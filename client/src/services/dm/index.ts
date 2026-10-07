@@ -23,6 +23,7 @@ import { FILE_KIND } from "@/lib/dm/giftWrap";
 import { publishBlossomServers, uploadToBlossom } from "@/services/blossom";
 import { ENCRYPTED_BLOSSOM_SERVERS, encryptedUploadServers, loadBlossomServers } from "@/lib/blossomServers";
 import { poolTransport } from "./transport";
+import { relayLoginsSigning$ } from "@/services/relayAuth";
 
 function classifyFor(account: BrainstormAccount) {
   return (error: unknown): SignerFailure => {
@@ -126,6 +127,10 @@ function startFor(account: BrainstormAccount | undefined) {
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
       cache: dmCacheBackend(),
       sealer: deviceSealer,
+      onLoginSigning: (callback) => {
+        const sub = relayLoginsSigning$.subscribe((n) => callback(n > 0));
+        return () => sub.unsubscribe();
+      },
     });
     void current.start();
   }

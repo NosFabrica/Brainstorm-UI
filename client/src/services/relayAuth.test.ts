@@ -12,6 +12,7 @@ import { BehaviorSubject, Subject } from "rxjs";
 import {
   askRelayAuthAgain,
   relayAuthProblems,
+  relayLoginsSigning$,
   setRelayAuthInteractive,
   startRelayAuth as realStartRelayAuth,
 } from "./relayAuth";
@@ -126,6 +127,21 @@ describe("startRelayAuth", () => {
     await tick();
     expect(sign).toHaveBeenCalledWith(account, expect.objectContaining({ kind: 22242 }));
     expect(account.signEvent).not.toHaveBeenCalled();
+  });
+
+  it("says a login is waiting on the signer, until it answers — opening messages waits meanwhile", async () => {
+    let answer: (e: typeof signed) => void = () => {};
+    const sign = vi.fn(() => new Promise<typeof signed>((ok) => (answer = ok)));
+    const seen: number[] = [];
+    const sub = relayLoginsSigning$.subscribe((n) => seen.push(n));
+    const { gated } = setup({ sign });
+    gated.challenge$.next("c1");
+    await tick();
+    expect(seen.at(-1)).toBe(1);
+    answer(signed);
+    await tick();
+    expect(seen.at(-1)).toBe(0);
+    sub.unsubscribe();
   });
 
   it("stays quiet for a signed-out reader", async () => {

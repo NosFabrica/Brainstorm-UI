@@ -126,6 +126,11 @@ export interface DmEngineDeps {
   onOnline?: (callback: () => void) => () => void;
   /** How long one wrap may take to open before its slot is taken back (default 45s). */
   decryptTimeoutMs?: number;
+  /**
+   * Calls back with whether a relay login is waiting on the signer; returns a stop
+   * function. Opening waits meanwhile (services/relayAuth relayLoginsSigning$).
+   */
+  onLoginSigning?: (callback: (signing: boolean) => void) => () => void;
   /** Milliseconds, for timing how fast the signer answers (default Date.now). */
   clockMs?: () => number;
 }
@@ -232,6 +237,13 @@ export class DmEngine {
   private readonly sealOf = new Map<string, NostrEvent>();
   /** Messages being sealed to send: opening waits, so a send isn't the one refused for pace. */
   private sealing = 0;
+  /**
+   * A relay login waiting on the signer: opening waits too. A login refused for pace
+   * leaves the inbox relay it was for shut — new messages there never arrive — while
+   * the backlog it lost to can open a moment later.
+   */
+  private loginSigning = false;
+  private stopLoginWatch?: () => void;
   /** Opened since the last step up or down: a full round of them earns one more slot. */
   private paceOk = 0;
   /** Set while backing off after "rate limited": nothing new is asked until it fires. */
@@ -315,6 +327,11 @@ export class DmEngine {
     this.now = deps.now ?? (() => Math.floor(Date.now() / 1000));
     this.cache = deps.cache ?? null;
     this.maxConcurrency = deps.concurrency ?? 2;
+    this.stopLoginWatch = deps.onLoginSigning?.((signing) => {
+      if (this.loginSigning === signing) return;
+      this.loginSigning = signing;
+      if (!signing) this.pump();
+    });
   }
 
   get pubkey(): string {
@@ -363,6 +380,7 @@ export class DmEngine {
       (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.resumeTimer);
     this.clearPace();
     this.sealOf.clear();
+    this.stopLoginWatch?.();
     const clearTimer = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
     if (this.stateTimer !== undefined) clearTimer(this.stateTimer);
     this.stateTimer = undefined;
@@ -863,7 +881,7 @@ export class DmEngine {
 
   private pump() {
     if (this.stopped || !this.allowed || this.paused || !this.account.decrypt) return;
-    if (this.paceTimer !== undefined || this.sealing) return;
+    if (this.paceTimer !== undefined || this.sealing || this.loginSigning) return;
     while (this.running < this.concurrency) {
       // Newest first, so the latest messages appear before the backlog.
       const next = this.takeNext();

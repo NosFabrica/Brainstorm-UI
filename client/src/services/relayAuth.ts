@@ -93,6 +93,15 @@ export function relayAuthProblemFor(
   return problems.get(normalizeURL(url));
 }
 
+/**
+ * Logins waiting on the signer right now. Opening messages waits while there are any
+ * (services/dm): a signer that limits its rate (Amethyst over NIP-46) spent its budget
+ * on the backlog, the login timed out, and the relay it was for — an inbox that only
+ * hands over messages to a signed-in reader — never delivered the new ones.
+ */
+const signing$ = new BehaviorSubject(0);
+export const relayLoginsSigning$: Observable<number> = signing$.asObservable();
+
 const askAgain$ = new Subject<string | undefined>();
 /** The reader asked for another go at a login that didn't happen — on `url`, or on every relay that has one. */
 export function askRelayAuthAgain(url?: string): void {
@@ -205,6 +214,7 @@ export function startRelayAuth<A extends ActiveAccount>({
         pubkey: account.pubkey,
         signEvent: async (draft: EventTemplate) => {
           let timer: ReturnType<typeof setTimeout> | undefined;
+          signing$.next(signing$.value + 1);
           try {
             return await Promise.race([
               sign(account, draft),
@@ -225,6 +235,7 @@ export function startRelayAuth<A extends ActiveAccount>({
             throw error;
           } finally {
             clearTimeout(timer);
+            signing$.next(signing$.value - 1);
           }
         },
       };

@@ -1273,6 +1273,41 @@ describe("DmEngine", () => {
     expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("now");
   });
 
+  it("opens nothing while a relay login waits on the signer, then carries on", async () => {
+    const me = person();
+    const ana = person();
+    const net = network({ [me.pubkey]: ["wss://in.example/"] });
+    net.hold("wss://in.example/", await wrapFrom(ana, me.pubkey, "after the login", NOW - 60));
+    let report: (signing: boolean) => void = () => {};
+    let opened = 0;
+    const base = me.account();
+    const engine = new DmEngine(
+      me.account({
+        decrypt: async (from, text) => {
+          opened++;
+          return base.decrypt!(from, text);
+        },
+      }),
+      {
+        ...net,
+        ...clock(),
+        now: () => NOW,
+        onLoginSigning: (cb) => {
+          report = cb;
+          return () => {};
+        },
+      },
+    );
+    report(true); // an inbox relay asked for a login before Messages opened
+    await engine.start();
+    for (let i = 0; i < 4; i++) await settle();
+    expect(opened).toBe(0);
+    expect(engine.state().queued).toBe(1);
+    report(false); // the signer answered it
+    for (let i = 0; i < 6; i++) await settle();
+    expect(engine.store.rooms()[0]?.last?.rumor.content).toBe("after the login");
+  });
+
   it("opens nothing while a message is being sealed, so the send isn't the one refused", async () => {
     const me = person();
     const ana = person();
