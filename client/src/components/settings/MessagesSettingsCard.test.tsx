@@ -86,3 +86,29 @@ describe("MessagesSettingsCard servers", () => {
     state = someWorking;
   });
 });
+
+describe("MessagesSettingsCard notifications", () => {
+  const standalone = (on: boolean) =>
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: on && q === "(display-mode: standalone)",
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+
+  it("in a tab, speaks of the browser and the tab", () => {
+    standalone(false);
+    render(<MessagesSettingsCard />);
+    expect(screen.getByText("Browser notifications")).toBeInTheDocument();
+    expect(screen.getByText(/While Brainstorm is open in a tab/)).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it("in the installed app, promises only while it's open — there's no tab to keep open", () => {
+    standalone(true);
+    render(<MessagesSettingsCard />);
+    expect(screen.getByText("Notifications", { selector: "label, label *" })).toBeInTheDocument();
+    expect(screen.getByText(/While the app is open/)).toBeInTheDocument();
+    expect(screen.queryByText(/open in a tab/)).toBeNull();
+    vi.unstubAllGlobals();
+  });
+});

@@ -33,6 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { playChime } from "@/lib/chime";
 import { dedupeRelays } from "@/lib/relayRouting";
 import { cn } from "@/lib/utils";
+import { isInstalledApp } from "@/lib/installedApp";
 import { useDmRelays } from "@/hooks/useDmRelays";
 
 const REACH: { value: DmReach; label: string; hint: string }[] = [
@@ -75,6 +76,9 @@ function ToggleRow({
 
 function NotificationSettings({ pubkey, notify }: { pubkey: string; notify: DmNotifyPrefs }) {
   const [permission, setPermission] = useState(permissionNow);
+  // Installed, there is no tab and no browser to point at. And on a phone the system
+  // pauses the app soon after it leaves the screen, so "while it's open" is the promise.
+  const [installed] = useState(isInstalledApp);
   const desktopOn = notify.desktop && permission === "granted";
   const setDesktop = async (on: boolean) => {
     if (!on) return setNotifyPrefs(pubkey, { desktop: false });
@@ -88,15 +92,20 @@ function NotificationSettings({ pubkey, notify }: { pubkey: string; notify: DmNo
       <div>
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</h3>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          While Brainstorm is open in a tab. Muted chats, and requests below your trust threshold, stay quiet.
+          {installed
+            ? "While the app is open — on a phone it stops listening soon after you switch away."
+            : "While Brainstorm is open in a tab."}{" "}
+          Muted chats, and requests below your trust threshold, stay quiet.
         </p>
       </div>
       <ToggleRow
         id="dm-notify-desktop"
-        label="Browser notifications"
+        label={installed ? "Notifications" : "Browser notifications"}
         hint={
           permission === "denied"
-            ? "Blocked in your browser's site settings."
+            ? installed
+              ? "Blocked in this app's notification settings."
+              : "Blocked in your browser's site settings."
             : permission === "unsupported"
               ? "This browser doesn't offer them."
               : undefined
