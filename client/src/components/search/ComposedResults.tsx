@@ -457,14 +457,17 @@ function ComposedResultsBody({
     }
     return sets;
   }, [carriers.byPubkey]);
+  // Every section's authors, the typed kind's included: without its scores the
+  // floor let below-the-line accounts through there, and Verified only dropped
+  // every one of its hits.
   const allHits = useMemo(
     () => [
-      ...[people, latest, articles, happening, media, music, shop]
+      ...[people, latest, articles, happening, media, music, shop, byKind]
         .flatMap((s) => s?.hits ?? [])
         .map((h) => h.event.pubkey),
       ...carriers.people.map((c) => c.pubkey),
     ],
-    [people, latest, articles, happening, media, music, shop, carriers.people],
+    [people, latest, articles, happening, media, music, shop, byKind, carriers.people],
   );
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
   // Their order, taken once when they land and held for the query.
