@@ -16,6 +16,7 @@ import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { ListingOptions } from "@/components/share/ListingOptions";
 import type { NostrEvent } from "nostr-tools";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 type ListingEvent = Pick<NostrEvent, "id" | "pubkey" | "kind" | "created_at" | "tags">;
 
@@ -191,7 +192,7 @@ export function ListingHero({
         style={{ fontFamily: "var(--font-display)" }}
         data-testid="listing-hero-title"
       >
-        {l.title}
+        <EmojiText text={l.title} tags={event} />
       </h1>
 
       {/* The price, in words, where a shopper looks for it: the seller's own

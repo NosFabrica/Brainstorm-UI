@@ -28,6 +28,7 @@ import { clientRef } from "@/lib/clientLinks";
 import { useClientLink } from "@/hooks/useClientLink";
 import { useLightbox } from "@/components/share/Lightbox";
 import { MediaImg } from "@/components/ui/media-img";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 /** Human-readable track name from a raw audio URL. Falls back to "Audio" for
  *  non-descriptive filenames (numeric ids, hashes/uuids) like `…/32939084.mp3`. */
@@ -69,6 +70,8 @@ function NoteLiveVideo({ url }: { url: string }) {
   );
 }
 
+const NO_TAGS: string[][] = [];
+
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
 /**
@@ -84,7 +87,7 @@ export function NoteContent({
   profiles,
   linkCard = false,
   imageOpensThread = false,
-  tags = [],
+  tags = NO_TAGS,
   authorName,
   embeddedIds,
   embeddedCoords,
@@ -110,7 +113,7 @@ export function NoteContent({
   /** In a clickable feed card: render images as cropped thumbnails whose click
    *  bubbles up to open the thread (instead of a lightbox). */
   imageOpensThread?: boolean;
-  /** The event's tags — used to enrich the audio player (artwork + title). */
+  /** The event's tags — its NIP-30 emoji, and the audio player's artwork + title. */
   tags?: string[][];
   /** The note author's display name — shown as the audio player's "artist". */
   authorName?: string;
@@ -139,7 +142,11 @@ export function NoteContent({
   const renderToken = (token: NoteToken, i: number | string): ReactNode => {
     switch (token.type) {
       case "text":
-        return <span key={i}>{token.value}</span>;
+        return (
+          <span key={i}>
+            <EmojiText text={token.value} tags={tags} />
+          </span>
+        );
       case "url":
         if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
         if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
@@ -287,6 +294,7 @@ export function NoteContent({
       <ReadingText
         tokens={tokens}
         source={text}
+        tags={tags}
         size="post"
         renderToken={renderToken}
         after={linkCardNode}

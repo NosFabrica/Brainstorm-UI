@@ -47,21 +47,43 @@ import { useNearViewport } from "@/hooks/useNearViewport";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { Input } from "@/components/ui/input";
-import { RoomAvatar, firstName, listTime, roomTitle, type Profiles } from "./people";
+import { RoomAvatar, listTime, roomTitle, type Profiles, PersonName, RoomTitle } from "./people";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 export type InboxTab = "chats" | "requests";
 
-function preview(room: DmRoom, me: string, profiles: Profiles): string {
+/**
+ * The list's second line: who wrote last (in a group) and what. Two parts, each
+ * drawn with its own NIP-30 emoji: the sender's from their profile, the body's
+ * from the message.
+ */
+function Preview({ room, me, profiles }: { room: DmRoom; me: string; profiles: Profiles }) {
   const last = room.last;
-  if (!last) return "";
+  if (!last) return null;
   const who =
-    last.author === me ? "You: " : room.participants.length > 2 ? `${firstName(last.author, profiles)}: ` : "";
+    last.author === me ? (
+      "You: "
+    ) : room.participants.length > 2 ? (
+      <>
+        <PersonName pubkey={last.author} profiles={profiles} first />:{" "}
+      </>
+    ) : null;
   const body =
     last.kind === FILE_KIND ? fileLabel(last.rumor) : last.kind === REACTION_KIND ? "Reacted" : last.rumor.content;
   const text = body.replace(/\s+/g, " ").trim();
   // A blank message (a rename from some clients) previews as what it did.
-  if (!text) return last.subject ? `${who}Named the chat “${last.subject}”` : "";
-  return who + text;
+  if (!text)
+    return last.subject ? (
+      <>
+        {who}Named the chat “{last.subject}”
+      </>
+    ) : null;
+  return (
+    <>
+      {who}
+      <EmojiText text={text} tags={last.rumor.tags} />
+    </>
+  );
 }
 
 /** Told the people of each row as it comes near the screen, so their names and pictures load. */
@@ -118,7 +140,9 @@ const RoomRow = memo(function RoomRow({
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex items-center gap-1.5">
-          <span className="truncate text-[15px] font-semibold">{roomTitle(room, me, profiles)}</span>
+          <span className="truncate text-[15px] font-semibold">
+            <RoomTitle room={room} me={me} profiles={profiles} />
+          </span>
           {timer && <Timer className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label="Disappearing messages on" />}
           {prefs.muted.includes(room.key) && (
             <BellOff className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label="Muted" />
@@ -146,7 +170,7 @@ const RoomRow = memo(function RoomRow({
                 unread ? "font-semibold text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400",
               )}
             >
-              {preview(room, me, profiles)}
+              <Preview room={room} me={me} profiles={profiles} />
             </span>
           )}
           {unread > 0 && (

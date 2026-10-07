@@ -3,9 +3,12 @@
  * from the inline `renderLinkedText` in ProfilePage so the share page (bio,
  * short text) can reuse it without pulling in the whole profile page.
  */
+import { EmojiText } from "@/components/ui/custom-emoji";
+
 const URL_REGEX = /(https?:\/\/[^\s<>"')\]]+)/g;
 
-export function LinkedText({ text }: { text: string }) {
+/** `tags`: the event's, when the text is one — its NIP-30 emoji are drawn. */
+export function LinkedText({ text, tags }: { text: string; tags?: string[][] }) {
   const parts = text.split(URL_REGEX);
   return (
     <>
@@ -25,7 +28,11 @@ export function LinkedText({ text }: { text: string }) {
             </a>
           );
         }
-        return <span key={i}>{part}</span>;
+        return (
+          <span key={i}>
+            <EmojiText text={part} tags={tags} />
+          </span>
+        );
       })}
     </>
   );

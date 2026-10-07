@@ -42,6 +42,7 @@ import { DmStore, messageFromRumor, type Delivery, type DmMessage, type Outgoing
 import { chatTags } from "@/lib/dm/rooms";
 import { onAppResume } from "@/lib/appResume";
 import { MAX_INBOX_RELAYS, type DmRelayLookup } from "@/lib/dm/inboxRelays";
+import type { CustomEmoji } from "@/lib/customEmoji";
 import {
   FAILED_RULES,
   MAX_CACHED_WRAPS,
@@ -1302,8 +1303,8 @@ export class DmEngine {
     return this.lastStamp;
   }
 
-  /** React to a message (NIP-25 inside a wrap). "+" is a like. */
-  async react(target: DmMessage, content: string): Promise<SendResult> {
+  /** React to a message (NIP-25 inside a wrap). "+" is a like; a custom emoji carries its NIP-30 tag. */
+  async react(target: DmMessage, content: string, emoji?: CustomEmoji): Promise<SendResult> {
     const others = target.room.split(",").filter((pk) => pk && pk !== this.me);
     // NIP-25 names the author; the other p tags keep the reaction in the same room.
     const named = [...new Set([target.author, ...others])].filter((pk) => pk !== this.me);
@@ -1311,8 +1312,13 @@ export class DmEngine {
       pubkey: this.me,
       kind: REACTION_KIND,
       created_at: this.stamp(),
-      tags: [["e", target.id], ...named.map((pk) => ["p", pk]), ["k", String(target.kind)]],
-      content: content || "+",
+      tags: [
+        ["e", target.id],
+        ...named.map((pk) => ["p", pk]),
+        ["k", String(target.kind)],
+        ...(emoji ? [["emoji", emoji.code, emoji.url]] : []),
+      ],
+      content: emoji ? `:${emoji.code}:` : content || "+",
     });
     return this.deliver(rumor, others, undefined);
   }

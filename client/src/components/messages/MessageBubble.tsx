@@ -5,7 +5,9 @@ import type { Delivery, DmMessage } from "@/lib/dm/store";
 import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
 import { askRelayAuthAgain, relayAuthProblemFor } from "@/services/relayAuth";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
-import { fileMetaOf, reactionAuthors, reactionLabel } from "@/lib/dm/rooms";
+import { fileMetaOf, reactionAuthors, reactionEmojis, reactionLabel } from "@/lib/dm/rooms";
+import type { CustomEmoji } from "@/lib/customEmoji";
+import { CustomEmojiImg, EmojiText } from "@/components/ui/custom-emoji";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,12 +17,12 @@ import {
 import { FileMessage } from "./FileMessage";
 import { DmLinkPreview, firstPreviewableLink } from "./DmLinkPreview";
 import { MessageSheet } from "./MessageSheet";
-import { PersonAvatar, clockTime, firstName, type Profiles } from "./people";
+import { PersonAvatar, clockTime, type Profiles, PersonName } from "./people";
 
 const URL_RE = /(https?:\/\/[^\s<>"')\]]+)/g;
 
-/** Plain text with bare links made clickable, in the bubble's own colour. */
-function Linked({ text }: { text: string }) {
+/** Plain text with bare links made clickable, in the bubble's own colour, and its NIP-30 emoji drawn. */
+function Linked({ text, tags }: { text: string; tags: string[][] }) {
   return (
     <>
       {text.split(URL_RE).map((part, i) =>
@@ -35,7 +37,9 @@ function Linked({ text }: { text: string }) {
             {part.replace(/^https?:\/\//, "").replace(/\/$/, "")}
           </a>
         ) : (
-          <span key={i}>{part}</span>
+          <span key={i}>
+            <EmojiText text={part} tags={tags} />
+          </span>
         ),
       )}
     </>
@@ -183,7 +187,7 @@ export const MessageBubble = memo(function MessageBubble({
   onJumpTo?: (id: string) => void;
   /** While the quoted message is being paged in, or once no relay had it. */
   replyLookup?: "finding" | "missing";
-  onReact: (m: DmMessage, content: string) => void;
+  onReact: (m: DmMessage, content: string, emoji?: CustomEmoji) => void;
   onDetails: (m: DmMessage) => void;
   onResend: (m: DmMessage) => void;
   onDiscard: (m: DmMessage) => void;
@@ -201,6 +205,7 @@ export const MessageBubble = memo(function MessageBubble({
   const grouped = new Map<string, { count: number; mine: boolean }>();
   for (const [label, authors] of reactionAuthors(reactions))
     grouped.set(label, { count: authors.size, mine: authors.has(me) });
+  const emojis = reactionEmojis(reactions);
 
   // Desktop: the buttons beside a bubble, shown on hover. The reaction menu renders in a
   // portal and takes focus, so focus-within no longer holds the row visible: track it.
@@ -303,7 +308,7 @@ export const MessageBubble = memo(function MessageBubble({
       <div className={cn("flex min-w-0 max-w-[85%] flex-col gap-1 sm:max-w-[78%]", mine ? "items-end" : "items-start")}>
         {!mine && group && showAuthor && (
           <span className="px-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-            {firstName(message.author, profiles)}
+            <PersonName pubkey={message.author} profiles={profiles} first />
           </span>
         )}
         <div className={cn("flex max-w-full items-center gap-1", mine && "justify-end")}>
@@ -335,10 +340,14 @@ export const MessageBubble = memo(function MessageBubble({
                 {replyTo ? (
                   <>
                     <span className="block font-semibold">
-                      {replyTo.author === me ? "You" : firstName(replyTo.author, profiles)}
+                      {replyTo.author === me ? "You" : <PersonName pubkey={replyTo.author} profiles={profiles} first />}
                     </span>
                     <span className="line-clamp-2 opacity-90 [overflow-wrap:anywhere]">
-                      {replyTo.kind === FILE_KIND ? "A file" : replyTo.rumor.content}
+                      {replyTo.kind === FILE_KIND ? (
+                        "A file"
+                      ) : (
+                        <EmojiText text={replyTo.rumor.content} tags={replyTo.rumor.tags} />
+                      )}
                     </span>
                   </>
                 ) : (
@@ -360,7 +369,7 @@ export const MessageBubble = memo(function MessageBubble({
                 {/* `anywhere`, not `break-word`: only it lets an npub or a long id shrink the
                     bubble's minimum width, so one can't push the thread sideways. */}
                 <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
-                  <Linked text={message.rumor.content} />
+                  <Linked text={message.rumor.content} tags={message.rumor.tags} />
                 </p>
                 {previewUrl && <DmLinkPreview url={previewUrl} mine={mine} />}
               </>
@@ -375,7 +384,7 @@ export const MessageBubble = memo(function MessageBubble({
                 key={label}
                 type="button"
                 // Yours already: NIP-25 has no undo inside a wrap, and another tap would only send it again.
-                onClick={() => !g.mine && onReact(message, label === "❤️" ? "+" : label)}
+                onClick={() => !g.mine && onReact(message, label === "❤️" ? "+" : label, emojis.get(label))}
                 aria-pressed={g.mine}
                 className={cn(
                   "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs font-semibold",
@@ -384,7 +393,7 @@ export const MessageBubble = memo(function MessageBubble({
                     : "border-border bg-card text-slate-600 dark:text-slate-300",
                 )}
               >
-                {label} {g.count > 1 ? g.count : ""}
+                {emojis.has(label) ? <CustomEmojiImg {...emojis.get(label)!} /> : label} {g.count > 1 ? g.count : ""}
               </button>
             ))}
           </span>

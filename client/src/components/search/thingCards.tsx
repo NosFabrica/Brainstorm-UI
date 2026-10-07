@@ -75,6 +75,7 @@ import { formatBytes } from "@/lib/formatBytes";
 import { languageName } from "@/lib/translate";
 import type { GoalProgress } from "@/services/search";
 import type { SearchResult } from "@/lib/profileSearch";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 type Detail<T extends ThingDetail["type"]> = Extract<ThingDetail, { type: T }>;
 
@@ -220,7 +221,7 @@ function Title({ event, thing, clamp = 1 }: { event: NostrEvent; thing: Thing; c
         className={`min-w-0 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${clamp === 1 ? "truncate" : "line-clamp-2 break-words"}`}
         data-testid={`thing-title-${event.id}`}
       >
-        {thing.title}
+        <EmojiText text={thing.title} tags={thing.emoji} />
       </p>
       <KindPill event={event} mixed={false} />
     </div>
@@ -235,7 +236,7 @@ function Description({ event, text, lines = 2 }: { event: NostrEvent; text: stri
       className={`mt-1 break-words text-xs leading-[1.125rem] text-slate-500 dark:text-slate-400 ${clamp}`}
       data-testid={`thing-description-${event.id}`}
     >
-      {text}
+      <EmojiText text={text} tags={event} />
     </p>
   );
 }

@@ -29,6 +29,8 @@ export interface Thing {
   previews: string[];
   /** What this kind's own card draws beyond the common shape (components/search/thingCards). */
   detail: ThingDetail;
+  /** The event's NIP-30 `emoji` tags, for drawing `:shortcode:` in the title and description. */
+  emoji: string[][];
 }
 
 /** Where a prediction market stands: taking bets, waiting on its oracle, settled, or called off. */
@@ -255,6 +257,7 @@ function thing(partial: Partial<Thing> & { title: string; detail: ThingDetail })
     stars: null,
     link: null,
     previews: [],
+    emoji: [],
     ...partial,
   };
 }
@@ -275,6 +278,7 @@ export function describeThing(ev: EventLike): Thing | null {
     ...raw,
     title: decodeEntities(raw.title),
     description: raw.description && decodeEntities(raw.description),
+    emoji: ev.tags.filter((t) => t[0] === "emoji"),
   };
   read.set(ev, thing);
   return thing;

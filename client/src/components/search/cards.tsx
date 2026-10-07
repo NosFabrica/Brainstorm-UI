@@ -110,7 +110,7 @@ export function AuthorRow({
         </AvatarFallback>
       </Avatar>
       <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
-        {author ? getDisplayLabel(author) : "Unknown"}
+        {author ? <ProfileEmojiText pubkey={author.pubkey} text={getDisplayLabel(author)} /> : "Unknown"}
       </span>
       <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{fmtWhen(created_at)}</span>
       {trailing}
@@ -284,6 +284,7 @@ function naddrOf(event: NostrEvent): string | null {
 // too); re-exported here for the callers that always found them on the card.
 export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
 import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf } from "@/lib/mediaKind";
+import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 export function MediaCard({
   event,
@@ -351,11 +352,15 @@ export function MediaCard({
       />
       {caption && (
         <p className="mt-1.5 line-clamp-2 break-words text-sm text-slate-700 dark:text-slate-200">
-          {caption
-            .split(/(nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi)
-            .map((part, i) =>
-              /^nostr:/i.test(part) ? <MentionChip key={i} uri={part} /> : <span key={i}>{part}</span>,
-            )}
+          {caption.split(/(nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi).map((part, i) =>
+            /^nostr:/i.test(part) ? (
+              <MentionChip key={i} uri={part} />
+            ) : (
+              <span key={i}>
+                <EmojiText text={part} tags={event} />
+              </span>
+            ),
+          )}
         </p>
       )}
       {isVideo && url ? (
@@ -460,7 +465,9 @@ export function AppCard({
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
-              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <EmojiText text={name} tags={event} />
+              </p>
               <KindPill event={event} mixed={false} />
             </div>
             {summary && (
@@ -468,7 +475,7 @@ export function AppCard({
                 className="mt-0.5 line-clamp-2 min-h-[2rem] break-words text-xs leading-4 text-slate-500 dark:text-slate-400"
                 data-testid={`app-summary-${event.id}`}
               >
-                {summary}
+                <EmojiText text={summary} tags={event} />
               </p>
             )}
             {/* The chips live in the text column, beside the icon: with no
@@ -661,7 +668,9 @@ export function RepoCard({
           <div
             className={`flex min-w-0 items-center gap-2 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}
           >
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <EmojiText text={name} tags={event} />
+            </p>
             {/* A patch, pull request or issue announces itself, as it always has;
                 a repo on the Repos tab says Repo only with kind labels on. */}
             {isRepo ? (
@@ -714,7 +723,9 @@ export function RepoCard({
             </div>
           )}
           {description && (
-            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">{description}</p>
+            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
+              <EmojiText text={description} tags={event} />
+            </p>
           )}
           {!isRepo && (comments ?? 0) > 0 && (
             <p
@@ -829,7 +840,9 @@ export function LiveCard({
           {/* The Watch link sits in the corner — the title row leaves it room
               so a long title and the live chip never run beneath it. */}
           <div className={`flex min-w-0 items-center gap-2 ${openIn ? "pr-14" : ""}`}>
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <EmojiText text={title} tags={event} />
+            </p>
             <KindPill event={event} mixed={false} />
             {status && (
               <Chip
@@ -843,7 +856,9 @@ export function LiveCard({
             )}
           </div>
           {summary && (
-            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">{summary}</p>
+            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
+              <EmojiText text={summary} tags={event} />
+            </p>
           )}
           <div className="mt-1.5">
             <AuthorRow author={author} score={score} created_at={event.created_at} />
@@ -990,7 +1005,9 @@ export function LiveTile({
             </span>
           )}
         </div>
-        <p className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-slate-900 dark:text-slate-100">{title}</p>
+        <p className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-slate-900 dark:text-slate-100">
+          <EmojiText text={title} tags={event} />
+        </p>
       </Link>
       <div className={`mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 ${openIn ? "pr-7" : ""}`}>
         <Avatar className={`h-6 w-6 shrink-0 ${ring}`}>
@@ -1110,7 +1127,7 @@ export function EventCard({
           <p
             className={`mt-0.5 line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 ${openIn ? "pr-24" : corner ? "sm:pr-24" : ""}`}
           >
-            {cal.title}
+            <EmojiText text={cal.title} tags={event} />
           </p>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
             <Avatar
@@ -1256,7 +1273,9 @@ export function ListCard({
   const profiles = useFaceProfiles(isPeopleList ? members.slice(0, 5) : []);
   const header = (
     <div className="flex min-w-0 items-center gap-2">
-      <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+      <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+        <EmojiText text={title} tags={event} />
+      </p>
       <KindPill event={event} mixed={false} />
       <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
         {folded
@@ -1329,7 +1348,7 @@ export function ListCard({
               {header}
               {description && (
                 <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
-                  {description}
+                  <EmojiText text={description} tags={event} />
                 </p>
               )}
               <div className="mt-2">{faces}</div>
@@ -1359,7 +1378,9 @@ export function ListCard({
         <div className="min-w-0 flex-1">
           {header}
           {description && (
-            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">{description}</p>
+            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
+              <EmojiText text={description} tags={event} />
+            </p>
           )}
           {isPeopleList ? (
             <div className="mt-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">

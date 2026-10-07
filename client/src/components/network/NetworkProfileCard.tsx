@@ -26,6 +26,7 @@ import { toPubkeys, type GraphEntry } from "@/services/graphHelpers";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { detailMetrics, metricIcons, groups, FlaggedIcon } from "@/components/network/networkGroups";
 import { useNetworkCardActions, useNetworkCardView } from "@/components/network/cardContext";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 type DetailGraph = {
   influence?: number | null;
@@ -249,7 +250,10 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   className="truncate text-sm font-bold text-slate-900 dark:text-slate-100"
                   data-testid={`detail-name-${pkShort}`}
                 >
-                  {profile?.display_name || profile?.name || npub.slice(0, 12) + "..."}
+                  <ProfileEmojiText
+                    pubkey={pk}
+                    text={profile?.display_name || profile?.name || npub.slice(0, 12) + "..."}
+                  />
                 </p>
                 {profile?.nip05 && (
                   <p className="truncate text-xs text-brand-primary" data-testid={`detail-nip05-${pkShort}`}>
@@ -311,7 +315,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
               className="mb-4 line-clamp-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
               data-testid={`detail-about-${pkShort}`}
             >
-              {profile.about}
+              <ProfileEmojiText pubkey={pk} text={profile.about} />
             </p>
           )}
 
@@ -613,7 +617,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
               className="max-w-[160px] truncate text-sm font-semibold text-slate-800 dark:text-slate-200"
               data-testid={`text-profile-name-${pkShort}`}
             >
-              {displayName}
+              <ProfileEmojiText pubkey={pk} text={displayName} />
             </p>
             {profile?.nip05 && (
               <span
@@ -682,7 +686,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
               className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200"
               data-testid={`text-profile-name-${pkShort}`}
             >
-              {displayName}
+              <ProfileEmojiText pubkey={pk} text={displayName} />
             </p>
             {profile?.nip05 && (
               <p className="truncate text-xs text-brand-primary" data-testid={`text-profile-nip05-${pkShort}`}>

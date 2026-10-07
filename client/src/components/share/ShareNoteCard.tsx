@@ -20,6 +20,7 @@ import { useShareNav } from "@/components/share/ShareNavContext";
 import { analyzeNote, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
 import { npubFromPubkey, eventPath } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 /**
  * Click anywhere on a card to open it, EXCEPT on real interactive descendants
@@ -77,7 +78,9 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
           <DefaultAvatarImg />
         </AvatarFallback>
       </Avatar>
-      <span className="font-medium text-brand-link">@{name}</span>
+      <span className="font-medium text-brand-link">
+        @<ProfileEmojiText pubkey={pubkey} text={name} />
+      </span>
     </button>
   );
 }
@@ -265,7 +268,7 @@ export function ShareNoteCard({
                     className="truncate text-sm font-semibold text-slate-900 group-hover/author:underline dark:text-slate-100"
                     data-testid="note-author-name"
                   >
-                    {authorName}
+                    <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
                   </p>
                   {authorHandle && (
                     <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>
@@ -289,7 +292,9 @@ export function ShareNoteCard({
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">{authorName}</p>
+                    <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
+                      <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
+                    </p>
                     {authorHandle && (
                       <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>
                     )}

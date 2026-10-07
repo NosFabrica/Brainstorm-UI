@@ -3,6 +3,7 @@ import { Check, BadgeCheck } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useNip05 } from "@/hooks/useNip05";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 export type PersonLite = { pubkey: string; name?: string; nip05?: string; picture?: string };
 
@@ -31,7 +32,9 @@ export function PersonRow({
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+          <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <ProfileEmojiText pubkey={person.pubkey} text={name} />
+          </span>
           {nip05Status === "verified" && <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-sky-500" />}
         </div>
         {person.nip05 && nip05Status !== "invalid" && (

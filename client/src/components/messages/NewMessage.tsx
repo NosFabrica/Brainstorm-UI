@@ -24,7 +24,7 @@ import { NetworkPersonRow, usePeopleSearch } from "./usePeopleSearch";
 import { decodeShareId, isNip05 } from "@/lib/shareId";
 import { resolveNip05 } from "@/lib/nip05";
 import { roomKey, roomSlug } from "@/lib/dm/rooms";
-import { PersonAvatar, nameOf, shortNpub } from "./people";
+import { PersonAvatar, nameOf, shortNpub, PersonName } from "./people";
 import { useDmRelays, useDmRelaysMany } from "@/hooks/useDmRelays";
 
 /** At most this many people in one chat, including you. */
@@ -197,7 +197,9 @@ export function NewMessage({ me, onBack }: { me: string; onBack: () => void }) {
                 >
                   <PersonAvatar pubkey={pk} profiles={shown} size={40} />
                   <span className="flex min-w-0 flex-col">
-                    <span className="truncate text-[15px] font-semibold">{nameOf(pk, shown)}</span>
+                    <span className="truncate text-[15px] font-semibold">
+                      <PersonName pubkey={pk} profiles={shown} />
+                    </span>
                     <span className="truncate font-mono text-xs text-slate-500">
                       {profiles.get(pk)?.nip05 || shortNpub(pk)}
                     </span>
@@ -246,7 +248,9 @@ export function NewMessage({ me, onBack }: { me: string; onBack: () => void }) {
               <div key={pk} className="flex items-center gap-3">
                 <PersonAvatar pubkey={pk} profiles={shown} score={scoreOf(pk)} size={36} />
                 <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm font-semibold">{nameOf(pk, shown)}</span>
+                  <span className="truncate text-sm font-semibold">
+                    <PersonName pubkey={pk} profiles={shown} />
+                  </span>
                   <InboxStatus pubkey={pk} />
                 </span>
                 {!follows.has(pk) && (

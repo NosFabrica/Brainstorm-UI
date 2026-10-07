@@ -47,6 +47,7 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import type { DefinitionSource } from "@/lib/conceptResolution";
 import { dictionaryConceptOf } from "@/services/dictionary";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 type ItemEvent = { id: string; kind: number; pubkey: string; created_at: number; content: string; tags: string[][] };
 
@@ -99,14 +100,18 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="dlist-item-title"
               >
-                {shown.title ?? <span className="text-slate-400">Untitled {r.governing.singular.toLowerCase()}</span>}
+                {shown.title ? (
+                  <EmojiText text={shown.title} tags={event} />
+                ) : (
+                  <span className="text-slate-400">Untitled {r.governing.singular.toLowerCase()}</span>
+                )}
               </h1>
               {shown.summary && (
                 <p
                   className="mt-1 break-words text-[15px] leading-relaxed text-slate-600 dark:text-slate-300"
                   data-testid="dlist-item-summary"
                 >
-                  {shown.summary}
+                  <EmojiText text={shown.summary} tags={event} />
                 </p>
               )}
             </div>

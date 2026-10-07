@@ -21,6 +21,7 @@ import { FlaggedChip, PersonCardSlot } from "@/components/search/EndorsementLine
 import { copyToClipboard } from "@/lib/clipboard";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { useNip05 } from "@/hooks/useNip05";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 function truncateAbout(text: string, maxLen = 120): string {
   if (text.length <= maxLen) return text;
@@ -109,7 +110,7 @@ export function PersonCard({
               className="truncate text-sm font-semibold text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100"
               data-testid={`text-result-name-${idx}`}
             >
-              {getDisplayLabel(result)}
+              <ProfileEmojiText pubkey={result.pubkey} text={getDisplayLabel(result)} />
             </span>
             <TierWordChip score01={result.wotRank} />
             <FlaggedChip pubkey={result.pubkey} testId={`person-flagged-${idx}`} />
@@ -155,7 +156,7 @@ export function PersonCard({
               className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 sm:text-xs"
               data-testid={`text-result-about-${idx}`}
             >
-              {truncateAbout(result.about)}
+              <ProfileEmojiText pubkey={result.pubkey} text={truncateAbout(result.about)} />
             </p>
           )}
           <PersonCardSlot

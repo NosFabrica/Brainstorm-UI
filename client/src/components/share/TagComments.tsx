@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { signingProblem } from "@/accounts/signing";
 import { npubFromPubkey } from "@/lib/shareId";
 import { useTagComments, usePostTagComment } from "@/hooks/useTags";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 /**
  * Discussion of what a tag MEANS.
@@ -136,15 +137,17 @@ export function TagComments({
                         className="text-sm font-semibold text-slate-900 hover:text-brand-primary dark:text-slate-100"
                         data-testid="tag-comment-author"
                       >
-                        {name}
+                        <ProfileEmojiText pubkey={c.author} text={name} />
                       </Link>
                     ) : (
-                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        <ProfileEmojiText pubkey={c.author} text={name} />
+                      </span>
                     )}
                     <span className="text-[11px] text-slate-400 dark:text-slate-500">{relativeTime(c.createdAt)}</span>
                   </div>
                   <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-slate-600 dark:text-slate-300">
-                    <LinkedText text={c.content} />
+                    <LinkedText text={c.content} tags={c.tags} />
                   </p>
                 </div>
               </li>

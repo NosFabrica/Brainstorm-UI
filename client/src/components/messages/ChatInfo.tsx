@@ -13,7 +13,7 @@ import { useHasMywot } from "@/hooks/useHasMywot";
 import { npubFromPubkey } from "@/lib/shareId";
 import { tierForScore01 } from "@/components/score/VerificationCoin";
 import { TIER_LABELS } from "@/services/trustThreshold";
-import { PersonAvatar, nameOf, relayHost, roomTitle, shortNpub, type Profiles } from "./people";
+import { PersonAvatar, nameOf, relayHost, roomTitle, shortNpub, type Profiles, PersonName } from "./people";
 import { useDmRelays } from "@/hooks/useDmRelays";
 
 function TheirInbox({ pubkey, name }: { pubkey: string; name: string }) {
@@ -82,7 +82,9 @@ export function ChatInfo({
             >
               <PersonAvatar pubkey={pk} profiles={profiles} score={scoreOf(pk)} size={36} />
               <span className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-semibold">{nameOf(pk, profiles)}</span>
+                <span className="truncate text-sm font-semibold">
+                  <PersonName pubkey={pk} profiles={profiles} />
+                </span>
                 <span className="text-xs text-slate-500">{follows.has(pk) ? "You follow" : "Not in your follows"}</span>
               </span>
             </Link>

@@ -31,6 +31,7 @@ import {
   useFetched,
   type PageEvent,
 } from "./shared";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 const tagOf = (e: PageEvent, k: string) => e.tags.find((t) => t[0] === k)?.[1];
 
@@ -122,7 +123,9 @@ export function ReviewHero({ event, thing, detail }: { event: PageEvent; thing: 
 
       <div className="mt-4">
         <Kicker icon={Star}>Review</Kicker>
-        <PageTitle testId="thing-page-title">{host ? `Review of ${host}` : thing.title}</PageTitle>
+        <PageTitle testId="thing-page-title">
+          {host ? `Review of ${host}` : <EmojiText text={thing.title} tags={thing.emoji} />}
+        </PageTitle>
       </div>
       {thing.stars !== null && (
         <div className="mt-3 flex items-center gap-3" data-testid="thing-page-score">
@@ -153,7 +156,7 @@ export function ReviewHero({ event, thing, detail }: { event: PageEvent; thing: 
       )}
       {thing.description && (
         <blockquote className="mt-4 border-l-2 border-slate-200 pl-4 dark:border-slate-700">
-          <ReadingText text={thing.description} testId="thing-page-description" />
+          <ReadingText text={thing.description} tags={thing.emoji} testId="thing-page-description" />
         </blockquote>
       )}
       <Actions>

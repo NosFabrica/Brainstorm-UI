@@ -64,6 +64,7 @@ import {
 import { useConnectionSpeed } from "@/lib/connection";
 import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
  *  no review copy on search surfaces (Benjamin). */
@@ -929,7 +930,7 @@ function KnowledgePanelBody({
               className="truncate text-base font-bold text-slate-900 dark:text-slate-100"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              {getDisplayLabel(person)}
+              <ProfileEmojiText pubkey={person.pubkey} text={getDisplayLabel(person)} />
             </p>
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
               <TierWordChip score01={effectiveRank} />
@@ -1018,7 +1019,7 @@ function KnowledgePanelBody({
           ))}
         {person.about && (
           <p className="mt-2 line-clamp-4 break-words text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-            {person.about}
+            <ProfileEmojiText pubkey={person.pubkey} text={person.about} />
           </p>
         )}
         <Link
