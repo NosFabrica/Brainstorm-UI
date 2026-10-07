@@ -114,6 +114,20 @@ export function askRelayAuthAgain(url?: string): void {
  */
 export const SIGN_TIMEOUT_MS = 60_000;
 
+/**
+ * The signature came back for a challenge the relay no longer holds: the socket
+ * dropped and reconnected while the signer was answering (a remote signer answers
+ * over the same network that dropped). Sent anyway, the relay refused it ("unable
+ * to validate auth") and the refusal was kept — the inbox stayed shut until Try
+ * again, though the relay had already sent a fresh challenge. Not sent, not kept:
+ * the fresh challenge brings a new login.
+ */
+class StaleChallenge extends Error {
+  constructor() {
+    super("the relay reconnected while your signer was answering");
+  }
+}
+
 class SignerTimeout extends Error {
   constructor() {
     super("your signer didn't answer");
@@ -206,7 +220,7 @@ export function startRelayAuth<A extends ActiveAccount>({
         signEvent: async (draft: EventTemplate) => {
           let timer: ReturnType<typeof setTimeout> | undefined;
           try {
-            return await Promise.race([
+            const signed = await Promise.race([
               sign(account, draft),
               new Promise<never>((_, reject) => {
                 timer = setTimeout(() => {
@@ -219,9 +233,12 @@ export function startRelayAuth<A extends ActiveAccount>({
                 }, signTimeoutMs);
               }),
             ]);
+            const signedFor = draft.tags.find((t) => t[0] === "challenge")?.[1];
+            if (relay.challenge !== signedFor) throw new StaleChallenge();
+            return signed;
           } catch (error) {
             // No answer isn't a "no": it's a login that didn't go through.
-            saidNo = !(error instanceof SignerTimeout) && isRejection(error);
+            saidNo = !(error instanceof SignerTimeout) && !(error instanceof StaleChallenge) && isRejection(error);
             throw error;
           } finally {
             clearTimeout(timer);
@@ -251,6 +268,8 @@ export function startRelayAuth<A extends ActiveAccount>({
         );
       })().catch((error: unknown) => {
         answered.delete(key);
+        // Its challenge went with the old connection; the new one's is (or will be) answered.
+        if (error instanceof StaleChallenge) return;
         setProblem(account.pubkey, url, saidNo ? { by: "signer" } : { by: "error", message: reasonOf(error) });
       });
     };
