@@ -210,7 +210,7 @@ renderer that knows the event's tags.
 
 | Text                                         | Use                                                                    |
 | -------------------------------------------- | ---------------------------------------------------------------------- |
-| A note body                                  | `NoteContent tags={event.tags}`, `parseNoteContent(text, tags)`        |
+| A note body                                  | `NoteContent tags={event.tags}`                                        |
 | A description, summary or article as prose   | `ReadingText tags={event.tags}`                                        |
 | Markdown                                     | `MarkdownBody tags`, or `useMarkdownEmoji` for your own react-markdown |
 | A title, a caption, a one-line field         | `<EmojiText text={title} tags={event} />`                              |
