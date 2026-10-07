@@ -256,7 +256,7 @@ function emit(partial: Partial<SearchSnapshot>) {
   // The tab's own stream (the panel's probes are not it, and neither is the
   // Media tab's companion notes stream): the newest whose tab is the URL's,
   // else simply the newest main stream.
-  const urlTab = new URLSearchParams(window.location.search).get("t") ?? "everything";
+  const urlTab = new URLSearchParams(window.location.search).get("t") ?? "top";
   const mains = [...allStreams].reverse().filter((c) => !isPanelProbe(c.query, c.params));
   const main = mains.find((c) => c.params.tab === urlTab) ?? mains[0];
   main.cb({ hits: [], eose: false, timeMs: null, error: null, ...partial });
@@ -366,10 +366,10 @@ describe("SearchResults", () => {
     expect(new URLSearchParams(window.location.search).get("t")).toBe("notes");
   });
 
-  // The SERP composition: Everything is Google's front page — sections, not
+  // The SERP composition: Top is Google's front page — sections, not
   // a flat dump. A user-typed sort: means they chose an order, so the flat
   // honored list returns.
-  it("Everything renders the composed sections page", () => {
+  it("Top renders the composed sections page", () => {
     render(<SearchResults query="liverpool" pov="nosfabrica" />);
     expect(screen.getByTestId("composed-results")).toBeInTheDocument();
     expect(screen.queryByTestId("container-search-loading")).toBeNull();
@@ -382,6 +382,56 @@ describe("SearchResults", () => {
     expect(screen.queryByTestId("composed-results")).toBeNull();
     expect(mainStreamCalls()).toHaveLength(1);
     expect(mainStreamCalls()[0][0]).toBe("liverpool sort:recent");
+  });
+
+  // All is the relay's own answer: no kinds, nothing composed, best match —
+  // what search.brainstorm.world shows. Top's sections ask for chosen kinds, so a
+  // kind none of them carry (a kind-39999 place) only shows here.
+  describe("the All tab", () => {
+    it("is one kind-less list in the relay's order, reached only by a click", () => {
+      render(<SearchResults query="La Tarantella - Recoleta" pov="nosfabrica" />);
+      expect(screen.getByTestId("composed-results")).toBeInTheDocument();
+      expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true");
+      expect(mainStreamCalls().some(([, p]) => (p as { tab?: string }).tab === "all")).toBe(false);
+
+      fireEvent.click(screen.getByTestId("search-tab-all"));
+      expect(screen.queryByTestId("composed-results")).toBeNull();
+      const [q, params] = mainStreamCalls().at(-1)!;
+      // Best match: no sort:recent added, as the content tabs get.
+      expect(q).toBe("La Tarantella - Recoleta");
+      expect(params).toMatchObject({ tab: "all" });
+      expect(params).not.toHaveProperty("kinds");
+      expect(new URLSearchParams(window.location.search).get("t")).toBe("all");
+    });
+
+    it("an old ?t=everything link opens Top, never All", () => {
+      setUrlTab("everything");
+      render(<SearchResults query="liverpool" pov="nosfabrica" />);
+      expect(screen.getByTestId("composed-results")).toBeInTheDocument();
+      expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByTestId("search-tab-all")).toHaveAttribute("aria-selected", "false");
+    });
+
+    it("sends the Filters' tokens through as typed", () => {
+      setUrlTab("all");
+      render(<SearchResults query="pizza sort:rank since:2026-01-01 include:spam" pov="nosfabrica" />);
+      expect(mainStreamCalls()[0][0]).toBe("pizza sort:rank since:2026-01-01 include:spam");
+      expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "all" });
+    });
+
+    it("draws a kind with no card of its own as a row that reads its name", async () => {
+      setUrlTab("all");
+      render(<SearchResults query="La Tarantella" pov="nosfabrica" />);
+      const place = ev("place1", 39999, "4".repeat(64), "", [
+        ["d", "osm-way-995734197"],
+        ["name", "La Tarantella - Recoleta"],
+        ["category", "restaurant"],
+      ]);
+      emit({ hits: [{ event: place, author: null, rank: null }], eose: true, timeMs: 100 });
+      const results = await screen.findByTestId("container-search-results");
+      expect(results).toHaveTextContent("La Tarantella - Recoleta");
+      expect(screen.queryByTestId("media-card-place1")).toBeNull();
+    });
   });
 
   // Content tabs land on what's fresh by default; a typed sort: always wins,
@@ -471,13 +521,13 @@ describe("SearchResults", () => {
     fireEvent.click(soon);
     expect(screen.getByRole("menu")).toBeInTheDocument();
     expect(mainStreamCalls().length).toBe(before);
-    expect(screen.getByTestId("search-tab-everything").getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("search-tab-top").getAttribute("aria-selected")).toBe("true");
   });
 
-  it("shows five verticals — Media then Shop — and folds Articles first behind More", () => {
+  it("shows Top, All and the verticals — Media then Shop — and folds Articles first behind More", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
-    const row = ["everything", "people", "notes", "media", "shop"].map((t) => screen.getByTestId(`search-tab-${t}`));
-    expect(row.map((el) => el.textContent)).toEqual(["Everything", "People", "Notes", "Media", "Shop"]);
+    const row = ["top", "all", "people", "notes", "media", "shop"].map((t) => screen.getByTestId(`search-tab-${t}`));
+    expect(row.map((el) => el.textContent)).toEqual(["Top", "All", "People", "Notes", "Media", "Shop"]);
     for (const t of ["articles", "apps", "repos", "events", "live", "lists"])
       expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
     expect(screen.queryByTestId("search-tab-code")).toBeNull();
@@ -590,7 +640,7 @@ describe("SearchResults", () => {
     setUrlTab("lists");
     render(<SearchResults query="jack" pov="nosfabrica" />);
     expect(screen.getByTestId("search-tab-more")).toHaveTextContent("Lists");
-    expect(screen.getByTestId("search-tab-everything").getAttribute("aria-selected")).toBe("false");
+    expect(screen.getByTestId("search-tab-top").getAttribute("aria-selected")).toBe("false");
   });
 
   it("the More menu closes on Escape and on a click elsewhere without changing tabs", () => {
@@ -602,7 +652,7 @@ describe("SearchResults", () => {
     fireEvent.click(screen.getByTestId("search-tab-more"));
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(screen.getByTestId("search-tab-everything").getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("search-tab-top").getAttribute("aria-selected")).toBe("true");
     expect(screen.getByTestId("search-tab-more")).toHaveTextContent("More");
   });
 
@@ -3943,9 +3993,7 @@ describe("SearchResults", () => {
     await vi.waitFor(() => expect(empty).toHaveTextContent("Joe Martin hasn't published articles here yet"));
     const chips = within(empty).getByTestId("scoped-empty-chips");
     expect(within(chips).queryByTestId("person-content-chip-articles")).toBeNull();
-    expect(within(empty).getByTestId("scoped-empty-all").getAttribute("href")).toBe(
-      scopedSearchHref(joe, "everything"),
-    );
+    expect(within(empty).getByTestId("scoped-empty-all").getAttribute("href")).toBe(scopedSearchHref(joe, "top"));
     fireEvent.click(within(chips).getByTestId("person-content-chip-shop"));
     await vi.waitFor(() => expect(screen.getByTestId("search-tab-shop")).toHaveAttribute("aria-selected", "true"));
     expect(new URLSearchParams(window.location.search).get("t")).toBe("shop");
@@ -3954,9 +4002,7 @@ describe("SearchResults", () => {
     emit({ hits: [], eose: true, timeMs: 100 });
     const all = await screen.findByTestId("scoped-empty-all");
     fireEvent.click(all);
-    await vi.waitFor(() =>
-      expect(screen.getByTestId("search-tab-everything")).toHaveAttribute("aria-selected", "true"),
-    );
+    await vi.waitFor(() => expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true"));
     expect(new URLSearchParams(window.location.search).get("t")).toBeNull();
     contentMock.mockImplementation(() => new Map());
   });

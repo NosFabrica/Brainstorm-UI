@@ -264,7 +264,9 @@
           // sort: …) changes what some sections ask for, and a head start that
           // asked a different question is worse than none.
           // An unsubstituted "__VITE_…__" placeholder is not a relay (runtimeEnv.ts).
-          if (!q || !/^wss?:\/\//.test(url || "") || (tab && tab !== "everything") || /[:#]/.test(q)) return;
+          // Only Top (the default) is composed; `everything` is its old name. All never is.
+          if (!q || !/^wss?:\/\//.test(url || "") || (tab && tab !== "top" && tab !== "everything") || /[:#]/.test(q))
+            return;
           // Signed in: the app reads through that reader's own Perspective, which
           // this cannot ask for, so it would collect an answer nobody adopts
           // (accounts/persist.ts clears this key on sign-out).

@@ -11,7 +11,9 @@
  *   score fetch fills it (same per-author pattern as the hashtag page).
  * - A read with no lens (no `observer:`, no `include:spam`) is refused with
  *   `auth-required:` — so every query we send carries a lens.
- * - Kind-less REQs work: the Everything tab is one REQ with no `kinds`.
+ * - Kind-less REQs work: the All tab is one REQ with no
+ *   `kinds`, in the relay's own order. Top, the default, composes sections
+ *   of chosen kinds instead (components/search/ComposedResults).
  * - `sort:rank`/best-match flush near EOSE (~4s); `sort:recent` streams.
  */
 import { nip19 } from "nostr-tools";
@@ -32,7 +34,8 @@ import { RECIPE_TAGS } from "@/lib/sourceApp";
 import { isBlankEvent } from "@/lib/blankEvent";
 
 export type SearchTab =
-  | "everything"
+  | "top"
+  | "all"
   | "people"
   | "notes"
   | "articles"
@@ -54,7 +57,7 @@ export type SearchTab =
   | "reviews";
 
 /** One truth for tab → kinds, extracted from the SearchOverTrust app. */
-export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
+export const TAB_KINDS: Record<Exclude<SearchTab, "top" | "all">, number[]> = {
   people: [0],
   // NIP-84 highlights (a quoted passage) and NIP-88 / zap polls read as notes.
   notes: [1, 11, 1111, 9802, 1068, 6969],
@@ -70,7 +73,7 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   media: [20, 21, 22, 1063, 1222, 34235, 34236, 2003],
   // Vitor's split: Zap Store app listings and git-shaped kinds were one
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
-  // probing showed it ~90% JSON junk; it still surfaces via Everything.
+  // probing showed it ~90% JSON junk; it still surfaces via All.
   // Beside them: NIP-89 app handlers, NIP-5A Nostr sites, NIP-5D mini apps.
   apps: [32267, 31990, 35128, 15128, 35129],
   // NIP-99 classifieds — the Shop. Sold, hidden and priceless are gated in the UI (lib/listing).
@@ -120,10 +123,10 @@ const TAB_TAGS: Partial<Record<SearchTab, readonly string[]>> = {
   recipes: RECIPE_TAGS,
 };
 
-/** Everything is deliberately unconstrained — the relay blends and ranks. */
 /** The word each tab wears — for anything that names a tab away from the tab bar. */
 export const TAB_LABELS: Record<SearchTab, string> = {
-  everything: "Everything",
+  top: "Top",
+  all: "All",
   people: "People",
   notes: "Notes",
   articles: "Articles",
@@ -167,12 +170,17 @@ export function askMintReviewsOnly<F extends { kinds?: number[]; "#k"?: string[]
     return rest.length ? [{ ...f, kinds: rest }, mint] : [mint];
   });
 }
+/**
+ * Neither Top nor All names kinds: Top's sections each ask their own
+ * (bandKindsForTab), and All is deliberately unconstrained — every
+ * kind the relay indexes, in the relay's order.
+ */
 export function kindsForTab(tab: SearchTab): number[] | undefined {
-  return tab === "everything" ? undefined : TAB_KINDS[tab];
+  return tab === "top" || tab === "all" ? undefined : TAB_KINDS[tab];
 }
 
 /**
- * What a preview band asks of a tab — an Everything section, a home-feed
+ * What a preview band asks of a tab — a Top section, a home-feed
  * band, a panel rail — where it differs from the tab: the kinds only the
  * tab itself can show are left out, since a band would ask for them, fill
  * its few slots with them, and then drop them. Calendars have no date for
@@ -225,11 +233,11 @@ export type SearchHandle = (() => void) & { more: () => void };
 export type SearchPov = "nosfabrica" | "mywot";
 
 /**
- * A page whose sections share one REQ. Not a tab — the Everything page is both
+ * A page whose sections share one REQ. Not a tab — the Top page is both
  * a tab and a group. Members are routed to by kind, so a group's sections must
  * ask for disjoint kinds; a section that names no kinds never joins.
  */
-export type SearchGroup = "search-everything" | "home-feed-personal" | "home-feed-house";
+export type SearchGroup = "search-top" | "home-feed-personal" | "home-feed-house";
 
 export interface SearchParams {
   tab: SearchTab;
@@ -256,13 +264,13 @@ export interface SearchParams {
   /**
    * Streams naming the same group share ONE REQ — one filter each, events
    * routed back by kind. The relay works a socket's REQs as a queue, so the
-   * Everything page's eight sections were eight turns in it (probed
+   * Top page's eight sections were eight turns in it (probed
    * 2026-09-16: 5,145ms vs 2,514ms for the same 75 events). Only the first
    * page joins; a "more" page opens its own REQ as before.
    */
   group?: SearchGroup;
   /**
-   * Exactly these kinds, in place of the tab's — Everything's section for a
+   * Exactly these kinds, in place of the tab's — Top's section for a
    * typed kind that none of its sections carry. Not intersected with the
    * query's own `kind:` tokens; it IS them.
    */
@@ -476,7 +484,7 @@ export function searchStream(
     // group:, a label: or a scope asks several questions at once, so what comes back is a
     // UNION of filters ORed in one REQ.
     const lifted = liftQuery(query);
-    // A typed kind: (or spec:) narrows whatever tab it is on. Everything is
+    // A typed kind: (or spec:) narrows whatever tab it is on. Top is
     // one request with a filter per section, each routed by kind, so the typed
     // kind narrows each section rather than replacing its kinds — otherwise
     // Latest, Happening and Media would all ask for specs and fill with them.
@@ -633,7 +641,7 @@ export function searchStream(
       }, REQ_DEADLINE_MS);
       let answered = false;
       // Routing back from a shared REQ is by kind, so a member must name kinds
-      // (Everything names none — it would be handed every other section's hits)
+      // (a kind-less ask names none — it would be handed every other section's hits)
       // and the group's members must not ask for the same kind twice.
       //
       // A union cannot join one at all: its filters ask different tag questions of the SAME

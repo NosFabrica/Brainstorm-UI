@@ -998,7 +998,7 @@ function KnowledgePanelBody({
           scoped to them, the box is that door. */}
         {scopeOf(query)?.pubkey !== person.pubkey && (
           <Link
-            href={scopedSearchHref(person.pubkey, "everything")}
+            href={scopedSearchHref(person.pubkey, "top")}
             className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
             data-testid="knowledge-panel-search"
           >

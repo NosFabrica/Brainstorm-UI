@@ -1,5 +1,5 @@
 /**
- * List items on the Everything page: a search that names a list —
+ * List items on the Top page: a search that names a list —
  * "github vcavallo" — shows the items the rest of the words find, above
  * People, as the cards the list's own definition draws (DListItemCard).
  *

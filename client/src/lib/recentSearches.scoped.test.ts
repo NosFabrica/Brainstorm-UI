@@ -57,6 +57,15 @@ describe("pushRecentScoped", () => {
     expect(getRecentItems()[0]).toMatchObject({ type: "scoped", tab: "articles" });
   });
 
+  // The composed page was `everything` before it was Top, and All (the raw, every-kind list)
+  // is only for a reader who clicks it: a recent reopens either on Top.
+  it("a search saved on the old `everything` tab, or on All, reopens on Top", () => {
+    pushRecentScoped({ pubkey: VINNEY, npub, label: "vinney", tab: "everything" });
+    expect(getRecentItems()[0]).toMatchObject({ type: "scoped", tab: "top" });
+    pushRecentScoped({ pubkey: VINNEY, npub, label: "vinney", tab: "all" });
+    expect(getRecentItems()[0]).toMatchObject({ type: "scoped", tab: "top" });
+  });
+
   it("words typed under the scope are part of the search remembered", () => {
     pushRecentScoped({ pubkey: VINNEY, npub, label: "vinney", tab: "media", words: "  sunset " });
     expect(getRecentItems()[0]).toMatchObject({ type: "scoped", words: "sunset" });

@@ -46,7 +46,7 @@ export type RecentItem =
       npub: string;
       label: string;
       picture?: string;
-      /** The results tab the search opened on: "media", "shop", "everything"… */
+      /** The results tab the search opened on: "media", "shop", "top"… */
       tab: string;
       /** The words typed beside the person's pill, trimmed; "" for the whole tab. */
       words: string;
@@ -91,7 +91,9 @@ function normalize(e: Record<string, unknown> | null): RecentItem | null {
       npub: e.npub,
       label: e.label,
       picture: typeof e.picture === "string" ? e.picture : undefined,
-      tab: e.tab,
+      // Top was `everything` once, and All is never reopened by a recent:
+      // it is only for a reader who clicks it (both reopen on Top).
+      tab: e.tab === "everything" || e.tab === "all" ? "top" : e.tab,
       words: typeof e.words === "string" ? e.words : "",
       t: e.t,
     };

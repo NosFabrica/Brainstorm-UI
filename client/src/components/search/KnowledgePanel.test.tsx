@@ -1725,7 +1725,7 @@ describe("the panel offers a search of everything this person published", () => 
     await screen.findByTestId("knowledge-panel-profile");
     const row = screen.getByTestId("knowledge-panel-search");
     expect(row).toHaveTextContent("Search their posts");
-    expect(row.getAttribute("href")).toBe(`/?q=from%3A${nip19.npubEncode(NOVA)}&t=everything`);
+    expect(row.getAttribute("href")).toBe(`/?q=from%3A${nip19.npubEncode(NOVA)}&t=top`);
   });
 
   it("once the search IS scoped to them, the box is the search — no row", async () => {

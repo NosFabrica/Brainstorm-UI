@@ -2960,7 +2960,7 @@ export default function ProfilePage() {
                             <MessageButton pubkey={hexPubkey} name={searchPostsName} />
                             <button
                               type="button"
-                              onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}
+                              onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "top"))}
                               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
                               aria-label={searchPostsLabel}
                               title={searchPostsLabel}
@@ -3098,7 +3098,7 @@ export default function ProfilePage() {
                           <>
                             <button
                               type="button"
-                              onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}
+                              onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "top"))}
                               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-900"
                               aria-label={searchPostsLabel}
                               title={searchPostsLabel}

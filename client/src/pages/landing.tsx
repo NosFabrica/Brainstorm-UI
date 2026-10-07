@@ -411,7 +411,7 @@ export default function Landing() {
     if (!hasSearched || !submitted) return;
     const ran = scopeOf(submitted);
     if (!ran || !scopeName || ran.pubkey !== scope?.pubkey) return;
-    const openedOn = new URLSearchParams(window.location.search).get("t") || "everything";
+    const openedOn = new URLSearchParams(window.location.search).get("t") || "top";
     pushRecentScoped({
       pubkey: ran.pubkey,
       npub: npubFromPubkey(ran.pubkey),

@@ -308,7 +308,7 @@ describe("ComposedResults — media-rich sections", () => {
   it("asks for every section on one shared subscription", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(calls.length).toBeGreaterThan(1);
-    expect(calls.every((c) => c.params.group === "search-everything")).toBe(true);
+    expect(calls.every((c) => c.params.group === "search-top")).toBe(true);
   });
 
   it("says it is loading once, through the skeletons", () => {
@@ -889,7 +889,7 @@ describe("ComposedResults", () => {
     window.history.replaceState({}, "", "/?q=kind%3A32267");
     render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
 
-    const byKind = sectionCall("everything");
+    const byKind = sectionCall("top");
     expect(byKind.params.kinds).toEqual([32267]);
     for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
     byKind.emit({
@@ -911,7 +911,7 @@ describe("ComposedResults", () => {
     window.history.replaceState({}, "", "/?q=kind%3A31924");
     render(<ComposedResults query="kind:31924" pov="nosfabrica" onTabChange={vi.fn()} />);
 
-    const byKind = sectionCall("everything");
+    const byKind = sectionCall("top");
     expect(byKind.params.kinds).toEqual([31924]);
     for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
     byKind.emit({
@@ -954,7 +954,7 @@ describe("ComposedResults", () => {
     ]);
     window.history.replaceState({}, "", "/?q=kind%3A32267");
     render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
-    const byKind = sectionCall("everything");
+    const byKind = sectionCall("top");
     for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
     byKind.emit({
       hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")],
@@ -982,7 +982,7 @@ describe("ComposedResults", () => {
 
   it("a typed kind a section already carries asks nothing extra", () => {
     render(<ComposedResults query="dvm spec:" pov="nosfabrica" onTabChange={vi.fn()} />);
-    expect(calls.find((c) => c.params.tab === "everything")).toBeUndefined();
+    expect(calls.find((c) => c.params.tab === "top")).toBeUndefined();
   });
 
   // The home feed: NO query at all → the composed page becomes "what's
