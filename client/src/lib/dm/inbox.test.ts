@@ -4,7 +4,7 @@ import { shelfOf, shelve, unreadIn, type TrustLookup } from "./inbox";
 import type { DmMessage, DmRoom } from "./store";
 import type { DmPrefs } from "./prefs";
 
-const ME = "m".repeat(64);
+const ME = "f".repeat(64);
 const ANA = "a".repeat(64);
 const BOB = "b".repeat(64);
 const EVE = "e".repeat(64);
@@ -129,6 +129,30 @@ describe("shelving rooms", () => {
   it("ignores a pin that isn't one of the reader's rooms", () => {
     const strangers = [ANA, BOB].sort().join(",");
     expect(shelve([], ME, prefs({ pinned: [strangers] }), trust()).chats).toEqual([]);
+  });
+
+  it("skips a malformed synced pin instead of listing a room whose link can't be made", () => {
+    const bobKey = [ME, BOB].sort().join(",");
+    const unsorted = [BOB, ME].join(",") === bobKey ? [ME, BOB].join(",") : [BOB, ME].join(",");
+    const junk = ["", "zz", `${ME},zz`, `${ME},${BOB.toUpperCase()}`, unsorted, `${bobKey},`];
+    const shelves = shelve([], ME, prefs({ pinned: [...junk, bobKey] }), trust());
+    expect(shelves.chats.map((r) => r.key)).toEqual([bobKey]);
+  });
+
+  it("lists a pin repeated in a synced list once, at its first place", () => {
+    const bobKey = [ME, BOB].sort().join(",");
+    const anaKey = [ME, ANA].sort().join(",");
+    const shelves = shelve([], ME, prefs({ pinned: [bobKey, anaKey, bobKey] }), trust());
+    expect(shelves.chats.map((r) => r.key)).toEqual([bobKey, anaKey]);
+    expect(shelves.pinnedCount).toBe(2);
+  });
+
+  it("keeps a not-loaded pin the same object from one shelving to the next", () => {
+    const bobKey = [ME, BOB].sort().join(",");
+    const a = shelve([room(ANA)], ME, prefs({ pinned: [bobKey] }), trust()).chats[0];
+    const b = shelve([room(ANA, { at: 200 })], ME, prefs({ pinned: [bobKey] }), trust()).chats[0];
+    expect(a.notLoaded).toBe(true);
+    expect(b).toBe(a);
   });
 
   it("judges a room by who wrote in it, not by who was named", () => {

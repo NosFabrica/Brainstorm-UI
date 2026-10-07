@@ -21,7 +21,7 @@ import { ConversationList } from "./ConversationList";
 import { readDmPrefs } from "@/lib/dm/prefs";
 import { notLoadedRoom } from "@/lib/dm/inbox";
 
-const ME = "m".repeat(64);
+const ME = "f".repeat(64);
 const relay = (url: string, state: RelayProgress["state"], pages = 1): RelayProgress => ({
   url,
   state,
@@ -171,12 +171,33 @@ describe("ConversationList", () => {
   });
 
   it("lists a pinned chat whose messages aren't loaded, saying so instead of a preview and a date", () => {
-    const pin = notLoadedRoom([ME, "b".repeat(64)].sort().join(","));
+    const pin = notLoadedRoom([ME, "b".repeat(64)].sort().join(","))!;
     show(stateWith([relay("wss://a.example", "idle")]), "chats", shelves({ chats: [pin], pinnedCount: 1 }));
     const row = screen.getByTestId("dm-room-row");
     expect(row).toHaveTextContent("Older messages aren't loaded yet");
     expect(row).not.toHaveTextContent("1970");
     expect(screen.queryByText("No chats yet.")).toBeNull();
+  });
+
+  it("before any server answers, a not-loaded pin says it's loading and the inbox still says so too", () => {
+    const pin = notLoadedRoom([ME, "b".repeat(64)].sort().join(","))!;
+    show(
+      stateWith([relay("wss://a.example", "loading", 0)], false),
+      "chats",
+      shelves({ chats: [pin], pinnedCount: 1 }),
+    );
+    expect(screen.getByTestId("dm-room-not-loaded")).toHaveTextContent("Loading…");
+    expect(screen.getByText("Loading your messages…")).toBeInTheDocument();
+  });
+
+  it("while fetched or cached wraps are still being opened, a not-loaded pin says it's loading", () => {
+    const pin = notLoadedRoom([ME, "b".repeat(64)].sort().join(","))!;
+    show(
+      stateWith([{ ...relay("wss://a.example", "idle"), opening: 40 }]),
+      "chats",
+      shelves({ chats: [pin], pinnedCount: 1 }),
+    );
+    expect(screen.getByTestId("dm-room-not-loaded")).toHaveTextContent("Loading…");
   });
 
   it("explains Requests in a sentence, and names the low-trust group plainly", () => {

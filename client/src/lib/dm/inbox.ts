@@ -5,6 +5,7 @@
  * trust: their follows, and the Verification Score from the web of trust.
  */
 import type { DmRoom } from "./store";
+import { roomKey } from "./rooms";
 import { LOW_TRUST_BELOW, TRUSTED_FROM, lastReadAt, type DmPrefs } from "./prefs";
 
 export type RoomShelf = "chat" | "request" | "low" | "flagged";
@@ -76,22 +77,39 @@ export interface Shelves {
   badge: number;
 }
 
-/** A pinned room none of whose messages are loaded: its people, and nothing else yet. */
-export function notLoadedRoom(key: string): DmRoom {
-  return {
+const isHex64 = (v: string) => /^[0-9a-f]{64}$/.test(v);
+
+// One object per key, so a placeholder keeps its identity across shelvings: the list's memoized
+// rows and an open chat would otherwise re-render on every engine snapshot while an inbox loads.
+const notLoadedRooms = new Map<string, DmRoom>();
+
+/**
+ * A pinned room none of whose messages are loaded: its people, and nothing else yet. Null
+ * for a key that isn't a room — pins arrive synced from other devices, and a row for a
+ * malformed one would throw when its link is encoded.
+ */
+export function notLoadedRoom(key: string): DmRoom | null {
+  const cached = notLoadedRooms.get(key);
+  if (cached) return cached;
+  const participants = key.split(",");
+  if (!participants.every(isHex64) || roomKey(participants) !== key) return null;
+  const room: DmRoom = {
     key,
-    participants: key.split(",").filter(Boolean),
+    participants,
     messages: [],
     reactions: new Map(),
     lastAt: 0,
     hasMine: false,
     notLoaded: true,
   };
+  notLoadedRooms.set(key, room);
+  return room;
 }
 
 export function shelve(rooms: DmRoom[], me: string, prefs: DmPrefs, trust: TrustLookup): Shelves {
   const out: Shelves = { chats: [], pinnedCount: 0, archived: [], requests: [], low: [], flagged: [], badge: 0 };
   const pinned: DmRoom[] = [];
+  const pins = new Set(prefs.pinned);
   const muted = new Set(prefs.muted);
   for (const room of rooms) {
     const others = room.participants.filter((pk) => pk !== me);
@@ -104,7 +122,7 @@ export function shelve(rooms: DmRoom[], me: string, prefs: DmPrefs, trust: Trust
     }
     const unread = muted.has(room.key) ? 0 : unreadIn(room, me, prefs);
     if (shelf === "chat") {
-      if (prefs.pinned.includes(room.key)) pinned.push(room);
+      if (pins.has(room.key)) pinned.push(room);
       else out.chats.push(room);
       out.badge += unread;
     } else if (shelf === "request") {
@@ -116,17 +134,23 @@ export function shelve(rooms: DmRoom[], me: string, prefs: DmPrefs, trust: Trust
   // A pinned chat stays in the list even when none of its messages are loaded: history pages
   // the whole inbox newest first, so a chat whose last message is older than the pages so far
   // has no room yet. Its row says so, and opening it offers to look further back.
-  const loaded = new Set(rooms.map((r) => r.key));
-  for (const key of prefs.pinned) {
-    if (loaded.has(key)) continue;
-    const room = notLoadedRoom(key);
-    const others = room.participants.filter((pk) => pk !== me);
-    if (!room.participants.includes(me)) continue;
-    if (trust.mutedOf && others.length && others.every((pk) => trust.mutedOf!(pk))) continue;
-    if (prefs.hidden[key] !== undefined) out.archived.push(room);
-    else pinned.push(room);
+  if (pins.size) {
+    const placed = new Set(rooms.map((r) => r.key));
+    for (const key of prefs.pinned) {
+      // Once per key: a synced list can repeat one.
+      if (placed.has(key)) continue;
+      placed.add(key);
+      const room = notLoadedRoom(key);
+      if (!room || !room.participants.includes(me)) continue;
+      const others = room.participants.filter((pk) => pk !== me);
+      if (trust.mutedOf && others.length && others.every((pk) => trust.mutedOf!(pk))) continue;
+      if (prefs.hidden[key] !== undefined) out.archived.push(room);
+      else pinned.push(room);
+    }
   }
-  pinned.sort((a, b) => prefs.pinned.indexOf(a.key) - prefs.pinned.indexOf(b.key));
+  const pinOrder = new Map<string, number>();
+  prefs.pinned.forEach((key, i) => pinOrder.has(key) || pinOrder.set(key, i));
+  pinned.sort((a, b) => pinOrder.get(a.key)! - pinOrder.get(b.key)!);
   out.pinnedCount = pinned.length;
   out.chats = [...pinned, ...out.chats];
   // Requests: the most trusted first, then the newest.
