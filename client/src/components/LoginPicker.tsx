@@ -30,7 +30,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { removeAccountFromDevice, signInWithAccount } from "@/accounts/login-flow";
 import { cn } from "@/lib/utils";
-import { isInstalledPhoneApp } from "@/lib/installedApp";
+import { useExtensionUnreachable } from "@/hooks/useExtensionUnreachable";
 
 /** What a row that can't sign here offers instead. Removal is never the first thing. */
 function DeadEnd({
@@ -48,9 +48,9 @@ function DeadEnd({
 }) {
   const gone = row.health === "key-unavailable";
   const elsewhere = row.health === "signer-unusable";
-  // Installed to a phone's home screen, no extension can ever reach the app: looking
-  // again can't help, and "enable it" asks for something that isn't possible here.
-  const installed = isInstalledPhoneApp();
+  // Installed to a phone's home screen with no extension in it (Chrome's has none):
+  // looking again can't help, and "enable it" asks for something that isn't possible.
+  const installed = useExtensionUnreachable();
   return (
     <div className="flex flex-col gap-2">
       {explain && (

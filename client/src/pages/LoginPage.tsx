@@ -9,7 +9,7 @@ import { LoginPicker } from "@/components/LoginPicker";
 import { KeySignInModal } from "@/components/KeySignInModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
-import { isInstalledPhoneApp } from "@/lib/installedApp";
+import { useExtensionUnreachable } from "@/hooks/useExtensionUnreachable";
 import { Wordmark } from "@/components/Wordmark";
 import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
 import { HERO_SOLO } from "@/lib/heroScenes";
@@ -73,9 +73,9 @@ export default function LoginPage() {
     }
   })();
   const hasAccounts = identities.length > 0;
-  // Installed to a phone's home screen, no extension can reach the app: the signer app
-  // leads instead of a button that can only fail.
-  const [installedApp] = useState(isInstalledPhoneApp);
+  // Installed to a phone's home screen with no extension in it: the signer app leads
+  // instead of a button that can only fail. One that is there keeps its button.
+  const installedApp = useExtensionUnreachable();
   const nextPath = getNextPath();
   const inviterPubkey = getInviterPubkey();
 
