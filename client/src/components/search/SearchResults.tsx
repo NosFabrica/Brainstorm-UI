@@ -1898,21 +1898,27 @@ export function SearchResults({
           person clears the confidence bar it renders nothing and the column
           takes the full width. */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-center lg:gap-6">
-          <KnowledgePanel
-            query={query}
-            pov={pov}
-            userPubkey={userPubkey}
-            sections={composed ? sections : undefined}
-            onOpen={onOpenProfile}
-            onPerson={setPanelPerson}
-            onTab={(next) => changeTab(next as SearchTab)}
-            // Not pinned: the panel is context for the query, read at the top, and
-            // it scrolls away with the page the way Google's does. Pinned, it
-            // followed the reader down every page and ducked under the search
-            // band (Benjamin, 2026-09-09: "I don't like how this gets covered and
-            // always stays in view"). The Top pill brings it back in one tap.
-            className="lg:order-2 lg:w-72 lg:shrink-0"
-          />
+          {/* Not on All: it is the relay's answer, one list in its order, and the panel's
+              rails would repeat it. On a vertical, the person card without the rails. */}
+          {tab !== "all" && (
+            <KnowledgePanel
+              query={query}
+              pov={pov}
+              userPubkey={userPubkey}
+              sections={composed ? sections : undefined}
+              rails={tab === "top"}
+              group={composed ? "search-top" : undefined}
+              onOpen={onOpenProfile}
+              onPerson={setPanelPerson}
+              onTab={(next) => changeTab(next as SearchTab)}
+              // Not pinned: the panel is context for the query, read at the top, and
+              // it scrolls away with the page the way Google's does. Pinned, it
+              // followed the reader down every page and ducked under the search
+              // band (Benjamin, 2026-09-09: "I don't like how this gets covered and
+              // always stays in view"). The Top pill brings it back in one tap.
+              className="lg:order-2 lg:w-72 lg:shrink-0"
+            />
+          )}
           <div className="w-full min-w-0 lg:order-1 lg:w-[42rem] lg:flex-none">
             {serverStatus.search === "down" ? (
               // The relay is the thing that is down: the results area says so, and

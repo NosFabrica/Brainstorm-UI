@@ -678,6 +678,14 @@ export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<P
  * photos, articles, …). Merges the author's outbox relays with optional
  * `nprofile` relay hints, de-dupes across relays, and caps to `limit`.
  */
+/**
+ * A relay set minus the search relay, for the callers that ask the search relay on
+ * its own as well (with the lens it requires). PROFILE_RELAYS includes it, so
+ * without this the same filters reached it twice — one REQ through the pool, one
+ * direct (probed 2026-10-07: a person's streams and media, each sent twice).
+ */
+const besidesSearchRelay = (relays: string[]) => relays.filter((r) => r !== SEARCH_RELAY);
+
 export async function fetchRecentByKinds(
   pubkey: string,
   kinds: number[],
@@ -759,7 +767,7 @@ async function runPersonBatch(pubkey: string, batch: PersonBatch): Promise<void>
     // The search relay's corpus is wider than the content relays' (probed:
     // a Divine creator's kind-34236 videos lived only there) — ask it too.
     const [fromRelays, fromSearch] = await Promise.all([
-      requestAll(batch.relays, filters, batch.timeoutMs),
+      requestAll(besidesSearchRelay(batch.relays), filters, batch.timeoutMs),
       fetchFromSearchRelayByFilters(filters, batch.timeoutMs),
     ]);
     // A husk deleted by overwriting is not content (lib/blankEvent).
@@ -816,7 +824,7 @@ export async function fetchLiveStreams(
   const [fromRelays, fromSearch] = await Promise.all([
     // `relays` is still a promise: the NIP-65 lookup tells the relay leg where
     // to go and tells the search relay nothing, so only this leg waits on it.
-    relays.then((routed) => requestAll(routed, shapes, timeoutMs)),
+    relays.then((routed) => requestAll(besidesSearchRelay(routed), shapes, timeoutMs)),
     fetchFromSearchRelayByFilters(shapes, timeoutMs),
   ]);
 
@@ -898,7 +906,7 @@ export async function fetchListingFamily(
     { kinds: [Number(kind)], authors: [pubkey], "#d": [d] },
     { kinds: [Number(kind)], authors: [pubkey], "#a": [parentAddress], limit: 200 },
   ];
-  const relays = await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS);
+  const relays = besidesSearchRelay(await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS));
   const answers = await Promise.all([
     fetchFromSearchRelayByFilters(filters, timeoutMs).catch(() => [] as NostrEvent[]),
     ...filters.map((f) => fetchEventsByFilter(f, relays, timeoutMs).catch(() => [] as NostrEvent[])),
@@ -1144,13 +1152,18 @@ export async function fetchAddressableEvents(
  * it cannot place falls back to the profile relays, which is where a person the
  * search relay has never indexed still lives.
  */
-export async function fetchProfileMap(pubkeys: string[], timeoutMs = 6000): Promise<Map<string, ProfileContent>> {
+export async function fetchProfileMap(
+  pubkeys: string[],
+  timeoutMs = 6000,
+  { warm = true }: { warm?: boolean } = {},
+): Promise<Map<string, ProfileContent>> {
   const unique = Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk))));
   const map = new Map<string, ProfileContent>();
   if (!unique.length) return map;
   // A page of people, or the authors of a page of notes — either way these are
-  // on screen now, so their routing starts loading now.
-  warmRelayLists(unique);
+  // on screen now, so their routing starts loading now. Not for names alone (a
+  // mention, a face pile): nothing of theirs is fetched next.
+  if (warm) warmRelayLists(unique);
 
   const keep = (event: NostrEvent | null | undefined) => {
     try {
@@ -1188,10 +1201,25 @@ export async function fetchProfileMap(pubkeys: string[], timeoutMs = 6000): Prom
 
   // Per pubkey, so the ones already in the store cost nothing and the rest join
   // whatever batch is forming rather than opening a request of their own.
+  // The search relay was the queue's question and answered "nobody", so these go to
+  // the other profile relays only — one batched REQ each, not the search relay again.
   const missing = unique.filter((pubkey) => !map.has(pubkey));
   if (missing.length > 0) {
-    const events = await Promise.all(missing.map((pubkey) => loadReplaceable(0, pubkey, { timeoutMs })));
-    events.forEach(keep);
+    const found = await requestAll(
+      besidesSearchRelay(PROFILE_RELAYS),
+      { kinds: [0], authors: missing },
+      timeoutMs,
+    ).catch(() => [] as NostrEvent[]);
+    const newest = new Map<string, NostrEvent>();
+    for (const event of found) newest.set(event.pubkey, newerOf(newest.get(event.pubkey), event) ?? event);
+    for (const event of newest.values()) {
+      try {
+        eventStore.add(event);
+      } catch {
+        continue; // not a real event
+      }
+      keep(event);
+    }
   }
   return map;
 }

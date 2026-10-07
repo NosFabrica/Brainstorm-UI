@@ -57,6 +57,7 @@ import {
   searchStream,
   suggestProfiles,
   type SearchHit,
+  type SearchGroup,
   type SearchPov,
   type SearchSnapshot,
 } from "@/services/search";
@@ -178,6 +179,8 @@ function KnowledgePanelBody({
   pov,
   userPubkey,
   sections,
+  rails = true,
+  group,
   onOpen,
   onPerson,
   onTab,
@@ -186,6 +189,14 @@ function KnowledgePanelBody({
   query: string;
   pov: SearchPov;
   userPubkey?: string;
+  /**
+   * The topic, apps and upcoming-events rails. The front page's (Top's): on a
+   * vertical they are kinds the tab leaves out, or the very list beside them,
+   * and each is a search of its own. The person card stays on every tab.
+   */
+  rails?: boolean;
+  /** The composed page's shared REQ, which the apps probe joins (its kind is no section's). */
+  group?: SearchGroup;
   /**
    * What the composed page's sections already found. Given these, the panel
    * reads them instead of asking the relay the same questions again.
@@ -384,6 +395,7 @@ function KnowledgePanelBody({
         alive = false;
       };
     }
+    if (!rails) return;
     // Both probes in parallel; the render gives an ACTIVE topic priority —
     // a Liverpool fan searching "liverpool" wants the topic, not whichever
     // account happens to carry the name.
@@ -398,26 +410,30 @@ function KnowledgePanelBody({
     // Apps whose NAME matches the words ride the rail too (Google's app
     // sidebar) — fuzzy strays with unrelated names are filtered out.
     const q = norm(query);
-    const cancelApps = searchStream(query, { tab: "apps", pov, userPubkey, limit: 6, band: true }, (snapshot) => {
-      if (!alive || !snapshot.eose) return;
-      const matched = snapshot.hits.filter((h) => {
-        const name = norm(h.event.tags.find((t) => t[0] === "name")?.[1] ?? "");
-        return !!name && (name.includes(q) || q.includes(name));
-      });
-      if (matched.length > 0) setAppHits(matched.slice(0, 3));
-    });
+    const cancelApps = searchStream(
+      query,
+      { tab: "apps", pov, userPubkey, limit: 6, band: true, group },
+      (snapshot) => {
+        if (!alive || !snapshot.eose) return;
+        const matched = snapshot.hits.filter((h) => {
+          const name = norm(h.event.tags.find((t) => t[0] === "name")?.[1] ?? "");
+          return !!name && (name.includes(q) || q.includes(name));
+        });
+        if (matched.length > 0) setAppHits(matched.slice(0, 3));
+      },
+    );
     return () => {
       alive = false;
       cancelTopic?.();
       cancelApps();
     };
-  }, [query, pov, userPubkey, probeReady]);
+  }, [query, pov, userPubkey, probeReady, rails, group]);
 
   // Events (Benjamin: "like a Google events feel — real and relevant, not
   // forced"). The Happening section asks this question less deeply than the
   // probe did, so the probe still runs where the section cannot fill the row.
   useEffect(() => {
-    if (!probeReady || nipCandidates(query).length > 0) return;
+    if (!probeReady || !rails || nipCandidates(query).length > 0) return;
     if (sectionRow.length > 0) setTopicEvents(sectionRow);
     // A full row is a full row, whichever tab the reader moves to next.
     if ((topicEvents?.length ?? 0) >= EVENTS_SHOWN) return;
@@ -437,7 +453,7 @@ function KnowledgePanelBody({
       cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, pov, userPubkey, probeReady, hasSections, sectionRowKey, eventsSettled]);
+  }, [query, pov, userPubkey, probeReady, rails, hasSections, sectionRowKey, eventsSettled]);
 
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.

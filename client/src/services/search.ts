@@ -288,6 +288,10 @@ export interface SearchParams {
 }
 
 const DEFAULT_LIMIT = 100;
+/** How long a page's unknown authors wait to be asked together, at most (EOSE asks at once): a streaming list's… */
+const AUTHOR_BATCH_MS = 1000;
+/** …and a best-match page's, which ends (EOSE) soon after its first hits anyway. */
+const AUTHOR_BATCH_MAX_MS = 4000;
 /**
  * How deep best match will go. It has no cursor, so each further page is a
  * bigger ask that repeats the ranking so far — and the relay sends MORE than
@@ -562,11 +566,32 @@ export function searchStream(
       emit({});
     };
 
+    // Authors the store does not hold are asked together: at the page's end, or a second
+    // after the first of them arrived, whichever is sooner. A best-match page trickles in
+    // over seconds, and asking per arrival sent a REQ of one or two authors each time
+    // (probed 2026-10-07: five kind-0 REQs of 4, 2, 1, 1, 1 for one All search).
+    // A best-match page arrives over seconds and paints as one: its authors wait for its
+    // end (capped). A recent-sorted list streams on, so its authors go every second.
+    const streamsOn = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
+    const authorWait = streamsOn ? AUTHOR_BATCH_MS : AUTHOR_BATCH_MAX_MS;
+    const pendingAuthors = new Set<string>();
+    let authorTimer: ReturnType<typeof setTimeout> | undefined;
+    const askAuthors = () => {
+      clearTimeout(authorTimer);
+      authorTimer = undefined;
+      if (cancelled) return;
+      for (const pubkey of pendingAuthors)
+        if (!wantedAuthors.has(pubkey)) wantedAuthors.set(pubkey, wantProfile(pubkey, applyProfile));
+      pendingAuthors.clear();
+    };
     const noteAuthor = (event: NostrEvent): SearchResult | null => {
       if (event.kind === 0) return kind0ToSearchResult(event);
       const known = eventStore.getReplaceable(0, event.pubkey);
       if (known) return kind0ToSearchResult(known);
-      if (!wantedAuthors.has(event.pubkey)) wantedAuthors.set(event.pubkey, wantProfile(event.pubkey, applyProfile));
+      if (!wantedAuthors.has(event.pubkey) && !pendingAuthors.has(event.pubkey)) {
+        pendingAuthors.add(event.pubkey);
+        authorTimer ??= setTimeout(askAuthors, authorWait);
+      }
       return null;
     };
 
@@ -575,6 +600,7 @@ export function searchStream(
     // ever fill their names in.
     if (seed.length) {
       for (const hit of hits) if (!hit.author) hit.author = noteAuthor(hit.event);
+      askAuthors();
       emit({});
     }
 
@@ -706,6 +732,7 @@ export function searchStream(
           } else if (msg.type === "EOSE") {
             eose = true;
             loadingMore = false;
+            askAuthors();
             // A guess the search did not stand behind does not stay on screen.
             if (params.provisionalSeed && !closeAtEose && seeded.size > 0) {
               for (let i = hits.length - 1; i >= 0; i--) {
@@ -788,6 +815,8 @@ export function searchStream(
     );
     unsubscribe = () => {
       for (const sub of pageSubs) sub.unsubscribe();
+      clearTimeout(authorTimer);
+      pendingAuthors.clear();
       wantedAuthors.forEach((withdraw) => withdraw());
       wantedAuthors.clear();
     };

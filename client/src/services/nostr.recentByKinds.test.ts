@@ -82,6 +82,21 @@ describe("fetchRecentByKinds", () => {
     expect(out.map((e) => e.id[0])).toEqual(["b", "c", "a"]);
   });
 
+  // Asked on its own with the lens it requires, the search relay is not in the other
+  // leg too: PROFILE_RELAYS includes it, and the same filters reached it twice
+  // (probed 2026-10-07, a person's streams and media on the knowledge panel).
+  it("asks the search relay once — the relay leg leaves it out", async () => {
+    requestAllMock.mockResolvedValue([]);
+    const { SEARCH_RELAY } = await import("@/lib/relays");
+    const p = fetchRecentByKinds(PK, [1], 3, { timeoutMs: 300 });
+    await vi.waitFor(() => expect(requestAllMock).toHaveBeenCalled());
+    const relays = (requestAllMock.mock.calls[0] as unknown[])[0] as string[];
+    expect(relays.length).toBeGreaterThan(0);
+    expect(relays).not.toContain(SEARCH_RELAY);
+    searchSubject?.next({ type: "EOSE" });
+    await p;
+  });
+
   // Zap Cooking's overwritten recipes (2026-09-24): content "", a tombstone
   // tag, a "[Deleted]" title — from the search relay and the content relays
   // alike. The profile's blocks never see them.
