@@ -38,8 +38,6 @@ export interface ResultSummary {
   /** What the content is when it is not words to read — said in place of them. */
   shape: "encrypted" | "json" | null;
   image: string | null;
-  /** A face rather than a picture: a profile's avatar. */
-  round: boolean;
   /** Short, quiet, in order: a price, a date and place, a duration, a status. */
   facts: string[];
   /** The kind's own full page. */
@@ -205,7 +203,6 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
     body: tagOf(ev, "summary", "description"),
     shape: null,
     image: genericImage(ev),
-    round: false,
     facts: [],
     href: eventPath(ev),
   };
@@ -225,13 +222,12 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
     }
     const str = (k: string) =>
       typeof meta[k] === "string" && (meta[k] as string).trim() ? (meta[k] as string).trim() : null;
-    const picture = str("picture") ?? str("image");
     return {
       ...base,
       title: str("display_name") ?? str("displayName") ?? str("name"),
       body: str("about"),
-      image: isHttp(picture) ? picture : null,
-      round: true,
+      // Their face is already the byline's, beside their name: no second one on the right.
+      image: null,
       facts: [str("nip05"), str("website")].filter((f): f is string => !!f).slice(0, 2),
       href: profilePathOf(ev.pubkey),
     };

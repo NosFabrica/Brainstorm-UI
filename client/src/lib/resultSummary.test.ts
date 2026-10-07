@@ -37,11 +37,11 @@ describe("summarizeResult — any kind as the All tab's row", () => {
     expect(s.href).toMatch(/^\/e\//);
   });
 
-  it("a profile is the person: name, about, a round face, and their profile page", () => {
+  it("a profile is the person: name, about and their profile page — the face stays in the byline", () => {
     const s = summarizeResult(
       ev(0, [], JSON.stringify({ name: "nova", display_name: "NOVA", about: "Music", picture: "https://img/n.jpg" })),
     );
-    expect(s).toMatchObject({ title: "NOVA", body: "Music", image: "https://img/n.jpg", round: true });
+    expect(s).toMatchObject({ title: "NOVA", body: "Music", image: null });
     expect(s.href).toBe(`/p/${nip19.npubEncode(PK)}`);
   });
 

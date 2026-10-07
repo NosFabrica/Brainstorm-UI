@@ -116,7 +116,7 @@ export function AllResultRow({
             alt=""
             loading="lazy"
             onError={() => setThumbFailed(true)}
-            className={`h-16 w-16 shrink-0 bg-slate-100 object-cover dark:bg-slate-800 ${summary.round ? "rounded-full" : "rounded-lg"}`}
+            className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800"
             data-testid="all-row-thumb"
           />
         )}
