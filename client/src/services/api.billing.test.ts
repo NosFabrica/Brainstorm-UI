@@ -45,7 +45,7 @@ describe("the admin's writes to a subscription", () => {
     const out = await apiClient.cancelAdminBillingSubscription(PK, "Duplicate signup");
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(`http://test.local/admin/billing/subscriptions/${PK}/cancel`);
+    expect(url).toBe(`http://test.invalid/admin/billing/subscriptions/${PK}/cancel`);
     expect(options.method).toBe("POST");
     expect(JSON.parse(options.body)).toEqual({ reason: "Duplicate signup" });
     expect(out.cancellation_scheduled).toBe(true);
@@ -66,7 +66,7 @@ describe("the admin's writes to a subscription", () => {
     await apiClient.setAdminBillingSubscriptionStatus(PK, "paused");
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(`http://test.local/admin/billing/subscriptions/${PK}/status`);
+    expect(url).toBe(`http://test.invalid/admin/billing/subscriptions/${PK}/status`);
     expect(options.method).toBe("PATCH");
     expect(JSON.parse(options.body)).toEqual({ status: "paused" });
   });
@@ -128,7 +128,7 @@ describe("resolving an unresolved signup", () => {
     const out = await apiClient.attributeAdminBillingUnresolved("01a01f88-0d7f-734b-b724-13e32b482f57", PK);
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://test.local/admin/billing/unresolved/01a01f88-0d7f-734b-b724-13e32b482f57/attribute");
+    expect(url).toBe("http://test.invalid/admin/billing/unresolved/01a01f88-0d7f-734b-b724-13e32b482f57/attribute");
     expect(options.method).toBe("POST");
     expect(JSON.parse(options.body)).toEqual({ pubkey: PK });
     expect(out.applied).toBe(true);
@@ -141,7 +141,7 @@ describe("resolving an unresolved signup", () => {
     await apiClient.dismissAdminBillingUnresolved("sub/../subscriptions");
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "http://test.local/admin/billing/unresolved/sub%2F..%2Fsubscriptions/dismiss",
+      "http://test.invalid/admin/billing/unresolved/sub%2F..%2Fsubscriptions/dismiss",
     );
     expect(fetchMock.mock.calls[0][1].method).toBe("POST");
   });
@@ -174,7 +174,7 @@ describe("the checkout return's refresh", () => {
     await apiClient.refreshSubscription("7d3b");
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://test.local/user/subscription/refresh");
+    expect(url).toBe("http://test.invalid/user/subscription/refresh");
     expect(JSON.parse(options.body)).toEqual({ subscription_id: "7d3b" });
   });
 
