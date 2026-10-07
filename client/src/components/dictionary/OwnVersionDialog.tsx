@@ -53,8 +53,9 @@ const ROLE_LABEL: Record<DisplayRole, string> = {
   image: "Picture",
   link: "Link",
   media: "Media",
+  location: "Location (geohash)",
 };
-/** Title and summary always read from some field; a picture, link or media only when one is named. */
+/** Title and summary always read from some field; a picture, link, media or location only when one is named. */
 const NO_ROLE_LABEL = (role: DisplayRole) => (role === "title" || role === "summary" ? "Automatic" : "None");
 /** The value types the form offers (dlistFields: only `url` changes rendering). */
 const FIELD_TYPES = ["text", "url"] as const;

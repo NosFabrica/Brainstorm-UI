@@ -201,6 +201,7 @@ describe("display hints in the copy (provisional)", () => {
       image: null,
       link: null,
       media: null,
+      location: null,
       listImage: "https://x.example/gh.svg",
     });
   });
