@@ -102,6 +102,35 @@ describe("shelving rooms", () => {
     expect(shelve([ana], ME, prefs({ muted: [ana.key] }), trust()).badge).toBe(0);
   });
 
+  it("keeps a pinned chat in the list, in pin order, when none of its messages are loaded", () => {
+    const ana = room(ANA, { at: 100 });
+    const bobKey = [ME, BOB].sort().join(",");
+    const group = [ME, ANA, BOB].sort().join(",");
+    const shelves = shelve([ana], ME, prefs({ pinned: [group, ana.key, bobKey] }), trust());
+    expect(shelves.chats.map((r) => r.key)).toEqual([group, ana.key, bobKey]);
+    expect(shelves.pinnedCount).toBe(3);
+    const bob = shelves.chats[2];
+    expect(bob.notLoaded).toBe(true);
+    expect(bob.participants).toEqual([ME, BOB].sort());
+    expect(bob.messages).toEqual([]);
+    expect(shelves.chats[1].notLoaded).toBeUndefined();
+    // Nothing to read, so nothing on the badge.
+    expect(shelves.badge).toBe(1);
+  });
+
+  it("leaves a not-loaded pin out when its people are muted, and archives it when deleted", () => {
+    const bobKey = [ME, BOB].sort().join(",");
+    expect(shelve([], ME, prefs({ pinned: [bobKey] }), trust({ mutedOf: (pk) => pk === BOB })).chats).toEqual([]);
+    const hidden = shelve([], ME, prefs({ pinned: [bobKey], hidden: { [bobKey]: 10 } }), trust());
+    expect(hidden.chats).toEqual([]);
+    expect(hidden.archived.map((r) => r.key)).toEqual([bobKey]);
+  });
+
+  it("ignores a pin that isn't one of the reader's rooms", () => {
+    const strangers = [ANA, BOB].sort().join(",");
+    expect(shelve([], ME, prefs({ pinned: [strangers] }), trust()).chats).toEqual([]);
+  });
+
   it("judges a room by who wrote in it, not by who was named", () => {
     // A stranger's group that also names Ana (whom I follow): still a request.
     const key = [ME, ANA, EVE].sort().join(",");

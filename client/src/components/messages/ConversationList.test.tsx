@@ -19,6 +19,7 @@ vi.mock("./RequestTrust", () => ({ RequestTrustLine: () => null }));
 
 import { ConversationList } from "./ConversationList";
 import { readDmPrefs } from "@/lib/dm/prefs";
+import { notLoadedRoom } from "@/lib/dm/inbox";
 
 const ME = "m".repeat(64);
 const relay = (url: string, state: RelayProgress["state"], pages = 1): RelayProgress => ({
@@ -58,7 +59,7 @@ const room = (c: string): DmRoom => ({
   lastAt: 1_700_000_000,
   hasMine: false,
 });
-const shelves = (over: Partial<{ requests: DmRoom[]; low: DmRoom[] }> = {}) => ({
+const shelves = (over: Partial<{ chats: DmRoom[]; pinnedCount: number; requests: DmRoom[]; low: DmRoom[] }> = {}) => ({
   chats: [],
   pinnedCount: 0,
   archived: [],
@@ -167,6 +168,15 @@ describe("ConversationList", () => {
       "None of your message servers are answering. New messages can't reach you right now.",
     );
     expect(screen.getByRole("link", { name: "Manage" })).toBeInTheDocument();
+  });
+
+  it("lists a pinned chat whose messages aren't loaded, saying so instead of a preview and a date", () => {
+    const pin = notLoadedRoom([ME, "b".repeat(64)].sort().join(","));
+    show(stateWith([relay("wss://a.example", "idle")]), "chats", shelves({ chats: [pin], pinnedCount: 1 }));
+    const row = screen.getByTestId("dm-room-row");
+    expect(row).toHaveTextContent("Older messages aren't loaded yet");
+    expect(row).not.toHaveTextContent("1970");
+    expect(screen.queryByText("No chats yet.")).toBeNull();
   });
 
   it("explains Requests in a sentence, and names the low-trust group plainly", () => {

@@ -76,6 +76,19 @@ export interface Shelves {
   badge: number;
 }
 
+/** A pinned room none of whose messages are loaded: its people, and nothing else yet. */
+export function notLoadedRoom(key: string): DmRoom {
+  return {
+    key,
+    participants: key.split(",").filter(Boolean),
+    messages: [],
+    reactions: new Map(),
+    lastAt: 0,
+    hasMine: false,
+    notLoaded: true,
+  };
+}
+
 export function shelve(rooms: DmRoom[], me: string, prefs: DmPrefs, trust: TrustLookup): Shelves {
   const out: Shelves = { chats: [], pinnedCount: 0, archived: [], requests: [], low: [], flagged: [], badge: 0 };
   const pinned: DmRoom[] = [];
@@ -99,6 +112,19 @@ export function shelve(rooms: DmRoom[], me: string, prefs: DmPrefs, trust: Trust
       if (unread) out.badge += 1;
     } else if (shelf === "low") out.low.push(room);
     else out.flagged.push(room);
+  }
+  // A pinned chat stays in the list even when none of its messages are loaded: history pages
+  // the whole inbox newest first, so a chat whose last message is older than the pages so far
+  // has no room yet. Its row says so, and opening it offers to look further back.
+  const loaded = new Set(rooms.map((r) => r.key));
+  for (const key of prefs.pinned) {
+    if (loaded.has(key)) continue;
+    const room = notLoadedRoom(key);
+    const others = room.participants.filter((pk) => pk !== me);
+    if (!room.participants.includes(me)) continue;
+    if (trust.mutedOf && others.length && others.every((pk) => trust.mutedOf!(pk))) continue;
+    if (prefs.hidden[key] !== undefined) out.archived.push(room);
+    else pinned.push(room);
   }
   pinned.sort((a, b) => prefs.pinned.indexOf(a.key) - prefs.pinned.indexOf(b.key));
   out.pinnedCount = pinned.length;

@@ -123,10 +123,16 @@ const RoomRow = memo(function RoomRow({
           {prefs.pinned.includes(room.key) && (
             <Pin className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label="Pinned" />
           )}
-          <span className="ml-auto shrink-0 text-xs text-slate-500 dark:text-slate-400">{listTime(room.lastAt)}</span>
+          {!room.notLoaded && (
+            <span className="ml-auto shrink-0 text-xs text-slate-500 dark:text-slate-400">{listTime(room.lastAt)}</span>
+          )}
         </span>
         <span className="flex items-center gap-2">
-          {hidePreview ? (
+          {room.notLoaded ? (
+            <span className="truncate text-sm text-slate-500 dark:text-slate-400" data-testid="dm-room-not-loaded">
+              {"Older messages aren't loaded yet"}
+            </span>
+          ) : hidePreview ? (
             <span className="flex items-center gap-1.5 truncate text-sm text-slate-500 dark:text-slate-400">
               <EyeOff className="h-3.5 w-3.5" /> Preview hidden · low trust
             </span>
