@@ -64,6 +64,12 @@ vi.mock("@/components/share/EntityMenu", () => ({
 
 import EventPage, { AddressRedirect } from "./EventPage";
 
+// Offline: the BTC price (mempool.space) for fiat price lines is not under test.
+vi.mock("@/lib/exchangeRate", async (orig) => ({
+  ...(await orig<typeof import("@/lib/exchangeRate")>()),
+  fetchBtcRates: async () => null,
+}));
+
 const NIP21 =
   "# NIP-21\n\n## `nostr:` URI scheme\n\n`draft` `optional`\n\nThis NIP standardizes a URI scheme.\n\n- `nostr:npub1sn0wdenkukak0d9dfczzeacvhkrgz92ak56egt7vdgzn8pv2wfqqhrjdv9`";
 

@@ -1,4 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+// Offline: no house observer's /.well-known (a test that wants one stubs fetch itself).
+beforeEach(() => vi.stubGlobal("fetch", async () => ({ ok: false, json: async () => ({}) })));
+afterEach(() => vi.unstubAllGlobals());
 
 /**
  * `fetchTagDetail`'s existence check — issue #41 B3.

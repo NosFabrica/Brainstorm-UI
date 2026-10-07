@@ -181,6 +181,8 @@ vi.mock("@/lib/wavlake", async (importOriginal) => ({
   searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
   searchWavlake: (term: string) => wavlakeCatalogueMock(term),
   fetchWavlakeTrending: (opts?: { genre?: string }) => wavlakeTrendingMock(opts),
+  // A person's artist page on Wavlake (useArtistCatalogue): offline here.
+  findWavlakeArtist: async () => null,
 }));
 const wavlakeSong = (id: string, title: string, artist: string, extra: Partial<WavlakeSong> = {}): WavlakeSong => ({
   id: `wavlake:${id}`,
@@ -226,6 +228,13 @@ vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null
 
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
 import { NowPlayingBar } from "./NowPlayingBar";
+
+// Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
+vi.mock("@/lib/nip05", async (orig) => ({
+  ...(await orig<typeof import("@/lib/nip05")>()),
+  verifyNip05: async () => "unknown",
+  resolveNip05: async () => null,
+}));
 
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {
   return { id, kind, pubkey, tags, content, created_at: 1_700_000_000, sig: "s" } as NostrEvent;

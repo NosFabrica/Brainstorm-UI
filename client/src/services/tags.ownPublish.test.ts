@@ -1,6 +1,10 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools";
+
+// Offline: no house observer's /.well-known (a test that wants one stubs fetch itself).
+beforeEach(() => vi.stubGlobal("fetch", async () => ({ ok: false, json: async () => ({}) })));
+afterEach(() => vi.unstubAllGlobals());
 
 /** A tag the viewer just published is in their catalogue before any relay serves it back. */
 
