@@ -34,6 +34,7 @@ import {
   type NostrConnectAppMetadata,
 } from "applesauce-signers/helpers/nostr-connect";
 import { BehaviorSubject } from "rxjs";
+import type { Deferred } from "applesauce-core/promise";
 
 import { env } from "@/lib/runtimeEnv";
 import type { AccountMetadata } from "./metadata";
@@ -218,8 +219,44 @@ export type RemoteSignerOptions = NostrConnectSignerOptions & {
  * The overrides are all of it: a deadline on every round trip, and a pairing
  * that only completes when the secret we minted comes back.
  */
+/**
+ * The library's request book, emptied as it goes. It keeps every request it sends
+ * for good — answered or not — and parallel decrypts that time out and are asked
+ * again filled it faster. An entry goes once its request settles; one never
+ * answered goes once it is twice the request deadline old, its answer long given
+ * up on (a late one finds nothing and is ignored, as the library already does).
+ */
+export class SettlingRequests<T extends PromiseLike<unknown>> extends Map<string, T> {
+  private readonly born = new Map<string, number>();
+
+  constructor(
+    private readonly maxAgeMs = 2 * REQUEST_TIMEOUT_MS,
+    private readonly now: () => number = Date.now,
+  ) {
+    super();
+  }
+
+  set(id: string, request: T): this {
+    const at = this.now();
+    for (const [old, born] of this.born) if (at - born > this.maxAgeMs) this.delete(old);
+    super.set(id, request);
+    this.born.set(id, at);
+    const forget = () => {
+      if (super.get(id) === request) this.delete(id);
+    };
+    request.then(forget, forget);
+    return this;
+  }
+
+  delete(id: string): boolean {
+    this.born.delete(id);
+    return super.delete(id);
+  }
+}
+
 export class RemoteSigner extends NostrConnectSigner {
   readonly requireConnectSecret: boolean;
+  protected requests = new SettlingRequests<Deferred<unknown>>();
 
   /**
    * Raised when we turn a pairing answer away for proving itself with a bare

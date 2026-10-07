@@ -141,8 +141,7 @@ export default function SharePage() {
   const openLightbox = useLightbox();
   const loggedIn = useHasSession();
   // The in-page "Join free"; the sticky one steps aside while it is on screen.
-  const inlineJoinRef = useRef<HTMLAnchorElement>(null);
-  const stickyJoinShown = useStickyBarVisible(inlineJoinRef);
+  const { shown: stickyJoinShown, inlineRef: inlineJoinRef } = useStickyBarVisible();
   const [zapOpen, setZapOpen] = useState(false);
   // The pen beside Zap: each press asks the Trust reviews line to open its composer.
   const [composeRequest, setComposeRequest] = useState(0);
@@ -1708,13 +1707,15 @@ export default function SharePage() {
             It sits on the tab bar, which already clears the home indicator, so it adds
             no safe-area padding of its own (that was an empty band between the two).
             Out of the way while the reader scrolls down or the in-page one is in view:
-            the pair took a quarter of the screen the whole way down. */}
+            the pair took a quarter of the screen the whole way down. 
+            Below the tab bar (z-30 under its z-40): sliding away, it passes behind it
+            rather than over the tab labels. */}
         {!loggedIn && (
           <>
             <div className="h-16 sm:hidden" aria-hidden />
             <div
               className={cn(
-                "fixed inset-x-0 bottom-[max(var(--bs-bottom-chrome,0px),env(safe-area-inset-bottom))] z-40 border-t border-slate-200 bg-white/95 px-4 py-2 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] backdrop-blur transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none dark:border-slate-800 dark:bg-slate-900/95 sm:hidden",
+                "fixed inset-x-0 bottom-[max(var(--bs-bottom-chrome,0px),env(safe-area-inset-bottom))] z-30 border-t border-slate-200 bg-white/95 px-4 py-2 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] backdrop-blur transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none dark:border-slate-800 dark:bg-slate-900/95 sm:hidden",
                 !stickyJoinShown && "pointer-events-none translate-y-full opacity-0",
               )}
               aria-hidden={!stickyJoinShown || undefined}

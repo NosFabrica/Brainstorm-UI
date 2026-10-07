@@ -26,6 +26,20 @@ export async function sha256Hex(blob: Blob): Promise<string> {
 
 export const BLOSSOM_SERVER = "https://blossom.primal.net";
 
+/** BUD-11 `server` tags: each server's lowercase domain, once. */
+export function serverScopeTags(servers: string[]): string[][] {
+  const domains: string[] = [];
+  for (const server of servers) {
+    try {
+      const domain = new URL(server).hostname.toLowerCase();
+      if (domain && !domains.includes(domain)) domains.push(domain);
+    } catch {
+      // Not a URL: it can't be uploaded to either.
+    }
+  }
+  return domains.map((domain) => ["server", domain]);
+}
+
 /**
  * Upload a blob; resolves to its URL. `description` is the auth event's human-readable
  * line. Each server in `servers` is tried in turn until one takes it.
@@ -36,12 +50,14 @@ export async function uploadToBlossom(
   servers: string[] = [BLOSSOM_SERVER],
 ): Promise<string> {
   const hash = await sha256Hex(blob);
-  // One signature serves every server: BUD-02 auth names the blob, not the server.
+  // One signature serves every server we try, and only those: a BUD-11 `server` tag
+  // per domain, so a server that saw the token can't spend it anywhere else.
   const auth = await nostrAuthHeader({
     kind: 24242,
     tags: [
       ["t", "upload"],
       ["x", hash],
+      ...serverScopeTags(servers),
       ["expiration", String(Math.floor(Date.now() / 1000) + 600)],
     ],
     content: description,

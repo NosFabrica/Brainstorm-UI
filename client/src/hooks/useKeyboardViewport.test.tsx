@@ -16,14 +16,19 @@ function phone({ touch = true } = {}) {
     removeEventListener: (type: string, fn: () => void) => listeners.get(type)?.delete(fn),
   };
   vi.stubGlobal("visualViewport", vv);
+  // The layout viewport: iOS keeps it full height while the keyboard is up (innerHeight shrinks).
+  Object.defineProperty(document.documentElement, "clientHeight", { value: window.innerHeight, configurable: true });
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: touch && q === "(pointer: coarse)" }));
-  const keyboard = (height: number, offsetTop: number) =>
-    act(() => {
-      vv.height = height;
-      vv.offsetTop = offsetTop;
-      listeners.get("resize")?.forEach((fn) => fn());
-    });
+  const keyboard = (height: number, offsetTop: number) => {
+    vv.height = height;
+    vv.offsetTop = offsetTop;
+    listeners.get("resize")?.forEach((fn) => fn());
+  };
   return { keyboard, listeners };
+}
+
+function page() {
+  return { current: document.createElement("div") };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -31,34 +36,67 @@ afterEach(() => vi.unstubAllGlobals());
 describe("useKeyboardViewport", () => {
   it("leaves the page alone until a field has focus", () => {
     phone();
-    const { result } = renderHook(() => useKeyboardViewport(false));
-    expect(result.current).toBeUndefined();
+    const target = page();
+    renderHook(() => useKeyboardViewport(false, target));
+    expect(target.current.style.position).toBe("");
   });
 
   it("pins the page to what is visible above the keyboard, wherever iOS scrolled the document", () => {
     const { keyboard } = phone();
-    const { result } = renderHook(() => useKeyboardViewport(true));
+    const target = page();
+    renderHook(() => useKeyboardViewport(true, target));
     keyboard(400, 120);
-    expect(result.current).toMatchObject({ position: "fixed", top: 120, height: 400 });
+    expect(target.current.style).toMatchObject({ position: "fixed", top: "120px", height: "400px" });
     // The keyboard covers the home indicator: the foot drops its safe-area padding.
-    expect(result.current).toHaveProperty("--bs-bottom-inset", "0px");
+    expect(target.current.style.getPropertyValue("--bs-bottom-inset")).toBe("0px");
+  });
+
+  it("pins before the first frame, and follows the keyboard without re-rendering the page", () => {
+    const { keyboard } = phone();
+    const target = page();
+    let renders = 0;
+    renderHook(() => {
+      renders++;
+      useKeyboardViewport(true, target);
+    });
+    expect(target.current.style.position).toBe("fixed"); // set in the layout pass, before paint
+    const before = renders;
+    for (let h = 800; h > 400; h -= 20) keyboard(h, 0); // the keyboard sliding up
+    expect(renders).toBe(before);
+    expect(target.current.style.height).toBe("420px");
+  });
+
+  it("drops the safe-area padding even when innerHeight shrinks with the keyboard, as on iOS", () => {
+    const { keyboard } = phone();
+    const target = page();
+    renderHook(() => useKeyboardViewport(true, target));
+    const full = window.innerHeight;
+    Object.defineProperty(window, "innerHeight", { value: 400, configurable: true });
+    keyboard(400, 0);
+    expect(target.current.style.getPropertyValue("--bs-bottom-inset")).toBe("0px");
+    Object.defineProperty(window, "innerHeight", { value: full, configurable: true });
   });
 
   it("keeps the safe-area padding while nothing covers the bottom edge", () => {
     phone();
-    const { result } = renderHook(() => useKeyboardViewport(true));
-    expect(result.current).not.toHaveProperty("--bs-bottom-inset");
+    const target = page();
+    renderHook(() => useKeyboardViewport(true, target));
+    expect(target.current.style.getPropertyValue("--bs-bottom-inset")).toBe("");
   });
 
-  it("does nothing with a mouse, and lets go of the viewport on blur", () => {
+  it("does nothing with a mouse, and lets go of the page — and the viewport — on blur", () => {
     phone({ touch: false });
-    expect(renderHook(() => useKeyboardViewport(true)).result.current).toBeUndefined();
+    const desk = page();
+    renderHook(() => useKeyboardViewport(true, desk));
+    expect(desk.current.style.position).toBe("");
 
-    const { listeners } = phone();
-    const { result, rerender } = renderHook(({ on }) => useKeyboardViewport(on), { initialProps: { on: true } });
-    expect(result.current).toBeDefined();
-    rerender({ on: false });
-    expect(result.current).toBeUndefined();
+    const { listeners, keyboard } = phone();
+    const target = page();
+    const { rerender } = renderHook(({ on }) => useKeyboardViewport(on, target), { initialProps: { on: true } });
+    keyboard(400, 50);
+    expect(target.current.style.position).toBe("fixed");
+    act(() => rerender({ on: false }));
+    expect(target.current.getAttribute("style") ?? "").toBe("");
     expect(listeners.get("resize")?.size).toBe(0);
   });
 });

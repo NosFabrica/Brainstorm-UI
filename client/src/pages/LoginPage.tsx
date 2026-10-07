@@ -11,6 +11,7 @@ import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
 import { isInstalledPhoneApp } from "@/lib/installedApp";
 import { isIOS } from "@/lib/platform";
+import { useExtensionUnreachable } from "@/hooks/useExtensionUnreachable";
 import { Wordmark } from "@/components/Wordmark";
 import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
 import { HERO_SOLO } from "@/lib/heroScenes";
@@ -57,6 +58,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [failureOpen, setFailureOpen] = useState(false);
   const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
+  /** Opened by asking for the key form, not by an extension failing. */
+  const [keyFirst, setKeyFirst] = useState(false);
   const [failureMessage, setFailureMessage] = useState("");
   const [remoteOpen, setRemoteOpen] = useState(false);
 
@@ -72,9 +75,9 @@ export default function LoginPage() {
     }
   })();
   const hasAccounts = identities.length > 0;
-  // Installed to a phone's home screen, no extension can reach the app: the signer app
-  // leads instead of a button that can only fail.
-  const [installedApp] = useState(isInstalledPhoneApp);
+  // Installed to a phone's home screen with no extension in it: the signer app leads
+  // instead of a button that can only fail. One that is there keeps its button.
+  const installedApp = useExtensionUnreachable();
   const nextPath = getNextPath();
   const inviterPubkey = getInviterPubkey();
 
@@ -118,6 +121,7 @@ export default function LoginPage() {
       if (err instanceof LoginError) {
         setFailureCode(err.code);
         setFailureMessage(err.message);
+        setKeyFirst(false);
         setFailureOpen(true);
       } else {
         setError(err instanceof Error ? err.message : "Couldn't complete sign-in. Please try again.");
@@ -128,6 +132,7 @@ export default function LoginPage() {
   };
 
   const openNsec = () => {
+    setKeyFirst(true);
     setFailureCode("NO_EXTENSION");
     setFailureMessage("Paste your key to sign in.");
     setFailureOpen(true);
@@ -213,7 +218,7 @@ export default function LoginPage() {
 
             {/* iOS gives a Home Screen app storage of its own: someone signed in in
               Safari arrives here signed out, and should hear that it's once only. */}
-            {installedApp && !hasAccounts && isIOS() && (
+            {isInstalledPhoneApp() && !hasAccounts && isIOS() && (
               <p className="mb-4 text-sm text-muted-foreground" data-testid="login-installed-app-note">
                 The app keeps its own sign-in, separate from Safari's — sign in once here and it stays.
               </p>
@@ -422,6 +427,7 @@ export default function LoginPage() {
         errorMessage={failureMessage}
         onLoginSuccess={handleNsecLoginSuccess}
         onRetryExtension={handleRetryExtension}
+        startWithKey={keyFirst}
       />
 
       <RemoteSignerModal

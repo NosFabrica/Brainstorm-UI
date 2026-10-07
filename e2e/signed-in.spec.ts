@@ -16,8 +16,7 @@ test("signed-in journey", async ({ page }) => {
 
   await test.step("sign in with a pasted key", async () => {
     await page.goto("/login");
-    await page.getByTestId("link-use-nsec").click();
-    await page.getByTestId("button-show-nsec-form").click();
+    await page.getByTestId("link-use-nsec").click(); // opens straight on the key form
     await page.getByTestId("input-nsec").fill(nsec!);
     await page.getByTestId("checkbox-remember-me").uncheck();
     await page.getByTestId("button-nsec-signin").click();
