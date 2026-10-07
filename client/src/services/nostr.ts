@@ -11,7 +11,7 @@ import { isBlankEvent } from "@/lib/blankEvent";
 import { withObserver } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { publishUntilEnough } from "@/lib/publishQuorum";
-import { loadReplaceable } from "@/lib/loaders";
+import { loadProfileElsewhere, loadReplaceable } from "@/lib/loaders";
 import { profileContentOf } from "@/lib/profileContent";
 import {
   dedupeRelays,
@@ -1201,25 +1201,12 @@ export async function fetchProfileMap(
 
   // Per pubkey, so the ones already in the store cost nothing and the rest join
   // whatever batch is forming rather than opening a request of their own.
-  // The search relay was the queue's question and answered "nobody", so these go to
-  // the other profile relays only — one batched REQ each, not the search relay again.
+  // The search relay was the queue's question and answered "nobody", so these go to the
+  // other profile relays only — batched with every other such ask, the disk cache first.
   const missing = unique.filter((pubkey) => !map.has(pubkey));
   if (missing.length > 0) {
-    const found = await requestAll(
-      besidesSearchRelay(PROFILE_RELAYS),
-      { kinds: [0], authors: missing },
-      timeoutMs,
-    ).catch(() => [] as NostrEvent[]);
-    const newest = new Map<string, NostrEvent>();
-    for (const event of found) newest.set(event.pubkey, newerOf(newest.get(event.pubkey), event) ?? event);
-    for (const event of newest.values()) {
-      try {
-        eventStore.add(event);
-      } catch {
-        continue; // not a real event
-      }
-      keep(event);
-    }
+    const events = await Promise.all(missing.map((pubkey) => loadProfileElsewhere(pubkey, timeoutMs)));
+    events.forEach(keep);
   }
   return map;
 }

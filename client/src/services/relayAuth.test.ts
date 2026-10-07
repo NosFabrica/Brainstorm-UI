@@ -137,7 +137,12 @@ describe("startRelayAuth", () => {
     pool.relays.set(ours.url, ours);
     pool.relays.set(polite.url, polite);
     const active$ = new BehaviorSubject<Account | undefined>(undefined);
-    startRelayAuth({ pool: pool as never, active$, upFront: ["wss://search.example"] });
+    startRelayAuth({
+      pool: pool as never,
+      active$,
+      upFront: ["wss://search.example"],
+      canSignUnasked: async () => true,
+    });
     ours.challenge$.next("c1");
     polite.challenge$.next("c1");
     await tick();
@@ -149,19 +154,29 @@ describe("startRelayAuth", () => {
     expect(polite.authenticate).not.toHaveBeenCalled();
   });
 
-  it("asks nobody to unlock for an up-front login: a signer that would prompt waits", async () => {
-    const pool = fakePool();
-    const ours = fakeRelay("wss://search.example/", { gated: false });
-    pool.relays.set(ours.url, ours);
-    startRelayAuth({
-      pool: pool as never,
-      active$: new BehaviorSubject<Account | undefined>(account),
-      upFront: ["wss://search.example/"],
-      canSignQuietly: async () => false,
-    });
-    ours.challenge$.next("c1");
-    await tick();
-    expect(ours.authenticate).not.toHaveBeenCalled();
+  // An extension or bunker prompts for every signature: nobody asked for this login, so
+  // it never pops one — not on load, not in Messages. It waits for a refusal, like any relay.
+  it("never logs in up front with a signer that would ask — even one that is 'quiet' to us", async () => {
+    for (const interactive of [false, true]) {
+      setRelayAuthInteractive(interactive);
+      const pool = fakePool();
+      const ours = fakeRelay("wss://search.example/", { gated: false });
+      pool.relays.set(ours.url, ours);
+      startRelayAuth({
+        pool: pool as never,
+        active$: new BehaviorSubject<Account | undefined>(account),
+        upFront: ["wss://search.example/"],
+        canSignQuietly: async () => true,
+        canSignUnasked: async () => false,
+      });
+      ours.challenge$.next("c1");
+      await tick();
+      expect(ours.authenticate).not.toHaveBeenCalled();
+      // A refusal still gets its login, the usual way.
+      ours.authRequiredForRead$.next(true);
+      await tick();
+      expect(ours.authenticate).toHaveBeenCalledTimes(1);
+    }
   });
 
   it("signs the login through the given signer (signAs, in the app)", async () => {

@@ -133,6 +133,19 @@ describe("followHeadStart", () => {
     expect(followHeadStart("bitcoin")).toBeNull();
   });
 
+  // A search cancelled before its first page opened never subscribes: nobody would close it.
+  it("lets an unfollowed head start go when released, and a followed one only by its own end", () => {
+    const first = parkAll("bitcoin", []);
+    followHeadStart("bitcoin")!.release();
+    expect(first.socket.close).toHaveBeenCalledTimes(1);
+    __resetHeadStart();
+    const second = parkAll("bitcoin", []);
+    const page = followHeadStart("bitcoin")!;
+    page({ next: () => {}, error: () => {} });
+    page.release();
+    expect(second.socket.close).not.toHaveBeenCalled();
+  });
+
   it("stops listening when the page is left, and closes the socket", () => {
     const { head, socket } = parkAll("bitcoin", []);
     const { sub } = follow("bitcoin");
@@ -161,6 +174,10 @@ describe("the inline script in index.html", () => {
         limit: TOP_SECTIONS[tab].limit,
       })),
     );
+  });
+
+  it("leaves a socket the app is following to the app, past its 30s cleanup", () => {
+    expect(html).toMatch(/setTimeout\(function \(\) \{\s*if \(head\.listeners\.length\) return;/);
   });
 
   it("asks All's one search exactly as the tab asks it: no kinds, best match, a page deep", () => {

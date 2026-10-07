@@ -13,9 +13,17 @@ vi.mock("@/services/authorProfileQueue", () => ({
   wantProfile: (pubkey: string, onProfile: (p: NostrEvent) => void) => wantProfileMock(pubkey, onProfile),
 }));
 const loadReplaceableMock = vi.fn<() => Promise<NostrEvent | null>>(() => Promise.resolve(null));
+// The fallback beyond the search relay: batched, de-duped and disk-cached by its own loader.
+const loadElsewhereMock = vi.fn<(pubkey: string, timeoutMs?: number) => Promise<NostrEvent | undefined>>(() =>
+  Promise.resolve(undefined),
+);
 vi.mock("@/lib/loaders", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/loaders")>();
-  return { ...actual, loadReplaceable: (...args: unknown[]) => loadReplaceableMock(...(args as [])) };
+  return {
+    ...actual,
+    loadReplaceable: (...args: unknown[]) => loadReplaceableMock(...(args as [])),
+    loadProfileElsewhere: (pubkey: string, timeoutMs?: number) => loadElsewhereMock(pubkey, timeoutMs),
+  };
 });
 // The fallback: one batched kind-0 REQ to the profile relays.
 const requestAllMock = vi.fn<(relays: string[], filter: unknown, timeoutMs: number) => Promise<NostrEvent[]>>(() =>
@@ -54,6 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   loadReplaceableMock.mockResolvedValue(null);
   requestAllMock.mockResolvedValue([]);
+  loadElsewhereMock.mockResolvedValue(undefined);
 });
 const kind0Asks = () => requestAllMock.mock.calls.filter(([, f]) => (f as { kinds?: number[] }).kinds?.[0] === 0);
 
@@ -73,19 +82,24 @@ describe("fetchProfileMap", () => {
     const kindsAsked = loadReplaceableMock.mock.calls.map((call) => call[0]);
     expect(kindsAsked).not.toContain(0);
     expect(kind0Asks()).toHaveLength(0);
+    expect(loadElsewhereMock).not.toHaveBeenCalled();
   });
 
   it("falls back to the profile relays for anyone the search relay has never seen — not the search relay again", async () => {
     wantProfileMock.mockImplementation(() => () => {});
-    requestAllMock.mockResolvedValue([profile(B, "elsewhere")]);
+    loadElsewhereMock.mockResolvedValue(profile(B, "elsewhere"));
 
     const map = await fetchProfileMap([B], 50);
     expect(map.get(B)?.name).toBe("elsewhere");
-    const [relays, filter] = kind0Asks()[0];
-    expect(filter).toEqual({ kinds: [0], authors: [B] });
-    expect(relays.length).toBeGreaterThan(0);
-    // The queue already asked it; asking again (probed 2026-10-07) only cost a REQ.
-    expect(relays).not.toContain(SEARCH_RELAY);
+    expect(loadElsewhereMock).toHaveBeenCalledWith(B, 50);
+    // Not the general loader, whose lookup set includes the search relay the queue already asked.
+    expect(loadReplaceableMock.mock.calls.map((call) => call[0])).not.toContain(0);
+  });
+
+  it("looks beyond the search relay only — never at it again", async () => {
+    const { PROFILE_RELAYS_BESIDES_SEARCH } = await vi.importActual<typeof import("@/lib/loaders")>("@/lib/loaders");
+    expect(PROFILE_RELAYS_BESIDES_SEARCH.length).toBeGreaterThan(0);
+    expect(PROFILE_RELAYS_BESIDES_SEARCH).not.toContain(SEARCH_RELAY);
   });
 
   it("moves on the moment the queue says it has nobody, rather than waiting out the clock", async () => {
@@ -95,7 +109,7 @@ describe("fetchProfileMap", () => {
       onProfile(null);
       return () => {};
     });
-    requestAllMock.mockResolvedValue([profile(B, "elsewhere")]);
+    loadElsewhereMock.mockResolvedValue(profile(B, "elsewhere"));
 
     const started = Date.now();
     const map = await fetchProfileMap([B], 60_000);

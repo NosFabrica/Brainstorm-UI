@@ -10,7 +10,7 @@ import type { NostrEvent } from "nostr-tools";
 import { pool } from "./relayPool";
 import { eventStore } from "./eventStore";
 import { cachedEventsForFilters } from "./eventCache";
-import { PROFILE_RELAYS } from "./relays";
+import { PROFILE_RELAYS, SEARCH_RELAY } from "./relays";
 import { dedupeRelays } from "./relayList";
 
 /**
@@ -62,6 +62,40 @@ eventStore.eventLoader = (pointer) =>
   "kind" in pointer && "pubkey" in pointer
     ? addressLoader(pointer as Parameters<typeof addressLoader>[0])
     : idLoader(pointer as Parameters<typeof idLoader>[0]);
+
+/** The profile relays besides the search relay — whose shared author queue already asked. */
+export const PROFILE_RELAYS_BESIDES_SEARCH = PROFILE_RELAYS.filter((url) => url !== SEARCH_RELAY);
+
+/**
+ * The address loader again, looking only beyond the search relay: for a kind-0 the
+ * search relay's queue (services/authorProfileQueue) already answered "nobody" for.
+ * Batched across callers in its window, de-duped in flight, and answered from the
+ * device cache, as the main loader is — asking the search relay again only cost a REQ.
+ */
+const elsewhereLoader = createAddressLoader(pool, {
+  eventStore,
+  cacheRequest: cachedEventsForFilters,
+  bufferTime: ADDRESS_LOADER_BUFFER_MS,
+  lookupRelays: PROFILE_RELAYS_BESIDES_SEARCH,
+  followRelayHints: false,
+});
+
+/** Someone's kind-0 from the profile relays other than the search relay; the store first. */
+export async function loadProfileElsewhere(pubkey: string, timeoutMs = 10_000): Promise<NostrEvent | undefined> {
+  const held = eventStore.getReplaceable(0, pubkey);
+  if (held) return held;
+  try {
+    return await firstValueFrom(
+      elsewhereLoader({ kind: 0, pubkey }).pipe(
+        takeUntil(timer(timeoutMs)),
+        catchError(() => EMPTY),
+      ),
+      { defaultValue: undefined },
+    );
+  } catch {
+    return undefined;
+  }
+}
 
 /** `lookupRelays`, as a membership test. */
 const LOOKUP = new Set(PROFILE_RELAYS);

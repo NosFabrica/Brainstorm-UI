@@ -146,6 +146,7 @@ export function startRelayAuth<A extends ActiveAccount>({
   isRejection = () => true,
   signTimeoutMs = SIGN_TIMEOUT_MS,
   upFront = [],
+  canSignUnasked = async () => false,
 }: {
   pool: AuthPool;
   active$: Observable<A | undefined>;
@@ -163,6 +164,12 @@ export function startRelayAuth<A extends ActiveAccount>({
    * Still only with a signer that signs without asking (or in Messages).
    */
   upFront?: string[];
+  /**
+   * Whether this account signs with nobody asked at all (accounts/signing canSignUnasked):
+   * the bar for an up-front login, which the reader did nothing to start. An extension
+   * or bunker prompts for every signature — it waits for a refusal, as any relay does.
+   */
+  canSignUnasked?: (account: A) => Promise<boolean>;
 }): () => void {
   const eager = new Set(upFront.map((url) => normalizeURL(url)));
   // Who answers a challenge right now: the active account, whoever it is.
@@ -280,8 +287,14 @@ export function startRelayAuth<A extends ActiveAccount>({
           }
         },
       };
+      // Up front, with nothing refused: only a key that signs with nobody asked, ever.
+      const eagerOnly = !(read || publish) && eager.has(url);
       void (async () => {
-        if (!interactive && !(await canSignQuietly(account).catch(() => false))) {
+        if (eagerOnly && !(await canSignUnasked(account).catch(() => false))) {
+          answered.delete(key);
+          return;
+        }
+        if (!eagerOnly && !interactive && !(await canSignQuietly(account).catch(() => false))) {
           // Not now: answered when the reader opens Messages.
           answered.delete(key);
           return;

@@ -406,8 +406,10 @@
               head.failed = true;
             }
           });
-          // Nobody came for it: let the socket go rather than hold it open.
+          // Nobody came for it: let the socket go rather than hold it open. One the app is
+          // following (All) is the app's to close — at its end, or when the page goes.
           setTimeout(function () {
+            if (head.listeners.length) return;
             try {
               socket.close();
             } catch (e) {}

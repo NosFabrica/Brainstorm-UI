@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable, Subject, of, throwError } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
+import type { SearchParams } from "./search";
 import { nip19 } from "nostr-tools";
 
 interface ReqFrame {
@@ -53,6 +54,13 @@ vi.mock("@/services/trustSource", () => ({
 }));
 const getReplaceableMock = vi.fn<(kind: number, pubkey: string) => NostrEvent | undefined>(() => undefined);
 const storeAddMock = vi.fn((event: unknown) => event);
+// The device's own profile copies (IndexedDB), read for a page's authors as they arrive.
+const deviceProfiles = vi.hoisted(() => new Map<string, { event: unknown; at: number }>());
+vi.mock("@/lib/eventCache", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  readProfileRows: async (pubkeys: string[]) =>
+    new Map(pubkeys.flatMap((pk) => (deviceProfiles.has(pk) ? [[pk, deviceProfiles.get(pk)!]] : []))),
+}));
 vi.mock("@/lib/eventStore", () => ({
   eventStore: {
     getReplaceable: (kind: number, pubkey: string) => getReplaceableMock(kind, pubkey),
@@ -2820,7 +2828,14 @@ describe("a first page already on its way", () => {
     let observer: { next: (m: { type: string; event?: NostrEvent }) => void } | null = null;
     searchStream(
       "bitcoin",
-      { tab: "all", pov: "nosfabrica", firstPage: (o) => ((observer = o), { unsubscribe: () => {} }) },
+      {
+        tab: "all",
+        pov: "nosfabrica",
+        firstPage: Object.assign(
+          (o: Parameters<NonNullable<SearchParams["firstPage"]>>[0]) => ((observer = o), { unsubscribe: () => {} }),
+          { release: () => {} },
+        ),
+      },
       (s) => snaps.push(s),
     );
     await tick();
@@ -2837,7 +2852,14 @@ describe("a first page already on its way", () => {
     let observer: { error: (e: unknown) => void } | null = null;
     searchStream(
       "bitcoin",
-      { tab: "all", pov: "nosfabrica", firstPage: (o) => ((observer = o), { unsubscribe: () => {} }) },
+      {
+        tab: "all",
+        pov: "nosfabrica",
+        firstPage: Object.assign(
+          (o: Parameters<NonNullable<SearchParams["firstPage"]>>[0]) => ((observer = o), { unsubscribe: () => {} }),
+          { release: () => {} },
+        ),
+      },
       () => {},
     );
     await tick();
@@ -2849,5 +2871,29 @@ describe("a first page already on its way", () => {
     const filter = (Array.isArray(asked) ? asked[0] : asked) as { search?: string; kinds?: number[] };
     expect(filter.search).toMatch(/^bitcoin observer:/);
     expect(filter.kinds).toBeUndefined();
+  });
+});
+
+// The relay's batch waits for the page's end; the device's own copies do not.
+describe("authors this device already knows", () => {
+  it("are named as they arrive, before the page ends", async () => {
+    vi.useFakeTimers();
+    __resetAuthorProfileQueue();
+    try {
+      const calls = multiReq();
+      const snaps: SearchSnapshot[] = [];
+      const alice = "a".repeat(64);
+      deviceProfiles.set(alice, { event: ev("p-alice", 0, alice, JSON.stringify({ name: "alice" })), at: Date.now() });
+      searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, (s) => snaps.push(s));
+      await vi.advanceTimersByTimeAsync(0);
+      calls[0].subject.next(frame(ev("n1", 1, alice)));
+      await vi.advanceTimersByTimeAsync(300);
+      expect(snaps.at(-1)!.hits[0].author?.name).toBe("alice");
+      // …and no relay lookup yet: that waits for the page's end.
+      expect(calls.filter((c) => (c.filter.kinds as number[] | undefined)?.[0] === 0)).toHaveLength(0);
+    } finally {
+      deviceProfiles.clear();
+      vi.useRealTimers();
+    }
   });
 });

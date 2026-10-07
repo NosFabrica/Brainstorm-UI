@@ -32,6 +32,7 @@ import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
 import { RECIPE_TAGS } from "@/lib/sourceApp";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { readProfileRows } from "@/lib/eventCache";
 import type { FirstPage } from "@/lib/headStart";
 
 export type SearchTab =
@@ -300,6 +301,8 @@ export const DEFAULT_LIMIT = 100;
 const AUTHOR_BATCH_MS = 1000;
 /** …and a best-match page's, which ends (EOSE) soon after its first hits anyway. */
 const AUTHOR_BATCH_MAX_MS = 4000;
+/** The device's own copies are read for whoever arrived within this long of each other. */
+const DEVICE_PEEK_MS = 150;
 /**
  * How deep best match will go. It has no cursor, so each further page is a
  * bigger ask that repeats the ranking so far — and the relay sends MORE than
@@ -574,16 +577,40 @@ export function searchStream(
       emit({});
     };
 
-    // Authors the store does not hold are asked together: at the page's end, or a second
-    // after the first of them arrived, whichever is sooner. A best-match page trickles in
-    // over seconds, and asking per arrival sent a REQ of one or two authors each time
-    // (probed 2026-10-07: five kind-0 REQs of 4, 2, 1, 1, 1 for one All search).
-    // A best-match page arrives over seconds and paints as one: its authors wait for its
-    // end (capped). A recent-sorted list streams on, so its authors go every second.
-    const streamsOn = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
-    const authorWait = streamsOn ? AUTHOR_BATCH_MS : AUTHOR_BATCH_MAX_MS;
+    // A recent-sorted page streams; a best-match one arrives over seconds and ends.
+    const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
+
+    // Authors the store does not hold are asked of the relay together: a best-match
+    // page's at its end (capped), a streaming list's every second. Asked per arrival,
+    // a page that trickled in sent a REQ of one or two authors each time (probed
+    // 2026-10-07: five kind-0 REQs of 4, 2, 1, 1, 1 for one All search). The device's
+    // own copies don't wait for that: they are read as the authors arrive.
+    const authorWait = recent ? AUTHOR_BATCH_MS : AUTHOR_BATCH_MAX_MS;
     const pendingAuthors = new Set<string>();
     let authorTimer: ReturnType<typeof setTimeout> | undefined;
+    const peeked = new Set<string>();
+    let peekTimer: ReturnType<typeof setTimeout> | undefined;
+    const peekDevice = () => {
+      peekTimer = undefined;
+      const batch = [...pendingAuthors].filter((pk) => !peeked.has(pk));
+      batch.forEach((pk) => peeked.add(pk));
+      if (!batch.length) return;
+      // What this device already holds names the row now; the queue still asks the relay
+      // for what it lacks (and refreshes an old copy) when the page's authors go.
+      void readProfileRows(batch)
+        .then((rows) => {
+          if (cancelled) return;
+          for (const row of rows.values()) {
+            try {
+              if (!eventStore.add(row.event)) continue;
+            } catch {
+              continue; // the store verifies, and a bad copy is no name
+            }
+            applyProfile(row.event);
+          }
+        })
+        .catch(() => undefined);
+    };
     const askAuthors = () => {
       clearTimeout(authorTimer);
       authorTimer = undefined;
@@ -599,6 +626,7 @@ export function searchStream(
       if (!wantedAuthors.has(event.pubkey) && !pendingAuthors.has(event.pubkey)) {
         pendingAuthors.add(event.pubkey);
         authorTimer ??= setTimeout(askAuthors, authorWait);
+        peekTimer ??= setTimeout(peekDevice, DEVICE_PEEK_MS);
       }
       return null;
     };
@@ -619,7 +647,6 @@ export function searchStream(
     // returns that second again, and a best-match page is a bigger ask that
     // repeats the whole ranking so far (probed 2026-09-09: the top of the
     // ranking is stable as the limit grows).
-    const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
     let headStart = params.firstPage;
     const pageSubs: { unsubscribe: () => void }[] = [];
 
@@ -845,6 +872,7 @@ export function searchStream(
     unsubscribe = () => {
       for (const sub of pageSubs) sub.unsubscribe();
       clearTimeout(authorTimer);
+      clearTimeout(peekTimer);
       pendingAuthors.clear();
       wantedAuthors.forEach((withdraw) => withdraw());
       wantedAuthors.clear();

@@ -694,6 +694,43 @@ describe("the topic panel", () => {
     expect(screen.getAllByText("GazetaRSS")).toHaveLength(1);
   });
 
+  // Rails are Top's. Found there, they stay found — a tab without rails shows none, and
+  // back on Top they are there again without the relay being asked a second time.
+  it("hides its rails on a tab without them, and shows them again without asking twice", async () => {
+    const { rerender } = render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
+    const appsCall = streamCalls.find((c) => c.params.tab === "apps")!;
+    const listing = {
+      id: "ap1",
+      kind: 32267,
+      pubkey: "9".repeat(64),
+      tags: [
+        ["d", "com.vitorpamplona.amethyst"],
+        ["name", "Amethyst"],
+      ],
+      content: "",
+      created_at: NOW - 500,
+      sig: "s",
+    } as NostrEvent;
+    appsCall.emit({ hits: [{ event: listing, author: null, rank: null }], eose: true, timeMs: 90 });
+    await screen.findByTestId("search-apps-panel");
+    const asked = streamCalls.filter((c) => c.params.tab === "apps").length;
+
+    rerender(<KnowledgePanel query="amethyst" pov="nosfabrica" rails={false} />);
+    expect(screen.queryByTestId("search-apps-panel")).toBeNull();
+
+    rerender(<KnowledgePanel query="amethyst" pov="nosfabrica" active={false} />);
+    rerender(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
+    await screen.findByTestId("search-apps-panel");
+    expect(streamCalls.filter((c) => c.params.tab === "apps")).toHaveLength(asked);
+  });
+
+  it("asks nothing while inactive (the All tab)", async () => {
+    render(<KnowledgePanel query="amethyst" pov="nosfabrica" active={false} />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(streamCalls).toHaveLength(0);
+  });
+
   it("a query matching an app adds an Apps module to the rail", async () => {
     render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
     await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));

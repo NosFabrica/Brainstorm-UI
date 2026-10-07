@@ -180,6 +180,7 @@ function KnowledgePanelBody({
   userPubkey,
   sections,
   rails = true,
+  active = true,
   group,
   onOpen,
   onPerson,
@@ -195,6 +196,11 @@ function KnowledgePanelBody({
    * and each is a search of its own. The person card stays on every tab.
    */
   rails?: boolean;
+  /**
+   * Off on All: nothing shown and nothing asked, but what the panel found stays —
+   * so back on Top it is there without asking again.
+   */
+  active?: boolean;
   /** The composed page's shared REQ, which the apps probe joins (its kind is no section's). */
   group?: SearchGroup;
   /**
@@ -217,11 +223,20 @@ function KnowledgePanelBody({
   const personContent = usePersonContent(useMemo(() => (person ? [person.pubkey] : []), [person?.pubkey])); // eslint-disable-line react-hooks/exhaustive-deps
   // Only a handle its domain vouches for gets the check (lib/nip05).
   const nip05Status = useNip05(person?.nip05, person?.pubkey);
-  const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
+  const [topicHitsFound, setTopicHits] = useState<SearchHit[] | null>(null);
   const [nipPage, setNipPage] = useState<NostrEvent | null>(null);
-  const [appHits, setAppHits] = useState<SearchHit[] | null>(null);
+  const [appHitsFound, setAppHits] = useState<SearchHit[] | null>(null);
   // Upcoming calendar events that name the query — Google's panel lists a few.
-  const [topicEvents, setTopicEvents] = useState<SearchHit[] | null>(null);
+  const [topicEventsFound, setTopicEvents] = useState<SearchHit[] | null>(null);
+  // The rails are Top's: found there, they stay found, but a tab without rails shows none.
+  const topicHits = rails ? topicHitsFound : null;
+  const appHits = rails ? appHitsFound : null;
+  const topicEvents = rails ? topicEventsFound : null;
+  // Which question each probe has answered — a tab switch away and back asks nothing again.
+  const askedKey = `${query}\u0000${pov}\u0000${userPubkey ?? ""}`;
+  const topicAnswered = useRef<string | null>(null);
+  const appsAnswered = useRef<string | null>(null);
+  const eventsAnswered = useRef<string | null>(null);
   // The person's own songs — kind 31337 by author, the three newest that
   // actually are songs (the kind is abused; see lib/trackEvent).
   useEffect(() => {
@@ -334,6 +349,7 @@ function KnowledgePanelBody({
   }, [query, pov, userPubkey]);
 
   useEffect(() => {
+    if (!active) return;
     // A search scoped to one person (from:npub…, the public profile's "View
     // all"), with or without words beside it, keeps that person in the panel
     // beside their results — the relay's author filter answers the scope, so
@@ -376,13 +392,13 @@ function KnowledgePanelBody({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, pov, userPubkey, hasSections, sectionPersonKey]);
+  }, [query, pov, userPubkey, hasSections, sectionPersonKey, active]);
 
   // The rest of the panel: topic, apps, upcoming events, or a NIP page. Its own
   // effect, so turning the probes on never re-runs the person lookup above or
   // clears what it found.
   useEffect(() => {
-    if (!probeReady) return;
+    if (!probeReady || !active) return;
     let alive = true;
     // A NIP-shaped query is a spec lookup, not a person or topic hunt —
     // the wiki page (kind 30818) takes the slot and nothing else probes.
@@ -400,43 +416,46 @@ function KnowledgePanelBody({
     // a Liverpool fan searching "liverpool" wants the topic, not whichever
     // account happens to carry the name.
     const tag = tagCandidate(query);
-    const cancelTopic = tag
-      ? searchStream(`#${tag}`, { tab: "notes", pov, userPubkey, limit: 24 }, (snapshot) => {
-          if (!alive || !snapshot.eose) return;
-          const fresh = snapshot.hits.some((h) => h.event.created_at >= Date.now() / 1000 - TOPIC_FRESH_SECONDS);
-          if (snapshot.hits.length >= TOPIC_MIN_NOTES && fresh) setTopicHits(snapshot.hits);
-        })
-      : null;
+    const cancelTopic =
+      tag && topicAnswered.current !== askedKey
+        ? searchStream(`#${tag}`, { tab: "notes", pov, userPubkey, limit: 24 }, (snapshot) => {
+            if (!alive || !snapshot.eose) return;
+            topicAnswered.current = askedKey;
+            const fresh = snapshot.hits.some((h) => h.event.created_at >= Date.now() / 1000 - TOPIC_FRESH_SECONDS);
+            if (snapshot.hits.length >= TOPIC_MIN_NOTES && fresh) setTopicHits(snapshot.hits);
+          })
+        : null;
     // Apps whose NAME matches the words ride the rail too (Google's app
     // sidebar) — fuzzy strays with unrelated names are filtered out.
     const q = norm(query);
-    const cancelApps = searchStream(
-      query,
-      { tab: "apps", pov, userPubkey, limit: 6, band: true, group },
-      (snapshot) => {
-        if (!alive || !snapshot.eose) return;
-        const matched = snapshot.hits.filter((h) => {
-          const name = norm(h.event.tags.find((t) => t[0] === "name")?.[1] ?? "");
-          return !!name && (name.includes(q) || q.includes(name));
-        });
-        if (matched.length > 0) setAppHits(matched.slice(0, 3));
-      },
-    );
+    const cancelApps =
+      appsAnswered.current === askedKey
+        ? null
+        : searchStream(query, { tab: "apps", pov, userPubkey, limit: 6, band: true, group }, (snapshot) => {
+            if (!alive || !snapshot.eose) return;
+            appsAnswered.current = askedKey;
+            const matched = snapshot.hits.filter((h) => {
+              const name = norm(h.event.tags.find((t) => t[0] === "name")?.[1] ?? "");
+              return !!name && (name.includes(q) || q.includes(name));
+            });
+            if (matched.length > 0) setAppHits(matched.slice(0, 3));
+          });
     return () => {
       alive = false;
       cancelTopic?.();
-      cancelApps();
+      cancelApps?.();
     };
-  }, [query, pov, userPubkey, probeReady, rails, group]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- askedKey is query, pov and userPubkey
+  }, [query, pov, userPubkey, probeReady, rails, group, active]);
 
   // Events (Benjamin: "like a Google events feel — real and relevant, not
   // forced"). The Happening section asks this question less deeply than the
   // probe did, so the probe still runs where the section cannot fill the row.
   useEffect(() => {
-    if (!probeReady || !rails || nipCandidates(query).length > 0) return;
+    if (!probeReady || !rails || !active || nipCandidates(query).length > 0) return;
     if (sectionRow.length > 0) setTopicEvents(sectionRow);
-    // A full row is a full row, whichever tab the reader moves to next.
-    if ((topicEvents?.length ?? 0) >= EVENTS_SHOWN) return;
+    // A full row is a full row, whichever tab the reader moves to next; an answered probe is answered.
+    if ((topicEvents?.length ?? 0) >= EVENTS_SHOWN || eventsAnswered.current === askedKey) return;
     if (hasSections && (sectionRow.length >= EVENTS_SHOWN || !eventsSettled)) return;
     let alive = true;
     const cancel = searchStream(
@@ -444,6 +463,7 @@ function KnowledgePanelBody({
       { tab: "events", pov, userPubkey, limit: 60, band: true },
       (snapshot) => {
         if (!alive || !snapshot.eose) return;
+        eventsAnswered.current = askedKey;
         const upcoming = eventsRow(snapshot.hits, query);
         if (upcoming.length > 0) setTopicEvents(upcoming);
       },
@@ -453,7 +473,7 @@ function KnowledgePanelBody({
       cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, pov, userPubkey, probeReady, rails, hasSections, sectionRowKey, eventsSettled]);
+  }, [query, pov, userPubkey, probeReady, rails, active, hasSections, sectionRowKey, eventsSettled]);
 
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.
@@ -1052,7 +1072,7 @@ function KnowledgePanelBody({
   // panel's own click-through (React events cross portals).
   const folded = belowLg && !expanded && !!main && !!strip;
   return (
-    <div className={`w-full space-y-3 ${className}`}>
+    <div className={`w-full space-y-3 ${className}`} hidden={!active}>
       {folded ? (
         <button
           type="button"

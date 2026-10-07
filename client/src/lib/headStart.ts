@@ -31,8 +31,11 @@ export interface HeadStartResult {
 /** A relay subscription's messages, as `searchStream` reads them from `relay.req`. */
 export type PageMessage = { type: string; event?: NostrEvent };
 export type PageObserver = { next: (msg: PageMessage) => void; error: (err: unknown) => void };
-/** A first page to follow in place of asking: subscribe, and get what came and what comes. */
-export type FirstPage = (observer: PageObserver) => { unsubscribe: () => void };
+/**
+ * A first page to follow in place of asking: subscribe, and get what came and what comes.
+ * `release` lets it go unfollowed — a search cancelled before its first page opened.
+ */
+export type FirstPage = ((observer: PageObserver) => { unsubscribe: () => void }) & { release: () => void };
 
 let taken = false;
 
@@ -96,8 +99,10 @@ export function followHeadStart(query: string, tab: "top" | "all" = "all"): Firs
   }
   taken = true;
   delete (window as unknown as { __headStart?: HeadStart }).__headStart;
-  return (observer) => {
-    let done = false;
+  let done = false;
+  let followed = false;
+  const page = ((observer: PageObserver) => {
+    followed = true;
     const listeners = head.listeners!;
     const finish = () => {
       if (done) return;
@@ -128,7 +133,18 @@ export function followHeadStart(query: string, tab: "top" | "all" = "all"): Firs
     else if (head.eose) deliver(["CLOSED", "head", "head start ended"]);
     else listeners.push(deliver);
     return { unsubscribe: finish };
+  }) as FirstPage;
+  // Never followed: nobody will close its socket at its end, so close it now.
+  page.release = () => {
+    if (followed || done) return;
+    done = true;
+    try {
+      head.socket?.close();
+    } catch {
+      /* already gone */
+    }
   };
+  return page;
 }
 
 /** Test seam. */
