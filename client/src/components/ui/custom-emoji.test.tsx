@@ -12,7 +12,8 @@ import { CHAT_KIND, REACTION_KIND } from "@/lib/dm/giftWrap";
 
 vi.mock("@/hooks/useRelayAuthProblems", () => ({ useRelayAuthProblems: () => new Map() }));
 
-import { EmojiText } from "./custom-emoji";
+import { EmojiText, ProfileEmojiText } from "./custom-emoji";
+import { eventStore } from "@/lib/eventStore";
 import { NoteContent } from "@/components/share/NoteContent";
 import { MarkdownBody } from "@/components/share/MarkdownBody";
 import { MessageBubble } from "@/components/messages/MessageBubble";
@@ -42,6 +43,26 @@ describe("EmojiText", () => {
     expect(emoji()).toHaveLength(0);
     expect(container.textContent).toBe("gm :soapbox:");
   });
+
+  it("tries the next emoji to land in a slot whose last one failed", () => {
+    const { rerender } = render(<EmojiText text="hi :soapbox:" tags={TAGS} />);
+    fireEvent.error(emoji()[0]);
+    rerender(<EmojiText text="yo :ditto:" tags={[["emoji", "ditto", "https://example.com/ditto.png"]]} />);
+    expect(emoji()).toHaveLength(1);
+    expect(emoji()[0]).toHaveAttribute("src", "https://example.com/ditto.png");
+  });
+
+  it("draws a person's emoji from their kind 0 in the store, and reads nothing for a name without a colon", () => {
+    const read = vi
+      .spyOn(eventStore, "getReplaceable")
+      .mockReturnValue({ kind: 0, tags: TAGS } as unknown as ReturnType<typeof eventStore.getReplaceable>);
+    render(<ProfileEmojiText pubkey={"a".repeat(64)} text="Ana :soapbox:" />);
+    expect(emoji()).toHaveLength(1);
+    read.mockClear();
+    render(<ProfileEmojiText pubkey={"a".repeat(64)} text="Ana" />);
+    expect(read).not.toHaveBeenCalled();
+    read.mockRestore();
+  });
 });
 
 describe("note bodies", () => {
@@ -52,6 +73,16 @@ describe("note bodies", () => {
 
   it("a note read on its page draws them too", () => {
     renderWithProviders(<NoteContent content={"Title line\n\nHello :soapbox: world"} tags={TAGS} reading />);
+    expect(emoji()).toHaveLength(1);
+  });
+
+  it("emphasis around an emoji still reads as emphasis, and code keeps its colons", () => {
+    const { container } = renderWithProviders(
+      <NoteContent content={"Title line\n\n**gm :soapbox: frens** and `:soapbox:`"} tags={TAGS} reading />,
+    );
+    expect(container.querySelector("strong [data-testid=custom-emoji]")).not.toBeNull();
+    expect(container.textContent).not.toContain("**");
+    expect(screen.getByText(":soapbox:", { selector: "code" })).toBeInTheDocument();
     expect(emoji()).toHaveLength(1);
   });
 
@@ -67,6 +98,18 @@ describe("markdown bodies", () => {
     render(<MarkdownBody text={"Shipped :soapbox:\n\n`:soapbox:` is the code"} tags={TAGS} />);
     expect(emoji()).toHaveLength(1);
     expect(screen.getByText(":soapbox:", { selector: "code" })).toBeInTheDocument();
+  });
+
+  it("knows its emoji though markdown percent-encodes the address", () => {
+    render(<MarkdownBody text="にゃ :neko:" tags={[["emoji", "neko", "https://misskey.example/emoji/猫.png"]]} />);
+    expect(emoji()).toHaveLength(1);
+    expect(emoji()[0]).toHaveAttribute("src", "https://misskey.example/emoji/猫.png");
+  });
+
+  it("leaves a bare link whole", () => {
+    render(<MarkdownBody text="see https://wiki.example/File:soapbox:x.html" tags={TAGS} />);
+    expect(emoji()).toHaveLength(0);
+    expect(screen.getByRole("link")).toHaveTextContent("https://wiki.example/File:soapbox:x.html");
   });
 
   it("leaves an author's own image a picture, not an emoji", () => {

@@ -28,7 +28,7 @@ import { clientRef } from "@/lib/clientLinks";
 import { useClientLink } from "@/hooks/useClientLink";
 import { useLightbox } from "@/components/share/Lightbox";
 import { MediaImg } from "@/components/ui/media-img";
-import { CustomEmojiImg } from "@/components/ui/custom-emoji";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 /** Human-readable track name from a raw audio URL. Falls back to "Audio" for
  *  non-descriptive filenames (numeric ids, hashes/uuids) like `…/32939084.mp3`. */
@@ -121,7 +121,7 @@ export function NoteContent({
   // On the event's own page, whatever markup the text came in (HTML, a
   // GitHub comment's stray tags) is cleaned first; feeds keep the raw text.
   const text = useMemo(() => (reading ? normalizeMarkup(content) : content), [reading, content]);
-  const tokens = useMemo(() => parseNoteContent(text, tags), [text, tags]);
+  const tokens = useMemo(() => parseNoteContent(text), [text]);
   // Shared metadata for a rich audio/podcast player: the note's own image as
   // artwork and its title/first-line as the track name (falling back per-URL).
   const audioCover = extractImageUrls(text, tags)[0];
@@ -142,9 +142,11 @@ export function NoteContent({
   const renderToken = (token: NoteToken, i: number | string): ReactNode => {
     switch (token.type) {
       case "text":
-        return <span key={i}>{token.value}</span>;
-      case "emoji":
-        return <CustomEmojiImg key={i} code={token.code} url={token.url} />;
+        return (
+          <span key={i}>
+            <EmojiText text={token.value} tags={tags} />
+          </span>
+        );
       case "url":
         if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
         if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
@@ -292,6 +294,7 @@ export function NoteContent({
       <ReadingText
         tokens={tokens}
         source={text}
+        tags={tags}
         size="post"
         renderToken={renderToken}
         after={linkCardNode}

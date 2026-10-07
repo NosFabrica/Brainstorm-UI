@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { customEmoji, hasCustomEmoji, reactionEmoji, splitCustomEmoji } from "./customEmoji";
-import { parseNoteContent } from "./noteContent";
 import { reactionAuthors, reactionEmojis, reactionLabel } from "./dm/rooms";
 
 const SOAPBOX = "https://gleasonator.dev/emoji/soapbox.png";
@@ -48,21 +47,19 @@ describe("NIP-30 custom emoji", () => {
   });
 });
 
-describe("parseNoteContent with emoji tags", () => {
-  it("turns a shortcode into an emoji token", () => {
-    expect(parseNoteContent("gm :soapbox:", TAGS)).toEqual([
-      { type: "text", value: "gm " },
-      { type: "emoji", value: ":soapbox:", code: "soapbox", url: SOAPBOX },
-    ]);
+describe("shortcodes beside other colons", () => {
+  it("finds a tagged shortcode right after an untagged one", () => {
+    const tags = [["emoji", "wave", "https://example.com/wave.png"]];
+    expect(splitCustomEmoji("meet at 10:00:wave:", tags).map((p) => p.type)).toEqual(["text", "emoji"]);
+    expect(splitCustomEmoji("ratio:nope:wave: ok", tags)[1]).toMatchObject({ type: "emoji", code: "wave" });
   });
 
-  it("never reaches inside a link", () => {
-    const tokens = parseNoteContent("see https://example.com/:soapbox:/x", TAGS);
-    expect(tokens.some((t) => t.type === "emoji")).toBe(false);
-  });
-
-  it("is the old tokenizer without tags", () => {
-    expect(parseNoteContent("gm :soapbox:")).toEqual([{ type: "text", value: "gm :soapbox:" }]);
+  it("keeps the first tag for a shortcode", () => {
+    const tags = [
+      ["emoji", "x", "https://example.com/first.png"],
+      ["emoji", "X", "https://example.com/second.png"],
+    ];
+    expect(customEmoji(tags, "x")?.url).toBe("https://example.com/first.png");
   });
 });
 

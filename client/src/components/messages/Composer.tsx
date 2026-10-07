@@ -9,6 +9,7 @@ import { formatBytes } from "@/lib/formatBytes";
 import { useEditingText } from "@/hooks/useEditingText";
 import { cn } from "@/lib/utils";
 import { type Profiles, PersonName } from "./people";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 export function Composer({
   placeholder,
@@ -120,7 +121,12 @@ export function Composer({
             <strong>
               {replyTo.author === me ? "yourself" : <PersonName pubkey={replyTo.author} profiles={profiles} first />}
             </strong>{" "}
-            · {replyTo.kind === FILE_KIND ? "A file" : replyTo.rumor.content}
+            ·{" "}
+            {replyTo.kind === FILE_KIND ? (
+              "A file"
+            ) : (
+              <EmojiText text={replyTo.rumor.content} tags={replyTo.rumor.tags} />
+            )}
           </span>
           <button
             type="button"

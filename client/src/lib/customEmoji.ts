@@ -4,17 +4,20 @@
  * tags has nothing to replace, so its text is never scanned; a shortcode with
  * no tag stays the words the author typed.
  *
- * The shortcode syntax and the tag lookup are applesauce's (`Tokens.emoji`,
- * `getEmojiTag`, the same pair `applesauce-content`'s `emojis()` transformer
- * uses), so this reads emoji exactly as the rest of the applesauce stack does.
+ * Reads emoji the way applesauce does (`getEmojiTag`, `Tokens.emoji`): the
+ * shortcode is `[a-zA-Z0-9_-]+`, matched without regard to case, and the first
+ * tag for a shortcode wins.
  */
 
-import { getEmojiTag, getReactionEmoji } from "applesauce-common/helpers/emoji";
+import { getReactionEmoji } from "applesauce-common/helpers/emoji";
 import { Tokens } from "applesauce-core/helpers/regexp";
 
 export type CustomEmoji = { code: string; url: string };
 
 export type EmojiPiece = { type: "text"; value: string } | { type: "emoji"; value: string; code: string; url: string };
+
+/** An event's emoji by lowercased shortcode. */
+export type EmojiMap = ReadonlyMap<string, CustomEmoji>;
 
 type Tagged = { tags: string[][] } | string[][] | undefined;
 
@@ -25,35 +28,65 @@ function tagsOf(src: Tagged): string[][] {
 
 const isPicture = (url: string | undefined): url is string => !!url && /^https?:\/\//i.test(url);
 
-/** Whether the event declares any emoji worth drawing — the switch for every renderer below. */
+// One map per tag array: every text run, markdown node and name of an event
+// asks with the same tags, and a pack's list can run to hundreds.
+const maps = new WeakMap<string[][], EmojiMap | null>();
+
+/** The event's emoji, or null when it declares none worth drawing — the switch for every renderer. */
+export function emojiMap(src: Tagged): EmojiMap | null {
+  if (!src) return null;
+  const tags = tagsOf(src);
+  let map = maps.get(tags);
+  if (map === undefined) {
+    const m = new Map<string, CustomEmoji>();
+    for (const t of tags) {
+      if (t[0] !== "emoji" || !t[1] || !isPicture(t[2])) continue;
+      const key = t[1].toLowerCase();
+      if (!m.has(key)) m.set(key, { code: t[1], url: t[2] });
+    }
+    map = m.size ? m : null;
+    maps.set(tags, map);
+  }
+  return map;
+}
+
+/** Whether the event declares any emoji worth drawing. */
 export function hasCustomEmoji(src: Tagged): boolean {
-  return tagsOf(src).some((t) => t[0] === "emoji" && !!t[1] && isPicture(t[2]));
+  return emojiMap(src) !== null;
 }
 
 /** The picture for one shortcode, with or without its colons, or null. */
-export function customEmoji(src: Tagged, code: string): CustomEmoji | null {
-  const tag = getEmojiTag(tagsOf(src), code);
-  return tag && isPicture(tag[2]) ? { code: tag[1], url: tag[2] } : null;
+export function customEmoji(src: Tagged | EmojiMap | null, code: string): CustomEmoji | null {
+  const map = src instanceof Map ? (src as EmojiMap) : emojiMap(src as Tagged);
+  return map?.get(code.replace(/^:|:$/g, "").toLowerCase()) ?? null;
 }
 
+const SHORTCODE = Tokens.emoji.source;
+
 /**
- * Text cut into runs and emoji. Without emoji tags the whole text comes back
- * as one run, so callers can always map the result.
+ * Text cut into runs and emoji. Without emoji the whole text comes back as one
+ * run, so callers can always map the result.
  */
-export function splitCustomEmoji(text: string, src: Tagged): EmojiPiece[] {
+export function splitCustomEmoji(text: string, src: Tagged | EmojiMap | null): EmojiPiece[] {
   if (!text) return [];
-  if (!hasCustomEmoji(src)) return [{ type: "text", value: text }];
-  const tags = tagsOf(src);
+  const map = src instanceof Map ? (src as EmojiMap) : emojiMap(src as Tagged);
+  if (!map || !text.includes(":")) return [{ type: "text", value: text }];
+  const re = new RegExp(SHORTCODE, "g");
   const out: EmojiPiece[] = [];
   let last = 0;
-  for (const m of text.matchAll(Tokens.emoji)) {
-    const emoji = customEmoji(tags, m[1]);
-    if (!emoji) continue;
-    const at = m.index ?? 0;
-    if (at > last) out.push({ type: "text", value: text.slice(last, at) });
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const emoji = map.get(m[1].toLowerCase());
+    if (!emoji) {
+      // Its closing colon may open the next one: "10:00:wave:".
+      re.lastIndex = m.index + m[0].length - 1;
+      continue;
+    }
+    if (m.index > last) out.push({ type: "text", value: text.slice(last, m.index) });
     out.push({ type: "emoji", value: m[0], code: emoji.code, url: emoji.url });
-    last = at + m[0].length;
+    last = m.index + m[0].length;
   }
+  if (last === 0) return [{ type: "text", value: text }];
   if (last < text.length) out.push({ type: "text", value: text.slice(last) });
   return out;
 }
@@ -72,22 +105,24 @@ type MdNode = { type: string; value?: string; children?: MdNode[]; url?: string;
 
 /**
  * A remark plugin drawing NIP-30 emoji in markdown: each `:shortcode:` in a
- * text run (never in code) becomes an image whose alt and title are the
- * shortcode. Pair it with `isCustomEmojiImage` in the `img` component to draw
- * those inline rather than as a figure.
+ * text run becomes an image whose alt and title are the shortcode. Code is not
+ * text, so it keeps its colons; nor are links, whose text the renderer compares
+ * with their address (a bare URL is drawn as a card or a picture). Pair it with
+ * `isCustomEmojiImage` in the `img` component to draw those inline.
  */
 export function remarkCustomEmoji(src: Tagged) {
-  const tags = tagsOf(src);
+  const map = emojiMap(src);
   return () => (tree: MdNode) => {
-    if (!hasCustomEmoji(tags)) return;
+    if (!map) return;
     const walk = (node: MdNode) => {
       if (!node.children) return;
       node.children = node.children.flatMap((child): MdNode[] => {
+        if (child.type === "link" || child.type === "linkReference") return [child];
         if (child.type !== "text") {
           walk(child);
           return [child];
         }
-        return splitCustomEmoji(child.value ?? "", tags).map((p) =>
+        return splitCustomEmoji(child.value ?? "", map).map((p) =>
           p.type === "text"
             ? { type: "text", value: p.value }
             : { type: "image", url: p.url, alt: `:${p.code}:`, title: `:${p.code}:` },
@@ -98,13 +133,13 @@ export function remarkCustomEmoji(src: Tagged) {
   };
 }
 
-/** An `<img>` from `remarkCustomEmoji`: one the event's own emoji tag names. */
-export function isCustomEmojiImage(
-  src: Tagged,
-  img: { src?: unknown; alt?: unknown; title?: unknown },
-): CustomEmoji | null {
+/**
+ * An `<img>` from `remarkCustomEmoji`: alt and title both the `:shortcode:` of
+ * an emoji the event declares. Matched by shortcode, not by `src` — markdown
+ * percent-encodes the address on its way to the element.
+ */
+export function isCustomEmojiImage(src: Tagged, img: { alt?: unknown; title?: unknown }): CustomEmoji | null {
   if (typeof img.alt !== "string" || img.alt !== img.title) return null;
   const m = /^:([a-zA-Z0-9_-]+):$/.exec(img.alt);
-  const emoji = m ? customEmoji(src, m[1]) : null;
-  return emoji && emoji.url === img.src ? emoji : null;
+  return m ? customEmoji(src, m[1]) : null;
 }

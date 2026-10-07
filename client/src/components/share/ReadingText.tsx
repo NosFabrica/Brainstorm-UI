@@ -29,6 +29,7 @@ import { useShareNav } from "@/components/share/ShareNavContext";
 import { GH_REF_RE, splitProse } from "@/components/share/NotesInline";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { CustomEmojiImg } from "@/components/ui/custom-emoji";
+import { emojiMap, splitCustomEmoji, type EmojiMap } from "@/lib/customEmoji";
 
 export type ReadingSize = "post" | "body";
 
@@ -57,7 +58,7 @@ function splitProseCached(text: string) {
 }
 
 /** Plain text with its bare domains linked and @handles given weight. */
-function renderProse(text: string, key: string): ReactNode[] {
+function renderProse(text: string, key: string, emoji: EmojiMap | null): ReactNode[] {
   return splitProseCached(text).map((p, i) =>
     p.type === "domain" ? (
       <ReadingLink key={`${key}~${i}`} url={p.url} label={p.value} />
@@ -66,17 +67,33 @@ function renderProse(text: string, key: string): ReactNode[] {
         {p.value}
       </span>
     ) : (
-      p.value
+      withEmoji(p.value, `${key}~${i}`, emoji)
     ),
   );
 }
 
+/** A plain run with its NIP-30 emoji drawn: the last step, so emphasis and code around them still parse. */
+function withEmoji(text: string, key: string, emoji: EmojiMap | null): ReactNode {
+  if (!emoji) return text;
+  const pieces = splitCustomEmoji(text, emoji);
+  if (pieces.length === 1 && pieces[0].type === "text") return text;
+  return pieces.map((p, i) =>
+    p.type === "emoji" ? <CustomEmojiImg key={`${key}:${i}`} code={p.code} url={p.url} /> : p.value,
+  );
+}
+
 /** Inline emphasis spans as elements. `prose` also links bare domains and
- *  weighs @handles — for descriptions, which have no richer token pass. */
-export function renderSpans(spans: InlineSpan[], key: string, prose = false): ReactNode[] {
+ *  weighs @handles — for descriptions, which have no richer token pass.
+ *  `emoji`: the event's NIP-30 emoji, drawn in text (never in code). */
+export function renderSpans(
+  spans: InlineSpan[],
+  key: string,
+  prose = false,
+  emoji: EmojiMap | null = null,
+): ReactNode[] {
   return spans.map((s, i) => {
     const k = `${key}.${i}`;
-    if (s.type === "text") return prose ? renderProse(s.value, k) : s.value;
+    if (s.type === "text") return prose ? renderProse(s.value, k, emoji) : withEmoji(s.value, k, emoji);
     if (s.type === "code") {
       return (
         <code
@@ -89,10 +106,10 @@ export function renderSpans(spans: InlineSpan[], key: string, prose = false): Re
     }
     return s.type === "strong" ? (
       <strong key={k} className="font-semibold text-slate-900 dark:text-white">
-        {renderSpans(s.children, k, prose)}
+        {renderSpans(s.children, k, prose, emoji)}
       </strong>
     ) : (
-      <em key={k}>{renderSpans(s.children, k, prose)}</em>
+      <em key={k}>{renderSpans(s.children, k, prose, emoji)}</em>
     );
   });
 }
@@ -199,7 +216,7 @@ export function ReadingText({
   tags,
 }: {
   text?: string;
-  /** The event's tags, when `text` is parsed here: its NIP-30 emoji are drawn. */
+  /** The event's tags: its NIP-30 emoji are drawn in the text. */
   tags?: string[][];
   /** Already-parsed tokens (NoteContent parses once for everything it does). */
   tokens?: NoteToken[];
@@ -231,7 +248,8 @@ export function ReadingText({
     () => (given ? undefined : normalized ? text || "" : normalizeMarkup(text || "")),
     [given, text, normalized],
   );
-  const tokens = useMemo(() => given ?? parseNoteContent(plain ?? "", tags), [given, plain, tags]);
+  const tokens = useMemo(() => given ?? parseNoteContent(plain ?? ""), [given, plain]);
+  const emoji = useMemo(() => emojiMap(tags), [tags]);
   const blocks = useMemo(
     () => toNoteBlocks(tokens, { headline, source: source ?? plain }),
     [tokens, headline, source, plain],
@@ -278,8 +296,6 @@ export function ReadingText({
       case "audio":
       case "live":
         return <ReadingLink key={key} url={t.value} />;
-      case "emoji":
-        return <CustomEmojiImg key={key} code={t.code} url={t.url} />;
       case "hashtag":
         return (
           <button
@@ -317,7 +333,7 @@ export function ReadingText({
   const inline = (ts: NoteToken[], key: string) =>
     ts.map((t, j) => {
       const k = `${key}.${j}`;
-      if (t.type === "text") return <span key={k}>{renderSpans(spansOf(t), k, !renderToken)}</span>;
+      if (t.type === "text") return <span key={k}>{renderSpans(spansOf(t), k, !renderToken, emoji)}</span>;
       if (renderToken) return renderToken(t, k);
       const own = embed?.(t, k);
       return own === undefined ? quiet(t, k) : own;
