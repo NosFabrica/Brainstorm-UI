@@ -271,3 +271,81 @@ describe("DListItemHero — media and an item's own link", () => {
     expect(screen.queryByTestId("dlist-item-media")).toBeNull();
   });
 });
+
+describe("DListItemHero — facts", () => {
+  // A BTC Map import under a definition that lists a few of its fields as facts.
+  const places = header(AVI, [
+    ["required", "name"],
+    ["optional", "phone"],
+    ["optional", "accepts-bitcoin"],
+    ["optional", "opening-hours"],
+    ["display", "title", "name"],
+    ["display", "fact", "phone"],
+    ["display", "fact", "accepts-bitcoin", "Bitcoin"],
+  ]);
+  const place = {
+    ...item,
+    tags: [
+      ["z", COMMUNITY],
+      ["name", "Wolf's Burger Truck"],
+      ["phone", "+1-540-391-0134"],
+      ["accepts-bitcoin", "lightning"],
+      ["opening-hours", "Mo-Fr 06:30-16:00"],
+    ],
+  };
+
+  it("lists its facts as label and value, in the definition's order, and not again under More fields", async () => {
+    concept = { data: resolveConcept({ community: places, communityCoordinate: COMMUNITY }), isPending: false };
+    renderWithProviders(<DListItemHero event={place} />);
+    const facts = screen.getAllByTestId("dlist-item-fact");
+    expect(facts.map((f) => f.getAttribute("data-field"))).toEqual(["phone", "accepts-bitcoin"]);
+    expect(facts[0]).toHaveTextContent("Phone+1-540-391-0134");
+    expect(facts[1]).toHaveTextContent("Bitcoinlightning");
+    // Only the field nothing shows waits behind More fields.
+    await userEvent.click(screen.getByTestId("dlist-item-more-toggle"));
+    expect(screen.getByTestId("dlist-item-fields")).toHaveTextContent("opening-hours");
+    expect(screen.getByTestId("dlist-item-fields")).not.toHaveTextContent("phone");
+  });
+
+  it("without fact hints, no facts", () => {
+    renderWithProviders(<DListItemHero event={item} />);
+    expect(screen.queryByTestId("dlist-item-facts")).toBeNull();
+  });
+});
+
+describe("DListItemHero — location", () => {
+  // A BTC Map import under a definition that maps its geohash.
+  const places = header(AVI, [
+    ["required", "name"],
+    ["recommended", "g", "Geohash of the location"],
+    ["display", "title", "name"],
+    ["display", "location", "g"],
+  ]);
+  const place = {
+    ...item,
+    tags: [
+      ["z", COMMUNITY],
+      ["name", "La Tarantella - Recoleta"],
+      ["g", "6ex01945p"],
+      ["g", "6ex019"],
+    ],
+  };
+
+  it("offers the map, and loads it only when asked", async () => {
+    concept = { data: resolveConcept({ community: places, communityCoordinate: COMMUNITY }), isPending: false };
+    renderWithProviders(<DListItemHero event={place} />);
+    expect(screen.getByTestId("dlist-item-location")).toHaveAttribute("data-geohash", "6ex01945p");
+    expect(screen.queryByTestId("dlist-item-map")).toBeNull();
+    await userEvent.click(screen.getByTestId("dlist-item-map-show"));
+    const map = screen.getByTestId("dlist-item-map");
+    expect(map.getAttribute("src")).toMatch(/^https:\/\/www\.openstreetmap\.org\/export\/embed\.html\?/);
+    expect(new URL(map.getAttribute("src")!).searchParams.get("marker")).toMatch(/^-25\.306\d+,-57\.587\d+$/);
+    // The map shows g, and name is the title: nothing left over.
+    expect(screen.queryByTestId("dlist-item-more-toggle")).toBeNull();
+  });
+
+  it("without a location role, no map", () => {
+    renderWithProviders(<DListItemHero event={item} />);
+    expect(screen.queryByTestId("dlist-item-location")).toBeNull();
+  });
+});

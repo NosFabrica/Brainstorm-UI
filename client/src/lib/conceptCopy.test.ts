@@ -56,9 +56,17 @@ describe("initialDraft", () => {
     const draft = initialDraft(community, null, items);
     expect(draft).toMatchObject({ singular: "GitHub Account", plural: "GitHub Accounts" });
     expect(draft.fields).toEqual([
-      { name: "github-username", enabled: true, required: true, origin: "definition", type: "text" },
-      { name: "description", enabled: false, required: false, origin: "items", seenOn: 2, type: "text" },
-      { name: "note", enabled: false, required: false, origin: "items", seenOn: 1, type: "text" },
+      { name: "github-username", enabled: true, required: true, origin: "definition", type: "text", description: null },
+      {
+        name: "description",
+        enabled: false,
+        required: false,
+        origin: "items",
+        seenOn: 2,
+        type: "text",
+        description: null,
+      },
+      { name: "note", enabled: false, required: false, origin: "items", seenOn: 1, type: "text", description: null },
     ]);
   });
 
@@ -74,10 +82,25 @@ describe("initialDraft", () => {
     );
     const draft = initialDraft(community, mine, items);
     expect(draft.fields).toEqual([
-      { name: "github-username", enabled: true, required: false, origin: "definition", type: "text" },
-      { name: "description", enabled: true, required: true, origin: "items", seenOn: 2, type: "text" },
-      { name: "note", enabled: false, required: false, origin: "items", seenOn: 1, type: "text" },
-      { name: "avatar", enabled: true, required: false, origin: "custom", type: "text" },
+      {
+        name: "github-username",
+        enabled: true,
+        required: false,
+        origin: "definition",
+        type: "text",
+        description: null,
+      },
+      {
+        name: "description",
+        enabled: true,
+        required: true,
+        origin: "items",
+        seenOn: 2,
+        type: "text",
+        description: null,
+      },
+      { name: "note", enabled: false, required: false, origin: "items", seenOn: 1, type: "text", description: null },
+      { name: "avatar", enabled: true, required: false, origin: "custom", type: "text", description: null },
     ]);
     expect(draft.description).toBe("");
   });
@@ -169,7 +192,13 @@ describe("display hints in the copy (provisional)", () => {
   it("publishes the chosen roles and the list image, before the b", () => {
     const draft = initialDraft(community, null, items);
     draft.fields[1] = { ...draft.fields[1], enabled: true };
-    draft.display = { title: "description", summary: null, image: null, listImage: " https://x.example/gh.svg " };
+    draft.display = {
+      title: "description",
+      summary: null,
+      image: null,
+      facts: [],
+      listImage: " https://x.example/gh.svg ",
+    };
     const tags = copyTemplate(community, draft).tags;
     expect(tags.slice(-3)).toEqual([
       ["display", "title", "description"],
@@ -180,7 +209,7 @@ describe("display hints in the copy (provisional)", () => {
 
   it("drops a role whose field this version doesn't include", () => {
     const draft = initialDraft(community, null, items);
-    draft.display = { title: "description", summary: null, image: null, listImage: "" };
+    draft.display = { title: "description", summary: null, image: null, facts: [], listImage: "" };
     expect(copyTemplate(community, draft).tags.some((t) => t[0] === "display")).toBe(false);
   });
 
@@ -201,6 +230,8 @@ describe("display hints in the copy (provisional)", () => {
       image: null,
       link: null,
       media: null,
+      location: null,
+      facts: [],
       listImage: "https://x.example/gh.svg",
     });
   });
@@ -287,5 +318,72 @@ describe("field types and the link and media roles", () => {
     const tags = copyTemplate(community, draft).tags;
     expect(tags).toContainEqual(["display", "link", "page"]);
     expect(tags).toContainEqual(["display", "media", "clip"]);
+  });
+});
+
+describe("facts in the copy (provisional)", () => {
+  it("publishes facts in field order, a label only when one is typed, none for a field left out", () => {
+    const draft = initialDraft(community, null, items);
+    draft.fields[1] = { ...draft.fields[1], enabled: true };
+    draft.display = {
+      ...draft.display,
+      facts: [
+        { field: "description", label: " Who " },
+        { field: "github-username", label: "" },
+        { field: "note", label: "Note" },
+      ],
+    };
+    const facts = copyTemplate(community, draft).tags.filter((t) => t[0] === "display" && t[1] === "fact");
+    expect(facts).toEqual([
+      ["display", "fact", "github-username"],
+      ["display", "fact", "description", "Who"],
+    ]);
+  });
+
+  it("starts from the current version's facts, a missing label as empty", () => {
+    const mine = definitionOf(
+      header(ME, [
+        ["names", "GitHub Account", "GitHub Accounts"],
+        ["required", "github-username"],
+        ["optional", "description"],
+        ["display", "fact", "description", "Who"],
+        ["display", "fact", "github-username"],
+        ["b", COMMUNITY, "pointer"],
+      ]),
+    );
+    expect(initialDraft(community, mine, items).display.facts).toEqual([
+      { field: "description", label: "Who" },
+      { field: "github-username", label: "" },
+    ]);
+  });
+});
+
+describe("field descriptions in the copy", () => {
+  // Avi's Food and Drink Places: its fields carry descriptions, which label its links.
+  const places = definitionOf(
+    header(AVI, [
+      ["names", "Food and Drink Place", "Food and Drink Places"],
+      ["required", "name", "Name of the business"],
+      ["optional", "website", "Website"],
+      ["field-type", "website", "url"],
+    ]),
+  );
+
+  it("keeps each field's description, so a link stays labelled", () => {
+    const tags = copyTemplate(places, initialDraft(places, null, [])).tags;
+    expect(tags).toContainEqual(["required", "name", "Name of the business"]);
+    expect(tags).toContainEqual(["optional", "website", "Website"]);
+  });
+
+  it("a copy made before descriptions were carried gets the community's back", () => {
+    const old = definitionOf(
+      header(ME, [
+        ["names", "Food and Drink Place", "Food and Drink Places"],
+        ["required", "name"],
+        ["optional", "website"],
+        ["b", COMMUNITY, "pointer"],
+      ]),
+    );
+    expect(copyTemplate(places, initialDraft(places, old, [])).tags).toContainEqual(["optional", "website", "Website"]);
   });
 });

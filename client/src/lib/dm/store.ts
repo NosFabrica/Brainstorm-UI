@@ -58,6 +58,11 @@ export interface DmRoom {
   subject?: string;
   /** The account has written here — it is a conversation, not a request. */
   hasMine: boolean;
+  /**
+   * A pinned chat whose messages history hasn't reached yet: no messages, no time.
+   * Made by `shelve` (lib/dm/inbox) so a pin never drops out of the list.
+   */
+  notLoaded?: true;
 }
 
 export function messageFromRumor(

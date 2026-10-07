@@ -39,7 +39,7 @@ import {
   type DraftDisplay,
   type DraftField,
 } from "@/lib/conceptCopy";
-import { DISPLAY_ROLES, type DisplayRole } from "@/lib/displayHints";
+import { DISPLAY_ROLES, factLabel, type DisplayRole } from "@/lib/displayHints";
 import { httpUrl } from "@/lib/dlistFields";
 import { templatePlaceholders, type UrlTemplate } from "@/lib/linkTemplates";
 import { useAvailableTemplates, useLinkTemplates } from "@/hooks/useLinkTemplates";
@@ -53,8 +53,9 @@ const ROLE_LABEL: Record<DisplayRole, string> = {
   image: "Picture",
   link: "Link",
   media: "Media",
+  location: "Location (geohash)",
 };
-/** Title and summary always read from some field; a picture, link or media only when one is named. */
+/** Title and summary always read from some field; a picture, link, media or location only when one is named. */
 const NO_ROLE_LABEL = (role: DisplayRole) => (role === "title" || role === "summary" ? "Automatic" : "None");
 /** The value types the form offers (dlistFields: only `url` changes rendering). */
 const FIELD_TYPES = ["text", "url"] as const;
@@ -101,6 +102,9 @@ export function OwnVersionDialog({
   const setDisplay = (patch: Partial<DraftDisplay>) => setDraft((d) => ({ ...d, display: { ...d.display, ...patch } }));
   // A role can only name a field this version declares; a disabled field drops back to Automatic.
   const enabledNames = draft.fields.filter((f) => f.enabled && f.name.trim()).map((f) => f.name.trim());
+  const factOf = (field: string) => draft.display.facts.find((f) => f.field === field) ?? null;
+  const setFacts = (next: (facts: DraftDisplay["facts"]) => DraftDisplay["facts"]) =>
+    setDraft((d) => ({ ...d, display: { ...d.display, facts: next(d.display.facts) } }));
 
   // URL templates: the ones on offer (the URL Templates list), and the ones this draft already pins.
   const available = useAvailableTemplates(open);
@@ -398,6 +402,46 @@ export function OwnVersionDialog({
                   </Select>
                 </div>
               ))}
+            </div>
+            <div className="space-y-1.5" data-testid="own-version-facts">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Facts — listed on an item&rsquo;s page as &ldquo;label: value&rdquo;, in field order
+              </span>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {enabledNames.map((n) => (
+                  <label key={n} className="flex items-center gap-1.5">
+                    <Checkbox
+                      checked={factOf(n) != null}
+                      onCheckedChange={(v) =>
+                        setFacts((facts) =>
+                          v === true ? [...facts, { field: n, label: "" }] : facts.filter((f) => f.field !== n),
+                        )
+                      }
+                      data-testid={`own-version-fact-${n}`}
+                    />
+                    <code className="font-mono text-xs text-slate-700 dark:text-slate-300">{n}</code>
+                  </label>
+                ))}
+              </div>
+              {enabledNames
+                .filter((n) => factOf(n))
+                .map((n) => (
+                  <div key={n} className="flex items-center gap-2">
+                    <code className="w-36 shrink-0 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
+                      {n}
+                    </code>
+                    <Input
+                      value={factOf(n)!.label}
+                      onChange={(e) =>
+                        setFacts((facts) => facts.map((f) => (f.field === n ? { ...f, label: e.target.value } : f)))
+                      }
+                      placeholder={factLabel({ field: n, label: null })}
+                      className="h-8 text-sm"
+                      aria-label={`Label for ${n}`}
+                      data-testid={`own-version-fact-label-${n}`}
+                    />
+                  </div>
+                ))}
             </div>
             <div className="space-y-1">
               <Label htmlFor="own-list-image" className="text-xs font-normal text-slate-500 dark:text-slate-400">

@@ -12,7 +12,11 @@
  * - Its links (useItemView): its own `link` field, and those built from the
  *   URL templates the definition names. A definition that names neither gives
  *   no link — no concept has code of its own.
+ * - Its facts, as "label: value" — the fields the definition names with a
+ *   `fact` hint, in its order.
  * - Its `media` field, played: audio in the app's track card, video inline.
+ * - Its `location` field, on a map — OpenStreetMap's, loaded only when the
+ *   reader asks for it.
  * - A required field the item lacks, said once.
  * - Who else listed the same thing and what else the list holds
  *   (DListItemNeighbours).
@@ -27,7 +31,8 @@
  */
 import { useState, type ReactNode } from "react";
 import { Link } from "wouter";
-import { BookOpen, ChevronDown, ExternalLink, Loader2, TriangleAlert } from "lucide-react";
+import { BookOpen, ChevronDown, ExternalLink, Loader2, MapPin, TriangleAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
@@ -36,6 +41,8 @@ import { isReady, useItemView, type ReadyItemView } from "@/hooks/useItemView";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { fieldCell, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
 import { avatarSrc } from "@/lib/avatarSrc";
+import { osmEmbedUrl, osmPageUrl } from "@/lib/geohash";
+import type { ItemPresentation } from "@/lib/itemPresentation";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import type { DefinitionSource } from "@/lib/conceptResolution";
@@ -134,6 +141,31 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
         </div>
       </div>
 
+      {shown.facts.length > 0 && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm" data-testid="dlist-item-facts">
+          {shown.facts.map((f) => (
+            <div key={f.field} className="contents" data-testid="dlist-item-fact" data-field={f.field}>
+              <dt className="text-slate-500 dark:text-slate-400">{f.label}</dt>
+              <dd className="min-w-0 break-words text-slate-900 dark:text-slate-100">
+                {f.href ? (
+                  <a
+                    href={f.href}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="text-brand-link hover:underline"
+                  >
+                    {f.value}
+                  </a>
+                ) : (
+                  f.value
+                )}
+                {f.extra > 0 && <span className="ml-2 text-xs text-slate-400">+{f.extra} more</span>}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
       {shown.media && (
         <div data-testid="dlist-item-media" data-media-kind={shown.media.kind}>
           {shown.media.kind === "audio" ? (
@@ -151,6 +183,8 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
           )}
         </div>
       )}
+
+      {shown.location && <ItemMap location={shown.location} title={shown.title ?? r.governing.singular} />}
 
       {missing.length > 0 && (
         <Chip tone="warning" icon={TriangleAlert} size="sm" data-testid="dlist-item-missing">
@@ -206,6 +240,45 @@ function Picture({ image, listImage }: { image: string | null; listImage: string
         <BookOpen className="h-6 w-6" data-testid="dlist-item-plain-mark" />
       )}
     </span>
+  );
+}
+
+/**
+ * Where the item is, on OpenStreetMap's embedded map. Only on request: until
+ * the reader asks, the page contacts no map server. A spot gets a pin; a
+ * coarse geohash is framed as the area it is (lib/geohash).
+ */
+function ItemMap({ location, title }: { location: NonNullable<ItemPresentation["location"]>; title: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="space-y-1.5" data-testid="dlist-item-location" data-geohash={location.geohash}>
+      {open ? (
+        <>
+          <iframe
+            src={osmEmbedUrl(location)}
+            title={`Map: ${title}`}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            className="h-64 w-full rounded-xl border border-border"
+            data-testid="dlist-item-map"
+          />
+          <a
+            href={osmPageUrl(location)}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-brand-link dark:text-slate-400"
+          >
+            Open in OpenStreetMap <ExternalLink className="h-3 w-3" />
+          </a>
+        </>
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)} data-testid="dlist-item-map-show">
+          <MapPin /> Show on map
+          <span className="text-xs font-normal text-slate-400">· openstreetmap.org</span>
+        </Button>
+      )}
+    </div>
   );
 }
 

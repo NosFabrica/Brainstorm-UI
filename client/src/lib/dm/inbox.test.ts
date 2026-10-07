@@ -4,7 +4,7 @@ import { shelfOf, shelve, unreadIn, type TrustLookup } from "./inbox";
 import type { DmMessage, DmRoom } from "./store";
 import type { DmPrefs } from "./prefs";
 
-const ME = "m".repeat(64);
+const ME = "f".repeat(64);
 const ANA = "a".repeat(64);
 const BOB = "b".repeat(64);
 const EVE = "e".repeat(64);
@@ -100,6 +100,59 @@ describe("shelving rooms", () => {
     expect(pinned.pinnedCount).toBe(1);
 
     expect(shelve([ana], ME, prefs({ muted: [ana.key] }), trust()).badge).toBe(0);
+  });
+
+  it("keeps a pinned chat in the list, in pin order, when none of its messages are loaded", () => {
+    const ana = room(ANA, { at: 100 });
+    const bobKey = [ME, BOB].sort().join(",");
+    const group = [ME, ANA, BOB].sort().join(",");
+    const shelves = shelve([ana], ME, prefs({ pinned: [group, ana.key, bobKey] }), trust());
+    expect(shelves.chats.map((r) => r.key)).toEqual([group, ana.key, bobKey]);
+    expect(shelves.pinnedCount).toBe(3);
+    const bob = shelves.chats[2];
+    expect(bob.notLoaded).toBe(true);
+    expect(bob.participants).toEqual([ME, BOB].sort());
+    expect(bob.messages).toEqual([]);
+    expect(shelves.chats[1].notLoaded).toBeUndefined();
+    // Nothing to read, so nothing on the badge.
+    expect(shelves.badge).toBe(1);
+  });
+
+  it("leaves a not-loaded pin out when its people are muted, and archives it when deleted", () => {
+    const bobKey = [ME, BOB].sort().join(",");
+    expect(shelve([], ME, prefs({ pinned: [bobKey] }), trust({ mutedOf: (pk) => pk === BOB })).chats).toEqual([]);
+    const hidden = shelve([], ME, prefs({ pinned: [bobKey], hidden: { [bobKey]: 10 } }), trust());
+    expect(hidden.chats).toEqual([]);
+    expect(hidden.archived.map((r) => r.key)).toEqual([bobKey]);
+  });
+
+  it("ignores a pin that isn't one of the reader's rooms", () => {
+    const strangers = [ANA, BOB].sort().join(",");
+    expect(shelve([], ME, prefs({ pinned: [strangers] }), trust()).chats).toEqual([]);
+  });
+
+  it("skips a malformed synced pin instead of listing a room whose link can't be made", () => {
+    const bobKey = [ME, BOB].sort().join(",");
+    const unsorted = [BOB, ME].join(",") === bobKey ? [ME, BOB].join(",") : [BOB, ME].join(",");
+    const junk = ["", "zz", `${ME},zz`, `${ME},${BOB.toUpperCase()}`, unsorted, `${bobKey},`];
+    const shelves = shelve([], ME, prefs({ pinned: [...junk, bobKey] }), trust());
+    expect(shelves.chats.map((r) => r.key)).toEqual([bobKey]);
+  });
+
+  it("lists a pin repeated in a synced list once, at its first place", () => {
+    const bobKey = [ME, BOB].sort().join(",");
+    const anaKey = [ME, ANA].sort().join(",");
+    const shelves = shelve([], ME, prefs({ pinned: [bobKey, anaKey, bobKey] }), trust());
+    expect(shelves.chats.map((r) => r.key)).toEqual([bobKey, anaKey]);
+    expect(shelves.pinnedCount).toBe(2);
+  });
+
+  it("keeps a not-loaded pin the same object from one shelving to the next", () => {
+    const bobKey = [ME, BOB].sort().join(",");
+    const a = shelve([room(ANA)], ME, prefs({ pinned: [bobKey] }), trust()).chats[0];
+    const b = shelve([room(ANA, { at: 200 })], ME, prefs({ pinned: [bobKey] }), trust()).chats[0];
+    expect(a.notLoaded).toBe(true);
+    expect(b).toBe(a);
   });
 
   it("judges a room by who wrote in it, not by who was named", () => {
