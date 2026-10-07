@@ -64,6 +64,7 @@ export function useResolvedItemView(
       shown.linkField,
       shown.mediaField,
       shown.locationField,
+      ...shown.factFields,
       ...refs.flatMap((r) => r.bindings.map(([, field]) => field)),
     ].filter((f): f is string => !!f),
   );

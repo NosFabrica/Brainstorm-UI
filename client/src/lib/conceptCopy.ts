@@ -41,6 +41,8 @@ export interface DraftField {
   seenOn?: number;
   /** The field's value type — `text` unless set (`url`: its values are links). */
   type?: string;
+  /** The header's words for the field, carried into the copy: a link's label is its field's description. */
+  description?: string | null;
 }
 
 /** The provisional display hints (lib/displayHints) as the form holds them. */
@@ -51,6 +53,8 @@ export interface DraftDisplay {
   link: string | null;
   media: string | null;
   location: string | null;
+  /** Fields listed on the item's page; a label as typed, "" for none. Published in field order. */
+  facts: { field: string; label: string }[];
   /** As typed; published only when it's an http(s) URL. */
   listImage: string;
 }
@@ -120,6 +124,8 @@ export function initialDraft(
       required: (own ?? f).requirement === "required",
       origin: "definition",
       type: (own ?? f).type,
+      // A copy made before descriptions were carried has none: the community's fills in.
+      description: own?.description ?? f.description,
     });
   }
   for (const { name, count } of seen) {
@@ -131,6 +137,7 @@ export function initialDraft(
       origin: "items",
       seenOn: count,
       type: own?.type ?? "text",
+      description: own?.description ?? null,
     });
   }
   const listed = new Set(rows.map((r) => r.name));
@@ -142,15 +149,25 @@ export function initialDraft(
         required: f.requirement === "required",
         origin: "custom",
         type: f.type,
+        description: f.description,
       });
   }
-  const { title, summary, image, link, media, location, listImage } = base.display;
+  const { title, summary, image, link, media, location, facts, listImage } = base.display;
   return {
     singular: base.singular,
     plural: base.plural,
     description: base.description ?? "",
     fields: rows,
-    display: { title, summary, image, link, media, location, listImage: listImage ?? "" },
+    display: {
+      title,
+      summary,
+      image,
+      link,
+      media,
+      location,
+      facts: facts.map((f) => ({ field: f.field, label: f.label ?? "" })),
+      listImage: listImage ?? "",
+    },
     links: base.links.map((l) => ({ ...l, bindings: l.bindings.map(([p, f]) => [p, f] as [string, string]) })),
   };
 }
@@ -190,7 +207,8 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
   if (draft.description.trim()) tags.push(["description", draft.description.trim()]);
   for (const f of draft.fields.filter((f) => f.enabled)) {
     const name = f.name.trim();
-    tags.push([f.required ? "required" : "optional", name]);
+    const description = f.description?.trim();
+    tags.push([f.required ? "required" : "optional", name, ...(description ? [description] : [])]);
     // A field the community typed keeps a type tag; any other only when it isn't plain text.
     const type = f.type ?? "text";
     if (typed.has(name) || type !== "text") tags.push(["field-type", name, type]);
@@ -206,6 +224,10 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
       link: pick(draft.display.link),
       media: pick(draft.display.media),
       location: pick(draft.display.location),
+      facts: [...enabled].flatMap((field) => {
+        const fact = draft.display.facts.find((f) => f.field === field);
+        return fact ? [{ field, label: fact.label.trim() || null }] : [];
+      }),
       listImage: draft.display.listImage.trim() || null,
     }),
   );

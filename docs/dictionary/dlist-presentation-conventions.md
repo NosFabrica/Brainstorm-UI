@@ -87,10 +87,11 @@ copy.
 ## 3. How an item reads: display hints (**Provisional**)
 
 The header says which declared field plays which part. The tag is role-first, one field per
-role:
+role, except `fact`, which repeats (§3.5):
 
 ```
 ["display", "title" | "summary" | "image" | "link" | "media" | "location", <declared field>]
+["display", "fact", <declared field>, <label?>]
 ```
 
 | Role       | Meaning                                | Value must be                        |
@@ -101,12 +102,14 @@ role:
 | `link`     | The item's own page somewhere          | http(s) URL                          |
 | `media`    | A playable file                        | http(s) URL to audio or video (§3.2) |
 | `location` | Where the item is, offered as a map    | a geohash (§3.4)                     |
+| `fact`     | A field listed as "label: value"       | any (§3.5)                           |
 
 Rules:
 
 - A hint may only name a **declared** field. It decorates a field the way `field-type`
   does, and never invents one.
-- If a role is named twice, the first one wins.
+- If a role is named twice, the first one wins. `fact` repeats: each tag names a field, and
+  the first tag per field wins.
 - Unknown roles are ignored.
 - A value that fails its rule (not http(s), not media, not a geohash) means "no such thing"
   for that item. It is not an error.
@@ -118,6 +121,7 @@ Rules:
 | title                        | the first **required** field, else the first declared field                  |
 | summary                      | a declared `summary`, else a declared `description`, never the title's field |
 | image, link, media, location | none                                                                         |
+| facts                        | none                                                                         |
 
 **The choice is per definition, never per item.** An item missing its title field reads
 "Untitled \<singular name\>". It does not borrow another field, so the same field always
@@ -161,6 +165,31 @@ Brainstorm offers the place on the item's page as OpenStreetMap's embedded map, 
 only when the reader asks**, so opening a page contacts no map server. A cell of 6
 characters or more (≈ 1 km and under) is a spot and gets a pin; a coarser one is framed as
 the area it is, with no pin to suggest a precision it doesn't have.
+
+### 3.5 Facts
+
+```
+["display", "fact", "phone"]
+["display", "fact", "opening-hours", "Hours"]
+["display", "fact", "accepts-bitcoin"]
+```
+
+The fields an item's page lists as "label: value": a place's phone, hours and payment, say.
+Read the tag as "display this fact, labelled …".
+
+- **As many as the header likes,** listed in the header's order. A field named twice keeps
+  its first tag.
+- **The label is the optional 4th element.** Without one, the field's name reads as words:
+  `opening-hours` → "Opening hours", `accepts-bitcoin` → "Accepts bitcoin". A field's
+  description (§2.1) isn't used: descriptions tend to be sentences ("Phone number,
+  international format"), not labels.
+- **Never a field another role shows.** A field that's already the title, summary,
+  picture, link, media or location isn't listed again as a fact.
+- An item that lacks a fact's field simply doesn't list it. A `url`-typed fact (§2.2) is a
+  link.
+
+Brainstorm lists facts on the item's own page only, under the title. Results cards and
+list rows don't show them, because a list may name many and those rows have room for few.
 
 ## 4. Concepts, copies, and which definition governs
 
@@ -292,8 +321,8 @@ labelled by its field's description (§5.1).
 
 These aren't protocol rules, but they're what makes the conventions above read well.
 
-- **Show each field once.** A field used as title, summary, image, link, media or location,
-  or bound in a link template, isn't listed again. Declared fields nothing uses, plus undeclared
+- **Show each field once.** A field used as title, summary, image, link, media, location or
+  a fact, or bound in a link template, isn't listed again. Declared fields nothing uses, plus undeclared
   tags (§2.3), go in a collapsed "More fields". An item the definition fully covers shows
   no table at all.
 - **Flag a missing required field** on the item, once.
@@ -364,7 +393,7 @@ podcastindex.org.
 
 ## 8. Open questions for the spec
 
-1. **Names.** `display`, its six roles, the header's `image`, `link`, `url-template`: are
+1. **Names.** `display`, its seven roles, the header's `image`, `link`, `url-template`: are
    these the right names, and do they belong in the DList NIP, in
    `decentralized-lists-compat.md` beside `item-kind`, or in a separate draft?
 2. **Element 3 of a field declaration:** a description or a source
