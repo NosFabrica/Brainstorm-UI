@@ -12,64 +12,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateSecretKey, getPublicKey, nip44 } from "nostr-tools";
 
-import { EXTENSION_DECRYPT_MS, TimedExtensionSigner } from "./extension";
+import {
+  EXTENSION_DECRYPT_MS,
+  EXTENSION_LOCK,
+  EXTENSION_RETRY_DECRYPT_MS,
+  LOCK_WAIT_MS,
+  TimedExtensionSigner,
+} from "./extension";
+import { fakeLockManager, fakeNostash, type NostashOptions } from "./nostash-fake";
 import { classifySignerError } from "./signer-errors";
 
 const sk = generateSecretKey();
 const me = getPublicKey(sk);
 const seal = (text: string) => nip44.encrypt(text, nip44.getConversationKey(sk, me));
 
-/** Nostash's background page: storage is async; the mutex is let go once a request starts. */
-function nostash({ slowMs = 0, slow = new Set<string>() } = {}) {
-  let sendResponse: (v: unknown) => void = () => {}; // Nostash's shared reply slot
-  const storage = () => new Promise((r) => setTimeout(r, 1)); // browser.storage.local.get
-  const background = async (
-    kind: string,
-    payload: { pubKey: string; cipherText?: string; plainText?: string },
-    reply: (v: unknown) => void,
-  ) => {
-    await storage(); // getPermission: already "allow"
-    sendResponse = reply; // complete(): `sendResponse = validations[payload]`
-    const run = async () => {
-      await storage(); // getPrivKey
-      if (payload.cipherText && slow.has(payload.cipherText)) await new Promise((r) => setTimeout(r, slowMs));
-      const key = nip44.getConversationKey(sk, payload.pubKey);
-      return kind === "nip44.decrypt"
-        ? nip44.decrypt(payload.cipherText!, key)
-        : nip44.encrypt(payload.plainText!, key);
-    };
-    run().then(
-      (v) => sendResponse(v),
-      () => {},
-    ); // a failure is never answered (Nostash: an unhandled rejection)
-  };
-  const broadcast = (kind: string, payload: never) => new Promise((resolve) => void background(kind, payload, resolve));
-  const nostr = {
-    getPublicKey: async () => me,
-    signEvent: async () => undefined,
-    nip44: {
-      encrypt: (pubKey: string, plainText: string) => broadcast("nip44.encrypt", { pubKey, plainText } as never),
-      decrypt: (pubKey: string, cipherText: string) => broadcast("nip44.decrypt", { pubKey, cipherText } as never),
-    },
-  };
-  (globalThis as { window?: unknown }).window = { nostr };
-  return nostr;
-}
-
-/** navigator.locks, shared by "tabs": one holder per name at a time. */
-function lockManager() {
-  const tails = new Map<string, Promise<unknown>>();
-  return {
-    request: (name: string, cb: () => Promise<unknown>) => {
-      const run = (tails.get(name) ?? Promise.resolve()).then(cb);
-      tails.set(
-        name,
-        run.catch(() => {}),
-      );
-      return run;
-    },
-  };
-}
+const nostash = (opts?: NostashOptions) => {
+  const fake = fakeNostash(sk, opts);
+  (globalThis as { window?: unknown }).window = { nostr: fake.nostr };
+  return fake.nostr;
+};
+const lockManager = fakeLockManager;
 
 function signer() {
   const s = new TimedExtensionSigner();
@@ -91,7 +53,7 @@ describe("Nostash: a decrypt it never answers", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const started = Date.now();
     const stuck = s.nip44!.decrypt(me, "AnotAValidCiphertext").catch((e: unknown) => e);
-    await vi.advanceTimersByTimeAsync(EXTENSION_DECRYPT_MS + 1_000);
+    await vi.advanceTimersByTimeAsync(EXTENSION_DECRYPT_MS + EXTENSION_RETRY_DECRYPT_MS + 1_000);
     expect(classifySignerError(await stuck)).toBe("bad-payload");
     expect(Date.now() - started).toBeLessThan(60_000); // not the 90s extension timeout
     expect(await s.nip44!.decrypt(me, seal("next"))).toBe("next");
@@ -152,5 +114,23 @@ describe("Nostash: requests in flight together", () => {
     nostash();
     vi.stubGlobal("navigator", { locks: lockManager() });
     expect(await burst([signer(), signer()])).toEqual([]);
+  });
+});
+
+describe("another tab holding the extension", () => {
+  it("is waited for up to LOCK_WAIT_MS, then the request ends as worth asking again", async () => {
+    nostash();
+    const locks = lockManager();
+    vi.stubGlobal("navigator", { locks });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // A tab whose timers froze while it held the extension (iOS suspends background tabs).
+    void locks.request(EXTENSION_LOCK, () => new Promise(() => {}));
+    const asked = signer()
+      .nip44!.decrypt(me, seal("hello"))
+      .catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(LOCK_WAIT_MS + 1_000);
+    const error = await asked;
+    expect((error as Error).name).toBe("ExtensionBusyError");
+    expect(classifySignerError(error)).toBe("timeout");
   });
 });

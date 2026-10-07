@@ -79,6 +79,8 @@ const BAD_PAYLOAD = /invalid (mac|payload|padding|base64)|unknown (encryption )?
 export function classifySignerError(error: unknown): SignerErrorKind {
   if (isUnlockCancelled(error)) return "cancelled";
   if (isRemoteSignerTimeout(error)) return "timeout";
+  // Another tab held the extension past the wait: never asked, worth asking again.
+  if (nameOf(error) === "ExtensionBusyError") return "timeout";
   if (error instanceof SignerDeclinedError || nameOf(error) === "SignerDeclinedError") return "declined";
   if (error instanceof SignerCouldNotDecryptError || nameOf(error) === "SignerCouldNotDecryptError")
     return "bad-payload";
