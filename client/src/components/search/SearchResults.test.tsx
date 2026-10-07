@@ -412,8 +412,9 @@ describe("SearchResults", () => {
       expect(mainStreamCalls()[0][0]).toBe(`from:${npub} sort:recent`);
     });
 
-    // The verticals' gates hold on the kind-less list too: no sold listing, no game state as a song.
-    it("drops what the Shop and Music tabs would drop", async () => {
+    // All is every kind the relay answered — nothing is junk there. Each is one row shape,
+    // its kind said by a pill, the whole row a link to the kind's own page.
+    it("keeps every kind, each as one row with its kind's pill and no buttons", async () => {
       setUrlTab("all");
       render(<SearchResults query="cashmere" pov="nosfabrica" />);
       const seller = "9".repeat(64);
@@ -429,15 +430,29 @@ describe("SearchResults", () => {
         ["status", "sold"],
       ]);
       const gameState = ev("t2", 31337, "e".repeat(64), '{"players":[]}', [["d", "TOMB-7703"]]);
+      const article = ev("a1", 30023, "f".repeat(64), "# Cashmere\n\nWhy **goats** matter.", [
+        ["d", "cashmere"],
+        ["title", "All about cashmere"],
+        ["image", "https://img/cover.jpg"],
+      ]);
       emit({
-        hits: [forSale, sold, gameState].map((event) => ({ event, author: null, rank: null })),
+        hits: [forSale, sold, gameState, article].map((event) => ({ event, author: null, rank: null })),
         eose: true,
         timeMs: 100,
       });
       const results = await screen.findByTestId("container-search-results");
-      expect(results).toHaveTextContent("Cashmere scarf");
-      expect(results).not.toHaveTextContent("Cashmere coat");
-      expect(results.children).toHaveLength(1);
+      expect(results.children).toHaveLength(4);
+      expect(within(screen.getByTestId("all-row-l1")).getByTestId("all-row-kind")).toHaveTextContent("Listing");
+      expect(screen.getByTestId("all-row-l1")).toHaveTextContent("Cashmere scarf");
+      expect(screen.getByTestId("all-row-l2")).toHaveTextContent("Sold");
+      expect(within(screen.getByTestId("all-row-t2")).getByTestId("all-row-kind")).toHaveTextContent("Track");
+      const art = screen.getByTestId("all-row-a1");
+      expect(within(art).getByTestId("all-row-kind")).toHaveTextContent("Article");
+      expect(art).toHaveTextContent("Why goats matter.");
+      // The row is the link — to the article's own page; nothing inside it is a button.
+      expect(art.tagName).toBe("A");
+      expect(art.getAttribute("href")).toMatch(/^\/e\/naddr1/);
+      expect(within(results).queryAllByRole("button")).toHaveLength(0);
     });
 
     it("an old ?t=everything link opens Top, never All", () => {

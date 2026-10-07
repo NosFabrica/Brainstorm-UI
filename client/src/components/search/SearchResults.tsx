@@ -87,6 +87,7 @@ import {
 } from "@/components/search/cards";
 import { ThingCard } from "@/components/search/thingCards";
 import { SerpRow } from "@/components/search/SerpRow";
+import { AllResultRow } from "@/components/search/AllResultRow";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
 import {
@@ -161,10 +162,11 @@ const SHOP_PLACE_KINDS = new Set([30017, 30019]);
 /** NIP-52 calendars: collections of events, with no date of their own. */
 const CALENDAR_KIND = 31924;
 /**
- * A kind-less list (All, or Top with a typed sort:) gets every kind, so the
- * verticals' own gates hold there too — or it shows what they hide: a listing
- * sold, hidden or priceless; a stall or calendar with nothing to name it; a
- * 31337 that is game state, not a song (whose card draws nothing).
+ * Top with a typed sort: is a kind-less list drawn with the verticals' cards, so
+ * their gates hold there too — or it shows what they hide: a listing sold,
+ * hidden or priceless; a stall or calendar with nothing to name it; a 31337 that
+ * is game state, not a song (whose card draws nothing). All has no such gate:
+ * it is every kind the relay answered, each as a row that says what it is.
  */
 function showableUnfiltered(event: NostrEvent): boolean {
   if (SHOP_PLACE_KINDS.has(event.kind) || event.kind === CALENDAR_KIND) return describeThing(event) !== null;
@@ -1023,7 +1025,7 @@ export function SearchResults({
     if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
     // The people on a matched tag lead the People tab, once each.
     if (tab === "people") return mergeCarrierHits(base, leadPeople);
-    if (isKindlessTab(tab)) return base.filter((h) => showableUnfiltered(h.event));
+    if (tab === "top") return base.filter((h) => showableUnfiltered(h.event));
     // Only what lib/thing can name is a result — decided here, like the Shop,
     // so "Nothing found" and the counts agree with the cards — and one card
     // per NIP-28 channel.
@@ -2368,7 +2370,20 @@ export function SearchResults({
                     </p>
                   </div>
                 )}
-                {tab === "music" ? (
+                {tab === "all" ? (
+                  // Every kind, in the relay's order, one row shape: the pill says which is which.
+                  <div className="space-y-2.5" data-testid="container-search-results">
+                    {displayHits.map(({ hit }) => (
+                      <AllResultRow
+                        key={hit.event.id}
+                        event={hit.event}
+                        author={hit.author}
+                        score={scoreOf(hit.event.pubkey)}
+                        query={query}
+                      />
+                    ))}
+                  </div>
+                ) : tab === "music" ? (
                   <MusicResults
                     hits={displayHits.map((d) => d.hit)}
                     query={query}
