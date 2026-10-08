@@ -16,6 +16,7 @@ import { formatEventDate, parseCalendarEvent, shortPlace } from "@/lib/calendarE
 import { formatListingPrice, parseListing } from "@/lib/listing";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
 import { describeDesignation } from "@/lib/nip85Declaration";
+import { parseHighlight } from "@/lib/nip84";
 import { describeThing, THING_KINDS } from "@/lib/thing";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
 import { wikiPlainText } from "@/lib/wiki";
@@ -37,6 +38,8 @@ export interface ResultSummary {
   title: string | null;
   /** Plain words: no markdown, no ciphertext. */
   body: string | null;
+  /** A highlight's passage — the words someone marked, drawn as marked. */
+  quote: string | null;
   /** What the content is when it is not words to read — said in place of them. */
   shape: "encrypted" | "json" | null;
   image: string | null;
@@ -296,6 +299,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
   const base: ResultSummary = {
     title: genericTitle(ev),
     body: proseTag(ev),
+    quote: null,
     shape: null,
     image: genericImage(ev),
     video: genericVideo(ev),
@@ -378,6 +382,28 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       });
   }
 
+  // A highlight is its passage, what its highlighter said about it, and where it is from.
+  if (ev.kind === 9802) {
+    const hl = parseHighlight(ev);
+    if (hl) {
+      const { source } = hl;
+      return {
+        ...base,
+        title: null,
+        body: hl.comment ? markdownExcerpt(hl.comment) : null,
+        quote: hl.passage,
+        facts: source.ref
+          ? []
+          : source.host
+            ? [`From ${source.host}`]
+            : source.title
+              ? [`From ${[source.title, source.author].filter(Boolean).join(" · ")}`]
+              : [],
+        ref: source.ref,
+      };
+    }
+  }
+
   if (ev.kind === 10040) {
     const d = describeDesignation(ev);
     return { ...base, title: base.title ?? "Trust designation", body: d.summary || null };
@@ -417,6 +443,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
         ...base,
         title: s.title,
         body: s.body,
+        quote: s.quote,
         image: s.image,
         video: s.video,
         facts: [`Repost of ${who(of)}`],

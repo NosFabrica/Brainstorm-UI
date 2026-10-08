@@ -33,13 +33,14 @@ import type { SearchResult } from "@/lib/profileSearch";
 import { clip, who } from "@/lib/resultReaders";
 import { summaryOf, type ResultSummary } from "@/lib/resultSummary";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { HighlightQuote } from "@/components/share/HighlightQuote";
 
 const THUMB = "h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800";
 
-/** The event a row is about, as one line: whose, and what it says — or what it is, when its words are only a link. */
-function quoteOf(target: NostrEvent): string {
+/** The words that name an event: its title, or what it says with its links left out. */
+function wordsOf(target: NostrEvent): string | undefined {
   const s = summaryOf(target);
-  const words = [s.title, s.body]
+  return [s.title, s.body]
     .map((w) =>
       (w ?? "")
         .replace(/https?:\/\/\S+|nostr:n(?:event|ote|addr)1\S+/gi, " ")
@@ -47,7 +48,16 @@ function quoteOf(target: NostrEvent): string {
         .trim(),
     )
     .find(Boolean);
-  return `${who(target.pubkey)}: ${clip(words || kindLabel(target), 200)}`;
+}
+
+/** The event a row is about, as one line: whose, and what it says — or what it is, when its words are only a link. */
+function quoteOf(target: NostrEvent): string {
+  return `${who(target.pubkey)}: ${clip(wordsOf(target) || kindLabel(target), 200)}`;
+}
+
+/** The text a highlight is from: "From The Article · @alice". */
+function sourceLineOf(target: NostrEvent): string {
+  return `From ${clip(wordsOf(target) || kindLabel(target), 120)} · ${who(target.pubkey)}`;
 }
 
 /** A key as people see one when there is no name: "npub1abc…xyz". */
@@ -173,14 +183,25 @@ export const AllResultRow = memo(function AllResultRow({
                 </p>
               )
             )}
-            {target && (
+            {summary.quote && (
+              <div className={summary.title || words ? "mt-1.5" : ""}>
+                <HighlightQuote lines={words ? 2 : 3} testId="all-row-quote">
+                  <Headline text={summary.quote} query={query} tags={event.tags} />
+                </HighlightQuote>
+              </div>
+            )}
+            {target && summary.quote ? (
+              <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400" data-testid="all-row-source">
+                <Headline text={sourceLineOf(target)} query="" tags={target.tags} />
+              </p>
+            ) : target ? (
               <p
                 className="mt-1.5 line-clamp-1 break-all border-l-2 border-slate-200 pl-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
                 data-testid="all-row-ref"
               >
                 <Headline text={quoteOf(target)} query={query} tags={target.tags} />
               </p>
-            )}
+            ) : null}
             {facts.length > 0 && (
               <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400" data-testid="all-row-facts">
                 <Headline text={facts.join(" · ")} query="" />

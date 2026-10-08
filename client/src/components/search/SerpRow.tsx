@@ -7,7 +7,7 @@
  * to clickable domain chips. The row body opens the in-app event page —
  * a div-with-navigate, so the external anchors inside stay legal HTML.
  */
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { dlistOfEvent, parseDListMusician, parseDListSong } from "@/lib/dlists";
 import { Link, useLocation } from "wouter";
@@ -49,6 +49,8 @@ import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { splitCustomEmoji } from "@/lib/customEmoji";
+import { parseHighlight } from "@/lib/nip84";
+import { HighlightQuote, HighlightSourceLine, useHighlightSourceEvent } from "@/components/share/HighlightQuote";
 
 function ago(created_at: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - created_at);
@@ -434,14 +436,7 @@ export function EngagementLine({ zaps, replies, testId }: { zaps: number; replie
   );
 }
 
-export function SerpRow({
-  event,
-  author,
-  score,
-  query,
-  engagement,
-  showType = true,
-}: {
+type SerpRowProps = {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
@@ -450,7 +445,92 @@ export function SerpRow({
   engagement?: { zaps: number; replies: number };
   /** "· Note", "· Event" — only worth saying where kinds mix. */
   showType?: boolean;
-}) {
+};
+
+/** The row is a link to the event's page — a div that navigates, so the anchors inside stay legal HTML. */
+function rowPropsFor(event: NostrEvent, open: () => void) {
+  return {
+    role: "link" as const,
+    tabIndex: 0,
+    onClick: open,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        open();
+      }
+    },
+    className:
+      "group flex cursor-pointer items-start gap-4 rounded-lg px-2 py-3.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
+    "data-testid": `serp-row-${event.id}`,
+  };
+}
+
+export function SerpRow(props: SerpRowProps) {
+  return props.event.kind === 9802 && parseHighlight(props.event) ? (
+    <HighlightRow {...props} />
+  ) : (
+    <NoteRow {...props} />
+  );
+}
+
+/**
+ * A NIP-84 highlight: what its highlighter said, the passage in a
+ * highlighter's colour, and the text it is from — the article by title and
+ * author, the page by name and site — with that text's picture on the right.
+ */
+function HighlightRow({ event, author, score, query, engagement, showType = true }: SerpRowProps) {
+  const [, setLocation] = useLocation();
+  const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
+  const hl = useMemo(() => parseHighlight(event)!, [event]);
+  const sourceEvent = useHighlightSourceEvent(hl.source.ref);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const meta = useLinkMetadata(hl.source.ref ? null : hl.source.url, rowRef);
+  const cover = sourceEvent ? tagVal(sourceEvent, "image") : meta?.image;
+  const thumb = cover && /^https?:\/\//i.test(cover) ? cover : null;
+  return (
+    <div {...rowPropsFor(event, open)} ref={rowRef}>
+      <div className="min-w-0 flex-1">
+        <AuthorLine
+          author={author}
+          score={score}
+          created_at={event.created_at}
+          type={showType ? typeLabelFor(event) : undefined}
+          typeOf={event}
+          feed={isFeedAccount(author)}
+        />
+        {hl.comment && (
+          <div className="mt-2" data-testid="serp-highlight-comment">
+            <Snippet text={hl.comment} query={query} lines={2} tags={event.tags} />
+          </div>
+        )}
+        <div className="mt-2">
+          <HighlightQuote lines={hl.comment ? 3 : 4} testId="serp-highlight-passage">
+            <Headline text={hl.passage} query={query} tags={event.tags} />
+          </HighlightQuote>
+        </div>
+        <HighlightSourceLine
+          source={hl.source}
+          sourceEvent={sourceEvent}
+          pageTitle={meta?.title}
+          testId="serp-highlight-source"
+        />
+        {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
+      </div>
+      {thumb && (
+        <MediaImg
+          src={thumb}
+          preset="media_320"
+          alt=""
+          loading="lazy"
+          className="h-[92px] w-[92px] shrink-0 rounded-xl bg-slate-100 object-cover dark:bg-slate-800"
+          data-testid="serp-highlight-thumb"
+        />
+      )}
+    </div>
+  );
+}
+
+function NoteRow({ event, author, score, query, engagement, showType = true }: SerpRowProps) {
   const [, setLocation] = useLocation();
   const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
   // Dead news thumbs (expired signed URLs) vanish rather than render broken.
@@ -520,20 +600,7 @@ export function SerpRow({
         ? cardLink
         : null;
 
-  const rowProps = {
-    role: "link" as const,
-    tabIndex: 0,
-    onClick: open,
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
-        e.preventDefault();
-        open();
-      }
-    },
-    className:
-      "group flex cursor-pointer items-start gap-4 rounded-lg px-2 py-3.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
-    "data-testid": `serp-row-${event.id}`,
-  };
+  const rowProps = rowPropsFor(event, open);
 
   if (news && wavlakeTrackId(news.url)) {
     // The link IS a song (Wavlake, or a StableKraft storefront on its

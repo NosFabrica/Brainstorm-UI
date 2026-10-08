@@ -37,6 +37,42 @@ describe("summarizeResult — any kind as the All tab's row", () => {
     expect(s.href).toMatch(/^\/e\//);
   });
 
+  it("a highlight is its passage, its comment and where it is from", () => {
+    const web = summarizeResult(
+      ev(
+        9802,
+        [
+          ["r", "https://www.example.org/post"],
+          ["context", "Before. The passage. After."],
+        ],
+        "The passage.",
+      ),
+    );
+    expect(web).toMatchObject({
+      title: null,
+      body: null,
+      quote: "The passage.",
+      facts: ["From example.org"],
+      ref: null,
+    });
+    const article = summarizeResult(
+      ev(
+        9802,
+        [
+          ["a", `30023:${PK}:essay`],
+          ["comment", "**Yes.**"],
+        ],
+        "The passage.",
+      ),
+    );
+    expect(article).toMatchObject({
+      body: "Yes.",
+      quote: "The passage.",
+      facts: [],
+      ref: { addr: `30023:${PK}:essay` },
+    });
+  });
+
   // A dead poster (flare's expired S3 thumbnails) still leaves the clip's first frame to show.
   it("a video keeps its clip beside its poster, a picture post has none", () => {
     const s = summarizeResult(

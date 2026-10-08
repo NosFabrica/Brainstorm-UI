@@ -48,6 +48,7 @@ import { ThingHero, ThingSections, hasThingPage } from "@/components/share/thing
 import { ListingRelated } from "@/components/share/ListingRelated";
 import { EventHero } from "@/components/share/EventHero";
 import { VideoHero } from "@/components/share/VideoHero";
+import { HighlightHero } from "@/components/share/HighlightQuote";
 import { LiveHero } from "@/components/share/LiveHero";
 import { EventThread } from "@/components/share/EventThread";
 import { ThreadAncestors } from "@/components/share/ThreadAncestors";
@@ -330,7 +331,7 @@ function EventView({
   // fallback (media, text, or the structural card). Mirrors the chain in the
   // JSX: a kind with no hero of its own is the one whose publishing client
   // is worth a way back to (the team, 2026-09-24: "open in original client").
-  const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 10040, 31337, 30402, 31922, 31923]);
+  const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 10040, 31337, 30402, 31922, 31923, 9802]);
   const renderedGenerically =
     !!note &&
     !dictionaryConceptOf(note) &&
@@ -479,7 +480,8 @@ function EventView({
             )}
             {/* The conversation this reply sits in — parent (+ root) above, so a
                 permalinked reply reads in context instead of floating alone. */}
-            <ThreadAncestors note={note} relayHints={relayHints} />
+            {/* A highlight's `e` is the text it is from, not a post it answers: its hero shows it. */}
+            {note.kind !== 9802 && <ThreadAncestors note={note} relayHints={relayHints} />}
 
             {/* Author header — and the ⋯, on the object it acts on (X puts it
                 on the post, not the page). A list event keeps only the ⋯ here. */}
@@ -541,7 +543,7 @@ function EventView({
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div
-              className={`rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`}
+              className={`rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${note.kind !== 9802 && (replyRefs(note).parentId || replyRefs(note).rootId) ? "ring-1 ring-brand-primary/15" : ""}`}
               data-testid="event-note"
             >
               {dlistOfEvent(note) ? (
@@ -582,6 +584,9 @@ function EventView({
                 <ThingHero event={note} />
               ) : VIDEO_EVENT_KINDS.has(note.kind) ? (
                 <VideoHero event={note} />
+              ) : note.kind === 9802 && note.content.trim() ? (
+                // A NIP-84 highlight: the passage marked in its paragraph, and the text it is from.
+                <HighlightHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
                 <ShareNoteCard
                   event={note}
