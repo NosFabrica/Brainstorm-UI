@@ -8,8 +8,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
  * perspective ("search observer"), backed by `GET /user/isSearchObserver`.
  *
  * Defaults to `false` (house / NosFabrica perspective) when logged out, while
- * loading, or on error. `useSearchPov` stands the Account's last confirmed
- * answer in for it until `known`, so a reload doesn't search through the house
+ * loading, or on error. `useCanSearchMywot` stands the Account's last confirmed
+ * answer in for it while loading, so a reload doesn't search through the house
  * first; a first visit still waits for the backend to confirm. Gated on `useHasSession()` so it never
  * fires for anonymous visitors (that path goes through `authenticatedFetch`,
  * which can 401-redirect public pages).

@@ -278,9 +278,9 @@ function ComposedResultsBody({
   // dealt out to the sections by kind — the same routing the shared REQ uses.
   const seeds = useMemo(() => {
     // Kept only for a reader whose Perspective is certainly the house's — the
-    // one it asked through. A signed-in reader's settles a beat after the first
-    // render (landing's effectivePov waits on two lookups), and house-ranked
-    // cards must not paint for someone reading through their own.
+    // one it asked through. A signed-in reader's can settle a beat after the first
+    // render (on a first visit, useCanSearchMywot waits on two lookups), and
+    // house-ranked cards must not paint for someone reading through their own.
     if (remembered) return { ...EMPTY_SEEDS, ...remembered };
     if (userPubkey || pov !== "nosfabrica") return EMPTY_SEEDS;
     const forTab = (tab: Exclude<SearchTab, "top" | "all">): SearchHit[] => {
