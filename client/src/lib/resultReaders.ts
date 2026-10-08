@@ -223,6 +223,8 @@ function readList(ev: ReaderEvent): ReaderResult {
     body: preview || null,
     facts: total ? facts : [],
     encrypted,
+    // A list of notes or articles has nothing to say in words: the row quotes the first thing on it.
+    ref: preview ? null : refOf(ev, "first"),
   };
 }
 

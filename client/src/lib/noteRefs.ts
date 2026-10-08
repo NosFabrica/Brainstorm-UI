@@ -94,6 +94,19 @@ function parseATag(value: string, relay?: string): AddressRef | null {
   return { kind, pubkey, identifier, relays: relay ? [relay] : undefined };
 }
 
+/**
+ * The kinds whose `e` tags thread a conversation: a text note and a channel
+ * message (NIP-10), a comment and a voice reply (NIP-22), a git reply
+ * (NIP-34). Anywhere else an `e` is what the event is about or holds — a
+ * bookmark set's notes, a reaction's post, a highlight's source — and never
+ * makes it a reply.
+ */
+const THREADED_KINDS: ReadonlySet<number> = new Set([1, 42, 1111, 1244, 1622]);
+
+export function isThreadedKind(kind: number): boolean {
+  return THREADED_KINDS.has(kind);
+}
+
 export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
   const tags = ev.tags || [];
   const eTags = tags.filter((t) => t[0] === "e");
@@ -162,8 +175,9 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
     .filter((t) => t[3] === "mention")
     .map((t) => t[1])
     .filter(Boolean);
-  // Any non-"mention" e tag means this is a reply (covers marked + legacy positional).
-  const isReply = eTags.some((t) => t[3] !== "mention");
+  // Any non-"mention" e tag means this is a reply (covers marked + legacy positional),
+  // on a kind that threads by them.
+  const isReply = isThreadedKind(ev.kind) && eTags.some((t) => t[3] !== "mention");
   const quoteIds = Array.from(new Set([...qTags, ...mentionMarkerIds, ...contentQuoteIds]));
   const quoteRelays = Array.from(
     new Set([
@@ -185,8 +199,8 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
  * straight to the root, parentId === rootId.
  */
 export function replyRefs(ev: MinimalEvent): { rootId?: string; parentId?: string } {
-  // A NIP-84 highlight's `e` is the text it quotes, not a post it answers.
-  if (ev.kind === 9802) return {};
+  // A list's `e` is an item it holds, a highlight's the text it quotes: not a post either answers.
+  if (!isThreadedKind(ev.kind)) return {};
   const eTags = (ev.tags || []).filter((t) => t[0] === "e" && t[1]);
   const threadTags = eTags.filter((t) => (t[3] || "") !== "mention");
   if (threadTags.length === 0) return {};

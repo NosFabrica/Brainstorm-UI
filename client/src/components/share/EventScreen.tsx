@@ -24,6 +24,7 @@ import { NoteTagChips } from "@/components/share/NoteTagChips";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { apiClient } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
+import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
 import { AppHero } from "@/components/share/AppHero";
@@ -34,6 +35,7 @@ import { GitItemHero } from "@/components/share/GitItemHero";
 import { isGitItem } from "@/lib/gitStatus";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { TrustedListHero } from "@/components/share/TrustedListHero";
+import { ItemListHero } from "@/components/share/ItemListHero";
 import { DesignationHero } from "@/components/share/DesignationHero";
 import { StructuralHero } from "@/components/share/StructuralHero";
 import { TechnicalStrip } from "@/components/share/TechnicalStrip";
@@ -341,6 +343,7 @@ function EventView({
     !dictionaryConceptOf(note) &&
     !isGitItem(note.kind) &&
     !DEDICATED_KINDS.has(note.kind) &&
+    !ITEM_LIST_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
     !VIDEO_EVENT_KINDS.has(note.kind) &&
     !(note.kind === 9802 && note.content.trim()) &&
@@ -581,6 +584,9 @@ function EventView({
                 <TrustedListHero event={note} />
               ) : note.kind === 10040 ? (
                 <DesignationHero event={note} />
+              ) : ITEM_LIST_KINDS.has(note.kind) ? (
+                // Bookmarks, bookmark sets, curation sets, pins: the things it holds.
+                <ItemListHero event={note} />
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (

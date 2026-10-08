@@ -2933,11 +2933,11 @@ describe("SearchResults", () => {
       ["title", "Reading List"],
       ["e", "1".repeat(64)],
       ["e", "2".repeat(64)],
-      ["a", "30023:abc:x"],
+      ["a", `30023:${"a".repeat(64)}:x`],
     ]);
     emit({ hits: [{ event: list, author: author(list.pubkey, "gail"), rank: null }], eose: true, timeMs: 200 });
     expect(await screen.findByText("Reading List")).toBeInTheDocument();
-    expect(screen.getByTestId("list-count-li1")).toHaveTextContent("3");
+    expect(screen.getByTestId("list-count-li1")).toHaveTextContent("3 items");
   });
 
   it("the Apps tab facets by platform with one tap", async () => {

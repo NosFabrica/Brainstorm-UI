@@ -54,6 +54,8 @@ import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
+import { ITEM_LIST_KINDS, listItemCounts, listTitle, readListItems } from "@/lib/listItems";
+import { ItemListPreview } from "@/components/share/ItemListHero";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -1259,8 +1261,10 @@ export function ListCard({
 }) {
   // A folded row opens its group in place — the card is the door, not a link.
   const [open, setOpen] = useState(false);
-  const title = tagVal(event, "title") ?? tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled list";
+  const title = listTitle(event);
   const description = tagVal(event, "description") ?? "";
+  // Bookmarks, curation sets, pins: read as what they hold — "6 notes", not "6 items".
+  const itemList = useMemo(() => (ITEM_LIST_KINDS.has(event.kind) ? readListItems(event) : null), [event]);
   // A Trusted List (kind 30392) is a people list that says more: each member's
   // score on the tag, best first, the tag it was built from and whose web of
   // trust ranked it — all in its tags.
@@ -1279,6 +1283,14 @@ export function ListCard({
   // MEMBERS and shows their faces; mixed lists keep the generic item count.
   const isPeopleList = members.length > 0 && otherItems === 0;
   const count = members.length + otherItems;
+  const itemCounts = itemList && !isPeopleList ? listItemCounts(itemList) : [];
+  // One kind of thing says its noun; a mix says how many, in all.
+  const countLabel =
+    itemCounts.length === 1
+      ? itemCounts[0]
+      : itemList && !isPeopleList
+        ? `${itemList.total} ${itemList.total === 1 ? "item" : "items"}`
+        : `${count} ${isPeopleList || trusted ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`;
   const tierRing = useTierRing();
   const memberScoreOf = useAuthorScores(isPeopleList ? members.slice(0, 5) : []);
   const provenance = [trusted?.sourceTag?.authorPubkey, trusted?.perspective].filter((pk): pk is string => !!pk);
@@ -1294,9 +1306,7 @@ export function ListCard({
       </p>
       <KindPill event={event} mixed={false} />
       <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
-        {folded
-          ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}`
-          : `${count} ${isPeopleList || trusted ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`}
+        {folded ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}` : countLabel}
       </Chip>
     </div>
   );
@@ -1426,6 +1436,7 @@ export function ListCard({
                 .join(" · ")}
             </p>
           )}
+          {itemList && !isPeopleList && <ItemListPreview event={event} />}
           {isPeopleList ? (
             <div className="mt-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
               {faces}
