@@ -53,7 +53,8 @@ const MATCHERS: Record<keyof SearchFilterState, (token: string) => boolean> = {
   until: (t) => /^until:/i.test(t),
   rankFloor: (t) => /^filter:rank:/i.test(t),
   verifiedOnly: (t) => /^trust:verified$/i.test(t),
-  reach: (t) => /^reach:follows$/i.test(t),
+  // `reach:friends` is retired but still matched, so the panel replaces it rather than stacking.
+  reach: (t) => /^reach:(follows|friends)$/i.test(t),
   includeSpam: (t) => /^include:spam$/i.test(t),
   rankAs: (t) => /^observer:/i.test(t),
 };

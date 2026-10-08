@@ -42,6 +42,10 @@ describe("client-side filter tokens", () => {
     expect(state.reach).toBe("follows");
     expect(readFilters("btc").reach).toBeNull();
     expect(readFilters("btc reach:nonsense").reach).toBeNull();
+    // Retired, but a saved link still carrying it reads as the nearest reach, and is replaced.
+    expect(readFilters("btc reach:friends").reach).toBe("follows");
+    expect(applyFilters("bitcoin reach:friends", { reach: "follows" })).toBe("bitcoin reach:follows");
+    expect(applyFilters("bitcoin reach:friends", { reach: null })).toBe("bitcoin");
   });
 
   /**

@@ -145,6 +145,12 @@ describe("tokenize — what the box draws", () => {
     expect(q.terms).toBe("bitcoin");
   });
 
+  it("the retired reach:friends still reads as a reach, never as text sent to the relay", () => {
+    const q = parseQuery("bitcoin reach:friends");
+    expect(q.reach).toBe("follows");
+    expect(q.terms).toBe("bitcoin");
+  });
+
   it("quotes and -exclusions are NIP-50's own and pass through untouched", () => {
     expect(parseQuery('"exact phrase" -spam').terms).toBe('"exact phrase" -spam');
   });

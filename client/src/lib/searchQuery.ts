@@ -77,7 +77,7 @@ const TOKEN = new RegExp(
     `|(?<trust>trust:verified)(?![\\w:-])` +
     `|(?<spec>spec:)(?![\\w:-])` +
     `|kind:(?<kind>\\d{1,6})(?![\\w-])` +
-    `|reach:(?<hops>follows)(?![\\w:-])` +
+    `|reach:(?<hops>follows|friends)(?![\\w:-])` +
     `|(?<ext>(?:${SCOPES}):)(?<sid>${SCOPE_VALUE})` +
     `|(?<lbl>label:)(?<lid>${LABEL_VALUE})` +
     `|(?<grp>group:)(?<gid>${GROUP_ID})` +
@@ -342,6 +342,8 @@ export function tokenize(text: string): Segment[] {
     } else if (g.trust) {
       seg = { type: "verified", raw };
     } else if (g.hops) {
+      // `reach:friends` (friends of friends) was retired; a link or recent search that still
+      // carries it reads as the nearest reach left, rather than going to the relay as text.
       seg = { type: "reach", raw, value: "follows" };
     } else if (g.lbl) {
       seg = { type: "label", raw, value: g.lid as string };
