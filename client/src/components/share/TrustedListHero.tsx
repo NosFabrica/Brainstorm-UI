@@ -8,6 +8,7 @@
  * Everything is read from the tags. The content repeats the members as JSON
  * (with endorsement and dispute counts); the page does not read it.
  */
+import { useMemo } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import { ShieldCheck } from "lucide-react";
@@ -91,10 +92,13 @@ const metricLabel = (metric: string) => {
 };
 
 export function TrustedListHero({ event }: { event: ListEvent }) {
-  const list = readTrustedList(event);
-  const pubkeys = list.members.map((m) => m.pubkey);
-  const scores = new Map(list.members.map((m) => [m.pubkey, m.score]));
-  const people = [list.perspective, list.sourceTag?.authorPubkey].filter((pk): pk is string => !!pk);
+  const list = useMemo(() => readTrustedList(event), [event]);
+  const pubkeys = useMemo(() => list.members.map((m) => m.pubkey), [list]);
+  const scores = useMemo(() => new Map(list.members.map((m) => [m.pubkey, m.score])), [list]);
+  const people = useMemo(
+    () => [list.perspective, list.sourceTag?.authorPubkey].filter((pk): pk is string => !!pk),
+    [list],
+  );
   const profiles = useLiveProfiles(people);
   const nameOf = (pk: string) => {
     const p = profiles.get(pk);

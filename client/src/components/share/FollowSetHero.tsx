@@ -5,7 +5,7 @@
  * row with avatar, tier ring, and name, into their profile. The search
  * card shows five faces; this page is where the other +12 live.
  */
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
@@ -45,7 +45,7 @@ const ROSTER_FOLD = 25;
 export function FollowSetHero({ event }: { event: SetEvent }) {
   const title = event.tags.find((t) => t[0] === "title" || t[0] === "name")?.[1] ?? "Follow set";
   const description = event.tags.find((t) => t[0] === "description")?.[1];
-  const members = event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
+  const members = useMemo(() => event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]), [event.tags]);
 
   return (
     <div data-testid="follow-set-hero">
@@ -93,11 +93,13 @@ export function FollowSetHero({ event }: { event: SetEvent }) {
  */
 export function SetRoster({ members, trailing }: { members: string[]; trailing?: (pubkey: string) => ReactNode }) {
   const tierRing = useTierRing();
-  const scoreOf = useAuthorScores(members.slice(0, 50));
-  const profiles = useProfiles(members);
   const [rosterOpen, setRosterOpen] = useState(false);
 
-  const shown = rosterOpen ? members : members.slice(0, ROSTER_FOLD);
+  const shown = useMemo(() => (rosterOpen ? members : members.slice(0, ROSTER_FOLD)), [members, rosterOpen]);
+  // Asked for the rows on screen: a folded list of hundreds asks for 25, and
+  // opening it asks for the rest — rings included, past the first 50.
+  const scoreOf = useAuthorScores(shown);
+  const profiles = useProfiles(shown);
 
   return (
     <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800/60">
