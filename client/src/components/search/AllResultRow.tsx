@@ -13,7 +13,7 @@
  * and it opens the kind's own full page. No players, no embeds, no "Read
  * article" — an article's cover is the same small square as everything else's.
  */
-import { memo, useState } from "react";
+import { memo } from "react";
 import { nip19 } from "nostr-tools";
 import { Link } from "wouter";
 import type { NostrEvent } from "nostr-tools";
@@ -24,6 +24,7 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { MediaImg } from "@/components/ui/media-img";
 import { useTierRing } from "@/components/score/VerificationCoin";
+import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 import { Headline } from "@/components/search/SerpRow";
 import { ago } from "@/lib/ago";
 import { kindTone } from "@/lib/kindFamily";
@@ -32,6 +33,8 @@ import type { SearchResult } from "@/lib/profileSearch";
 import { clip, who } from "@/lib/resultReaders";
 import { summaryOf, type ResultSummary } from "@/lib/resultSummary";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+
+const THUMB = "h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800";
 
 /** The event a row is about, as one line: whose, and what it says — or what it is, when its words are only a link. */
 function quoteOf(target: NostrEvent): string {
@@ -82,12 +85,24 @@ export const AllResultRow = memo(function AllResultRow({
   target?: NostrEvent | null;
 }) {
   const tierRing = useTierRing();
-  const [thumbFailed, setThumbFailed] = useState(false);
+  const speed = useConnectionSpeed();
   const words = summary.body ? clip(summary.body, 600) : null;
   const authorName = author?.displayName || author?.name || name || shortKey(pubkey);
   const face = author?.picture || picture;
   // "to @Bob" says nothing once the quote below opens with Bob's name.
   const facts = target ? summary.facts.filter((f) => f !== `to ${who(target.pubkey)}`) : summary.facts;
+  const firstFrame = summary.video ? (
+    <video
+      src={`${summary.video}#t=0.1`}
+      preload={videoPreload(speed)}
+      muted
+      playsInline
+      tabIndex={-1}
+      aria-hidden
+      className={THUMB}
+      data-testid="all-row-video-thumb"
+    />
+  ) : null;
   return (
     <Link
       href={summary.href}
@@ -172,16 +187,19 @@ export const AllResultRow = memo(function AllResultRow({
               </p>
             )}
           </div>
-          {summary.image && !thumbFailed && (
+          {summary.image ? (
             <MediaImg
               src={summary.image}
               preset="media_320"
               alt=""
               loading="lazy"
-              onError={() => setThumbFailed(true)}
-              className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800"
+              // A dead poster (flare's expired thumbnails) gives way to the clip's own first frame.
+              fallback={firstFrame}
+              className={THUMB}
               data-testid="all-row-thumb"
             />
+          ) : (
+            firstFrame
           )}
         </div>
       </Card>

@@ -14,7 +14,7 @@
 import { contentShape } from "@/lib/contentShape";
 import { formatEventDate, parseCalendarEvent, shortPlace } from "@/lib/calendarEvent";
 import { formatListingPrice, parseListing } from "@/lib/listing";
-import { mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
+import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
 import { describeDesignation } from "@/lib/nip85Declaration";
 import { describeThing, THING_KINDS } from "@/lib/thing";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
@@ -40,6 +40,8 @@ export interface ResultSummary {
   /** What the content is when it is not words to read — said in place of them. */
   shape: "encrypted" | "json" | null;
   image: string | null;
+  /** The clip itself, when the event is a video: its first frame stands in for a missing or dead picture. */
+  video: string | null;
   /** Short, quiet, in order: a price, a date and place, a duration, a status. */
   facts: string[];
   /** The kind's own full page. */
@@ -77,13 +79,20 @@ function genericTitle(ev: SummaryEvent): string | null {
   return d && !OPAQUE_D.test(d) ? d : null;
 }
 
+const IMAGE_URL = /\.(?:jpe?g|png|gif|webp|avif)(?:[?#]|$)/i;
+
 function genericImage(ev: SummaryEvent): string | null {
   const tagged = tagOf(ev, "image", "thumb", "picture", "icon", "cover", "banner");
   if (isHttp(tagged)) return tagged;
   const media = mediaUrlOf(ev);
-  if (media && /\.(?:jpe?g|png|gif|webp|avif)(?:[?#]|$)/i.test(media)) return media;
+  if (media && IMAGE_URL.test(media)) return media;
   const poster = mediaPosterOf(ev);
   return isHttp(poster) ? poster : null;
+}
+
+function genericVideo(ev: SummaryEvent): string | null {
+  const media = mediaUrlOf(ev);
+  return isHttp(media) && !IMAGE_URL.test(media) && isVideoUrl(ev, media) ? media : null;
 }
 
 /** Markdown reduced to the prose a two-line snippet shows — text, never markup. */
@@ -289,6 +298,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
     body: proseTag(ev),
     shape: null,
     image: genericImage(ev),
+    video: genericVideo(ev),
     facts: [],
     href: eventPath(ev),
     ref: null,
@@ -319,6 +329,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       body: str("about"),
       // Their face is already the byline's, beside their name: no second one on the right.
       image: null,
+      video: null,
       facts: [str("nip05"), str("website")].filter((f): f is string => !!f).slice(0, 2),
       href: profilePath(ev.pubkey) || base.href,
     };
@@ -407,6 +418,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
         title: s.title,
         body: s.body,
         image: s.image,
+        video: s.video,
         facts: [`Repost of ${who(of)}`],
       };
     }

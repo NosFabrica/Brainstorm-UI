@@ -37,6 +37,21 @@ describe("summarizeResult — any kind as the All tab's row", () => {
     expect(s.href).toMatch(/^\/e\//);
   });
 
+  // A dead poster (flare's expired S3 thumbnails) still leaves the clip's first frame to show.
+  it("a video keeps its clip beside its poster, a picture post has none", () => {
+    const s = summarizeResult(
+      ev(34235, [
+        ["d", "ahXkCgR"],
+        ["url", "https://cdn.satellite.earth/946f.mp4"],
+        ["title", "How Nostr Saves Healthcare"],
+        ["thumb", "https://flare-pub.s3.amazonaws.com/thumbnails/vSWs.png"],
+      ]),
+    );
+    expect(s.image).toBe("https://flare-pub.s3.amazonaws.com/thumbnails/vSWs.png");
+    expect(s.video).toBe("https://cdn.satellite.earth/946f.mp4");
+    expect(summarizeResult(ev(20, [["imeta", "url https://x.test/a.jpg", "m image/jpeg"]])).video).toBeNull();
+  });
+
   it("a profile is the person: name, about and their profile page — the face stays in the byline", () => {
     const s = summarizeResult(
       ev(0, [], JSON.stringify({ name: "nova", display_name: "NOVA", about: "Music", picture: "https://img/n.jpg" })),

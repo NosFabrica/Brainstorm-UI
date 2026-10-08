@@ -313,7 +313,8 @@ function readThing(ev: EventLike): Thing | null {
             .map((t) => t[1].toLowerCase()),
         ),
       ];
-      const image = tag(ev, "image");
+      // NIP-72 says `image`; Membler publishes the picture as `icon`.
+      const image = tag(ev, "image") ?? tag(ev, "icon");
       return thing({
         title,
         description: tag(ev, "description") ?? null,
