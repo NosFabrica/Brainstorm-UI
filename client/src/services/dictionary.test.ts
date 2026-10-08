@@ -60,14 +60,14 @@ vi.mock("@/services/trustSource", () => ({
   resolveTrustSource: (pk: string) => trustSourceMock(pk),
 }));
 
-import { distinctItems, itemIdentity, loadConceptItems, loadDictionary } from "./dictionary";
+import { distinctItems, itemIdentity, loadConceptItems, loadDictionary, loadListItems } from "./dictionary";
 
 /** Answers each filter the way a relay would, from a fixed corpus. */
 /** One filter, as a relay matches it. */
 const matches = (f: F, e: Ev) => {
   if (!(f.kinds as number[]).includes(e.kind)) return false;
   if (f.authors && !(f.authors as string[]).includes(e.pubkey)) return false;
-  for (const key of ["#d", "#b", "#z"]) {
+  for (const key of ["#d", "#b", "#z", "#e"]) {
     const want = f[key] as string[] | undefined;
     if (want && !e.tags.some((t) => t[0] === key.slice(1) && want.includes(t[1]))) return false;
   }
@@ -307,5 +307,54 @@ describe("at scale", () => {
     const items = await loadConceptItems([COMMUNITY]);
     expect(items.map((i) => i.id)).toEqual([original.id]);
     expect(sentFilters().find((f) => f["#z"])).toMatchObject({ "#z": [COMMUNITY] });
+  });
+});
+
+describe("loadListItems", () => {
+  it("reads a 9998 list's items by its id, whether they name it with z or, lacking one, with e", async () => {
+    const header = ev(AVI, 9998, [["names", "Thing", "Things"]]);
+    const byZ = ev(USER, 9999, [
+      ["z", header.id],
+      ["name", "one"],
+    ]);
+    const byE = ev(USER, 9999, [
+      ["e", header.id],
+      ["name", "two"],
+    ]);
+    // A z elsewhere wins over an e here: it's filed under the other list.
+    const elsewhere = ev(USER, 9999, [
+      ["z", COMMUNITY],
+      ["e", header.id],
+    ]);
+    relayWith([header, byZ, byE, elsewhere]);
+    const { items, truncated } = await loadListItems([header.id]);
+    expect(items.map((i) => i.id).sort()).toEqual([byZ.id, byE.id].sort());
+    expect(truncated).toBe(false);
+  });
+
+  it("asks by e only for ids, never for a coordinate", async () => {
+    relayWith([communityHeader, original]);
+    await loadListItems([COMMUNITY]);
+    expect(sentFilters().some((f) => f["#e"])).toBe(false);
+  });
+
+  it("says when a read reached its limit, so more may exist than were read", async () => {
+    // 500 events that are versions of only 3 items: the count is small, the list isn't.
+    relayWith(
+      Array.from({ length: 500 }, (_, i) =>
+        ev(
+          AVI,
+          39999,
+          [
+            ["d", `item-${i % 3}`],
+            ["z", COMMUNITY],
+          ],
+          1_790_000_000 + i,
+        ),
+      ),
+    );
+    const { items, truncated } = await loadListItems([COMMUNITY]);
+    expect(items).toHaveLength(3);
+    expect(truncated).toBe(true);
   });
 });

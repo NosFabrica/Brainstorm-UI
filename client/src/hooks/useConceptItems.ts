@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { listHeaders, loadConceptItems, type DictionaryEntry } from "@/services/dictionary";
+import { listHeaders, loadConceptItems, loadListItems, type DictionaryEntry } from "@/services/dictionary";
+
+const STALE_MS = 5 * 60_000;
 
 /**
  * A Dictionary concept's items (services/dictionary `loadConceptItems`),
@@ -13,6 +15,16 @@ export function useConceptItems(entry: DictionaryEntry | undefined, enabled = tr
     queryKey: ["concept-items", ...headers],
     queryFn: () => loadConceptItems(headers),
     enabled: enabled && headers.length > 0,
-    staleTime: 5 * 60_000,
+    staleTime: STALE_MS,
+  });
+}
+
+/** Any list's items by the headers it's filed under, and whether the read was cut off (a list header's page). */
+export function useListItems(headers: string[]) {
+  return useQuery({
+    queryKey: ["list-items", ...headers],
+    queryFn: () => loadListItems(headers),
+    enabled: headers.length > 0,
+    staleTime: STALE_MS,
   });
 }

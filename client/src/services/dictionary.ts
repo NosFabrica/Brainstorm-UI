@@ -19,7 +19,7 @@
 import { DICTIONARY_CONCEPTS, dictionaryRelays } from "@/config/dictionary";
 import { readListEvents } from "@/services/listReads";
 import { resolveHouseObserver, resolveTrustSource } from "@/services/trustSource";
-import { DLIST_ITEM_KINDS, coordinateOf, isDListItem, parseCoordinate } from "@/lib/dlistFields";
+import { DLIST_ITEM_KINDS, coordinateOf, headerReferenceOf, isDListItem, parseCoordinate } from "@/lib/dlistFields";
 import { pointsAt, resolveConcept, type HeaderEvent, type ResolvedConcept } from "@/lib/conceptResolution";
 
 export interface DictionaryReader {
@@ -134,6 +134,40 @@ export function listHeaders(communityCoordinate: string, resolved: ResolvedConce
   return [...new Set([communityCoordinate, ...(resolved?.chain ?? [])])];
 }
 
+/** A list's items, and whether a relay's answer reached the read's limit, so more may exist than were read. */
+export interface ListItems {
+  items: DictionaryItem[];
+  truncated: boolean;
+}
+
+const HEX_ID = /^[0-9a-f]{64}$/i;
+
+/**
+ * The items filed under these headers. A header is named by its coordinate
+ * (39998) or its event id (9998); a 9998's items name it by `z`, or by `e`
+ * when they carry no `z` (lib/dlistFields `headerReferenceOf`).
+ */
+export async function loadListItems(headers: string[], hubRelays: string[] = dictionaryRelays()): Promise<ListItems> {
+  if (!headers.length) return { items: [], truncated: false };
+  const ids = headers.filter((h) => HEX_ID.test(h));
+  const events = (await readListEvents(
+    [
+      { kinds: [...DLIST_ITEM_KINDS], "#z": headers, limit: ITEM_LIMIT },
+      ...(ids.length ? [{ kinds: [...DLIST_ITEM_KINDS], "#e": ids, limit: ITEM_LIMIT }] : []),
+    ],
+    TIMEOUT_MS,
+    hubRelays,
+  )) as DictionaryItem[];
+  const filed = new Set(headers);
+  const isFiled = (ev: DictionaryItem) => {
+    const z = zValues(ev);
+    return z.length ? z.some((v) => filed.has(v)) : filed.has(headerReferenceOf(ev) ?? "");
+  };
+  // Index and hub answers arrive merged, so a full answer from either can't be told apart from two
+  // partial ones adding up: this errs toward saying more may exist.
+  return { items: distinctItems(events.filter(isDListItem).filter(isFiled)), truncated: events.length >= ITEM_LIMIT };
+}
+
 /**
  * A concept's items, from the headers its list is filed under — read only when
  * something shows them (an entry, a row on screen), never with the
@@ -144,14 +178,7 @@ export async function loadConceptItems(
   headers: string[],
   hubRelays: string[] = dictionaryRelays(),
 ): Promise<DictionaryItem[]> {
-  if (!headers.length) return [];
-  const events = (await readListEvents(
-    [{ kinds: [...DLIST_ITEM_KINDS], "#z": headers, limit: ITEM_LIMIT }],
-    TIMEOUT_MS,
-    hubRelays,
-  )) as DictionaryItem[];
-  const filed = new Set(headers);
-  return distinctItems(events.filter(isDListItem).filter((ev) => zValues(ev).some((z) => filed.has(z))));
+  return (await loadListItems(headers, hubRelays)).items;
 }
 
 /**
