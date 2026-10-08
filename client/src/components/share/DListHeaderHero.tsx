@@ -15,7 +15,6 @@
  * (StructuralHero). Music lists keep their own header (DListHero).
  */
 import { useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Braces, List, Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -25,9 +24,10 @@ import { EmojiText } from "@/components/ui/custom-emoji";
 import { DISPLAY_HINTS_ENABLED } from "@/config/dictionary";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { headerReference } from "@/lib/dlistFields";
+import { useListItems } from "@/hooks/useConceptItems";
 import { presentItem } from "@/lib/itemPresentation";
-import { resolveConcept, type HeaderEvent, type ResolvedConcept } from "@/lib/conceptResolution";
-import { ITEM_LIMIT, loadConceptItems, type DictionaryItem } from "@/services/dictionary";
+import { bLinksOf, resolveConcept, type HeaderEvent, type ResolvedConcept } from "@/lib/conceptResolution";
+import type { DictionaryItem } from "@/services/dictionary";
 
 type HeaderLike = HeaderEvent & { content: string };
 
@@ -36,10 +36,16 @@ const PAGE = 50;
 /** A list this long gets a filter box. */
 const FILTER_FROM = 10;
 
-/** This header as the governing definition of its own list. */
+/**
+ * This header as the governing definition of its own list. Its items are
+ * those filed under it — by coordinate, or by id for a 9998 — and, for a
+ * copy, under whatever it points at with `b`, as the Dictionary reads a
+ * copy's list (services/dictionary `listHeaders`).
+ */
 export function ownDefinition(event: HeaderEvent): ResolvedConcept | null {
   const ref = headerReference(event);
-  return ref ? resolveConcept({ community: event, communityCoordinate: ref }) : null;
+  const r = ref ? resolveConcept({ community: event, communityCoordinate: ref }) : null;
+  return r && ref ? { ...r, chain: [...new Set([ref, ...bLinksOf(event).map((b) => b.target)])] } : null;
 }
 
 export function DListHeaderHero({ event }: { event: HeaderLike }) {
@@ -79,13 +85,12 @@ export function DListHeaderHero({ event }: { event: HeaderLike }) {
 
 function ListView({ resolved, toggle }: { resolved: ResolvedConcept; toggle: ReactNode }) {
   const def = resolved.governing;
-  const items = useQuery({
-    queryKey: ["concept-items", ...resolved.chain],
-    queryFn: () => loadConceptItems(resolved.chain),
-    staleTime: 5 * 60_000,
-  });
-  const all = items.data ?? [];
-  const count = all.length >= ITEM_LIMIT ? `${ITEM_LIMIT}+` : String(all.length);
+  const plural = def.plural.toLowerCase() || "items";
+  const items = useListItems(resolved.chain);
+  const all = items.data?.items ?? [];
+  const truncated = items.data?.truncated === true;
+  // A read cut off at its limit says so: the list holds at least this many.
+  const count = `${all.length}${truncated ? "+" : ""} ${all.length === 1 && !truncated ? "item" : "items"}`;
   // What each item is made of, said in a line: the fields the list requires.
   const required = def.fields.filter((f) => f.requirement === "required").map((f) => f.name);
 
@@ -96,7 +101,7 @@ function ListView({ resolved, toggle }: { resolved: ResolvedConcept; toggle: Rea
           <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
             List{" "}
             <span className="font-medium normal-case tracking-normal text-slate-400 dark:text-slate-500">
-              of {def.plural.toLowerCase() || "items"}
+              of {plural}
             </span>
           </p>
           {toggle}
@@ -112,7 +117,7 @@ function ListView({ resolved, toggle }: { resolved: ResolvedConcept; toggle: Rea
               <EmojiText text={def.plural || "Untitled list"} tags={def.event} />
             </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400" data-testid="dlist-header-count">
-              {items.isPending ? "Reading its items…" : `${count} ${all.length === 1 ? "item" : "items"}`}
+              {items.isPending ? "Reading its items…" : count}
             </p>
           </div>
         </div>
@@ -136,32 +141,35 @@ function ListView({ resolved, toggle }: { resolved: ResolvedConcept; toggle: Rea
           className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400"
           data-testid="dlist-header-items-loading"
         >
-          <Loader2 className="h-4 w-4 animate-spin" /> Reading the {def.plural.toLowerCase()}…
+          <Loader2 className="h-4 w-4 animate-spin" /> Reading the {plural}…
         </p>
       ) : all.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="dlist-header-items-none">
           Nothing is filed under this list yet.
         </p>
       ) : (
-        <Items items={all} resolved={resolved} />
+        <Items items={all} resolved={resolved} plural={plural} />
       )}
     </div>
   );
 }
 
-function Items({ items, resolved }: { items: DictionaryItem[]; resolved: ResolvedConcept }) {
+function Items({ items, resolved, plural }: { items: DictionaryItem[]; resolved: ResolvedConcept; plural: string }) {
   const def = resolved.governing;
   const [query, setQuery] = useState("");
   const [shown, setShown] = useState(PAGE);
   const q = query.trim().toLowerCase();
   // Filtered by what a row shows — its title and summary — so a match is one the reader can see.
-  const matching = useMemo(() => {
-    if (!q) return items;
-    return items.filter((item) => {
-      const p = presentItem(item, def);
-      return [p.title, p.summary].some((s) => s?.toLowerCase().includes(q));
-    });
-  }, [items, def, q]);
+  // Each item's text is worked out once per read, not on every keystroke.
+  const haystacks = useMemo(
+    () =>
+      items.map((item) => {
+        const p = presentItem(item, def);
+        return [p.title, p.summary].filter(Boolean).join("\n").toLowerCase();
+      }),
+    [items, def],
+  );
+  const matching = useMemo(() => (q ? items.filter((_, i) => haystacks[i].includes(q)) : items), [items, haystacks, q]);
   const page = matching.slice(0, shown);
 
   return (
@@ -176,8 +184,8 @@ function Items({ items, resolved }: { items: DictionaryItem[]; resolved: Resolve
               setQuery(e.target.value);
               setShown(PAGE);
             }}
-            placeholder={`Filter ${def.plural.toLowerCase()}`}
-            aria-label={`Filter ${def.plural.toLowerCase()}`}
+            placeholder={`Filter ${plural}`}
+            aria-label={`Filter ${plural}`}
             className="pl-9"
             data-testid="dlist-header-filter"
           />
@@ -185,7 +193,7 @@ function Items({ items, resolved }: { items: DictionaryItem[]; resolved: Resolve
       )}
       {matching.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="dlist-header-items-no-match">
-          No {def.plural.toLowerCase()} match &ldquo;{query.trim()}&rdquo;.
+          No {plural} match &ldquo;{query.trim()}&rdquo;.
         </p>
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border">
@@ -208,13 +216,15 @@ function Items({ items, resolved }: { items: DictionaryItem[]; resolved: Resolve
   );
 }
 
-/** The list's own image, on white as a logo sits; else the plain mark. */
+/** The list's own image, on white as a logo sits; else — or once it fails to load — the plain mark. */
 function ListPicture({ image }: { image: string | null }) {
+  const [failed, setFailed] = useState<string | null>(null);
   return (
     <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">
-      {image ? (
+      {image && failed !== image ? (
         <img
           src={avatarSrc(image, "lg")}
+          onError={() => setFailed(image)}
           alt=""
           className="h-full w-full bg-white object-contain"
           data-testid="dlist-header-image"

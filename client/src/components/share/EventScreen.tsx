@@ -333,7 +333,9 @@ function EventView({
   // fallback (media, text, or the structural card). Mirrors the chain in the
   // JSX: a kind with no hero of its own is the one whose publishing client
   // is worth a way back to (the team, 2026-09-24: "open in original client").
-  const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 30392, 10040, 31337, 30402, 31922, 31923]);
+  const DEDICATED_KINDS = new Set([
+    30311, 32267, 1063, 30617, 30000, 30392, 10040, 31337, 30402, 31922, 31923, 39998, 9998,
+  ]);
   const renderedGenerically =
     !!note &&
     !dictionaryConceptOf(note) &&

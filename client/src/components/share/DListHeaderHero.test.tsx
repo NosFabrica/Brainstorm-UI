@@ -11,11 +11,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
 const COORD = `39998:${AVI}:food-and-drink-places`;
 
-const loadConceptItems = vi.fn();
+const loadListItems = vi.fn();
 vi.mock("@/services/dictionary", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
-  loadConceptItems: (headers: string[]) => loadConceptItems(headers),
+  loadListItems: (headers: string[]) => loadListItems(headers),
 }));
+/** The loader's answer: these items, from a read that wasn't cut off unless said. */
+const answer = (items: unknown[], truncated = false) => loadListItems.mockResolvedValue({ items, truncated });
 vi.mock("@/config/dictionary", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   dictionaryRelays: () => [],
@@ -23,7 +25,7 @@ vi.mock("@/config/dictionary", async (orig) => ({
 vi.mock("@/hooks/useLinkTemplates", () => ({ useLinkTemplates: () => ({ data: new Map() }) }));
 vi.mock("@/hooks/useSpecsForKind", () => ({ useSpecsForKind: () => [] }));
 
-import { DListHeaderHero } from "./DListHeaderHero";
+import { DListHeaderHero, ownDefinition } from "./DListHeaderHero";
 
 const HEADER = {
   id: "h".repeat(64),
@@ -58,22 +60,22 @@ const place = (n: number, name: string, address = `${n} Main St`) => ({
   ],
 });
 
-function renderHero() {
+function renderHero(event = HEADER) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <DListHeaderHero event={HEADER} />
+      <DListHeaderHero event={event} />
     </QueryClientProvider>,
   );
 }
 
 beforeEach(() => {
-  loadConceptItems.mockReset();
+  loadListItems.mockReset();
 });
 
 describe("DListHeaderHero", () => {
   it("names the list, says what it holds, and lists the items filed under it", async () => {
-    loadConceptItems.mockResolvedValue([place(1, "El Sapo"), place(2, "Café Bitcoin")]);
+    answer([place(1, "El Sapo"), place(2, "Café Bitcoin")]);
     renderHero();
 
     expect(screen.getByTestId("dlist-header-title").textContent).toBe("Food and Drink Places");
@@ -86,17 +88,17 @@ describe("DListHeaderHero", () => {
     expect(screen.getAllByTestId("dictionary-item-line")[0].textContent).toBe("1 Main St");
     expect(screen.getByTestId("dlist-header-count").textContent).toBe("2 items");
     // Read by the header's own coordinate — the address its items name with `z`.
-    expect(loadConceptItems).toHaveBeenCalledWith([COORD]);
+    expect(loadListItems).toHaveBeenCalledWith([COORD]);
   });
 
   it("says so when nothing is filed under the list", async () => {
-    loadConceptItems.mockResolvedValue([]);
+    answer([]);
     renderHero();
     expect(await screen.findByTestId("dlist-header-items-none")).toBeTruthy();
   });
 
   it("filters a long list by what its rows show, a page at a time", async () => {
-    loadConceptItems.mockResolvedValue([
+    answer([
       ...Array.from({ length: 60 }, (_, i) => place(i + 1, `Bakery ${i + 1}`)),
       place(99, "Pizza Planet", "Rua Bitcoin"),
     ]);
@@ -116,7 +118,7 @@ describe("DListHeaderHero", () => {
   });
 
   it("keeps the header's tags behind Advanced view", async () => {
-    loadConceptItems.mockResolvedValue([place(1, "El Sapo")]);
+    answer([place(1, "El Sapo")]);
     renderHero();
     expect(screen.queryByTestId("structural-hero")).toBeNull();
 
@@ -127,5 +129,33 @@ describe("DListHeaderHero", () => {
 
     fireEvent.click(screen.getByTestId("dlist-header-advanced-toggle"));
     expect(screen.getByTestId("dlist-header-hero")).toBeTruthy();
+  });
+
+  it("says a list cut off at the read's limit holds at least what was read", async () => {
+    answer([place(1, "El Sapo")], true);
+    renderHero();
+    await screen.findAllByTestId("dictionary-item");
+    expect(screen.getByTestId("dlist-header-count").textContent).toBe("1+ items");
+  });
+
+  it("falls back to plain words when the header names nothing", async () => {
+    answer([]);
+    const bare = { ...HEADER, kind: 9998, tags: [["required", "name"]] };
+    renderHero(bare);
+    expect(screen.getByTestId("dlist-header-title").textContent).toBe("Untitled list");
+    expect(screen.getByTestId("dlist-header-items-loading").textContent).toContain("Reading the items");
+  });
+});
+
+describe("ownDefinition", () => {
+  it("reads a 9998 list by its id, even when it carries a d", () => {
+    const r = ownDefinition({ ...HEADER, kind: 9998 })!;
+    expect(r.chain).toEqual([HEADER.id]);
+  });
+
+  it("reads a copy's list under what it points at too, as the Dictionary does", () => {
+    const COPY_AUTHOR = "9".repeat(64);
+    const copy = { ...HEADER, pubkey: COPY_AUTHOR, tags: [...HEADER.tags, ["b", COORD, "pointer"]] };
+    expect(ownDefinition(copy)!.chain).toEqual([`39998:${COPY_AUTHOR}:food-and-drink-places`, COORD]);
   });
 });
