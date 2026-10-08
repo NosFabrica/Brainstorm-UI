@@ -1,4 +1,4 @@
-import { type MouseEvent } from "react";
+import { useMemo, type MouseEvent } from "react";
 import { useLocation } from "wouter";
 import { BadgeCheck, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -96,12 +96,17 @@ function NoteCardBody({
   const shaped = thing?.detail.type === "market" || thing?.detail.type === "ballot" ? thing : null;
   // Neither shows its content, so nothing it names is looked up.
   const linked = useLinkedArticles(nested || shaped ? EMPTY_NOTE : event);
+  // The note read once, for everything below that asks what it names.
+  const refs = useMemo(() => analyzeNote(event), [event]);
   // A list it links by address: the list's name and count, one level deep.
-  const linkedLists = useArticlesByRefs(
-    nested || shaped ? [] : analyzeNote(event).addrs.filter((a) => ITEM_LIST_KINDS.has(a.kind)),
+  const linkedLists = useArticlesByRefs(nested || shaped ? [] : refs.addrs.filter((a) => ITEM_LIST_KINDS.has(a.kind)));
+  // Drawn as cards below, so not again as links in the text.
+  const cardCoords = useMemo(
+    () => (linkedLists.coords.size ? new Set([...linked.coords, ...linkedLists.coords]) : linked.coords),
+    [linked.coords, linkedLists.coords],
   );
   // Likewise a note it quotes: the quoted note, with its author, one level deep.
-  const quoted = useQuotedNotes(nested || shaped ? [] : analyzeNote(event).quoteIds);
+  const quoted = useQuotedNotes(nested || shaped ? [] : refs.quoteIds);
   let npub = "";
   try {
     npub = npubFromPubkey(event.pubkey);
@@ -111,7 +116,7 @@ function NoteCardBody({
 
   // Reply context (opt-in): names are plain text, not links, so the whole card
   // stays a single click target to open the thread.
-  const analysis = showReplyContext ? analyzeNote(event) : null;
+  const analysis = showReplyContext ? refs : null;
   const replyTargets = analysis?.isReply ? analysis.replyToPubkeys.filter((pk) => pk !== event.pubkey) : [];
 
   const onClick = href
@@ -200,7 +205,7 @@ function NoteCardBody({
             imageOpensThread={!!href}
             tags={event.tags}
             authorName={author?.display_name || author?.name}
-            embeddedCoords={linked.coords}
+            embeddedCoords={cardCoords}
             embeddedIds={quoted.ids}
           />
         </div>

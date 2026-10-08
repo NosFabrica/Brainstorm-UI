@@ -9,11 +9,15 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 
 const notesById = new Map<string, NostrEvent>();
+const relaysAsked = vi.fn();
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
 vi.mock("@/hooks/useSpecsForKind", () => ({ useSpecsForKind: () => [] }));
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
-  fetchEventsByIds: async (ids: string[]) => ids.map((id) => notesById.get(id)).filter(Boolean),
+  fetchEventsByIds: async (ids: string[], relays?: string[]) => {
+    relaysAsked(relays);
+    return ids.map((id) => notesById.get(id)).filter(Boolean);
+  },
 }));
 vi.mock("@/lib/eventStore", async () => ({
   eventStore: {
@@ -54,7 +58,10 @@ const pin = (tags: string[][], content = ""): NostrEvent =>
     sig: "s",
   }) as NostrEvent;
 
-beforeEach(() => notesById.clear());
+beforeEach(() => {
+  notesById.clear();
+  relaysAsked.mockClear();
+});
 
 describe("ItemListHero", () => {
   it("opens a notes pin as its notes, each a card, and a note not found yet as a way to it", async () => {
@@ -77,12 +84,20 @@ describe("ItemListHero", () => {
     expect(screen.queryByText(/Replying to/)).toBeNull();
   });
 
-  it("folds a long list after ten notes", () => {
+  it("pages a long list ten notes at a time, asking only for the page shown", () => {
     const tags = Array.from({ length: 12 }, (_, i) => ["e", id(100 + i)]);
     render(<ItemListHero event={pin(tags)} />);
     expect(screen.getAllByTestId(/^item-list-note-pending-/)).toHaveLength(10);
+    expect(screen.getByTestId("item-list-notes-toggle")).toHaveTextContent("Show 2 more of 2");
     fireEvent.click(screen.getByTestId("item-list-notes-toggle"));
     expect(screen.getAllByTestId(/^item-list-note-pending-/)).toHaveLength(12);
+    expect(screen.queryByTestId("item-list-notes-toggle")).toBeNull();
+  });
+
+  it("asks a note's own relay hint beside the default relays", () => {
+    render(<ItemListHero event={pin([["e", id(200), "wss://notes.example"]])} />);
+    expect(relaysAsked).toHaveBeenCalledWith(expect.arrayContaining(["wss://notes.example"]));
+    expect(relaysAsked.mock.calls[0][0].length).toBeGreaterThan(1);
   });
 
   it("shows hashtags as topics and links as links, and says what is sealed", () => {

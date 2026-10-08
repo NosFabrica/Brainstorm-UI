@@ -21,10 +21,9 @@ import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { SetRoster } from "@/components/share/FollowSetHero";
 import { Favicon } from "@/components/share/LinkPreview";
-import { BOOKMARK_KINDS, HashtagChips, hostAndPath } from "@/components/share/ListPreview";
+import { BOOKMARK_KINDS, HashtagChips, hostAndPath, useListNotes } from "@/components/share/ListPreview";
 import { StructuralHero } from "@/components/share/StructuralHero";
 import { useArticlesByRefs } from "@/hooks/useLinkedArticles";
-import { useQuotedNotes } from "@/hooks/useQuotedNotes";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { addressNoun, listItemCounts, listTitle, readListItems, type ListNote } from "@/lib/listItems";
@@ -92,48 +91,87 @@ function ListMark({ image, bookmark }: { image?: string; bookmark: boolean }) {
   );
 }
 
+/** "Show 10 more of 42": the next page of a long section, asked for only when wanted. */
+function MoreButton({
+  left,
+  page,
+  onMore,
+  testId,
+}: {
+  left: number;
+  page: number;
+  onMore: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onMore}
+      className="mt-2 text-xs font-medium text-brand-primary hover:underline dark:text-brand-link"
+      data-testid={testId}
+    >
+      Show {Math.min(page, left).toLocaleString()} more of {left.toLocaleString()}
+    </button>
+  );
+}
+
+/** Pages of a section: each page its own component, so it asks for its own items and only those. */
+function pagesOf<T>(items: T[], pages: number, size: number): T[][] {
+  return Array.from({ length: Math.min(pages, Math.ceil(items.length / size)) }, (_, i) =>
+    items.slice(i * size, (i + 1) * size),
+  );
+}
+
+function NotesPage({ notes }: { notes: ListNote[] }) {
+  const byId = useListNotes(notes);
+  return (
+    <>
+      {notes.map((n) => {
+        const q = byId.get(n.id);
+        return (
+          <li key={n.id} data-testid={`item-list-note-${n.id}`}>
+            {q ? (
+              <EmbeddedNoteCard
+                event={q.event}
+                author={q.author}
+                profiles={q.profiles}
+                href={eventPath(q.event)}
+                nested
+              />
+            ) : (
+              // Not found yet (or anywhere asked): still a way to it.
+              <Link
+                href={`/e/${neventFor(n.id, n.relay ? [n.relay] : [])}`}
+                className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-200 px-3 py-2.5 text-sm text-slate-500 transition-colors hover:border-slate-300 hover:text-brand-link dark:border-slate-700 dark:text-slate-400"
+                data-testid={`item-list-note-pending-${n.id}`}
+              >
+                <span>A note</span>
+                <span className="font-mono text-xs">{n.id.slice(0, 8)}…</span>
+              </Link>
+            )}
+          </li>
+        );
+      })}
+    </>
+  );
+}
+
 function ListNotes({ notes }: { notes: ListNote[] }) {
-  const [open, setOpen] = useState(false);
-  const shown = useMemo(() => (open ? notes : notes.slice(0, NOTES_FOLD)), [notes, open]);
-  const { notes: found } = useQuotedNotes(useMemo(() => shown.map((n) => n.id), [shown]));
-  const byId = useMemo(() => new Map(found.map((q) => [q.event.id, q])), [found]);
+  const [pages, setPages] = useState(1);
+  const left = notes.length - pages * NOTES_FOLD;
   return (
     <section className="space-y-2" data-testid="item-list-notes">
       <SectionHeader kicker={notes.length === 1 ? "Note" : "Notes"} />
       <ul className="space-y-2">
-        {shown.map((n) => {
-          const q = byId.get(n.id);
-          return (
-            <li key={n.id} data-testid={`item-list-note-${n.id}`}>
-              {q ? (
-                <EmbeddedNoteCard
-                  event={q.event}
-                  author={q.author}
-                  profiles={q.profiles}
-                  href={eventPath(q.event)}
-                  nested
-                />
-              ) : (
-                // Not found yet (or anywhere asked): still a way to it.
-                <Link
-                  href={`/e/${neventFor(n.id, n.relay ? [n.relay] : [])}`}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-200 px-3 py-2.5 text-sm text-slate-500 transition-colors hover:border-slate-300 hover:text-brand-link dark:border-slate-700 dark:text-slate-400"
-                  data-testid={`item-list-note-pending-${n.id}`}
-                >
-                  <span>A note</span>
-                  <span className="font-mono text-xs">{n.id.slice(0, 8)}…</span>
-                </Link>
-              )}
-            </li>
-          );
-        })}
+        {pagesOf(notes, pages, NOTES_FOLD).map((page, i) => (
+          <NotesPage key={i} notes={page} />
+        ))}
       </ul>
-      {notes.length > NOTES_FOLD && (
-        <FoldToggle
-          open={open}
-          total={notes.length}
-          noun="notes"
-          onToggle={() => setOpen((v) => !v)}
+      {left > 0 && (
+        <MoreButton
+          left={left}
+          page={NOTES_FOLD}
+          onMore={() => setPages((p) => p + 1)}
           testId="item-list-notes-toggle"
         />
       )}
@@ -158,10 +196,8 @@ function AddressRow({ address }: { address: AddressRef }) {
   );
 }
 
-function ListAddresses({ addresses }: { addresses: AddressRef[] }) {
-  const [open, setOpen] = useState(false);
-  const shown = useMemo(() => (open ? addresses : addresses.slice(0, ADDRESSES_FOLD)), [addresses, open]);
-  const readable = useMemo(() => shown.filter((a) => READER_KINDS.has(a.kind)), [shown]);
+function AddressesPage({ addresses }: { addresses: AddressRef[] }) {
+  const readable = useMemo(() => addresses.filter((a) => READER_KINDS.has(a.kind)), [addresses]);
   const { articles } = useArticlesByRefs(readable);
   const byCoord = useMemo(
     () =>
@@ -173,6 +209,21 @@ function ListAddresses({ addresses }: { addresses: AddressRef[] }) {
       ),
     [articles],
   );
+  return (
+    <>
+      {addresses.map((a) => {
+        const article = byCoord.get(addrCoord(a));
+        return (
+          <li key={addrCoord(a)}>{article ? <EmbeddedArticleCard event={article} /> : <AddressRow address={a} />}</li>
+        );
+      })}
+    </>
+  );
+}
+
+function ListAddresses({ addresses }: { addresses: AddressRef[] }) {
+  const [pages, setPages] = useState(1);
+  const left = addresses.length - pages * ADDRESSES_FOLD;
   // Named for what they are when they are all one thing: "Articles", "Videos".
   const kinds = new Set(addresses.map((a) => a.kind));
   const noun = kinds.size === 1 ? addressNoun([...kinds][0], addresses.length) : "";
@@ -181,19 +232,15 @@ function ListAddresses({ addresses }: { addresses: AddressRef[] }) {
     <section className="space-y-2" data-testid="item-list-addresses">
       <SectionHeader kicker={heading} />
       <ul className="space-y-2">
-        {shown.map((a) => {
-          const article = byCoord.get(addrCoord(a));
-          return (
-            <li key={addrCoord(a)}>{article ? <EmbeddedArticleCard event={article} /> : <AddressRow address={a} />}</li>
-          );
-        })}
+        {pagesOf(addresses, pages, ADDRESSES_FOLD).map((page, i) => (
+          <AddressesPage key={i} addresses={page} />
+        ))}
       </ul>
-      {addresses.length > ADDRESSES_FOLD && (
-        <FoldToggle
-          open={open}
-          total={addresses.length}
-          noun="things"
-          onToggle={() => setOpen((v) => !v)}
+      {left > 0 && (
+        <MoreButton
+          left={left}
+          page={ADDRESSES_FOLD}
+          onMore={() => setPages((p) => p + 1)}
           testId="item-list-addresses-toggle"
         />
       )}

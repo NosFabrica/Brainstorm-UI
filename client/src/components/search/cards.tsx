@@ -54,7 +54,7 @@ import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
-import { ITEM_LIST_KINDS, listItemCounts, listTitle, readListItems } from "@/lib/listItems";
+import { ITEM_LIST_KINDS, listCountLabel, listTitle, readListItems } from "@/lib/listItems";
 import { ItemListPreview } from "@/components/share/ListPreview";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
@@ -1283,14 +1283,11 @@ export function ListCard({
   // MEMBERS and shows their faces; mixed lists keep the generic item count.
   const isPeopleList = members.length > 0 && otherItems === 0;
   const count = members.length + otherItems;
-  const itemCounts = itemList && !isPeopleList ? listItemCounts(itemList) : [];
-  // One kind of thing says its noun; a mix says how many, in all.
+  // A bookmark set says its noun ("6 notes"), "8 items" when mixed, "Private" when all sealed.
   const countLabel =
-    itemCounts.length === 1
-      ? itemCounts[0]
-      : itemList && !isPeopleList
-        ? `${itemList.total} ${itemList.total === 1 ? "item" : "items"}`
-        : `${count} ${isPeopleList || trusted ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`;
+    itemList && !isPeopleList
+      ? listCountLabel(itemList)
+      : `${count} ${isPeopleList || trusted ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`;
   const tierRing = useTierRing();
   const memberScoreOf = useAuthorScores(isPeopleList ? members.slice(0, 5) : []);
   const provenance = [trusted?.sourceTag?.authorPubkey, trusted?.perspective].filter((pk): pk is string => !!pk);

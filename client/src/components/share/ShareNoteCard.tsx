@@ -172,6 +172,12 @@ export function ShareNoteCard({
     }
   }
 
+  const listCoords = new Set(
+    articles
+      .filter((ev) => ITEM_LIST_KINDS.has(ev.kind))
+      .map((ev) => `${ev.kind}:${ev.pubkey}:${ev.tags.find((t) => t[0] === "d")?.[1] ?? ""}`),
+  );
+
   if (isRepost) {
     const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
     return (
@@ -346,6 +352,8 @@ export function ShareNoteCard({
           imageOpensThread={!!href}
           tags={event.tags}
           embeddedIds={new Set(quoted.map((q) => q.id))}
+          // A linked list is drawn as its card below: the card is its link.
+          embeddedCoords={listCoords}
           embedThings
           authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name}
         />

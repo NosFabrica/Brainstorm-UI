@@ -45,6 +45,15 @@ describe("a list's `e` tags are items, not a thread", () => {
     expect(analyzeNote(ev(1111, [["e", "parent"]])).isReply).toBe(true);
   });
 
+  it("bookmarks (10003) and articles (30023) are not replies either", () => {
+    expect(replyRefs(ev(10003, [["e", "n"]]))).toEqual({});
+    expect(analyzeNote(ev(30023, [["e", "n"]])).isReply).toBe(false);
+  });
+
+  it("a reaction keeps the post it is about above it", () => {
+    expect(replyRefs(ev(7, [["e", "post"]]))).toEqual({ rootId: "post", parentId: "post" });
+  });
+
   it("a legacy positional note reply still threads", () => {
     expect(
       replyRefs(

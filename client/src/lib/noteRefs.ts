@@ -95,16 +95,15 @@ function parseATag(value: string, relay?: string): AddressRef | null {
 }
 
 /**
- * The kinds whose `e` tags thread a conversation: a text note and a channel
- * message (NIP-10), a comment and a voice reply (NIP-22), a git reply
- * (NIP-34). Anywhere else an `e` is what the event is about or holds — a
- * bookmark set's notes, a reaction's post, a highlight's source — and never
- * makes it a reply.
+ * Whether an event's `e` tags can make it a reply. Not a highlight's (the
+ * text it quotes), and not a replaceable or addressable event's: a bookmark
+ * set's `e` tags are the notes it holds, an article's what it cites — never a
+ * post it answers. Everything else keeps its thread: a note, a comment, a
+ * live-chat message, and the post a reaction or zap is about.
  */
-const THREADED_KINDS: ReadonlySet<number> = new Set([1, 42, 1111, 1244, 1622]);
-
 export function isThreadedKind(kind: number): boolean {
-  return THREADED_KINDS.has(kind);
+  if (kind === 9802 || kind === 0 || kind === 3) return false;
+  return !((kind >= 10000 && kind < 20000) || (kind >= 30000 && kind < 40000));
 }
 
 export function analyzeNote(ev: MinimalEvent): NoteAnalysis {

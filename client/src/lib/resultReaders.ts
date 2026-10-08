@@ -15,6 +15,7 @@ import { parseZapReceipt } from "@/services/search";
 import { contentShape } from "@/lib/contentShape";
 import { reactionEmoji } from "@/lib/customEmoji";
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
+import { ITEM_LIST_KINDS } from "@/lib/listItems";
 
 export type ReaderEvent = {
   id: string;
@@ -223,8 +224,9 @@ function readList(ev: ReaderEvent): ReaderResult {
     body: preview || null,
     facts: total ? facts : [],
     encrypted,
-    // A list of notes or articles has nothing to say in words: the row quotes the first thing on it.
-    ref: preview ? null : refOf(ev, "first"),
+    // A bookmark set of notes or articles has nothing to say in words: the row quotes the
+    // first thing on it. Only those lists — a mute list's first `e` is a thread it hides.
+    ref: preview || !ITEM_LIST_KINDS.has(ev.kind) ? null : refOf(ev, "first"),
   };
 }
 

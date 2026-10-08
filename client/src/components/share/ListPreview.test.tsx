@@ -99,6 +99,22 @@ describe("a list a note names", () => {
     );
     expect(screen.getByTestId("embedded-list")).toHaveTextContent("stoicism — notes");
     expect(screen.queryByTestId("embedded-article")).toBeNull();
+    // The card is its link: no "↗ bookmark set" beside it.
+    expect(screen.queryByText(/bookmark set/i)).toBeNull();
+  });
+
+  it("linked by address in a quoted note, is one list card and no second link", async () => {
+    const note: MinimalEvent = {
+      id: "9".repeat(64),
+      kind: 1,
+      pubkey: WRITER,
+      created_at: 1_789_800_000,
+      content: `My reading for the week nostr:${NADDR}`,
+      tags: [["a", COORD]],
+    };
+    renderWithProviders(<EmbeddedNoteCard event={note} href="/e/x" />);
+    expect(await screen.findByTestId("embedded-list")).toHaveTextContent("stoicism — notes");
+    expect(screen.queryByText(/bookmark set/i)).toBeNull();
   });
 
   it("named in long-form text, becomes the list's card once found", async () => {

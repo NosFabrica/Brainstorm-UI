@@ -18,14 +18,61 @@ import { EmojiText } from "@/components/ui/custom-emoji";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Favicon } from "@/components/share/LinkPreview";
 import { useArticlesByRefs } from "@/hooks/useLinkedArticles";
-import { useQuotedNotes } from "@/hooks/useQuotedNotes";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import { MAX_REF_HINTS, type ProfileLite } from "@/hooks/useNoteRefs";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { ago } from "@/lib/ago";
-import { listCountLabel, listTitle, readListItems } from "@/lib/listItems";
-import { type AddressRef, type MinimalEvent } from "@/lib/noteRefs";
+import { listCountLabel, listTitle, readListItems, type ListNote } from "@/lib/listItems";
+import { addrCoord, mentionPubkeysFromContent, type AddressRef, type MinimalEvent } from "@/lib/noteRefs";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import { eventPath, READER_KINDS } from "@/lib/shareId";
+import { fetchEventsByIds } from "@/services/nostr";
+import { fetchRefBatched } from "@/services/refBatch";
 import { topicPath } from "@/lib/topicQuery";
 
-type ProfileLite = { name?: string; display_name?: string; picture?: string };
+/** A note on a list, found, with its author and the people it mentions, for its card. */
+export type ListNoteCard = { event: MinimalEvent; author?: ProfileLite; profiles: Map<string, ProfileLite> };
+
+/**
+ * The notes a list holds, for the rows on screen — asked with the list's own
+ * relay hints beside the default relays, since a bookmark often points where
+ * the note lives. `batched` (search cards) asks in the page's batch
+ * (services/refBatch): one REQ for every card on the page, not one per card.
+ */
+export function useListNotes(notes: ListNote[], { batched = false } = {}): Map<string, ListNoteCard> {
+  const key = notes.map((n) => n.id).join(",");
+  const stable = useMemo(() => notes, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filters = useMemo(() => (key ? [{ ids: key.split(",") }] : null), [key]);
+  const found = useStoreEvents(key ? `list-notes:${batched ? "batch" : "page"}:${key}` : null, filters, () => {
+    if (batched)
+      return Promise.all(stable.map((n) => fetchRefBatched({ id: n.id, relay: n.relay }))).then((a) => a.flat());
+    const hints = [...new Set(stable.flatMap((n) => (n.relay ? [n.relay] : [])))].slice(0, MAX_REF_HINTS);
+    return fetchEventsByIds(
+      stable.map((n) => n.id),
+      [...new Set([...hints, ...PROFILE_RELAYS])],
+    );
+  });
+  const events = found.events as MinimalEvent[];
+  const pubkeys = useMemo(
+    () => [...new Set(events.flatMap((e) => [e.pubkey, ...mentionPubkeysFromContent(e.content)]))],
+    [events],
+  );
+  const profiles = useLiveProfiles(pubkeys) as Map<string, ProfileLite>;
+  return useMemo(
+    () => new Map(events.map((e) => [e.id, { event: e, author: profiles.get(e.pubkey), profiles }])),
+    [events, profiles],
+  );
+}
+
+/** The articles a search card previews, asked in the page's batch with every other card's. */
+function useBatchedArticles(refs: AddressRef[]): MinimalEvent[] {
+  const key = refs.map(addrCoord).join(",");
+  const stable = useMemo(() => refs, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const found = useStoreEvents(key ? `list-articles:batch:${key}` : null, null, () =>
+    Promise.all(stable.map((a) => fetchRefBatched({ addr: addrCoord(a), relay: a.relays?.[0] }))).then((r) => r.flat()),
+  );
+  return found.events as MinimalEvent[];
+}
 
 /** Lists that hold bookmarks wear the bookmark; the rest the list mark. */
 export const BOOKMARK_KINDS: ReadonlySet<number> = new Set([10001, 10003, 30003]);
@@ -114,18 +161,20 @@ function PreviewLine({
  */
 export function ItemListPreview({ event }: { event: MinimalEvent }) {
   const items = useMemo(() => readListItems(event), [event]);
-  const noteIds = useMemo(() => items.notes.slice(0, PREVIEW_NOTES).map((n) => n.id), [items]);
-  const { notes } = useQuotedNotes(noteIds);
+  const previewNotes = useMemo(() => items.notes.slice(0, PREVIEW_NOTES), [items]);
+  const byId = useListNotes(previewNotes, { batched: true });
   const articleRefs = useMemo(
-    () => items.addresses.filter((a) => READER_KINDS.has(a.kind)).slice(0, Math.max(0, PREVIEW_NOTES - noteIds.length)),
-    [items, noteIds.length],
+    () =>
+      items.addresses
+        .filter((a) => READER_KINDS.has(a.kind))
+        .slice(0, Math.max(0, PREVIEW_NOTES - previewNotes.length)),
+    [items, previewNotes.length],
   );
-  const { articles } = useArticlesByRefs(articleRefs);
+  const articles = useBatchedArticles(articleRefs);
 
   // In the list's own order, as found.
-  const byId = new Map(notes.map((q) => [q.event.id, q]));
-  const noteLines = noteIds
-    .map((id) => byId.get(id))
+  const noteLines = previewNotes
+    .map((n) => byId.get(n.id))
     .filter((q): q is NonNullable<typeof q> => !!q)
     .map((q) => ({ q, text: noteLine(q.event.content) }))
     .filter((l) => l.text);

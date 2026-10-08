@@ -114,4 +114,10 @@ describe("ListCard", () => {
     expect(await screen.findByTestId(`list-preview-note-${n1}`)).toHaveTextContent("The obstacle is the way.");
     expect(screen.getByTestId(`list-preview-note-${n1}`)).not.toHaveTextContent("example.com");
   });
+
+  it("a bookmark list with only private items says so, not '0 items'", () => {
+    const sealed = ev(10003, [], "AgK3c2Vh?iv=bG9yZW0=");
+    render(<ListCard event={sealed} author={null} />);
+    expect(screen.getByTestId(`list-count-${sealed.id}`)).toHaveTextContent("Private");
+  });
 });

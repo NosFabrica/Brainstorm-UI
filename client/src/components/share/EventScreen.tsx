@@ -254,7 +254,9 @@ function EventView({
 
   // References inside the note (quoted notes, articles, mentions) so the rich
   // card can embed them — same two batched queries the share page uses.
-  const refs = useMemo(() => collectRefs(note ? [note] : []), [note]);
+  // A bookmark set's page reads its own items a fold at a time (ItemListHero):
+  // its hundreds of `a`s and `p`s are not asked for here all at once.
+  const refs = useMemo(() => collectRefs(note && !ITEM_LIST_KINDS.has(note.kind) ? [note] : []), [note]);
   const refEventsQuery = useStoreEvents(
     refs.ids.length ? `event-refs:${refs.ids.join(",")}` : null,
     refs.ids.length ? [{ ids: refs.ids }] : null,
