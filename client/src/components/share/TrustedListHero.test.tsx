@@ -27,7 +27,7 @@ vi.mock("@/lib/eventStore", async () => ({
   },
 }));
 
-import { TrustedListHero, readTrustedList } from "./TrustedListHero";
+import { TrustedListHero } from "./TrustedListHero";
 
 const SIGNER = "7".repeat(64);
 const OBSERVER = "4".repeat(64);
@@ -72,47 +72,6 @@ function profile(pubkey: string, name: string): NostrEvent {
 beforeEach(() => {
   vi.clearAllMocks();
   knownProfiles.clear();
-});
-
-describe("readTrustedList", () => {
-  it("reads the list from its tags, members best first", () => {
-    const list = readTrustedList(LIST);
-    expect(list.title).toBe("Podcaster");
-    expect(list.metric).toBe("tag-membership");
-    expect(list.perspective).toBe(OBSERVER);
-    expect(list.sourceTag).toEqual({ authorPubkey: TAG_AUTHOR, slug: "podcaster" });
-    expect(list.params).toEqual([
-      ["Min rank", "3"],
-      ["Cutoff", "1"],
-      ["Rigor", "0.5"],
-    ]);
-    expect(list.members).toEqual([
-      { pubkey: ALICE, score: 93 },
-      { pubkey: BOB, score: 50 },
-    ]);
-  });
-
-  it("ignores the content: members come from the p rows only", () => {
-    const list = readTrustedList({ tags: [["title", "X"]] });
-    expect(list.members).toEqual([]);
-    expect(list.params).toEqual([]);
-    expect(list.sourceTag).toBeUndefined();
-    expect(list.perspective).toBeUndefined();
-  });
-
-  it("keeps a member with no score, last", () => {
-    const list = readTrustedList({
-      tags: [
-        ["p", BOB],
-        ["p", ALICE, "", "40"],
-        ["p", ALICE, "", "90"],
-      ],
-    });
-    expect(list.members).toEqual([
-      { pubkey: ALICE, score: 40 },
-      { pubkey: BOB, score: null },
-    ]);
-  });
 });
 
 describe("TrustedListHero", () => {

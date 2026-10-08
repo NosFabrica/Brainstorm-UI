@@ -204,6 +204,22 @@ describe("SerpRow — link metadata", () => {
     expect(screen.getByTestId(`serp-row-${ev.id}`).textContent).not.toContain('"theme"');
   });
 
+  it("a Trusted List is drawn as its people, not as structured data", () => {
+    const member = "1".repeat(64);
+    const ev = {
+      ...note(JSON.stringify({ members: [{ pubkey: member, endorsements: 4, disputes: 0, score: 93 }] })),
+      kind: 30392,
+      tags: [
+        ["title", "Podcaster"],
+        ["p", member, "", "93"],
+      ],
+    };
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    expect(screen.getByTestId(`list-card-${ev.id}`)).toHaveTextContent("Podcaster");
+    expect(screen.getByTestId(`list-member-score-${member}`)).toHaveTextContent("93");
+    expect(screen.queryByTestId("serp-content-shape")).toBeNull();
+  });
+
   it("names the common NIP kinds", () => {
     setTechnicalView(true);
     for (const [kind, label] of [

@@ -72,6 +72,7 @@ import {
 } from "@/lib/gitStatus";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 import { groupPeoplePacks } from "@/lib/listGroups";
+import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
 import {
   AppCard,
   EventCard,
@@ -211,7 +212,10 @@ function recipeTopics(e: NostrEvent): string[] {
     .filter((t) => t && t !== slug && !/^\d+$/.test(t));
   return [...new Set(words)];
 }
-const LIST_KINDS = new Set(TAB_KINDS.lists);
+// Drawn as lists wherever they turn up; a Trusted List is not asked for by the
+// Lists tab (the relay holds a copy per perspective), but a `kind:` or a
+// mixed answer that meets one shows it as the people list it is.
+const LIST_KINDS = new Set([...TAB_KINDS.lists, TRUSTED_PEOPLE_KIND]);
 
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
 const NO_NOTES: MinimalEvent[] = [];
