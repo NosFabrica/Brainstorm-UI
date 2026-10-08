@@ -139,9 +139,15 @@ describe("tokenize — what the box draws", () => {
   });
 
   it("the two client-only tokens come OUT of the terms — the relay knows neither", () => {
-    const q = parseQuery("bitcoin trust:verified reach:friends");
+    const q = parseQuery("bitcoin trust:verified reach:follows");
     expect(q.verifiedOnly).toBe(true);
-    expect(q.reach).toBe("friends");
+    expect(q.reach).toBe("follows");
+    expect(q.terms).toBe("bitcoin");
+  });
+
+  it("the retired reach:friends still reads as a reach, never as text sent to the relay", () => {
+    const q = parseQuery("bitcoin reach:friends");
+    expect(q.reach).toBe("follows");
     expect(q.terms).toBe("bitcoin");
   });
 

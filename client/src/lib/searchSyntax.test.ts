@@ -26,7 +26,7 @@ import {
 
 // The relay knows no hops and has no verification of its own, so those two
 // controls are done on the CLIENT — but they still speak grammar:
-// trust:verified and reach:follows|friends ride the box like every other
+// trust:verified and reach:follows ride the box like every other
 // token, and liftQuery keeps them off the wire (sent as text they'd match
 // nothing). `filter:rank:gte:N` is NOT one of these: the relay's own store
 // deletes rows below the floor (vespa-relay store e1ecd7f23e), so it rides
@@ -36,13 +36,16 @@ describe("client-side filter tokens", () => {
     expect(applyFilters("bitcoin", { verifiedOnly: true })).toBe("bitcoin trust:verified");
     expect(applyFilters("bitcoin trust:verified", { verifiedOnly: false })).toBe("bitcoin");
     expect(applyFilters("bitcoin", { reach: "follows" })).toBe("bitcoin reach:follows");
-    expect(applyFilters("bitcoin reach:follows", { reach: "friends" })).toBe("bitcoin reach:friends");
-    expect(applyFilters("bitcoin reach:friends", { reach: null })).toBe("bitcoin");
-    const state = readFilters("btc trust:verified reach:friends sort:recent");
+    expect(applyFilters("bitcoin reach:follows", { reach: null })).toBe("bitcoin");
+    const state = readFilters("btc trust:verified reach:follows sort:recent");
     expect(state.verifiedOnly).toBe(true);
-    expect(state.reach).toBe("friends");
+    expect(state.reach).toBe("follows");
     expect(readFilters("btc").reach).toBeNull();
     expect(readFilters("btc reach:nonsense").reach).toBeNull();
+    // Retired, but a saved link still carrying it reads as the nearest reach, and is replaced.
+    expect(readFilters("btc reach:friends").reach).toBe("follows");
+    expect(applyFilters("bitcoin reach:friends", { reach: "follows" })).toBe("bitcoin reach:follows");
+    expect(applyFilters("bitcoin reach:friends", { reach: null })).toBe("bitcoin");
   });
 
   /**

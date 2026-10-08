@@ -18,8 +18,7 @@ import { eventPath } from "@/lib/shareId";
 import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
-import { useHasMywot } from "@/hooks/useHasMywot";
-import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
+import { useCanSearchMywot } from "@/hooks/useCanSearchMywot";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,9 +71,8 @@ export function EventThread({
 }) {
   const loggedIn = useHasSession();
   const [pov] = useActivePerspective();
-  const { hasMywot } = useHasMywot();
-  const { isSearchObserver } = useIsSearchObserver();
-  const usePersonal = loggedIn && hasMywot && isSearchObserver && pov === "mywot";
+  const { canUseMywot } = useCanSearchMywot();
+  const usePersonal = loggedIn && canUseMywot && pov === "mywot";
   const povTag = usePersonal ? "mywot" : "house";
 
   // Return-here-after-auth: the current /e URL, so signup/onboarding brings them

@@ -236,7 +236,7 @@ export interface KindSeg {
 export interface ReachSeg {
   type: "reach";
   raw: string;
-  value: "follows" | "friends";
+  value: "follows";
 }
 
 export type TokenSeg =
@@ -342,7 +342,9 @@ export function tokenize(text: string): Segment[] {
     } else if (g.trust) {
       seg = { type: "verified", raw };
     } else if (g.hops) {
-      seg = { type: "reach", raw, value: g.hops.toLowerCase() as "follows" | "friends" };
+      // `reach:friends` (friends of friends) was retired; a link or recent search that still
+      // carries it reads as the nearest reach left, rather than going to the relay as text.
+      seg = { type: "reach", raw, value: "follows" };
     } else if (g.lbl) {
       seg = { type: "label", raw, value: g.lid as string };
     } else if (g.ext) {
@@ -450,7 +452,7 @@ export interface ParsedQuery {
   kinds: number[];
   /** Honoured by this client alone; the relay has no hops and no verification. */
   verifiedOnly: boolean;
-  reach: "follows" | "friends" | null;
+  reach: "follows" | null;
 }
 
 /**

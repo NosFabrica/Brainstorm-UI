@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
- * How far the viewer's network reaches: the people they follow (their own
- * kind-3) and friends of friends (a sampled two-hop set from those follows'
- * contact lists — the dashboard's reading-feed graph, reused). Signed out
- * there is no "you", so it is empty and ready.
+ * The people the viewer follows — their own kind-3, and nothing past it: no
+ * follows' contact lists are fetched. Signed out there is no "you", so it is
+ * empty and ready.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -11,7 +10,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 const ME = "e".repeat(64);
 const F1 = "1".repeat(64);
 const F2 = "2".repeat(64);
-const FOF = "3".repeat(64);
 const contactsMock = vi.fn();
 const eventsMock = vi.fn();
 vi.mock("@/services/socialActions", () => ({
@@ -23,7 +21,6 @@ vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchEventsByAuthors: (...a: unknown[]) => eventsMock(...a),
 }));
-vi.mock("@/lib/relays", () => ({ CONTENT_RELAYS: ["wss://x"] }));
 
 import { useNetworkReach } from "./useNetworkReach";
 
@@ -31,8 +28,7 @@ function Probe({ me }: { me?: string }) {
   const r = useNetworkReach(me);
   return (
     <div data-testid="probe">
-      {r.ready ? "ready" : "loading"}|{[...r.direct].map((p) => p[0]).join("")}|
-      {[...r.friends].map((p) => p[0]).join("")}
+      {r.ready ? "ready" : "loading"}|{[...r.direct].map((p) => p[0]).join("")}
     </div>
   );
 }
@@ -44,11 +40,11 @@ beforeEach(() => {
 describe("useNetworkReach", () => {
   it("is empty and ready with nobody signed in", () => {
     render(<Probe />);
-    expect(screen.getByTestId("probe")).toHaveTextContent("ready||");
+    expect(screen.getByTestId("probe")).toHaveTextContent("ready|");
     expect(contactsMock).not.toHaveBeenCalled();
   });
 
-  it("builds direct follows and friends-of-friends from real contact lists", async () => {
+  it("is the viewer's own follows, without fetching their follows' contact lists", async () => {
     contactsMock.mockResolvedValue({
       id: "a".repeat(64),
       kind: 3,
@@ -60,31 +56,9 @@ describe("useNetworkReach", () => {
       content: "",
       created_at: 1,
     });
-    eventsMock.mockResolvedValue([
-      {
-        id: "b".repeat(64),
-        kind: 3,
-        pubkey: F1,
-        tags: [
-          ["p", FOF],
-          ["p", ME],
-          ["p", F2],
-        ],
-        content: "",
-        created_at: 1,
-      },
-    ]);
     render(<Probe me={ME} />);
-    expect(screen.getByTestId("probe")).toHaveTextContent("loading||");
-    await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("ready|12|123"));
-    // Friends of friends never include me; direct follows are in friends too.
-    // The sampled follows go in as AUTHORS, not baked into one filter aimed at a
-    // fixed relay set — that is what lets each of them be asked for on their own
-    // relays, with the content relays only as a floor.
-    expect(eventsMock).toHaveBeenCalledWith(
-      [F1, F2],
-      expect.objectContaining({ kinds: [3] }),
-      expect.objectContaining({ fallback: ["wss://x"] }),
-    );
+    expect(screen.getByTestId("probe")).toHaveTextContent("loading|");
+    await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("ready|12"));
+    expect(eventsMock).not.toHaveBeenCalled();
   });
 });

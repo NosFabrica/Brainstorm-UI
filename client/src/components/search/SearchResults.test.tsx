@@ -217,11 +217,10 @@ const flagsMock = vi.fn<(pk: string) => boolean | undefined>(() => false);
 vi.mock("@/hooks/useAuthorFlags", () => ({
   useAuthorFlags: () => (pk: string) => flagsMock(pk),
 }));
-// The viewer's network reach (direct follows, friends of friends) — faked so
+// The viewer's network reach (the people they follow) — faked so
 // the reach filter can prove what it keeps.
-const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({
+const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; ready: boolean }>(() => ({
   direct: new Set(),
-  friends: new Set(),
   ready: true,
 }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
@@ -272,7 +271,7 @@ beforeEach(() => {
   followsMock = new Set();
   personEndorsementsMock.mockReturnValue(null);
   flagsMock.mockImplementation(() => false);
-  reachMock.mockReturnValue({ direct: new Set(), friends: new Set(), ready: true });
+  reachMock.mockReturnValue({ direct: new Set(), ready: true });
   scoreOfMock.mockImplementation(() => 0.85);
   tagMatchesMock.mockReset();
   tagMatchesMock.mockReturnValue([]);
@@ -3763,7 +3762,7 @@ describe("SearchResults", () => {
     // Benjamin's slider: "Trust distance" — how far the search casts its net.
     // The relay can't; the viewer's own follow graph can. Signed out there is
     // no "you" to measure from, so the control isn't there.
-    it("reach — People you follow · Friends of friends · Everyone — only for a signed-in viewer", async () => {
+    it("reach — People you follow · Everyone — only for a signed-in viewer", async () => {
       const rewrite = vi.fn();
       render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
@@ -3775,7 +3774,7 @@ describe("SearchResults", () => {
       openAdvanced();
       const reach = screen.getByTestId("filter-reach");
       expect(reach).toHaveTextContent("People you follow");
-      expect(reach).toHaveTextContent("Friends of friends");
+      expect(reach).not.toHaveTextContent("Friends of friends");
       expect(reach).toHaveTextContent("Everyone");
       fireEvent.click(screen.getByTestId("filter-reach-follows"));
       expect(rewrite).toHaveBeenLastCalledWith("jack reach:follows");
@@ -3786,7 +3785,7 @@ describe("SearchResults", () => {
       const ME = "e".repeat(64);
       const FOLLOWED = "1".repeat(64);
       const STRANGER = "2".repeat(64);
-      reachMock.mockReturnValue({ direct: new Set([FOLLOWED]), friends: new Set([FOLLOWED]), ready: true });
+      reachMock.mockReturnValue({ direct: new Set([FOLLOWED]), ready: true });
       render(<SearchResults query="jack reach:follows" pov="nosfabrica" userPubkey={ME} onQueryRewrite={vi.fn()} />);
       emit({
         hits: [
@@ -3822,7 +3821,7 @@ describe("SearchResults", () => {
     it("the panel reads current filter state back from the query", () => {
       render(
         <SearchResults
-          query="btc sort:rank include:spam trust:verified reach:friends"
+          query="btc sort:rank include:spam trust:verified reach:follows"
           pov="nosfabrica"
           userPubkey={"e".repeat(64)}
           onQueryRewrite={vi.fn()}
@@ -3834,7 +3833,7 @@ describe("SearchResults", () => {
       // Advanced opens itself when one of its controls is set.
       expect(screen.getByTestId("filters-advanced-toggle").getAttribute("aria-expanded")).toBe("true");
       expect((screen.getByTestId("filter-spam") as HTMLInputElement).checked).toBe(true);
-      expect(screen.getByTestId("filter-reach-friends").getAttribute("aria-pressed")).toBe("true");
+      expect(screen.getByTestId("filter-reach-follows").getAttribute("aria-pressed")).toBe("true");
     });
 
     // The team: less busy. Sort and date show at once — the two anyone uses;

@@ -11,8 +11,7 @@ import { decodeShareId } from "@/lib/shareId";
 import { TierTile } from "@/components/score/TierTile";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
-import { useHasMywot } from "@/hooks/useHasMywot";
-import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
+import { useCanSearchMywot } from "@/hooks/useCanSearchMywot";
 import { useHasSession } from "@/hooks/useHasSession";
 
 /**
@@ -45,10 +44,9 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
   // Show the target's trust score in the viewer's current perspective: their own
   // Web of Trust when logged in + using the mywot POV, otherwise the house score.
   const [pov] = useActivePerspective();
-  const { hasMywot } = useHasMywot();
-  const { isSearchObserver } = useIsSearchObserver();
+  const { canUseMywot } = useCanSearchMywot();
   const hasSession = useHasSession();
-  const usePersonal = hasSession && hasMywot && isSearchObserver && pov === "mywot";
+  const usePersonal = hasSession && canUseMywot && pov === "mywot";
 
   const targetPubkey = useMemo(() => {
     if (intent?.kind !== "profile") return null;

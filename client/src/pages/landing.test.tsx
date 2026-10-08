@@ -109,7 +109,7 @@ const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
 vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/hooks/useAuthorFlags", () => ({ useAuthorFlags: () => () => false }));
 vi.mock("@/hooks/useNetworkReach", () => ({
-  useNetworkReach: () => ({ direct: new Set(), friends: new Set(), ready: true }),
+  useNetworkReach: () => ({ direct: new Set(), ready: true }),
 }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));

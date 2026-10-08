@@ -213,7 +213,7 @@ describe("pills over the value", () => {
     [`observer:${npub}`, "observer"],
     ["trust:verified", "verified"],
     ["reach:follows", "reach"],
-    ["reach:friends", "reach"],
+    ["reach:friends", "reach"], // retired, still a pill rather than text
     ["site:example.com", "scope"],
     ["isbn:978-0593330005", "scope"],
     ["geo:u4pruyd", "scope"],

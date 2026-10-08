@@ -278,9 +278,9 @@ function ComposedResultsBody({
   // dealt out to the sections by kind — the same routing the shared REQ uses.
   const seeds = useMemo(() => {
     // Kept only for a reader whose Perspective is certainly the house's — the
-    // one it asked through. A signed-in reader's settles a beat after the first
-    // render (landing's effectivePov waits on two lookups), and house-ranked
-    // cards must not paint for someone reading through their own.
+    // one it asked through. A signed-in reader's can settle a beat after the first
+    // render (on a first visit, useCanSearchMywot waits on two lookups), and
+    // house-ranked cards must not paint for someone reading through their own.
     if (remembered) return { ...EMPTY_SEEDS, ...remembered };
     if (userPubkey || pov !== "nosfabrica") return EMPTY_SEEDS;
     const forTab = (tab: Exclude<SearchTab, "top" | "all">): SearchHit[] => {
@@ -479,7 +479,7 @@ function ComposedResultsBody({
   // The client-side filters (Verified only, reach) apply here too, so the
   // composed page and the tabs agree on what the box says.
   const clientState = readFilters(query);
-  // Dozens of contact-list fetches — only when the reach filter asks for them.
+  // The viewer's contact list — only when the reach filter asks for it.
   const reach = useNetworkReach(clientState.reach ? userPubkey : null);
   // The search floor, as the tabs hold it: accounts below the verified line
   // stay off every section unless the searcher asks for everyone or looks
