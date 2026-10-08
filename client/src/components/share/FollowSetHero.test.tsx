@@ -6,12 +6,16 @@
  * this, clicking a "Verified Human" card landed on a blank event page.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 
+const scoresAsked = vi.fn();
 vi.mock("@/hooks/useAuthorScores", () => ({
-  useAuthorScores: () => () => 0.7,
+  useAuthorScores: (pubkeys: string[]) => {
+    scoresAsked(pubkeys);
+    return () => 0.7;
+  },
 }));
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
 vi.mock("@/services/nostr", async () => ({
@@ -91,5 +95,16 @@ describe("FollowSetHero", () => {
     render(<FollowSetHero event={SET} />);
     expect(screen.queryByTestId("set-hero-curator")).toBeNull();
     expect(screen.queryByText("Dr. Edo Paz")).toBeNull();
+  });
+
+  // A big list asks about the rows on screen, not all of them; opening it
+  // asks about the rest, so every row past the first 50 wears its ring too.
+  it("asks for the shown rows only, and the rest once opened", () => {
+    const many = Array.from({ length: 60 }, (_, i) => i.toString(16).padStart(64, "0"));
+    render(<FollowSetHero event={{ ...SET, tags: [["title", "Big"], ...many.map((pk) => ["p", pk])] }} />);
+    expect(scoresAsked).toHaveBeenLastCalledWith(many.slice(0, 25));
+    fireEvent.click(screen.getByTestId("set-hero-roster-toggle"));
+    expect(scoresAsked).toHaveBeenLastCalledWith(many);
+    expect(screen.getByTestId(`set-member-${many[59]}`)).toBeInTheDocument();
   });
 });

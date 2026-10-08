@@ -14,6 +14,7 @@ import { kindTypeLabel } from "@/lib/kindLabel";
 import { parseZapReceipt } from "@/services/search";
 import { contentShape } from "@/lib/contentShape";
 import { reactionEmoji } from "@/lib/customEmoji";
+import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 
 export type ReaderEvent = {
   id: string;
@@ -440,6 +441,22 @@ read([30382, 30383, 30384, 30385], (ev) => {
     body: null,
     facts: scoreFacts(ev),
     ref,
+  };
+});
+
+// A Trusted List of people: who is on it, best first, whose tag it was built
+// from and whose web of trust ranked it. Its JSON content is not read.
+read([TRUSTED_PEOPLE_KIND], (ev) => {
+  const list = readTrustedList(ev);
+  return {
+    // The list's own name is the row's title.
+    title: null,
+    body: people(list.members.map((m) => m.pubkey)) || null,
+    facts: [
+      list.members.length ? plural(list.members.length, "person", "people") : "No one yet",
+      list.sourceTag ? `From ${who(list.sourceTag.authorPubkey)}'s tag` : null,
+      list.perspective ? `Ranked by ${who(list.perspective)}` : null,
+    ].filter((f): f is string => !!f),
   };
 });
 

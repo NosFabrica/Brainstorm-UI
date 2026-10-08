@@ -5,7 +5,7 @@
  * row with avatar, tier ring, and name, into their profile. The search
  * card shows five faces; this page is where the other +12 live.
  */
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
@@ -45,14 +45,7 @@ const ROSTER_FOLD = 25;
 export function FollowSetHero({ event }: { event: SetEvent }) {
   const title = event.tags.find((t) => t[0] === "title" || t[0] === "name")?.[1] ?? "Follow set";
   const description = event.tags.find((t) => t[0] === "description")?.[1];
-  const members = event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
-
-  const tierRing = useTierRing();
-  const scoreOf = useAuthorScores(members.slice(0, 50));
-  const profiles = useProfiles(members);
-  const [rosterOpen, setRosterOpen] = useState(false);
-
-  const shown = rosterOpen ? members : members.slice(0, ROSTER_FOLD);
+  const members = useMemo(() => event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]), [event.tags]);
 
   return (
     <div data-testid="follow-set-hero">
@@ -88,53 +81,86 @@ export function FollowSetHero({ event }: { event: SetEvent }) {
       </div>
 
       {/* The roster — the whole point of opening a pack. */}
-      <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800/60">
-        <ul className="space-y-0.5" data-testid="set-hero-roster">
-          {shown.map((pk) => {
-            const profile = profiles.get(pk);
-            const name = profile?.display_name || profile?.name;
-            const npub = npubOf(pk);
-            return (
-              <li key={pk}>
-                <Link
-                  href={npub ? `/p/${npub}` : "#"}
-                  className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
-                  data-testid={`set-member-${pk}`}
+      <SetRoster members={members} />
+    </div>
+  );
+}
+
+/**
+ * A list's people as tappable rows — avatar in the tier ring, name, NIP-05 —
+ * folded after the first 25. `trailing` puts something at each row's end
+ * (a Trusted List's per-member score).
+ */
+export function SetRoster({ members, trailing }: { members: string[]; trailing?: (pubkey: string) => ReactNode }) {
+  const tierRing = useTierRing();
+  const [rosterOpen, setRosterOpen] = useState(false);
+
+  const shown = useMemo(() => (rosterOpen ? members : members.slice(0, ROSTER_FOLD)), [members, rosterOpen]);
+  // Asked for the rows on screen: a folded list of hundreds asks for 25, and
+  // opening it asks for the rest — rings included, past the first 50.
+  const scoreOf = useAuthorScores(shown);
+  const profiles = useProfiles(shown);
+
+  // Most of the relay's pinned-tag Trusted Lists are empty (probed 2026-10-08:
+  // 477 of 500): say so rather than draw an empty roster.
+  if (members.length === 0)
+    return (
+      <p
+        className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-500 dark:border-slate-800/60 dark:text-slate-400"
+        data-testid="set-hero-roster-empty"
+      >
+        No one is on this list yet.
+      </p>
+    );
+
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800/60">
+      <ul className="space-y-0.5" data-testid="set-hero-roster">
+        {shown.map((pk) => {
+          const profile = profiles.get(pk);
+          const name = profile?.display_name || profile?.name;
+          const npub = npubOf(pk);
+          return (
+            <li key={pk} className="flex items-center gap-3">
+              <Link
+                href={npub ? `/p/${npub}` : "#"}
+                className="-mx-2 flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                data-testid={`set-member-${pk}`}
+              >
+                <Avatar
+                  className={`h-8 w-8 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(scoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
                 >
-                  <Avatar
-                    className={`h-8 w-8 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(scoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
-                  >
-                    {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
-                    <AvatarFallback className="overflow-hidden">
-                      <DefaultAvatarImg />
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-slate-800 dark:text-slate-100">
-                      {name ?? `${npub.slice(0, 16)}…`}
-                    </span>
-                    {profile?.nip05 && (
-                      <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">
-                        {profile.nip05.replace(/^_@/, "")}
-                      </span>
-                    )}
+                  {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
+                  <AvatarFallback className="overflow-hidden">
+                    <DefaultAvatarImg />
+                  </AvatarFallback>
+                </Avatar>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                    {name ?? `${npub.slice(0, 16)}…`}
                   </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-        {members.length > ROSTER_FOLD && (
-          <button
-            type="button"
-            onClick={() => setRosterOpen((v) => !v)}
-            className="mt-2 text-xs font-medium text-brand-primary hover:underline"
-            data-testid="set-hero-roster-toggle"
-          >
-            {rosterOpen ? "Show fewer" : `Show all ${members.length} members`}
-          </button>
-        )}
-      </div>
+                  {profile?.nip05 && (
+                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">
+                      {profile.nip05.replace(/^_@/, "")}
+                    </span>
+                  )}
+                </span>
+              </Link>
+              {trailing?.(pk)}
+            </li>
+          );
+        })}
+      </ul>
+      {members.length > ROSTER_FOLD && (
+        <button
+          type="button"
+          onClick={() => setRosterOpen((v) => !v)}
+          className="mt-2 text-xs font-medium text-brand-primary hover:underline"
+          data-testid="set-hero-roster-toggle"
+        >
+          {rosterOpen ? "Show fewer" : `Show all ${members.length} members`}
+        </button>
+      )}
     </div>
   );
 }

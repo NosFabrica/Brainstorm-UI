@@ -6,7 +6,7 @@ import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRa
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
 import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
@@ -27,6 +27,7 @@ import {
   FileAudio,
   FileVideo,
   ListChecks,
+  ShieldCheck,
   MapPin,
   MessageSquare,
   Package,
@@ -52,6 +53,7 @@ import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
+import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -1259,7 +1261,16 @@ export function ListCard({
   const [open, setOpen] = useState(false);
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled list";
   const description = tagVal(event, "description") ?? "";
-  const ownMembers = event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
+  // A Trusted List (kind 30392) is a people list that says more: each member's
+  // score on the tag, best first, the tag it was built from and whose web of
+  // trust ranked it — all in its tags.
+  const trusted = useMemo(() => (event.kind === TRUSTED_PEOPLE_KIND ? readTrustedList(event) : null), [event]);
+  const ownMembers = useMemo(
+    () =>
+      trusted ? trusted.members.map((m) => m.pubkey) : event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]),
+    [event, trusted],
+  );
+  const scoreOnList = useMemo(() => new Map(trusted?.members.map((m) => [m.pubkey, m.score])), [trusted]);
   const folded = !!group && group.lists > 1;
   // A folded row shows the faces most lists agree on, and counts everyone once.
   const members = folded ? group.consensus : ownMembers;
@@ -1270,7 +1281,12 @@ export function ListCard({
   const count = members.length + otherItems;
   const tierRing = useTierRing();
   const memberScoreOf = useAuthorScores(isPeopleList ? members.slice(0, 5) : []);
-  const profiles = useFaceProfiles(isPeopleList ? members.slice(0, 5) : []);
+  const provenance = [trusted?.sourceTag?.authorPubkey, trusted?.perspective].filter((pk): pk is string => !!pk);
+  const profiles = useFaceProfiles(isPeopleList ? [...members.slice(0, 5), ...provenance] : provenance);
+  const nameOf = (pk: string) => {
+    const p = profiles.get(pk);
+    return p?.display_name || p?.name || `${nip19.npubEncode(pk).slice(0, 12)}…`;
+  };
   const header = (
     <div className="flex min-w-0 items-center gap-2">
       <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -1280,7 +1296,7 @@ export function ListCard({
       <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
         {folded
           ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}`
-          : `${count} ${isPeopleList ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`}
+          : `${count} ${isPeopleList || trusted ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`}
       </Chip>
     </div>
   );
@@ -1292,14 +1308,25 @@ export function ListCard({
         return (
           // Phones fit 3 faces + the counter on ONE row; sm+ shows 5.
           <span key={pk} className={`w-12 flex-col items-center gap-1 ${i >= 3 ? "hidden sm:flex" : "flex"}`}>
-            <Avatar
-              className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(memberScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
-            >
-              {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
-              <AvatarFallback className="overflow-hidden">
-                <DefaultAvatarImg />
-              </AvatarFallback>
-            </Avatar>
+            <span className="relative">
+              <Avatar
+                className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(memberScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
+              >
+                {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
+                <AvatarFallback className="overflow-hidden">
+                  <DefaultAvatarImg />
+                </AvatarFallback>
+              </Avatar>
+              {scoreOnList.get(pk) != null && (
+                <span
+                  className="absolute -bottom-1 -right-2 rounded-full border border-slate-200 bg-white px-1 text-[9px] font-semibold tabular-nums leading-tight text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  title={`Score ${scoreOnList.get(pk)} of 100 on this tag`}
+                  data-testid={`list-member-score-${pk}`}
+                >
+                  {scoreOnList.get(pk)}
+                </span>
+              )}
+            </span>
             <span className="w-full truncate text-center text-[10px] leading-tight text-slate-600 dark:text-slate-300">
               {memberName ?? "…"}
             </span>
@@ -1326,7 +1353,11 @@ export function ListCard({
   ) : null;
   const glyph = (
     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
-      <ListChecks className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+      {trusted ? (
+        <ShieldCheck className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+      ) : (
+        <ListChecks className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+      )}
     </div>
   );
 
@@ -1380,6 +1411,19 @@ export function ListCard({
           {description && (
             <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
               <EmojiText text={description} tags={event} />
+            </p>
+          )}
+          {trusted && (trusted.sourceTag || trusted.perspective) && (
+            <p
+              className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400"
+              data-testid={`list-provenance-${event.id}`}
+            >
+              {[
+                trusted.sourceTag && `From ${nameOf(trusted.sourceTag.authorPubkey)}'s tag “${trusted.sourceTag.slug}”`,
+                trusted.perspective && `Ranked by ${nameOf(trusted.perspective)}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           )}
           {isPeopleList ? (

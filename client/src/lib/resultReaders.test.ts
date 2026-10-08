@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
 import { summarizeResult } from "./resultSummary";
+import { who } from "./resultReaders";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -205,6 +206,46 @@ describe("Tapestry's trusted lists", () => {
     );
     expect(s.title).toBe("Bitcoin Meetup");
     expect(s.facts).toEqual(["2 people"]);
+  });
+
+  it("say whose tag a list was built from and whose web of trust ranked it, never the JSON", () => {
+    const s = summarizeResult(
+      ev(
+        30392,
+        [
+          ["title", "Podcaster"],
+          ["observer", B],
+          ["source-tag", "f".repeat(64), C, "podcaster"],
+          ["p", C, "", "50"],
+          ["p", B, "", "93"],
+        ],
+        JSON.stringify({ members: [{ pubkey: B, endorsements: 4, disputes: 0, score: 93 }] }),
+      ),
+    );
+    expect(s.title).toBe("Podcaster");
+    // Best first.
+    expect(s.body).toBe(`${who(B)} and ${who(C)}`);
+    expect(s.facts).toEqual(["2 people", `From ${who(C)}'s tag`, `Ranked by ${who(B)}`]);
+    expect(s.shape).toBeNull();
+  });
+
+  // Most on the relay are pinned-tag copies with no one on them yet.
+  it("say an empty list is empty, not JSON", () => {
+    const s = summarizeResult(
+      ev(
+        30392,
+        [
+          ["title", "Bitcoin Vendor"],
+          ["metric", "pinned-tag-membership"],
+          ["observer", B],
+        ],
+        JSON.stringify({ members: [] }),
+      ),
+    );
+    expect(s.title).toBe("Bitcoin Vendor");
+    expect(s.body).toBeNull();
+    expect(s.shape).toBeNull();
+    expect(s.facts).toEqual(["No one yet", `Ranked by ${who(B)}`]);
   });
 });
 
