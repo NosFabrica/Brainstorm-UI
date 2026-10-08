@@ -12,7 +12,7 @@ import { useHasSession } from "@/hooks/useHasSession";
  * fires for anonymous visitors (that path goes through `authenticatedFetch`,
  * which can 401-redirect public pages).
  */
-export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: boolean } {
+export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: boolean; known: boolean } {
   const hasSession = useHasSession();
   const query = useQuery({
     queryKey: ["/user/isSearchObserver"],
@@ -24,5 +24,7 @@ export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: b
   return {
     isSearchObserver: query.data ?? false,
     isLoading: hasSession && query.isPending,
+    /** The backend has answered — `isSearchObserver` is only a default before that. */
+    known: query.isSuccess,
   };
 }

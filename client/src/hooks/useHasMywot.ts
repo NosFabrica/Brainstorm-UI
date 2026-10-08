@@ -2,7 +2,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useHasSession } from "@/hooks/useHasSession";
 
-export function useHasMywot(): { hasMywot: boolean; taPubkey: string | null } {
+/** `known` is false until `/user/history` has answered — `hasMywot` is only a default before that. */
+export function useHasMywot(): { hasMywot: boolean; taPubkey: string | null; known: boolean } {
   const user = useActiveAccountDisplay();
   const hasSession = useHasSession();
   // `useSelfHistory` calls `/user/history` via `authenticatedFetch`, which on
@@ -10,7 +11,7 @@ export function useHasMywot(): { hasMywot: boolean; taPubkey: string | null } {
   // no Session at all (a deferred re-auth), so gating on identity alone would
   // let that redirect hijack anonymous/public flows — require a real token.
   const pubkey = hasSession ? user?.pubkey : undefined;
-  const { data } = useSelfHistory(pubkey);
+  const { data, isSuccess } = useSelfHistory(pubkey);
   const taPubkey: string | null = data?.data?.ta_pubkey ?? null;
-  return { hasMywot: !!taPubkey, taPubkey };
+  return { hasMywot: !!taPubkey, taPubkey, known: isSuccess };
 }

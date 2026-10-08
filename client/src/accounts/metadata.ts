@@ -26,6 +26,12 @@ export type AccountMetadata = {
   initialSetupDone?: boolean;
   nip85Activated?: boolean;
   perspective?: "nosfabrica" | "mywot";
+  /**
+   * The last answer to "may this Account search through its own web of trust"
+   * (a personalized graph AND search-observer permission), so a reload searches
+   * through the right lens before the API has answered again (useSearchPov).
+   */
+  canSearchMywot?: boolean;
 };
 
 export type BrainstormAccount = IAccount<ISigner, unknown, AccountMetadata>;
