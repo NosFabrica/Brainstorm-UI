@@ -233,15 +233,7 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
             intro="The relay has no hops and no verification of its own, so these two are applied here, to what came back."
             rows={[
               { token: "trust:verified", what: "Only authors this page can verify." },
-              {
-                token: "reach:follows",
-                what: (
-                  <>
-                    Only people you follow. <code className="font-mono text-[12px]">reach:friends</code> widens it to
-                    friends of friends.
-                  </>
-                ),
-              },
+              { token: "reach:follows", what: "Only people you follow." },
             ]}
           />
 

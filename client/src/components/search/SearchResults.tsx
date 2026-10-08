@@ -655,7 +655,6 @@ function FiltersPanel({
                 {(
                   [
                     ["follows", "People you follow"],
-                    ["friends", "Friends of friends"],
                     [null, "Everyone"],
                   ] as const
                 ).map(([value, label]) => (
@@ -1087,7 +1086,7 @@ export function SearchResults({
   // The filters the relay can't do, done here (probed: filter:rank ignored,
   // no hops): Verified only via those scores, reach via the viewer's graph.
   const clientState = readFilters(safeQuery);
-  // Dozens of contact-list fetches — only when the reach filter asks for them.
+  // The viewer's contact list — only when the reach filter asks for it.
   const reach = useNetworkReach(clientState.reach ? userPubkey : null);
   // The search floor: accounts below the verified line stay off the page
   // unless the searcher asks for everyone (Include spam) or is looking through

@@ -41,7 +41,7 @@ vi.mock("@/hooks/useMyFollows", () => ({
 vi.mock("@/hooks/usePersonEndorsements", () => ({ usePersonEndorsements: () => null }));
 vi.mock("@/hooks/useAuthorFlags", () => ({ useAuthorFlags: () => () => false }));
 vi.mock("@/hooks/useNetworkReach", () => ({
-  useNetworkReach: () => ({ direct: new Set(), friends: new Set(), ready: true }),
+  useNetworkReach: () => ({ direct: new Set(), ready: true }),
 }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));

@@ -85,9 +85,8 @@ vi.mock("@/hooks/useSearchTags", () => ({
     return { tags, carriers, settled: carriers.settled };
   },
 }));
-const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({
+const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; ready: boolean }>(() => ({
   direct: new Set(),
-  friends: new Set(),
   ready: true,
 }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));

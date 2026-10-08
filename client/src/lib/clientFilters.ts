@@ -8,7 +8,7 @@
 import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
 import type { SearchHit } from "@/services/search";
 
-export type Reach = "follows" | "friends";
+export type Reach = "follows";
 
 export interface ClientFilterState {
   verifiedOnly: boolean;
@@ -41,8 +41,6 @@ export function countBelowLine(
 export interface NetworkReach {
   /** People the viewer follows. */
   direct: ReadonlySet<string>;
-  /** Direct follows plus a sampled two-hop set (friends of friends). */
-  friends: ReadonlySet<string>;
   /** False while the graph is still loading — hold results rather than show a false empty page. */
   ready: boolean;
 }
@@ -57,12 +55,9 @@ export function clientFilterHits<H extends SearchHit>(
     const pk = h.event.pubkey;
     if (state.verifiedOnly && (ctx.scoreOf(pk) ?? -1) < line) return false;
     if (state.belowLine && underLine(ctx.scoreOf(pk), line)) return false;
-    if (state.reach && ctx.reach.ready) {
-      const set = state.reach === "follows" ? ctx.reach.direct : ctx.reach.friends;
-      if (!set.has(pk)) return false;
-    }
+    if (state.reach && ctx.reach.ready && !ctx.reach.direct.has(pk)) return false;
     return true;
   });
 }
 
-export const NO_REACH: NetworkReach = { direct: new Set(), friends: new Set(), ready: true };
+export const NO_REACH: NetworkReach = { direct: new Set(), ready: true };
