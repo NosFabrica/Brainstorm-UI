@@ -33,6 +33,7 @@ import { RepoHero } from "@/components/share/RepoHero";
 import { GitItemHero } from "@/components/share/GitItemHero";
 import { isGitItem } from "@/lib/gitStatus";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
+import { TrustedListHero } from "@/components/share/TrustedListHero";
 import { DesignationHero } from "@/components/share/DesignationHero";
 import { StructuralHero } from "@/components/share/StructuralHero";
 import { TechnicalStrip } from "@/components/share/TechnicalStrip";
@@ -331,7 +332,7 @@ function EventView({
   // fallback (media, text, or the structural card). Mirrors the chain in the
   // JSX: a kind with no hero of its own is the one whose publishing client
   // is worth a way back to (the team, 2026-09-24: "open in original client").
-  const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 10040, 31337, 30402, 31922, 31923]);
+  const DEDICATED_KINDS = new Set([30311, 32267, 1063, 30617, 30000, 30392, 10040, 31337, 30402, 31922, 31923]);
   const renderedGenerically =
     !!note &&
     !dictionaryConceptOf(note) &&
@@ -570,6 +571,8 @@ function EventView({
                 <RepoHero event={note} />
               ) : note.kind === 30000 ? (
                 <FollowSetHero event={note} />
+              ) : note.kind === 30392 ? (
+                <TrustedListHero event={note} />
               ) : note.kind === 10040 ? (
                 <DesignationHero event={note} />
               ) : note.kind === 31337 ? (
