@@ -65,6 +65,18 @@ describe("describeThing — communities", () => {
     expect(t?.image).toBe("https://cdn.satellite.earth/fee8.webp");
   });
 
+  it("passes over an `image` that is no web address for an `icon` that is", () => {
+    const t = describeThing(
+      ev(34550, [
+        ["d", "x"],
+        ["name", "x"],
+        ["image", "ipfs://bafy"],
+        ["icon", "https://cdn.example/icon.png"],
+      ]),
+    );
+    expect(t?.image).toBe("https://cdn.example/icon.png");
+  });
+
   it("reads a NIP-29 group and whether anyone may join", () => {
     const t = describeThing(ev(39000, [["d", "x"], ["name", "nutshell"], ["about", "cashu"], ["public"], ["closed"]]));
     expect(t).toMatchObject({ title: "nutshell", facts: ["Public", "Closed"] });

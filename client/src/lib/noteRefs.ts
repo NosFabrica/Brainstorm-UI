@@ -185,6 +185,8 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
  * straight to the root, parentId === rootId.
  */
 export function replyRefs(ev: MinimalEvent): { rootId?: string; parentId?: string } {
+  // A NIP-84 highlight's `e` is the text it quotes, not a post it answers.
+  if (ev.kind === 9802) return {};
   const eTags = (ev.tags || []).filter((t) => t[0] === "e" && t[1]);
   const threadTags = eTags.filter((t) => (t[3] || "") !== "mention");
   if (threadTags.length === 0) return {};

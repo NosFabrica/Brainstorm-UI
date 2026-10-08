@@ -24,7 +24,8 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { MediaImg } from "@/components/ui/media-img";
 import { useTierRing } from "@/components/score/VerificationCoin";
-import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { useConnectionSpeed } from "@/lib/connection";
+import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
 import { Headline } from "@/components/search/SerpRow";
 import { ago } from "@/lib/ago";
 import { kindTone } from "@/lib/kindFamily";
@@ -40,7 +41,7 @@ const THUMB = "h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-s
 /** The words that name an event: its title, or what it says with its links left out. */
 function wordsOf(target: NostrEvent): string | undefined {
   const s = summaryOf(target);
-  return [s.title, s.body]
+  return [s.title, s.quote, s.body]
     .map((w) =>
       (w ?? "")
         .replace(/https?:\/\/\S+|nostr:n(?:event|ote|addr)1\S+/gi, " ")
@@ -100,19 +101,15 @@ export const AllResultRow = memo(function AllResultRow({
   const authorName = author?.displayName || author?.name || name || shortKey(pubkey);
   const face = author?.picture || picture;
   // "to @Bob" says nothing once the quote below opens with Bob's name.
-  const facts = target ? summary.facts.filter((f) => f !== `to ${who(target.pubkey)}`) : summary.facts;
-  const firstFrame = summary.video ? (
-    <video
-      src={`${summary.video}#t=0.1`}
-      preload={videoPreload(speed)}
-      muted
-      playsInline
-      tabIndex={-1}
-      aria-hidden
-      className={THUMB}
-      data-testid="all-row-video-thumb"
-    />
-  ) : null;
+  // A highlight's "From site" says less than the article line its resolved source gets.
+  const facts = target
+    ? summary.facts.filter((f) => f !== `to ${who(target.pubkey)}` && !(summary.quote && f.startsWith("From ")))
+    : summary.facts;
+  // On a slow connection the frame would stay an empty square: no picture says more.
+  const firstFrame =
+    summary.video && speed === "normal" ? (
+      <VideoFirstFrame src={summary.video} className={THUMB} testId="all-row-video-thumb" />
+    ) : null;
   return (
     <Link
       href={summary.href}

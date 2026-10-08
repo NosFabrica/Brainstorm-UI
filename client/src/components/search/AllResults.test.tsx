@@ -125,6 +125,44 @@ describe("AllResults", () => {
     expect(fetchAddrs).toHaveBeenCalledTimes(1);
   });
 
+  it("a reaction to a highlight quotes the marked words, not the word Highlight", async () => {
+    const highlight = ev("5".repeat(64), 9802, [], "The words someone marked", B);
+    fetched.set(highlight.id, highlight);
+    const reaction = ev("6".repeat(64), 7, [["e", highlight.id]], "+");
+    render(<AllResults hits={[hit(reaction)]} settled scoreOf={() => null} query="" />);
+    await waitFor(() =>
+      expect(screen.getByTestId(`all-row-${reaction.id}`)).toHaveTextContent("The words someone marked"),
+    );
+  });
+
+  it("a highlight from an article says the article once found, and its site until then", async () => {
+    const article = ev(
+      "3".repeat(64),
+      30023,
+      [
+        ["d", "essay"],
+        ["title", "The Essay"],
+      ],
+      "",
+      B,
+    );
+    const highlight = ev(
+      "4".repeat(64),
+      9802,
+      [
+        ["a", `30023:${B}:essay`],
+        ["r", "https://essays.example/the-essay"],
+      ],
+      "Marked words",
+    );
+    const { rerender } = render(<AllResults hits={[hit(highlight)]} settled={false} scoreOf={() => null} query="" />);
+    expect(screen.getByTestId("all-row-facts")).toHaveTextContent("From essays.example");
+    fetched.set(`30023:${B}:essay`, article);
+    rerender(<AllResults hits={[hit(highlight)]} settled scoreOf={() => null} query="" />);
+    await waitFor(() => expect(screen.getByTestId("all-row-source")).toHaveTextContent("From The Essay"));
+    expect(screen.queryByTestId("all-row-facts")).toBeNull();
+  });
+
   it("names an author the search could not, from their profile — never an npub when there is a name", async () => {
     liveProfiles.set(A, { display_name: "Alice" });
     const note = ev("n".repeat(64), 1, [], "hello");

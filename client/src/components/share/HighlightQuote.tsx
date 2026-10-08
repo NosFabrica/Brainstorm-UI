@@ -14,7 +14,7 @@ import { BookOpen, ExternalLink } from "lucide-react";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { eventStore } from "@/lib/eventStore";
-import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
+import { coordOfAddr, fetchRefBatched } from "@/services/refBatch";
 import { HEX64, clip, type ResultRef } from "@/lib/resultReaders";
 import { parseHighlight, tailOf, type HighlightSource } from "@/lib/nip84";
 import { READER_KINDS, eventPath } from "@/lib/shareId";
@@ -56,36 +56,20 @@ export function HighlightQuote({
   );
 }
 
-const coordOf = (addr: string) => {
-  const [kind, pubkey, ...rest] = addr.split(":");
-  const k = Number(kind);
-  return Number.isInteger(k) && HEX64.test(pubkey ?? "")
-    ? { kind: k, pubkey: pubkey.toLowerCase(), identifier: rest.join(":") }
-    : null;
-};
-
-/** The Nostr event a highlight is from — store-first, one relay ask for what it lacks. */
+/** The Nostr event a highlight is from — store-first, asked in the page's batch for what the store lacks. */
 export function useHighlightSourceEvent(ref: ResultRef | null): NostrEvent | null {
-  const coord = ref?.addr ? coordOf(ref.addr) : null;
+  const coord = ref?.addr ? coordOfAddr(ref.addr) : null;
   const id = !coord && ref?.id && HEX64.test(ref.id) ? ref.id.toLowerCase() : null;
-  const relays = ref?.relay && /^wss?:\/\//i.test(ref.relay) ? [ref.relay] : undefined;
-  const filters = useMemo(
-    () =>
-      coord
-        ? [{ kinds: [coord.kind], authors: [coord.pubkey], "#d": [coord.identifier] }]
-        : id
-          ? [{ ids: [id] }]
-          : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the ref's own text
-    [ref?.addr, id],
-  );
+  const coordKey = coord ? `${coord.kind}:${coord.pubkey}:${coord.identifier}` : null;
+  const filters = useMemo(() => {
+    const c = coordKey ? coordOfAddr(coordKey) : null;
+    return c ? [{ kinds: [c.kind], authors: [c.pubkey], "#d": [c.identifier] }] : id ? [{ ids: [id] }] : null;
+  }, [coordKey, id]);
   const held = coord
     ? !!eventStore.getReplaceable(coord.kind, coord.pubkey, coord.identifier)
     : !!(id && eventStore.getEvent(id));
-  const key = held ? null : coord ? `highlight-source:${ref!.addr}` : id ? `highlight-source:${id}` : null;
-  const found = useStoreEvents(key, filters, () =>
-    coord ? fetchAddressableEvents([{ ...coord, relays }], relays) : fetchEventsByIds([id!], relays),
-  );
+  const key = held || !(coordKey || id) ? null : `highlight-source:${coordKey ?? id}`;
+  const found = useStoreEvents(key, filters, () => fetchRefBatched(ref!));
   const events = found.events as NostrEvent[];
   // An address can answer with several versions: the newest is the article.
   return events.length ? events.reduce((a, b) => (b.created_at > a.created_at ? b : a)) : null;

@@ -71,6 +71,9 @@ describe("summarizeResult — any kind as the All tab's row", () => {
       facts: [],
       ref: { addr: `30023:${PK}:essay` },
     });
+    // A bare key in the passage is a person, as in any row's words.
+    const npub = "npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m";
+    expect(summarizeResult(ev(9802, [], `Thanks ${npub}`)).quote).toBe(`Thanks nostr:${npub}`);
   });
 
   // A dead poster (flare's expired S3 thumbnails) still leaves the clip's first frame to show.

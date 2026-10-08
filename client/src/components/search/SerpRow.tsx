@@ -45,7 +45,7 @@ import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { MediaImg } from "@/components/ui/media-img";
-import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { splitCustomEmoji } from "@/lib/customEmoji";
@@ -210,7 +210,6 @@ function RowThumb({
   score?: number | null;
   onFail?: () => void;
 }) {
-  const speed = useConnectionSpeed();
   const [failed, setFailed] = useState(false);
   const openLightbox = useLightbox();
   // The full view is told whose media it is and where the post lives.
@@ -254,17 +253,7 @@ function RowThumb({
   }
   if (isVideo && url) {
     return (
-      <video
-        src={`${url}#t=0.1`}
-        preload={videoPreload(speed)}
-        muted
-        playsInline
-        tabIndex={-1}
-        aria-hidden
-        onClick={openMedia}
-        className={`cursor-pointer ${cls}`}
-        data-testid="serp-video-thumb"
-      />
+      <VideoFirstFrame src={url} onClick={openMedia} className={`cursor-pointer ${cls}`} testId="serp-video-thumb" />
     );
   }
   return null;

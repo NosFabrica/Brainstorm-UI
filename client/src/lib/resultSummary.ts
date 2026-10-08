@@ -268,6 +268,7 @@ export function summarizeResult(ev: SummaryEvent): ResultSummary {
     ...s,
     title: namePeople(s.title),
     body: s.code ? s.body : namePeople(withoutTitle(s.body, s.title)),
+    quote: namePeople(s.quote),
     // A link in a fact is its host: the row draws no URLs, and "· " before nothing says nothing.
     facts: s.facts.map((f) => (/^https?:\/\//i.test(f) ? hostOf(f) : f)).filter((f) => f.trim()),
   };
@@ -392,13 +393,12 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
         title: null,
         body: hl.comment ? markdownExcerpt(hl.comment) : null,
         quote: hl.passage,
-        facts: source.ref
-          ? []
-          : source.host
-            ? [`From ${source.host}`]
-            : source.title
-              ? [`From ${[source.title, source.author].filter(Boolean).join(" · ")}`]
-              : [],
+        // Said even beside a Nostr source: it is what the row has if that event never arrives.
+        facts: source.host
+          ? [`From ${source.host}`]
+          : source.title
+            ? [`From ${[source.title, source.author].filter(Boolean).join(" · ")}`]
+            : [],
         ref: source.ref,
       };
     }
