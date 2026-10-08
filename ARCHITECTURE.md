@@ -76,8 +76,9 @@ The `eventStore` is in-memory, so every reload used to rebuild the routing
 table from relays: NIP-65 list, then contact list, then profile — two dependent
 round trips before the app knew who you followed.
 `client/src/lib/eventCache.ts` keeps the small replaceable kinds (0, 3, 10002,
-10040, 30078) in IndexedDB and hydrates the ACTIVE account's own back into the
-store at boot, from `main.tsx`, before the first render.
+10040, 10050) in IndexedDB, plus the active account's own mute list (10000), and
+hydrates the ACTIVE account's own back into the store at boot, from `main.tsx`,
+before the first render.
 
 It is also the address loader's `cacheRequest` — step one of the loading
 sequence, ahead of any relay — so other people's profiles and relay lists come
