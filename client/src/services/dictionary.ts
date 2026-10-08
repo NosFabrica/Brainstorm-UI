@@ -49,7 +49,8 @@ export interface DictionaryEntry {
 }
 
 const TIMEOUT_MS = 8000;
-const ITEM_LIMIT = 500;
+/** Items read per relay for one list: a list of thousands shows its newest this many. */
+export const ITEM_LIMIT = 500;
 
 const zValues = (ev: { tags: string[][] }) => ev.tags.filter((t) => t[0] === "z" && t[1]).map((t) => t[1]);
 

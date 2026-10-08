@@ -38,6 +38,7 @@ import { DesignationHero } from "@/components/share/DesignationHero";
 import { StructuralHero } from "@/components/share/StructuralHero";
 import { TechnicalStrip } from "@/components/share/TechnicalStrip";
 import { DListHero } from "@/components/share/DListHero";
+import { DListHeaderHero } from "@/components/share/DListHeaderHero";
 import { CuratorFooter } from "@/components/search/cards";
 import { DListItemHero } from "@/components/share/DListItemHero";
 import { dlistOfEvent } from "@/lib/dlists";
@@ -549,6 +550,9 @@ function EventView({
             >
               {dlistOfEvent(note) ? (
                 <DListHero event={note} />
+              ) : note.kind === 39998 || note.kind === 9998 ? (
+                // Any other list's header: the list and its items, its tags behind "Advanced view".
+                <DListHeaderHero event={note} />
               ) : dictionaryConceptOf(note) ? (
                 // An item of a Dictionary concept, drawn from its governing definition (ADR 0004).
                 <DListItemHero event={note} />
