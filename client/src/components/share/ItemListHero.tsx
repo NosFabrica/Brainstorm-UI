@@ -8,22 +8,20 @@
  * to be there, not guessed at. The tags stay one click away, as on a
  * Decentralized List's header: "Advanced view".
  *
- * The search card's preview (ItemListPreview) is the same reading, a few
- * items deep.
+ * The search card's preview and a note's inline card (ListPreview) are the
+ * same reading, a few items deep.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import { Bookmark, Braces, ExternalLink, List, ListChecks, Lock } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Chip } from "@/components/ui/chip";
 import { EmojiText } from "@/components/ui/custom-emoji";
 import { SectionHeader } from "@/components/ui/section-header";
-import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { SetRoster } from "@/components/share/FollowSetHero";
 import { Favicon } from "@/components/share/LinkPreview";
+import { BOOKMARK_KINDS, HashtagChips, hostAndPath } from "@/components/share/ListPreview";
 import { StructuralHero } from "@/components/share/StructuralHero";
 import { useArticlesByRefs } from "@/hooks/useLinkedArticles";
 import { useQuotedNotes } from "@/hooks/useQuotedNotes";
@@ -32,13 +30,10 @@ import { kindTypeLabel } from "@/lib/kindLabel";
 import { addressNoun, listItemCounts, listTitle, readListItems, type ListNote } from "@/lib/listItems";
 import { addrCoord, type AddressRef, type MinimalEvent } from "@/lib/noteRefs";
 import { eventPath, neventFor, READER_KINDS } from "@/lib/shareId";
-import { topicPath } from "@/lib/topicQuery";
 
 const NOTES_FOLD = 10;
 const ADDRESSES_FOLD = 10;
 const LINKS_FOLD = 10;
-
-const BOOKMARK_KINDS = new Set([10001, 10003, 30003]);
 
 function naddrOf(a: AddressRef): string {
   try {
@@ -46,24 +41,6 @@ function naddrOf(a: AddressRef): string {
   } catch {
     return "";
   }
-}
-
-function hostAndPath(url: string): { host: string; rest: string } {
-  try {
-    const u = new URL(url);
-    const rest = `${u.pathname === "/" ? "" : u.pathname}${u.search}`;
-    return { host: u.hostname.replace(/^www\./, ""), rest };
-  } catch {
-    return { host: url, rest: "" };
-  }
-}
-
-/** A note's words on one line: its links and nostr: references left out. */
-export function noteLine(content: string): string {
-  return content
-    .replace(/https?:\/\/\S+|nostr:n(?:event|ote|addr|pub|profile)1[02-9ac-hj-np-z]+/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function FoldToggle({
@@ -224,38 +201,6 @@ function ListAddresses({ addresses }: { addresses: AddressRef[] }) {
   );
 }
 
-/**
- * A list's hashtags. As links into their topics on the page; as plain chips
- * inside a search card, whose body is already a link — never an anchor in an anchor.
- */
-function HashtagChips({ hashtags, max, plain = false }: { hashtags: string[]; max?: number; plain?: boolean }) {
-  const shown = max ? hashtags.slice(0, max) : hashtags;
-  const cls = "rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-brand-link dark:bg-slate-800";
-  return (
-    <div className="flex flex-wrap gap-1.5" data-testid="item-list-hashtags">
-      {shown.map((tag) =>
-        plain ? (
-          <span key={tag} className={cls} data-testid={`item-list-hashtag-${tag}`}>
-            #{tag}
-          </span>
-        ) : (
-          <Link
-            key={tag}
-            href={topicPath(tag)}
-            className={`${cls} transition-colors hover:bg-slate-200 dark:hover:bg-slate-700`}
-            data-testid={`item-list-hashtag-${tag}`}
-          >
-            #{tag}
-          </Link>
-        ),
-      )}
-      {max && hashtags.length > max && (
-        <span className="px-1 py-0.5 text-xs text-slate-500 dark:text-slate-400">+{hashtags.length - max}</span>
-      )}
-    </div>
-  );
-}
-
 function ListLinks({ links }: { links: string[] }) {
   const [open, setOpen] = useState(false);
   const shown = open ? links : links.slice(0, LINKS_FOLD);
@@ -395,109 +340,4 @@ export function ItemListHero({ event }: { event: MinimalEvent }) {
       )}
     </div>
   );
-}
-
-const PREVIEW_NOTES = 3;
-const PREVIEW_HASHTAGS = 8;
-const PREVIEW_LINKS = 4;
-
-function PreviewLine({
-  avatar,
-  name,
-  text,
-  testId,
-}: {
-  avatar?: ReactNode;
-  name?: string;
-  text: string;
-  testId: string;
-}) {
-  return (
-    <li className="flex min-w-0 items-center gap-2 text-sm" data-testid={testId}>
-      {avatar}
-      <span className="min-w-0 truncate text-slate-700 dark:text-slate-200">
-        {name && <span className="font-medium text-slate-900 dark:text-slate-100">{name} </span>}
-        <span className="text-slate-600 dark:text-slate-300">{text}</span>
-      </span>
-    </li>
-  );
-}
-
-/**
- * A list's first few things, for its search card: a line per note (who, and
- * what it says), a line per article (its title), or its hashtags or link
- * hosts — whatever it is a list of. Notes not found yet are left out; the
- * count on the card still says how many it holds.
- */
-export function ItemListPreview({ event }: { event: MinimalEvent }) {
-  const items = useMemo(() => readListItems(event), [event]);
-  const noteIds = useMemo(() => items.notes.slice(0, PREVIEW_NOTES).map((n) => n.id), [items]);
-  const { notes } = useQuotedNotes(noteIds);
-  const articleRefs = useMemo(
-    () => items.addresses.filter((a) => READER_KINDS.has(a.kind)).slice(0, Math.max(0, PREVIEW_NOTES - noteIds.length)),
-    [items, noteIds.length],
-  );
-  const { articles } = useArticlesByRefs(articleRefs);
-
-  // In the list's own order, as found.
-  const byId = new Map(notes.map((q) => [q.event.id, q]));
-  const noteLines = noteIds
-    .map((id) => byId.get(id))
-    .filter((q): q is NonNullable<typeof q> => !!q)
-    .map((q) => ({ q, text: noteLine(q.event.content) }))
-    .filter((l) => l.text);
-  const articleLines = articles
-    .map((ev) => ({ ev, title: ev.tags.find((t) => t[0] === "title")?.[1]?.trim() }))
-    .filter((l): l is { ev: MinimalEvent; title: string } => !!l.title);
-
-  if (noteLines.length || articleLines.length)
-    return (
-      <ul className="mt-2 space-y-1" data-testid={`list-preview-${event.id}`}>
-        {noteLines.map(({ q, text }) => (
-          <PreviewLine
-            key={q.event.id}
-            testId={`list-preview-note-${q.event.id}`}
-            avatar={
-              <Avatar className="h-5 w-5 shrink-0 border border-slate-200/80 dark:border-slate-800/80">
-                {q.author?.picture ? <AvatarImage src={q.author.picture} alt="" className="object-cover" /> : null}
-                <AvatarFallback className="overflow-hidden">
-                  <DefaultAvatarImg />
-                </AvatarFallback>
-              </Avatar>
-            }
-            name={q.author?.display_name || q.author?.name}
-            text={text}
-          />
-        ))}
-        {articleLines.map(({ ev, title }) => (
-          <PreviewLine key={ev.id} testId={`list-preview-article-${ev.id}`} text={title} />
-        ))}
-      </ul>
-    );
-  if (items.hashtags.length)
-    return (
-      <div className="mt-2" data-testid={`list-preview-${event.id}`}>
-        <HashtagChips hashtags={items.hashtags} max={PREVIEW_HASHTAGS} plain />
-      </div>
-    );
-  if (items.links.length)
-    return (
-      <div className="mt-2 flex flex-wrap gap-1.5" data-testid={`list-preview-${event.id}`}>
-        {items.links.slice(0, PREVIEW_LINKS).map((url) => {
-          const { host } = hostAndPath(url);
-          return (
-            <Chip key={url} size="md" tone="slate">
-              <Favicon host={host} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
-              {host}
-            </Chip>
-          );
-        })}
-        {items.links.length > PREVIEW_LINKS && (
-          <span className="px-1 py-0.5 text-xs text-slate-500 dark:text-slate-400">
-            +{items.links.length - PREVIEW_LINKS}
-          </span>
-        )}
-      </div>
-    );
-  return null;
 }

@@ -124,6 +124,17 @@ export function listItemCounts(items: ListItems): string[] {
     .map((c) => c.label);
 }
 
+/**
+ * What a list holds, said in one chip: "6 notes" when it is one kind of
+ * thing, "8 items" when it mixes them, "Private" when all of it is sealed.
+ */
+export function listCountLabel(items: ListItems): string {
+  const counts = listItemCounts(items);
+  if (counts.length === 1) return counts[0];
+  if (items.total) return `${items.total.toLocaleString()} items`;
+  return items.sealed ? "Private" : "Empty";
+}
+
 /** The list's name: its `title`, else `name`, else what a kind like this one is called. */
 export function listTitle(ev: { kind: number; tags: string[][] }): string {
   const named = ev.tags.find((t) => (t[0] === "title" || t[0] === "name") && t[1]?.trim())?.[1]?.trim();

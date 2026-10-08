@@ -16,6 +16,8 @@ import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { NoteTagRow } from "@/components/share/NoteTagChips";
 import type { NoteTag } from "@/services/tags";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
+import { EmbeddedListCard } from "@/components/share/ListPreview";
+import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { analyzeNote, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
 import { npubFromPubkey, eventPath } from "@/lib/shareId";
@@ -374,9 +376,14 @@ export function ShareNoteCard({
         />
       ))}
 
-      {articles.map((ae) => (
-        <EmbeddedArticleCard key={ae.id} event={ae} author={profiles.get(ae.pubkey)} />
-      ))}
+      {articles.map((ae) =>
+        // A linked bookmark set is a list, not an article with the default cover.
+        ITEM_LIST_KINDS.has(ae.kind) ? (
+          <EmbeddedListCard key={ae.id} event={ae} author={profiles.get(ae.pubkey)} />
+        ) : (
+          <EmbeddedArticleCard key={ae.id} event={ae} author={profiles.get(ae.pubkey)} />
+        ),
+      )}
 
       {!showAuthor && <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</p>}
 

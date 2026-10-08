@@ -55,7 +55,7 @@ import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
 import { ITEM_LIST_KINDS, listItemCounts, listTitle, readListItems } from "@/lib/listItems";
-import { ItemListPreview } from "@/components/share/ItemListHero";
+import { ItemListPreview } from "@/components/share/ListPreview";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";

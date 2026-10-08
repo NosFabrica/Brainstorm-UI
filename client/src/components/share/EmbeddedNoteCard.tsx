@@ -10,7 +10,9 @@ import { npubFromPubkey } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
-import { useLinkedArticles } from "@/hooks/useLinkedArticles";
+import { useArticlesByRefs, useLinkedArticles } from "@/hooks/useLinkedArticles";
+import { EmbeddedListCard } from "@/components/share/ListPreview";
+import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { useQuotedNotes } from "@/hooks/useQuotedNotes";
 import { nip19 } from "nostr-tools";
 import { isBlankEvent } from "@/lib/blankEvent";
@@ -34,20 +36,7 @@ function ago(ts?: number): string {
   return `${Math.floor(s / 2592000)}mo`;
 }
 
-/**
- * Compact embedded note — the quoted or reposted note shown inside a share-page
- * note card, with its author's avatar + name (Primal-style). Links to the
- * author's share page. Truncates long content.
- */
-export function EmbeddedNoteCard({
-  event,
-  author,
-  profiles,
-  href,
-  trustScore01,
-  showReplyContext = false,
-  nested = false,
-}: {
+export type EmbeddedNoteCardProps = {
   event: MinimalEvent;
   author?: ProfileLite;
   profiles?: Map<string, ProfileLite>;
@@ -61,7 +50,31 @@ export function EmbeddedNoteCard({
   showReplyContext?: boolean;
   /** A card shown inside another card: its own quotes and articles stay links — one level, never a stack. */
   nested?: boolean;
-}) {
+};
+
+/**
+ * Compact embedded note — the quoted or reposted note shown inside a share-page
+ * note card, with its author's avatar + name (Primal-style). Links to the
+ * author's share page. Truncates long content.
+ *
+ * A quoted event that is a list (bookmarks, a bookmark set — lib/listItems)
+ * has no words of its own: it is drawn as the list, not as an empty note.
+ */
+export function EmbeddedNoteCard(props: EmbeddedNoteCardProps) {
+  if (ITEM_LIST_KINDS.has(props.event.kind))
+    return <EmbeddedListCard event={props.event} author={props.author} href={props.href} nested={props.nested} />;
+  return <NoteCardBody {...props} />;
+}
+
+function NoteCardBody({
+  event,
+  author,
+  profiles,
+  href,
+  trustScore01,
+  showReplyContext = false,
+  nested = false,
+}: EmbeddedNoteCardProps) {
   const tierRing = useTierRing();
   // Deleted by overwriting: a quiet stub in the quote's place, nothing to click.
   const blank = isBlankEvent(event);
@@ -83,6 +96,10 @@ export function EmbeddedNoteCard({
   const shaped = thing?.detail.type === "market" || thing?.detail.type === "ballot" ? thing : null;
   // Neither shows its content, so nothing it names is looked up.
   const linked = useLinkedArticles(nested || shaped ? EMPTY_NOTE : event);
+  // A list it links by address: the list's name and count, one level deep.
+  const linkedLists = useArticlesByRefs(
+    nested || shaped ? [] : analyzeNote(event).addrs.filter((a) => ITEM_LIST_KINDS.has(a.kind)),
+  );
   // Likewise a note it quotes: the quoted note, with its author, one level deep.
   const quoted = useQuotedNotes(nested || shaped ? [] : analyzeNote(event).quoteIds);
   let npub = "";
@@ -205,6 +222,9 @@ export function EmbeddedNoteCard({
           event={ae}
           author={profiles?.get(ae.pubkey) ?? (ae.pubkey === event.pubkey ? author : undefined)}
         />
+      ))}
+      {linkedLists.articles.map((le) => (
+        <EmbeddedListCard key={le.id} event={le} author={profiles?.get(le.pubkey)} nested />
       ))}
     </div>
   );
