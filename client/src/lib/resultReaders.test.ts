@@ -228,6 +228,25 @@ describe("Tapestry's trusted lists", () => {
     expect(s.facts).toEqual(["2 people", `From ${who(C)}'s tag`, `Ranked by ${who(B)}`]);
     expect(s.shape).toBeNull();
   });
+
+  // Most on the relay are pinned-tag copies with no one on them yet.
+  it("say an empty list is empty, not JSON", () => {
+    const s = summarizeResult(
+      ev(
+        30392,
+        [
+          ["title", "Bitcoin Vendor"],
+          ["metric", "pinned-tag-membership"],
+          ["observer", B],
+        ],
+        JSON.stringify({ members: [] }),
+      ),
+    );
+    expect(s.title).toBe("Bitcoin Vendor");
+    expect(s.body).toBeNull();
+    expect(s.shape).toBeNull();
+    expect(s.facts).toEqual(["No one yet", `Ranked by ${who(B)}`]);
+  });
 });
 
 // The audit (2026-10-07): what the row lost, said wrong, or cut without saying so.

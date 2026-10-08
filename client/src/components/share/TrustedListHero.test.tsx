@@ -103,4 +103,11 @@ describe("TrustedListHero", () => {
     expect(screen.getByTestId(`trusted-list-score-${BOB}`)).toHaveTextContent("50");
     expect(screen.queryByText(/endorsements/)).toBeNull();
   });
+
+  it("an empty list says so instead of drawing an empty roster", () => {
+    render(<TrustedListHero event={{ ...LIST, tags: LIST.tags.filter((t) => t[0] !== "p") }} />);
+    expect(screen.getByText("0 members")).toBeInTheDocument();
+    expect(screen.getByTestId("set-hero-roster-empty")).toHaveTextContent("No one is on this list yet.");
+    expect(screen.queryByTestId("set-hero-roster")).toBeNull();
+  });
 });

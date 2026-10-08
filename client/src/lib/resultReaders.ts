@@ -453,7 +453,7 @@ read([TRUSTED_PEOPLE_KIND], (ev) => {
     title: null,
     body: people(list.members.map((m) => m.pubkey)) || null,
     facts: [
-      list.members.length ? plural(list.members.length, "person", "people") : null,
+      list.members.length ? plural(list.members.length, "person", "people") : "No one yet",
       list.sourceTag ? `From ${who(list.sourceTag.authorPubkey)}'s tag` : null,
       list.perspective ? `Ranked by ${who(list.perspective)}` : null,
     ].filter((f): f is string => !!f),

@@ -64,6 +64,19 @@ describe("ListCard", () => {
     expect(screen.queryByText(/endorsements/)).toBeNull();
   });
 
+  it("an empty Trusted List counts its members, not items", () => {
+    const empty = ev(
+      30392,
+      [
+        ["title", "Bitcoin Vendor"],
+        ["observer", OBSERVER],
+      ],
+      JSON.stringify({ members: [] }),
+    );
+    render(<ListCard event={empty} author={null} />);
+    expect(screen.getByTestId(`list-count-${empty.id}`)).toHaveTextContent("0 members");
+  });
+
   it("a follow set stays as it was: no scores, no provenance line", () => {
     const set = ev(30000, [
       ["title", "Friends"],

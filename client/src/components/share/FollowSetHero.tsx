@@ -101,6 +101,18 @@ export function SetRoster({ members, trailing }: { members: string[]; trailing?:
   const scoreOf = useAuthorScores(shown);
   const profiles = useProfiles(shown);
 
+  // Most of the relay's pinned-tag Trusted Lists are empty (probed 2026-10-08:
+  // 477 of 500): say so rather than draw an empty roster.
+  if (members.length === 0)
+    return (
+      <p
+        className="mt-4 border-t border-slate-100 pt-3 text-sm text-slate-500 dark:border-slate-800/60 dark:text-slate-400"
+        data-testid="set-hero-roster-empty"
+      >
+        No one is on this list yet.
+      </p>
+    );
+
   return (
     <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800/60">
       <ul className="space-y-0.5" data-testid="set-hero-roster">

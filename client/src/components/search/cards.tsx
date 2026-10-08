@@ -1296,7 +1296,7 @@ export function ListCard({
       <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
         {folded
           ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}`
-          : `${count} ${isPeopleList ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`}
+          : `${count} ${isPeopleList || trusted ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`}
       </Chip>
     </div>
   );
