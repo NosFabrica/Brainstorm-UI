@@ -313,11 +313,12 @@ function readThing(ev: EventLike): Thing | null {
             .map((t) => t[1].toLowerCase()),
         ),
       ];
-      const image = tag(ev, "image");
+      // NIP-72 says `image`; Membler publishes the picture as `icon`.
+      const image = [tag(ev, "image"), tag(ev, "icon")].find(isHttp);
       return thing({
         title,
         description: tag(ev, "description") ?? null,
-        image: isHttp(image) ? image : null,
+        image: image ?? null,
         facts: moderators.length > 0 ? [plural(moderators.length, "moderator")] : [],
         detail: {
           type: "community",

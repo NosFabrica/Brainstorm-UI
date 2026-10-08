@@ -37,6 +37,60 @@ describe("summarizeResult — any kind as the All tab's row", () => {
     expect(s.href).toMatch(/^\/e\//);
   });
 
+  it("a highlight is its passage, its comment and where it is from", () => {
+    const web = summarizeResult(
+      ev(
+        9802,
+        [
+          ["r", "https://www.example.org/post"],
+          ["context", "Before. The passage. After."],
+        ],
+        "The passage.",
+      ),
+    );
+    expect(web).toMatchObject({
+      title: null,
+      body: null,
+      quote: "The passage.",
+      facts: ["From example.org"],
+      ref: null,
+    });
+    const article = summarizeResult(
+      ev(
+        9802,
+        [
+          ["a", `30023:${PK}:essay`],
+          ["comment", "**Yes.**"],
+        ],
+        "The passage.",
+      ),
+    );
+    expect(article).toMatchObject({
+      body: "Yes.",
+      quote: "The passage.",
+      facts: [],
+      ref: { addr: `30023:${PK}:essay` },
+    });
+    // A bare key in the passage is a person, as in any row's words.
+    const npub = "npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m";
+    expect(summarizeResult(ev(9802, [], `Thanks ${npub}`)).quote).toBe(`Thanks nostr:${npub}`);
+  });
+
+  // A dead poster (flare's expired S3 thumbnails) still leaves the clip's first frame to show.
+  it("a video keeps its clip beside its poster, a picture post has none", () => {
+    const s = summarizeResult(
+      ev(34235, [
+        ["d", "ahXkCgR"],
+        ["url", "https://cdn.satellite.earth/946f.mp4"],
+        ["title", "How Nostr Saves Healthcare"],
+        ["thumb", "https://flare-pub.s3.amazonaws.com/thumbnails/vSWs.png"],
+      ]),
+    );
+    expect(s.image).toBe("https://flare-pub.s3.amazonaws.com/thumbnails/vSWs.png");
+    expect(s.video).toBe("https://cdn.satellite.earth/946f.mp4");
+    expect(summarizeResult(ev(20, [["imeta", "url https://x.test/a.jpg", "m image/jpeg"]])).video).toBeNull();
+  });
+
   it("a profile is the person: name, about and their profile page — the face stays in the byline", () => {
     const s = summarizeResult(
       ev(0, [], JSON.stringify({ name: "nova", display_name: "NOVA", about: "Music", picture: "https://img/n.jpg" })),

@@ -801,3 +801,49 @@ describe("SerpRow", () => {
     expect(screen.getByTestId("news-headline")).toHaveTextContent("A podcast headline long enough to count");
   });
 });
+
+describe("SerpRow — a NIP-84 highlight", () => {
+  const highlight = (tags: string[][], content = "Diseases of so-called pathogenic germs are healing processes.") =>
+    ({ ...note(content, tags), kind: 9802 }) as NostrEvent;
+
+  it("draws the passage marked, the highlighter's comment above it, and the page it is from", async () => {
+    unfurlMock.mockResolvedValueOnce({
+      title: "The Amino Age",
+      description: null,
+      image: "https://cdn.example/amino.jpg",
+      siteName: null,
+    });
+    render(
+      <SerpRow
+        event={highlight([
+          ["r", "https://www.northerntracey.example/2021/06/30/the-amino-age/"],
+          ["comment", "Worth reading twice"],
+        ])}
+        author={author}
+        score={0.7}
+        query="germs"
+      />,
+    );
+    const passage = screen.getByTestId("serp-highlight-passage");
+    expect(passage.querySelector("mark")).toHaveTextContent("Diseases of so-called pathogenic germs");
+    expect(screen.getByTestId("serp-highlight-comment")).toHaveTextContent("Worth reading twice");
+    const source = screen.getByTestId("serp-highlight-source");
+    expect(source).toHaveTextContent("From northerntracey.example");
+    expect(source.querySelector("a")).toHaveAttribute(
+      "href",
+      "https://www.northerntracey.example/2021/06/30/the-amino-age/",
+    );
+    // The page names itself once unfurled, and its picture is the row's.
+    await waitFor(() => expect(source).toHaveTextContent("The Amino Age · northerntracey.example"));
+    expect(screen.getByTestId("serp-highlight-thumb")).toBeInTheDocument();
+  });
+
+  it("names the note it is from, once resolved", async () => {
+    const src = { ...note("A note worth highlighting from"), id: "b".repeat(64), pubkey: "c".repeat(64) };
+    quotedEvents.set(src.id, src);
+    render(<SerpRow event={highlight([["e", src.id]])} author={author} score={0.7} query="" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("serp-highlight-source")).toHaveTextContent("From A note worth highlighting from by"),
+    );
+  });
+});

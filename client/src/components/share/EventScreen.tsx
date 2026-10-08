@@ -48,6 +48,7 @@ import { ThingHero, ThingSections, hasThingPage } from "@/components/share/thing
 import { ListingRelated } from "@/components/share/ListingRelated";
 import { EventHero } from "@/components/share/EventHero";
 import { VideoHero } from "@/components/share/VideoHero";
+import { HighlightHero } from "@/components/share/HighlightQuote";
 import { LiveHero } from "@/components/share/LiveHero";
 import { EventThread } from "@/components/share/EventThread";
 import { ThreadAncestors } from "@/components/share/ThreadAncestors";
@@ -338,6 +339,7 @@ function EventView({
     !DEDICATED_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
     !VIDEO_EVENT_KINDS.has(note.kind) &&
+    !(note.kind === 9802 && note.content.trim()) &&
     !NOTE_KINDS.has(note.kind);
   // The ⋯ in the header: copies of the event's ids and "Open in" another
   // client. The URL may have carried a bare id or a note1 — a real nevent
@@ -541,7 +543,7 @@ function EventView({
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div
-              className={`rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`}
+              className={`rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) || note.kind === 9802 ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`}
               data-testid="event-note"
             >
               {dlistOfEvent(note) ? (
@@ -582,6 +584,9 @@ function EventView({
                 <ThingHero event={note} />
               ) : VIDEO_EVENT_KINDS.has(note.kind) ? (
                 <VideoHero event={note} />
+              ) : note.kind === 9802 && note.content.trim() ? (
+                // A NIP-84 highlight: the passage marked in its paragraph, and the text it is from.
+                <HighlightHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
                 <ShareNoteCard
                   event={note}

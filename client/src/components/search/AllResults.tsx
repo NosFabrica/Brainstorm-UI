@@ -144,6 +144,7 @@ export function AllResults({
       else if (!h.author?.displayName && !h.author?.name) people.add(h.event.pubkey);
       mentionedIn(s.title, people);
       mentionedIn(s.body, people);
+      mentionedIn(s.quote, people);
       for (const f of s.facts) mentionedIn(f, people);
     }
     for (const t of [...targets.byId.values(), ...targets.byAddr.values()]) {

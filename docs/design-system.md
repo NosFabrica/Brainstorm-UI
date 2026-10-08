@@ -74,6 +74,11 @@ The rows on the Top page and the home feed follow Google's result proportions (t
 | Row                                            | `py-3.5`, lists are `space-y-1` — whitespace before dividers, no rules between rows |
 | Section title                                  | 16px (`SectionHeader variant="title"`); "See all" 13px; "+N more from" 12px         |
 
+A NIP-84 highlight (kind 9802) is drawn as a passage marked in a highlighter's amber
+(`HighlightMark` / `HighlightQuote` in `components/share/HighlightQuote.tsx`) on the Top row,
+the All row and its page — amber there means only "the words they marked". The page shows the
+passage in its paragraph and the text it is from; the rows say the source in a "From …" line.
+
 ### The search popup — `components/search/SearchBox.tsx`
 
 The popup offers **destinations**; the results page explains and previews. We cannot know

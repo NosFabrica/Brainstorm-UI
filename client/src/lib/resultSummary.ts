@@ -14,8 +14,9 @@
 import { contentShape } from "@/lib/contentShape";
 import { formatEventDate, parseCalendarEvent, shortPlace } from "@/lib/calendarEvent";
 import { formatListingPrice, parseListing } from "@/lib/listing";
-import { mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
+import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
 import { describeDesignation } from "@/lib/nip85Declaration";
+import { parseHighlight } from "@/lib/nip84";
 import { describeThing, THING_KINDS } from "@/lib/thing";
 import { parseTrack, TRACK_KINDS } from "@/lib/trackEvent";
 import { wikiPlainText } from "@/lib/wiki";
@@ -37,9 +38,13 @@ export interface ResultSummary {
   title: string | null;
   /** Plain words: no markdown, no ciphertext. */
   body: string | null;
+  /** A highlight's passage — the words someone marked, drawn as marked. */
+  quote: string | null;
   /** What the content is when it is not words to read — said in place of them. */
   shape: "encrypted" | "json" | null;
   image: string | null;
+  /** The clip itself, when the event is a video: its first frame stands in for a missing or dead picture. */
+  video: string | null;
   /** Short, quiet, in order: a price, a date and place, a duration, a status. */
   facts: string[];
   /** The kind's own full page. */
@@ -77,13 +82,20 @@ function genericTitle(ev: SummaryEvent): string | null {
   return d && !OPAQUE_D.test(d) ? d : null;
 }
 
+const IMAGE_URL = /\.(?:jpe?g|png|gif|webp|avif)(?:[?#]|$)/i;
+
 function genericImage(ev: SummaryEvent): string | null {
   const tagged = tagOf(ev, "image", "thumb", "picture", "icon", "cover", "banner");
   if (isHttp(tagged)) return tagged;
   const media = mediaUrlOf(ev);
-  if (media && /\.(?:jpe?g|png|gif|webp|avif)(?:[?#]|$)/i.test(media)) return media;
+  if (media && IMAGE_URL.test(media)) return media;
   const poster = mediaPosterOf(ev);
   return isHttp(poster) ? poster : null;
+}
+
+function genericVideo(ev: SummaryEvent): string | null {
+  const media = mediaUrlOf(ev);
+  return isHttp(media) && !IMAGE_URL.test(media) && isVideoUrl(ev, media) ? media : null;
 }
 
 /** Markdown reduced to the prose a two-line snippet shows — text, never markup. */
@@ -256,6 +268,7 @@ export function summarizeResult(ev: SummaryEvent): ResultSummary {
     ...s,
     title: namePeople(s.title),
     body: s.code ? s.body : namePeople(withoutTitle(s.body, s.title)),
+    quote: namePeople(s.quote),
     // A link in a fact is its host: the row draws no URLs, and "· " before nothing says nothing.
     facts: s.facts.map((f) => (/^https?:\/\//i.test(f) ? hostOf(f) : f)).filter((f) => f.trim()),
   };
@@ -287,8 +300,10 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
   const base: ResultSummary = {
     title: genericTitle(ev),
     body: proseTag(ev),
+    quote: null,
     shape: null,
     image: genericImage(ev),
+    video: genericVideo(ev),
     facts: [],
     href: eventPath(ev),
     ref: null,
@@ -319,6 +334,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       body: str("about"),
       // Their face is already the byline's, beside their name: no second one on the right.
       image: null,
+      video: null,
       facts: [str("nip05"), str("website")].filter((f): f is string => !!f).slice(0, 2),
       href: profilePath(ev.pubkey) || base.href,
     };
@@ -367,6 +383,27 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
       });
   }
 
+  // A highlight is its passage, what its highlighter said about it, and where it is from.
+  if (ev.kind === 9802) {
+    const hl = parseHighlight(ev);
+    if (hl) {
+      const { source } = hl;
+      return {
+        ...base,
+        title: null,
+        body: hl.comment ? markdownExcerpt(hl.comment) : null,
+        quote: hl.passage,
+        // Said even beside a Nostr source: it is what the row has if that event never arrives.
+        facts: source.host
+          ? [`From ${source.host}`]
+          : source.title
+            ? [`From ${[source.title, source.author].filter(Boolean).join(" · ")}`]
+            : [],
+        ref: source.ref,
+      };
+    }
+  }
+
   if (ev.kind === 10040) {
     const d = describeDesignation(ev);
     return { ...base, title: base.title ?? "Trust designation", body: d.summary || null };
@@ -406,7 +443,9 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
         ...base,
         title: s.title,
         body: s.body,
+        quote: s.quote,
         image: s.image,
+        video: s.video,
         facts: [`Repost of ${who(of)}`],
       };
     }

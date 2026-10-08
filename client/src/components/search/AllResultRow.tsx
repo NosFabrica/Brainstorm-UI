@@ -13,7 +13,7 @@
  * and it opens the kind's own full page. No players, no embeds, no "Read
  * article" — an article's cover is the same small square as everything else's.
  */
-import { memo, useState } from "react";
+import { memo } from "react";
 import { nip19 } from "nostr-tools";
 import { Link } from "wouter";
 import type { NostrEvent } from "nostr-tools";
@@ -24,6 +24,8 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { MediaImg } from "@/components/ui/media-img";
 import { useTierRing } from "@/components/score/VerificationCoin";
+import { useConnectionSpeed } from "@/lib/connection";
+import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
 import { Headline } from "@/components/search/SerpRow";
 import { ago } from "@/lib/ago";
 import { kindTone } from "@/lib/kindFamily";
@@ -32,11 +34,14 @@ import type { SearchResult } from "@/lib/profileSearch";
 import { clip, who } from "@/lib/resultReaders";
 import { summaryOf, type ResultSummary } from "@/lib/resultSummary";
 import { ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { HighlightQuote } from "@/components/share/HighlightQuote";
 
-/** The event a row is about, as one line: whose, and what it says — or what it is, when its words are only a link. */
-function quoteOf(target: NostrEvent): string {
+const THUMB = "h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800";
+
+/** The words that name an event: its title, or what it says with its links left out. */
+function wordsOf(target: NostrEvent): string | undefined {
   const s = summaryOf(target);
-  const words = [s.title, s.body]
+  return [s.title, s.quote, s.body]
     .map((w) =>
       (w ?? "")
         .replace(/https?:\/\/\S+|nostr:n(?:event|ote|addr)1\S+/gi, " ")
@@ -44,7 +49,16 @@ function quoteOf(target: NostrEvent): string {
         .trim(),
     )
     .find(Boolean);
-  return `${who(target.pubkey)}: ${clip(words || kindLabel(target), 200)}`;
+}
+
+/** The event a row is about, as one line: whose, and what it says — or what it is, when its words are only a link. */
+function quoteOf(target: NostrEvent): string {
+  return `${who(target.pubkey)}: ${clip(wordsOf(target) || kindLabel(target), 200)}`;
+}
+
+/** The text a highlight is from: "From The Article · @alice". */
+function sourceLineOf(target: NostrEvent): string {
+  return `From ${clip(wordsOf(target) || kindLabel(target), 120)} · ${who(target.pubkey)}`;
 }
 
 /** A key as people see one when there is no name: "npub1abc…xyz". */
@@ -82,12 +96,20 @@ export const AllResultRow = memo(function AllResultRow({
   target?: NostrEvent | null;
 }) {
   const tierRing = useTierRing();
-  const [thumbFailed, setThumbFailed] = useState(false);
+  const speed = useConnectionSpeed();
   const words = summary.body ? clip(summary.body, 600) : null;
   const authorName = author?.displayName || author?.name || name || shortKey(pubkey);
   const face = author?.picture || picture;
   // "to @Bob" says nothing once the quote below opens with Bob's name.
-  const facts = target ? summary.facts.filter((f) => f !== `to ${who(target.pubkey)}`) : summary.facts;
+  // A highlight's "From site" says less than the article line its resolved source gets.
+  const facts = target
+    ? summary.facts.filter((f) => f !== `to ${who(target.pubkey)}` && !(summary.quote && f.startsWith("From ")))
+    : summary.facts;
+  // On a slow connection the frame would stay an empty square: no picture says more.
+  const firstFrame =
+    summary.video && speed === "normal" ? (
+      <VideoFirstFrame src={summary.video} className={THUMB} testId="all-row-video-thumb" />
+    ) : null;
   return (
     <Link
       href={summary.href}
@@ -158,30 +180,44 @@ export const AllResultRow = memo(function AllResultRow({
                 </p>
               )
             )}
-            {target && (
+            {summary.quote && (
+              <div className={summary.title || words ? "mt-1.5" : ""}>
+                <HighlightQuote lines={words ? 2 : 3} testId="all-row-quote">
+                  <Headline text={summary.quote} query={query} tags={event.tags} />
+                </HighlightQuote>
+              </div>
+            )}
+            {target && summary.quote ? (
+              <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400" data-testid="all-row-source">
+                <Headline text={sourceLineOf(target)} query="" tags={target.tags} />
+              </p>
+            ) : target ? (
               <p
                 className="mt-1.5 line-clamp-1 break-all border-l-2 border-slate-200 pl-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
                 data-testid="all-row-ref"
               >
                 <Headline text={quoteOf(target)} query={query} tags={target.tags} />
               </p>
-            )}
+            ) : null}
             {facts.length > 0 && (
               <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400" data-testid="all-row-facts">
                 <Headline text={facts.join(" · ")} query="" />
               </p>
             )}
           </div>
-          {summary.image && !thumbFailed && (
+          {summary.image ? (
             <MediaImg
               src={summary.image}
               preset="media_320"
               alt=""
               loading="lazy"
-              onError={() => setThumbFailed(true)}
-              className="h-16 w-16 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-slate-800"
+              // A dead poster (flare's expired thumbnails) gives way to the clip's own first frame.
+              fallback={firstFrame}
+              className={THUMB}
               data-testid="all-row-thumb"
             />
+          ) : (
+            firstFrame
           )}
         </div>
       </Card>
