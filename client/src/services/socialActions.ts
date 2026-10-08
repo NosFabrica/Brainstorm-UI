@@ -464,13 +464,28 @@ async function publishMuteList(
 }
 
 /**
+ * The newest mute list in sight: the relays' and the caller's, whichever is newer.
+ *
+ * The caller's is never the base on its own. It is whatever the store holds,
+ * and the store is filled from the device at boot (lib/eventCache) — a copy as
+ * old as the last visit. Building on it while the relays have a newer list
+ * would publish over that list and silently undo every mute made elsewhere
+ * since. Muting flips the UI before it publishes, so the read costs no wait.
+ */
+async function newestMuteList(pubkey: string, cached?: NostrEvent | null): Promise<NostrEvent | null> {
+  const fetched = await fetchMuteList(pubkey);
+  if (!cached || !fetched) return fetched ?? cached ?? null;
+  return cached.created_at > fetched.created_at ? cached : fetched;
+}
+
+/**
  * The mute list a mute builds on. None found is only "start empty" when that is
  * known — a key minted here, or the relays answering that none exists (#72, as
  * for a first follow list); otherwise null, and the mute is refused rather than
  * replacing a list we couldn't read.
  */
 async function resolveMuteBase(pubkey: string, cached?: NostrEvent | null): Promise<NostrEvent | null> {
-  const found = cached ?? (await fetchMuteList(pubkey));
+  const found = await newestMuteList(pubkey, cached);
   if (found) return found;
   const empty: NostrEvent = { pubkey, kind: 10000, created_at: 0, tags: [], content: "" };
   if (identityHas(pubkey, "createdInApp")) return empty;
@@ -505,7 +520,7 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
 
-  const current = cachedMuteList ?? (await fetchMuteList(account.pubkey));
+  const current = await newestMuteList(account.pubkey, cachedMuteList);
   if (!current) return { success: false, error: "Could not fetch your mute list" };
 
   if (!current.tags.some(isPTagFor(targetPubkey))) return { success: true };
