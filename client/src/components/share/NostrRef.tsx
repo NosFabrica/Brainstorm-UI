@@ -1,7 +1,8 @@
 /**
  * A `nostr:` reference in long-form text, rendered as what it names: a
  * person as their mention chip, a note as the quoted note's card, an
- * article as the article's card — the same things a note renders them as.
+ * article as the article's card, a bookmark set as the list's card — the
+ * same things a note renders them as.
  * An article that listed notes by their `nostr:nevent…` strings read as
  * raw data (Benjamin, 2026-09-24). While a lookup runs, or when nothing
  * comes back, the reference stays a link to its page here.
@@ -12,6 +13,8 @@ import { MentionChip } from "@/components/share/MentionChip";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { EMBEDDED_THING_KINDS, ThingAddressRef } from "@/components/share/ThingAddressRef";
+import { ListAddressRef } from "@/components/share/ListPreview";
+import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { addressLabel, addressLink } from "@/components/share/ReadingText";
 import { useQuotedNotes } from "@/hooks/useQuotedNotes";
 import { READER_KINDS, useArticlesByRefs } from "@/hooks/useLinkedArticles";
@@ -65,6 +68,14 @@ export function NostrRef({
   if (address) {
     if (READER_KINDS.has(address.kind)) return <ArticleRef address={address} bech32={bech32} />;
     if (EMBEDDED_THING_KINDS.has(address.kind)) return <ThingAddressRef address={address} bech32={bech32} url={url} />;
+    if (ITEM_LIST_KINDS.has(address.kind))
+      return (
+        <ListAddressRef
+          address={address}
+          bech32={bech32}
+          fallback={addressLink(bech32, bech32, url) ?? <PageLink bech32={bech32}>{addressLabel(bech32)}</PageLink>}
+        />
+      );
     // Only articles, wiki pages and specs have a reader here; any other
     // address opens where every client can show it.
     return addressLink(bech32, bech32, url) ?? <PageLink bech32={bech32}>{addressLabel(bech32)}</PageLink>;

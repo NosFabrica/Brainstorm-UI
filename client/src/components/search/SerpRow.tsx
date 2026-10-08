@@ -9,6 +9,7 @@
  */
 import { ListCard } from "@/components/search/cards";
 import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
+import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { dlistOfEvent, parseDListMusician, parseDListSong } from "@/lib/dlists";
@@ -459,7 +460,9 @@ function rowPropsFor(event: NostrEvent, open: () => void) {
 export function SerpRow(props: SerpRowProps) {
   // A Trusted List's content is its members again, as JSON: the row would say
   // "Structured data". It is a people list — drawn as one, with its scores.
-  if (props.event.kind === TRUSTED_PEOPLE_KIND)
+  // A bookmark set has no words of its own, or only sealed ones: its card
+  // says what it holds and shows the first few.
+  if (props.event.kind === TRUSTED_PEOPLE_KIND || ITEM_LIST_KINDS.has(props.event.kind))
     return <ListCard event={props.event} author={props.author} score={props.score} />;
   return props.event.kind === 9802 && parseHighlight(props.event) ? (
     <HighlightRow {...props} />

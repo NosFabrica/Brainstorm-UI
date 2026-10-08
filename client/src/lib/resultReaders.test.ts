@@ -286,3 +286,28 @@ describe("the row says what it means", () => {
     expect(s.body?.split("\n").at(-1)).toBe("…");
   });
 });
+
+describe("a list's row", () => {
+  it("a bookmark set of notes quotes its first note", () => {
+    expect(
+      summarizeResult(
+        ev(30003, [
+          ["title", "Stoicism"],
+          ["e", NOTE],
+          ["e", B],
+        ]),
+      ).ref,
+    ).toMatchObject({ id: NOTE });
+  });
+
+  it("a mute list never quotes the thread it hides", () => {
+    expect(
+      summarizeResult(
+        ev(10000, [
+          ["e", NOTE],
+          ["word", "spoilers"],
+        ]),
+      ).ref,
+    ).toBeNull();
+  });
+});

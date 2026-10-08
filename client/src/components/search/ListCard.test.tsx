@@ -9,9 +9,11 @@ import { render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
+const notesById = new Map<string, NostrEvent>();
 vi.mock("@/services/nostr", async () => ({
   ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+  fetchEventsByIds: async (ids: string[]) => ids.map((id) => notesById.get(id)).filter(Boolean),
 }));
 const knownProfiles = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", async () => ({
@@ -87,5 +89,35 @@ describe("ListCard", () => {
     expect(screen.getByTestId(`list-count-${set.id}`)).toHaveTextContent("2 members");
     expect(screen.queryAllByTestId(/^list-member-score-/)).toHaveLength(0);
     expect(screen.queryByTestId(`list-provenance-${set.id}`)).toBeNull();
+  });
+
+  it("a bookmark set says what it holds and shows its first notes", async () => {
+    const n1 = "c".repeat(64);
+    notesById.set(n1, {
+      id: n1,
+      kind: 1,
+      pubkey: ALICE,
+      tags: [],
+      content: "The obstacle is the way. https://example.com/x",
+      created_at: 1,
+      sig: "s",
+    } as NostrEvent);
+    const set = ev(30003, [
+      ["d", "notes-pin-stoicism"],
+      ["title", "stoicism — notes"],
+      ["e", n1],
+      ["e", "d".repeat(64)],
+    ]);
+    render(<ListCard event={set} author={null} />);
+    expect(screen.getByTestId(`list-count-${set.id}`)).toHaveTextContent("2 notes");
+    // Its words, without the link.
+    expect(await screen.findByTestId(`list-preview-note-${n1}`)).toHaveTextContent("The obstacle is the way.");
+    expect(screen.getByTestId(`list-preview-note-${n1}`)).not.toHaveTextContent("example.com");
+  });
+
+  it("a bookmark list with only private items says so, not '0 items'", () => {
+    const sealed = ev(10003, [], "AgK3c2Vh?iv=bG9yZW0=");
+    render(<ListCard event={sealed} author={null} />);
+    expect(screen.getByTestId(`list-count-${sealed.id}`)).toHaveTextContent("Private");
   });
 });
