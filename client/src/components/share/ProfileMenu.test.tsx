@@ -29,9 +29,10 @@ const npub = nip19.npubEncode(PK);
 const RELAYS = ["wss://one.example", "wss://two.example"];
 const MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/124.0 Safari/537.36";
 
+const onReview = vi.fn();
 function menuFor(
   viewer: { loggedIn: boolean; isOwner: boolean; isAdmin: boolean },
-  extra: Partial<{ initialMuted: boolean; alreadyReported: boolean }> = {},
+  extra: Partial<{ initialMuted: boolean; alreadyReported: boolean; review: "write" | "edit" | null }> = {},
 ) {
   render(
     <ProfileMenu
@@ -41,6 +42,9 @@ function menuFor(
       viewer={viewer}
       initialMuted={extra.initialMuted ?? false}
       alreadyReported={extra.alreadyReported ?? false}
+      searchHref={`/search?from=${npub}`}
+      review={extra.review === undefined ? (viewer.loggedIn && !viewer.isOwner ? "write" : null) : extra.review}
+      onReview={onReview}
       ua={MAC}
     />,
   );
@@ -53,6 +57,7 @@ const open = async () => {
 beforeEach(() => {
   copyMock.mockClear();
   toast.mockClear();
+  onReview.mockClear();
   muteUser.mockClear();
   muteUser.mockResolvedValue({ success: true });
 });
@@ -147,5 +152,44 @@ describe("ProfileMenu", () => {
     expect(within(menu).getByTestId("menu-copy-nprofile-hint")).toHaveTextContent(
       "Their key plus the relays their posts live on",
     );
+  });
+
+  // The icon row above the profile (magnifier, pen, bubble) was three bare
+  // glyphs nobody could read; those actions now live here, labelled, first.
+  describe("the actions that used to be bare icons", () => {
+    it("signed in on someone else's page: Write a review and Search their posts lead, before Mute", async () => {
+      menuFor({ loggedIn: true, isOwner: false, isAdmin: false });
+      const menu = await open();
+      const review = within(menu).getByTestId("share-review");
+      const search = within(menu).getByTestId("share-search-posts");
+      expect(review).toHaveTextContent("Write a review");
+      expect(search).toHaveTextContent("Search their posts");
+      expect(search).toHaveAttribute("href", `/search?from=${npub}`);
+      const mute = within(menu).getByTestId("share-mute");
+      expect(review.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(search.compareDocumentPosition(mute) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      fireEvent.click(review);
+      expect(onReview).toHaveBeenCalledTimes(1);
+    });
+
+    it("once you have reviewed them, the row reads Edit your review", async () => {
+      menuFor({ loggedIn: true, isOwner: false, isAdmin: false }, { review: "edit" });
+      const menu = await open();
+      expect(within(menu).getByTestId("share-review")).toHaveTextContent("Edit your review");
+    });
+
+    it("signed out: search is public so it stays; there is nothing to review", async () => {
+      menuFor({ loggedIn: false, isOwner: false, isAdmin: false });
+      const menu = await open();
+      expect(within(menu).getByTestId("share-search-posts")).toBeInTheDocument();
+      expect(within(menu).queryByTestId("share-review")).toBeNull();
+    });
+
+    it("on your own page: search your posts, no review of yourself", async () => {
+      menuFor({ loggedIn: true, isOwner: true, isAdmin: false });
+      const menu = await open();
+      expect(within(menu).getByTestId("share-search-posts")).toHaveTextContent("Search your posts");
+      expect(within(menu).queryByTestId("share-review")).toBeNull();
+    });
   });
 });
