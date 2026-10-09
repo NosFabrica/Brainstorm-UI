@@ -59,8 +59,11 @@ export function TagPersonButton({
   const [pendingAdd, setPendingAdd] = useState<{
     label: string;
     description?: string;
-    run: () => Promise<void>;
+    /** A tag nobody has minted yet: the panel also asks for an optional description (issue #202). */
+    isNew?: boolean;
+    run: (description?: string) => Promise<void>;
   } | null>(null);
+  const [newDescription, setNewDescription] = useState("");
   const { toast } = useToast();
   const { data } = useProfileTags(pubkey);
   const applyTag = useApplyTag(pubkey);
@@ -179,6 +182,11 @@ export function TagPersonButton({
   /** Stage an add behind the confirm panel. */
   const confirmAdd = (label: string, run: () => Promise<void>, description?: string) =>
     setPendingAdd({ label, description, run });
+  /** Stage a brand-new tag: the panel asks what it means before minting. */
+  const confirmNew = (name: string) => {
+    setNewDescription("");
+    setPendingAdd({ label: name, isNew: true, run: (description) => addByName(name, description) });
+  };
 
   /**
    * Apply a tag we already have coordinates for. Skips `resolveOrMintTag`
@@ -213,15 +221,19 @@ export function TagPersonButton({
     }
   }
 
-  /** Add a tag by name — reusing the shared one when it already exists. */
-  async function addByName(name: string) {
+  /**
+   * Add a tag by name — reusing the shared one when it already exists. The
+   * description only matters when the tag is minted here; a reused tag keeps
+   * its author's words (the panel says so).
+   */
+  async function addByName(name: string, description?: string) {
     setOpen(false);
     setSearch("");
     addedToast(name);
     try {
       // Reuse the tag everyone else already uses when there is one, so counts
       // accumulate on a single tag instead of splitting across duplicates.
-      const tag = await resolveOrMintTag(name);
+      const tag = await resolveOrMintTag(name, description?.trim() || undefined);
       const result = await applyTag.mutateAsync({ tag, displayName: name });
 
       // Minting is two publishes and can't be atomic. If the second one failed
@@ -269,6 +281,23 @@ export function TagPersonButton({
             {pendingAdd.description && (
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{pendingAdd.description}</p>
             )}
+            {pendingAdd.isNew && (
+              <label className="mt-2 block">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Description (optional)</span>
+                <textarea
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  rows={2}
+                  maxLength={280}
+                  placeholder="What does this tag mean?"
+                  className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-brand-primary focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  data-testid="share-tag-description"
+                />
+                <span className="mt-1 block text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+                  If a tag with this name already exists, the shared one is used and your description isn't needed.
+                </span>
+              </label>
+            )}
             <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
               {isOwner ? "Others can see this on your profile" : "Anyone can see this on their profile"}, and there is
               no delete — only disagreeing later.
@@ -285,9 +314,9 @@ export function TagPersonButton({
               <button
                 type="button"
                 onClick={() => {
-                  const { run } = pendingAdd;
+                  const { run, isNew } = pendingAdd;
                   setPendingAdd(null);
-                  void run();
+                  void run(isNew ? newDescription : undefined);
                 }}
                 className="rounded-lg bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-primary-hover"
                 data-testid="share-tag-confirm-add"
@@ -309,11 +338,7 @@ export function TagPersonButton({
 
               {isNew && (
                 <CommandGroup heading="Add your own">
-                  <CommandItem
-                    value={typed}
-                    onSelect={() => confirmAdd(typed, () => addByName(typed))}
-                    data-testid="share-tag-create"
-                  >
+                  <CommandItem value={typed} onSelect={() => confirmNew(typed)} data-testid="share-tag-create">
                     <Plus className="mr-2 h-3.5 w-3.5" />
                     {typed}
                   </CommandItem>
