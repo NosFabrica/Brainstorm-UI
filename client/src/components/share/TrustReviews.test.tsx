@@ -6,7 +6,7 @@
  * when they answered. Silent when nobody has vouched.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 
 type PersonEndorsements = import("@/services/endorsements").PersonEndorsements;
@@ -174,6 +174,39 @@ describe("TrustReviews composer", () => {
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     await Promise.resolve();
     expect(screen.queryByTestId("trust-reviews-write")).toBeNull();
+  });
+
+  // Two cards that read like two features ("Recommend", "Confirm identity")
+  // were really one choice of what you're signing (the wire carries one `t`).
+  // They are a radio now, worded as the claim you make, and the footer says
+  // "public" in plain words — "relays" meant nothing to most readers.
+  it("offers two first-person claims as one choice, says it's public, and counts only once you type", async () => {
+    viewerMock = { pubkey: VIEWER };
+    signedInMock = true;
+    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [] });
+    render(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    await screen.findByTestId("trust-reviews");
+    fireEvent.click(screen.getByTestId("trust-reviews-invite"));
+    const composer = screen.getByTestId("vouch-composer");
+    const group = within(composer).getByRole("radiogroup", { name: /what are you saying/i });
+    const options = within(group).getAllByRole("radio");
+    expect(options.map((o) => o.textContent)).toEqual([
+      expect.stringContaining("I recommend them"),
+      expect.stringContaining("This is really them"),
+    ]);
+    expect(options[0]).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(options[1]);
+    expect(options[1]).toHaveAttribute("aria-checked", "true");
+    expect(options[0]).toHaveAttribute("aria-checked", "false");
+    expect(composer).toHaveTextContent("Public — anyone can see your review");
+    expect(composer).not.toHaveTextContent(/relays/);
+    expect(composer).not.toHaveTextContent("/500");
+    fireEvent.change(screen.getByTestId("vouch-text"), { target: { value: "Met at the conference." } });
+    expect(composer).toHaveTextContent("22/500");
+    fireEvent.click(screen.getByTestId("vouch-publish"));
+    await vi.waitFor(() =>
+      expect(publishVouchMock).toHaveBeenCalledWith(SUBJECT, { type: "identity", content: "Met at the conference." }),
+    );
   });
 
   it("reports a failed publish and keeps the draft", async () => {
