@@ -7,7 +7,7 @@ import { signingProblem } from "@/accounts/signing";
 import { ROLES } from "@/config/personalization";
 import { resolveOrMintTag, type ProfileTag } from "@/services/tags";
 import { useApplyTag, useProfileTags, usePickerTags } from "@/hooks/useTags";
-import { StanceRow } from "@/components/share/StanceControl";
+import { SOFT_SELECTED_ROW, StanceRow } from "@/components/share/StanceControl";
 
 /**
  * Add a tag to a person — your own profile or anyone else's.
@@ -338,7 +338,12 @@ export function TagPersonButton({
 
               {isNew && (
                 <CommandGroup heading="Add your own">
-                  <CommandItem value={typed} onSelect={() => confirmNew(typed)} data-testid="share-tag-create">
+                  <CommandItem
+                    value={typed}
+                    onSelect={() => confirmNew(typed)}
+                    className={SOFT_SELECTED_ROW}
+                    data-testid="share-tag-create"
+                  >
                     <Plus className="mr-2 h-3.5 w-3.5" />
                     {typed}
                   </CommandItem>
@@ -375,6 +380,7 @@ export function TagPersonButton({
                       key={label}
                       value={label}
                       onSelect={() => confirmAdd(label, () => addByName(label))}
+                      className={SOFT_SELECTED_ROW}
                       data-testid="share-tag-legacy"
                     >
                       <Plus className="mr-2 h-3.5 w-3.5" />
@@ -394,6 +400,7 @@ export function TagPersonButton({
                       key={e.key}
                       value={e.label}
                       onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
+                      className={SOFT_SELECTED_ROW}
                       data-testid="share-tag-existing"
                     >
                       <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
@@ -419,6 +426,7 @@ export function TagPersonButton({
                       key={e.key}
                       value={e.label}
                       onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
+                      className={SOFT_SELECTED_ROW}
                       data-testid="share-tag-content"
                     >
                       <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
@@ -441,6 +449,7 @@ export function TagPersonButton({
                       key={role.key}
                       value={role.label}
                       onSelect={() => confirmAdd(role.label, () => addByName(role.label))}
+                      className={SOFT_SELECTED_ROW}
                       data-testid="share-tag-option"
                     >
                       {role.label}
