@@ -41,6 +41,15 @@ page from every relay; if that page brought nothing for this chat — likely, si
 pages are account-wide — the chat offers **Keep looking**, which pages every
 relay until a message appears or all are done (`useChatHistory`).
 
+In the list the markers are invisible (2026-10-05): each still pages its relay
+as it scrolls into view, but the list says the history once, under the rows —
+"N servers aren't responding · Retry", else "Loading older messages…", else
+nothing. A reader shouldn't need to know what a relay is to read their messages.
+Only a relay waiting on a sign-in shows its own marker, because that needs them.
+The inbox reads as empty ("No chats yet.") once any relay has answered: the live
+subscription settling, or any relay delivering a page — one silent relay can
+hold "settled" off indefinitely. Inside a chat the per-relay markers stay.
+
 ## Opening messages
 
 Two NIP-44 decrypts per wrap, by the account's signer. A local key that can
@@ -74,17 +83,24 @@ The send answers once every recipient has a relay that took their wrap; slower
 relays keep going in the background and fill in the delivery details, so a
 dead inbox relay doesn't hold the composer for its timeout.
 
-Many inbox relays (auth.nostr1.com among the suggested ones) take a wrap only
-from a signed-in sender. A refused publish (`auth-required`) is signed in
-through the same consent as reads (lib/relayAuthPref; services/relayAuth
-answers a refused write only on relays where a private message was refused,
-and never raises the Unlock modal for a login nobody asked for — a locked key
-signs in once the reader is in Messages), retried once, and otherwise held:
-the message shows "their relay wants you signed in", and goes out by itself
-when that relay signs the reader in. The trade-off is NIP-42's: signing in to
-a recipient's inbox relay tells that relay who is sending to its users. A
-reader who hasn't allowed sign-in keeps that private and can't reach those
-inboxes.
+Many inbox relays (auth.nostr1.com among the suggested ones) hand over an
+inbox, or take a wrap, only from a signed-in reader (NIP-42). services/relayAuth
+signs in, without asking, to any relay that refuses a read or a write — the
+reader's own inbox relays and a recipient's alike. A refused publish
+(`auth-required`) waits briefly for that login and is retried once, then held;
+the message goes out by itself when that relay signs the reader in. The
+trade-off is NIP-42's: signing in to a recipient's inbox relay tells it who is
+sending to its users. The signer keeps the last word — it may prompt, and the
+reader may say no there — and no login ever raises the Unlock modal for a login
+nobody asked for: a locked key signs in once the reader is in Messages.
+
+A login that doesn't happen is recorded per account and relay, saying why: the
+reader's signer saying no shows "Rejected - Ask again", which asks for a fresh
+approval; the relay answering the login with a refusal shows its reason and
+"Try again"; a login that simply didn't go through (no signer, no answer in
+time) shows "Try again" and is also tried again when the reader next opens
+Messages. While a record stands the relay is not asked again — not on its next
+refused read, and not after a reconnect.
 
 ## Everything else stays on the device
 

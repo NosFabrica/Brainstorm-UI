@@ -19,7 +19,7 @@ const hit = (pubkey: string) =>
   }) as never;
 const hits = [hit(A), hit(B), hit(C)];
 const scoreOf = (pk: string) => ({ [A]: 0.9, [B]: 0.001, [C]: undefined })[pk];
-const reach = { direct: new Set([B]), friends: new Set([B, C]), ready: true };
+const reach = { direct: new Set([B]), ready: true };
 
 describe("clientFilterHits", () => {
   it("passes everything through when no client filter is set", () => {
@@ -32,24 +32,21 @@ describe("clientFilterHits", () => {
     ).toEqual([A]);
   });
 
-  it("reach:follows keeps people you follow; reach:friends adds friends of friends", () => {
+  it("reach:follows keeps people you follow", () => {
     expect(
       clientFilterHits(hits, { verifiedOnly: false, reach: "follows" }, { scoreOf, reach }).map((h) => h.event.pubkey),
     ).toEqual([B]);
-    expect(
-      clientFilterHits(hits, { verifiedOnly: false, reach: "friends" }, { scoreOf, reach }).map((h) => h.event.pubkey),
-    ).toEqual([B, C]);
   });
 
   it("both together intersect", () => {
-    expect(clientFilterHits(hits, { verifiedOnly: true, reach: "friends" }, { scoreOf, reach })).toEqual([]);
+    expect(clientFilterHits(hits, { verifiedOnly: true, reach: "follows" }, { scoreOf, reach })).toEqual([]);
   });
 
   it("holds everything back while the reach graph is still loading — never a false empty page", () => {
     const out = clientFilterHits(
       hits,
       { verifiedOnly: false, reach: "follows" },
-      { scoreOf, reach: { direct: new Set(), friends: new Set(), ready: false } },
+      { scoreOf, reach: { direct: new Set(), ready: false } },
     );
     expect(out).toHaveLength(3);
   });

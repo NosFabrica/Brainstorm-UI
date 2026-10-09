@@ -1,19 +1,66 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import type { NostrEvent } from "nostr-tools";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { fetchProfileMap, refreshProfileEvent } from "@/services/nostr";
 import { profileContentOf } from "@/lib/profileContent";
 import { eventStore } from "@/lib/eventStore";
+import { __resetAsks, claim, inFlightFor, isDue, track } from "@/lib/askOnce";
 import { newerEvent, useHeldReplaceable, useHeldReplaceables } from "@/hooks/useHeldEvents";
 
 /**
- * The subject of a profile page: whatever copy of their kind-0 the device
- * holds, at once and however old, while the relays — the `nprofile`'s hints
- * among them — are asked for a newer one, which replaces it as it lands.
+ * How long one ask for a person's profile covers every hook that shows them:
+ * 10–15 minutes, picked per ask so a page of hundreds asked together doesn't
+ * come due together.
+ */
+const ASK_WINDOW = { minMs: 10 * 60_000, spreadMs: 5 * 60_000 };
+const askKey = (pubkey: string) => `profile:${pubkey}`;
+
+/**
+ * The people here due an ask, claimed. Only an ask that FOUND something covers
+ * the next mount: someone still not in the store is asked again.
+ */
+function claimDue(pubkeys: string[]): string[] {
+  const due = pubkeys.filter(
+    (pk) => !inFlightFor(askKey(pk)) && (isDue(askKey(pk)) || !eventStore.getReplaceable(0, pk)),
+  );
+  due.forEach((pk) => claim(askKey(pk), ASK_WINDOW));
+  return due;
+}
+
+const trackProfiles = <T>(pubkeys: string[], ask: Promise<T>) => track(pubkeys.map(askKey), ask);
+
+/** Test seam. */
+export function __resetAskedProfiles(): void {
+  __resetAsks();
+  if (batch) {
+    clearTimeout(batch.quiet);
+    clearTimeout(batch.max);
+  }
+  queued = new Set();
+  batch = null;
+}
+
+/** Start the ask a profile page would make on mount, ahead of it — e.g. on a search click. */
+export function warmProfile(pubkey: string, relayHints: string[] = []): void {
+  askOnce(pubkey, relayHints);
+}
+
+function askOnce(pubkey: string, relayHints: string[]): Promise<unknown> | undefined {
+  return claimDue([pubkey]).length
+    ? trackProfiles(
+        [pubkey],
+        refreshProfileEvent(pubkey, { relayHints }).catch(() => null),
+      )
+    : inFlightFor(askKey(pubkey));
+}
+
+/**
+ * Someone's profile, live: whatever copy the device holds, at once and however
+ * old, while the relays — the `nprofile`'s hints among them — are asked for a
+ * newer one, which replaces it as it lands.
  *
- * `loading` is true only while nothing at all is known: a held copy is never
- * hidden behind a spinner.
+ * `loading` is true only while nothing is held AND the first ask is out. Once
+ * it settles empty, `profile` is undefined and `loading` false: "no profile".
  */
 export function useLiveProfile(
   pubkey: string | undefined,
@@ -21,41 +68,75 @@ export function useLiveProfile(
 ): { event: NostrEvent | undefined; profile: ProfileContent | undefined; loading: boolean } {
   const held = useHeldReplaceable(0, pubkey || undefined);
   const hintsKey = relayHints.join(",");
-  const query = useQuery({
-    queryKey: ["live-profile", pubkey, hintsKey],
-    queryFn: () => refreshProfileEvent(pubkey!, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const event = newerEvent(query.data ?? undefined, held);
+  // The ask's own answer, for a copy the store refused.
+  const [answer, setAnswer] = useState<{ pubkey: string; event?: NostrEvent }>();
+
+  useEffect(() => {
+    if (!pubkey) return;
+    let alive = true;
+    // A joined list ask answers with a map, not an event; its copies are in the store.
+    const done = (found?: unknown) => {
+      const event = (found as NostrEvent | null)?.pubkey === pubkey ? (found as NostrEvent) : undefined;
+      if (alive) setAnswer({ pubkey, event });
+    };
+    const pending = askOnce(pubkey, relayHints);
+    if (pending) pending.then(done, () => done());
+    else done();
+    return () => {
+      alive = false;
+    };
+    // hintsKey is `relayHints`, as a value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pubkey, hintsKey]);
+
+  const settled = answer?.pubkey === pubkey ? answer : undefined;
+  const event = newerEvent(settled?.event, held);
   const profile = useMemo(() => profileContentOf(event), [event]);
-  return { event, profile, loading: !event && query.isLoading };
+  return { event, profile, loading: !!pubkey && !event && !settled };
 }
 
 const NO_PROFILES: Map<string, ProfileContent> = new Map();
 
-/** How long one ask for a person's profile covers every list that shows them. */
-const ASKED_FOR_MS = 5 * 60_000;
-const askedAt = new Map<string, number>();
-
 /**
- * The people in this list not already asked for in the last few minutes.
- * A results page mounts dozens of lists over largely the same people; one ask
- * is enough, because what it finds lands in the store every list follows.
- * Only an ask that FOUND something covers the next list: someone still not in
- * the store is asked again, as they always were.
+ * Lists of people are asked for together. Names arriving over a second or so —
+ * a thread's replies streaming in — would otherwise leave as one small batch
+ * each, and every batch costs a search ask plus relay-list warm-ups. Each
+ * request waits for a short quiet spell, capped, then everyone queued goes out
+ * as one `fetchProfileMap`.
  */
-function notAskedRecently(pubkeys: string[]): string[] {
-  const now = Date.now();
-  const due = pubkeys.filter((pk) => (askedAt.get(pk) ?? 0) + ASKED_FOR_MS <= now || !eventStore.getReplaceable(0, pk));
-  due.forEach((pk) => askedAt.set(pk, now));
-  return due;
+const LIST_QUIET_MS = 250;
+const LIST_MAX_WAIT_MS = 1000;
+let queued = new Set<string>();
+let batch: {
+  promise: Promise<unknown>;
+  resolve: (m: unknown) => void;
+  quiet?: ReturnType<typeof setTimeout>;
+  max: ReturnType<typeof setTimeout>;
+} | null = null;
+
+function flushProfiles(): void {
+  if (!batch) return;
+  const { resolve, quiet, max } = batch;
+  clearTimeout(quiet);
+  clearTimeout(max);
+  const due = claimDue([...queued]);
+  queued = new Set();
+  batch = null;
+  if (!due.length) return resolve(new Map());
+  trackProfiles(due, fetchProfileMap(due, undefined, { warm: false })).then(resolve, () => resolve(new Map()));
 }
 
-/** Test seam. */
-export function __resetAskedProfiles(): void {
-  askedAt.clear();
+function queueProfiles(pubkeys: string[]): Promise<unknown> {
+  if (!pubkeys.length) return Promise.resolve(new Map());
+  pubkeys.forEach((pk) => queued.add(pk));
+  if (!batch) {
+    let resolve!: (m: unknown) => void;
+    const promise = new Promise((r) => (resolve = r));
+    batch = { promise, resolve, max: setTimeout(flushProfiles, LIST_MAX_WAIT_MS) };
+  }
+  clearTimeout(batch.quiet);
+  batch.quiet = setTimeout(flushProfiles, LIST_QUIET_MS);
+  return batch.promise;
 }
 
 /**
@@ -68,8 +149,8 @@ export function __resetAskedProfiles(): void {
  *
  * The queue decides who is re-asked: a copy learned within the hour was just
  * fetched, and a page of notes is too many people to re-ask on every render.
- * Each person is asked about once per few minutes however many lists show
- * them (notAskedRecently).
+ * Each person is asked about once per 10–15 minutes however many lists show
+ * them (claimDue).
  */
 export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> {
   const unique = useMemo(
@@ -85,14 +166,16 @@ export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> 
   const [fetched, setFetched] = useState<Map<string, ProfileContent>>(NO_PROFILES);
   useEffect(() => {
     if (!key) return;
-    const due = notAskedRecently(key.split(","));
-    if (!due.length) return;
+    const pubkeys = key.split(",");
+    const joined = new Set(pubkeys.map((pk) => inFlightFor(askKey(pk))).filter((ask) => !!ask));
     let alive = true;
-    fetchProfileMap(due)
-      .then((map) => {
-        if (alive && map.size) setFetched((current) => new Map([...current, ...map]));
-      })
-      .catch(() => {});
+    const take = (found: unknown) => {
+      if (!alive || !(found instanceof Map) || !found.size) return;
+      setFetched((current) => new Map([...current, ...(found as Map<string, ProfileContent>)]));
+    };
+    // Asks already out for some of these people answer this list too.
+    joined.forEach((ask) => ask.then(take, () => {}));
+    queueProfiles(pubkeys.filter((pk) => !inFlightFor(askKey(pk)))).then(take, () => {});
     return () => {
       alive = false;
     };

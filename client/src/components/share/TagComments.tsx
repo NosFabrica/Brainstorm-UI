@@ -1,14 +1,15 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { Loader2, MessageSquare } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { LinkedText } from "@/components/LinkedText";
 import { useToast } from "@/hooks/use-toast";
-import { fetchProfileMap } from "@/services/nostr";
+import { signingProblem } from "@/accounts/signing";
 import { npubFromPubkey } from "@/lib/shareId";
 import { useTagComments, usePostTagComment } from "@/hooks/useTags";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 /**
  * Discussion of what a tag MEANS.
@@ -39,14 +40,8 @@ export function TagComments({
   const post = usePostTagComment(authorPubkey, slug);
 
   const authors = useMemo(() => Array.from(new Set((comments ?? []).map((c) => c.author))), [comments]);
-  const profilesQuery = useQuery({
-    queryKey: ["tag-comment-profiles", authors.join(",")],
-    queryFn: () => fetchProfileMap(authors),
-    enabled: authors.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles = profilesQuery.data;
+  const profileMap = useLiveProfiles(authors);
+  const profiles = profileMap;
 
   async function submit() {
     const text = draft.trim();
@@ -54,12 +49,9 @@ export function TagComments({
     try {
       await post.mutateAsync(text);
       setDraft("");
-    } catch {
-      toast({
-        title: "Couldn't post that",
-        description: "Check your connection and try again.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      const description = signingProblem(error, "Check your connection and try again.");
+      if (description) toast({ title: "Couldn't post that", description, variant: "destructive" });
     }
   }
 
@@ -145,15 +137,17 @@ export function TagComments({
                         className="text-sm font-semibold text-slate-900 hover:text-brand-primary dark:text-slate-100"
                         data-testid="tag-comment-author"
                       >
-                        {name}
+                        <ProfileEmojiText pubkey={c.author} text={name} />
                       </Link>
                     ) : (
-                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        <ProfileEmojiText pubkey={c.author} text={name} />
+                      </span>
                     )}
                     <span className="text-[11px] text-slate-400 dark:text-slate-500">{relativeTime(c.createdAt)}</span>
                   </div>
                   <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-slate-600 dark:text-slate-300">
-                    <LinkedText text={c.content} />
+                    <LinkedText text={c.content} tags={c.tags} />
                   </p>
                 </div>
               </li>

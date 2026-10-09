@@ -24,7 +24,10 @@ vi.mock("@/services/socialActions", () => ({
 vi.mock("@/services/inviteAcceptance", () => ({
   fetchNewJoiners: async () => [{ pubkey: JOINER, acceptedAt: 1 }],
   acknowledgeJoiners: (...a: unknown[]) => acknowledgeJoiners(...a),
+  MAX_SHOWN: 8,
 }));
+vi.mock("@/hooks/useMyFollows", () => ({ useMyFollows: () => ({ follows: new Set(), ready: true, signedIn: true }) }));
+vi.mock("@/hooks/useLiveProfile", () => ({ useLiveProfiles: () => new Map() }));
 vi.mock("@/services/trustAnchor", () => ({
   triggerScoringAndAnchor: (...a: unknown[]) => triggerScoringAndAnchor(...(a as [])),
 }));

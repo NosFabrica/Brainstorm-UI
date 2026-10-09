@@ -4,7 +4,6 @@
  * disappearing timer for new chats.
  */
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, MessageCircle, Plus, Server, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { SyncDetails } from "@/components/messages/SyncDetails";
@@ -13,15 +12,29 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { useDmPrefs } from "@/hooks/useDirectMessages";
+import { useDmEngine, useDmPrefs, useDmState } from "@/hooks/useDirectMessages";
+import { ANSWER_WITHIN_MS, serverStatus, type ServerStatus } from "@/lib/dm/serverStatus";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Chip } from "@/components/ui/chip";
 import { publishInboxRelays } from "@/services/dm";
 import { FileServersSection } from "@/components/settings/FileServersSection";
-import { MAX_INBOX_RELAYS, SUGGESTED_INBOX_RELAYS, loadDmRelays } from "@/lib/dm/inboxRelays";
+import { MAX_INBOX_RELAYS, SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
 import { TIMER_CHOICES, setNotifyPrefs, updateDmPrefs, type DmNotifyPrefs, type DmReach } from "@/lib/dm/prefs";
 import { Switch } from "@/components/ui/switch";
 import { playChime } from "@/lib/chime";
 import { dedupeRelays } from "@/lib/relayRouting";
 import { cn } from "@/lib/utils";
+import { isInstalledApp, isInstalledPhoneApp } from "@/lib/installedApp";
+import { useDmRelays } from "@/hooks/useDmRelays";
 
 const REACH: { value: DmReach; label: string; hint: string }[] = [
   { value: "follows", label: "People I follow", hint: "Everyone else waits in Requests." },
@@ -63,6 +76,11 @@ function ToggleRow({
 
 function NotificationSettings({ pubkey, notify }: { pubkey: string; notify: DmNotifyPrefs }) {
   const [permission, setPermission] = useState(permissionNow);
+  // Installed, there is no tab to keep open. On a phone the system also pauses the app
+  // soon after it leaves the screen, so "while it's open" is the promise; a desktop's
+  // installed app runs on, and its permission still lives in the browser's site settings.
+  const [installed] = useState(isInstalledApp);
+  const [onPhone] = useState(isInstalledPhoneApp);
   const desktopOn = notify.desktop && permission === "granted";
   const setDesktop = async (on: boolean) => {
     if (!on) return setNotifyPrefs(pubkey, { desktop: false });
@@ -76,15 +94,22 @@ function NotificationSettings({ pubkey, notify }: { pubkey: string; notify: DmNo
       <div>
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</h3>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          While Brainstorm is open in a tab. Muted chats, and requests below your trust threshold, stay quiet.
+          {onPhone
+            ? "While the app is open — your phone pauses it soon after you switch away."
+            : installed
+              ? "While the app is open."
+              : "While Brainstorm is open in a tab."}{" "}
+          Muted chats, and requests below your trust threshold, stay quiet.
         </p>
       </div>
       <ToggleRow
         id="dm-notify-desktop"
-        label="Browser notifications"
+        label={installed ? "Notifications" : "Browser notifications"}
         hint={
           permission === "denied"
-            ? "Blocked in your browser's site settings."
+            ? onPhone
+              ? "Blocked in your phone's notification settings for this app."
+              : "Blocked in your browser's site settings."
             : permission === "unsupported"
               ? "This browser doesn't offer them."
               : undefined
@@ -114,23 +139,55 @@ function NotificationSettings({ pubkey, notify }: { pubkey: string; notify: DmNo
   );
 }
 
+const STATUS: Record<ServerStatus, { label: string; tone: "success" | "warning" | "slate" }> = {
+  working: { label: "Working", tone: "success" },
+  "not-answering": { label: "Not answering", tone: "warning" },
+  "sign-in": { label: "Asks you to sign in", tone: "warning" },
+  checking: { label: "Checking…", tone: "slate" },
+};
+
+/** A server's status in a reader's words; nothing while the list has unsaved changes. */
+function ServerStatusChip({ status }: { status: ServerStatus | null }) {
+  if (!status) return null;
+  const s = STATUS[status];
+  return (
+    <Chip tone={s.tone} size="sm" className="shrink-0">
+      {s.label}
+    </Chip>
+  );
+}
+
 export function MessagesSettingsCard() {
   const pubkey = useActiveAccountDisplay()?.pubkey ?? "";
   const prefs = useDmPrefs(pubkey || undefined);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const current = useQuery({
-    queryKey: ["dm-inbox", pubkey],
-    queryFn: () => loadDmRelays(pubkey),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-  });
+  const current = useDmRelays(pubkey || null);
   const [draft, setDraft] = useState<string[] | null>(null);
   const [adding, setAdding] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const relays = draft ?? current.data?.relays ?? [];
+  // Each server's status, from the inbox's own live state (lib/dm/serverStatus).
+  const dmState = useDmState(useDmEngine());
+  // How long this page has watched: a server still silent well after another answered
+  // reads as not answering here, where nothing pages its history to find out.
+  const [openedAt] = useState(() => Date.now());
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => tick((n) => n + 1), ANSWER_WITHIN_MS + 500);
+    return () => clearTimeout(t);
+  }, []);
+  const statusOf = (url: string) => serverStatus(url, dmState, { waitedMs: Date.now() - openedAt });
+  const answering = current.relays.map((url) => statusOf(url));
+  const serversAnswering: "all" | "some" | "none" | "unknown" = !answering.length
+    ? "unknown"
+    : answering.every((st) => st === "not-answering")
+      ? "none"
+      : answering.some((st) => st === "not-answering")
+        ? "some"
+        : "all";
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const relays = draft ?? current.relays;
   const dirty = draft !== null;
   useEffect(() => setDraft(null), [pubkey]);
 
@@ -147,14 +204,13 @@ export function MessagesSettingsCard() {
     setAdding("");
   };
 
-  const publish = async () => {
+  const publish = async (list: string[] = relays) => {
     setBusy(true);
-    const outcome = await publishInboxRelays(relays);
+    const outcome = await publishInboxRelays(list);
     setBusy(false);
     if (outcome.cancelled) return;
     if (outcome.success) {
       setDraft(null);
-      void queryClient.invalidateQueries({ queryKey: ["dm-inbox", pubkey] });
       toast({ title: "Inbox relays published" });
     } else {
       toast({ title: "Couldn't publish your inbox relays", description: outcome.error, variant: "destructive" });
@@ -178,16 +234,18 @@ export function MessagesSettingsCard() {
         </div>
       </div>
 
-      <div className="grid gap-8 p-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-2">
         <section className="flex flex-col gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">DM inbox relays</h3>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Message servers <span className="font-normal text-slate-400">· inbox relays</span>
+            </h3>
             <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
               Everyone who messages you sends to these, and only these. Pick one to {MAX_INBOX_RELAYS} that ask you to
               log in before handing out messages. Published as your kind 10050 list.
             </p>
           </div>
-          {current.isPending ? (
+          {current.loading ? (
             <span className="flex items-center gap-2 text-xs text-slate-500">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Looking up your list…
             </span>
@@ -197,9 +255,15 @@ export function MessagesSettingsCard() {
                 <li className="px-3 py-2.5 text-xs text-slate-500">None yet — nobody can send you private messages.</li>
               )}
               {relays.map((url) => (
-                <li key={url} className="flex items-center gap-2.5 px-3 py-2">
+                <li key={url} className="flex items-center gap-2.5 px-3 py-2" data-testid={`dm-server-${host(url)}`}>
                   <Server className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs">{host(url)}</span>
+                  {/* On a phone the status sits under the name, so the name keeps the width. */}
+                  <span className="flex min-w-0 flex-1 flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2.5">
+                    <span className="min-w-0 max-w-full truncate font-mono text-xs sm:flex-1" title={host(url)}>
+                      {host(url)}
+                    </span>
+                    <ServerStatusChip status={dirty ? null : statusOf(url)} />
+                  </span>
                   <button
                     type="button"
                     onClick={() => setDraft(relays.filter((r) => r !== url))}
@@ -211,6 +275,25 @@ export function MessagesSettingsCard() {
                 </li>
               ))}
             </ul>
+          )}
+          {/* Senders deliver to every server on the list, so while one works nothing is lost:
+              say so, and offer no swap — replacing a server stops reading messages that only it
+              holds, for what is usually a passing outage. Only when none answer is there
+              something to fix, and then it's the suggested set, explained first. */}
+          {!dirty && serversAnswering === "some" && (
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="dm-servers-note">
+              Messages still reach you through your other servers.
+            </p>
+          )}
+          {!dirty && serversAnswering === "none" && (
+            <div className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-3">
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                None of your message servers are answering, so new messages can't reach you right now.
+              </p>
+              <Button size="sm" className="self-start" onClick={() => setSwitchOpen(true)}>
+                Use suggested servers
+              </Button>
+            </div>
           )}
           <form
             className="flex gap-2"
@@ -230,6 +313,33 @@ export function MessagesSettingsCard() {
               <Plus className="mr-1 h-4 w-4" /> Add
             </Button>
           </form>
+          <AlertDialog open={switchOpen} onOpenChange={setSwitchOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Switch to the suggested servers?</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2">
+                    <p>New messages will go to {SUGGESTED_INBOX_RELAYS.map(host).join(" and ")}.</p>
+                    <p>
+                      Messages on your current servers won't load until you add them back. You can change this here any
+                      time.
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setDraft(SUGGESTED_INBOX_RELAYS);
+                    void publish(SUGGESTED_INBOX_RELAYS);
+                  }}
+                >
+                  Switch and publish
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           {addError && <p className="text-xs text-red-600 dark:text-red-400">{addError}</p>}
           {relays.length > MAX_INBOX_RELAYS && (
             <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">

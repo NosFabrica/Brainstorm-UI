@@ -34,8 +34,8 @@ export interface SearchFilterState {
   rankFloor: number | null;
   /** Client-side (the relay has no verification of its own). Token trust:verified. */
   verifiedOnly: boolean;
-  /** Client-side (the relay has no hops). Token reach:follows | reach:friends. */
-  reach: "follows" | "friends" | null;
+  /** Client-side (the relay has no hops). Token reach:follows. */
+  reach: "follows" | null;
   includeSpam: boolean;
   /**
    * NIP-50 `observer:` — whose web of trust ranks the page. No control writes this: it is a
@@ -53,6 +53,7 @@ const MATCHERS: Record<keyof SearchFilterState, (token: string) => boolean> = {
   until: (t) => /^until:/i.test(t),
   rankFloor: (t) => /^filter:rank:/i.test(t),
   verifiedOnly: (t) => /^trust:verified$/i.test(t),
+  // `reach:friends` is retired but still matched, so the panel replaces it rather than stacking.
   reach: (t) => /^reach:(follows|friends)$/i.test(t),
   includeSpam: (t) => /^include:spam$/i.test(t),
   rankAs: (t) => /^observer:/i.test(t),

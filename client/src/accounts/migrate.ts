@@ -9,12 +9,11 @@
  * plaintext key rows need real work, and re-wrapping them is async, so it happens
  * in `finish()` after the first render.
  */
-import { ExtensionAccount } from "applesauce-accounts/accounts";
-import { ExtensionSigner } from "applesauce-signers";
 import { hexToBytes } from "nostr-tools/utils";
 import { nip19 } from "nostr-tools";
 
 import { extractAdminFlag } from "@/lib/jwt";
+import { BrainstormExtensionAccount } from "./extension";
 import { LocalAccount } from "./local-account";
 import { LocalSigner, type LocalSignerOptions } from "./local-signer";
 import type { AccountMetadata, BrainstormAccount } from "./metadata";
@@ -154,9 +153,9 @@ function buildAccount(storage: StorageSeam, user: V1User | null, signerOptions: 
   // No key but a cached user: the signer lives outside this app. `window.nostr`
   // is deliberately not checked — an extension injects it whenever it likes, and
   // gating on it at module load would sign these users out on a slow injection.
-  // `ExtensionSigner` reaches for the extension when it signs, not when it's built.
+  // The extension signer reaches for the extension when it signs, not when it's built.
   if (user?.pubkey) {
-    return { account: new ExtensionAccount(user.pubkey, new ExtensionSigner()), remembered: true };
+    return { account: new BrainstormExtensionAccount(user.pubkey), remembered: true };
   }
 
   return null;

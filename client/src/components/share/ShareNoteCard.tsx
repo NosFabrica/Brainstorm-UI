@@ -16,10 +16,13 @@ import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { NoteTagRow } from "@/components/share/NoteTagChips";
 import type { NoteTag } from "@/services/tags";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
+import { EmbeddedListCard } from "@/components/share/ListPreview";
+import { ITEM_LIST_KINDS } from "@/lib/listItems";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { analyzeNote, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
 import { npubFromPubkey, eventPath } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 /**
  * Click anywhere on a card to open it, EXCEPT on real interactive descendants
@@ -77,7 +80,9 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
           <DefaultAvatarImg />
         </AvatarFallback>
       </Avatar>
-      <span className="font-medium text-brand-link">@{name}</span>
+      <span className="font-medium text-brand-link">
+        @<ProfileEmojiText pubkey={pubkey} text={name} />
+      </span>
     </button>
   );
 }
@@ -166,6 +171,12 @@ export function ShareNoteCard({
       if (ev) articles.push(ev);
     }
   }
+
+  const listCoords = new Set(
+    articles
+      .filter((ev) => ITEM_LIST_KINDS.has(ev.kind))
+      .map((ev) => `${ev.kind}:${ev.pubkey}:${ev.tags.find((t) => t[0] === "d")?.[1] ?? ""}`),
+  );
 
   if (isRepost) {
     const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
@@ -265,7 +276,7 @@ export function ShareNoteCard({
                     className="truncate text-sm font-semibold text-slate-900 group-hover/author:underline dark:text-slate-100"
                     data-testid="note-author-name"
                   >
-                    {authorName}
+                    <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
                   </p>
                   {authorHandle && (
                     <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>
@@ -289,7 +300,9 @@ export function ShareNoteCard({
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">{authorName}</p>
+                    <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
+                      <ProfileEmojiText pubkey={event.pubkey} text={authorName} />
+                    </p>
                     {authorHandle && (
                       <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>
                     )}
@@ -339,6 +352,8 @@ export function ShareNoteCard({
           imageOpensThread={!!href}
           tags={event.tags}
           embeddedIds={new Set(quoted.map((q) => q.id))}
+          // A linked list is drawn as its card below: the card is its link.
+          embeddedCoords={listCoords}
           embedThings
           authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name}
         />
@@ -369,9 +384,14 @@ export function ShareNoteCard({
         />
       ))}
 
-      {articles.map((ae) => (
-        <EmbeddedArticleCard key={ae.id} event={ae} author={profiles.get(ae.pubkey)} />
-      ))}
+      {articles.map((ae) =>
+        // A linked bookmark set is a list, not an article with the default cover.
+        ITEM_LIST_KINDS.has(ae.kind) ? (
+          <EmbeddedListCard key={ae.id} event={ae} author={profiles.get(ae.pubkey)} />
+        ) : (
+          <EmbeddedArticleCard key={ae.id} event={ae} author={profiles.get(ae.pubkey)} />
+        ),
+      )}
 
       {!showAuthor && <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</p>}
 

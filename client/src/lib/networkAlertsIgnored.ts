@@ -169,14 +169,15 @@ export function flushIgnoredToNostr(
     }
     if (res.error === "Not logged in") return syncState; // nothing to sync to
     // Waiting on the user, not on the network — the Account is Locked and nobody
-    // asked (`deferred`), they were asked and said no (`cancelled`), or their
+    // asked (`deferred`), they were asked and said no (`cancelled`, or `declined`
+    // in their signer's own prompt, or it is on another profile), or their
     // remote signer has gone quiet and needs opening or re-pairing
     // (`signerUnreachable`, which on a timer would be an endless loop of NIP-46
     // requests each waiting out a 30s deadline). A timer against either is a modal on a fifteen-second loop,
     // which is what this used to do: a cancel carries no `error`, so it fell
     // through to the transient branch and re-armed. The next mutation or app open
     // is the retry, and that one the user will have initiated.
-    if (res.deferred || res.cancelled || res.signerUnreachable) {
+    if (res.deferred || res.cancelled || res.declined || res.signerUnreachable) {
       setDirty(observer, true);
       setSyncState("retrying");
       // And disarm anything an earlier transient failure left armed: that timer
@@ -348,6 +349,18 @@ export function actedAlertSet(observer: string): Set<string> {
 export function markActed(observer: string, pubkey: string): Set<string> {
   const next = actedAlertSet(observer);
   next.add(pubkey);
+  if (observer) {
+    try {
+      localStorage.setItem(actedKey(observer), JSON.stringify(Array.from(next)));
+    } catch {}
+  }
+  return next;
+}
+
+/** Undo `markActed` — the action was taken back, so the alert may show again. */
+export function unmarkActed(observer: string, pubkey: string): Set<string> {
+  const next = actedAlertSet(observer);
+  next.delete(pubkey);
   if (observer) {
     try {
       localStorage.setItem(actedKey(observer), JSON.stringify(Array.from(next)));

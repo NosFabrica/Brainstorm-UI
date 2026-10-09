@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { searchByText } from "@/lib/profileSearch";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
@@ -68,7 +69,16 @@ function PlainMention({ name }: { name: string }) {
  * plain "@Name" mentions as clickable links to the person/org, and #hashtags as
  * clickable text into the hashtag-explore flow. Lives inside ShareNavProvider.
  */
-export function ShareBio({ text, profiles }: { text: string; profiles?: Map<string, ProfileLite> }) {
+export function ShareBio({
+  text,
+  profiles,
+  tags,
+}: {
+  text: string;
+  profiles?: Map<string, ProfileLite>;
+  /** The kind-0's tags: its NIP-30 emoji are drawn. */
+  tags?: string[][];
+}) {
   const requestNav = useShareNav();
   return (
     <>
@@ -146,7 +156,11 @@ export function ShareBio({ text, profiles }: { text: string; profiles?: Map<stri
         if (/^@/.test(part)) {
           return <PlainMention key={i} name={part.replace(/^@\s?/, "").trim()} />;
         }
-        return <span key={i}>{part}</span>;
+        return (
+          <span key={i}>
+            <EmojiText text={part} tags={tags} />
+          </span>
+        );
       })}
     </>
   );

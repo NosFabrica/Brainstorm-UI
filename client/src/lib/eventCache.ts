@@ -17,6 +17,11 @@
  *   before the signer prompt — or a race the publish loses quietly, landing on
  *   the default relays and missing the inbox it was for. `warmRelayLists`
  *   fills this while the reader is still reading (docs/adr/0003).
+ * - **The signed-in account's mute list (kind 10000).** So the screens that
+ *   hide muted people have the list on the first render instead of after a
+ *   relay round trip. Theirs ONLY: other people's arrive in the store too (a
+ *   profile's "muted by" reads dozens), and a mute list can run to thousands
+ *   of entries — they would crowd the profiles and routing out of the cache.
  *
  * What may NOT be kept: kind 30078. It is per-account data encrypted to self
  * and scoped by an `authors` filter alone, so persisting it would carry one
@@ -63,8 +68,11 @@ const WRITE_BATCH_MS = 2000;
 export const MAX_CACHED = 2000;
 
 /** Kinds worth a disk read. Everything else is unbounded or nobody waits on it. */
-export const CACHED_KINDS = [0, 3, 10002, 10040, 10050];
+export const CACHED_KINDS = [0, 3, 10000, 10002, 10040, 10050];
 const CACHED = new Set(CACHED_KINDS);
+
+/** Cached for the account being hydrated only — see the module comment. */
+const OWN_ONLY = new Set([10000]);
 
 /** NIP-65, restated so this module needs no import from the routing one. */
 const RELAY_LIST_KIND = 10002;
@@ -389,7 +397,7 @@ async function refreshStale(rows: CachedRow[]): Promise<void> {
 /** Hold these events for next time, newest copy winning, oldest evicted. */
 export async function writeEvents(events: NostrEvent[]): Promise<void> {
   const s = device();
-  const worth = events.filter((e) => CACHED.has(e.kind));
+  const worth = events.filter((e) => CACHED.has(e.kind) && (!OWN_ONLY.has(e.kind) || e.pubkey === hydratingFor));
   if (!s || worth.length === 0) return;
   try {
     const addrs = worth.map(coordinate);
@@ -540,7 +548,7 @@ export function startEventCacheSync(): () => void {
     void writeEvents(batch);
   };
   const sub = eventStore.insert$.subscribe((event: NostrEvent) => {
-    if (!CACHED.has(event.kind)) return;
+    if (!CACHED.has(event.kind) || (OWN_ONLY.has(event.kind) && event.pubkey !== hydratingFor)) return;
     const addr = coordinate(event);
     const waiting = pending.get(addr);
     if (waiting && waiting.created_at >= event.created_at) return;

@@ -25,6 +25,8 @@ const serverStatusMock = vi.fn(() => ({
   nextProbeAt: null as number | null,
 }));
 const retryNowMock = vi.fn();
+// List items among results read the Dictionary through the account; they have their own tests.
+vi.mock("@/components/search/ListItemResults", () => ({ ListItemResults: () => null }));
 vi.mock("@/lib/serverStatus", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/serverStatus")>();
   return {
@@ -95,7 +97,8 @@ const dlistFetchMock = vi.fn((_filter: Record<string, unknown>, _relays?: string
   Promise.resolve([] as NostrEvent[]),
 );
 vi.mock("@/services/musicTags", () => ({ fetchTaggedMusicians: async () => [] }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   // The person panel asks for the person's tracks and streams; nobody here has any.
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
   fetchLiveStreams: () => Promise.resolve([]),
@@ -178,6 +181,8 @@ vi.mock("@/lib/wavlake", async (importOriginal) => ({
   searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
   searchWavlake: (term: string) => wavlakeCatalogueMock(term),
   fetchWavlakeTrending: (opts?: { genre?: string }) => wavlakeTrendingMock(opts),
+  // A person's artist page on Wavlake (useArtistCatalogue): offline here.
+  findWavlakeArtist: async () => null,
 }));
 const wavlakeSong = (id: string, title: string, artist: string, extra: Partial<WavlakeSong> = {}): WavlakeSong => ({
   id: `wavlake:${id}`,
@@ -212,17 +217,23 @@ const flagsMock = vi.fn<(pk: string) => boolean | undefined>(() => false);
 vi.mock("@/hooks/useAuthorFlags", () => ({
   useAuthorFlags: () => (pk: string) => flagsMock(pk),
 }));
-// The viewer's network reach (direct follows, friends of friends) — faked so
+// The viewer's network reach (the people they follow) — faked so
 // the reach filter can prove what it keeps.
-const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({
+const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; ready: boolean }>(() => ({
   direct: new Set(),
-  friends: new Set(),
   ready: true,
 }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 
 import { SearchResults, __resetSearchMemory } from "./SearchResults";
 import { NowPlayingBar } from "./NowPlayingBar";
+
+// Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
+vi.mock("@/lib/nip05", async (orig) => ({
+  ...(await orig<typeof import("@/lib/nip05")>()),
+  verifyNip05: async () => "unknown",
+  resolveNip05: async () => null,
+}));
 
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {
   return { id, kind, pubkey, tags, content, created_at: 1_700_000_000, sig: "s" } as NostrEvent;
@@ -244,7 +255,7 @@ function emit(partial: Partial<SearchSnapshot>) {
   // The tab's own stream (the panel's probes are not it, and neither is the
   // Media tab's companion notes stream): the newest whose tab is the URL's,
   // else simply the newest main stream.
-  const urlTab = new URLSearchParams(window.location.search).get("t") ?? "everything";
+  const urlTab = new URLSearchParams(window.location.search).get("t") ?? "top";
   const mains = [...allStreams].reverse().filter((c) => !isPanelProbe(c.query, c.params));
   const main = mains.find((c) => c.params.tab === urlTab) ?? mains[0];
   main.cb({ hits: [], eose: false, timeMs: null, error: null, ...partial });
@@ -260,7 +271,7 @@ beforeEach(() => {
   followsMock = new Set();
   personEndorsementsMock.mockReturnValue(null);
   flagsMock.mockImplementation(() => false);
-  reachMock.mockReturnValue({ direct: new Set(), friends: new Set(), ready: true });
+  reachMock.mockReturnValue({ direct: new Set(), ready: true });
   scoreOfMock.mockImplementation(() => 0.85);
   tagMatchesMock.mockReset();
   tagMatchesMock.mockReturnValue([]);
@@ -354,10 +365,10 @@ describe("SearchResults", () => {
     expect(new URLSearchParams(window.location.search).get("t")).toBe("notes");
   });
 
-  // The SERP composition: Everything is Google's front page — sections, not
+  // The SERP composition: Top is Google's front page — sections, not
   // a flat dump. A user-typed sort: means they chose an order, so the flat
   // honored list returns.
-  it("Everything renders the composed sections page", () => {
+  it("Top renders the composed sections page", () => {
     render(<SearchResults query="liverpool" pov="nosfabrica" />);
     expect(screen.getByTestId("composed-results")).toBeInTheDocument();
     expect(screen.queryByTestId("container-search-loading")).toBeNull();
@@ -370,6 +381,146 @@ describe("SearchResults", () => {
     expect(screen.queryByTestId("composed-results")).toBeNull();
     expect(mainStreamCalls()).toHaveLength(1);
     expect(mainStreamCalls()[0][0]).toBe("liverpool sort:recent");
+  });
+
+  // All is the relay's own answer: no kinds, nothing composed, best match —
+  // what search.brainstorm.world shows. Top's sections ask for chosen kinds, so a
+  // kind none of them carry (a kind-39999 place) only shows here.
+  describe("the All tab", () => {
+    it("is one kind-less list in the relay's order, reached only by a click", () => {
+      render(<SearchResults query="La Tarantella - Recoleta" pov="nosfabrica" />);
+      expect(screen.getByTestId("composed-results")).toBeInTheDocument();
+      expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true");
+      expect(mainStreamCalls().some(([, p]) => (p as { tab?: string }).tab === "all")).toBe(false);
+
+      fireEvent.click(screen.getByTestId("search-tab-all"));
+      expect(screen.queryByTestId("composed-results")).toBeNull();
+      const [q, params] = mainStreamCalls().at(-1)!;
+      // Best match: no sort:recent added, as the content tabs get.
+      expect(q).toBe("La Tarantella - Recoleta");
+      expect(params).toMatchObject({ tab: "all" });
+      expect(params).not.toHaveProperty("kinds");
+      expect(new URLSearchParams(window.location.search).get("t")).toBe("all");
+    });
+
+    // Best match needs words to match: a person scope (or a wordless browse) on All is newest first.
+    it("asks newest first when there are no words to match", () => {
+      setUrlTab("all");
+      const npub = nip19.npubEncode("4".repeat(64));
+      render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
+      expect(mainStreamCalls()[0][0]).toBe(`from:${npub} sort:recent`);
+    });
+
+    // All is every kind the relay answered — nothing is junk there. Each is one row shape,
+    // its kind said by a pill, the whole row a link to the kind's own page.
+    it("keeps every kind, each as one row with its kind's pill and no buttons", async () => {
+      setUrlTab("all");
+      render(<SearchResults query="cashmere" pov="nosfabrica" />);
+      const seller = "9".repeat(64);
+      const forSale = ev("l1", 30402, seller, "", [
+        ["d", "l1"],
+        ["title", "Cashmere scarf"],
+        ["price", "100", "USD"],
+      ]);
+      const sold = ev("l2", 30402, seller, "", [
+        ["d", "l2"],
+        ["title", "Cashmere coat"],
+        ["price", "300", "USD"],
+        ["status", "sold"],
+      ]);
+      const gameState = ev("t2", 31337, "e".repeat(64), '{"players":[]}', [["d", "TOMB-7703"]]);
+      const article = ev("a1", 30023, "f".repeat(64), "# Cashmere\n\nWhy **goats** matter.", [
+        ["d", "cashmere"],
+        ["title", "All about cashmere"],
+        ["image", "https://img/cover.jpg"],
+      ]);
+      emit({
+        hits: [forSale, sold, gameState, article].map((event) => ({ event, author: null, rank: null })),
+        eose: true,
+        timeMs: 100,
+      });
+      const results = await screen.findByTestId("container-search-results");
+      expect(results.children).toHaveLength(4);
+      expect(within(screen.getByTestId("all-row-l1")).getByTestId("all-row-kind")).toHaveTextContent("Listing");
+      expect(screen.getByTestId("all-row-l1")).toHaveTextContent("Cashmere scarf");
+      expect(screen.getByTestId("all-row-l2")).toHaveTextContent("Sold");
+      expect(within(screen.getByTestId("all-row-t2")).getByTestId("all-row-kind")).toHaveTextContent("Track");
+      const art = screen.getByTestId("all-row-a1");
+      expect(within(art).getByTestId("all-row-kind")).toHaveTextContent("Article");
+      expect(art).toHaveTextContent("Why goats matter.");
+      // The row is the link — to the article's own page; nothing inside it is a button.
+      expect(art.tagName).toBe("A");
+      expect(art.getAttribute("href")).toMatch(/^\/e\/naddr1/);
+      expect(within(results).queryAllByRole("button")).toHaveLength(0);
+    });
+
+    // All is the relay's answer, one list: no knowledge panel, so none of its probes
+    // (probed 2026-10-07: 3 of a plain search's 12 REQs, 11 of a person search's 19).
+    it("has no knowledge panel and asks none of its probes", async () => {
+      setUrlTab("all");
+      render(<SearchResults query="bitcoin" pov="nosfabrica" />);
+      await act(async () => {});
+      const probes = streamMock.mock.calls.filter(([q, p]) =>
+        isPanelProbe(String(q), p as { tab?: string; limit?: number }),
+      );
+      expect(probes).toHaveLength(0);
+      expect(suggestMock).not.toHaveBeenCalled();
+    });
+
+    // A vertical keeps the person card (Media and Music lead with that person) but not
+    // the topic, apps and events rails: kinds the tab leaves out, each a search of its own.
+    it("a vertical tab asks for the panel's person, not its rails", async () => {
+      setUrlTab("notes");
+      render(<SearchResults query="bitcoin" pov="nosfabrica" />);
+      await act(async () => {});
+      const probes = streamMock.mock.calls.filter(([q, p]) =>
+        isPanelProbe(String(q), p as { tab?: string; limit?: number }),
+      );
+      expect(probes).toHaveLength(0);
+      expect(suggestMock).toHaveBeenCalled();
+    });
+
+    it("Top keeps the rails", async () => {
+      render(<SearchResults query="bitcoin" pov="nosfabrica" />);
+      await act(async () => {});
+      const probes = streamMock.mock.calls.filter(([q, p]) =>
+        isPanelProbe(String(q), p as { tab?: string; limit?: number }),
+      );
+      expect(probes.length).toBeGreaterThan(0);
+    });
+
+    it("an old ?t=everything link opens Top, never All", () => {
+      setUrlTab("everything");
+      render(<SearchResults query="liverpool" pov="nosfabrica" />);
+      expect(screen.getByTestId("composed-results")).toBeInTheDocument();
+      expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByTestId("search-tab-all")).toHaveAttribute("aria-selected", "false");
+    });
+
+    it("sends the Filters' tokens through as typed", () => {
+      setUrlTab("all");
+      render(<SearchResults query="pizza sort:rank since:2026-01-01 include:spam" pov="nosfabrica" />);
+      expect(mainStreamCalls()[0][0]).toBe("pizza sort:rank since:2026-01-01 include:spam");
+      expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "all" });
+    });
+
+    // Top with a typed sort: is the same kind-less list, and draws it the same way.
+    it.each([
+      ["all", "La Tarantella"],
+      [null, "La Tarantella sort:recent"],
+    ])("draws a kind with no card of its own as a row that reads its name (tab %s)", async (tab, query) => {
+      setUrlTab(tab);
+      render(<SearchResults query={query} pov="nosfabrica" />);
+      const place = ev("place1", 39999, "4".repeat(64), "", [
+        ["d", "osm-way-995734197"],
+        ["name", "La Tarantella - Recoleta"],
+        ["category", "restaurant"],
+      ]);
+      emit({ hits: [{ event: place, author: null, rank: null }], eose: true, timeMs: 100 });
+      const results = await screen.findByTestId("container-search-results");
+      expect(results).toHaveTextContent("La Tarantella - Recoleta");
+      expect(screen.queryByTestId("media-card-place1")).toBeNull();
+    });
   });
 
   // Content tabs land on what's fresh by default; a typed sort: always wins,
@@ -459,13 +610,13 @@ describe("SearchResults", () => {
     fireEvent.click(soon);
     expect(screen.getByRole("menu")).toBeInTheDocument();
     expect(mainStreamCalls().length).toBe(before);
-    expect(screen.getByTestId("search-tab-everything").getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("search-tab-top").getAttribute("aria-selected")).toBe("true");
   });
 
-  it("shows five verticals — Media then Shop — and folds Articles first behind More", () => {
+  it("shows Top, All and the verticals — Media then Shop — and folds Articles first behind More", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
-    const row = ["everything", "people", "notes", "media", "shop"].map((t) => screen.getByTestId(`search-tab-${t}`));
-    expect(row.map((el) => el.textContent)).toEqual(["Everything", "People", "Notes", "Media", "Shop"]);
+    const row = ["top", "all", "people", "notes", "media", "shop"].map((t) => screen.getByTestId(`search-tab-${t}`));
+    expect(row.map((el) => el.textContent)).toEqual(["Top", "All", "People", "Notes", "Media", "Shop"]);
     for (const t of ["articles", "apps", "repos", "events", "live", "lists"])
       expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
     expect(screen.queryByTestId("search-tab-code")).toBeNull();
@@ -578,7 +729,7 @@ describe("SearchResults", () => {
     setUrlTab("lists");
     render(<SearchResults query="jack" pov="nosfabrica" />);
     expect(screen.getByTestId("search-tab-more")).toHaveTextContent("Lists");
-    expect(screen.getByTestId("search-tab-everything").getAttribute("aria-selected")).toBe("false");
+    expect(screen.getByTestId("search-tab-top").getAttribute("aria-selected")).toBe("false");
   });
 
   it("the More menu closes on Escape and on a click elsewhere without changing tabs", () => {
@@ -590,7 +741,7 @@ describe("SearchResults", () => {
     fireEvent.click(screen.getByTestId("search-tab-more"));
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(screen.getByTestId("search-tab-everything").getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("search-tab-top").getAttribute("aria-selected")).toBe("true");
     expect(screen.getByTestId("search-tab-more")).toHaveTextContent("More");
   });
 
@@ -1714,6 +1865,79 @@ describe("SearchResults", () => {
   // Benjamin's Shop: NIP-99 listings as photo-led cards, priced as published,
   // ranked by trust in the seller; sold and priceless never render; the
   // listings' own categories are the facets.
+  // Issue #158: "Circular Economy Hoodie" in the Shop showed eleven cards from
+  // one seller — ten sizes and their parent — that read as duplicates. The
+  // seller's app says they are one product (Open Markets `type` / parent `a`).
+  it("the Shop tab shows a product and its ten sizes as one card that says so", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="Circular Economy Hoodie" pov="nosfabrica" />);
+    const seller = "2e9130621de48a1b544a2c2b2b4a2e5b9f08afe473f773a1594ead071df2bffa";
+    const NAME = "Circular Economy Hoodie – Permissionless / Rules Without Rulers";
+    const P = `30402:${seller}:hoodie`;
+    const listing = (id: string, title: string, tags: string[][]) => ({
+      event: ev(id, 30402, seller, "", [
+        ["d", id],
+        ["title", title],
+        ["price", "46.2", "USD"],
+        ["image", "https://img/hoodie.jpg"],
+        ...tags,
+      ]),
+      author: author(seller, "Satoshoes"),
+      rank: null,
+    });
+    const sizes = ["6XL", "5XL", "4XL", "3XL", "2XL", "XL", "L", "M", "S", "XS"];
+    emit({
+      hits: [
+        ...sizes.map((s) =>
+          listing(`hoodie-${s}`, `${NAME} - ${s}`, [
+            ["type", "variation", "physical"],
+            ["a", P],
+            ["spec", "Size", s],
+          ]),
+        ),
+        listing("hoodie", NAME, [["type", "variable", "physical"]]),
+        listing("mug", "Mug", []),
+      ],
+      eose: true,
+      timeMs: 90,
+    });
+
+    const card = await screen.findByTestId("listing-card-hoodie");
+    expect(card).toHaveTextContent(NAME);
+    expect(within(card).getByTestId("listing-options-hoodie")).toHaveTextContent("10 options");
+    expect(screen.getAllByTestId(/^listing-card-/).map((c) => c.getAttribute("data-testid"))).toEqual([
+      "listing-card-hoodie",
+      "listing-card-mug",
+    ]);
+  });
+
+  it("says a product has options, without counting them, when only some of its sizes were found", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="hoodie 6xl" pov="nosfabrica" />);
+    const seller = "2e9130621de48a1b544a2c2b2b4a2e5b9f08afe473f773a1594ead071df2bffa";
+    const P = `30402:${seller}:hoodie`;
+    const size = (s: string) => ({
+      event: ev(`hoodie-${s}`, 30402, seller, "", [
+        ["d", `hoodie-${s}`],
+        ["title", `Rulers Hoodie - ${s}`],
+        ["price", "46.2", "USD"],
+        ["image", "https://img/hoodie.jpg"],
+        ["type", "variation", "physical"],
+        ["a", P],
+        ["spec", "Size", s],
+      ]),
+      author: author(seller, "Satoshoes"),
+      rank: null,
+    });
+    emit({ hits: [size("6XL"), size("5XL")], eose: true, timeMs: 90 });
+
+    const card = await screen.findByTestId("listing-card-hoodie-6XL");
+    expect(card).toHaveTextContent("Rulers Hoodie");
+    expect(card).not.toHaveTextContent("Rulers Hoodie - 6XL");
+    expect(within(card).getByTestId("listing-options-hoodie-6XL")).toHaveTextContent("Options available");
+    expect(screen.getAllByTestId(/^listing-card-/)).toHaveLength(1);
+  });
+
   it("the Shop tab shows sellable listings as priced cards and lets a category chip narrow them", async () => {
     setUrlTab("shop");
     render(<SearchResults query="maglia" pov="nosfabrica" />);
@@ -2709,11 +2933,11 @@ describe("SearchResults", () => {
       ["title", "Reading List"],
       ["e", "1".repeat(64)],
       ["e", "2".repeat(64)],
-      ["a", "30023:abc:x"],
+      ["a", `30023:${"a".repeat(64)}:x`],
     ]);
     emit({ hits: [{ event: list, author: author(list.pubkey, "gail"), rank: null }], eose: true, timeMs: 200 });
     expect(await screen.findByText("Reading List")).toBeInTheDocument();
-    expect(screen.getByTestId("list-count-li1")).toHaveTextContent("3");
+    expect(screen.getByTestId("list-count-li1")).toHaveTextContent("3 items");
   });
 
   it("the Apps tab facets by platform with one tap", async () => {
@@ -3538,7 +3762,7 @@ describe("SearchResults", () => {
     // Benjamin's slider: "Trust distance" — how far the search casts its net.
     // The relay can't; the viewer's own follow graph can. Signed out there is
     // no "you" to measure from, so the control isn't there.
-    it("reach — People you follow · Friends of friends · Everyone — only for a signed-in viewer", async () => {
+    it("reach — People you follow · Everyone — only for a signed-in viewer", async () => {
       const rewrite = vi.fn();
       render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
@@ -3550,7 +3774,7 @@ describe("SearchResults", () => {
       openAdvanced();
       const reach = screen.getByTestId("filter-reach");
       expect(reach).toHaveTextContent("People you follow");
-      expect(reach).toHaveTextContent("Friends of friends");
+      expect(reach).not.toHaveTextContent("Friends of friends");
       expect(reach).toHaveTextContent("Everyone");
       fireEvent.click(screen.getByTestId("filter-reach-follows"));
       expect(rewrite).toHaveBeenLastCalledWith("jack reach:follows");
@@ -3561,7 +3785,7 @@ describe("SearchResults", () => {
       const ME = "e".repeat(64);
       const FOLLOWED = "1".repeat(64);
       const STRANGER = "2".repeat(64);
-      reachMock.mockReturnValue({ direct: new Set([FOLLOWED]), friends: new Set([FOLLOWED]), ready: true });
+      reachMock.mockReturnValue({ direct: new Set([FOLLOWED]), ready: true });
       render(<SearchResults query="jack reach:follows" pov="nosfabrica" userPubkey={ME} onQueryRewrite={vi.fn()} />);
       emit({
         hits: [
@@ -3597,7 +3821,7 @@ describe("SearchResults", () => {
     it("the panel reads current filter state back from the query", () => {
       render(
         <SearchResults
-          query="btc sort:rank include:spam trust:verified reach:friends"
+          query="btc sort:rank include:spam trust:verified reach:follows"
           pov="nosfabrica"
           userPubkey={"e".repeat(64)}
           onQueryRewrite={vi.fn()}
@@ -3609,7 +3833,7 @@ describe("SearchResults", () => {
       // Advanced opens itself when one of its controls is set.
       expect(screen.getByTestId("filters-advanced-toggle").getAttribute("aria-expanded")).toBe("true");
       expect((screen.getByTestId("filter-spam") as HTMLInputElement).checked).toBe(true);
-      expect(screen.getByTestId("filter-reach-friends").getAttribute("aria-pressed")).toBe("true");
+      expect(screen.getByTestId("filter-reach-follows").getAttribute("aria-pressed")).toBe("true");
     });
 
     // The team: less busy. Sort and date show at once — the two anyone uses;
@@ -3858,9 +4082,7 @@ describe("SearchResults", () => {
     await vi.waitFor(() => expect(empty).toHaveTextContent("Joe Martin hasn't published articles here yet"));
     const chips = within(empty).getByTestId("scoped-empty-chips");
     expect(within(chips).queryByTestId("person-content-chip-articles")).toBeNull();
-    expect(within(empty).getByTestId("scoped-empty-all").getAttribute("href")).toBe(
-      scopedSearchHref(joe, "everything"),
-    );
+    expect(within(empty).getByTestId("scoped-empty-all").getAttribute("href")).toBe(scopedSearchHref(joe, "top"));
     fireEvent.click(within(chips).getByTestId("person-content-chip-shop"));
     await vi.waitFor(() => expect(screen.getByTestId("search-tab-shop")).toHaveAttribute("aria-selected", "true"));
     expect(new URLSearchParams(window.location.search).get("t")).toBe("shop");
@@ -3869,9 +4091,7 @@ describe("SearchResults", () => {
     emit({ hits: [], eose: true, timeMs: 100 });
     const all = await screen.findByTestId("scoped-empty-all");
     fireEvent.click(all);
-    await vi.waitFor(() =>
-      expect(screen.getByTestId("search-tab-everything")).toHaveAttribute("aria-selected", "true"),
-    );
+    await vi.waitFor(() => expect(screen.getByTestId("search-tab-top")).toHaveAttribute("aria-selected", "true"));
     expect(new URLSearchParams(window.location.search).get("t")).toBeNull();
     contentMock.mockImplementation(() => new Map());
   });

@@ -7,7 +7,10 @@
  * to clickable domain chips. The row body opens the in-app event page —
  * a div-with-navigate, so the external anchors inside stay legal HTML.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ListCard } from "@/components/search/cards";
+import { TRUSTED_PEOPLE_KIND } from "@/lib/trustedList";
+import { ITEM_LIST_KINDS } from "@/lib/listItems";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { dlistOfEvent, parseDListMusician, parseDListSong } from "@/lib/dlists";
 import { Link, useLocation } from "wouter";
@@ -45,7 +48,12 @@ import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { MediaImg } from "@/components/ui/media-img";
-import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
+import { splitCustomEmoji } from "@/lib/customEmoji";
+import { parseHighlight } from "@/lib/nip84";
+import { HighlightQuote, HighlightSourceLine, useHighlightSourceEvent } from "@/components/share/HighlightQuote";
 
 function ago(created_at: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - created_at);
@@ -140,7 +148,7 @@ export function dlistTypeFor(event: {
  */
 /** A headline's text with its people named and its links and event keys
  *  dropped — the story tiles and media captions use it too. */
-export function Headline({ text, query }: { text: string; query: string }) {
+export function Headline({ text, query, tags }: { text: string; query: string; tags?: string[][] }) {
   const parts = text.split(TOKEN_SPLIT_RE).filter((p) => !/^https?:\/\//i.test(p) && !EVENT_REF_RE.test(p));
   return (
     <>
@@ -148,24 +156,31 @@ export function Headline({ text, query }: { text: string; query: string }) {
         /^nostr:/i.test(part) ? (
           <MentionChip key={i} uri={part} plain />
         ) : (
-          <Marked key={i} text={part.replace(/\s{2,}/g, " ")} query={query} />
+          <Marked key={i} text={part.replace(/\s{2,}/g, " ")} query={query} tags={tags} />
         ),
       )}
     </>
   );
 }
 
-/** Bold the query terms in a run of plain text. */
-function Marked({ text, query }: { text: string; query: string }) {
+/** Bold the query terms in a run of plain text, its NIP-30 emoji drawn when the event has tags for them. */
+function Marked({ text, query, tags }: { text: string; query: string; tags?: string[][] }) {
+  const pieces = tags ? splitCustomEmoji(text, tags) : [{ type: "text" as const, value: text }];
   return (
     <>
-      {highlightTerms(text, query).map((seg, i) =>
-        seg.hit ? (
-          <mark key={i} className="bg-transparent font-semibold text-slate-900 dark:text-white">
-            {seg.text}
-          </mark>
+      {pieces.map((p, j) =>
+        p.type === "emoji" ? (
+          <CustomEmojiImg key={j} code={p.code} url={p.url} />
         ) : (
-          <span key={i}>{seg.text}</span>
+          highlightTerms(p.value, query).map((seg, i) =>
+            seg.hit ? (
+              <mark key={`${j}.${i}`} className="bg-transparent font-semibold text-slate-900 dark:text-white">
+                {seg.text}
+              </mark>
+            ) : (
+              <span key={`${j}.${i}`}>{seg.text}</span>
+            ),
+          )
         ),
       )}
     </>
@@ -198,7 +213,6 @@ function RowThumb({
   score?: number | null;
   onFail?: () => void;
 }) {
-  const speed = useConnectionSpeed();
   const [failed, setFailed] = useState(false);
   const openLightbox = useLightbox();
   // The full view is told whose media it is and where the post lives.
@@ -242,17 +256,7 @@ function RowThumb({
   }
   if (isVideo && url) {
     return (
-      <video
-        src={`${url}#t=0.1`}
-        preload={videoPreload(speed)}
-        muted
-        playsInline
-        tabIndex={-1}
-        aria-hidden
-        onClick={openMedia}
-        className={`cursor-pointer ${cls}`}
-        data-testid="serp-video-thumb"
-      />
+      <VideoFirstFrame src={url} onClick={openMedia} className={`cursor-pointer ${cls}`} testId="serp-video-thumb" />
     );
   }
   return null;
@@ -265,11 +269,14 @@ export function Snippet({
   query,
   lines = 3,
   hide,
+  tags,
 }: {
   text: string;
   query: string;
   lines?: 2 | 3;
   hide?: string | null;
+  /** The event's tags: its NIP-30 emoji are drawn. */
+  tags?: string[][];
 }) {
   const parts = unwrapMarkdownLinks(text).split(TOKEN_SPLIT_RE);
   return (
@@ -289,7 +296,7 @@ export function Snippet({
         // A quoted event renders as the post beneath the row, not as its key.
         if (EVENT_REF_RE.test(part)) return null;
         if (/^nostr:/i.test(part)) return <MentionChip key={i} uri={part} />;
-        return <Marked key={i} text={part} query={query} />;
+        return <Marked key={i} text={part} query={query} tags={tags} />;
       })}
     </p>
   );
@@ -303,25 +310,10 @@ export function Snippet({
  */
 function QuotedNoteCard({ id, uri, query }: { id: string; uri: string; query: string }) {
   const [, navigate] = useLocation();
-  const [quoted, setQuoted] = useState<NostrEvent | null>(() => eventStore.getEvent(id) ?? null);
-  const [missing, setMissing] = useState(false);
-  useEffect(() => {
-    if (quoted) return;
-    let alive = true;
-    fetchEventsByIds([id])
-      .then((list) => {
-        if (!alive) return;
-        const hit = list.find((e) => e.id === id);
-        if (hit) setQuoted(hit);
-        else setMissing(true);
-      })
-      .catch(() => {
-        if (alive) setMissing(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [id, quoted]);
+  const held = !!eventStore.getEvent(id);
+  const lookup = useStoreEvents(held ? null : `quoted:${id}`, [{ ids: [id] }], () => fetchEventsByIds([id]));
+  const quoted = (lookup.events[0] as NostrEvent | undefined) ?? null;
+  const missing = !quoted && lookup.settled;
   if (missing) {
     return (
       <Link
@@ -349,7 +341,7 @@ function QuotedNoteCard({ id, uri, query }: { id: string; uri: string; query: st
         <MentionChip uri={`nostr:${nip19.npubEncode(quoted.pubkey)}`} />
       </div>
       <div className="mt-0.5 text-[13px] [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
-        <Snippet text={quoted.content.slice(0, 240)} query={query} lines={2} />
+        <Snippet text={quoted.content.slice(0, 240)} query={query} lines={2} tags={quoted.tags} />
       </div>
     </div>
   );
@@ -393,7 +385,7 @@ function AuthorLine({
           centring boxes of two font sizes leaves the meta riding high. */}
       <div className="flex min-w-0 items-baseline gap-1.5 leading-5">
         <span className="truncate text-sm font-medium text-slate-600 dark:text-slate-300">
-          {author ? getDisplayLabel(author) : "Unknown"}
+          {author ? <ProfileEmojiText pubkey={author.pubkey} text={getDisplayLabel(author)} /> : "Unknown"}
         </span>
         <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
         {type && TypeIcon ? (
@@ -436,14 +428,7 @@ export function EngagementLine({ zaps, replies, testId }: { zaps: number; replie
   );
 }
 
-export function SerpRow({
-  event,
-  author,
-  score,
-  query,
-  engagement,
-  showType = true,
-}: {
+type SerpRowProps = {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
@@ -452,7 +437,98 @@ export function SerpRow({
   engagement?: { zaps: number; replies: number };
   /** "· Note", "· Event" — only worth saying where kinds mix. */
   showType?: boolean;
-}) {
+};
+
+/** The row is a link to the event's page — a div that navigates, so the anchors inside stay legal HTML. */
+function rowPropsFor(event: NostrEvent, open: () => void) {
+  return {
+    role: "link" as const,
+    tabIndex: 0,
+    onClick: open,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        open();
+      }
+    },
+    className:
+      "group flex cursor-pointer items-start gap-4 rounded-lg px-2 py-3.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
+    "data-testid": `serp-row-${event.id}`,
+  };
+}
+
+export function SerpRow(props: SerpRowProps) {
+  // A Trusted List's content is its members again, as JSON: the row would say
+  // "Structured data". It is a people list — drawn as one, with its scores.
+  // A bookmark set has no words of its own, or only sealed ones: its card
+  // says what it holds and shows the first few.
+  if (props.event.kind === TRUSTED_PEOPLE_KIND || ITEM_LIST_KINDS.has(props.event.kind))
+    return <ListCard event={props.event} author={props.author} score={props.score} />;
+  return props.event.kind === 9802 && parseHighlight(props.event) ? (
+    <HighlightRow {...props} />
+  ) : (
+    <NoteRow {...props} />
+  );
+}
+
+/**
+ * A NIP-84 highlight: what its highlighter said, the passage in a
+ * highlighter's colour, and the text it is from — the article by title and
+ * author, the page by name and site — with that text's picture on the right.
+ */
+function HighlightRow({ event, author, score, query, engagement, showType = true }: SerpRowProps) {
+  const [, setLocation] = useLocation();
+  const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
+  const hl = useMemo(() => parseHighlight(event)!, [event]);
+  const sourceEvent = useHighlightSourceEvent(hl.source.ref);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const meta = useLinkMetadata(hl.source.ref ? null : hl.source.url, rowRef);
+  const cover = sourceEvent ? tagVal(sourceEvent, "image") : meta?.image;
+  const thumb = cover && /^https?:\/\//i.test(cover) ? cover : null;
+  return (
+    <div {...rowPropsFor(event, open)} ref={rowRef}>
+      <div className="min-w-0 flex-1">
+        <AuthorLine
+          author={author}
+          score={score}
+          created_at={event.created_at}
+          type={showType ? typeLabelFor(event) : undefined}
+          typeOf={event}
+          feed={isFeedAccount(author)}
+        />
+        {hl.comment && (
+          <div className="mt-2" data-testid="serp-highlight-comment">
+            <Snippet text={hl.comment} query={query} lines={2} tags={event.tags} />
+          </div>
+        )}
+        <div className="mt-2">
+          <HighlightQuote lines={hl.comment ? 3 : 4} testId="serp-highlight-passage">
+            <Headline text={hl.passage} query={query} tags={event.tags} />
+          </HighlightQuote>
+        </div>
+        <HighlightSourceLine
+          source={hl.source}
+          sourceEvent={sourceEvent}
+          pageTitle={meta?.title}
+          testId="serp-highlight-source"
+        />
+        {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
+      </div>
+      {thumb && (
+        <MediaImg
+          src={thumb}
+          preset="media_320"
+          alt=""
+          loading="lazy"
+          className="h-[92px] w-[92px] shrink-0 rounded-xl bg-slate-100 object-cover dark:bg-slate-800"
+          data-testid="serp-highlight-thumb"
+        />
+      )}
+    </div>
+  );
+}
+
+function NoteRow({ event, author, score, query, engagement, showType = true }: SerpRowProps) {
   const [, setLocation] = useLocation();
   const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
   // Dead news thumbs (expired signed URLs) vanish rather than render broken.
@@ -522,20 +598,7 @@ export function SerpRow({
         ? cardLink
         : null;
 
-  const rowProps = {
-    role: "link" as const,
-    tabIndex: 0,
-    onClick: open,
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
-        e.preventDefault();
-        open();
-      }
-    },
-    className:
-      "group flex cursor-pointer items-start gap-4 rounded-lg px-2 py-3.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
-    "data-testid": `serp-row-${event.id}`,
-  };
+  const rowProps = rowPropsFor(event, open);
 
   if (news && wavlakeTrackId(news.url)) {
     // The link IS a song (Wavlake, or a StableKraft storefront on its
@@ -660,7 +723,7 @@ export function SerpRow({
         />
         {title && (
           <div className="mt-1.5 text-lg font-semibold leading-[1.3] text-slate-900 transition-colors group-hover:text-brand-primary dark:text-slate-100 sm:text-xl [&>p]:text-lg [&>p]:font-semibold [&>p]:leading-[1.3] sm:[&>p]:text-xl">
-            <Snippet text={title} query={query} lines={2} />
+            <Snippet text={title} query={query} lines={2} tags={event.tags} />
           </div>
         )}
         {shapeLine && (
@@ -673,7 +736,13 @@ export function SerpRow({
         )}
         {body && (
           <div className={title ? "mt-1.5" : "mt-2"}>
-            <Snippet text={shown} query={query} lines={title ? 2 : 3} hide={linkedArticle ? cardLink : thumbUrl} />
+            <Snippet
+              text={shown}
+              query={query}
+              lines={title ? 2 : 3}
+              hide={linkedArticle ? cardLink : thumbUrl}
+              tags={event.tags}
+            />
             {/* X's "Translate post" for text in another language — on-device, quiet. */}
             <TranslateLine text={body.slice(0, 1000)} />
           </div>

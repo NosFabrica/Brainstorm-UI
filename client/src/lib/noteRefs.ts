@@ -94,6 +94,18 @@ function parseATag(value: string, relay?: string): AddressRef | null {
   return { kind, pubkey, identifier, relays: relay ? [relay] : undefined };
 }
 
+/**
+ * Whether an event's `e` tags can make it a reply. Not a highlight's (the
+ * text it quotes), and not a replaceable or addressable event's: a bookmark
+ * set's `e` tags are the notes it holds, an article's what it cites — never a
+ * post it answers. Everything else keeps its thread: a note, a comment, a
+ * live-chat message, and the post a reaction or zap is about.
+ */
+export function isThreadedKind(kind: number): boolean {
+  if (kind === 9802 || kind === 0 || kind === 3) return false;
+  return !((kind >= 10000 && kind < 20000) || (kind >= 30000 && kind < 40000));
+}
+
 export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
   const tags = ev.tags || [];
   const eTags = tags.filter((t) => t[0] === "e");
@@ -162,8 +174,9 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
     .filter((t) => t[3] === "mention")
     .map((t) => t[1])
     .filter(Boolean);
-  // Any non-"mention" e tag means this is a reply (covers marked + legacy positional).
-  const isReply = eTags.some((t) => t[3] !== "mention");
+  // Any non-"mention" e tag means this is a reply (covers marked + legacy positional),
+  // on a kind that threads by them.
+  const isReply = isThreadedKind(ev.kind) && eTags.some((t) => t[3] !== "mention");
   const quoteIds = Array.from(new Set([...qTags, ...mentionMarkerIds, ...contentQuoteIds]));
   const quoteRelays = Array.from(
     new Set([
@@ -185,6 +198,8 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
  * straight to the root, parentId === rootId.
  */
 export function replyRefs(ev: MinimalEvent): { rootId?: string; parentId?: string } {
+  // A list's `e` is an item it holds, a highlight's the text it quotes: not a post either answers.
+  if (!isThreadedKind(ev.kind)) return {};
   const eTags = (ev.tags || []).filter((t) => t[0] === "e" && t[1]);
   const threadTags = eTags.filter((t) => (t[3] || "") !== "mention");
   if (threadTags.length === 0) return {};

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertCircle, ExternalLink, Eye, EyeOff, KeyRound, Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { loginWithPastedKey, type LoginErrorCode } from "@/accounts/login-flow";
@@ -20,6 +20,12 @@ interface KeySignInModalProps {
   errorMessage: string;
   onLoginSuccess: () => void;
   onRetryExtension: () => void;
+  /**
+   * The reader asked for the key form ("Use your key?"): open on it, not on the
+   * extension triage — which told them no extension was found when they never
+   * tried one, and in an installed app offered one that can never work.
+   */
+  startWithKey?: boolean;
 }
 
 const EXTENSIONS = [
@@ -48,6 +54,7 @@ export function KeySignInModal({
   errorMessage,
   onLoginSuccess,
   onRetryExtension,
+  startWithKey = false,
 }: KeySignInModalProps) {
   const [secretKey, setSecretKey] = useState("");
   const [backupPassword, setBackupPassword] = useState("");
@@ -98,6 +105,11 @@ export function KeySignInModal({
     const t = setTimeout(syncKeyFromDom, 80); // catch values prefilled before paint
     return () => clearTimeout(t);
   }, [showSecretKeyForm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Before paint, so the triage never flashes first.
+  useLayoutEffect(() => {
+    if (open && startWithKey) setShowSecretKeyForm(true);
+  }, [open, startWithKey]);
 
   useEffect(() => {
     if (!open) {

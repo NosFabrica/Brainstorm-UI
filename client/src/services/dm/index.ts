@@ -6,8 +6,10 @@
 import type { NostrEvent } from "nostr-tools";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "@/accounts/local-account";
+import { RemoteAccount } from "@/accounts/remote-signer";
+import { BrainstormExtensionAccount, EXTENSION_WRAP_DEADLINE_MS } from "@/accounts/extension";
 import { isUnlockCancelled } from "@/accounts/local-signer";
-import { isRemoteSignerTimeout } from "@/accounts/remote-signer";
+import { classifySignerError, messageOf, SignerDeclinedError } from "@/accounts/signer-errors";
 import { canSignSilently, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { eventStore } from "@/lib/eventStore";
@@ -16,7 +18,6 @@ import { DM_RELAY_LIST_KIND, dmRelayTags, loadDmRelays } from "@/lib/dm/inboxRel
 import { ensureReadFloor } from "@/lib/dm/prefs";
 import { hydrateDmPrefs, startDmPrefsSync } from "@/lib/dm/prefsSync";
 import { publishToRelays } from "@/services/nostr";
-import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/relayAuthPref";
 import { DmEngine, type DmAccount, type SendResult, type SignerFailure } from "./engine";
 import { encryptFile, fileTags } from "@/lib/dm/fileCrypto";
 import { FILE_KIND } from "@/lib/dm/giftWrap";
@@ -26,28 +27,84 @@ import { poolTransport } from "./transport";
 
 function classifyFor(account: BrainstormAccount) {
   return (error: unknown): SignerFailure => {
-    if (isUnlockCancelled(error)) return "cancelled";
-    if (isRemoteSignerTimeout(error)) return "unreachable";
-    // An extension or bunker that ran out of time: not a "no", and not the message's fault.
-    if (/time(d)?[\s-]?out/i.test(error instanceof Error ? error.message : String(error))) return "unreachable";
+    const kind = classifySignerError(error);
+    if (kind === "cancelled") return "cancelled";
+    // Ran out of time, or the extension isn't here yet: not a "no", and not the message's fault.
+    if (kind === "timeout" || kind === "missing") return "unreachable";
+    // Asked too fast: a pace to keep, never a fault — not even for a key held here.
+    if (kind === "rate-limited") return "rate-limited";
+    // The extension is on another profile: its key can't open these, but this account's can.
+    if (kind === "wrong-account") return "wrong-account";
     // A key held here can't say no: once unlocked, any failure is the payload's.
     if (account instanceof LocalAccount) return "broken";
-    const message = error instanceof Error ? error.message : String(error);
-    // A payload that won't decrypt is broken for good; anything else is the
-    // signer saying no, which must never be remembered as "unreadable".
-    if (
-      /invalid (mac|payload|padding|base64)|unknown (encryption )?version|invalid.*length|payload must/i.test(message)
-    )
-      return "broken";
-    return "refused";
+    // A payload that won't decrypt is broken for good.
+    if (kind === "bad-payload") return "broken";
+    // Only a "no" is a no. Anything else — Alby locked since this page enabled it
+    // ("Password is not set") — failed without asking anyone: calling it a decline
+    // told the reader they had refused a prompt they never saw. Neither is ever
+    // remembered as "unreadable".
+    return kind === "declined" ? "refused" : "failed";
   };
+}
+
+/** A bunker can send a whole JSON-RPC error; the notice quotes a line, not a page. */
+const EXPLAIN_MAX = 200;
+
+/**
+ * The signer's own words, for the reader to act on: Alby's "permission denied"
+ * (this site blocked in its settings) or "Password is not set" (locked). Not our
+ * own wrapper for a signer that answered nothing — that says nothing new.
+ */
+function explainSignerError(error: unknown): string | undefined {
+  // By name too, as classifySignerError checks it: a copy from another bundle chunk is still ours.
+  if (error instanceof SignerDeclinedError || (error as { name?: unknown })?.name === "SignerDeclinedError")
+    return undefined;
+  const text = messageOf(error).trim();
+  return text.length > EXPLAIN_MAX ? `${text.slice(0, EXPLAIN_MAX - 1)}…` : text || undefined;
+}
+
+/**
+ * The most wraps a NIP-46 signer opens at once. Each wrap is two round trips (the
+ * wrap, then its seal) through the bunker's relay to the signer app and back, about
+ * 0.7s each: one at a time, a 240-message inbox took over five minutes to open. A
+ * signer that limits its rate (Amethyst: a burst of ~40, then "rate limited") is
+ * met by the engine slowing down and carrying on, not by a lower ceiling here.
+ */
+export const REMOTE_DECRYPT_CONCURRENCY = 6;
+
+/**
+ * Opening messages, past the Account's request queue for a NIP-46 signer only. The
+ * queue runs every request one at a time; a bunker answers each by its id, so there
+ * is nothing to keep in order — and decrypts don't prompt once allowed. Signing and
+ * sealing still queue: those are where a signer asks, and where order matters.
+ */
+function openerFor(account: BrainstormAccount) {
+  if (account instanceof RemoteAccount) return account.signer.nip44;
+  return account.nip44;
+}
+
+/**
+ * How the engine opens wraps for this account's kind of signer.
+ * - NIP-46: several at once, and a request the signer dropped is given up early.
+ * - An extension: one at a time — its requests queue one at a time anyway, and a
+ *   second wrap waiting behind a 30s silence ran out its deadline before it was even
+ *   asked, showing "unreachable" and losing the extension's verdict on the first.
+ *   Its deadline covers the signer's own worst case, so the signer always decides
+ *   first; never given up early.
+ */
+export function engineOptionsFor(account: BrainstormAccount) {
+  if (account instanceof RemoteAccount) return { concurrency: REMOTE_DECRYPT_CONCURRENCY, dropDetection: true };
+  if (account instanceof BrainstormExtensionAccount)
+    return { concurrency: 1, dropDetection: false, decryptTimeoutMs: EXTENSION_WRAP_DEADLINE_MS };
+  return { dropDetection: false };
 }
 
 export function dmAccountFor(account: BrainstormAccount): DmAccount {
   const nip44 = account.nip44;
+  const opener = openerFor(account);
   return {
     pubkey: account.pubkey,
-    decrypt: nip44 ? (counterparty, ciphertext) => nip44.decrypt(counterparty, ciphertext) : undefined,
+    decrypt: opener ? (counterparty, ciphertext) => opener.decrypt(counterparty, ciphertext) : undefined,
     sealSigner: nip44
       ? {
           pubkey: account.pubkey,
@@ -60,6 +117,7 @@ export function dmAccountFor(account: BrainstormAccount): DmAccount {
     // own app, so they wait until the reader opens Messages.
     canOpenInBackground: async () => account instanceof LocalAccount && (await canSignSilently(account)),
     classify: classifyFor(account),
+    explain: explainSignerError,
   };
 }
 
@@ -80,18 +138,11 @@ function startFor(account: BrainstormAccount | undefined) {
     // can open it unasked; an extension or bunker would prompt, so it waits for Messages.
     if (account instanceof LocalAccount) void hydrateDmPrefs(account.pubkey);
     current = new DmEngine(dmAccountFor(account), {
+      ...engineOptionsFor(account),
       transport: poolTransport,
       loadInbox: (pubkey, opts) => loadDmRelays(pubkey, opts),
       cache: dmCacheBackend(),
       sealer: deviceSealer,
-      // Turning sign-in off drops the signed-in sockets (services/relayAuth):
-      // reconnect once it has, or the inbox goes quiet until a reload.
-      onAuthPrefChanged: (callback) => {
-        const sub = relayAuthChanged$.subscribe((pk) => {
-          if (pk === account.pubkey && !relayAuthAllowed(pk)) setTimeout(callback, 0);
-        });
-        return () => sub.unsubscribe();
-      },
     });
     void current.start();
   }
@@ -121,10 +172,9 @@ export function subscribeDmEngine(listener: () => void): () => void {
 }
 
 /**
- * Turn private messages on in one step: publish the inbox list, and let the
- * inbox relays sign the reader in (NIP-42) — they won't hand over an inbox
- * otherwise, and many won't take a message from a sender who hasn't. Asking
- * for both separately left people with an inbox that never loaded.
+ * Turn private messages on: publish the inbox list. The inbox relays sign the
+ * reader in (NIP-42) when they ask (services/relayAuth) — they won't hand over
+ * an inbox otherwise.
  */
 export async function turnOnMessages(relays: string[]): Promise<PublishOutcome> {
   const account = accountManager.active;
@@ -151,16 +201,10 @@ async function turnOnInbox(account: { pubkey: string }, relays: string[]): Promi
   // account already published (from another client) with our suggestions.
   const existing = await loadDmRelays(account.pubkey, { fresh: true, timeoutMs: 6000 }).catch(() => null);
   if (existing?.relays.length) {
-    setRelayAuthAllowed(account.pubkey, true);
     if (current?.pubkey === account.pubkey) void current.refreshInbox();
     return { success: true };
   }
-  const allowedBefore = relayAuthAllowed(account.pubkey);
-  setRelayAuthAllowed(account.pubkey, true);
-  const outcome = await publishInboxRelays(relays);
-  // Nothing turned on: leave the sign-in choice as it was.
-  if (!outcome.success && !allowedBefore) setRelayAuthAllowed(account.pubkey, false);
-  return outcome;
+  return publishInboxRelays(relays);
 }
 
 /**
@@ -210,7 +254,7 @@ export async function sendFile(
   engine: DmEngine,
   room: string,
   file: File,
-  opts: { replyTo?: string; timer?: number } = {},
+  opts: { replyTo?: string; timer?: number; subject?: string } = {},
 ): Promise<SendResult> {
   const enc = await encryptFile(new Uint8Array(await file.arrayBuffer()));
   let url: string;

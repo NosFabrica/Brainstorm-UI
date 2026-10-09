@@ -11,7 +11,9 @@
  *   score fetch fills it (same per-author pattern as the hashtag page).
  * - A read with no lens (no `observer:`, no `include:spam`) is refused with
  *   `auth-required:` — so every query we send carries a lens.
- * - Kind-less REQs work: the Everything tab is one REQ with no `kinds`.
+ * - Kind-less REQs work: the All tab is one REQ with no
+ *   `kinds`, in the relay's own order. Top, the default, composes sections
+ *   of chosen kinds instead (components/search/ComposedResults).
  * - `sort:rank`/best-match flush near EOSE (~4s); `sort:recent` streams.
  */
 import { nip19 } from "nostr-tools";
@@ -24,14 +26,18 @@ import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
 import { liftQuery, searchFilters, typeaheadWords, withObserver } from "@/lib/searchSyntax";
 import { isSellable, parseListing } from "@/lib/listing";
+import { familyOf } from "@/lib/listingVariants";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
 import { RECIPE_TAGS } from "@/lib/sourceApp";
 import { isBlankEvent } from "@/lib/blankEvent";
+import { readProfileRows } from "@/lib/eventCache";
+import type { FirstPage } from "@/lib/headStart";
 
 export type SearchTab =
-  | "everything"
+  | "top"
+  | "all"
   | "people"
   | "notes"
   | "articles"
@@ -53,7 +59,7 @@ export type SearchTab =
   | "reviews";
 
 /** One truth for tab → kinds, extracted from the SearchOverTrust app. */
-export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
+export const TAB_KINDS: Record<Exclude<SearchTab, "top" | "all">, number[]> = {
   people: [0],
   // NIP-84 highlights (a quoted passage) and NIP-88 / zap polls read as notes.
   notes: [1, 11, 1111, 9802, 1068, 6969],
@@ -69,7 +75,7 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   media: [20, 21, 22, 1063, 1222, 34235, 34236, 2003],
   // Vitor's split: Zap Store app listings and git-shaped kinds were one
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
-  // probing showed it ~90% JSON junk; it still surfaces via Everything.
+  // probing showed it ~90% JSON junk; it still surfaces via All.
   // Beside them: NIP-89 app handlers, NIP-5A Nostr sites, NIP-5D mini apps.
   apps: [32267, 31990, 35128, 15128, 35129],
   // NIP-99 classifieds — the Shop. Sold, hidden and priceless are gated in the UI (lib/listing).
@@ -119,10 +125,10 @@ const TAB_TAGS: Partial<Record<SearchTab, readonly string[]>> = {
   recipes: RECIPE_TAGS,
 };
 
-/** Everything is deliberately unconstrained — the relay blends and ranks. */
 /** The word each tab wears — for anything that names a tab away from the tab bar. */
 export const TAB_LABELS: Record<SearchTab, string> = {
-  everything: "Everything",
+  top: "Top",
+  all: "All",
   people: "People",
   notes: "Notes",
   articles: "Articles",
@@ -166,12 +172,22 @@ export function askMintReviewsOnly<F extends { kinds?: number[]; "#k"?: string[]
     return rest.length ? [{ ...f, kinds: rest }, mint] : [mint];
   });
 }
+/**
+ * Neither Top nor All names kinds: Top's sections each ask their own
+ * (bandKindsForTab), and All is deliberately unconstrained — every
+ * kind the relay indexes, in the relay's order. (Top with a typed sort:
+ * is that same kind-less list.)
+ */
+export function isKindlessTab(tab: SearchTab): tab is "top" | "all" {
+  return tab === "top" || tab === "all";
+}
+
 export function kindsForTab(tab: SearchTab): number[] | undefined {
-  return tab === "everything" ? undefined : TAB_KINDS[tab];
+  return isKindlessTab(tab) ? undefined : TAB_KINDS[tab];
 }
 
 /**
- * What a preview band asks of a tab — an Everything section, a home-feed
+ * What a preview band asks of a tab — a Top section, a home-feed
  * band, a panel rail — where it differs from the tab: the kinds only the
  * tab itself can show are left out, since a band would ask for them, fill
  * its few slots with them, and then drop them. Calendars have no date for
@@ -224,11 +240,11 @@ export type SearchHandle = (() => void) & { more: () => void };
 export type SearchPov = "nosfabrica" | "mywot";
 
 /**
- * A page whose sections share one REQ. Not a tab — the Everything page is both
+ * A page whose sections share one REQ. Not a tab — the Top page is both
  * a tab and a group. Members are routed to by kind, so a group's sections must
  * ask for disjoint kinds; a section that names no kinds never joins.
  */
-export type SearchGroup = "search-everything" | "home-feed-personal" | "home-feed-house";
+export type SearchGroup = "search-top" | "home-feed-personal" | "home-feed-house";
 
 export interface SearchParams {
   tab: SearchTab;
@@ -255,13 +271,13 @@ export interface SearchParams {
   /**
    * Streams naming the same group share ONE REQ — one filter each, events
    * routed back by kind. The relay works a socket's REQs as a queue, so the
-   * Everything page's eight sections were eight turns in it (probed
+   * Top page's eight sections were eight turns in it (probed
    * 2026-09-16: 5,145ms vs 2,514ms for the same 75 events). Only the first
    * page joins; a "more" page opens its own REQ as before.
    */
   group?: SearchGroup;
   /**
-   * Exactly these kinds, in place of the tab's — Everything's section for a
+   * Exactly these kinds, in place of the tab's — Top's section for a
    * typed kind that none of its sections carry. Not intersected with the
    * query's own `kind:` tokens; it IS them.
    */
@@ -271,9 +287,22 @@ export interface SearchParams {
    * (bandKindsForTab), still narrowed by a typed `kind:`.
    */
   band?: boolean;
+  /**
+   * The first page's answer already on its way — All's head start (lib/headStart),
+   * asked while the bundle loaded. Followed in place of asking; should it fail,
+   * the relay is asked after all. Further pages ask as usual.
+   */
+  firstPage?: FirstPage;
 }
 
-const DEFAULT_LIMIT = 100;
+/** A page's size — index.html's head start for All asks the same (headStart.test holds it). */
+export const DEFAULT_LIMIT = 100;
+/** How long a page's unknown authors wait to be asked together, at most (EOSE asks at once): a streaming list's… */
+const AUTHOR_BATCH_MS = 1000;
+/** …and a best-match page's, which ends (EOSE) soon after its first hits anyway. */
+const AUTHOR_BATCH_MAX_MS = 4000;
+/** The device's own copies are read for whoever arrived within this long of each other. */
+const DEVICE_PEEK_MS = 150;
 /**
  * How deep best match will go. It has no cursor, so each further page is a
  * bigger ask that repeats the ranking so far — and the relay sends MORE than
@@ -475,7 +504,7 @@ export function searchStream(
     // group:, a label: or a scope asks several questions at once, so what comes back is a
     // UNION of filters ORed in one REQ.
     const lifted = liftQuery(query);
-    // A typed kind: (or spec:) narrows whatever tab it is on. Everything is
+    // A typed kind: (or spec:) narrows whatever tab it is on. Top is
     // one request with a filter per section, each routed by kind, so the typed
     // kind narrows each section rather than replacing its kinds — otherwise
     // Latest, Happening and Media would all ask for specs and fill with them.
@@ -548,11 +577,57 @@ export function searchStream(
       emit({});
     };
 
+    // A recent-sorted page streams; a best-match one arrives over seconds and ends.
+    const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
+
+    // Authors the store does not hold are asked of the relay together: a best-match
+    // page's at its end (capped), a streaming list's every second. Asked per arrival,
+    // a page that trickled in sent a REQ of one or two authors each time (probed
+    // 2026-10-07: five kind-0 REQs of 4, 2, 1, 1, 1 for one All search). The device's
+    // own copies don't wait for that: they are read as the authors arrive.
+    const authorWait = recent ? AUTHOR_BATCH_MS : AUTHOR_BATCH_MAX_MS;
+    const pendingAuthors = new Set<string>();
+    let authorTimer: ReturnType<typeof setTimeout> | undefined;
+    const peeked = new Set<string>();
+    let peekTimer: ReturnType<typeof setTimeout> | undefined;
+    const peekDevice = () => {
+      peekTimer = undefined;
+      const batch = [...pendingAuthors].filter((pk) => !peeked.has(pk));
+      batch.forEach((pk) => peeked.add(pk));
+      if (!batch.length) return;
+      // What this device already holds names the row now; the queue still asks the relay
+      // for what it lacks (and refreshes an old copy) when the page's authors go.
+      void readProfileRows(batch)
+        .then((rows) => {
+          if (cancelled) return;
+          for (const row of rows.values()) {
+            try {
+              if (!eventStore.add(row.event)) continue;
+            } catch {
+              continue; // the store verifies, and a bad copy is no name
+            }
+            applyProfile(row.event);
+          }
+        })
+        .catch(() => undefined);
+    };
+    const askAuthors = () => {
+      clearTimeout(authorTimer);
+      authorTimer = undefined;
+      if (cancelled) return;
+      for (const pubkey of pendingAuthors)
+        if (!wantedAuthors.has(pubkey)) wantedAuthors.set(pubkey, wantProfile(pubkey, applyProfile));
+      pendingAuthors.clear();
+    };
     const noteAuthor = (event: NostrEvent): SearchResult | null => {
       if (event.kind === 0) return kind0ToSearchResult(event);
       const known = eventStore.getReplaceable(0, event.pubkey);
       if (known) return kind0ToSearchResult(known);
-      if (!wantedAuthors.has(event.pubkey)) wantedAuthors.set(event.pubkey, wantProfile(event.pubkey, applyProfile));
+      if (!wantedAuthors.has(event.pubkey) && !pendingAuthors.has(event.pubkey)) {
+        pendingAuthors.add(event.pubkey);
+        authorTimer ??= setTimeout(askAuthors, authorWait);
+        peekTimer ??= setTimeout(peekDevice, DEVICE_PEEK_MS);
+      }
       return null;
     };
 
@@ -561,6 +636,7 @@ export function searchStream(
     // ever fill their names in.
     if (seed.length) {
       for (const hit of hits) if (!hit.author) hit.author = noteAuthor(hit.event);
+      askAuthors();
       emit({});
     }
 
@@ -571,7 +647,7 @@ export function searchStream(
     // returns that second again, and a best-match page is a bigger ask that
     // repeats the whole ranking so far (probed 2026-09-09: the top of the
     // ranking is stable as the limit grows).
-    const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
+    let headStart = params.firstPage;
     const pageSubs: { unsubscribe: () => void }[] = [];
 
     // A union whose filters ask pairwise-disjoint kinds (Reviews: the ratings and relay
@@ -632,7 +708,7 @@ export function searchStream(
       }, REQ_DEADLINE_MS);
       let answered = false;
       // Routing back from a shared REQ is by kind, so a member must name kinds
-      // (Everything names none — it would be handed every other section's hits)
+      // (a kind-less ask names none — it would be handed every other section's hits)
       // and the group's members must not ask for the same kind twice.
       //
       // A union cannot join one at all: its filters ask different tag questions of the SAME
@@ -642,7 +718,27 @@ export function searchStream(
       const open = (o: {
         error: (err: unknown) => void;
         next: (msg: { type: string; event?: NostrEvent; reason?: string }) => void;
-      }) => (canGroup ? joinGroupReq(relay, params.group!, page[0], o) : relay.req(page).subscribe(o));
+      }) => {
+        const ask = () => (canGroup ? joinGroupReq(relay, params.group!, page[0], o) : relay.req(page).subscribe(o));
+        // The first page only, once: a head start already asked it.
+        const follow = headStart;
+        headStart = undefined;
+        if (!follow) return ask();
+        let asked: { unsubscribe: () => void } | null = null;
+        const followed = follow({
+          next: (msg) => o.next(msg),
+          // It ended without an answer: ask the relay after all.
+          error: () => {
+            asked ??= cancelled ? null : ask();
+          },
+        });
+        return {
+          unsubscribe: () => {
+            followed.unsubscribe();
+            asked?.unsubscribe();
+          },
+        };
+      };
       const sub = open({
         error: (err: unknown) => {
           clearTimeout(deadline);
@@ -692,6 +788,7 @@ export function searchStream(
           } else if (msg.type === "EOSE") {
             eose = true;
             loadingMore = false;
+            askAuthors();
             // A guess the search did not stand behind does not stay on screen.
             if (params.provisionalSeed && !closeAtEose && seeded.size > 0) {
               for (let i = hits.length - 1; i >= 0; i--) {
@@ -774,6 +871,9 @@ export function searchStream(
     );
     unsubscribe = () => {
       for (const sub of pageSubs) sub.unsubscribe();
+      clearTimeout(authorTimer);
+      clearTimeout(peekTimer);
+      pendingAuthors.clear();
       wantedAuthors.forEach((withdraw) => withdraw());
       wantedAuthors.clear();
     };
@@ -2044,7 +2144,8 @@ export function suggestListings(
     // A typed word names a title word from its start: "hon" is "Honey", not "Phone".
     const titleWords = title.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
     if (!words.every((w) => titleWords.some((t) => t.startsWith(w)))) return null;
-    return `${hit.event.pubkey}|${title.replace(/\s+/g, " ").trim()}`;
+    // One product is one: its sizes share the family their seller declared.
+    return familyOf(l) ?? `${hit.event.pubkey}|${title.replace(/\s+/g, " ").trim()}`;
   });
 }
 

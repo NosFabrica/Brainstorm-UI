@@ -62,7 +62,7 @@ Tag chips on people rows in search (`components/search/PersonTagChips.tsx`): eve
 
 ## Result rows — `components/search/SerpRow.tsx`, `sections.tsx`
 
-The rows on the Everything page and the home feed follow Google's result proportions (the team, 2026-09-29: "do I need glasses?"). Reading text on a result row is never below 14px, meta never below 12px; pills are the exception.
+The rows on the Top page and the home feed follow Google's result proportions (the team, 2026-09-29: "do I need glasses?"). Reading text on a result row is never below 14px, meta never below 12px; pills are the exception.
 
 | Element                                        | Size                                                                                |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -73,6 +73,11 @@ The rows on the Everything page and the home feed follow Google's result proport
 | Thumbnail                                      | 92px square, `rounded-xl`, 16px gap                                                 |
 | Row                                            | `py-3.5`, lists are `space-y-1` — whitespace before dividers, no rules between rows |
 | Section title                                  | 16px (`SectionHeader variant="title"`); "See all" 13px; "+N more from" 12px         |
+
+A NIP-84 highlight (kind 9802) is drawn as a passage marked in a highlighter's amber
+(`HighlightMark` / `HighlightQuote` in `components/share/HighlightQuote.tsx`) on the Top row,
+the All row and its page — amber there means only "the words they marked". The page shows the
+passage in its paragraph and the text it is from; the rows say the source in a "From …" line.
 
 ### The search popup — `components/search/SearchBox.tsx`
 
@@ -95,6 +100,40 @@ the reader picks (the team, 2026-10-01, after Google's "Poodle · Dog breed").
   shopping is a place to land, as Google's is a tab. The count is a floor — listings named by
   the words; the page also finds mentions. No single product gets a row.
 - What a person publishes (Articles, Media, …) shows on hover or the arrowed row, desktop only.
+
+### Listing cards and product options — `ListingCard`, `lib/listingVariants.ts`
+
+One product is one card, wherever things for sale are listed (the Shop tab, the Everything
+row, a seller's shelf and page, "More for sale", the popup's count).
+
+- **Which listings are one product** is the seller's to say: the Open Markets `type` tag
+  (`variable` parent, `variation`s pointing at it with an `a` tag, the option in `spec`).
+  Only listings that carry no `type` are folded by the older title guess.
+- The card is the parent's (its title, its page). It says `10 options` when every option is
+  in hand, `Options available` when a search found some without their parent, and
+  `From $46.20` only when the options' prices differ. With an options badge, the photo count
+  is not shown.
+- The parent is never one of its own options. On a product page the options are chips named
+  by their spec value under the option's name (`Size  XS S M …`), sizes small to large, the
+  one being read marked; each chip is that option's own listing, with its own buy link.
+- The options row sits where a shopper chooses: inside the product card, under the title and
+  above the buy buttons (`ListingOptions`), not below the description.
+- The seller's categories are how a listing is found, not what a buyer reads first: under the
+  description, five at first with `+N more`, each once (no plural or case repeats) and never
+  the seller's own name (`categoriesToShow`).
+- A product page is laid out as a store lays one out: photos; the seller's name as a small
+  upper-case line above the title, linking to their page; the price large in words with the
+  reader's money quietly beside it; who follows the seller (`FollowedByLine`); a thin rule;
+  then the options and the buttons; then the description, folded past ~600 characters.
+- Options are boxes a thumb can hit (40px tall), the chosen one filled, under a line that says
+  `Size: 6XL` — or `Choose a size` on the product's own page, where none is chosen.
+- Buying leads: where there is somewhere to buy, that button is the filled one and comes
+  first, and messaging the seller is the outlined second. Both are 44px tall; on a phone each
+  takes the full width.
+- On a phone, once the buy buttons scroll away, a slim bar above the tab bar repeats the price
+  and the same link out. It offsets by `--bs-bottom-chrome`. There is no cart, quantity or
+  checkout anywhere: payment stays with the seller.
+- Hidden means not shown: a hidden option is not offered, and a hidden parent hides its options.
 
 ### KindPill — `components/ui/kind-pill.tsx`
 
@@ -161,9 +200,31 @@ headlines, captions and section heads in unmarked text (`lib/noteBlocks.ts`).
 Don't hand-roll `whitespace-pre-line text-sm leading-relaxed` for these.
 
 ```tsx
-<ReadingText text={listing.description} className="mt-4" />
+<ReadingText text={listing.description} tags={event.tags} className="mt-4" />
 <ReadingText tokens={tokens} size="post" renderToken={rich} />   // NoteContent
 ```
+
+Pass the event's `tags` whenever the text came from an event: they carry its
+custom emoji (below).
+
+## Custom emoji (NIP-30) — `components/ui/custom-emoji.tsx`, `lib/customEmoji.ts`
+
+An event's `["emoji", shortcode, url]` tags turn `:shortcode:` in its text into
+an inline picture. Text from an event is never shown bare: it goes through a
+renderer that knows the event's tags.
+
+| Text                                         | Use                                                                    |
+| -------------------------------------------- | ---------------------------------------------------------------------- |
+| A note body                                  | `NoteContent tags={event.tags}`                                        |
+| A description, summary or article as prose   | `ReadingText tags={event.tags}`                                        |
+| Markdown                                     | `MarkdownBody tags`, or `useMarkdownEmoji` for your own react-markdown |
+| A title, a caption, a one-line field         | `<EmojiText text={title} tags={event} />`                              |
+| A person's name or bio, from a profile map   | `<ProfileEmojiText pubkey={pk} text={name} />` (reads their kind 0)    |
+| A Thing's title or description (`lib/thing`) | `thing.emoji`                                                          |
+
+An event without emoji tags is never scanned. Plain-string sinks (document
+titles, `aria-label`, toasts, OS notifications, share images) keep the
+`:shortcode:` text.
 
 ## Also use the existing themed primitives
 

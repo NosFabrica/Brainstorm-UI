@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useGoBack } from "@/hooks/useGoBack";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ShieldAlert, ShieldCheck, Loader2, Search, Eye, EyeOff } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Input } from "@/components/ui/input";
@@ -18,12 +18,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
-import { fetchProfileMap } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import { AlertRow, useAlertActions } from "@/components/dashboard/NetworkAlertsModule";
+import { AlertDetails } from "@/components/alerts/AlertDetails";
+import { useMyInteractions } from "@/hooks/useMyInteractions";
 import type { NetworkAlertEntry } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
+import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
 import { cn } from "@/lib/utils";
 
 // Two scopes plus the ignored list. There used to be an "All" tab, and it was
@@ -56,14 +58,22 @@ export default function AlertsPage() {
   const flagged = useMemo(() => selectFlaggedAlerts(data), [data]);
 
   const flaggedPubkeys = useMemo(() => flagged.map((e) => e.pubkey), [flagged]);
-  const profilesQuery = useQuery({
-    queryKey: ["alerts-profiles", flaggedPubkeys.join(",")],
-    queryFn: () => fetchProfileMap(flaggedPubkeys),
-    enabled: flaggedPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profiles: Map<string, ProfileLite> = profilesQuery.data ?? new Map();
+  const profileMap = useLiveProfiles(flaggedPubkeys);
+
+  // The reader's history with every flagged account: one read of their own data.
+  const interactions = useMyInteractions(observer, flaggedPubkeys);
+
+  // Looking here is what "seen" means: the rows new since the last look keep
+  // their NEW tag for this visit, and the dashboard banner's count clears.
+  const [arrivedNew, setArrivedNew] = useState<Set<string>>(new Set());
+  const flaggedSig = flaggedPubkeys.join(",");
+  useEffect(() => {
+    if (!observer || !data) return;
+    setArrivedNew(new Set(computeNewAlerts(observer, flaggedPubkeys).newPubkeys));
+    markAlertsSeen(observer, flaggedPubkeys);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [observer, flaggedSig, !!data]);
+  const profiles: Map<string, ProfileLite> = profileMap;
   const nameFor = (pk: string) =>
     profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
@@ -362,11 +372,19 @@ export default function AlertsPage() {
                 entry={e}
                 name={nameFor(e.pubkey)}
                 picture={profiles.get(e.pubkey)?.picture}
-                isNew={false}
+                isNew={arrivedNew.has(e.pubkey)}
                 following={e.hops <= 1}
                 escalatedFrom={isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null}
                 onDeepDive={() => navigate(`/p/${npubFromPubkey(e.pubkey)}`)}
                 onWhy={() => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`)}
+                details={() => (
+                  <AlertDetails
+                    pubkey={e.pubkey}
+                    npub={npubFromPubkey(e.pubkey)}
+                    history={interactions.summaryOf(e.pubkey)}
+                    dmPartial={interactions.dmPartial}
+                  />
+                )}
                 {...actionsFor(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount, {
                   picture: profiles.get(e.pubkey)?.picture,
                   nip05: profiles.get(e.pubkey)?.nip05,

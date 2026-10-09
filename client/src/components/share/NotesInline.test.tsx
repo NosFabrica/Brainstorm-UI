@@ -7,9 +7,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-vi.mock("@/services/nostr", () => ({ fetchProfileMap: vi.fn(() => Promise.resolve(new Map())) }));
-vi.mock("@/lib/eventStore", () => ({
-  eventStore: { getReplaceable: () => undefined, getEvent: () => undefined, add: (e: unknown) => e },
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
+  fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+}));
+vi.mock("@/lib/eventStore", async () => ({
+  eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
+    getReplaceable: () => undefined,
+    getEvent: () => undefined,
+    add: (e: unknown) => e,
+  },
 }));
 
 import { NotesInline } from "./NotesInline";

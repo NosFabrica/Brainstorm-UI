@@ -7,6 +7,7 @@ import { VerificationCoin, useTierRing, useCoinReplacedByRing } from "@/componen
 import type { ScorePov } from "@/components/score/TrustScorePov";
 import { npubFromPubkey } from "@/lib/shareId";
 import { useNip05 } from "@/hooks/useNip05";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 /**
  * One person in a list — avatar with its trust ring, name, handle, chevron.
@@ -118,7 +119,9 @@ export function PersonListRow({
         <Link href={npub ? `/p/${npub}` : "#"} className="flex min-w-0 flex-1 items-center gap-3.5">
           <TrustAvatar picture={picture} name={name} score={score} pov={pov} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <ProfileEmojiText pubkey={pubkey} text={name} />
+            </p>
             {handle ? (
               <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
                 {nip05Status === "verified" && <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />}

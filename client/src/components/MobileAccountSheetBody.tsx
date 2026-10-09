@@ -16,11 +16,14 @@ export function MobileAccountSheetBody({ user, onLogout }: { user: AccountDispla
   return (
     <>
       <Drawer open={open} onOpenChange={setAccountSheet}>
-        <DrawerContent className="border-brand-accent/20 bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95">
+        {/* The home-indicator inset pads the drawer, not the list inside it: padding the
+            scroll area put it below the last row, so "Sign out" sat on the indicator
+            until the list was scrolled. */}
+        <DrawerContent className="border-brand-accent/20 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95">
           <DrawerTitle className="sr-only">Your account</DrawerTitle>
           {/* Brand-tint wash to match the desktop menu's frosted surface. */}
           <div className="pointer-events-none absolute inset-0 rounded-t-[10px] bg-gradient-to-br from-brand-deep/[0.05] to-brand-accent/[0.07]" />
-          <div className="relative max-h-[80vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+          <div className="relative max-h-[80vh] overflow-y-auto">
             <AccountMenuBody
               user={user}
               isAdmin={isAdmin}

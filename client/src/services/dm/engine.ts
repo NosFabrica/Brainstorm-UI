@@ -40,7 +40,9 @@ import {
 import { Heap } from "@/lib/dm/heap";
 import { DmStore, messageFromRumor, type Delivery, type DmMessage, type OutgoingStatus } from "@/lib/dm/store";
 import { chatTags } from "@/lib/dm/rooms";
+import { onAppResume } from "@/lib/appResume";
 import { MAX_INBOX_RELAYS, type DmRelayLookup } from "@/lib/dm/inboxRelays";
+import type { CustomEmoji } from "@/lib/customEmoji";
 import {
   FAILED_RULES,
   MAX_CACHED_WRAPS,
@@ -78,7 +80,20 @@ export interface DmTransport {
   onAuthenticated(relay: string, callback: () => void): () => void;
 }
 
-export type SignerFailure = "cancelled" | "unreachable" | "refused" | "broken";
+/**
+ * `refused`: the signer said no. `failed`: it threw something that isn't a no,
+ * a timeout or a broken payload — Alby locked since this page enabled it
+ * ("Password is not set") — so it may never have asked the reader at all.
+ */
+export type SignerFailure =
+  | "cancelled"
+  | "unreachable"
+  | "refused"
+  | "failed"
+  | "wrong-account"
+  | "broken"
+  /** The signer asked us to slow down: not a failure, a pace. */
+  | "rate-limited";
 
 export interface DmAccount {
   pubkey: string;
@@ -88,6 +103,8 @@ export interface DmAccount {
   /** Whether opening messages can start without the reader asking. */
   canOpenInBackground(): Promise<boolean>;
   classify(error: unknown): SignerFailure;
+  /** The signer's own words for a failure, when they are its and not ours. */
+  explain?(error: unknown): string | undefined;
 }
 
 export interface DmEngineDeps {
@@ -96,7 +113,10 @@ export interface DmEngineDeps {
   cache?: DmCacheBackend | null;
   sealer?: Sealer;
   now?: () => number;
-  /** How many wraps open at once. A remote signer answers one at a time anyway. */
+  /**
+   * The most wraps open at once. Default 2; more for a NIP-46 signer, which answers
+   * many at a time. The engine runs below it whenever the signer pushes back.
+   */
   concurrency?: number;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
@@ -106,10 +126,21 @@ export interface DmEngineDeps {
   online?: () => boolean;
   /** Calls back when the connection comes back; returns a stop function. */
   onOnline?: (callback: () => void) => () => void;
+  /** Calls back when the app comes back to the foreground; returns a stop function. */
+  onResume?: (callback: () => void) => () => void;
   /** How long one wrap may take to open before its slot is taken back (default 45s). */
   decryptTimeoutMs?: number;
-  /** Calls back when the reader turns relay sign-in on or off; the inbox reconnects. */
-  onAuthPrefChanged?: (callback: () => void) => () => void;
+  /**
+   * Give up early on a request the signer seems to have dropped (it answered a later
+   * one, or has been answering fast and this one sat a whole check). For NIP-46, where
+   * Amethyst drops requests past its rate limit. Never for an extension: its requests
+   * run one at a time behind the one still out, so asking again only queues behind it,
+   * and the extension's own verdict on the wrap (accounts/extension) would land on a
+   * request already abandoned — the wrap stalled the inbox on every visit.
+   */
+  dropDetection?: boolean;
+  /** Milliseconds, for timing how fast the signer answers (default Date.now). */
+  clockMs?: () => number;
 }
 
 /** A message waiting in the outbox: its signed wraps, so a retry needs no signer. */
@@ -121,7 +152,7 @@ interface OutboxEntry {
   deliveries: Delivery[];
 }
 
-export type DmPause = "waiting" | "cancelled" | "unreachable" | "refused" | "no-nip44";
+export type DmPause = "waiting" | "cancelled" | "unreachable" | "refused" | "failed" | "wrong-account" | "no-nip44";
 
 export interface DmEngineState {
   status: "starting" | "no-inbox" | "ready" | "stopped";
@@ -142,6 +173,11 @@ export interface DmEngineState {
   queued: number;
   /** Why opening is on hold, if it is. */
   paused?: DmPause;
+  /**
+   * What the signer said when it stopped opening (`refused`, `failed`) — "permission
+   * denied", "Password is not set": the one clue to a signer that never prompted.
+   */
+  pauseDetail?: string;
   /** Wraps that can never be opened (a broken payload). */
   failed: number;
   /**
@@ -190,7 +226,30 @@ export class DmEngine {
   private readonly me: string;
   private readonly now: () => number;
   private readonly cache: DmCacheBackend | null;
-  private readonly concurrency: number;
+  /**
+   * The ceiling, and how many may be open right now: one until the first opens (a
+   * signer that prompts, or wants a permission granted, is asked once), then the
+   * ceiling, halved when the signer pushes back.
+   */
+  private readonly maxConcurrency: number;
+  private concurrency = 1;
+  private warm = false;
+  /** Bumped by each pushback's first word: the rest of that burst's answers echo it. */
+  private paceEpoch = 0;
+  /** Decrypts asked, in order, and the latest of them the signer has answered. */
+  private asked = 0;
+  private answeredUpTo = 0;
+  /** How long the last wrap took to open (ms): fast means no person is approving each one. */
+  private lastOpenMs = Infinity;
+  /** A wrap's seal, once open: a retry after a pushback asks only for the rest. */
+  private readonly sealOf = new Map<string, NostrEvent>();
+  /** Messages being sealed to send: opening waits, so a send isn't the one refused for pace. */
+  private sealing = 0;
+  /** Opened since the last step up or down: a full round of them earns one more slot. */
+  private paceOk = 0;
+  /** Set while backing off after "rate limited": nothing new is asked until it fires. */
+  private paceTimer: unknown;
+  private paceTries = 0;
 
   private inbox: string[] = [];
   private status: DmEngineState["status"] = "starting";
@@ -214,6 +273,7 @@ export class DmEngine {
   private running = 0;
   private allowed = false;
   private paused?: DmPause;
+  private pauseDetail?: string;
   private failed = 0;
   private readonly setAsideItems = new Map<string, Queued>();
   private readonly receivedBy = new Map<string, Set<string>>();
@@ -223,6 +283,8 @@ export class DmEngine {
   private liveSince = 0;
   /** Past this, history stops waiting for slow live answers (see waitingForLive). */
   private liveWaitOver = false;
+  /** Bumped by each live connection, so an earlier one's wait timer can't end this one's. */
+  private liveGeneration = 0;
   private resumeTries = 0;
   private resumeTimer: unknown;
 
@@ -231,11 +293,16 @@ export class DmEngine {
   private readonly sendAuthWaits = new Map<string, () => void>();
   /** Messages not yet delivered to everyone; kept across reloads and retried. */
   private readonly outbox = new Set<string>();
-  private readonly retrying = new Set<string>();
+  /**
+   * Message → its publish, until every relay has answered. Only one at a time per
+   * message: two would publish the same wraps and overwrite each other's results.
+   */
+  private readonly publishing = new Map<string, Promise<void>>();
+  /** The newest `created_at` this engine gave a rumor (see `stamp`). */
+  private lastStamp = 0;
   /** Automatic tries per message since the connection last came back. */
   private readonly attempts = new Map<string, number>();
   private stopOnline?: () => void;
-  private stopAuthPref?: () => void;
   private starting?: Promise<void>;
   private hydrating?: Promise<void>;
   private connecting?: Promise<void>;
@@ -260,7 +327,7 @@ export class DmEngine {
     this.store = new DmStore(this.me);
     this.now = deps.now ?? (() => Math.floor(Date.now() / 1000));
     this.cache = deps.cache ?? null;
-    this.concurrency = deps.concurrency ?? 2;
+    this.maxConcurrency = deps.concurrency ?? 2;
   }
 
   get pubkey(): string {
@@ -289,12 +356,18 @@ export class DmEngine {
     await this.connecting;
     // Stopped during the lookup (an account switch): register nothing that would outlive it.
     if (this.stopped) return;
-    this.stopAuthPref = this.deps.onAuthPrefChanged?.(() => void this.refreshInbox());
     this.flushOutbox();
-    this.stopOnline = (this.deps.onOnline ?? onWindowOnline)(() => {
+    const stopOnline = (this.deps.onOnline ?? onWindowOnline)(() => {
       this.attempts.clear();
       this.flushOutbox();
     });
+    // Back in front: send what waited, within each message's retry budget — a tab
+    // switch is not the connection coming back, and must not reset it.
+    const stopResume = (this.deps.onResume ?? onComeBack)(() => this.flushOutbox());
+    this.stopOnline = () => {
+      stopOnline();
+      stopResume();
+    };
     const repeat = this.deps.setRepeating ?? ((fn, ms) => setInterval(fn, ms));
     this.ticker = repeat(() => this.tick(), 60_000);
   }
@@ -306,9 +379,10 @@ export class DmEngine {
     for (const stop of this.sendAuthWaits.values()) stop();
     this.sendAuthWaits.clear();
     this.stopOnline?.();
-    this.stopAuthPref?.();
     if (this.resumeTimer !== undefined)
       (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.resumeTimer);
+    this.clearPace();
+    this.sealOf.clear();
     const clearTimer = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
     if (this.stateTimer !== undefined) clearTimer(this.stateTimer);
     this.stateTimer = undefined;
@@ -401,8 +475,10 @@ export class DmEngine {
     const since = this.floor - WRAP_JITTER_SECONDS;
     this.liveSince = since;
     this.liveWaitOver = false;
+    const generation = ++this.liveGeneration;
     // History waits for each relay's live answer (canPage); after a while, not any more.
     (this.deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms)))(() => {
+      if (generation !== this.liveGeneration) return;
       this.liveWaitOver = true;
       this.changed();
     }, LIVE_ANSWER_WAIT_MS);
@@ -458,15 +534,14 @@ export class DmEngine {
     const count = this.liveCount.get(relay) ?? 0;
     this.liveOldest.delete(relay);
     this.liveCount.delete(relay);
-    const cursors = this.pager?.cursors;
-    if (!cursors || oldest === undefined) return;
-    if (!cursors.hasPosition(relay)) {
-      cursors.startBelow(relay, oldest);
+    const pager = this.pager;
+    if (!pager || oldest === undefined) return;
+    if (!pager.cursors.hasPosition(relay)) {
+      pager.startBelow(relay, oldest);
       return;
     }
     const capped = count >= CAPPED_LIVE_AT && oldest > this.liveSince + 3600;
-    const loading = this.pager?.snapshot().relays.find((r) => r.url === relay)?.state === "loading";
-    if (capped && !loading) cursors.restartBelow(relay, oldest);
+    if (capped) pager.restartBelow(relay, oldest);
   }
 
   private get liveSynced(): boolean {
@@ -492,6 +567,8 @@ export class DmEngine {
     let at = this.now();
     for (const q of this.queue.values()) if (q.wrap.created_at < at) at = q.wrap.created_at;
     for (const q of this.opening.values()) if (q.wrap.created_at < at) at = q.wrap.created_at;
+    // Set aside isn't cached either: the next visit must ask for those again too.
+    for (const q of this.setAsideItems.values()) if (q.wrap.created_at < at) at = q.wrap.created_at;
     // Saved every few minutes, not on every tick: a minute here is lost to the 2-day overlap anyway.
     if (throttle && this.lastSeen !== undefined && at >= this.lastSeen && at - this.lastSeen < 300) return;
     this.lastSeen = at;
@@ -726,7 +803,7 @@ export class DmEngine {
   flushOutbox(): void {
     if (this.stopped || this.status !== "ready" || !this.online) return;
     for (const id of this.outbox) {
-      if (this.retrying.has(id) || this.store.message(id)?.outgoing?.status === "sending") continue;
+      if (this.publishing.has(id) || this.store.message(id)?.outgoing?.status === "sending") continue;
       // A relay that keeps refusing isn't asked forever; Retry, or the connection coming back, starts over.
       const tries = this.attempts.get(id) ?? 0;
       if (tries >= MAX_AUTO_RETRIES) continue;
@@ -737,12 +814,28 @@ export class DmEngine {
 
   /** Give up on an undelivered message: gone from here, and from the outbox. */
   discard(messageId: string): void {
-    const status = this.store.message(messageId)?.outgoing?.status;
-    if (status !== "failed" && status !== "queued") return;
+    const message = this.store.message(messageId);
+    const status = message?.outgoing?.status;
+    if (!message || (status !== "failed" && status !== "queued")) return;
+    // A retry is on its way out: it can't be called back now.
+    if (this.publishing.has(messageId)) return;
     this.outbox.delete(messageId);
     this.attempts.delete(messageId);
     this.outgoing.delete(messageId);
     this.store.remove([messageId]);
+    // The reader's own copy may already sit on their relays, and would come back
+    // on the next load looking sent. A wrap can't be deleted (a throwaway key
+    // signed it), so it is remembered as skipped, like a wrap that isn't a message.
+    if (message.wrapId)
+      this.keep({
+        key: wrapKey(this.me, message.wrapId),
+        owner: this.me,
+        wrapId: message.wrapId,
+        at: message.wrapAt,
+        failed: true,
+        reason: "skipped",
+        rules: FAILED_RULES,
+      });
     this.scheduleState();
   }
 
@@ -780,12 +873,17 @@ export class DmEngine {
     }
     this.allowed = true;
     if (this.paused !== "no-nip44") this.paused = undefined;
+    this.pauseDetail = undefined;
+    // The reader asked: now, not after whatever back-off was running.
+    this.clearPace();
+    this.paceTries = 0;
     this.changed();
     this.pump();
   }
 
   private pump() {
     if (this.stopped || !this.allowed || this.paused || !this.account.decrypt) return;
+    if (this.paceTimer !== undefined || this.sealing) return;
     while (this.running < this.concurrency) {
       // Newest first, so the latest messages appear before the backlog.
       const next = this.takeNext();
@@ -821,11 +919,30 @@ export class DmEngine {
 
   private async open(item: Queued) {
     const { wrap } = item;
+    const seq = ++this.asked;
+    const epoch = this.paceEpoch;
+    const askedAt = this.clockMs();
+    let over = false;
+    // Past its deadline a wrap asks nothing more: a late "yes" to its first step must
+    // not bring a second prompt (Amber, one approval per request) or spend the budget.
+    const decrypt: Decrypt = (from, text) =>
+      over ? Promise.reject(new DecryptTimeout()) : this.account.decrypt!(from, text);
     try {
-      const { rumor } = await this.withDeadline(unwrapGiftWrap(wrap, this.account.decrypt!));
+      const { rumor } = await this.withDeadline(
+        unwrapGiftWrap(wrap, decrypt, {
+          seal: this.sealOf.get(wrap.id),
+          onSeal: (seal) => this.sealOf.set(wrap.id, seal),
+        }),
+        seq,
+        () => (over = true),
+      );
       if (this.stopped) return;
+      this.sealOf.delete(wrap.id);
       this.seen.add(wrap.id);
       this.openedCount++;
+      this.answeredUpTo = Math.max(this.answeredUpTo, seq);
+      this.lastOpenMs = this.clockMs() - askedAt;
+      this.paceUp();
       const now = this.now();
       // NIP-17: a message to the reader names them. One that doesn't would make
       // a room without them in it — it can't be opened or answered.
@@ -857,7 +974,24 @@ export class DmEngine {
           : error instanceof DecryptTimeout
             ? "unreachable"
             : this.account.classify(error);
+      const dropped = error instanceof DecryptTimeout && error.dropped;
+      if (kind === "rate-limited" || dropped) {
+        // Asked too fast — said so, or dropped while the signer answered later ones:
+        // this wrap goes back as it was, no refusal counted and the reader never
+        // bothered, and opening slows down and carries on by itself.
+        this.requeue(item);
+        if (this.paceDown(epoch, true)) return;
+        // Every wait run through and still nothing opens: the reader should know.
+        this.paused = "unreachable";
+        this.pauseDetail = dropped ? undefined : this.account.explain?.(error);
+        this.scheduleResume();
+        return;
+      }
+      // A request the signer never answered, with others in flight: likely the same
+      // pushback, without the words. Fewer at once when opening resumes.
+      if (kind === "unreachable") this.paceDown(epoch, false);
       if (kind === "broken") {
+        this.sealOf.delete(wrap.id);
         // The payload itself can't open, ever: remembered, so it isn't asked again.
         this.seen.add(wrap.id);
         this.failed++;
@@ -876,7 +1010,8 @@ export class DmEngine {
       // wrap, not the signer — a stranger can't hold the whole inbox shut. Set
       // aside for this visit only: a signer's error is not proof the message is
       // unreadable, and remembering it as such would lose it for good.
-      if (kind === "refused" && item.refusals > 0 && this.openedCount > item.openedAtRefusal) {
+      const turnedDown = kind === "refused" || kind === "failed";
+      if (turnedDown && item.refusals > 0 && this.openedCount > item.openedAtRefusal) {
         this.seen.add(wrap.id);
         this.setAsideItems.set(wrap.id, item);
         return;
@@ -885,10 +1020,11 @@ export class DmEngine {
       // and try this one after the rest next time.
       this.requeue({
         ...item,
-        refusals: item.refusals + (kind === "refused" ? 1 : 0),
+        refusals: item.refusals + (turnedDown ? 1 : 0),
         openedAtRefusal: this.openedCount,
       });
       this.paused = kind;
+      this.pauseDetail = turnedDown ? this.account.explain?.(error) : undefined;
       // Didn't answer in time (a busy bunker, an extension's own timeout): try
       // again by itself, waiting longer each time, before asking the reader.
       if (kind === "unreachable") this.scheduleResume();
@@ -900,13 +1036,36 @@ export class DmEngine {
    * a time, so two such calls would hold every slot for good — wraps keep
    * arriving and nothing opens. Past the deadline the slot is taken back, the
    * wrap goes back in the queue, and opening resumes after a pause.
+   *
+   * Sooner for a request the signer dropped, as Amethyst does past its rate limit
+   * (it answers a burst, then nothing). Checked every ANSWERING_TIMEOUT_MS, a
+   * request is dropped once the signer has answered one asked *after* it, or when
+   * it has been answering in seconds (no person approving each one) and this one
+   * has sat a whole check. A person tapping "allow" in order is slower than that,
+   * and keeps the full deadline — asked twice, they'd see two prompts. `onOver`
+   * hears when the wrap is given up.
    */
-  private withDeadline<T>(work: Promise<T>): Promise<T> {
-    const ms = this.deps.decryptTimeoutMs ?? DECRYPT_TIMEOUT_MS;
+  private withDeadline<T>(work: Promise<T>, seq: number, onOver: () => void): Promise<T> {
+    const limit = this.deps.decryptTimeoutMs ?? DECRYPT_TIMEOUT_MS;
     const set = this.deps.setTimer ?? ((fn, wait) => setTimeout(fn, wait));
     const clear = this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>));
     return new Promise<T>((resolve, reject) => {
-      const timer = set(() => reject(new DecryptTimeout()), ms);
+      let waited = 0;
+      let timer: unknown;
+      const giveUp = (dropped: boolean) => {
+        onOver();
+        reject(new DecryptTimeout(dropped));
+      };
+      const arm = () => {
+        const step = Math.min(ANSWERING_TIMEOUT_MS, limit - waited);
+        timer = set(() => {
+          waited += step;
+          if (this.deps.dropDetection && (this.answeredUpTo > seq || this.lastOpenMs < FAST_OPEN_MS)) giveUp(true);
+          else if (waited >= limit) giveUp(false);
+          else arm();
+        }, step);
+      };
+      arm();
       work.then(
         (v) => {
           clear(timer);
@@ -918,6 +1077,62 @@ export class DmEngine {
         },
       );
     });
+  }
+
+  /**
+   * The signer pushed back. Its first word halves how many are asked at once; the
+   * rest of that burst's answers echo it and change nothing. With `wait` (it said
+   * "rate limited", or skipped a request), nothing is asked until a pause passes —
+   * longer each time it repeats with nothing opening in between. False once every
+   * pause has been tried: time to tell the reader.
+   */
+  private paceDown(epoch: number, wait: boolean): boolean {
+    if (epoch === this.paceEpoch) {
+      this.paceEpoch++;
+      this.concurrency = Math.max(1, Math.floor(this.concurrency / 2));
+      this.paceOk = 0;
+    }
+    if (!wait || this.paceTimer !== undefined) return true;
+    if (this.paceTries >= RATE_LIMIT_WAIT_MS.length) return false;
+    const ms = RATE_LIMIT_WAIT_MS[this.paceTries++];
+    this.paceTimer = (this.deps.setTimer ?? ((fn, t) => setTimeout(fn, t)))(() => {
+      this.paceTimer = undefined;
+      if (this.stopped) return;
+      this.changed();
+      this.pump();
+    }, ms);
+    return true;
+  }
+
+  private clockMs(): number {
+    return (this.deps.clockMs ?? Date.now)();
+  }
+
+  private clearPace() {
+    if (this.paceTimer === undefined) return;
+    (this.deps.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>)))(this.paceTimer);
+    this.paceTimer = undefined;
+  }
+
+  /**
+   * A message opened. The first proves the signer answers without a person in the
+   * way: the ceiling at once. After that a full round at this pace earns one more.
+   * Not while backing off — those were asked before the signer pushed back.
+   */
+  private paceUp() {
+    if (this.paceTimer !== undefined) return;
+    this.paceTries = 0;
+    if (!this.warm) {
+      this.warm = true;
+      if (this.paceEpoch === 0) {
+        this.concurrency = this.maxConcurrency;
+        return;
+      }
+    }
+    if (this.concurrency >= this.maxConcurrency) return;
+    if (++this.paceOk < this.concurrency) return;
+    this.concurrency++;
+    this.paceOk = 0;
   }
 
   private scheduleResume() {
@@ -1065,7 +1280,7 @@ export class DmEngine {
     const text = content.trim();
     if (!text) return { ok: false, error: "Nothing to send" };
     const others = room.split(",").filter((pk) => pk && pk !== this.me);
-    const now = this.now();
+    const now = this.stamp();
     const expiration = opts.timer ? now + opts.timer : undefined;
     const rumor = makeRumor({
       pubkey: this.me,
@@ -1077,17 +1292,33 @@ export class DmEngine {
     return this.deliver(rumor, others, expiration);
   }
 
-  /** React to a message (NIP-25 inside a wrap). "+" is a like. */
-  async react(target: DmMessage, content: string): Promise<SendResult> {
+  /**
+   * A `created_at` for a rumor of ours: now, but always past the last one. Seconds
+   * are coarse: two sends in one would sort by hash, so out of order half the time
+   * (here and for them), and the same text twice would be one rumor id — one bubble,
+   * whose second signing, turned down, would take the first one away with it.
+   */
+  private stamp(): number {
+    this.lastStamp = Math.max(this.now(), this.lastStamp + 1);
+    return this.lastStamp;
+  }
+
+  /** React to a message (NIP-25 inside a wrap). "+" is a like; a custom emoji carries its NIP-30 tag. */
+  async react(target: DmMessage, content: string, emoji?: CustomEmoji): Promise<SendResult> {
     const others = target.room.split(",").filter((pk) => pk && pk !== this.me);
     // NIP-25 names the author; the other p tags keep the reaction in the same room.
     const named = [...new Set([target.author, ...others])].filter((pk) => pk !== this.me);
     const rumor = makeRumor({
       pubkey: this.me,
       kind: REACTION_KIND,
-      created_at: this.now(),
-      tags: [["e", target.id], ...named.map((pk) => ["p", pk]), ["k", String(target.kind)]],
-      content: content || "+",
+      created_at: this.stamp(),
+      tags: [
+        ["e", target.id],
+        ...named.map((pk) => ["p", pk]),
+        ["k", String(target.kind)],
+        ...(emoji ? [["emoji", emoji.code, emoji.url]] : []),
+      ],
+      content: emoji ? `:${emoji.code}:` : content || "+",
     });
     return this.deliver(rumor, others, undefined);
   }
@@ -1116,25 +1347,24 @@ export class DmEngine {
       { pk: this.me, relays: this.inbox },
     ];
     const wraps: OutgoingWrap[] = [];
+    // Opening pauses while this is sealed: a signer that limits its rate spends its
+    // budget on the message being sent, not on the backlog.
+    this.sealing++;
     try {
       for (const target of targets) {
         const wrap = await wrapRumor(rumor, target.pk, signer, { expiration });
         wraps.push({ recipient: target.pk, wrap, relays: target.relays.slice(0, MAX_INBOX_RELAYS) });
       }
     } catch (error) {
-      const reason = this.account.classify(error);
-      if (reason === "cancelled") {
-        this.store.remove([rumor.id]);
-        return { ok: false, error: "Cancelled" };
-      }
-      this.store.patch(rumor.id, {
-        outgoing: {
-          status: "failed",
-          deliveries: [],
-          error: error instanceof Error ? error.message : "Signing failed",
-        },
-      });
+      // Nothing was signed, so there is nothing to resend: a bubble kept here would
+      // offer a Retry that can't do anything, beside the draft the composer keeps.
+      // The draft is the retry — sent again, it asks the signer again.
+      this.store.remove([rumor.id]);
+      if (this.account.classify(error) === "cancelled") return { ok: false, error: "Cancelled" };
       return { ok: false, error: error instanceof Error ? error.message : "Signing failed" };
+    } finally {
+      this.sealing--;
+      this.pump();
     }
 
     const mine = wraps[wraps.length - 1].wrap;
@@ -1152,15 +1382,9 @@ export class DmEngine {
   async resend(messageId: string): Promise<SendResult> {
     const wraps = this.outgoing.get(messageId);
     if (!wraps) return { ok: false, error: "Nothing to resend" };
-    // One resend at a time per message: two would publish the same wraps and overwrite each other's results.
-    if (this.retrying.has(messageId)) return { ok: false, error: "Already sending" };
-    this.retrying.add(messageId);
-    try {
-      const message = await this.publishWraps(messageId, wraps, true);
-      return { ok: message?.outgoing?.status !== "failed", message };
-    } finally {
-      this.retrying.delete(messageId);
-    }
+    if (this.publishing.has(messageId)) return { ok: false, error: "Already sending" };
+    const message = await this.publishWraps(messageId, wraps, true);
+    return { ok: message?.outgoing?.status !== "failed", message };
   }
 
   /**
@@ -1169,7 +1393,11 @@ export class DmEngine {
    * timeout shouldn't hold the composer. The rest land in the store as they come.
    */
   private async publishWraps(messageId: string, wraps: OutgoingWrap[], onlyFailed = false) {
-    const previous = this.store.message(messageId)?.outgoing?.deliveries ?? [];
+    const out = this.store.message(messageId)?.outgoing;
+    const previous = out?.deliveries ?? [];
+    // A retry shows as sending from the start, not once the first relay answers: until
+    // then its bubble would still read failed, offering a Discard that can't call it back.
+    if (out && out.status !== "sending") this.store.patch(messageId, { outgoing: { ...out, status: "sending" } });
     const accepted = (recipient: string, relay: string) =>
       previous.some((d) => d.recipient === recipient && d.relay === relay && d.ok);
     const deliveries: Delivery[] = [];
@@ -1218,6 +1446,12 @@ export class DmEngine {
       update(true);
       this.settleOutbox(messageId);
     });
+    // Held until the last relay answers, not just until the early return below.
+    this.publishing.set(messageId, settled);
+    const done = () => {
+      if (this.publishing.get(messageId) === settled) this.publishing.delete(messageId);
+    };
+    settled.then(done, done);
     await Promise.race([early, settled]);
     return this.store.message(messageId);
   }
@@ -1237,7 +1471,8 @@ export class DmEngine {
           const refused = this.store
             .message(id)
             ?.outgoing?.deliveries.some((d) => d.relay === relay && !d.ok && d.auth);
-          if (refused) void this.resend(id);
+          // Still out on its first try: resend once that has heard from every relay.
+          if (refused) void (this.publishing.get(id) ?? Promise.resolve()).then(() => this.resend(id));
         }
       });
     });
@@ -1261,6 +1496,7 @@ export class DmEngine {
       // In flight too: a wrap being opened is still waiting, as far as the reader can tell.
       queued: this.queue.size + this.opening.size,
       paused: this.paused ?? (!this.allowed && this.queue.size ? "waiting" : undefined),
+      pauseDetail: this.pauseDetail,
       failed: this.failed,
       setAside: this.setAsideItems.size,
       downloading: this.downloading,
@@ -1301,7 +1537,8 @@ export class DmEngine {
 const DECRYPT_TIMEOUT_MS = 45_000;
 
 class DecryptTimeout extends Error {
-  constructor() {
+  /** Skipped: the signer answered later requests, so it dropped this one rather than waiting on a person. */
+  constructor(readonly dropped = false) {
     super("The signer didn't answer in time");
   }
 }
@@ -1314,6 +1551,16 @@ const CAPPED_LIVE_AT = 200;
 const LIVE_ANSWER_WAIT_MS = 20_000;
 /** After a signer timeout, opening resumes by itself after these waits, then waits for the reader. */
 const RESUME_AFTER_MS = [5_000, 15_000, 45_000];
+/**
+ * How often an unanswered wrap checks whether the signer has answered a later one
+ * (and so dropped it). Well past a NIP-46 round trip (~0.7s) times the two a wrap
+ * takes, far short of the 45s a person unlocking an extension gets.
+ */
+const ANSWERING_TIMEOUT_MS = 10_000;
+/** A wrap that opened this fast had no person approving it: the signer answers by itself. */
+const FAST_OPEN_MS = 3_000;
+/** After a signer says "rate limited", asking again waits this long — the last one repeats. */
+const RATE_LIMIT_WAIT_MS = [2_000, 5_000, 10_000, 30_000];
 
 /** A relay's next history page waits until fewer than this many of its wraps are still unopened. */
 const PAGE_BACKLOG = 50;
@@ -1337,4 +1584,9 @@ function onWindowOnline(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   window.addEventListener("online", callback);
   return () => window.removeEventListener("online", callback);
+}
+
+/** Back in front: an installed app's sends wait out a suspension too. */
+function onComeBack(callback: () => void): () => void {
+  return onAppResume(() => callback());
 }

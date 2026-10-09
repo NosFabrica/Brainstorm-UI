@@ -14,6 +14,7 @@ vi.mock("@/services/nostr", () => ({
 
 vi.mock("@/accounts/signing", () => ({
   activeAccount: () => activeAccount(),
+  hasExternalSigner: (account: { external?: boolean }) => !!account.external,
 }));
 
 const PK = "a".repeat(64);
@@ -114,6 +115,19 @@ describe("reconciling this device with the account's copy", () => {
     expect(plan.write?.fields.pinned).toEqual([OTHER_ROOM, ROOM]);
   });
 
+  it("bases a first merge on the account's copy, so a removal there before it lands still wins", () => {
+    const first = sync.reconcileDmPrefs(local({ pinned: [ROOM] }), remote, 999);
+    expect(first.write?.sync.base).toEqual({ pinned: [OTHER_ROOM], muted: [], accepted: [] });
+    // The publish never landed (a locked key, a declined prompt); meanwhile the phone unpinned OTHER_ROOM.
+    const merged = { pinned: first.write!.fields.pinned!, muted: [], accepted: [] };
+    const next = sync.reconcileDmPrefs(
+      local({ ...merged, sync: first.write!.sync }),
+      { updatedAt: 500, pinned: [], muted: [], accepted: [] },
+      1200,
+    );
+    expect(next.write?.fields.pinned).toEqual([ROOM]);
+  });
+
   it("keeps this device's list for a field the account's copy doesn't carry", () => {
     const plan = sync.reconcileDmPrefs(local({ muted: [ROOM], sync: joined(100) }), { updatedAt: 200 }, 999);
     expect(plan.write?.fields).toEqual({});
@@ -188,6 +202,18 @@ describe("pinning a chat", () => {
     stop();
   });
 
+  it("asks an extension when the reader pins: their act, their signer's prompt", async () => {
+    vi.useFakeTimers();
+    activeAccount.mockReturnValue({ pubkey: PK, external: true });
+    joinedDevice();
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
+    expect(publishAlertPrefs.mock.calls[0][2]).toMatchObject({ background: false });
+    stop();
+  });
+
   it("doesn't publish for changes that don't sync", async () => {
     vi.useFakeTimers();
     joinedDevice();
@@ -213,9 +239,11 @@ describe("pinning a chat", () => {
   });
 
   it("stamps an edit past the copy it last saw, so a fast clock elsewhere can't undo it", () => {
-    prefs.applySyncedDmPrefs(PK, {}, joined(Date.now() + 600_000));
+    // One reading of the clock: read again after the edit and a millisecond's tick makes the two equal.
+    const seen = Date.now() + 600_000;
+    prefs.applySyncedDmPrefs(PK, {}, joined(seen));
     prefs.setRoomPinned(PK, ROOM, true);
-    expect(prefs.readDmPrefs(PK).sync!.at).toBeGreaterThan(Date.now() + 600_000);
+    expect(prefs.readDmPrefs(PK).sync!.at).toBeGreaterThan(seen);
   });
 
   it("doesn't publish again once the account's copy was adopted over it", async () => {
@@ -250,6 +278,31 @@ describe("pinning a chat", () => {
     // Within one refresh period: the open-tab refresh is itself the next sync.
     await vi.advanceTimersByTimeAsync(100_000);
     expect(publishAlertPrefs).toHaveBeenCalledTimes(4);
+    stop();
+  });
+
+  it("doesn't retry on a clock through a signer that prompts: the reader's next act does", async () => {
+    vi.useFakeTimers();
+    joinedDevice();
+    activeAccount.mockReturnValue({ pubkey: PK, external: true });
+    publishAlertPrefs.mockResolvedValue({ success: false, error: "All relays failed" });
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
+    expect(prefs.readDmPrefs(PK).sync?.dirty).toBe(true);
+    stop();
+  });
+
+  it("doesn't ask a signer that said no again on a clock", async () => {
+    vi.useFakeTimers();
+    joinedDevice();
+    publishAlertPrefs.mockResolvedValue({ success: false, error: "declined", declined: true });
+    const stop = sync.startDmPrefsSync();
+    prefs.setRoomPinned(PK, ROOM, true);
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(publishAlertPrefs).toHaveBeenCalledTimes(1);
+    expect(prefs.readDmPrefs(PK).sync?.dirty).toBe(true);
     stop();
   });
 
@@ -299,6 +352,19 @@ describe("pinning a chat", () => {
     document.dispatchEvent(new Event("visibilitychange"));
     await vi.advanceTimersByTimeAsync(0);
     expect(prefs.readDmPrefs(PK).pinned).toEqual([OTHER_ROOM]);
+    stop();
+  });
+
+  it("leaves an extension's copy alone on focus and on the clock: each read or write would prompt", async () => {
+    activeAccount.mockReturnValue({ pubkey: PK, external: true });
+    const stop = sync.startDmPrefsSync();
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 60_000);
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(fetchPrivateAppData).not.toHaveBeenCalled();
+    expect(publishAlertPrefs).not.toHaveBeenCalled();
     stop();
   });
 

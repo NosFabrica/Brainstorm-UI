@@ -1,8 +1,10 @@
 /**
- * Mounted once for the whole app: the unread count in the tab title, and a
- * chime and a browser notification for new messages while Brainstorm is open
- * (lib/dm/notify decides which). Push for a closed tab needs a server that
- * knows when a message arrives — the Brainstorm inbox relay, later.
+ * Mounted once for the whole app: the unread count in the tab title and on the
+ * installed app's icon, and a chime and a notification for new messages while
+ * Brainstorm is open (lib/dm/notify decides which). Notifications go through
+ * the service worker, the only way onto a phone's tray (lib/serviceWorker).
+ * Push for a closed app needs a server that knows when a message arrives — the
+ * Brainstorm inbox relay, later.
  */
 import { useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
@@ -12,6 +14,8 @@ import { writersOf, type RoomShelf } from "@/lib/dm/inbox";
 import { lastReadAt } from "@/lib/dm/prefs";
 import { roomKeyFromSlug, roomSlug } from "@/lib/dm/rooms";
 import { setTitleCount } from "@/lib/titleBadge";
+import { setAppBadge } from "@/lib/appBadge";
+import { onOpenUrl, showAppNotification } from "@/lib/serviceWorker";
 import { playChime } from "@/lib/chime";
 import { eventStore } from "@/lib/eventStore";
 import { profileContentOf } from "@/lib/profileContent";
@@ -34,8 +38,15 @@ export function DmNotifications() {
 
   useEffect(() => {
     setTitleCount(shelves.badge);
+    setAppBadge(shelves.badge);
   }, [shelves.badge]);
-  useEffect(() => () => setTitleCount(0), []);
+  useEffect(
+    () => () => {
+      setTitleCount(0);
+      setAppBadge(0);
+    },
+    [],
+  );
 
   const shelfByRoom = useMemo(() => {
     const m = new Map<string, RoomShelf>();
@@ -52,6 +63,8 @@ export function DmNotifications() {
   // The store notifies on every change; read the latest of everything through a ref.
   const latest = useRef({ shelfByRoom, prefs, viewing, navigate, scoreOf: shelves.scoreOf });
   latest.current = { shelfByRoom, prefs, viewing, navigate, scoreOf: shelves.scoreOf };
+  // A notification tapped while the app was open (or opened by it) comes back as a path.
+  useEffect(() => onOpenUrl((url) => latest.current.navigate(url)), []);
   const recheck = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -61,7 +74,7 @@ export function DmNotifications() {
     let ready = false;
     const check = () => {
       if (!ready) return;
-      const { shelfByRoom, prefs, viewing, navigate, scoreOf } = latest.current;
+      const { shelfByRoom, prefs, viewing, scoreOf } = latest.current;
       const ctx: NotifyContext = {
         me: engine.pubkey,
         since,
@@ -97,16 +110,23 @@ export function DmNotifications() {
             request: shelf === "request",
             preview: prefs.notify.preview,
           });
-          try {
-            const n = new Notification(text.title, { body: text.body, tag: room.key, icon: "/favicon.png" });
-            n.onclick = () => {
-              window.focus();
-              navigate(`/messages/${roomSlug(room.key, engine.pubkey)}`);
-              n.close();
-            };
-          } catch {
-            /* some mobile browsers only notify from a service worker */
-          }
+          const url = `/messages/${roomSlug(room.key, engine.pubkey)}`;
+          void showAppNotification(text.title, { body: text.body, tag: room.key, url })
+            .catch(() => false)
+            .then((shown) => {
+              if (shown) return;
+              try {
+                // No worker (development, or a browser without one): desktops still take this.
+                const n = new Notification(text.title, { body: text.body, tag: room.key, icon: "/icons/icon-192.png" });
+                n.onclick = () => {
+                  window.focus();
+                  latest.current.navigate(url);
+                  n.close();
+                };
+              } catch {
+                /* a phone with no worker: there is no way onto its tray */
+              }
+            });
         }
       }
     };

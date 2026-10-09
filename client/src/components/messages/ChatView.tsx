@@ -56,8 +56,24 @@ import { MessageBubble } from "./MessageBubble";
 import { Composer } from "./Composer";
 import { RenameChatDialog, renameText } from "./RenameChatDialog";
 import { useChatHistory, type ChatHistoryPhase } from "./useChatHistory";
-import { RoomAvatar, dayLabel, firstName, nameOf, roomTitle, shortDate, shortNpub, type Profiles } from "./people";
+import {
+  RoomAvatar,
+  dayLabel,
+  firstName,
+  nameOf,
+  relayHost,
+  roomTitle,
+  shortDate,
+  shortNpub,
+  type Profiles,
+  PersonName,
+  RoomTitle,
+} from "./people";
 import type { RelayProgress } from "@/lib/dm/pager";
+import { askRelayAuthAgain } from "@/services/relayAuth";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { authProblemLabel, refusedAmong } from "./RelayMarker";
+import type { CustomEmoji } from "@/lib/customEmoji";
 
 type Item =
   | { kind: "day"; key: string; label: string }
@@ -215,8 +231,6 @@ export function ChatView({
   onDetails,
   onToggleInfo,
   onArchive,
-  onSignIn,
-  authAllowed,
   sendError,
   initialSubject,
 }: {
@@ -236,9 +250,6 @@ export function ChatView({
   onDetails: (m: DmMessage) => void;
   onToggleInfo: () => void;
   onArchive: () => void;
-  onSignIn: () => void;
-  /** The reader lets relays that ask sign them in (lib/relayAuthPref). */
-  authAllowed: boolean;
   sendError: (result: SendResult) => void;
   /** A group's name, chosen when it was started, sent with its first message. */
   initialSubject?: string;
@@ -273,7 +284,8 @@ export function ChatView({
   const byId = useMemo(() => new Map(view.messages.map((m) => [m.id, m])), [view.messages]);
   // Stable, so a bubble re-renders only when its own message, reactions or reply do.
   const onReact = useCallback(
-    (m: DmMessage, content: string) => void engine?.react(m, content).then((r) => !r.ok && sendError(r)),
+    (m: DmMessage, content: string, emoji?: CustomEmoji) =>
+      void engine?.react(m, content, emoji).then((r) => !r.ok && sendError(r)),
     [engine, sendError],
   );
   const onResend = useCallback((m: DmMessage) => void engine?.resend(m.id), [engine]);
@@ -291,20 +303,28 @@ export function ChatView({
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const lastId = view.messages.at(-1)?.id;
+  const lastMine = view.messages.at(-1)?.author === me;
   useEffect(() => {
     atBottom.current = true;
   }, [roomKey]);
+  // A new message brings the thread down only for a reader already there, or one who
+  // just sent it: someone scrolled up to read (or arrived from search) keeps their place.
   useEffect(() => {
     const el = scroller.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [lastId, roomKey]);
+    if (el && (atBottom.current || lastMine)) el.scrollTop = el.scrollHeight;
+  }, [lastId, lastMine, roomKey]);
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
+    let height = el.clientHeight;
     const stick = () => {
+      height = el.clientHeight;
       if (atBottom.current) el.scrollTop = el.scrollHeight;
     };
     const onScroll = () => {
+      // The pane got shorter (the phone keyboard came up) and a scroll event beat the
+      // ResizeObserver here: that is a resize, not the reader leaving the bottom.
+      if (el.clientHeight !== height) return stick();
       atBottom.current = el.scrollHeight - el.clientHeight - el.scrollTop < 48;
     };
     const resized = new ResizeObserver(stick);
@@ -345,10 +365,12 @@ export function ChatView({
     if (!jumpTo) return;
     if (byId.has(jumpTo)) {
       const el = scroller.current?.querySelector(`[data-message-id="${CSS.escape(jumpTo)}"]`);
-      if (!el) return;
-      atBottom.current = false;
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-      setFlash(jumpTo);
+      // A blank message (a rename) is held but has no bubble: nothing to bring into view.
+      if (el) {
+        atBottom.current = false;
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        setFlash(jumpTo);
+      }
       setJumpTo(null);
     } else if (historyPhase === "end") {
       setNotFound((prev) => new Set(prev).add(jumpTo));
@@ -387,22 +409,30 @@ export function ChatView({
   const send = async (text: string) => {
     if (!engine) return false;
     const subject = !view.messages.length ? initialSubject : undefined;
-    const result = await engine.send(roomKey, text, { replyTo: replyTo?.id, timer, subject });
+    // Cleared with the field, so the next message isn't a reply too; given back with the draft.
+    const reply = replyTo;
+    setReplyTo(null);
+    const result = await engine.send(roomKey, text, { replyTo: reply?.id, timer, subject });
     if (!result.ok && !result.message) {
       sendError(result);
+      if (reply) setReplyTo((cur) => cur ?? reply);
       return false;
     }
-    setReplyTo(null);
     return true;
   };
   const attach = async (file: File) => {
     if (!engine) return false;
-    const result = await sendFile(engine, roomKey, file, { replyTo: replyTo?.id, timer });
+    // As with text: a group's first message names it, even when it's a photo; and a
+    // reply picked while this one uploads is the next message's, not cleared by this one.
+    const subject = !view.messages.length ? initialSubject : undefined;
+    const reply = replyTo;
+    setReplyTo(null);
+    const result = await sendFile(engine, roomKey, file, { replyTo: reply?.id, timer, subject });
     if (!result.ok && !result.message) {
       sendError(result);
+      if (reply) setReplyTo((cur) => cur ?? reply);
       return false;
     }
-    setReplyTo(null);
     return true;
   };
 
@@ -425,7 +455,9 @@ export function ChatView({
         </button>
         <RoomAvatar room={view} me={me} profiles={profiles} scoreOf={scoreOf} size={40} />
         <span className="flex min-w-0 flex-col">
-          <span className="truncate text-base font-bold">{title}</span>
+          <span className="truncate text-base font-bold">
+            <RoomTitle room={{ ...view, subject: view.subject ?? initialSubject }} me={me} profiles={profiles} />
+          </span>
           <span className="truncate font-mono text-xs text-slate-500 dark:text-slate-400">{subtitle}</span>
         </span>
         <span className="ml-auto flex items-center gap-1">
@@ -512,7 +544,9 @@ export function ChatView({
 
       <div
         ref={scroller}
-        className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-5 sm:px-7"
+        // Vertical only. A scroller with overflow-y:auto scrolls sideways too the moment
+        // anything is wider than it; on a phone that was a thread you could drag left.
+        className="flex min-h-0 flex-1 touch-pan-y flex-col gap-2.5 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-7"
         data-testid="dm-thread"
       >
         <HistoryCard
@@ -536,7 +570,9 @@ export function ChatView({
                 className="mx-auto max-w-md text-center text-xs text-slate-500 dark:text-slate-400"
                 data-testid="dm-subject-change"
               >
-                <span className="font-semibold">{item.author === me ? "You" : firstName(item.author, profiles)}</span>{" "}
+                <span className="font-semibold">
+                  {item.author === me ? "You" : <PersonName pubkey={item.author} profiles={profiles} first />}
+                </span>{" "}
                 named the chat{" "}
                 <span className="font-semibold text-slate-700 dark:text-slate-200">“{item.subject}”</span>
               </p>
@@ -550,7 +586,6 @@ export function ChatView({
                 variant="chat"
                 onVisible={onVisible}
                 onRetry={(url) => engine?.retry(url)}
-                onSignIn={onSignIn}
               />
             ) : (
               <MessageBubble
@@ -585,22 +620,7 @@ export function ChatView({
         ))}
       </div>
 
-      {state.sendAuth.length > 0 && !authAllowed && !isRequest && (
-        <Alert
-          variant="warning"
-          className="mx-4 mb-2 flex w-auto items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] sm:mx-6"
-        >
-          <span className="shrink-0">
-            <KeyRound className="h-4 w-4" />
-          </span>
-          <span className="flex-1">
-            Their inbox relay takes messages only from senders who sign in — and then knows this one is from you.
-          </span>
-          <Button size="sm" onClick={onSignIn} data-testid="dm-send-allow-auth">
-            Allow sign-in
-          </Button>
-        </Alert>
-      )}
+      {!isRequest && <SendAuthBanner state={state} />}
 
       {isRequest ? (
         <div className="shrink-0 border-t border-border bg-card px-4 pb-5 pt-4 sm:px-6" data-testid="dm-request-bar">
@@ -671,5 +691,54 @@ export function ChatView({
         onRename={rename}
       />
     </section>
+  );
+}
+
+/**
+ * A message held by a recipient's inbox relay whose login didn't happen
+ * (services/relayAuth signs in by itself): say who turned it down, and offer
+ * another go. The reader's own inbox relays are InboxNotices' to say.
+ */
+function SendAuthBanner({ state }: { state: DmEngineState }) {
+  const problems = useRelayAuthProblems();
+  const theirs = state.sendAuth.filter((relay) => !state.inboxRelays.includes(relay));
+  if (!theirs.length) return null;
+  const refused = refusedAmong(problems, theirs);
+  const [text, action] = refused.signer.length
+    ? [
+        "Your signer rejected signing in to their inbox relay. The message goes out once you approve.",
+        <Button
+          size="sm"
+          onClick={() => refused.signer.forEach((url) => askRelayAuthAgain(url))}
+          data-testid="dm-send-auth-ask-again"
+        >
+          Rejected - Ask again
+        </Button>,
+      ]
+    : refused.other.length
+      ? [
+          `${relayHost(refused.other[0].url)} · ${authProblemLabel(refused.other[0].problem)}`,
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refused.other.forEach(({ url }) => askRelayAuthAgain(url))}
+            data-testid="dm-send-auth-try-again"
+          >
+            Try again
+          </Button>,
+        ]
+      : [null, null];
+  if (!text) return null;
+  return (
+    <Alert
+      variant="warning"
+      className="mx-4 mb-2 flex w-auto items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] sm:mx-6"
+    >
+      <span className="shrink-0">
+        <KeyRound className="h-4 w-4" />
+      </span>
+      <span className="flex-1">{text}</span>
+      {action}
+    </Alert>
   );
 }

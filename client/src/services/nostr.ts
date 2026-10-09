@@ -11,7 +11,7 @@ import { isBlankEvent } from "@/lib/blankEvent";
 import { withObserver } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { publishUntilEnough } from "@/lib/publishQuorum";
-import { loadReplaceable } from "@/lib/loaders";
+import { loadProfileElsewhere, loadReplaceable } from "@/lib/loaders";
 import { profileContentOf } from "@/lib/profileContent";
 import {
   dedupeRelays,
@@ -48,6 +48,7 @@ import type { ProfileContent } from "applesauce-core/helpers/profile";
 import {
   activeAccount,
   canSignSilently,
+  canSignUnasked,
   decryptFromSelf,
   encryptToSelf,
   requireActiveAccount,
@@ -367,9 +368,9 @@ export async function publishAssistantPointer(
 ): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
-  // The self-heal on app load is nobody's request, so a Locked Account that can't
-  // open silently is left alone and syncs its pointer on a later load.
-  if (background && !(await canSignSilently(account))) return { success: false, deferred: true };
+  // The self-heal on app load is nobody's request: a Locked Account that can't open
+  // silently, or a signer that would prompt, is left to the manual publish.
+  if (background && !(await canSignUnasked(account))) return { success: false, deferred: true };
 
   try {
     const signed = await signAs(account, {
@@ -533,9 +534,10 @@ export async function publishAlertPrefs(
 ): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
-  // App-data writes that ride along with a page load are nobody's request, so a
-  // Locked Account that can't open silently syncs on a later load instead.
-  if (background && !(await canSignSilently(account))) return { success: false, deferred: true };
+  // App-data writes that ride along with a page load are nobody's request: a
+  // Locked Account that can't open silently, or a signer that would prompt
+  // (extension, bunker), syncs when the user next changes something instead.
+  if (background && !(await canSignUnasked(account))) return { success: false, deferred: true };
   try {
     const ciphertext = await encryptToSelf(account, JSON.stringify(prefs));
     if (!ciphertext) return { success: false, error: "Could not encrypt" };
@@ -676,6 +678,14 @@ export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<P
  * photos, articles, …). Merges the author's outbox relays with optional
  * `nprofile` relay hints, de-dupes across relays, and caps to `limit`.
  */
+/**
+ * A relay set minus the search relay, for the callers that ask the search relay on
+ * its own as well (with the lens it requires). PROFILE_RELAYS includes it, so
+ * without this the same filters reached it twice — one REQ through the pool, one
+ * direct (probed 2026-10-07: a person's streams and media, each sent twice).
+ */
+const besidesSearchRelay = (relays: string[]) => relays.filter((r) => r !== SEARCH_RELAY);
+
 export async function fetchRecentByKinds(
   pubkey: string,
   kinds: number[],
@@ -757,7 +767,7 @@ async function runPersonBatch(pubkey: string, batch: PersonBatch): Promise<void>
     // The search relay's corpus is wider than the content relays' (probed:
     // a Divine creator's kind-34236 videos lived only there) — ask it too.
     const [fromRelays, fromSearch] = await Promise.all([
-      requestAll(batch.relays, filters, batch.timeoutMs),
+      requestAll(besidesSearchRelay(batch.relays), filters, batch.timeoutMs),
       fetchFromSearchRelayByFilters(filters, batch.timeoutMs),
     ]);
     // A husk deleted by overwriting is not content (lib/blankEvent).
@@ -814,7 +824,7 @@ export async function fetchLiveStreams(
   const [fromRelays, fromSearch] = await Promise.all([
     // `relays` is still a promise: the NIP-65 lookup tells the relay leg where
     // to go and tells the search relay nothing, so only this leg waits on it.
-    relays.then((routed) => requestAll(routed, shapes, timeoutMs)),
+    relays.then((routed) => requestAll(besidesSearchRelay(routed), shapes, timeoutMs)),
     fetchFromSearchRelayByFilters(shapes, timeoutMs),
   ]);
 
@@ -877,9 +887,41 @@ export async function fetchEventsByIds(
   return [...found.values()];
 }
 
+/**
+ * A product and its options, asked for by name: the parent listing at
+ * `parentAddress` (`30402:<pubkey>:<d>`) and every listing of the same seller
+ * that points at it. The seller's newest listings usually hold them all; a
+ * big shop's do not, and a product page must not show half its sizes. Asked
+ * of the search relay and the seller's own relays together; never rejects.
+ */
+export async function fetchListingFamily(
+  pubkey: string,
+  parentAddress: string,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const [kind, author, ...rest] = parentAddress.split(":");
+  const d = rest.join(":");
+  if (author !== pubkey || !d || !Number.isFinite(Number(kind))) return [];
+  const filters = [
+    { kinds: [Number(kind)], authors: [pubkey], "#d": [d] },
+    { kinds: [Number(kind)], authors: [pubkey], "#a": [parentAddress], limit: 200 },
+  ];
+  const relays = besidesSearchRelay(await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS));
+  const answers = await Promise.all([
+    fetchFromSearchRelayByFilters(filters, timeoutMs).catch(() => [] as NostrEvent[]),
+    ...filters.map((f) => fetchEventsByFilter(f, relays, timeoutMs).catch(() => [] as NostrEvent[])),
+  ]);
+  const byId = new Map<string, NostrEvent>();
+  for (const ev of answers.flat()) byId.set(ev.id, ev);
+  return [...byId.values()];
+}
+
 /** Any filter against the search relay, with the lens it requires; EOSE or
  *  timeout resolves, never rejects. */
-function fetchFromSearchRelayByFilters(filters: Record<string, unknown>[], timeoutMs: number): Promise<NostrEvent[]> {
+export function fetchFromSearchRelayByFilters(
+  filters: Record<string, unknown>[],
+  timeoutMs: number,
+): Promise<NostrEvent[]> {
   return new Promise((resolve) => {
     let relay: ReturnType<typeof searchRelay>;
     try {
@@ -1110,13 +1152,18 @@ export async function fetchAddressableEvents(
  * it cannot place falls back to the profile relays, which is where a person the
  * search relay has never indexed still lives.
  */
-export async function fetchProfileMap(pubkeys: string[], timeoutMs = 6000): Promise<Map<string, ProfileContent>> {
+export async function fetchProfileMap(
+  pubkeys: string[],
+  timeoutMs = 6000,
+  { warm = true }: { warm?: boolean } = {},
+): Promise<Map<string, ProfileContent>> {
   const unique = Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk))));
   const map = new Map<string, ProfileContent>();
   if (!unique.length) return map;
   // A page of people, or the authors of a page of notes — either way these are
-  // on screen now, so their routing starts loading now.
-  warmRelayLists(unique);
+  // on screen now, so their routing starts loading now. Not for names alone (a
+  // mention, a face pile): nothing of theirs is fetched next.
+  if (warm) warmRelayLists(unique);
 
   const keep = (event: NostrEvent | null | undefined) => {
     try {
@@ -1154,9 +1201,11 @@ export async function fetchProfileMap(pubkeys: string[], timeoutMs = 6000): Prom
 
   // Per pubkey, so the ones already in the store cost nothing and the rest join
   // whatever batch is forming rather than opening a request of their own.
+  // The search relay was the queue's question and answered "nobody", so these go to the
+  // other profile relays only — batched with every other such ask, the disk cache first.
   const missing = unique.filter((pubkey) => !map.has(pubkey));
   if (missing.length > 0) {
-    const events = await Promise.all(missing.map((pubkey) => loadReplaceable(0, pubkey, { timeoutMs })));
+    const events = await Promise.all(missing.map((pubkey) => loadProfileElsewhere(pubkey, timeoutMs)));
     events.forEach(keep);
   }
   return map;
@@ -1314,6 +1363,9 @@ export async function publishRelaysFor(signedEvent: NostrEvent, extraRelays: str
  * `extraRelays` is genuinely extra — it is UNIONED with the routed set, never a
  * replacement for it. (This argument used to be named `relays` and was silently
  * ignored, which is why `services/tags.ts` had to hand-roll `pool.publish`.)
+ *
+ * A published event lands in the EventStore, after the publish so routing above
+ * still reads the old copy; store-first reads then see our own write.
  */
 export async function publishToRelays(
   signedEvent: NostrEvent,
@@ -1338,7 +1390,10 @@ export async function publishToRelays(
           .then((r) => ({ ok: r.ok, from: url, message: r.message })),
       { need: opts.need, timeoutMs },
     );
-    if (accepted.length) return { success: true, relay: accepted[0], accepted: accepted.length, total };
+    if (accepted.length) {
+      eventStore.add(signedEvent);
+      return { success: true, relay: accepted[0], accepted: accepted.length, total };
+    }
     return { success: false, error: failed[0]?.message || "All relays failed", accepted: 0, total };
   }
 
@@ -1349,7 +1404,10 @@ export async function publishToRelays(
     const accepted = responses.filter((r) => r.ok).length;
     const total = responses.length || writeRelays.length;
     const succeeded = responses.find((r) => r.ok);
-    if (succeeded) return { success: true, relay: succeeded.from, accepted, total };
+    if (succeeded) {
+      eventStore.add(signedEvent);
+      return { success: true, relay: succeeded.from, accepted, total };
+    }
     return { success: false, error: responses[0]?.message || "All relays failed", accepted: 0, total };
   } catch {
     return { success: false, error: "All relays failed", accepted: 0, total: writeRelays.length };
@@ -1405,10 +1463,6 @@ export async function publishProfile(content: Record<string, unknown>, tags: str
     res = await publishToRelays(signed);
   }
   if (res.success) {
-    // The store outranks the display cache in `useActiveAccountDisplay`, and it is
-    // store-first, so without this the edit reverts on the next render and the old
-    // kind-0 is written back over the cache. Reload was the only way out.
-    eventStore.add(signed);
     try {
       cacheProfile(content as unknown as ProfileContent, account.pubkey);
     } catch {}
@@ -1441,11 +1495,7 @@ async function publishRelayListAs(account: BrainstormAccount, relays: string[]):
   try {
     const signed = await signAs(account, { kind: 10002, tags, content: "" });
     if (signed.kind !== 10002) return { success: false, error: "Signer returned an unexpected event kind" };
-    const res = await publishToRelays(signed);
-    // After the publish, not before: `publishToRelays` routes by the list in the
-    // store, so the new list would otherwise decide where it is itself announced.
-    if (res.success) eventStore.add(signed);
-    return res;
+    return await publishToRelays(signed);
   } catch (e) {
     return signingFailure(e);
   }
@@ -1537,16 +1587,21 @@ export interface MuteMetadata {
   timestamp: number;
 }
 
-export async function fetchReportsForPubkey(targetPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {
-  const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], "#p": [targetPubkey] }, timeoutMs);
-  return events.map((event) => ({
+/** A kind-1984 event as a report about `targetPubkey`. */
+export function reportAbout(event: NostrEvent, targetPubkey: string): ReportMetadata {
+  return {
     reporterPubkey: event.pubkey,
     targetPubkey,
     // The `p` tag naming the target carries the NIP-56 report type.
     reportType: event.tags.find((tag) => tag[0] === "p" && tag[1] === targetPubkey && tag[2])?.[2] ?? "other",
     timestamp: event.created_at,
     reason: event.content || "",
-  }));
+  };
+}
+
+export async function fetchReportsForPubkey(targetPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {
+  const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], "#p": [targetPubkey] }, timeoutMs);
+  return events.map((event) => reportAbout(event, targetPubkey));
 }
 
 export async function fetchReportsByPubkey(reporterPubkey: string, timeoutMs = 12000): Promise<ReportMetadata[]> {

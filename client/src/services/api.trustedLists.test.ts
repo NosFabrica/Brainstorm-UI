@@ -60,7 +60,7 @@ describe("apiClient.publishTrustedLists", () => {
     const result = await apiClient.publishTrustedLists(OBSERVER);
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(`http://test.local/admin/trustedLists/${OBSERVER}`);
+    expect(url).toBe(`http://test.invalid/admin/trustedLists/${OBSERVER}`);
     expect(options.method).toBe("POST");
     expect(options.body).toBeUndefined();
     expect(result).toEqual(run);
@@ -99,7 +99,7 @@ describe("apiClient.getSetupRows", () => {
 
     const result = await apiClient.getSetupRows(OBSERVER);
 
-    expect(fetchMock.mock.calls[0][0]).toBe(`http://test.local/setup/${OBSERVER}`);
+    expect(fetchMock.mock.calls[0][0]).toBe(`http://test.invalid/setup/${OBSERVER}`);
     expect(result).toEqual(rows);
   });
 });

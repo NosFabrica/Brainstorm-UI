@@ -11,7 +11,6 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { useQueries, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, Gift, Inbox, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,32 +23,22 @@ import type { SearchResult } from "@/lib/profileSearch";
 import { NetworkPersonRow, usePeopleSearch } from "./usePeopleSearch";
 import { decodeShareId, isNip05 } from "@/lib/shareId";
 import { resolveNip05 } from "@/lib/nip05";
-import { loadDmRelays } from "@/lib/dm/inboxRelays";
 import { roomKey, roomSlug } from "@/lib/dm/rooms";
-import { PersonAvatar, nameOf, shortNpub } from "./people";
+import { PersonAvatar, nameOf, shortNpub, PersonName } from "./people";
+import { useDmRelays, useDmRelaysMany } from "@/hooks/useDmRelays";
 
 /** At most this many people in one chat, including you. */
 const MAX_GROUP = 20;
 
-const inboxQuery = (pubkey: string) => ({
-  queryKey: ["dm-inbox", pubkey],
-  queryFn: () => loadDmRelays(pubkey),
-  staleTime: 10 * 60_000,
-});
-
-function useInboxStatus(pubkey: string) {
-  return useQuery(inboxQuery(pubkey));
-}
-
 function InboxStatus({ pubkey }: { pubkey: string }) {
-  const { data, isPending } = useInboxStatus(pubkey);
-  if (isPending)
+  const { relays, loading } = useDmRelays(pubkey);
+  if (loading)
     return (
       <span className="flex items-center gap-1 text-xs text-slate-500">
         <Loader2 className="h-3 w-3 animate-spin" /> Checking…
       </span>
     );
-  if (data?.relays.length)
+  if (relays.length)
     return (
       <span className="flex items-center gap-1 text-xs text-teal-700 dark:text-teal-300">
         <Inbox className="h-3 w-3" /> Receives private messages
@@ -137,10 +126,8 @@ export function NewMessage({ me, onBack }: { me: string; onBack: () => void }) {
     setQuery("");
   };
 
-  // The same queries InboxStatus runs, so the button waits for the same answers.
-  const statuses = useQueries({ queries: picked.map(inboxQuery) });
-  const blocked = picked.filter((_, i) => statuses[i]?.data && !statuses[i].data!.relays.length);
-  const checking = statuses.some((q) => q.isPending);
+  // The same lists InboxStatus shows, so the button waits for the same answers.
+  const { blocked, checking } = useDmRelaysMany(picked);
   const start = () => {
     if (!picked.length) return;
     const key = roomKey([me, ...picked]);
@@ -210,7 +197,9 @@ export function NewMessage({ me, onBack }: { me: string; onBack: () => void }) {
                 >
                   <PersonAvatar pubkey={pk} profiles={shown} size={40} />
                   <span className="flex min-w-0 flex-col">
-                    <span className="truncate text-[15px] font-semibold">{nameOf(pk, shown)}</span>
+                    <span className="truncate text-[15px] font-semibold">
+                      <PersonName pubkey={pk} profiles={shown} />
+                    </span>
                     <span className="truncate font-mono text-xs text-slate-500">
                       {profiles.get(pk)?.nip05 || shortNpub(pk)}
                     </span>
@@ -259,7 +248,9 @@ export function NewMessage({ me, onBack }: { me: string; onBack: () => void }) {
               <div key={pk} className="flex items-center gap-3">
                 <PersonAvatar pubkey={pk} profiles={shown} score={scoreOf(pk)} size={36} />
                 <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm font-semibold">{nameOf(pk, shown)}</span>
+                  <span className="truncate text-sm font-semibold">
+                    <PersonName pubkey={pk} profiles={shown} />
+                  </span>
                   <InboxStatus pubkey={pk} />
                 </span>
                 {!follows.has(pk) && (

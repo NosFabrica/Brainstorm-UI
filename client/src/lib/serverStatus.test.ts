@@ -19,7 +19,7 @@ import {
   watchRelay,
 } from "./serverStatus";
 
-const PROBE = "http://test.local/.well-known/nostr.json?name=_";
+const PROBE = "http://test.invalid/.well-known/nostr.json?name=_";
 
 beforeEach(() => {
   vi.useFakeTimers();

@@ -1,6 +1,30 @@
-import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "wouter";
-import { Archive, BellOff, ChevronDown, EyeOff, Flag, Pin, Search, Settings2, SquarePen, Timer, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Archive,
+  BellOff,
+  ChevronDown,
+  EyeOff,
+  Flag,
+  Loader2,
+  Pin,
+  Search,
+  Settings2,
+  SquarePen,
+  Timer,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
 import type { DmRoom } from "@/lib/dm/store";
@@ -16,33 +40,58 @@ import { RelayMarker } from "./RelayMarker";
 import { RequestTrustLine } from "./RequestTrust";
 import { MessageSearchResults } from "./MessageSearchResults";
 import { searchMessages } from "@/lib/dm/search";
+import { ANSWER_WITHIN_MS, serverStatus } from "@/lib/dm/serverStatus";
 import { usePeopleSearch } from "./usePeopleSearch";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { useNearViewport } from "@/hooks/useNearViewport";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { Input } from "@/components/ui/input";
-import { RoomAvatar, firstName, listTime, roomTitle, type Profiles } from "./people";
+import { RoomAvatar, listTime, roomTitle, type Profiles, PersonName, RoomTitle } from "./people";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 export type InboxTab = "chats" | "requests";
 
-function preview(room: DmRoom, me: string, profiles: Profiles): string {
+/**
+ * The list's second line: who wrote last (in a group) and what. Two parts, each
+ * drawn with its own NIP-30 emoji: the sender's from their profile, the body's
+ * from the message.
+ */
+function Preview({ room, me, profiles }: { room: DmRoom; me: string; profiles: Profiles }) {
   const last = room.last;
-  if (!last) return "";
+  if (!last) return null;
   const who =
-    last.author === me ? "You: " : room.participants.length > 2 ? `${firstName(last.author, profiles)}: ` : "";
+    last.author === me ? (
+      "You: "
+    ) : room.participants.length > 2 ? (
+      <>
+        <PersonName pubkey={last.author} profiles={profiles} first />:{" "}
+      </>
+    ) : null;
   const body =
     last.kind === FILE_KIND ? fileLabel(last.rumor) : last.kind === REACTION_KIND ? "Reacted" : last.rumor.content;
   const text = body.replace(/\s+/g, " ").trim();
   // A blank message (a rename from some clients) previews as what it did.
-  if (!text) return last.subject ? `${who}Named the chat “${last.subject}”` : "";
-  return who + text;
+  if (!text)
+    return last.subject ? (
+      <>
+        {who}Named the chat “{last.subject}”
+      </>
+    ) : null;
+  return (
+    <>
+      {who}
+      <EmojiText text={text} tags={last.rumor.tags} />
+    </>
+  );
 }
 
 /** Told the people of each row as it comes near the screen, so their names and pictures load. */
 const RowNearContext = createContext<((pubkeys: string[]) => void) | null>(null);
 
-function RoomRow({
+// Memoized: the list re-renders on every engine snapshot (sync progress, several a
+// second while a big inbox loads), and a row's room only changes when its messages do.
+const RoomRow = memo(function RoomRow({
   room,
   me,
   profiles,
@@ -51,6 +100,7 @@ function RoomRow({
   selected,
   hidePreview,
   showTrust,
+  loading,
 }: {
   room: DmRoom;
   me: string;
@@ -61,6 +111,8 @@ function RoomRow({
   hidePreview?: boolean;
   /** A request: say who vouches for the sender. */
   showTrust?: boolean;
+  /** Messages are still being fetched or opened: a not-loaded row may just not be there yet. */
+  loading?: boolean;
 }) {
   const unread = selected || prefs.muted.includes(room.key) ? 0 : unreadIn(room, me, prefs);
   const timer = roomTimer(prefs, room.key) > 0;
@@ -88,7 +140,9 @@ function RoomRow({
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex items-center gap-1.5">
-          <span className="truncate text-[15px] font-semibold">{roomTitle(room, me, profiles)}</span>
+          <span className="truncate text-[15px] font-semibold">
+            <RoomTitle room={room} me={me} profiles={profiles} />
+          </span>
           {timer && <Timer className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label="Disappearing messages on" />}
           {prefs.muted.includes(room.key) && (
             <BellOff className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label="Muted" />
@@ -96,10 +150,16 @@ function RoomRow({
           {prefs.pinned.includes(room.key) && (
             <Pin className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label="Pinned" />
           )}
-          <span className="ml-auto shrink-0 text-xs text-slate-500 dark:text-slate-400">{listTime(room.lastAt)}</span>
+          {!room.notLoaded && (
+            <span className="ml-auto shrink-0 text-xs text-slate-500 dark:text-slate-400">{listTime(room.lastAt)}</span>
+          )}
         </span>
         <span className="flex items-center gap-2">
-          {hidePreview ? (
+          {room.notLoaded ? (
+            <span className="truncate text-sm text-slate-500 dark:text-slate-400" data-testid="dm-room-not-loaded">
+              {loading ? "Loading…" : "Older messages aren't loaded yet"}
+            </span>
+          ) : hidePreview ? (
             <span className="flex items-center gap-1.5 truncate text-sm text-slate-500 dark:text-slate-400">
               <EyeOff className="h-3.5 w-3.5" /> Preview hidden · low trust
             </span>
@@ -110,7 +170,7 @@ function RoomRow({
                 unread ? "font-semibold text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400",
               )}
             >
-              {preview(room, me, profiles)}
+              <Preview room={room} me={me} profiles={profiles} />
             </span>
           )}
           {unread > 0 && (
@@ -123,7 +183,7 @@ function RoomRow({
       </span>
     </Link>
   );
-}
+});
 
 type Item = { kind: "room"; room: DmRoom; at: number } | { kind: "marker"; progress: RelayProgress; at: number };
 
@@ -136,6 +196,85 @@ function interleave(rooms: DmRoom[], relays: RelayProgress[]): Item[] {
   return items.sort((a, b) => b.at - a.at || (a.kind === "marker" ? 1 : -1));
 }
 
+/**
+ * The inbox's history, said once, in a reader's words: how many of their message
+ * servers aren't answering and what that means, with Retry and Manage (Settings ›
+ * Messages, where each server's status is); else older messages still on their
+ * way; else nothing. Replaces a row per relay in the list; a chat keeps its own
+ * per-relay markers ("Keep looking").
+ *
+ * After a Retry the line goes quiet for the rest of the visit — a server that's
+ * gone for good shouldn't nag on every glance — but never disappears while it's
+ * true, and nothing is remembered between visits.
+ */
+function HistoryStatus({ state, onRetry }: { state: DmEngineState; onRetry: (url: string) => void }) {
+  const [retried, setRetried] = useState(false);
+  // The same "not answering" Settings › Messages shows (lib/dm/serverStatus): a failed
+  // history page, or still unconnected well after another server answered.
+  const [openedAt] = useState(() => Date.now());
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => tick((n) => n + 1), ANSWER_WITHIN_MS + 500);
+    return () => clearTimeout(t);
+  }, []);
+  const relays = state.history.relays;
+  const urls = [...new Set([...relays.map((r) => r.url), ...Object.keys(state.live)])];
+  const waitedMs = Date.now() - openedAt;
+  const silent = urls.filter((url) => serverStatus(url, state, { waitedMs }) === "not-answering");
+  const loading = relays.some((r) => r.state === "loading" || (r.opening ?? 0) > 0);
+  if (!silent.length && !loading) return null;
+  const manage = (
+    <Link
+      href="/settings?tab=messages"
+      className="rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+    >
+      Manage
+    </Link>
+  );
+  const servers = (n: number) => (n === 1 ? "server isn't" : "servers aren't");
+  return (
+    <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400" data-testid="dm-history-status">
+      {silent.length && retried ? (
+        <p className="flex items-center gap-2">
+          <span>
+            {silent.length} {servers(silent.length)} answering
+          </span>
+          <span className="ml-auto">{manage}</span>
+        </p>
+      ) : silent.length ? (
+        <>
+          <p className="flex items-start gap-2 leading-relaxed">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+            <span>
+              {silent.length === urls.length
+                ? "None of your message servers are answering. New messages can't reach you right now."
+                : `${silent.length} of your ${urls.length} message servers ${silent.length === 1 ? "isn't" : "aren't"} answering. Your messages still arrive through the others.`}
+            </span>
+          </p>
+          <p className="mt-1.5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setRetried(true);
+                silent.forEach((url) => onRetry(url));
+              }}
+              className="rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Retry
+            </button>
+            {manage}
+          </p>
+        </>
+      ) : (
+        <p className="flex items-center gap-2">
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+          Loading older messages…
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ConversationList({
   engine,
   state,
@@ -145,7 +284,6 @@ export function ConversationList({
   me,
   selectedKey,
   tab,
-  onSignIn,
   notices,
   onPeopleNear,
 }: {
@@ -157,7 +295,6 @@ export function ConversationList({
   me: string;
   selectedKey: string | null;
   tab: InboxTab;
-  onSignIn: () => void;
   /** Status and things waiting on the reader, pinned under the list. */
   notices?: React.ReactNode;
   /** The people of rows coming near the screen. */
@@ -215,6 +352,14 @@ export function ConversationList({
   const items = useMemo(() => interleave(flowing, state.history.relays), [flowing, state.history.relays]);
   const [showArchived, setShowArchived] = useState(false);
   const requestCount = shelves.requests.length + shelves.low.length;
+  // A server has answered once the live subscription settles, or once any relay has
+  // delivered a page of history — one silent relay can hold "settled" off indefinitely.
+  const answered = state.liveSettled || state.history.relays.some((r) => r.state === "done" || r.pages > 0);
+  // Messages still on their way: not answered yet, or wraps (cached or fetched) still being opened.
+  // A pinned chat with nothing loaded may only be waiting on these.
+  const stillLoading = !answered || state.history.relays.some((r) => (r.opening ?? 0) > 0);
+  // Pinned chats are listed before any of their messages load, so they don't make an inbox non-empty.
+  const loadedChats = rooms.some((r) => !r.notLoaded);
 
   return (
     <RowNearContext.Provider value={onPeopleNear ?? null}>
@@ -226,7 +371,7 @@ export function ConversationList({
         <div className="flex items-center justify-between px-4 pb-3 pt-4">
           <h1 className="font-display text-[22px] font-bold tracking-tight">Messages</h1>
           <Link
-            href="/settings?tab=trust&focus=messages"
+            href="/settings?tab=messages"
             aria-label="Message settings"
             className="ml-auto mr-2 inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
           >
@@ -317,14 +462,24 @@ export function ConversationList({
               className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
               data-testid="dm-room-scroll"
             >
+              {tab === "requests" && (rooms.length > 0 || shelves.low.length > 0) && (
+                <p
+                  className="px-3 pb-1 pt-2 text-xs text-slate-500 dark:text-slate-400"
+                  data-testid="dm-requests-explainer"
+                >
+                  From people you don't follow, sorted by who your network trusts.
+                </p>
+              )}
               {tab === "requests" && rooms.length === 0 && shelves.low.length === 0 && (
                 <p className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">
                   No requests. People you don't follow land here, sorted by how your web of trust sees them.
                 </p>
               )}
-              {tab === "chats" && rooms.length === 0 && state.status === "ready" && (
+              {tab === "chats" && !loadedChats && state.status === "ready" && (!answered || rooms.length === 0) && (
                 <p className="px-3 py-6 text-sm text-slate-500 dark:text-slate-400">
-                  {state.history.loading || !state.liveSettled ? "Loading your messages…" : "No chats yet."}
+                  {/* Until any server answers; after that an empty inbox is empty, however
+                      long the slow ones take — they're the quiet line below. */}
+                  {answered ? "No chats yet." : "Loading your messages…"}
                 </p>
               )}
               {pinned.map((room) => (
@@ -336,6 +491,7 @@ export function ConversationList({
                   scoreOf={shelves.scoreOf}
                   prefs={prefs}
                   selected={room.key === selectedKey}
+                  loading={room.notLoaded && stillLoading}
                 />
               ))}
               {pinned.length > 0 && flowing.length > 0 && <div className="mx-3 my-1 border-t border-border" />}
@@ -356,12 +512,18 @@ export function ConversationList({
                     key={`m:${item.progress.url}`}
                     progress={item.progress}
                     variant="list"
+                    // Each relay's marker still pages its history as it scrolls into view, but
+                    // says nothing: a reader shouldn't need to know what a relay is to read their
+                    // messages. Only a relay that wants them signed in speaks up, since that needs
+                    // them. The rest is the one line under the list.
+                    quiet={item.progress.state !== "auth"}
                     onAdvance={advance}
                     onRetry={retry}
-                    onSignIn={onSignIn}
                   />
                 ),
               )}
+
+              <HistoryStatus state={state} onRetry={retry} />
 
               {tab === "chats" && shelves.archived.length > 0 && (
                 <div className="mt-3">
@@ -388,6 +550,7 @@ export function ConversationList({
                         scoreOf={shelves.scoreOf}
                         prefs={prefs}
                         selected={room.key === selectedKey}
+                        loading={room.notLoaded && stillLoading}
                       />
                     ))}
                 </div>
@@ -403,7 +566,7 @@ export function ConversationList({
                     data-testid="dm-low-trust-toggle"
                   >
                     <ChevronDown className={cn("h-4 w-4 transition-transform", !showLow && "-rotate-90")} />
-                    {shelves.low.length} below your trust threshold
+                    Low trust · {shelves.low.length} (previews hidden)
                   </button>
                   {showLow &&
                     shelves.low.map((room) => (

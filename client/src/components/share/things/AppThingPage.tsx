@@ -30,6 +30,7 @@ import {
   type PageEvent,
   SafeImg,
 } from "./shared";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 type Json = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
@@ -108,7 +109,9 @@ export function AppThingHero({ event, thing, detail }: { event: PageEvent; thing
         </span>
         <div className="min-w-0 flex-1">
           <Kicker icon={v.icon}>{v.word}</Kicker>
-          <PageTitle testId="thing-page-title">{thing.title}</PageTitle>
+          <PageTitle testId="thing-page-title">
+            <EmojiText text={thing.title} tags={thing.emoji} />
+          </PageTitle>
           {detail.variant === "napplet" && detail.requires.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {detail.requires.map((r) => (
@@ -135,7 +138,9 @@ export function AppThingHero({ event, thing, detail }: { event: PageEvent; thing
           ))}
         {sourceWeb && <ActionLink href={sourceWeb}>Source</ActionLink>}
       </Actions>
-      {thing.description && <ReadingText text={thing.description} className="mt-4" testId="thing-page-description" />}
+      {thing.description && (
+        <ReadingText text={thing.description} tags={thing.emoji} className="mt-4" testId="thing-page-description" />
+      )}
 
       {detail.variant === "handler" && detail.handles.length > 0 && (
         <div className="mt-4">

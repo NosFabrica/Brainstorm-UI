@@ -4,19 +4,19 @@
  * `/messages/<npub>[+<npub>…]` for a chat — a room is the set of people in it,
  * so its URL is just them.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams, useSearch } from "wouter";
 import { MessageSquare } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useEditingText } from "@/hooks/useEditingText";
+import { useKeyboardViewport } from "@/hooks/useKeyboardViewport";
 import { useToast } from "@/hooks/use-toast";
 import { logout } from "@/accounts/login-flow";
 import { useDmEngine, useDmPrefs, useDmState, useShelves } from "@/hooks/useDirectMessages";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useLiveProfiles } from "@/hooks/useLiveProfile";
-import { relayAuthAllowed, relayAuthChanged$, setRelayAuthAllowed } from "@/lib/relayAuthPref";
 import { setRelayAuthInteractive } from "@/services/relayAuth";
 import { roomKeyFromSlug } from "@/lib/dm/rooms";
 import { acceptRoom, archiveRoom, hideRoom } from "@/lib/dm/prefs";
@@ -32,16 +32,6 @@ import { InboxNotices, InboxSetup, OpeningStatus } from "@/components/messages/I
 import { nameOf } from "@/components/messages/people";
 import { cn } from "@/lib/utils";
 
-function useRelayAuthAllowed(pubkey: string): boolean {
-  const [allowed, setAllowed] = useState(() => (pubkey ? relayAuthAllowed(pubkey) : false));
-  useEffect(() => {
-    setAllowed(pubkey ? relayAuthAllowed(pubkey) : false);
-    const sub = relayAuthChanged$.subscribe(() => setAllowed(pubkey ? relayAuthAllowed(pubkey) : false));
-    return () => sub.unsubscribe();
-  }, [pubkey]);
-  return allowed;
-}
-
 export default function MessagesPage() {
   const user = useActiveAccountDisplay();
   const me = user?.pubkey ?? "";
@@ -56,7 +46,6 @@ export default function MessagesPage() {
   const social = useSocialActions(me || undefined);
   const shelves = useShelves(engine);
   const { follows } = useMyFollows();
-  const authAllowed = useRelayAuthAllowed(me);
   const [details, setDetails] = useState<DmMessage | null>(null);
   const [infoOpen, setInfoOpen] = useState(true);
 
@@ -112,12 +101,6 @@ export default function MessagesPage() {
   }, [seen, roomKey]);
   const profiles = useLiveProfiles(people);
 
-  const allowAuth = useCallback(() => {
-    if (!me) return;
-    setRelayAuthAllowed(me, true);
-    toast({ title: "Signing in to your inbox relays", description: "Your signer may ask you to approve each one." });
-  }, [me, toast]);
-
   const sendError = useCallback(
     (result: SendResult) => {
       if (result.error === "Cancelled") return;
@@ -152,9 +135,13 @@ export default function MessagesPage() {
   const showChat = !!roomKey || composing;
   const setup = state.status === "no-inbox";
   const editing = useEditingText();
+  // Typing on a phone: held to the space above the keyboard, which iOS scrolls the page under.
+  const pageRef = useRef<HTMLDivElement>(null);
+  useKeyboardViewport(editing, pageRef);
 
   return (
     <div
+      ref={pageRef}
       className={cn(
         "flex flex-col bg-background text-foreground",
         // The phone tab bar steps aside while a field has focus but keeps its share of the
@@ -199,11 +186,10 @@ export default function MessagesPage() {
               me={me}
               selectedKey={roomKey}
               tab={tab}
-              onSignIn={allowAuth}
               onPeopleNear={onPeopleNear}
               notices={
                 <>
-                  <InboxNotices engine={engine} state={state} authAllowed={authAllowed} onAllowAuth={allowAuth} />
+                  <InboxNotices engine={engine} state={state} />
                   <OpeningStatus state={state} />
                 </>
               }
@@ -236,8 +222,6 @@ export default function MessagesPage() {
             onDetails={setDetails}
             onToggleInfo={() => setInfoOpen((v) => !v)}
             onArchive={archive}
-            onSignIn={allowAuth}
-            authAllowed={authAllowed}
             sendError={sendError}
           />
         ) : setup ? (

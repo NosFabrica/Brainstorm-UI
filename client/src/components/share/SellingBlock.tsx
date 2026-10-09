@@ -1,10 +1,9 @@
 import { useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
 import { ShoppingBag } from "lucide-react";
 import { nip19, type NostrEvent } from "nostr-tools";
-import { fetchRecentByKinds } from "@/services/nostr";
 import { LISTING_KIND } from "@/lib/listing";
-import { productsFromEvents } from "@/lib/listingVariants";
+import { cardGroupOf, productsFromEvents } from "@/lib/listingVariants";
 import { ListingCard } from "@/components/search/cards";
 import { ContentTeaserBlock } from "./ContentTeaserBlock";
 
@@ -32,19 +31,14 @@ export function SellingBlock({
 }) {
   // Same query as the page with everything, so "See all N" counts what the
   // page will show and the tap lands on a warm cache.
-  const q = useQuery({
-    queryKey: ["seller-listings", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [LISTING_KIND], 100, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const q = useRecentByKinds(pubkey, [LISTING_KIND], 100, relayHints);
+
   // Products, not listings: a shirt in five sizes is one card, "5 options".
-  const products = useMemo(() => productsFromEvents(q.data ?? []), [q.data]);
+  const products = useMemo(() => productsFromEvents(q.events ?? []), [q.events]);
   useEffect(() => {
-    if (q.isSuccess || q.isError) onCount?.(products.length);
+    if (q.settled) onCount?.(products.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- report on data change only, not on each new parent callback
-  }, [q.isSuccess, q.isError, products.length]);
+  }, [q.settled, products.length]);
 
   if (hidden || products.length === 0) return null;
   const more = products.length > SHELF_SIZE;
@@ -64,7 +58,7 @@ export function SellingBlock({
             event={event as NostrEvent}
             author={null}
             showAuthor={false}
-            group={{ title: group.title, options: group.options.length }}
+            group={cardGroupOf(group)}
           />
         ))}
       </div>

@@ -6,14 +6,11 @@ import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { ladderFor, type Bucket } from "@/lib/trustLadder";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
-import { PresetBadge } from "@/components/PresetBadge";
-import amethystLogoImg from "@/assets/amethyst-logo.webp";
-import nostriaIconImg from "../assets/nostria-icon.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
-import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule";
+import { AlertsBanner } from "@/components/dashboard/AlertsBanner";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
 import { TaggedYouModule } from "@/components/dashboard/TaggedYouModule";
@@ -26,9 +23,8 @@ import { useShareUrl } from "@/hooks/useShareUrl";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, Users, ShieldAlert, Info, RefreshCw, X, ChevronDown, Keyboard } from "lucide-react";
+import { Loader2, ShieldAlert, RefreshCw, Keyboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BrainLogo } from "@/components/BrainLogo";
 import {
   ASSISTANT_UPDATED_EVENT,
   getCurrentAssistantPubkey,
@@ -51,7 +47,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { cacheProfile, fetchProfile, fetchOutboxRelayList } from "@/services/nostr";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -63,7 +58,8 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
-import { ActivateBrainstormPanel, needsActivationPrompt } from "@/components/ActivateBrainstormPanel";
+import { needsActivationPrompt } from "@/components/ActivateBrainstormPanel";
+import { dashboardPrompt } from "@/lib/dashboardPrompt";
 
 import { identityHas } from "@/accounts/display";
 import { accountKey } from "@/lib/accountStorage";
@@ -118,7 +114,6 @@ export default function DashboardPage() {
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
   const [networkViewMode] = useState<"trust" | "activity">("trust");
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
-  const [wotExpanded, setWotExpanded] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
   const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(user?.pubkey));
   // In-app-created accounts consent at the calculate step (or implicitly, for
@@ -204,27 +199,6 @@ export default function DashboardPage() {
   }, [user, navigate]);
 
   useTrustPresetSync(!!user);
-
-  const needsProfile = !!user && !user.displayName && !user.picture;
-  useQuery({
-    queryKey: ["profile", user?.pubkey],
-    queryFn: async () => {
-      if (!user?.pubkey) return null;
-      await fetchOutboxRelayList(user.pubkey);
-      const content = await fetchProfile(user.pubkey);
-      if (content) {
-        // Caching it on the Account is what re-renders the header — this query's
-        // own result is only the profile page's fallback copy.
-        cacheProfile(content, user.pubkey);
-        return content;
-      }
-      throw new Error("Profile not found");
-    },
-    enabled: needsProfile,
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
-    staleTime: Infinity,
-  });
 
   const recalcTriggeredAtRef = useRef<number | null>(null);
 
@@ -324,13 +298,13 @@ export default function DashboardPage() {
       markNip85Activated(user?.pubkey);
       if (!nip85Activated) setNip85Activated(true);
     } else if (trustServiceProvider.data === "other") {
-      // The flag itself was cleared inside checkExistingTrustProvider.
+      // The flag itself is cleared by useTrustProviderStatus once the relays answer.
       if (nip85Activated) setNip85Activated(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- provider data is already keyed on pubkey
   }, [trustServiceProvider.data, nip85Activated]);
 
-  const showActivatePrompt = needsActivationPrompt({
+  const activatePending = needsActivationPrompt({
     status: trustServiceProvider.data,
     locallyActivated: nip85Activated,
     createdInApp: nip85CreatedInApp,
@@ -358,13 +332,6 @@ export default function DashboardPage() {
 
   const verifiedFollowersCount = stats?.followed_by?.verified ?? 0;
   const verifiedFollowingCount = stats?.following?.verified ?? 0;
-
-  const grapeRankScoreNum = grapeRank
-    ? ([grapeRank.average, grapeRank.score, grapeRank.graperank, grapeRank.confidence, grapeRank.value].find(
-        (v): v is number => typeof v === "number",
-      ) ?? null)
-    : null;
-  const grapeRankScore = grapeRankScoreNum !== null ? grapeRankScoreNum.toFixed(4) : null;
 
   const queuePosition = grapeRank
     ? typeof grapeRank.how_many_others_with_priority === "number"
@@ -763,6 +730,27 @@ export default function DashboardPage() {
   // flag — both caused brand-new accounts to read as "Recalculating".
   const isRecalculation = !publishDone && hadPreviousScores;
 
+  // The one prompt line under the title (see lib/dashboardPrompt). `consentDue`
+  // is the legacy Select-Brainstorm card's cohort: in-app accounts that
+  // explicitly DECLINED the consent card (needsActivationPrompt skips
+  // createdInApp entirely; the post-cooldown re-ask lives here) and accounts
+  // whose relay check couldn't settle. `showOnboarding` keeps the signature
+  // available DURING the first calculation (~7 min): signing needs only
+  // ta_pubkey, which exists from login — black-box testing showed users lost
+  // in exactly that gap when the card waited for publishDone. `inviteDue` is
+  // the once-per-account invite beat when scores first go live, never on recalcs.
+  const prompt = dashboardPrompt({
+    activatePending,
+    consentDue:
+      (publishDone || showOnboarding) &&
+      !isRecalculating &&
+      !nip85Activated &&
+      !nip85Dismissed &&
+      (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)),
+    inviteDue: publishDone && !inviteCardSeen && !isRecalculating,
+    assistantDue: publishDone && nip85Activated && !assistantDismissed && !assistantPubkey && !nip85CreatedInApp,
+  });
+
   // One modal instance, reachable from both the takeover and the dashboard.
   const activateModal = (
     <ActivateBrainstormModal
@@ -805,7 +793,11 @@ export default function DashboardPage() {
 
           <div className="mb-8 flex flex-col gap-6">
             <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+              {/* Compact: a page someone opens every day. The subtitle only speaks when
+                  it has news (first run, no follows) — "active and growing" was a
+                  slogan taking a line from the product on every visit. */}
               <PageHeader
+                size="compact"
                 kicker="Brainstorm Dashboard"
                 title={
                   isFirstSession ? (
@@ -825,7 +817,7 @@ export default function DashboardPage() {
                     ? "Setting up your trust network."
                     : hasNoFollowing
                       ? "Set up your trust network"
-                      : "Your trust network is active and growing."
+                      : undefined
                 }
                 testId="section-dashboard-header-copy"
               />
@@ -837,340 +829,162 @@ export default function DashboardPage() {
                   it. All it adds is a fourth "Awaiting calculation" — and on mobile it
                   stacks directly above the CalculatingNotice, so the duplication is
                   unmissable. It returns the moment scores land. */}
-              {isFirstSession && !calcDone ? null : nip85Activated && publishDone ? (
+              {isFirstSession && !calcDone ? null : (
+                // One slim line: the label, the state, when, and two text actions.
+                // It used to be a two-storey card with a boxed Recalculate button;
+                // the state is the news, the rest is reference. Activation pending
+                // is no longer said here — the prompt line below the title says it,
+                // once, with the action beside it.
                 <Card
-                  className="relative w-full max-w-sm self-start overflow-hidden md:self-end"
-                  data-testid="badge-nip85-active"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setWotExpanded((v) => !v)}
-                    aria-expanded={wotExpanded}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/60"
-                    data-testid="button-wot-expand"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand-accent/20 bg-brand-accent/10">
-                      <BrainLogo size={14} className="text-brand-deep" />
-                    </div>
-                    <span
-                      className="shrink-0 text-[13px] font-semibold text-slate-900 dark:text-slate-100"
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
-                      Your network
-                    </span>
-                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 dark:border-emerald-500/25 dark:bg-emerald-500/10">
-                      <span className="relative flex h-1.5 w-1.5">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      </span>
-                      <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Active</span>
-                    </span>
-                    <span className="flex-1" />
-                    <ChevronDown
-                      className={`h-4 w-4 shrink-0 text-slate-400 transition-transform dark:text-slate-500 ${wotExpanded ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  {wotExpanded && (
-                    <div className="border-t border-slate-100 px-3.5 pb-3.5 dark:border-slate-800/60">
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-                        {history?.last_time_calculated_graperank && (
-                          <span>
-                            Updated{" "}
-                            {formatTimestamp(
-                              new Date(
-                                history.last_time_calculated_graperank.endsWith("Z")
-                                  ? history.last_time_calculated_graperank
-                                  : history.last_time_calculated_graperank + "Z",
-                              ),
-                            )}
-                          </span>
-                        )}
-                        <span
-                          title="Published as a NIP-85 declaration so compatible apps can read your scores"
-                          className="inline-flex items-center"
-                        >
-                          <Info className="h-3 w-3 text-slate-300 dark:text-slate-600" />
-                        </span>
-                        {grapeRank?.graperank_preset_used && (
-                          <span className="inline-flex items-center gap-1">
-                            <span>Trust</span>
-                            <PresetBadge
-                              preset={grapeRank.graperank_preset_used}
-                              size="xs"
-                              testId="badge-dashboard-preset-used"
-                            />
-                          </span>
-                        )}
-                      </div>
-
-                      <AnimatePresence initial={false}>
-                        {!assistantDismissed && !assistantPubkey && !nip85CreatedInApp && (
-                          <motion.div
-                            key="assistant-inline-prompt"
-                            initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
-                            animate={{ opacity: 1, height: "auto", marginTop: 6, marginBottom: 6 }}
-                            exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
-                            transition={{ duration: 0.25, ease: "easeInOut" }}
-                            className="overflow-hidden"
-                            data-testid="container-assistant-inline-prompt"
-                          >
-                            <div className="from-brand-accent/8 flex items-center gap-2.5 rounded-lg border border-brand-accent/20 bg-gradient-to-br via-white to-brand-primary/10 px-2.5 py-2 dark:bg-slate-800/50 dark:bg-none">
-                              <img
-                                src="/assistant-default.webp"
-                                alt=""
-                                aria-hidden="true"
-                                className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-brand-accent/30"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).src = "/assistant-default.jpg";
-                                }}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p
-                                  className="truncate text-[11px] font-semibold leading-tight text-slate-900 dark:text-slate-100"
-                                  style={{ fontFamily: "var(--font-display)" }}
-                                >
-                                  Publish your assistant
-                                </p>
-                                <p className="truncate text-[10px] leading-tight text-slate-500 dark:text-slate-400">
-                                  Speak your scores to compatible apps
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => publishAssistantMutation.mutate()}
-                                disabled={publishAssistantMutation.isPending}
-                                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-gradient-to-br from-brand-primary to-brand-deep px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white shadow-sm transition-all hover:shadow-md hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-brand-accent/40 disabled:cursor-not-allowed disabled:opacity-70"
-                                data-testid="button-assistant-inline-publish"
-                              >
-                                {publishAssistantMutation.isPending ? (
-                                  <>
-                                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                                    Publishing
-                                  </>
-                                ) : (
-                                  "Publish"
-                                )}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAssistantDismissedStorage(true);
-                                  setAssistantDismissed(true);
-                                }}
-                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-accent/40 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                                aria-label="Dismiss publish assistant prompt"
-                                data-testid="button-assistant-inline-dismiss"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800/60">
-                        <div className="mb-2.5 flex items-center gap-1.5">
-                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
-                            Readable in compatible apps
-                          </span>
-                          <div className="group/info relative">
-                            <button
-                              type="button"
-                              className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-accent/40 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                              onClick={(e) => e.currentTarget.focus()}
-                              aria-label="What are Compatible Clients?"
-                              data-testid="button-compatible-clients-info"
-                            >
-                              <Info className="h-2 w-2" />
-                            </button>
-                            <div
-                              className="pointer-events-none invisible fixed left-4 right-4 top-1/2 z-[100] -translate-y-1/2 rounded-xl border border-white/15 bg-slate-900/95 p-3 text-xs leading-relaxed text-slate-200 opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-200 group-focus-within/info:pointer-events-auto group-focus-within/info:visible group-focus-within/info:opacity-100 group-hover/info:pointer-events-auto group-hover/info:visible group-hover/info:opacity-100 sm:absolute sm:bottom-full sm:left-1/2 sm:right-auto sm:top-auto sm:mb-2 sm:w-80 sm:-translate-x-1/2 sm:translate-y-0"
-                              data-testid="tooltip-compatible-clients"
-                            >
-                              Apps that read the personalized Verification Scores Brainstorm publishes for you — so your
-                              network travels with you across the apps you use.
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <a
-                            href="https://amethyst.social/#"
-                            target="_blank"
-                            rel="noopener"
-                            className="group/client flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 shadow-sm transition-all hover:border-brand-accent hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900"
-                            data-testid="link-compatible-amethyst"
-                          >
-                            <img src={amethystLogoImg} alt="Amethyst" className="h-5 w-5 rounded-md" />
-                            <span className="text-[10px] font-semibold text-slate-700 transition-colors group-hover/client:text-brand-deep dark:text-slate-200">
-                              Amethyst
-                            </span>
-                          </a>
-                          <a
-                            href="https://www.nostria.app/"
-                            target="_blank"
-                            rel="noopener"
-                            className="group/client flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2 py-1.5 shadow-sm transition-all hover:border-orange-300 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900"
-                            data-testid="link-compatible-nostria"
-                          >
-                            <img
-                              src={nostriaIconImg}
-                              alt="Nostria"
-                              className="h-5 w-5 rounded-md bg-white object-contain"
-                            />
-                            <span className="text-[10px] font-semibold text-slate-700 transition-colors group-hover/client:text-orange-700 dark:text-slate-200">
-                              Nostria
-                            </span>
-                          </a>
-                        </div>
-                        <button
-                          onClick={() => setRecalcConfirmOpen(true)}
-                          disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                          className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-accent/15 bg-brand-deep/[0.06] px-3 py-2 text-brand-deep transition-all hover:border-brand-accent/30 hover:bg-brand-deep/[0.12] disabled:pointer-events-none disabled:opacity-40"
-                          data-testid="button-recalculate-wot-card"
-                        >
-                          {triggerGrapeRankMutation.isPending ? (
-                            <>
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              <span className="text-[11px] font-semibold tracking-wide">Calculating</span>
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="h-3 w-3" />
-                              <span className="text-[11px] font-semibold tracking-wide">Recalculate</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              ) : (
-                <Card
-                  className="flex items-center gap-2.5 self-start rounded-xl px-3 py-2 transition-all duration-200 md:self-end"
+                  className="flex flex-wrap items-center gap-x-2.5 gap-y-1 self-start rounded-xl px-3 py-2 text-xs leading-tight transition-all duration-200 md:self-end"
                   data-testid="card-overall-trust-score"
                 >
-                  <div className="flex min-w-0 flex-col leading-tight">
-                    <span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
-                      Trust signals
-                    </span>
-                    {triggerGrapeRankMutation.isPending ? (
-                      <span
-                        className="flex items-center gap-1 text-xs font-medium text-brand-primary dark:text-brand-link"
-                        data-testid="text-overall-trust-score-sub"
-                      >
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Recalculating...
-                      </span>
-                    ) : publishDone && showActivatePrompt ? (
-                      // Scores exist but no kind-10040 points at them — "Score:
-                      // 47" / "Complete" would be the very hunky-dory signals
-                      // that buried the activation prompt. Say what's missing;
-                      // outranks the score readout on purpose.
-                      <span
-                        className="text-xs font-semibold text-amber-600 dark:text-amber-400"
-                        data-testid="text-overall-trust-score-sub"
-                      >
-                        Not visible in apps yet
-                      </span>
-                    ) : grapeRankScore ? (
-                      <span
-                        className="text-xs font-semibold text-slate-700 dark:text-slate-200"
-                        data-testid="text-overall-trust-score-sub"
-                      >
-                        Score: {grapeRankScore}
-                      </span>
-                    ) : publishDone ? (
-                      <span
-                        className="text-xs font-semibold text-emerald-600 dark:text-emerald-400"
-                        data-testid="text-overall-trust-score-sub"
-                      >
-                        Complete
-                      </span>
-                    ) : justFollowed ? (
-                      <span
-                        className="flex items-center gap-1 text-xs font-medium text-brand-primary"
-                        data-testid="text-overall-trust-score-sub"
-                      >
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Calculating…
-                      </span>
-                    ) : isErrorState ? (
-                      <span className="text-xs font-medium text-red-500" data-testid="text-overall-trust-score-sub">
-                        {isGrapeRankFailed
-                          ? "Calculation failed"
-                          : isPublishFailed
-                            ? "Publishing failed"
-                            : "Action needed"}
-                      </span>
-                    ) : isRecalculation ? (
-                      <span
-                        className="flex items-center gap-1 text-xs font-medium text-brand-primary"
-                        data-testid="text-overall-trust-score-sub"
-                      >
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        {calcDone ? "Publishing…" : "Calculating…"}
-                      </span>
-                    ) : triggerGrapeRankMutation.isPending ? (
-                      <span
-                        className="flex items-center gap-1 text-xs font-medium text-brand-primary"
-                        data-testid="text-overall-trust-score-sub"
-                      >
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Calculating…
-                      </span>
-                    ) : (
-                      <span
-                        className="text-xs font-medium text-slate-500 dark:text-slate-400"
-                        data-testid="text-overall-trust-score-sub"
-                      >
-                        Awaiting calculation
-                      </span>
-                    )}
-                    {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
-                      <span
-                        className="mt-0.5 text-xs text-slate-400 dark:text-slate-500"
-                        data-testid="text-trust-signals-updated"
-                      >
-                        Last updated — {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => navigate("/insights")}
-                      className="mt-1 inline-flex items-center gap-1 self-start rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                      data-testid="link-view-insights"
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+                    Trust signals
+                  </span>
+                  {triggerGrapeRankMutation.isPending ? (
+                    <span
+                      className="flex items-center gap-1 font-medium text-brand-primary dark:text-brand-link"
+                      data-testid="text-overall-trust-score-sub"
                     >
-                      View insights →
-                    </button>
-                  </div>
-                  <div className="h-6 w-px shrink-0 bg-slate-200 dark:bg-slate-700" />
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Recalculating…
+                    </span>
+                  ) : isErrorState ? (
+                    <span className="font-medium text-red-500" data-testid="text-overall-trust-score-sub">
+                      {isGrapeRankFailed
+                        ? "Calculation failed"
+                        : isPublishFailed
+                          ? "Publishing failed"
+                          : "Action needed"}
+                    </span>
+                  ) : isRecalculation || justFollowed ? (
+                    <span
+                      className="flex items-center gap-1 font-medium text-brand-primary"
+                      data-testid="text-overall-trust-score-sub"
+                    >
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      {calcDone ? "Publishing…" : "Calculating…"}
+                    </span>
+                  ) : publishDone && nip85Activated ? (
+                    // Published AND other apps can find them: the one green pill.
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      data-testid="text-overall-trust-score-sub"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                      Active
+                    </span>
+                  ) : publishDone ? (
+                    // Not "Score: 0.4321" or "Complete": what the reader has, in a word.
+                    <span
+                      className="font-semibold text-emerald-600 dark:text-emerald-400"
+                      data-testid="text-overall-trust-score-sub"
+                    >
+                      Scores ready
+                    </span>
+                  ) : (
+                    <span
+                      className="font-medium text-slate-500 dark:text-slate-400"
+                      data-testid="text-overall-trust-score-sub"
+                    >
+                      Awaiting calculation
+                    </span>
+                  )}
+                  {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
+                    <span className="text-slate-400 dark:text-slate-500" data-testid="text-trust-signals-updated">
+                      · Updated {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
+                    </span>
+                  )}
+                  <span className="h-3 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
                   <button
+                    type="button"
                     onClick={() => setRecalcConfirmOpen(true)}
                     disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-deep/10 px-2.5 py-1 text-brand-deep ring-1 ring-brand-accent/20 transition-colors hover:bg-brand-deep/20 disabled:pointer-events-none disabled:opacity-40"
+                    className="inline-flex items-center gap-1 rounded font-semibold text-brand-deep hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-link"
                     data-testid="button-trigger-graperank"
                   >
                     {triggerGrapeRankMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span className="text-[10px] font-semibold tracking-wide">Calculating</span>
-                      </>
+                      <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
-                      <>
-                        <RefreshCw className="h-3 w-3" />
-                        <span className="text-[10px] font-semibold tracking-wide">Recalculate</span>
-                      </>
+                      <RefreshCw className="h-3 w-3" />
                     )}
+                    {triggerGrapeRankMutation.isPending ? "Calculating" : "Recalculate"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/insights")}
+                    className="rounded font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                    data-testid="link-view-insights"
+                  >
+                    View insights →
                   </button>
                 </Card>
               )}
             </div>
 
-            {/* Activation prompt — the one thing a signed-in user may still have
-                to DO (sign their kind-10040) before their scores are visible in
-                other apps. Full-width, above everything, and deliberately not
-                waiting on any calculation state; see needsActivationPrompt. */}
-            {showActivatePrompt && <ActivateBrainstormPanel onActivate={() => navigate("/setup/activate")} />}
+            {/* THE prompt — one line, one action. The header's Finish-setup pill
+                already lists every step still owed, so the body doesn't repeat
+                them as panels: this replaces the Activate panel, the legacy
+                Select-Brainstorm card and the invite card, which could stack
+                three high on a phone. dashboardPrompt picks the most important. */}
+            {prompt && (
+              <div
+                className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-slate-200/80 bg-white/70 px-3.5 py-2.5 text-sm backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/60"
+                data-testid="dashboard-prompt"
+              >
+                <span
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${prompt.key === "activate" ? "bg-amber-500" : "bg-brand-accent"}`}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 font-medium text-slate-700 dark:text-slate-200">{prompt.label}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (prompt.key === "activate") navigate("/setup/activate");
+                    else if (prompt.key === "consent") setNip85ModalOpen(true);
+                    else if (prompt.key === "assistant") publishAssistantMutation.mutate();
+                    else {
+                      setInviteShareOpen(true);
+                      markInviteCardSeen();
+                    }
+                  }}
+                  disabled={prompt.key === "assistant" && publishAssistantMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                  data-testid={`dashboard-prompt-${prompt.key}`}
+                >
+                  {prompt.key === "assistant" && publishAssistantMutation.isPending
+                    ? "Publishing…"
+                    : `${prompt.action} →`}
+                </button>
+                {/* Activation has no "not now" by design: it self-hides once signed. */}
+                {prompt.key !== "activate" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (prompt.key === "invite") markInviteCardSeen();
+                      else if (prompt.key === "assistant") {
+                        setAssistantDismissedStorage(true);
+                        setAssistantDismissed(true);
+                      } else {
+                        try {
+                          const pk = user?.pubkey;
+                          if (pk)
+                            localStorage.setItem(accountKey("brainstorm_nip85_dismissed_at", pk), String(Date.now()));
+                        } catch {
+                          /* ignore */
+                        }
+                        setNip85Dismissed(true);
+                      }
+                    }}
+                    className="ml-auto text-xs text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                    data-testid="dashboard-prompt-dismiss"
+                  >
+                    Not now
+                  </button>
+                )}
+              </div>
+            )}
 
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
               <AlertDialogContent
@@ -1274,69 +1088,8 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Scores just went live → the viral beat: invite people in. Shown
-                once per account (persisted), never on recalcs. */}
-            {user && publishDone && !inviteCardSeen && !isRecalculating && (
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                // No mb-6: the parent column already applies gap-6, so adding a
-                // margin double-spaced this one child and made it read as detached
-                // from the rest of the page.
-              >
-                {/* Stacks on mobile. It used to be a single row with `truncate` on the
-                    text AND the description hidden below sm:, so on a phone even the
-                    short title clipped to "Your network i…" — the message was the
-                    point and it was unreadable. Text now wraps and the full sentence
-                    shows at every width; the dismiss X is pinned to the corner so it
-                    never competes with the button for horizontal room. */}
-                <Card
-                  className="relative flex flex-col gap-3 rounded-xl p-3 pr-10 sm:flex-row sm:items-center sm:py-2.5 sm:pl-3.5 sm:pr-12"
-                  data-testid="card-invite-grow"
-                >
-                  <div className="flex items-start gap-3 sm:items-center">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-brand-accent/20 bg-brand-primary/[0.07] text-brand-link">
-                      <Users className="h-4 w-4" />
-                    </div>
-                    <p className="min-w-0 text-[13px] leading-snug text-slate-600 dark:text-slate-300">
-                      <span
-                        className="font-semibold text-slate-900 dark:text-slate-100"
-                        style={{ fontFamily: "var(--font-display)" }}
-                        data-testid="text-invite-grow-title"
-                      >
-                        Your network is live.
-                      </span>{" "}
-                      <span className="text-slate-500 dark:text-slate-400">
-                        Invite people — they join connected to you, and everyone's network gets stronger.
-                      </span>
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInviteShareOpen(true);
-                      markInviteCardSeen();
-                    }}
-                    className="flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand-primary px-4 text-[13px] font-semibold tracking-wide text-white shadow-sm transition-all hover:bg-brand-primary-hover sm:ml-auto sm:w-auto"
-                    data-testid="button-invite-grow"
-                  >
-                    <Users className="h-4 w-4" />
-                    Invite friends
-                  </button>
-                  <button
-                    type="button"
-                    onClick={markInviteCardSeen}
-                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300 sm:top-1/2 sm:h-9 sm:w-9 sm:-translate-y-1/2"
-                    aria-label="Dismiss"
-                    data-testid="button-invite-grow-dismiss"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </Card>
-              </motion.div>
-            )}
-            {/* Rendered outside the card gate so it stays mounted after the card
+            {/* The invite share sheet, reachable from the prompt line above. Rendered
+                outside the prompt's gate so it stays mounted after the prompt
                 collapses (clicking Invite marks the card seen). */}
             {user && (
               <ShareProfileModal
@@ -1365,105 +1118,18 @@ export default function DashboardPage() {
                 app-wide pill. Failures are carried by the alert above, so the
                 status line stands down rather than promising a time estimate. */}
             {showOnboarding && <SetupProgressCard queueAhead={queuePosition} showStatus={!isErrorState} />}
-
-            {/* Someone put a public label on you. Nothing else in the app would
-                ever tell you — self-hides when there's nothing new. */}
-            <TaggedYouModule />
           </div>
-
-          {/* Legacy consent card — superseded by ActivateBrainstormPanel above,
-              which prompts without waiting for publishDone; it never renders
-              alongside the panel (!showActivatePrompt). Two cohorts still land
-              here: in-app accounts that explicitly DECLINED the consent card
-              (needsActivationPrompt skips createdInApp entirely; the
-              post-cooldown re-ask lives here) and accounts whose relay check
-              couldn't settle. `showOnboarding` keeps the signature available
-              DURING the first calculation (~7 min): signing needs only
-              ta_pubkey, which exists from login — black-box testing showed
-              users lost in exactly that gap when the card waited for
-              publishDone. */}
-          {(publishDone || showOnboarding) &&
-            !isRecalculating &&
-            !nip85Activated &&
-            !nip85Dismissed &&
-            (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) &&
-            !showActivatePrompt && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15, duration: 0.5 }}
-                className="mb-6"
-              >
-                <Card
-                  className="relative overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
-                  data-testid="card-nip85-cta"
-                >
-                  <div className="relative flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-primary shadow-sm shadow-brand-primary/25">
-                      <BrainLogo mono size={24} className="text-white" />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <h3
-                        className="text-base font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-lg"
-                        style={{ fontFamily: "var(--font-display)" }}
-                        data-testid="text-nip85-cta-title"
-                      >
-                        Use your Brainstorm scores in other apps
-                      </h3>
-                      <p
-                        className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400 sm:text-sm"
-                        data-testid="text-nip85-cta-subtitle"
-                      >
-                        Sign a nostr note that tells other apps where to find your personalized scores.
-                      </p>
-                    </div>
-
-                    <div className="flex w-full shrink-0 items-center gap-3 sm:w-auto">
-                      <button
-                        type="button"
-                        onClick={() => setNip85ModalOpen(true)}
-                        className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 text-xs font-bold tracking-wide text-white shadow-lg shadow-brand-primary/20 transition-all duration-200 hover:bg-brand-primary-hover sm:flex-none sm:text-sm"
-                        data-testid="button-nip85-cta"
-                      >
-                        <BrainLogo mono size={14} className="text-white" />
-                        Select Brainstorm
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          try {
-                            const pk = user?.pubkey;
-                            if (pk)
-                              localStorage.setItem(accountKey("brainstorm_nip85_dismissed_at", pk), String(Date.now()));
-                          } catch {
-                            /* ignore */
-                          }
-                          setNip85Dismissed(true);
-                        }}
-                        className="whitespace-nowrap text-xs text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-                        data-testid="button-nip85-dismiss"
-                      >
-                        Maybe later
-                      </button>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-            )}
 
           {activateModal}
 
           {/* No lookup bar here: the header's search box is the same box, one
               line up — two of them on one screen was one too many. */}
 
-          {/* Stacked, never side-by-side: Network Alerts sits full-width on top,
-              "Your Network" full-width below. Minimizing/expanding Alerts is a pure
-              vertical accordion — it drops its body down in place and never shoves
-              "Your Network" to the side. "Your Network" folds in what used to be
-              three separate tiles (Social Graph, Extended Reach and the full
-              Network Health pie; the pie's tier drill-downs now live on /network)
-              and always renders in its wide four-cell row. */}
+          {/* Stacked, full width, at every size: alerts, then "Your Network", then
+              what the network is reading. A two-column desktop (network left,
+              reading right) was tried and turned down — the stats row reads better
+              across the page. Expanding Alerts is a vertical accordion, never a
+              shove sideways. */}
           {/* Nothing here can hold real data before the first calculation, so before
               then we render NOTHING rather than shells. Previously a brand-new user
               got Network Alerts' "your safety radar is warming up" AND a full-height
@@ -1479,7 +1145,7 @@ export default function DashboardPage() {
                 transition={{ delay: 0.15 }}
                 className="flex w-full"
               >
-                <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
+                <AlertsBanner observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
               </motion.div>
             )}
 
@@ -1501,13 +1167,18 @@ export default function DashboardPage() {
                   onHopChange={setHopRange}
                   health={currentPieData}
                   onNavigate={navigate}
-                  wide
                   followersFaces={facesQuery.data?.followers ?? []}
                   followingFaces={facesQuery.data?.following ?? []}
                 />
               </motion.div>
             )}
           </div>
+
+          {/* Someone put a public label on you. Nothing else in the app would
+              ever tell you — self-hides when there's nothing new. Under "Your
+              Network", not above it: it arrives a moment after the page, and up
+              top it shoved the network card ~270px down under a reader's thumb. */}
+          <TaggedYouModule />
 
           {/* Discovery, not a following feed: long-form from accounts two-plus
               hops out that the graph vouches for. Renders nothing until there's

@@ -1,8 +1,8 @@
 import { useState, useMemo, memo } from "react";
 import { MessageButton } from "@/components/messages/MessageButton";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
-import { useTierRing } from "@/components/score/VerificationCoin";
-import { rungFraction } from "@/lib/trustLadder";
+import { VerificationCoin, useCoinReplacedByRing, useTierRing } from "@/components/score/VerificationCoin";
+import { rungFor } from "@/lib/trustLadder";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { nip19 } from "nostr-tools";
 import {
@@ -22,17 +22,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { BrainLogo } from "@/components/BrainLogo";
 import { toPubkeys, type GraphEntry } from "@/services/graphHelpers";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
-import {
-  detailMetrics,
-  metricIcons,
-  groups,
-  getVerificationGuidance,
-  FlaggedIcon,
-} from "@/components/network/networkGroups";
+import { detailMetrics, metricIcons, groups, FlaggedIcon } from "@/components/network/networkGroups";
 import { useNetworkCardActions, useNetworkCardView } from "@/components/network/cardContext";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 type DetailGraph = {
   influence?: number | null;
@@ -75,6 +69,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   isFlagged,
 }: NetworkProfileCardProps) {
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [displayMode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
   const {
@@ -90,7 +85,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     onPrefetchEnter,
     onPrefetchLeave,
   } = useNetworkCardActions();
-  const { viewMode, socialPending, socialListsLoading } = useNetworkCardView();
+  const { viewMode, socialPending, socialListsLoading, pov } = useNetworkCardView();
 
   const npub = nip19.npubEncode(pk);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
@@ -173,87 +168,38 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     );
   };
 
-  const renderTrustBadge = (compact: boolean = false) => {
-    if (trustScore === undefined) {
-      return (
-        <div className="flex items-center gap-1" data-testid={`trust-loading-${pkShort}`}>
-          <div
-            className={`flex shrink-0 items-center justify-center rounded-full border border-brand-primary/15 bg-brand-primary/10 dark:border-brand-primary/25 dark:bg-brand-primary/10 ${compact ? "h-6 w-6" : "h-8 w-8"}`}
-          >
-            <Loader2 className={`animate-spin text-brand-link ${compact ? "h-3 w-3" : "h-3.5 w-3.5"}`} />
-          </div>
-        </div>
-      );
-    }
-    if (trustScore === null) return null;
-    const score = Math.min(1, Math.max(0, trustScore));
-    const pct = Math.round(score * 100);
-    // Ring follows the display mode: exact / 5-step quantized / full-hue.
-    const arcFrac =
-      displayMode === "number" ? score : displayMode === "level" ? rungFraction(score, false, granularity) : 1;
-    const ringColor =
-      pct >= 50
-        ? "stroke-emerald-500"
-        : pct >= 20
-          ? "stroke-brand-primary"
-          : pct >= 7
-            ? "stroke-orange-300"
-            : "stroke-amber-500";
-    const circumference = 2 * Math.PI * 18;
-    const offset = circumference - arcFrac * circumference;
-    const size = compact ? "w-7 h-7" : "w-9 h-9";
-    const textSize = compact ? "text-[10px]" : "text-xs";
-    const guidance = getVerificationGuidance(pct, displayName);
+  /**
+   * The one trust signal, the shared one (components/PersonListRow): the avatar
+   * wears the tier ring, and the Verification Score coin sits on its corner
+   * where the display mode asks for it — the number in Number mode, pips in
+   * Level — and goes `sr-only` where the ring stands in for it (Word, Tier).
+   * Off shows neither. Flagged wins the ring, as everywhere else.
+   */
+  const trustAvatar = (size: "row" | "card" | "detail") => {
+    const dims = size === "row" ? "h-7 w-7" : size === "card" ? "h-8 w-8" : "h-12 w-12";
+    const ring = tierRing(trustScore, isFlagged, size === "row" ? "sm" : "md");
+    const initial = (displayName || "?").charAt(0).toUpperCase();
     return (
-      <UITooltip>
-        <TooltipTrigger asChild>
-          <div className="flex shrink-0 cursor-help flex-col items-center" data-testid={`badge-trust-${pkShort}`}>
-            <div className={`relative ${size} flex items-center justify-center`}>
-              <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 44 44">
-                <circle
-                  cx="22"
-                  cy="22"
-                  r="18"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  className="text-brand-link dark:text-brand-primary/20"
-                />
-                <circle
-                  cx="22"
-                  cy="22"
-                  r="18"
-                  fill="none"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  className={ringColor}
-                  style={{
-                    strokeDasharray: circumference,
-                    strokeDashoffset: offset,
-                    transition: "stroke-dashoffset 0.8s ease-out",
-                  }}
-                />
-              </svg>
-              <span className={`${textSize} font-mono font-bold tabular-nums text-brand-primary dark:text-brand-link`}>
-                {displayMode === "number" ? pct : ""}
-              </span>
-            </div>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent
-          side="left"
-          className="max-w-[260px] border-slate-200 bg-white/95 p-3 text-slate-700 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-200"
-          data-testid={`tooltip-trust-${pkShort}`}
-        >
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold text-slate-900 dark:text-slate-100">Verification Score</p>
-              <span className={`text-xs font-semibold ${guidance.color}`}>{guidance.label}</span>
-            </div>
-            <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">{guidance.message}</p>
-          </div>
-        </TooltipContent>
-      </UITooltip>
+      <span className="relative shrink-0">
+        <Avatar className={`${dims} border border-slate-200/60 dark:border-slate-800/60 ${ring ?? ""}`}>
+          {profile?.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
+          <AvatarFallback
+            className={`bg-brand-primary/10 font-bold text-brand-primary ${size === "detail" ? "text-sm" : "text-xs"}`}
+          >
+            {initial}
+          </AvatarFallback>
+        </Avatar>
+        {trustScore !== null && displayMode !== "off" && (
+          <VerificationCoin
+            score01={trustScore}
+            pov={pov}
+            flagged={isFlagged}
+            loading={trustScore === undefined}
+            size={size === "detail" ? 24 : 18}
+            className={ring && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
+          />
+        )}
+      </span>
     );
   };
 
@@ -298,26 +244,16 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
         <div className="p-5">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <Avatar
-                className={`h-12 w-12 shrink-0 border-2 border-brand-accent/20 shadow-sm dark:shadow-none ${tierRing(trustScore) ?? ""}`}
-              >
-                {profile?.picture ? (
-                  <AvatarImage
-                    src={profile.picture}
-                    alt={profile?.display_name || profile?.name || ""}
-                    className="object-cover"
-                  />
-                ) : null}
-                <AvatarFallback className="bg-brand-primary/10 text-sm font-bold text-brand-primary">
-                  {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              {trustAvatar("detail")}
               <div className="min-w-0">
                 <p
                   className="truncate text-sm font-bold text-slate-900 dark:text-slate-100"
                   data-testid={`detail-name-${pkShort}`}
                 >
-                  {profile?.display_name || profile?.name || npub.slice(0, 12) + "..."}
+                  <ProfileEmojiText
+                    pubkey={pk}
+                    text={profile?.display_name || profile?.name || npub.slice(0, 12) + "..."}
+                  />
                 </p>
                 {profile?.nip05 && (
                   <p className="truncate text-xs text-brand-primary" data-testid={`detail-nip05-${pkShort}`}>
@@ -346,7 +282,6 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {renderTrustBadge(false)}
               <Button
                 size="icon"
                 variant="ghost"
@@ -380,7 +315,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
               className="mb-4 line-clamp-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
               data-testid={`detail-about-${pkShort}`}
             >
-              {profile.about}
+              <ProfileEmojiText pubkey={pk} text={profile.about} />
             </p>
           )}
 
@@ -451,31 +386,29 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                 })}
               </div>
 
-              {effectiveDetail.influence !== undefined && (
+              {effectiveDetail.influence !== undefined && displayMode !== "off" && (
                 <div
                   className="mb-4 flex items-center gap-3 rounded-xl border border-brand-primary/15 bg-white/70 px-3.5 py-2.5 shadow-sm backdrop-blur-sm dark:border-brand-primary/20 dark:bg-slate-900/70 dark:shadow-none"
                   data-testid={`detail-influence-${pkShort}`}
                 >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-brand-primary/20 bg-gradient-to-br from-brand-primary/10 to-brand-primary/15">
-                    <BrainLogo size={16} className="text-brand-primary" />
-                  </div>
+                  <VerificationCoin
+                    score01={typeof effectiveDetail.influence === "number" ? effectiveDetail.influence : null}
+                    pov={pov}
+                    flagged={isFlagged}
+                    size={32}
+                  />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] leading-tight text-slate-400 dark:text-slate-500">Influence Score</p>
-                    <div className="mt-0.5 flex items-center gap-2">
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-brand-accent to-brand-deep"
-                          style={{
-                            width: `${Math.min((typeof effectiveDetail.influence === "number" ? effectiveDetail.influence : 0) * 100, 100)}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-200">
-                        {typeof effectiveDetail.influence === "number"
-                          ? effectiveDetail.influence.toFixed(3)
-                          : effectiveDetail.influence}
-                      </span>
-                    </div>
+                    <p className="text-[10px] leading-tight text-slate-400 dark:text-slate-500">Verification Score</p>
+                    {/* The word, not the decimal: digits only where the reader chose Number (score-display decision 6). */}
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {
+                        rungFor(
+                          typeof effectiveDetail.influence === "number" ? effectiveDetail.influence : null,
+                          isFlagged,
+                          granularity,
+                        ).label
+                      }
+                    </p>
                   </div>
                 </div>
               )}
@@ -678,20 +611,13 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
           onMouseLeave={() => onPrefetchLeave?.(pk)}
           data-testid={`card-profile-${pkShort}`}
         >
-          <Avatar
-            className={`h-7 w-7 shrink-0 border border-slate-200/60 dark:border-slate-800/60 ${tierRing(trustScore) ?? ""}`}
-          >
-            {profile?.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
-            <AvatarFallback className="bg-brand-primary/10 text-xs font-bold text-brand-primary">
-              {(displayName || "?").charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          {trustAvatar("row")}
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <p
               className="max-w-[160px] truncate text-sm font-semibold text-slate-800 dark:text-slate-200"
               data-testid={`text-profile-name-${pkShort}`}
             >
-              {displayName}
+              <ProfileEmojiText pubkey={pk} text={displayName} />
             </p>
             {profile?.nip05 && (
               <span
@@ -727,7 +653,6 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             </div>
           )}
           {renderVerifiedFlags()}
-          {renderTrustBadge(true)}
           <button
             type="button"
             className="shrink-0 rounded p-1 text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
@@ -755,20 +680,13 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
         data-testid={`card-profile-${pkShort}`}
       >
         <div className="flex items-center gap-3">
-          <Avatar
-            className={`h-8 w-8 border border-slate-200/60 dark:border-slate-800/60 ${tierRing(trustScore) ?? ""}`}
-          >
-            {profile?.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
-            <AvatarFallback className="bg-brand-primary/10 text-xs font-bold text-brand-primary">
-              {(displayName || "?").charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          {trustAvatar("card")}
           <div className="min-w-0 flex-1">
             <p
               className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200"
               data-testid={`text-profile-name-${pkShort}`}
             >
-              {displayName}
+              <ProfileEmojiText pubkey={pk} text={displayName} />
             </p>
             {profile?.nip05 && (
               <p className="truncate text-xs text-brand-primary" data-testid={`text-profile-nip05-${pkShort}`}>
@@ -776,7 +694,6 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
               </p>
             )}
           </div>
-          {renderTrustBadge(false)}
         </div>
         <div className="mt-2 flex items-center gap-1.5">
           <span

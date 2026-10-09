@@ -22,7 +22,8 @@ vi.mock("@/services/api", () => ({
   apiClient: new Proxy({}, { get: () => async () => null }),
 }));
 const byFilterMock = vi.fn<(f: Record<string, unknown>) => Promise<NostrEvent[]>>(async () => []);
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchEventsByFilter: (f: Record<string, unknown>) => byFilterMock(f),
   fetchProfileMap: async () => new Map(),
 }));

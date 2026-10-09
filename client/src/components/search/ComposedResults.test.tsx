@@ -14,7 +14,13 @@ import type { SearchSnapshot, SearchParams } from "@/services/search";
 import { __resetHeadStart } from "@/lib/headStart";
 
 // The store verifies signatures; these events are fixtures, not signed ones.
-vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => e, getReplaceable: () => undefined } }));
+vi.mock("@/lib/eventStore", async () => ({
+  eventStore: {
+    ...(await import("@/test/fakeEventStore")).eventStoreDefaults,
+    add: (e: unknown) => e,
+    getReplaceable: () => undefined,
+  },
+}));
 
 interface StreamCall {
   query: string;
@@ -50,8 +56,13 @@ const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.8);
 const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() =>
   Promise.resolve(new Map()),
 );
+/** The authors the page asked scores for, per render. */
+const scoresAskedMock = vi.fn<(pubkeys: string[]) => void>();
 vi.mock("@/hooks/useAuthorScores", () => ({
-  useAuthorScores: () => (pk: string) => scoreOfMock(pk),
+  useAuthorScores: (pubkeys: string[]) => {
+    scoresAskedMock(pubkeys);
+    return (pk: string) => scoreOfMock(pk);
+  },
 }));
 // Tags the words match, and the people on them — the People strip leads with those people.
 const tagMatchesMock = vi.fn((_q: string): unknown[] => []);
@@ -59,6 +70,10 @@ const carriersMock = vi.fn((_tags: unknown[]) => ({
   byPubkey: new Map<string, unknown[]>(),
   people: [] as unknown[],
   settled: true,
+}));
+// List items have their own tests (ListItemResults.test); here, only where they sit.
+vi.mock("@/components/search/ListItemResults", () => ({
+  ListItemResults: ({ query }: { query: string }) => <div data-testid="list-item-results-slot">{query}</div>,
 }));
 // The search relay's answer: the tags the words matched and who carries them.
 const searchTagsAsked = vi.fn((_q: string, _opts: unknown) => {});
@@ -70,9 +85,8 @@ vi.mock("@/hooks/useSearchTags", () => ({
     return { tags, carriers, settled: carriers.settled };
   },
 }));
-const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({
+const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; ready: boolean }>(() => ({
   direct: new Set(),
-  friends: new Set(),
   ready: true,
 }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
@@ -145,6 +159,8 @@ beforeEach(() => {
   wavlakeSearchMock.mockResolvedValue([]);
   calls = [];
   vi.clearAllMocks();
+  // clearAllMocks keeps implementations: a test's scores must not leak into the next.
+  scoreOfMock.mockImplementation(() => 0.8);
   localStorage.clear();
   window.history.replaceState({}, "", "/?q=liverpool");
 });
@@ -298,7 +314,7 @@ describe("ComposedResults — media-rich sections", () => {
   it("asks for every section on one shared subscription", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(calls.length).toBeGreaterThan(1);
-    expect(calls.every((c) => c.params.group === "search-everything")).toBe(true);
+    expect(calls.every((c) => c.params.group === "search-top")).toBe(true);
   });
 
   it("says it is loading once, through the skeletons", () => {
@@ -879,7 +895,7 @@ describe("ComposedResults", () => {
     window.history.replaceState({}, "", "/?q=kind%3A32267");
     render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
 
-    const byKind = sectionCall("everything");
+    const byKind = sectionCall("top");
     expect(byKind.params.kinds).toEqual([32267]);
     for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
     byKind.emit({
@@ -894,6 +910,33 @@ describe("ComposedResults", () => {
     expect(screen.queryByTestId("composed-empty")).toBeNull();
   });
 
+  // The floor and Verified only read each author's score. The kind section's authors
+  // were never asked for one: the floor let anyone through there, and Verified only
+  // (reading no score as unverified) emptied it.
+  it("asks scores for the kind section's authors, and the floor holds there", async () => {
+    const low = "1".repeat(64);
+    const high = "2".repeat(64);
+    scoreOfMock.mockImplementation((pk) => (pk === low ? 0.0198 : 0.8));
+    window.history.replaceState({}, "", "/?q=kind%3A32267");
+    render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
+
+    const byKind = sectionCall("top");
+    for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
+    byKind.emit({
+      hits: [
+        hitOf(ev("a1", 32267, high, "", [["name", "Primal"]]), "zapstore"),
+        hitOf(ev("a2", 32267, low, "", [["name", "Spamapp"]]), "spammer"),
+      ],
+      eose: true,
+      timeMs: 200,
+    });
+
+    const section = await screen.findByTestId("serp-section-kind");
+    expect(scoresAskedMock.mock.calls.at(-1)![0]).toEqual(expect.arrayContaining([high, low]));
+    expect(section).toHaveTextContent("Primal");
+    expect(section).not.toHaveTextContent("Spamapp");
+  });
+
   // A calendar is in the Events tab but no section shows it — Happening keeps
   // the upcoming window, and a calendar has no date — so a typed kind:31924
   // is not dealt to Happening to be dropped there: it gets its own section.
@@ -901,7 +944,7 @@ describe("ComposedResults", () => {
     window.history.replaceState({}, "", "/?q=kind%3A31924");
     render(<ComposedResults query="kind:31924" pov="nosfabrica" onTabChange={vi.fn()} />);
 
-    const byKind = sectionCall("everything");
+    const byKind = sectionCall("top");
     expect(byKind.params.kinds).toEqual([31924]);
     for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
     byKind.emit({
@@ -944,7 +987,7 @@ describe("ComposedResults", () => {
     ]);
     window.history.replaceState({}, "", "/?q=kind%3A32267");
     render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
-    const byKind = sectionCall("everything");
+    const byKind = sectionCall("top");
     for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
     byKind.emit({
       hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")],
@@ -972,7 +1015,7 @@ describe("ComposedResults", () => {
 
   it("a typed kind a section already carries asks nothing extra", () => {
     render(<ComposedResults query="dvm spec:" pov="nosfabrica" onTabChange={vi.fn()} />);
-    expect(calls.find((c) => c.params.tab === "everything")).toBeUndefined();
+    expect(calls.find((c) => c.params.tab === "top")).toBeUndefined();
   });
 
   // The home feed: NO query at all → the composed page becomes "what's
@@ -1423,6 +1466,49 @@ describe("ComposedResults", () => {
     expect(onTabChange).toHaveBeenCalledWith("shop");
   });
 
+  // Issue #158: a product's sizes are one card here too, and do not use up
+  // the row's two-per-seller allowance.
+  it("the Shop row shows a product and its sizes as one card", async () => {
+    render(<ComposedResults query="hoodie" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const seller = "7".repeat(64);
+    const P = `30402:${seller}:hoodie`;
+    const listing = (id: string, title: string, extra: string[][] = []) =>
+      hitOf(
+        ev(id, 30402, seller, "", [
+          ["d", id],
+          ["title", title],
+          ["price", "46.2", "USD"],
+          ["image", "https://img/h.jpg"],
+          ...extra,
+        ]),
+        "Satoshoes",
+      );
+    const size = (s: string) =>
+      listing(`hoodie-${s}`, `Hoodie - ${s}`, [
+        ["type", "variation", "physical"],
+        ["a", P],
+        ["spec", "Size", s],
+      ]);
+    sectionCall("shop").emit({
+      hits: [
+        size("L"),
+        size("M"),
+        size("S"),
+        listing("hoodie", "Hoodie", [["type", "variable", "physical"]]),
+        listing("mug", "Mug"),
+      ],
+      eose: true,
+      timeMs: 120,
+    });
+
+    const section = await screen.findByTestId("serp-section-shop");
+    const ids = [...section.querySelectorAll("[data-testid^='listing-card-']")].map((n) =>
+      n.getAttribute("data-testid"),
+    );
+    expect(ids).toEqual(["listing-card-hoodie", "listing-card-mug"]);
+    expect(within(section).getByTestId("listing-options-hoodie")).toHaveTextContent("3 options");
+  });
+
   it("shows no Shop row when nothing for sale matches", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("shop").emit({
@@ -1584,6 +1670,19 @@ describe("ComposedResults — a query that matches a tag", () => {
     });
     await screen.findByTestId(`serp-person-${FRESH.slice(0, 8)}`);
     expect(screen.queryByTestId(`strip-person-tag-${FRESH.slice(0, 8)}`)).toBeNull();
+  });
+
+  it("a named list's items sit above People, asked with the reader's words", async () => {
+    render(<ComposedResults query="github vcavallo" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("people").emit({
+      hits: [hitOf(ev("p1", 0, FRESH, JSON.stringify({ name: "Vinney" })), "Vinney")],
+      eose: true,
+      timeMs: 100,
+    });
+    const people = await screen.findByTestId("serp-section-people");
+    const slot = screen.getByTestId("list-item-results-slot");
+    expect(slot).toHaveTextContent("github vcavallo");
+    expect(slot.compareDocumentPosition(people) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("the People strip leads with the tag's people, best first, each wearing the tag; the relay's match follows bare", async () => {

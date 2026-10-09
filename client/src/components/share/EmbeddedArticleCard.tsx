@@ -22,6 +22,7 @@ import { sourceAppFor } from "@/lib/sourceApp";
 import { specKindTags } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
 import { ViaRelay } from "@/components/ui/via-relay";
+import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -145,8 +146,14 @@ export function EmbeddedArticleCard({
 
         <div className="min-w-0 flex-1 p-3">
           <KindPill event={event} mixed={mixed} />
-          <p className="mt-0.5 line-clamp-2 text-sm font-bold text-slate-900 dark:text-slate-100">{title}</p>
-          {summary && <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{summary}</p>}
+          <p className="mt-0.5 line-clamp-2 text-sm font-bold text-slate-900 dark:text-slate-100">
+            <EmojiText text={title} tags={event} />
+          </p>
+          {summary && (
+            <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
+              <EmojiText text={summary} tags={event} />
+            </p>
+          )}
           {coveredKinds.length > 0 && (
             <p
               className="mt-1 flex flex-wrap gap-1 font-mono text-[10px] text-slate-400 dark:text-slate-500"
@@ -182,7 +189,9 @@ export function EmbeddedArticleCard({
                 <DefaultAvatarImg />
               </AvatarFallback>
             </Avatar>
-            <span className="truncate font-medium text-slate-600 dark:text-slate-300">{name}</span>
+            <span className="truncate font-medium text-slate-600 dark:text-slate-300">
+              <ProfileEmojiText pubkey={event.pubkey} text={name} />
+            </span>
             {nip05Verified && <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />}
             {event.created_at ? (
               <span className="ml-auto shrink-0 text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>

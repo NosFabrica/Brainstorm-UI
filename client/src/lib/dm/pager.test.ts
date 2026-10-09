@@ -231,4 +231,16 @@ describe("BackwardPager", () => {
     expect(state("r").state).toBe("stalled");
     expect(state("r").reachedUntil).toBe(FLOOR);
   });
+
+  it("pages a finished relay again when its live window comes back capped", () => {
+    const { pager, answer, state } = harness();
+    pager.setRelays(["r"]);
+    pager.advance("r");
+    answer("r", []); // the bottom: nothing older
+    expect(state("r").state).toBe("done");
+    pager.restartBelow("r", FLOOR + 3600);
+    expect(state("r").state).toBe("idle");
+    expect(pager.advance("r")).toBe(true);
+    expect(state("r").requestedUntil).toBe(FLOOR + 3600);
+  });
 });

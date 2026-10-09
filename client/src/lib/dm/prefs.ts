@@ -76,7 +76,7 @@ export interface DmPrefsSync {
 }
 
 export interface DmNotifyPrefs {
-  /** Browser notifications while Brainstorm is open in a tab. */
+  /** System notifications while Brainstorm is open (a tab, or the installed app before the system pauses it). */
   desktop: boolean;
   /** A short chime. */
   sound: boolean;

@@ -30,6 +30,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { removeAccountFromDevice, signInWithAccount } from "@/accounts/login-flow";
 import { cn } from "@/lib/utils";
+import { useExtensionUnreachable } from "@/hooks/useExtensionUnreachable";
 
 /** What a row that can't sign here offers instead. Removal is never the first thing. */
 function DeadEnd({
@@ -47,6 +48,9 @@ function DeadEnd({
 }) {
   const gone = row.health === "key-unavailable";
   const elsewhere = row.health === "signer-unusable";
+  // Installed to a phone's home screen with no extension in it (Chrome's has none):
+  // looking again can't help, and "enable it" asks for something that isn't possible.
+  const installed = useExtensionUnreachable();
   return (
     <div className="flex flex-col gap-2">
       {explain && (
@@ -58,7 +62,9 @@ function DeadEnd({
             ? "This browser no longer holds this key, and no backup stands behind it. Sign in with your key if you kept one elsewhere."
             : elsewhere
               ? "This browser can't hand requests to Amber. It needs an Android browser over https, with “Desktop site” off — turn that back and reload. Nothing is lost."
-              : "Your signing extension isn't available in this browser. Nothing is lost — enable it and look again, or add this account another way below."}
+              : installed
+                ? "Signing extensions don't reach an app on your home screen. Nothing is lost — open Brainstorm in your browser to use this account, or add it another way below."
+                : "Your signing extension isn't available in this browser. Nothing is lost — enable it and look again, or add this account another way below."}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
@@ -73,7 +79,7 @@ function DeadEnd({
             <KeyRound /> Sign in with your key
           </Button>
         )}
-        {!gone && !elsewhere && (
+        {!gone && !elsewhere && !installed && (
           <Button
             type="button"
             variant="outline"

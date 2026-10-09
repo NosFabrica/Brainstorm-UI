@@ -18,32 +18,6 @@ export const FlaggedIcon = NodeFlaggedIcon;
 
 export type GroupKey = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting" | "flagged";
 
-export const getVerificationGuidance = (pct: number, name: string) => {
-  if (pct >= 50)
-    return {
-      label: "High confidence",
-      color: "text-emerald-600 dark:text-emerald-400",
-      message: `${pct}% confidence that ${name} is a genuine participant, based on your trusted community's follows, mutes, and reports.`,
-    };
-  if (pct >= 20)
-    return {
-      label: "Moderate confidence",
-      color: "text-brand-primary dark:text-brand-link",
-      message: `${pct}% confidence that ${name} is a genuine participant. Your network has limited signals — consider reviewing their activity.`,
-    };
-  if (pct >= 7)
-    return {
-      label: "Low confidence",
-      color: "text-slate-500 dark:text-slate-400",
-      message: `Only ${pct}% confidence that ${name} is a genuine participant. Your trusted community has weak or mixed signals.`,
-    };
-  return {
-    label: "Very low confidence",
-    color: "text-amber-600 dark:text-amber-400",
-    message: `${pct}% confidence that ${name} is a genuine participant. Your community's signals suggest careful scrutiny before trusting.`,
-  };
-};
-
 export const detailMetrics: {
   key: string;
   label: string;
@@ -115,8 +89,8 @@ export const metricIcons: Record<string, (cls: string) => JSX.Element> = {
 export const groups = [
   {
     key: "followed_by" as GroupKey,
-    label: "Followers",
-    shortLabel: "Followers",
+    label: "Follows you",
+    shortLabel: "Follows you",
     Icon: FollowersIcon,
     color: "text-blue-500",
     bgColor: "bg-blue-50 dark:bg-blue-500/10",
@@ -126,8 +100,8 @@ export const groups = [
   },
   {
     key: "following" as GroupKey,
-    label: "Following",
-    shortLabel: "Following",
+    label: "You follow",
+    shortLabel: "You follow",
     Icon: FollowingIcon,
     color: "text-blue-500",
     bgColor: "bg-blue-50 dark:bg-blue-500/10",
@@ -137,8 +111,8 @@ export const groups = [
   },
   {
     key: "muted_by" as GroupKey,
-    label: "Muted By",
-    shortLabel: "Muted",
+    label: "Muted you",
+    shortLabel: "Muted you",
     Icon: MutedByIcon,
     color: "text-amber-500",
     bgColor: "bg-amber-50 dark:bg-amber-500/10",
@@ -148,8 +122,8 @@ export const groups = [
   },
   {
     key: "muting" as GroupKey,
-    label: "Muting",
-    shortLabel: "Muting",
+    label: "You muted",
+    shortLabel: "You muted",
     Icon: MutingIcon,
     color: "text-amber-500",
     bgColor: "bg-amber-50 dark:bg-amber-500/10",
@@ -159,8 +133,8 @@ export const groups = [
   },
   {
     key: "reported_by" as GroupKey,
-    label: "Reported By",
-    shortLabel: "Reported",
+    label: "Reported you",
+    shortLabel: "Reported you",
     Icon: ReportedByIcon,
     color: "text-red-500",
     bgColor: "bg-red-50 dark:bg-red-500/10",
@@ -170,8 +144,8 @@ export const groups = [
   },
   {
     key: "reporting" as GroupKey,
-    label: "Reporting",
-    shortLabel: "Reporting",
+    label: "You reported",
+    shortLabel: "You reported",
     Icon: ReportingIcon,
     color: "text-red-500",
     bgColor: "bg-red-50 dark:bg-red-500/10",

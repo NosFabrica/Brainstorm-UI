@@ -11,13 +11,13 @@
  * `lib/relayPool.ts` and `lib/eventStore.ts` were pushed down to avoid.
  */
 import { nip19, getPublicKey, generateSecretKey } from "nostr-tools";
-import { ExtensionMissingError } from "applesauce-signers";
 
 import { announceRelayList, cacheProfile, fetchProfile, publishProfile } from "@/services/nostr";
 import { loadRelayList } from "@/lib/relayRouting";
 import { clearHydratedStore } from "@/services/storeHydration";
 import { sessions, SessionTransportError, SESSION_SIGN_TIMEOUT_MS } from "@/accounts/session";
-import { isRemoteSignerTimeout, withTimeout } from "@/accounts/remote-signer";
+import { withTimeout } from "@/accounts/remote-signer";
+import { classifySignerError } from "@/accounts/signer-errors";
 import { LocalAccount } from "@/accounts/local-account";
 import { activeAccount } from "@/accounts/signing";
 import {
@@ -58,14 +58,12 @@ export interface NostrUser {
   isAdmin?: boolean;
 }
 
-/** Did the signer's own UI turn us down, rather than something breaking? */
 /** An extension that never answered — its prompt never opened, or was dropped. Not a refusal. */
 const EXTENSION_SILENT = "Your extension didn't answer. Open it, approve the request, and try again — or use your key.";
 
-function refusedBySigner(err: unknown): boolean {
-  const message = (err instanceof Error ? err.message : "").toLowerCase();
-  return message.includes("denied") || message.includes("rejected") || message.includes("cancel");
-}
+/** It answered as someone else: switched to another profile between the pubkey and the challenge. */
+const EXTENSION_OTHER_PROFILE =
+  "Your extension signed as a different profile than the one it shared. Pick one profile in it and try again.";
 
 /**
  * Authenticate an Account and adopt it as the one that signs. The Account is only
@@ -135,14 +133,15 @@ export async function handleLogin(): Promise<NostrUser> {
     account = await withTimeout(extensionAccount(), SESSION_SIGN_TIMEOUT_MS);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
-    if (isRemoteSignerTimeout(err)) throw new LoginError("EXTENSION_FAILED", EXTENSION_SILENT);
-    if (err instanceof ExtensionMissingError) {
+    const kind = classifySignerError(err);
+    if (kind === "timeout") throw new LoginError("EXTENSION_FAILED", EXTENSION_SILENT);
+    if (kind === "missing") {
       throw new LoginError(
         "NO_EXTENSION",
         "No sign-in extension detected. You can use your key instead, or add a browser sign-in extension.",
       );
     }
-    if (refusedBySigner(err)) {
+    if (kind === "declined") {
       throw new LoginError(
         "PERMISSION_DENIED",
         "Your extension denied the request. Unlock it and approve access, or use your key.",
@@ -162,8 +161,10 @@ export async function handleLogin(): Promise<NostrUser> {
     if (err instanceof SessionTransportError) {
       throw new LoginError("SERVER_ERROR", msg || "Failed to reach server.");
     }
-    if (isRemoteSignerTimeout(err)) throw new LoginError("EXTENSION_FAILED", EXTENSION_SILENT);
-    if (refusedBySigner(err)) {
+    const kind = classifySignerError(err);
+    if (kind === "timeout") throw new LoginError("EXTENSION_FAILED", EXTENSION_SILENT);
+    if (kind === "wrong-account") throw new LoginError("EXTENSION_FAILED", EXTENSION_OTHER_PROFILE);
+    if (kind === "declined") {
       throw new LoginError(
         "SIGN_CANCELLED",
         "Signing was cancelled. Approve the request in your extension, or use your key.",

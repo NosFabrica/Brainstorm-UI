@@ -149,6 +149,24 @@ export class BackwardPager {
     return e;
   }
 
+  /** A relay with no place in history yet starts just below its live window (cursors.startBelow). */
+  startBelow(url: string, at: number): void {
+    this.opts.cursors.startBelow(url, at);
+    this.changed();
+  }
+
+  /**
+   * Its live window came back capped: page again from just below it (cursors.restartBelow).
+   * A relay that had reached the bottom has more again; one with a page in flight is left be.
+   */
+  restartBelow(url: string, at: number): void {
+    const e = this.entry(url);
+    if (e.state === "loading") return;
+    this.opts.cursors.restartBelow(url, at);
+    if (e.state === "done") e.state = "idle";
+    this.changed();
+  }
+
   /** Load the next page on one relay. False when it is busy, finished, stalled or waiting for a login. */
   advance(url: string): boolean {
     if (this.disposed || !this.relays.includes(url)) return false;

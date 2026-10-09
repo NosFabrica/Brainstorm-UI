@@ -34,7 +34,7 @@ describe("apiClient.resyncObserver", () => {
     const result = await apiClient.resyncObserver(PK, "both");
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe(`http://test.local/admin/users/${PK}/resync?target=both`);
+    expect(url).toBe(`http://test.invalid/admin/users/${PK}/resync?target=both`);
     expect(options.method).toBe("POST");
     expect(result).toEqual(created);
   });

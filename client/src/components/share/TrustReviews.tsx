@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import { BadgeCheck, ChevronDown, ChevronUp, Heart, MessageSquareText, PenLine } from "lucide-react";
+import { BadgeCheck, Check, ChevronDown, ChevronUp, Heart, MessageSquareText, PenLine } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +27,7 @@ import { useProfileMap } from "@/hooks/useProfileMap";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import { fetchVouchReplies, type PersonVouch, type VouchReply } from "@/services/search";
 import { publishVouch, revokeVouch, type VouchType } from "@/services/vouches";
+import { reviewClaims, type ReviewSubjectKind } from "@/lib/reviewClaims";
 import type { EndorserGroup } from "@/services/endorsements";
 
 const GROUP_HEADERS: Record<EndorserGroup, string> = {
@@ -96,12 +97,15 @@ function ago(at: number): string {
 /** The inline composer: type, words, publish — or update / remove your own. */
 function VouchComposer({
   subject,
+  subjectKind = "person",
   existing,
   onPublished,
   onRemoved,
   onCancel,
 }: {
   subject: string;
+  /** What is being reviewed — decides the pronoun in the two claims (lib/reviewClaims). */
+  subjectKind?: ReviewSubjectKind;
   existing: PersonVouch | null;
   onPublished: (v: PersonVouch) => void;
   onRemoved: () => void;
@@ -149,39 +153,62 @@ function VouchComposer({
     onRemoved();
   };
 
-  const typeButton = (t: VouchType, label: string, help: string, Icon: typeof Heart) => (
-    <button
-      type="button"
-      onClick={() => setType(t)}
-      aria-pressed={type === t}
-      className={`flex-1 rounded-xl border px-3 py-2 text-left transition-colors ${
-        type === t
-          ? "border-brand-primary/50 bg-brand-primary/5 dark:bg-brand-primary/15"
-          : "border-slate-200 hover:border-brand-accent/40 dark:border-slate-700"
-      }`}
-      data-testid={`vouch-type-${t}`}
-    >
-      <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100">
-        <Icon className="h-3.5 w-3.5 text-brand-primary" /> {label}
-      </span>
-      <span className="mt-0.5 block text-[11px] leading-snug text-slate-500 dark:text-slate-400">{help}</span>
-    </button>
-  );
+  // One choice, worded as the claim you sign — not two features side by side.
+  // The wire carries a single `t`, so it is a radio, and it says so.
+  const [recommend, identity] = reviewClaims(subjectKind);
+  const typeButton = (t: VouchType, label: string, help: string, Icon: typeof Heart) => {
+    const on = type === t;
+    return (
+      <button
+        type="button"
+        role="radio"
+        aria-checked={on}
+        onClick={() => setType(t)}
+        className={`relative flex flex-1 items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+          on
+            ? "border-brand-primary bg-brand-primary/5 dark:border-brand-link dark:bg-brand-primary/15"
+            : "border-slate-200 bg-white hover:border-brand-primary/50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-brand-link/60"
+        }`}
+        data-testid={`vouch-type-${t}`}
+      >
+        <Icon
+          className={`mt-0.5 h-4 w-4 shrink-0 ${on ? "text-brand-primary dark:text-brand-link" : "text-slate-400"}`}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">{label}</span>
+          <span className="mt-0.5 block text-xs leading-snug text-slate-500 dark:text-slate-400">{help}</span>
+        </span>
+        <span
+          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+            on
+              ? "border-brand-primary bg-brand-primary text-white dark:border-brand-link dark:bg-brand-link"
+              : "border-slate-300 dark:border-slate-600"
+          }`}
+          aria-hidden="true"
+        >
+          {on && <Check className="h-3 w-3" />}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <div
       className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-800 dark:bg-slate-900/40"
       data-testid="vouch-composer"
     >
-      {/* Phones stack the two types; the side-by-side pair needs the sm width. */}
-      <div className="flex flex-col gap-2 sm:flex-row">
-        {typeButton("vouch", "Recommend", "I know this person and recommend them", Heart)}
-        {typeButton("identity", "Confirm identity", "I personally know this is really them", BadgeCheck)}
+      <p id="vouch-type-label" className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+        What are you saying?
+      </p>
+      {/* Phones stack the two options; the side-by-side pair needs the sm width. */}
+      <div role="radiogroup" aria-labelledby="vouch-type-label" className="flex flex-col gap-2 sm:flex-row">
+        {typeButton(recommend.type, recommend.label, recommend.help, Heart)}
+        {typeButton(identity.type, identity.label, identity.help, BadgeCheck)}
       </div>
       <Textarea
         value={text}
         onChange={(ev) => setText(ev.target.value.slice(0, MAX_LEN))}
-        placeholder="In your words — optional"
+        placeholder="Add a few words — optional"
         rows={3}
         className="mt-2 text-sm"
         data-testid="vouch-text"
@@ -206,7 +233,7 @@ function VouchComposer({
           </Button>
         )}
         <span className="w-full text-[11px] text-slate-400 dark:text-slate-500 sm:ml-auto sm:w-auto">
-          {text.length}/{MAX_LEN} · published publicly to your relays
+          {text.length > 0 && `${text.length}/${MAX_LEN} · `}Public — anyone can see your review
         </span>
       </div>
       {error && (

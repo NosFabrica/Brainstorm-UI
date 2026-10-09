@@ -5,7 +5,7 @@
  * Probed via the same relay typeahead the box uses; silent unless confident.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchLiveStreams, fetchRecentByKinds } from "@/services/nostr";
+import { fetchLiveStreams } from "@/services/nostr";
 import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
 import { PanelLive } from "@/components/search/PanelLive";
 import { PanelLatestMedia, fountainLinksOf, latestVideos } from "@/components/search/PanelMedia";
@@ -57,10 +57,14 @@ import {
   searchStream,
   suggestProfiles,
   type SearchHit,
+  type SearchGroup,
   type SearchPov,
   type SearchSnapshot,
 } from "@/services/search";
 import { useConnectionSpeed } from "@/lib/connection";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
  *  no review copy on search surfaces (Benjamin). */
@@ -176,6 +180,9 @@ function KnowledgePanelBody({
   pov,
   userPubkey,
   sections,
+  rails = true,
+  active = true,
+  group,
   onOpen,
   onPerson,
   onTab,
@@ -184,6 +191,19 @@ function KnowledgePanelBody({
   query: string;
   pov: SearchPov;
   userPubkey?: string;
+  /**
+   * The topic, apps and upcoming-events rails. The front page's (Top's): on a
+   * vertical they are kinds the tab leaves out, or the very list beside them,
+   * and each is a search of its own. The person card stays on every tab.
+   */
+  rails?: boolean;
+  /**
+   * Off on All: nothing shown and nothing asked, but what the panel found stays —
+   * so back on Top it is there without asking again.
+   */
+  active?: boolean;
+  /** The composed page's shared REQ, which the apps probe joins (its kind is no section's). */
+  group?: SearchGroup;
   /**
    * What the composed page's sections already found. Given these, the panel
    * reads them instead of asking the relay the same questions again.
@@ -204,14 +224,22 @@ function KnowledgePanelBody({
   const personContent = usePersonContent(useMemo(() => (person ? [person.pubkey] : []), [person?.pubkey])); // eslint-disable-line react-hooks/exhaustive-deps
   // Only a handle its domain vouches for gets the check (lib/nip05).
   const nip05Status = useNip05(person?.nip05, person?.pubkey);
-  const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
+  const [topicHitsFound, setTopicHits] = useState<SearchHit[] | null>(null);
   const [nipPage, setNipPage] = useState<NostrEvent | null>(null);
-  const [appHits, setAppHits] = useState<SearchHit[] | null>(null);
+  const [appHitsFound, setAppHits] = useState<SearchHit[] | null>(null);
   // Upcoming calendar events that name the query — Google's panel lists a few.
-  const [topicEvents, setTopicEvents] = useState<SearchHit[] | null>(null);
+  const [topicEventsFound, setTopicEvents] = useState<SearchHit[] | null>(null);
+  // The rails are Top's: found there, they stay found, but a tab without rails shows none.
+  const topicHits = rails ? topicHitsFound : null;
+  const appHits = rails ? appHitsFound : null;
+  const topicEvents = rails ? topicEventsFound : null;
+  // Which question each probe has answered — a tab switch away and back asks nothing again.
+  const askedKey = `${query}\u0000${pov}\u0000${userPubkey ?? ""}`;
+  const topicAnswered = useRef<string | null>(null);
+  const appsAnswered = useRef<string | null>(null);
+  const eventsAnswered = useRef<string | null>(null);
   // The person's own songs — kind 31337 by author, the three newest that
   // actually are songs (the kind is abused; see lib/trackEvent).
-  const [personTracks, setPersonTracks] = useState<Track[]>([]);
   useEffect(() => {
     onPerson?.(person);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,11 +248,8 @@ function KnowledgePanelBody({
   // key first, exact name second, never a loose match.
   const [personWavlake, setPersonWavlake] = useState<{ artist: WavlakeArtist; songs: WavlakeSong[] } | null>(null);
   // Their stream: live now leads the panel; otherwise when they last streamed.
-  const [personStreams, setPersonStreams] = useState<PickedStreams>({ live: null, upcoming: null, replay: null });
   // Their latest posts that carry media — videos attached, podcast links.
-  const [personRecent, setPersonRecent] = useState<NostrEvent[]>([]);
   // What they have for sale — the three newest listings still for sale.
-  const [personListings, setPersonListings] = useState<VariantGroup[]>([]);
   // Below the desktop breakpoint the rail has nowhere to go and the panel
   // would fill the first screen; it folds to one row until tapped.
   const belowLg = useIsMobile(1024);
@@ -250,105 +275,68 @@ function KnowledgePanelBody({
   // What every probe below needs before it asks anything.
   const probeReady = probe && !scopeOf(query) && isPanelableQuery(query);
   let strip: { icon: React.ReactNode; title: string; line: string } | null = null;
+  // The person's things, live from the store: each ask about them leaves in one batch.
+  const personPk = person?.pubkey ?? null;
+  const listingEvents = useRecentByKinds(personPk, [LISTING_KIND], 12).events;
+  // Products, not listings: a shirt in five sizes is one row.
+  const personListings = useMemo<VariantGroup[]>(
+    () =>
+      productsFromEvents(listingEvents as NostrEvent[])
+        .slice(0, 3)
+        .map((p) => p.group),
+    [listingEvents],
+  );
+  const personRecent = useRecentByKinds(personPk, [1, 21, 22, 34235, 34236], 40).events as NostrEvent[];
+  // Authored by the streaming platform, not the person: the ask's answer is the list.
+  const streamEvents = useStoreEvents(personPk ? `live:${personPk}` : null, null, () =>
+    fetchLiveStreams(personPk!),
+  ).events;
+  const picked = useMemo(() => pickStreams(streamEvents), [streamEvents]);
+  // A replay is advertised only after its recording answered.
+  const replayUrl = (picked.replay?.recording as string | undefined) ?? null;
+  const [verifiedReplay, setVerifiedReplay] = useState<string | null>(null);
   useEffect(() => {
-    if (!person) {
-      setPersonListings([]);
-      return;
-    }
+    if (!replayUrl) return;
     let cancelled = false;
-    fetchRecentByKinds(person.pubkey, [LISTING_KIND], 12)
-      .then((events) => {
-        if (cancelled) return;
-        // Products, not listings: a shirt in five sizes is one row.
-        setPersonListings(
-          productsFromEvents(events as NostrEvent[])
-            .slice(0, 3)
-            .map((p) => p.group),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setPersonListings([]);
-      });
+    void verifyRecording(replayUrl).then((ok) => {
+      if (!cancelled && ok) setVerifiedReplay(replayUrl);
+    });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
-  }, [person?.pubkey]);
+  }, [replayUrl]);
+  const personStreams: PickedStreams = useMemo(
+    () => ({ ...picked, replay: picked.replay && verifiedReplay === replayUrl ? picked.replay : null }),
+    [picked, verifiedReplay, replayUrl],
+  );
+  const tracksQuery = useRecentByKinds(personPk, [TRACK_KIND], 6);
+  const personTracks = useMemo(
+    () =>
+      tracksQuery.events
+        .map(parseTrack)
+        .filter((tr): tr is Track => tr !== null)
+        .slice(0, 3),
+    [tracksQuery.events],
+  );
+  // No native tracks once the ask is in: their Wavlake catalogue instead.
+  const needsWavlake = !!person && tracksQuery.settled && personTracks.length === 0;
   useEffect(() => {
-    if (!person) {
-      setPersonRecent([]);
-      return;
-    }
-    let cancelled = false;
-    fetchRecentByKinds(person.pubkey, [1, 21, 22, 34235, 34236], 40)
-      .then((events) => {
-        if (!cancelled) setPersonRecent(events as NostrEvent[]);
-      })
-      .catch(() => {
-        if (!cancelled) setPersonRecent([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
-  }, [person?.pubkey]);
-  useEffect(() => {
-    if (!person) {
-      setPersonStreams({ live: null, upcoming: null, replay: null });
-      return;
-    }
-    let cancelled = false;
-    fetchLiveStreams(person.pubkey)
-      .then(async (events) => {
-        const picked = pickStreams(events);
-        // A replay is advertised only after its recording answered.
-        if (picked.replay && !(await verifyRecording(picked.replay.recording as string))) picked.replay = null;
-        if (!cancelled) setPersonStreams(picked);
-      })
-      .catch(() => {
-        if (!cancelled) setPersonStreams({ live: null, upcoming: null, replay: null });
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
-  }, [person?.pubkey]);
-
-  useEffect(() => {
-    if (!person) {
-      setPersonTracks([]);
-      return;
-    }
-    let cancelled = false;
     setPersonWavlake(null);
-    const wavlakeFallback = async () => {
+    if (!needsWavlake || !person) return;
+    let cancelled = false;
+    void (async () => {
       const artist = await findWavlakeArtist({ name: person.displayName || person.name, pubkey: person.pubkey });
       if (!artist || cancelled) return;
       const songs = await wavlakeArtistTracks(artist.id, 3);
       if (!cancelled && songs.length > 0) setPersonWavlake({ artist, songs });
-    };
-    fetchRecentByKinds(person.pubkey, [TRACK_KIND], 6)
-      .then((events) => {
-        if (cancelled) return;
-        const native = events
-          .map(parseTrack)
-          .filter((tr): tr is Track => tr !== null)
-          .slice(0, 3);
-        setPersonTracks(native);
-        if (native.length === 0) return wavlakeFallback();
-      })
-      .catch(() => {
-        if (!cancelled) setPersonTracks([]);
-        return wavlakeFallback();
-      })
-      .catch(() => {
-        /* Wavlake down: no row */
-      });
+    })().catch(() => {
+      /* Wavlake down: no row */
+    });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per person, not per profile object
-  }, [person?.pubkey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- per person, not per profile object
+  }, [needsWavlake, person?.pubkey]);
 
   // Everything the panel knows is about THIS query: a new one starts blank.
   // Nothing else belongs in these deps — a dep that changes while the results
@@ -362,6 +350,7 @@ function KnowledgePanelBody({
   }, [query, pov, userPubkey]);
 
   useEffect(() => {
+    if (!active) return;
     // A search scoped to one person (from:npub…, the public profile's "View
     // all"), with or without words beside it, keeps that person in the panel
     // beside their results — the relay's author filter answers the scope, so
@@ -404,13 +393,13 @@ function KnowledgePanelBody({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, pov, userPubkey, hasSections, sectionPersonKey]);
+  }, [query, pov, userPubkey, hasSections, sectionPersonKey, active]);
 
   // The rest of the panel: topic, apps, upcoming events, or a NIP page. Its own
   // effect, so turning the probes on never re-runs the person lookup above or
   // clears what it found.
   useEffect(() => {
-    if (!probeReady) return;
+    if (!probeReady || !active) return;
     let alive = true;
     // A NIP-shaped query is a spec lookup, not a person or topic hunt —
     // the wiki page (kind 30818) takes the slot and nothing else probes.
@@ -423,43 +412,51 @@ function KnowledgePanelBody({
         alive = false;
       };
     }
+    if (!rails) return;
     // Both probes in parallel; the render gives an ACTIVE topic priority —
     // a Liverpool fan searching "liverpool" wants the topic, not whichever
     // account happens to carry the name.
     const tag = tagCandidate(query);
-    const cancelTopic = tag
-      ? searchStream(`#${tag}`, { tab: "notes", pov, userPubkey, limit: 24 }, (snapshot) => {
-          if (!alive || !snapshot.eose) return;
-          const fresh = snapshot.hits.some((h) => h.event.created_at >= Date.now() / 1000 - TOPIC_FRESH_SECONDS);
-          if (snapshot.hits.length >= TOPIC_MIN_NOTES && fresh) setTopicHits(snapshot.hits);
-        })
-      : null;
+    const cancelTopic =
+      tag && topicAnswered.current !== askedKey
+        ? searchStream(`#${tag}`, { tab: "notes", pov, userPubkey, limit: 24 }, (snapshot) => {
+            if (!alive || !snapshot.eose) return;
+            topicAnswered.current = askedKey;
+            const fresh = snapshot.hits.some((h) => h.event.created_at >= Date.now() / 1000 - TOPIC_FRESH_SECONDS);
+            if (snapshot.hits.length >= TOPIC_MIN_NOTES && fresh) setTopicHits(snapshot.hits);
+          })
+        : null;
     // Apps whose NAME matches the words ride the rail too (Google's app
     // sidebar) — fuzzy strays with unrelated names are filtered out.
     const q = norm(query);
-    const cancelApps = searchStream(query, { tab: "apps", pov, userPubkey, limit: 6, band: true }, (snapshot) => {
-      if (!alive || !snapshot.eose) return;
-      const matched = snapshot.hits.filter((h) => {
-        const name = norm(h.event.tags.find((t) => t[0] === "name")?.[1] ?? "");
-        return !!name && (name.includes(q) || q.includes(name));
-      });
-      if (matched.length > 0) setAppHits(matched.slice(0, 3));
-    });
+    const cancelApps =
+      appsAnswered.current === askedKey
+        ? null
+        : searchStream(query, { tab: "apps", pov, userPubkey, limit: 6, band: true, group }, (snapshot) => {
+            if (!alive || !snapshot.eose) return;
+            appsAnswered.current = askedKey;
+            const matched = snapshot.hits.filter((h) => {
+              const name = norm(h.event.tags.find((t) => t[0] === "name")?.[1] ?? "");
+              return !!name && (name.includes(q) || q.includes(name));
+            });
+            if (matched.length > 0) setAppHits(matched.slice(0, 3));
+          });
     return () => {
       alive = false;
       cancelTopic?.();
-      cancelApps();
+      cancelApps?.();
     };
-  }, [query, pov, userPubkey, probeReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- askedKey is query, pov and userPubkey
+  }, [query, pov, userPubkey, probeReady, rails, group, active]);
 
   // Events (Benjamin: "like a Google events feel — real and relevant, not
   // forced"). The Happening section asks this question less deeply than the
   // probe did, so the probe still runs where the section cannot fill the row.
   useEffect(() => {
-    if (!probeReady || nipCandidates(query).length > 0) return;
+    if (!probeReady || !rails || !active || nipCandidates(query).length > 0) return;
     if (sectionRow.length > 0) setTopicEvents(sectionRow);
-    // A full row is a full row, whichever tab the reader moves to next.
-    if ((topicEvents?.length ?? 0) >= EVENTS_SHOWN) return;
+    // A full row is a full row, whichever tab the reader moves to next; an answered probe is answered.
+    if ((topicEvents?.length ?? 0) >= EVENTS_SHOWN || eventsAnswered.current === askedKey) return;
     if (hasSections && (sectionRow.length >= EVENTS_SHOWN || !eventsSettled)) return;
     let alive = true;
     const cancel = searchStream(
@@ -467,6 +464,7 @@ function KnowledgePanelBody({
       { tab: "events", pov, userPubkey, limit: 60, band: true },
       (snapshot) => {
         if (!alive || !snapshot.eose) return;
+        eventsAnswered.current = askedKey;
         const upcoming = eventsRow(snapshot.hits, query);
         if (upcoming.length > 0) setTopicEvents(upcoming);
       },
@@ -476,7 +474,7 @@ function KnowledgePanelBody({
       cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, pov, userPubkey, probeReady, hasSections, sectionRowKey, eventsSettled]);
+  }, [query, pov, userPubkey, probeReady, rails, active, hasSections, sectionRowKey, eventsSettled]);
 
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.
@@ -582,11 +580,13 @@ function KnowledgePanelBody({
                         </span>
                         <span className="block text-[11px] text-slate-500 dark:text-slate-400">
                           {l.price ? formatListingPrice(l.price) : "Price on request"}
-                          {g.options.length > 1
-                            ? ` · ${g.options.length} options`
-                            : l.location
-                              ? ` · ${l.location}`
-                              : ""}
+                          {!g.complete
+                            ? " · Options available"
+                            : g.options.length > 1
+                              ? ` · ${g.options.length} options`
+                              : l.location
+                                ? ` · ${l.location}`
+                                : ""}
                         </span>
                       </span>
                     </Link>
@@ -930,7 +930,7 @@ function KnowledgePanelBody({
               className="truncate text-base font-bold text-slate-900 dark:text-slate-100"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              {getDisplayLabel(person)}
+              <ProfileEmojiText pubkey={person.pubkey} text={getDisplayLabel(person)} />
             </p>
             <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
               <TierWordChip score01={effectiveRank} />
@@ -1019,7 +1019,7 @@ function KnowledgePanelBody({
           ))}
         {person.about && (
           <p className="mt-2 line-clamp-4 break-words text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-            {person.about}
+            <ProfileEmojiText pubkey={person.pubkey} text={person.about} />
           </p>
         )}
         <Link
@@ -1035,7 +1035,7 @@ function KnowledgePanelBody({
           scoped to them, the box is that door. */}
         {scopeOf(query)?.pubkey !== person.pubkey && (
           <Link
-            href={scopedSearchHref(person.pubkey, "everything")}
+            href={scopedSearchHref(person.pubkey, "top")}
             className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-brand-link dark:text-slate-400"
             data-testid="knowledge-panel-search"
           >
@@ -1073,7 +1073,7 @@ function KnowledgePanelBody({
   // panel's own click-through (React events cross portals).
   const folded = belowLg && !expanded && !!main && !!strip;
   return (
-    <div className={`w-full space-y-3 ${className}`}>
+    <div className={`w-full space-y-3 ${className}`} hidden={!active}>
       {folded ? (
         <button
           type="button"

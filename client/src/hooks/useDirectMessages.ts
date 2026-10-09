@@ -11,7 +11,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 import { dmEngine, subscribeDmEngine } from "@/services/dm";
 import type { DmEngine, DmEngineState } from "@/services/dm/engine";
 import type { DmRoom } from "@/lib/dm/store";
@@ -85,13 +85,9 @@ export function useDmPrefs(pubkey: string | undefined): DmPrefs {
  * as useSocialActions, so muting someone anywhere takes their chats away here.
  */
 export function useMutedPeople(me: string): (pk: string) => boolean {
-  const { data } = useQuery({
-    queryKey: ["nostr-mutes", me],
-    queryFn: () => fetchMuteList(me),
-    enabled: !!me,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  const mutes = useStoreReplaceable(10000, me || null, () => fetchMuteList(me));
+  const data = mutes.event;
+
   return useMemo(() => {
     const set = getMutedPubkeys(data ?? null);
     return (pk: string) => set.has(pk);

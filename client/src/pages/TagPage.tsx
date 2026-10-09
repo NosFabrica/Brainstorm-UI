@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRoute, useLocation, Redirect, Link } from "wouter";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useGoBack } from "@/hooks/useGoBack";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Bookmark, BookmarkCheck, Check, Loader2, Plus, Tag as TagIcon, Users } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
@@ -9,7 +9,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { PersonListRow, PersonListSkeleton } from "@/components/PersonListRow";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useScorePov } from "@/components/score/TrustScorePov";
-import { fetchProfileMap } from "@/services/nostr";
 import { useTagDetail, useTagVote, usePinnedTags, useTogglePin } from "@/hooks/useTags";
 import { TagVoteButton } from "@/components/share/TagVoteButton";
 import { TagComments } from "@/components/share/TagComments";
@@ -146,14 +145,7 @@ export default function TagPage() {
     if (authorPubkey) list.add(authorPubkey);
     return Array.from(list);
   }, [carriers, disputed, authorPubkey]);
-  const profilesQuery = useQuery({
-    queryKey: ["tag-profiles", pubkeys.join(",")],
-    queryFn: () => fetchProfileMap(pubkeys),
-    enabled: pubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const profileMap = profilesQuery.data;
+  const profileMap = useLiveProfiles(pubkeys);
 
   const status = detailQuery.data?.status;
   useTagMeta(tagName, carriers.length, status === "ok");

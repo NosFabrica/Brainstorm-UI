@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- viewport-fit=cover: without it an installed iPhone app reports every safe-area inset as
+         0, so the tab bar, sheets and the Messages composer that pad by them sat on the home bar. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
+    <!-- The page's own background, so the status bar and Android's task switcher
+         read as part of it. Light here; the theme script below darkens it before
+         first paint, and lib/themeColor follows the page from then on. -->
+    <meta name="theme-color" content="#ffffff" />
     <!-- No-flash theme: set class="dark" synchronously before first paint.
          Honors an explicit "dark" choice, and "system" when the OS prefers dark.
          Fresh visitors (no stored choice) stay LIGHT — we don't auto-dark a
@@ -15,6 +21,10 @@
           var osDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
           if (t === "dark" || (t === "system" && osDark)) {
             document.documentElement.classList.add("dark");
+            // The status bar and Android's task switcher, dark from the first frame
+            // too (lib/themeColor keeps it on the page's colour after that).
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute("content", "#0b0f19");
           }
         } catch (e) {}
       })();
@@ -29,7 +39,6 @@
       content="Brainstorm, Nostr, Web of Trust, WoT, GrapeRank, decentralized, trust scores, social graph, NIP-85, reputation"
     />
     <meta name="author" content="Brainstorm" />
-    <meta name="theme-color" content="#0a0e18" />
 
     <link rel="canonical" href="https://brainstorm.nosfabrica.com/" />
 
@@ -65,7 +74,173 @@
          iOS honours; the manifest's short_name covers Android/Chrome. -->
     <meta name="apple-mobile-web-app-title" content="Brainstorm" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <!-- Deprecated in Chrome's eyes (it logs so), but iOS shows the launch images
+         below only to a page that declares itself web-app capable. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- "default": the status bar is its own strip above the page, painted the
+         theme-color. "black-translucent" would run the page under it, and no
+         header pads for the top inset. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="/site.webmanifest" />
+    <!-- iOS launch screens. iOS has no manifest splash: without an image that
+         matches the screen exactly it shows a blank one. Drawn by
+         scripts/pwa-assets.mjs, which prints these; pwaAssets.test.ts holds the
+         two to each other. -->
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1320x2868.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1260x2736.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1206x2622.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1290x2796.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1179x2556.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1284x2778.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1170x2532.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1125x2436.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1242x2688.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/828x1792.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+      href="/splash/1242x2208.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/750x1334.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/640x1136.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 1032px) and (device-height: 1376px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/2064x2752.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 1032px) and (device-height: 1376px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2752x2064.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/2048x2732.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2732x2048.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1210px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1668x2420.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1210px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2420x1668.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1668x2388.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2388x1668.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1640x2360.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2360x1640.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1668x2224.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2224x1668.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1620x2160.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2160x1620.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1488x2266.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2266x1488.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+      href="/splash/1536x2048.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)"
+      href="/splash/2048x1536.png"
+    />
     <script src="/config.js"></script>
     <!-- Filled in at container start from the same env config.js gets: the API
          and relay origins, so their DNS + TCP + TLS happen while the app boots
@@ -77,8 +252,11 @@
          question while the bundle is still downloading and parks the answer on
          window.__headStart for the app to adopt (lib/headStart.ts). It never
          renders anything and never retries: if any of it fails the app behaves
-         exactly as it did before. The section filters mirror ComposedResults —
-         headStart.test.ts holds them to it. -->
+         exactly as it did before. The section filters mirror ComposedResults,
+         and All's one filter mirrors its search — headStart.test.ts holds them
+         to it. All's answer is not taken and closed but FOLLOWED: a best-match
+         page takes the relay seconds, longer than the bundle, and the app
+         carries on with this request rather than asking the question again. -->
     <script>
       (function () {
         try {
@@ -89,7 +267,17 @@
           // sort: …) changes what some sections ask for, and a head start that
           // asked a different question is worse than none.
           // An unsubstituted "__VITE_…__" placeholder is not a relay (runtimeEnv.ts).
-          if (!q || !/^wss?:\/\//.test(url || "") || (tab && tab !== "everything") || /[:#]/.test(q)) return;
+          // Top (the default; `everything` is its old name) and All. The verticals are not.
+          var kind = !tab || tab === "top" || tab === "everything" ? "top" : tab === "all" ? "all" : null;
+          if (!q || !kind || !/^wss?:\/\//.test(url || "") || /[:#]/.test(q)) return;
+          // All's answer is a hundred results of any kind — long-form included — and on a
+          // thin link it competes with the bundle for the same bandwidth: measured on Fast
+          // 3G, the page painted ~4s LATER with it than without. Only on a normal link,
+          // judged as lib/connection judges it (save-data, 2g, 3g are slow; unknown is not).
+          if (kind === "all") {
+            var net = navigator.connection;
+            if (net && (net.saveData === true || /(^|-)2g$|^3g$/.test(net.effectiveType || ""))) return;
+          }
           // Signed in: the app reads through that reader's own Perspective, which
           // this cannot ask for, so it would collect an answer nobody adopts
           // (accounts/persist.ts clears this key on sign-out).
@@ -97,7 +285,25 @@
           var fresh = q + " sort:recent";
           // `complete` means the relay said EOSE: one REQ, one EOSE, so every
           // filter finished. A CLOSED is an ending, not a completion.
-          var head = { query: q, events: [], eose: false, complete: false, socket: null };
+          // `failed`: it ended without an answer — the app asks for itself.
+          // `listeners`: the app following All's answer as it arrives.
+          var head = {
+            query: q,
+            tab: kind,
+            events: [],
+            eose: false,
+            complete: false,
+            failed: false,
+            listeners: [],
+            socket: null,
+          };
+          var tell = function (m) {
+            for (var i = 0; i < head.listeners.length; i++) {
+              try {
+                head.listeners[i](m);
+              } catch (e) {}
+            }
+          };
           window.__headStart = head;
           var socket = new WebSocket(url);
           head.socket = socket;
@@ -135,23 +341,32 @@
           socket.onmessage = function (e) {
             try {
               var m = JSON.parse(e.data);
+              if (m[1] !== "head") return;
               if (m[0] === "EVENT") head.events.push(m[2]);
               else if (m[0] === "EOSE") {
                 head.eose = true;
                 head.complete = true;
-              } else if (m[0] === "CLOSED") head.eose = true;
+              } else if (m[0] === "CLOSED") {
+                head.eose = true;
+                head.failed = !head.complete;
+              } else return;
+              tell(m);
             } catch (err) {
               /* not a frame we know */
             }
           };
-          socket.onerror = function () {
+          socket.onerror = socket.onclose = function () {
+            if (head.complete) return;
             head.eose = true;
+            head.failed = true;
+            tell(["CLOSED", "head", "socket closed"]);
           };
           Promise.all([open, observer]).then(function (both) {
             // No Perspective, no head start: an unranked read would answer a
             // different question from the one the app is about to ask.
             if (!both[1]) {
               head.eose = true;
+              head.failed = true;
               try {
                 socket.close();
               } catch (e) {}
@@ -162,10 +377,16 @@
             // it is about to ask the same question itself.
             if (socket.readyState !== 1) {
               head.eose = true;
+              head.failed = true;
               return;
             }
             var perspective = " observer:" + both[1];
             try {
+              // All: the one kind-less, best-match search the tab asks (services/search DEFAULT_LIMIT).
+              if (kind === "all") {
+                socket.send(JSON.stringify(["REQ", "head", { search: q + perspective, limit: 100 }]));
+                return;
+              }
               socket.send(
                 JSON.stringify([
                   "REQ",
@@ -182,10 +403,13 @@
               );
             } catch (e) {
               head.eose = true;
+              head.failed = true;
             }
           });
-          // Nobody came for it: let the socket go rather than hold it open.
+          // Nobody came for it: let the socket go rather than hold it open. One the app is
+          // following (All) is the app's to close — at its end, or when the page goes.
           setTimeout(function () {
+            if (head.listeners.length) return;
             try {
               socket.close();
             } catch (e) {}
@@ -195,13 +419,9 @@
         }
       })();
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Brand fonts only (Design System v1.0): Figtree (interface) + IBM Plex Mono (technical/metadata). -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Brand fonts (Design System v1.0) are bundled, not fetched from Google:
+         main.tsx imports them, so they ship hashed beside the app and the
+         installed app has them with no connection (sw.ts keeps them). -->
   </head>
   <body>
     <div id="root"></div>

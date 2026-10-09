@@ -140,6 +140,7 @@ vi.mock("@/accounts/session", () => ({ activeHasSession: () => true }));
 const ME = "a".repeat(64);
 const THEM = "b".repeat(64);
 const OTHER = "c".repeat(64);
+const NEWER = "9".repeat(64);
 
 function listEvent(kind: number, pubkeys: string[], created_at = 100) {
   return {
@@ -569,7 +570,73 @@ describe("muting", () => {
     expect(signedPubkeys()).toEqual([OTHER]);
   });
 
+  /**
+   * The list the screen holds can be the one restored from the device at boot —
+   * as old as the last visit. Building on it would publish over the newer list
+   * on the relays and undo every mute made elsewhere since.
+   */
+  it("builds on the relays' list when it is newer than the one the screen holds", async () => {
+    relayHas.set(10000, [listEvent(10000, [OTHER, NEWER], 200)]);
+
+    const res = await social.muteUser(THEM, listEvent(10000, [OTHER], 100) as never);
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([OTHER, NEWER, THEM]);
+  });
+
+  it("and on unmute", async () => {
+    relayHas.set(10000, [listEvent(10000, [OTHER, NEWER, THEM], 200)]);
+
+    const res = await social.unmuteUser(THEM, listEvent(10000, [OTHER, THEM], 100) as never);
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([OTHER, NEWER]);
+  });
+
+  it("keeps the screen's list when it is the newer one — our own publish, relays not caught up", async () => {
+    relayHas.set(10000, [listEvent(10000, [OTHER], 100)]);
+
+    await social.muteUser(THEM, listEvent(10000, [OTHER, NEWER], 200) as never);
+
+    expect(signedPubkeys()).toEqual([OTHER, NEWER, THEM]);
+  });
+
   it("refuses when the mute list could not be read, rather than replacing it", async () => {
+    deadRelays.add("wss://one");
+
+    const res = await social.muteUser(THEM);
+
+    expect(res.success).toBe(false);
+    expect(signAs).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A brand-new account has no kind-10000 anywhere. When the relays answer and
+   * none holds one, that is proof rather than silence, as for a first follow list:
+   * the first mute list starts empty.
+   */
+  it("creates the first mute list when the relays answered and none has one", async () => {
+    const res = await social.muteUser(THEM);
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("creates the first mute list for a key minted here, even with the relays down", async () => {
+    deadRelays.add("wss://one");
+    createdInApp.mockReturnValue(true);
+
+    const res = await social.muteUser(THEM);
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("still refuses when more relays stayed silent than answered", async () => {
+    relayList.push("wss://two", "wss://three");
+    deadRelays.add("wss://two");
+    deadRelays.add("wss://three");
+
     const res = await social.muteUser(THEM);
 
     expect(res.success).toBe(false);

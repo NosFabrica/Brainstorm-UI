@@ -18,8 +18,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { eventPath } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { ago } from "@/lib/ago";
-import { eventStore } from "@/lib/eventStore";
-import { fetchProfileMap } from "@/services/nostr";
+import { useLiveProfile } from "@/hooks/useLiveProfile";
 
 /** The structural minimum an event page hands its heroes (MinimalEvent — no sig). */
 export type PageEvent = {
@@ -443,24 +442,11 @@ export function useFetched<T>(key: string | null, load: () => Promise<T>): T | u
   return state.key === key ? state.value : undefined;
 }
 
-/** A person's whole kind-0 content (lud16, nip05, website…) — the store first, then one fetch. */
+/** A person's whole kind-0 content (lud16, nip05, website…), live; undefined while loading, `{}` for none. */
 export function useProfileContent(pubkey: string | null): Record<string, unknown> | undefined {
-  return useFetched(pubkey ? `profile:${pubkey}` : null, async () => {
-    const stored = eventStore.getReplaceable(0, pubkey as string);
-    if (stored) {
-      try {
-        return JSON.parse(stored.content) as Record<string, unknown>;
-      } catch {
-        /* fall through to the network */
-      }
-    }
-    try {
-      const map = await fetchProfileMap([pubkey as string]);
-      return (map.get(pubkey as string) as Record<string, unknown> | undefined) ?? {};
-    } catch {
-      return {};
-    }
-  });
+  const { profile, loading } = useLiveProfile(pubkey ?? undefined);
+  if (loading) return undefined;
+  return (profile as Record<string, unknown> | undefined) ?? (pubkey ? {} : undefined);
 }
 
 /** A picture that says what it stands for when it will not load: `fallback` in its place, never the browser's broken-image glyph. */

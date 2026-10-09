@@ -1,7 +1,7 @@
 /**
  * The states between "signed in" and "reading messages": no inbox relays yet,
  * inbox relays that want a NIP-42 login, a signer that hasn't opened anything
- * (or said no), a signer that can't do NIP-44 at all.
+ * (said no, or failed without asking), a signer that can't do NIP-44 at all.
  */
 import { useState } from "react";
 import { Inbox, KeyRound, Loader2, Lock, Plug } from "lucide-react";
@@ -15,6 +15,9 @@ import { turnOnMessages } from "@/services/dm";
 import { SUGGESTED_INBOX_RELAYS } from "@/lib/dm/inboxRelays";
 import { ENCRYPTED_BLOSSOM_SERVERS } from "@/lib/blossomServers";
 import { relayHost } from "./people";
+import { askRelayAuthAgain } from "@/services/relayAuth";
+import { useRelayAuthProblems } from "@/hooks/useRelayAuthProblems";
+import { authProblemLabel, refusedAmong } from "./RelayMarker";
 
 /** First visit: publish a kind-10050 before anything can arrive. */
 export function InboxSetup() {
@@ -91,37 +94,43 @@ export function OpeningStatus({ state }: { state: DmEngineState }) {
 }
 
 /** What waits on the reader — a login, an unlock, a signer that can't — pinned under the list. */
-export function InboxNotices({
-  engine,
-  state,
-  authAllowed,
-  onAllowAuth,
-}: {
-  engine: DmEngine | null;
-  state: DmEngineState;
-  authAllowed: boolean;
-  onAllowAuth: () => void;
-}) {
-  const readAuth =
-    Object.values(state.live).some((s) => s === "auth") || state.history.relays.some((r) => r.state === "auth");
-  const waitingAuth = readAuth || state.sendAuth.length > 0;
+export function InboxNotices({ engine, state }: { engine: DmEngine | null; state: DmEngineState }) {
   const notices: {
     key: string;
     icon: React.ReactNode;
     text: string;
+    /** The signer's own words, quoted under the text. */
+    detail?: string;
     action?: React.ReactNode;
     variant?: "warning" | "default";
   }[] = [];
-  if (waitingAuth && !authAllowed)
+  const problems = useRelayAuthProblems();
+  // Your inbox relays — which also hold your own copy of what you send. A
+  // recipient's relay is the chat's to say (ChatView's SendAuthBanner).
+  const refused = refusedAmong(problems, state.inboxRelays);
+  if (refused.signer.length)
     notices.push({
-      key: "auth",
+      key: "auth-signer",
       icon: <KeyRound className="h-4 w-4" />,
-      text: readAuth
-        ? "Your inbox relays ask you to sign in before they hand over your messages."
-        : "Some inbox relays only take your messages once you sign in to them. Unsent messages go out when you do.",
+      text: `Your signer rejected signing in to ${refused.signer.map(relayHost).join(", ")}. Messages there wait until you approve.`,
       action: (
-        <Button size="sm" onClick={onAllowAuth} data-testid="dm-allow-auth">
-          Allow sign-in
+        <Button
+          size="sm"
+          onClick={() => refused.signer.forEach((url) => askRelayAuthAgain(url))}
+          data-testid="dm-auth-ask-again"
+        >
+          Rejected - Ask again
+        </Button>
+      ),
+    });
+  for (const { url, problem } of refused.other)
+    notices.push({
+      key: `auth-${url}`,
+      icon: <KeyRound className="h-4 w-4" />,
+      text: `${relayHost(url)} · ${authProblemLabel(problem)}`,
+      action: (
+        <Button size="sm" variant="outline" onClick={() => askRelayAuthAgain(url)} data-testid="dm-auth-try-again">
+          Try again
         </Button>
       ),
     });
@@ -131,7 +140,13 @@ export function InboxNotices({
       icon: <Plug className="h-4 w-4" />,
       text: "Your signer can't open private messages (it lacks NIP-44). Update it, or sign in with one that does.",
     });
-  if (state.paused === "cancelled" || state.paused === "refused" || state.paused === "unreachable")
+  if (
+    state.paused === "cancelled" ||
+    state.paused === "refused" ||
+    state.paused === "failed" ||
+    state.paused === "unreachable" ||
+    state.paused === "wrong-account"
+  )
     notices.push({
       key: "paused",
       icon: <Lock className="h-4 w-4" />,
@@ -140,7 +155,13 @@ export function InboxNotices({
           ? `Unlock to read ${state.queued} message${state.queued === 1 ? "" : "s"}.`
           : state.paused === "unreachable"
             ? "Your signer didn't answer, so new messages are still sealed."
-            : "Your signer declined to open messages.",
+            : state.paused === "wrong-account"
+              ? "Your signer is on a different profile than this account. Switch back to it, then try again."
+              : state.paused === "failed"
+                ? "Your signer couldn't open messages. Check that it's unlocked and connected, then try again."
+                : // Alby says no without a prompt once this site is set to "always deny".
+                  "Your signer declined to open messages. If it didn't ask you, check whether it blocks this site.",
+      detail: state.pauseDetail,
       action: (
         <Button size="sm" variant="outline" onClick={() => engine?.allowDecrypt()}>
           {state.paused === "cancelled" ? "Unlock" : "Try again"}
@@ -159,7 +180,14 @@ export function InboxNotices({
         >
           <span className="flex gap-2">
             <span className="mt-0.5 shrink-0">{n.icon}</span>
-            {n.text}
+            <span className="flex flex-col gap-0.5">
+              {n.text}
+              {n.detail && (
+                <span className="break-words text-xs opacity-80" data-testid="dm-notice-detail">
+                  Your signer said: “{n.detail}”
+                </span>
+              )}
+            </span>
           </span>
           {n.action && <span className="pl-6">{n.action}</span>}
         </Alert>

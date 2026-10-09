@@ -4,25 +4,21 @@
  * messages actually go.
  */
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { Archive, Ban, ChevronRight, Route, Server, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
-import { loadDmRelays } from "@/lib/dm/inboxRelays";
 import { FollowedByLine } from "@/components/search/EndorsementLine";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { npubFromPubkey } from "@/lib/shareId";
 import { tierForScore01 } from "@/components/score/VerificationCoin";
 import { TIER_LABELS } from "@/services/trustThreshold";
-import { PersonAvatar, nameOf, relayHost, roomTitle, shortNpub, type Profiles } from "./people";
+import { PersonAvatar, nameOf, relayHost, roomTitle, shortNpub, type Profiles, PersonName } from "./people";
+import { useDmRelays } from "@/hooks/useDmRelays";
 
 function TheirInbox({ pubkey, name }: { pubkey: string; name: string }) {
-  const { data } = useQuery({
-    queryKey: ["dm-inbox", pubkey],
-    queryFn: () => loadDmRelays(pubkey),
-    staleTime: 10 * 60_000,
-  });
+  const inbox = useDmRelays(pubkey);
+  const data = inbox.loading ? undefined : inbox;
   return (
     <div className="flex flex-col gap-2">
       <SectionHeader kicker="Their inbox relays" />
@@ -86,7 +82,9 @@ export function ChatInfo({
             >
               <PersonAvatar pubkey={pk} profiles={profiles} score={scoreOf(pk)} size={36} />
               <span className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-semibold">{nameOf(pk, profiles)}</span>
+                <span className="truncate text-sm font-semibold">
+                  <PersonName pubkey={pk} profiles={profiles} />
+                </span>
                 <span className="text-xs text-slate-500">{follows.has(pk) ? "You follow" : "Not in your follows"}</span>
               </span>
             </Link>

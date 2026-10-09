@@ -28,7 +28,10 @@ vi.mock("@/lib/wavlake", () => ({
   wavlakeArtistTracks: (id: string, limit?: number) => artistTracksMock(id, limit),
 }));
 const profileMapMock = vi.fn(async (_pks: string[]) => new Map<string, { name?: string; display_name?: string }>());
-vi.mock("@/services/nostr", () => ({ fetchProfileMap: (pks: string[]) => profileMapMock(pks) }));
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
+  fetchProfileMap: (pks: string[]) => profileMapMock(pks),
+}));
 
 import { useArtistCatalogue } from "./useArtistCatalogue";
 

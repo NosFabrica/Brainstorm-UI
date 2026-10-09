@@ -5,6 +5,12 @@ import { renderWithProviders } from "@/test/utils";
 import { CheckoutDialog } from "./CheckoutDialog";
 import type { BillingPlan } from "@/services/subscription";
 
+// Offline: the plans list (GET /billing/plans); these tests hand the dialog its plan.
+vi.mock("@/services/subscription", async (orig) => ({
+  ...(await orig<typeof import("@/services/subscription")>()),
+  fetchPlans: async () => [],
+}));
+
 const PUBKEY = "a".repeat(64);
 
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));

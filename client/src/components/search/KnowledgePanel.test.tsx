@@ -76,7 +76,8 @@ const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number)
   Promise.resolve([]),
 );
 const liveStreamsMock = vi.fn<(pubkey: string) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
   fetchLiveStreams: (pubkey: string) => liveStreamsMock(pubkey),
@@ -94,6 +95,13 @@ vi.mock("@/components/ZapModal", () => ({
 
 import { KnowledgePanel } from "./KnowledgePanel";
 import { closePlayer, trackMeta } from "@/lib/audioPlayer";
+
+// Offline: a profile's NIP-05 domain is never asked; the handle shows unverified.
+vi.mock("@/lib/nip05", async (orig) => ({
+  ...(await orig<typeof import("@/lib/nip05")>()),
+  verifyNip05: async () => "unknown",
+  resolveNip05: async () => null,
+}));
 
 function noteHit(id: string, pubkey: string, name: string, created_at: number, tags: string[][] = []) {
   return {
@@ -684,6 +692,43 @@ describe("the topic panel", () => {
     });
     await screen.findByTestId("search-topic-panel");
     expect(screen.getAllByText("GazetaRSS")).toHaveLength(1);
+  });
+
+  // Rails are Top's. Found there, they stay found — a tab without rails shows none, and
+  // back on Top they are there again without the relay being asked a second time.
+  it("hides its rails on a tab without them, and shows them again without asking twice", async () => {
+    const { rerender } = render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
+    const appsCall = streamCalls.find((c) => c.params.tab === "apps")!;
+    const listing = {
+      id: "ap1",
+      kind: 32267,
+      pubkey: "9".repeat(64),
+      tags: [
+        ["d", "com.vitorpamplona.amethyst"],
+        ["name", "Amethyst"],
+      ],
+      content: "",
+      created_at: NOW - 500,
+      sig: "s",
+    } as NostrEvent;
+    appsCall.emit({ hits: [{ event: listing, author: null, rank: null }], eose: true, timeMs: 90 });
+    await screen.findByTestId("search-apps-panel");
+    const asked = streamCalls.filter((c) => c.params.tab === "apps").length;
+
+    rerender(<KnowledgePanel query="amethyst" pov="nosfabrica" rails={false} />);
+    expect(screen.queryByTestId("search-apps-panel")).toBeNull();
+
+    rerender(<KnowledgePanel query="amethyst" pov="nosfabrica" active={false} />);
+    rerender(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
+    await screen.findByTestId("search-apps-panel");
+    expect(streamCalls.filter((c) => c.params.tab === "apps")).toHaveLength(asked);
+  });
+
+  it("asks nothing while inactive (the All tab)", async () => {
+    render(<KnowledgePanel query="amethyst" pov="nosfabrica" active={false} />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(streamCalls).toHaveLength(0);
   });
 
   it("a query matching an app adds an Apps module to the rail", async () => {
@@ -1717,7 +1762,7 @@ describe("the panel offers a search of everything this person published", () => 
     await screen.findByTestId("knowledge-panel-profile");
     const row = screen.getByTestId("knowledge-panel-search");
     expect(row).toHaveTextContent("Search their posts");
-    expect(row.getAttribute("href")).toBe(`/?q=from%3A${nip19.npubEncode(NOVA)}&t=everything`);
+    expect(row.getAttribute("href")).toBe(`/?q=from%3A${nip19.npubEncode(NOVA)}&t=top`);
   });
 
   it("once the search IS scoped to them, the box is the search — no row", async () => {

@@ -12,6 +12,8 @@ const HOPPED_KEY = "bsHopped";
 
 /** Depth of the entry we are currently on; seeds the next entry we create. */
 let currentDepth: number | null = null;
+/** `history.length` when we last looked: a new entry that didn't grow it replaced the last. */
+let lengthSeen = 0;
 
 function readState(): Record<string, unknown> {
   try {
@@ -37,12 +39,19 @@ function patchState(patch: Record<string, unknown>): void {
 export function trackHistoryEntry(): void {
   if (typeof window === "undefined") return;
   const stamped = readState()[DEPTH_KEY];
+  const length = window.history.length;
+  const grew = length > lengthSeen;
+  lengthSeen = length;
   if (typeof stamped === "number") {
     currentDepth = stamped;
     return;
   }
-  // The first entry of the load is depth 0 — nothing of ours sits behind it.
-  currentDepth = currentDepth === null ? 0 : currentDepth + 1;
+  // The first entry of the load is depth 0 — nothing of ours sits behind it. A
+  // replace (a redirect) wipes the stamp but adds no entry: it stays as deep as
+  // the one it replaced. (A push after going back doesn't grow the list either,
+  // and is under-counted by one — the safe way round: Back falls back to its
+  // fallback instead of leaving the app.)
+  currentDepth = currentDepth === null ? 0 : grew ? currentDepth + 1 : currentDepth;
   patchState({ [DEPTH_KEY]: currentDepth });
 }
 

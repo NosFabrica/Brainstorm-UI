@@ -1,19 +1,22 @@
 import { useMemo, useState } from "react";
 import { MessageButton } from "@/components/messages/MessageButton";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useRoute, Redirect, Link } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Loader2, Users, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
+import { fetchReportsForPubkey, reportAbout, type ReportMetadata } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { InfoHint } from "@/components/InfoHint";
-import { TrustScoreModal, useScorePov, PovToggle } from "@/components/score/TrustScorePov";
+import { TrustScoreModal, useScorePov } from "@/components/score/TrustScorePov";
+import { networkPerspective } from "@/lib/networkPerspective";
 import { useHasSession } from "@/hooks/useHasSession";
 import { PersonListRow } from "@/components/PersonListRow";
 import { TIER_LABELS } from "@/services/trustThreshold";
@@ -137,33 +140,26 @@ export default function ConnectionListPage() {
   const pubkeys = useMemo(() => toPubkeys(items), [items]);
   const influence = useMemo(() => toInfluenceMap(items), [items]);
 
-  const profilesQuery = useQuery({
-    queryKey: ["conn-profiles", pubkeys.join(",")],
-    queryFn: () => fetchProfileMap(pubkeys),
-    enabled: pubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const profileMap = useLiveProfiles(pubkeys);
 
   // For the "reporters" view, fetch the actual NIP-56 (kind 1984) reports from
   // relays so each row can show the report's type, time, and reason — the same
   // data the profile page surfaces. Progressive: rows render from the API first,
   // then annotate as reports resolve. Rows with no matched report stay plain.
-  const reportsQuery = useQuery({
-    queryKey: ["conn-reports", pubkey],
-    queryFn: () => fetchReportsForPubkey(pubkey),
-    enabled: !!pubkey && cfg?.kind === "reported_by",
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const reportsQuery = useStoreEvents(
+    pubkey && cfg?.kind === "reported_by" ? `conn-reports:${pubkey}` : null,
+    pubkey && cfg?.kind === "reported_by" ? [{ kinds: [1984], "#p": [pubkey] }] : null,
+    // Fills the store; the reports are read back from it below.
+    async () => void (await fetchReportsForPubkey(pubkey)),
+  );
   const reportMap = useMemo(() => {
     const m = new Map<string, ReportMetadata>();
-    for (const r of reportsQuery.data ?? []) {
+    for (const r of reportsQuery.events.map((e) => reportAbout(e, pubkey))) {
       const prev = m.get(r.reporterPubkey);
       if (!prev || r.timestamp > prev.timestamp) m.set(r.reporterPubkey, r);
     }
     return m;
-  }, [reportsQuery.data]);
+  }, [reportsQuery.events, pubkey]);
 
   // Guard rails — bad share id or unknown list type.
   // `replace`, never push. wouter's <Redirect> PUSHES by default, and these are
@@ -186,7 +182,6 @@ export default function ConnectionListPage() {
   const subject = (liveSubject ?? {}) as Record<string, string | undefined>;
   const subjectName =
     subject.display_name || subject.name || (pubkey ? npubFromPubkey(pubkey).slice(0, 12) + "…" : "this profile");
-  const profileMap = profilesQuery.data;
   const loading = connQuery.isLoading;
 
   // "What does verified mean?" popover — POV-aware so it nudges the right next
@@ -304,12 +299,22 @@ export default function ConnectionListPage() {
               {cfg.subtitle(subjectName)}
             </p>
           )}
-          {/* The POV lens sits LEFT, in the primary reading path, on its own line
-              (both breakpoints) — it reframes every score and the tier buckets,
-              so it reads as the list's lens, not a right-rail utility like the
-              filter. Left-aligned = one clean content edge + better discovery. */}
-          <div className="mt-3">
-            <PovToggle canPersonalize={signedIn && calcDone} avatarUrl={me?.picture} className="shrink-0" />
+          {/* Whose scores these are, on its own line in the reading path — it
+              reframes every score and the tier buckets. The switch itself lives in
+              the account menu, on every page; this line only states the result. */}
+          <div
+            className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600 dark:text-slate-300"
+            data-testid="conn-perspective"
+          >
+            <span>{networkPerspective({ signedIn, calcDone, scorePov }).label}</span>
+            <button
+              type="button"
+              onClick={() => setScoreExplainOpen(true)}
+              className="text-xs font-medium text-brand-link hover:underline"
+              data-testid="conn-perspective-explain"
+            >
+              What is this?
+            </button>
           </div>
 
           {filtersOpen && (

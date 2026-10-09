@@ -197,6 +197,32 @@ describe("what goes to disk", () => {
     expect(new Set((await readAll()).map((e) => e.kind))).toEqual(new Set([0, 10002]));
   });
 
+  /**
+   * The signed-in account's mute list, so muting reads it on the first render;
+   * nobody else's — a profile's "muted by" reads dozens, and a mute list can be
+   * thousands of entries long.
+   */
+  it("keeps the signed-in account's mute list, and nobody else's", async () => {
+    await cache.hydrateEventStore(ME);
+    await cache.writeEvents([signed(10000, [["p", OTHER]]), signed(10000, [["p", ME]], OTHER_SECRET)]);
+
+    expect((await readAll()).map((e) => [e.kind, e.pubkey])).toEqual([[10000, ME]]);
+  });
+
+  it("hydrates the signed-in account's mute list back into the store", async () => {
+    await cache.hydrateEventStore(ME);
+    await cache.writeEvents([signed(10000, [["p", OTHER]])]);
+
+    cache.__resetEventCache(); // as a page unload would
+    vi.resetModules();
+    const fresh = await import("./eventCache");
+    const added = await fresh.hydrateEventStore(ME);
+    cache = fresh;
+
+    expect(added).toBe(1);
+    expect(storeAdd.mock.calls.at(-1)?.[0]).toMatchObject({ kind: 10000, pubkey: ME });
+  });
+
   it("one row per coordinate, not one per version", async () => {
     // Both really signed: a mutated copy would be rejected as tampered, which
     // would prove nothing about the keying.

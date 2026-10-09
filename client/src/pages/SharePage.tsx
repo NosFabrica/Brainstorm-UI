@@ -1,6 +1,9 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRoute, useLocation, Link, Redirect } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRecentByKinds } from "@/hooks/useRecentByKinds";
+import { useStoreEvents } from "@/hooks/useStoreEvents";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import { useQuery } from "@tanstack/react-query";
 import {
   MessageSquare,
   Image as ImageIcon,
@@ -17,11 +20,9 @@ import {
   SlidersHorizontal,
   UserPlus,
   FileQuestion,
-  PenLine,
-  Search,
-  MessageCircle,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { EmojiText } from "@/components/ui/custom-emoji";
 import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
 import { scopedSearchHref } from "@/lib/searchSyntax";
@@ -33,12 +34,11 @@ import { WavlakeSongCard } from "@/components/search/cards";
 import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
 import {
-  fetchRecentByKinds,
   fetchLiveStreams,
   fetchEventsByIds,
-  fetchProfileMap,
   fetchOutboxRelayList,
   fetchProfilePrefs,
+  PROFILE_PREFS_D_TAG,
   publishProfilePrefs,
 } from "@/services/nostr";
 import { useLiveProfile } from "@/hooks/useLiveProfile";
@@ -85,10 +85,13 @@ import {
 } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useStickyBarVisible } from "@/hooks/useStickyBarVisible";
+import { cn } from "@/lib/utils";
 import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { FollowButton } from "@/components/share/FollowButton";
 import { ProfileMenu } from "@/components/share/ProfileMenu";
+import { ProfileActions } from "@/components/share/ProfileActions";
 import { TagPersonButton } from "@/components/share/TagPersonButton";
 import { ShareButton } from "@/components/share/ShareButton";
 import { isAdminPubkey } from "@/config/adminAccess";
@@ -116,6 +119,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 import { Nip05Handle } from "@/components/Nip05Check";
+import { useStoreReplaceable } from "@/hooks/useStoreReplaceable";
 
 const NO_RELAYS: string[] = [];
 
@@ -135,6 +139,8 @@ export default function SharePage() {
   const npub = pubkey ? safeNpub(pubkey) : "";
   const openLightbox = useLightbox();
   const loggedIn = useHasSession();
+  // The in-page "Join free"; the sticky one steps aside while it is on screen.
+  const { shown: stickyJoinShown, inlineRef: inlineJoinRef } = useStickyBarVisible();
   const [zapOpen, setZapOpen] = useState(false);
   // The pen beside Zap: each press asks the Trust reviews line to open its composer.
   const [composeRequest, setComposeRequest] = useState(0);
@@ -154,14 +160,16 @@ export default function SharePage() {
 
   // User-owned personalization (NIP-78): what the profile owner has chosen to
   // hide / reorder / emphasize. Opt-out — everything shows until they hide it.
-  const prefsQuery = useQuery({
-    queryKey: ["share-prefs", pubkey],
-    queryFn: () => fetchProfilePrefs(pubkey),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const publishedPrefs = useMemo(() => parseProfilePrefs(prefsQuery.data ?? {}), [prefsQuery.data]);
+  const prefsEvent = useStoreReplaceable(30078, pubkey, () => fetchProfilePrefs(pubkey), {
+    identifier: PROFILE_PREFS_D_TAG,
+  }).event;
+  const publishedPrefs = useMemo(() => {
+    try {
+      return parseProfilePrefs(prefsEvent ? JSON.parse(prefsEvent.content || "{}") : {});
+    } catch {
+      return parseProfilePrefs({});
+    }
+  }, [prefsEvent]);
 
   // Owner-only inline editing — while editing, the page previews the DRAFT live.
   const currentUser = useActiveAccountDisplay();
@@ -195,7 +203,6 @@ export default function SharePage() {
     }
   })();
   const myPov = loggedIn && calcDone && scorePov === "personalized";
-  const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfilePrefs>(EMPTY_PROFILE_PREFS);
   const [savingPrefs, setSavingPrefs] = useState(false);
@@ -230,8 +237,6 @@ export default function SharePage() {
     if (res.success) {
       clearProfilePrefsDraft(pubkey);
       setEditing(false);
-      queryClient.setQueryData(["share-prefs", pubkey], draft); // reflect immediately
-      queryClient.invalidateQueries({ queryKey: ["share-prefs", pubkey] });
     } else {
       setPrefsError(res.error || "Couldn't save");
     }
@@ -279,26 +284,20 @@ export default function SharePage() {
       prefs.pinnedFollowers.length > 0 ? prefs.pinnedFollowers : (followedByQuery.data ?? []).map((e) => e.pubkey),
     [prefs.pinnedFollowers, followedByQuery.data],
   );
-  const followedByProfilesQuery = useQuery({
-    queryKey: ["share-followedby-profiles", effectiveFollowerPubkeys.join(",")],
-    queryFn: () => fetchProfileMap(effectiveFollowerPubkeys),
-    enabled: effectiveFollowerPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const followedByProfiles = useLiveProfiles(effectiveFollowerPubkeys);
   const followedByScores = useMemo(
     () => new Map((followedByQuery.data ?? []).map((e) => [e.pubkey, e.influence])),
     [followedByQuery.data],
   );
   const topFollowers = useMemo(() => {
-    const profs = followedByProfilesQuery.data;
+    const profs = followedByProfiles;
     return effectiveFollowerPubkeys.map((pk) => ({
       pubkey: pk,
       score01: followedByScores.get(pk) ?? null,
       name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
       picture: profs?.get(pk)?.picture,
     }));
-  }, [effectiveFollowerPubkeys, followedByProfilesQuery.data, followedByScores]);
+  }, [effectiveFollowerPubkeys, followedByProfiles, followedByScores]);
 
   // A wider follower list (resolved) for the owner's "Followed by" picker — only
   // fetched while the Customize panel is open.
@@ -317,21 +316,15 @@ export default function SharePage() {
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const candidateProfilesQuery = useQuery({
-    queryKey: ["share-candidate-profiles", (followerCandidatesQuery.data ?? []).join(",")],
-    queryFn: () => fetchProfileMap(followerCandidatesQuery.data ?? []),
-    enabled: (followerCandidatesQuery.data?.length ?? 0) > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const candidateProfiles = useLiveProfiles(followerCandidatesQuery.data ?? []);
   const followerCandidates = useMemo(() => {
-    const profs = candidateProfilesQuery.data;
+    const profs = candidateProfiles;
     return (followerCandidatesQuery.data ?? []).map((pk) => ({
       pubkey: pk,
       name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
       picture: profs?.get(pk)?.picture,
     }));
-  }, [followerCandidatesQuery.data, candidateProfilesQuery.data]);
+  }, [followerCandidatesQuery.data, candidateProfiles]);
 
   const overviewQuery = useQuery({
     queryKey: ["share-overview", pubkey],
@@ -378,120 +371,54 @@ export default function SharePage() {
     retry: false,
   });
 
-  const notesQuery = useQuery({
-    queryKey: ["share-notes", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [1, 6], 5, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const notesQuery = useRecentByKinds(pubkey, [1, 6], 5, relayHints);
 
-  const photosQuery = useQuery({
-    queryKey: ["share-photos", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [20], 12, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const photosQuery = useRecentByKinds(pubkey, [20], 12, relayHints);
 
-  const articlesQuery = useQuery({
-    queryKey: ["share-articles", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [30023], 5, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const articlesQuery = useRecentByKinds(pubkey, [30023], 5, relayHints);
 
   // A wider net of recent notes used ONLY to harvest images for the photo grid,
   // so it can fill 3/6/9 even when the latest 5 notes happen to be text-only.
-  const photoNotesQuery = useQuery({
-    queryKey: ["share-photo-notes", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [1], 40, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const photoNotesQuery = useRecentByKinds(pubkey, [1], 40, relayHints);
 
-  const videosQuery = useQuery({
-    queryKey: ["share-videos", pubkey],
-    // NIP-71: normal (21) and short (22) videos, plus their addressable
-    // twins (34235 / 34236) — Divine publishes shorts as 34236.
-    queryFn: () => fetchRecentByKinds(pubkey, [21, 22, 34235, 34236], 4, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // NIP-71: normal (21) and short (22) videos, plus their addressable
+  // twins (34235 / 34236) — Divine publishes shorts as 34236.
+  const videosQuery = useRecentByKinds(pubkey, [21, 22, 34235, 34236], 4, relayHints);
 
-  const musicQuery = useQuery({
-    queryKey: ["share-music", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [31337], 3, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const musicQuery = useRecentByKinds(pubkey, [31337], 3, relayHints);
 
-  const liveQuery = useQuery({
-    queryKey: ["share-live", pubkey],
-    queryFn: () => fetchLiveStreams(pubkey, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  // Authored by the streaming platform, not the person: no store filter names them, so the ask's answer is the list.
+  const liveQuery = useStoreEvents(pubkey ? `share-live:${pubkey}` : null, null, () =>
+    fetchLiveStreams(pubkey, { relayHints }),
+  );
 
   // NIP-38 user status (kind 30315): a "general" line ("what I'm up to") and an
   // optional "music" now-playing line. Shown in the hero under the name.
-  const statusQuery = useQuery({
-    queryKey: ["share-status", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [30315], 4, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const statusQuery = useRecentByKinds(pubkey, [30315], 4, relayHints);
 
   // Featured = the first pin from the NIP-51 pin list (kind 10001), resolved.
-  const pinsQuery = useQuery({
-    queryKey: ["share-pins", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [10001], 1, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const pinnedId = pinsQuery.data?.[0]?.tags.find((t) => t[0] === "e")?.[1] as string | undefined;
-  const pinnedQuery = useQuery({
-    queryKey: ["share-pinned", pinnedId],
-    queryFn: () => fetchEventsByIds([pinnedId as string], relayHints),
-    enabled: !!pinnedId,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const pinsQuery = useRecentByKinds(pubkey, [10001], 1, relayHints);
+  const pinnedId = pinsQuery.events?.[0]?.tags.find((t) => t[0] === "e")?.[1] as string | undefined;
+  const pinnedQuery = useStoreEvents(
+    pinnedId ? `share-pinned:${pinnedId}` : null,
+    pinnedId ? [{ ids: [pinnedId] }] : null,
+    () => fetchEventsByIds([pinnedId as string], relayHints),
+  );
 
   // Calendar events (NIP-52, kind 31922 date / 31923 time).
-  const eventsQuery = useQuery({
-    queryKey: ["share-events", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [31922, 31923], 8, { relayHints }),
-    enabled: !!pubkey,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
+  const eventsQuery = useRecentByKinds(pubkey, [31922, 31923], 8, relayHints);
 
   // NIP-65 (kind 10002) relay list → "Active on N relays" presence signal.
-  const relaysQuery = useQuery({
-    queryKey: ["share-relays", pubkey],
-    // The relay URLs themselves, write relays first: the count feeds the
-    // tenure line, the first four ride in the nprofile a power user copies.
-    queryFn: async () => {
-      // The shared NIP-65 reader, not a third hand-rolled one — this page had
-      // its own tag loop with its own idea of what a relay URL looks like.
-      const ev = await fetchOutboxRelayList(pubkey);
-      if (!ev) return [] as string[];
-      const list = parseRelayList(ev);
-      return dedupeRelays([...list.write, ...list.read]);
-    },
-    enabled: !!pubkey,
-    staleTime: 10 * 60_000,
-    retry: false,
-  });
-  const relays = relaysQuery.data ?? NO_RELAYS;
+  // The relay URLs themselves, write relays first: the count feeds the
+  // tenure line, the first four ride in the nprofile a power user copies.
+  const relayList = useStoreReplaceable(10002, pubkey, () => fetchOutboxRelayList(pubkey), {
+    window: { minMs: 10 * 60_000 },
+  }).event;
+  const relays = useMemo(() => {
+    if (!relayList) return NO_RELAYS;
+    const list = parseRelayList(relayList);
+    return dedupeRelays([...list.write, ...list.read]);
+  }, [relayList]);
   const relayCount = relays.length;
   const profileRelays = relays.length ? relays : relayHints;
 
@@ -531,13 +458,13 @@ export default function SharePage() {
    */
   const lastPostedAt = useMemo(() => {
     const arrays = [
-      notesQuery.data,
-      photosQuery.data,
-      articlesQuery.data,
-      photoNotesQuery.data,
-      videosQuery.data,
-      musicQuery.data,
-      eventsQuery.data,
+      notesQuery.events,
+      photosQuery.events,
+      articlesQuery.events,
+      photoNotesQuery.events,
+      videosQuery.events,
+      musicQuery.events,
+      eventsQuery.events,
     ];
     let newest = 0;
     const nowSec = Math.floor(Date.now() / 1000);
@@ -550,13 +477,13 @@ export default function SharePage() {
       }
     return newest;
   }, [
-    notesQuery.data,
-    photosQuery.data,
-    articlesQuery.data,
-    photoNotesQuery.data,
-    videosQuery.data,
-    musicQuery.data,
-    eventsQuery.data,
+    notesQuery.events,
+    photosQuery.events,
+    articlesQuery.events,
+    photoNotesQuery.events,
+    videosQuery.events,
+    musicQuery.events,
+    eventsQuery.events,
   ]);
   const overview = overviewQuery.data as { influence?: number | null; counts?: Record<string, number> } | undefined;
   // The overview score is viewer-relative: house/network POV when logged out,
@@ -616,11 +543,11 @@ export default function SharePage() {
         out.push({ url: u, id: ev.id, pubkey: ev.pubkey });
       }
     };
-    for (const ev of photosQuery.data ?? []) add(ev, extractImageUrls(ev.content, ev.tags, { allImeta: true }));
-    for (const ev of photoNotesQuery.data ?? []) add(ev, extractImageUrls(ev.content, ev.tags));
-    for (const ev of notesQuery.data ?? []) add(ev, extractImageUrls(ev.content, ev.tags));
+    for (const ev of photosQuery.events ?? []) add(ev, extractImageUrls(ev.content, ev.tags, { allImeta: true }));
+    for (const ev of photoNotesQuery.events ?? []) add(ev, extractImageUrls(ev.content, ev.tags));
+    for (const ev of notesQuery.events ?? []) add(ev, extractImageUrls(ev.content, ev.tags));
     return out.slice(0, 9);
-  }, [photosQuery.data, photoNotesQuery.data, notesQuery.data, brokenPhotos]);
+  }, [photosQuery.events, photoNotesQuery.events, notesQuery.events, brokenPhotos]);
 
   // Align the photo grid to full rows of 3 (3/6/9) so it never looks ragged;
   // fall back to whatever exists when there are fewer than 3.
@@ -631,7 +558,7 @@ export default function SharePage() {
 
   const articles = useMemo(
     () =>
-      (articlesQuery.data ?? []).map((ev) => {
+      (articlesQuery.events ?? []).map((ev) => {
         const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
         return {
           id: ev.id,
@@ -641,12 +568,12 @@ export default function SharePage() {
           ts: ev.created_at,
         };
       }),
-    [articlesQuery.data],
+    [articlesQuery.events],
   );
 
   const videos = useMemo(
     () =>
-      (videosQuery.data ?? [])
+      (videosQuery.events ?? [])
         .map((ev) => {
           const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
           return {
@@ -658,12 +585,12 @@ export default function SharePage() {
           };
         })
         .filter((v) => v.url || v.poster),
-    [videosQuery.data],
+    [videosQuery.events],
   );
 
   const tracks = useMemo(
     () =>
-      (musicQuery.data ?? []).map((ev) => {
+      (musicQuery.events ?? []).map((ev) => {
         const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
         const genres = ev.tags
           .filter((t) => t[0] === "t")
@@ -680,7 +607,7 @@ export default function SharePage() {
           ts: ev.created_at,
         };
       }),
-    [musicQuery.data],
+    [musicQuery.events],
   );
 
   // The person's Wavlake catalogue beside their relay tracks: Joe Martin
@@ -711,7 +638,7 @@ export default function SharePage() {
 
   // NIP-53 live streams (kind 30311) → live now + upcoming only (no replays).
   const liveStreams = useMemo(() => {
-    const evs = (liveQuery.data ?? []) as MinimalEvent[];
+    const evs = (liveQuery.events ?? []) as MinimalEvent[];
     const nowSec = Math.floor(Date.now() / 1000);
     const parsed = evs.map((ev) => {
       const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
@@ -745,11 +672,11 @@ export default function SharePage() {
       .sort((a, b) => a.starts - b.starts)
       .slice(0, 2);
     return { liveNow, upcoming, has: liveNow.length + upcoming.length > 0 };
-  }, [liveQuery.data]);
+  }, [liveQuery.events]);
 
   // NIP-38 status: latest non-expired "general" line + optional "music" now-playing.
   const status = useMemo(() => {
-    const evs = (statusQuery.data ?? []) as MinimalEvent[];
+    const evs = (statusQuery.events ?? []) as MinimalEvent[];
     const nowSec = Math.floor(Date.now() / 1000);
     const pick = (d: string) => {
       const matches = evs
@@ -760,10 +687,10 @@ export default function SharePage() {
         })
         .sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
       const text = matches[0]?.content?.trim();
-      return text || null;
+      return text ? { text, tags: matches[0].tags } : null;
     };
     return { general: pick("general"), music: pick("music") };
-  }, [statusQuery.data]);
+  }, [statusQuery.events]);
 
   // "Posts about" — top hashtags across the notes + articles we already fetched.
   const topics = useMemo(() => {
@@ -783,21 +710,21 @@ export default function SharePage() {
           }
         }
     };
-    add((notesQuery.data ?? []) as MinimalEvent[]);
-    add((articlesQuery.data ?? []) as MinimalEvent[]);
+    add((notesQuery.events ?? []) as MinimalEvent[]);
+    add((articlesQuery.events ?? []) as MinimalEvent[]);
     // Top 6 by frequency — capped so the row stays a single line (TopicChips also
     // clips any overflow, so it never wraps to a second line on mobile).
     return [...counts.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
       .map(([t]) => t);
-  }, [notesQuery.data, articlesQuery.data]);
+  }, [notesQuery.events, articlesQuery.events]);
 
-  const featured = ((pinnedQuery.data ?? [])[0] ?? null) as MinimalEvent | null;
+  const featured = ((pinnedQuery.events ?? [])[0] ?? null) as MinimalEvent | null;
 
   // NIP-52 calendar events → upcoming (soonest-first) + a small past group.
   const calendarEvents = useMemo(() => {
-    const evs = (eventsQuery.data ?? []) as MinimalEvent[];
+    const evs = (eventsQuery.events ?? []) as MinimalEvent[];
     const nowSec = Math.floor(Date.now() / 1000);
     const parsed = evs
       .map((ev) => {
@@ -814,7 +741,7 @@ export default function SharePage() {
       .sort((a, b) => b.start - a.start)
       .slice(0, 2);
     return { upcoming, past };
-  }, [eventsQuery.data]);
+  }, [eventsQuery.events]);
 
   // Rich-note references: collect the pubkeys + event ids the notes mention /
   // reply to / quote / repost, then resolve them in two batched relay queries so
@@ -822,7 +749,7 @@ export default function SharePage() {
   // The featured post counts too: pinned months ago, it is rarely among the
   // latest notes, and without it here its @mentions read as "@nprofile1q…"
   // (Joe Martin's pinned music video, 2026-09-05).
-  const noteEvents = useMemo(() => (notesQuery.data ?? []) as MinimalEvent[], [notesQuery.data]);
+  const noteEvents = useMemo(() => (notesQuery.events ?? []) as MinimalEvent[], [notesQuery.events]);
   // Everything these notes refer to — quoted events, articles, and a profile
   // for everyone mentioned, answered or quoted, plus the bio's own mentions —
   // through the hook the search page shares (one recipe, both pages).
@@ -915,7 +842,7 @@ export default function SharePage() {
 
   const profileLoading = liveProfile.loading;
   const hasContent =
-    (notesQuery.data?.length ?? 0) > 0 ||
+    (notesQuery.events?.length ?? 0) > 0 ||
     photos.length > 0 ||
     articles.length > 0 ||
     sellingCount > 0 ||
@@ -967,38 +894,10 @@ export default function SharePage() {
   // read as text rows under the bio (ProfileDetails). They used to be icon-only
   // glyphs up here; a power user could not find the bolt, and tapping it
   // opened a zap flow when they wanted the address (2026-09-05). Top-right
-  // now holds ACTIONS only: the magnifier and the review pen beside Follow/⋯.
-  // The pen gives a vouch. Signed-in viewers on someone else's page only.
+  // now holds ACTIONS only — and labelled ones: Message, Follow, ⋯. The
+  // review pen and the post-search magnifier that sat here as bare icons
+  // moved into the ⋯ menu as rows with words (Benjamin, 2026-10-09).
   const hasMyReview = !!currentUser?.pubkey && !!myEndorsements?.vouches?.some((v) => v.pubkey === currentUser.pubkey);
-  const reviewIcon = canReview ? (
-    <button
-      type="button"
-      onClick={() => setComposeRequest((n) => n + 1)}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 hover:text-brand-primary dark:hover:bg-slate-800 ${
-        hasMyReview ? "text-brand-primary" : "text-slate-500 dark:text-slate-400"
-      }`}
-      title={hasMyReview ? "Edit your review" : "Write a review"}
-      aria-label={hasMyReview ? "Edit your review" : "Write a review"}
-      data-testid="share-review"
-    >
-      <PenLine className="h-4 w-4" />
-    </button>
-  ) : null;
-  // The magnifier: everything this person published, searchable — the door
-  // X, YouTube and Facebook put on a profile. Everyone gets it; search is public.
-  const searchLabel = profile.display_name || profile.name ? `Search ${displayName}'s posts` : "Search their posts";
-  const searchIcon = (
-    <button
-      type="button"
-      onClick={() => setLocation(scopedSearchHref(pubkey, "everything"))}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"
-      title={searchLabel}
-      aria-label={searchLabel}
-      data-testid="share-search-posts"
-    >
-      <Search className="h-4 w-4" />
-    </button>
-  );
   // The action pieces, kept separate so we can place them differently per
   // breakpoint: the magnifier, the review pen, Follow (signed in, not the
   // owner) and the ⋯ menu — everyone's, since it holds the copies and the
@@ -1023,19 +922,6 @@ export default function SharePage() {
         displayName={displayName}
       />
     ) : null;
-  // Message: opens (or starts) the private chat with this person.
-  const messageIcon =
-    loggedIn && !isOwner ? (
-      <Link
-        href={`/messages/${npub}`}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"
-        title={`Message ${displayName}`}
-        aria-label={`Message ${displayName}`}
-        data-testid="share-message"
-      >
-        <MessageCircle className="h-4 w-4" />
-      </Link>
-    ) : null;
   const profileMenu = (
     <ProfileMenu
       key={`${rel.isMuted}-${!!rel.report}`}
@@ -1045,30 +931,21 @@ export default function SharePage() {
       viewer={{ loggedIn, isOwner, isAdmin: isAdminPubkey(currentUser?.pubkey) }}
       initialMuted={rel.isMuted}
       alreadyReported={!!rel.report}
+      searchHref={scopedSearchHref(pubkey, "top")}
+      review={canReview ? (hasMyReview ? "edit" : "write") : null}
+      onReview={() => setComposeRequest((n) => n + 1)}
     />
   );
-  // Desktop: magnifier + pen + Follow + ⋯ together, top-right with the avatar.
-  const topRightActions = (
-    <div className="hidden shrink-0 items-center gap-2 sm:flex" data-testid="share-actions-topright">
-      {searchIcon}
-      {reviewIcon}
-      {messageIcon}
-      {followButton}
-      {profileMenu}
-    </div>
-  );
-  // Phone: the icon actions sit across from the avatar, in the slot under
-  // the banner (X's placement) — a lone magnifier in its own row read as
-  // orphaned (Benjamin, 2026-09-07). Follow keeps its own full-width row
-  // below the identity, so the primary button can stretch; signed out
-  // there is no such row.
-  const mobileTopIcons = (
-    <div className="flex items-center gap-1 sm:hidden" data-testid="share-actions-mobile-top">
-      {searchIcon}
-      {reviewIcon}
-      {messageIcon}
-      {profileMenu}
-    </div>
+  // Desktop: Message + Follow + ⋯ top-right with the avatar. Phone: Message
+  // and ⋯ across from the avatar; Follow keeps its own full-width row below.
+  const profileActions = (
+    <ProfileActions
+      viewer={{ loggedIn, isOwner }}
+      npub={npub}
+      displayName={displayName}
+      follow={followButton}
+      menu={profileMenu}
+    />
   );
   const mobileFollowRow = followButton ? (
     <div className="mt-3 flex items-center gap-2 sm:hidden" data-testid="share-actions-mobile">
@@ -1173,8 +1050,7 @@ export default function SharePage() {
               </div>
               {/* Desktop: magnifier + chip + pen + Follow/⋯ top-right. Phones:
                 the icons here, Follow/⋯ in a row below the identity. */}
-              {topRightActions}
-              {mobileTopIcons}
+              {profileActions}
             </div>
 
             <div className="mt-2.5 md:flex md:items-start md:gap-6">
@@ -1185,7 +1061,7 @@ export default function SharePage() {
                     style={{ fontFamily: "var(--font-display)" }}
                     data-testid="share-name"
                   >
-                    {displayName}
+                    <EmojiText text={displayName} tags={liveProfile.event} />
                   </h1>
                   <TierWordChip score01={coinScore01} flagged={isFlagged} />
                   {/* "Identity confirmed" — trusted reviewers said this is really them.
@@ -1229,19 +1105,21 @@ export default function SharePage() {
                 {/* The bio: three lines at rest, all of it on a tap. Right under the
               identity — where every network puts it (Benjamin, 2026-09-08: it
               sat below a status, the key and an empty tag row). */}
-                {!isHidden("bio") && profile.about && <ProfileBio text={profile.about} profiles={noteProfiles} />}
+                {!isHidden("bio") && profile.about && (
+                  <ProfileBio text={profile.about} profiles={noteProfiles} tags={liveProfile.event?.tags} />
+                )}
                 {/* NIP-38 status — a live "now" line, quiet, under the bio (general + now-playing). */}
                 {!isHidden("status") && status.general && (
                   <p
                     className="mt-1 text-sm leading-snug text-slate-600 dark:text-slate-300"
                     data-testid="share-status"
                   >
-                    {status.general}
+                    <EmojiText text={status.general.text} tags={status.general.tags} />
                   </p>
                 )}
                 {!isHidden("status") && status.music && (
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="share-status-music">
-                    ♪ {status.music}
+                    ♪ <EmojiText text={status.music.text} tags={status.music.tags} />
                   </p>
                 )}
 
@@ -1428,17 +1306,18 @@ export default function SharePage() {
                             className="mt-0.5 text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
                             style={{ fontFamily: "var(--font-display)" }}
                           >
-                            Connect with {displayName}
+                            Connect with <EmojiText text={displayName} tags={liveProfile.event} />
                           </h3>
                           <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
                             Real humans, not bots — join a network you own and you're instantly connected to{" "}
-                            {displayName}.
+                            <EmojiText text={displayName} tags={liveProfile.event} />.
                           </p>
                         </div>
                       </div>
                       {/* CTA — right on desktop, full-width below on mobile */}
                       <div className="shrink-0 sm:text-right">
                         <Link
+                          ref={inlineJoinRef}
                           href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
                           className="inline-flex h-11 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-brand-primary px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover sm:w-auto"
                           data-testid="share-wot-cta"
@@ -1545,7 +1424,7 @@ export default function SharePage() {
               className={orderClass("articles")}
             >
               <div className="space-y-3">
-                {(articlesQuery.data ?? []).map((ev) => (
+                {(articlesQuery.events ?? []).map((ev) => (
                   <EmbeddedArticleCard
                     key={ev.id}
                     event={ev as MinimalEvent}
@@ -1774,20 +1653,33 @@ export default function SharePage() {
           </p>
         </div>
 
-        {/* Sticky mobile Join bar — a persistent CTA as a logged-out visitor scrolls. */}
+        {/* Sticky mobile Join bar — a persistent CTA as a logged-out visitor scrolls.
+            It sits on the tab bar, which already clears the home indicator, so it adds
+            no safe-area padding of its own (that was an empty band between the two).
+            Out of the way while the reader scrolls down or the in-page one is in view:
+            the pair took a quarter of the screen the whole way down. 
+            Below the tab bar (z-30 under its z-40): sliding away, it passes behind it
+            rather than over the tab labels. */}
         {!loggedIn && (
           <>
-            <div className="h-20 sm:hidden" aria-hidden />
+            <div className="h-16 sm:hidden" aria-hidden />
             <div
-              className="fixed inset-x-0 bottom-[var(--bs-bottom-chrome,0px)] z-40 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:hidden"
+              className={cn(
+                "fixed inset-x-0 bottom-[max(var(--bs-bottom-chrome,0px),env(safe-area-inset-bottom))] z-30 border-t border-slate-200 bg-white/95 px-4 py-2 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] backdrop-blur transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none dark:border-slate-800 dark:bg-slate-900/95 sm:hidden",
+                !stickyJoinShown && "pointer-events-none translate-y-full opacity-0",
+              )}
+              aria-hidden={!stickyJoinShown || undefined}
               data-testid="share-invite-sticky"
             >
               <Link
                 href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
-                className="inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
+                tabIndex={stickyJoinShown ? undefined : -1}
+                className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover"
                 data-testid="share-wot-cta-sticky"
               >
-                Join free — connect with {displayName.split(" ")[0] || displayName} <ArrowRight className="h-4 w-4" />
+                Join free — connect with{" "}
+                <EmojiText text={displayName.split(" ")[0] || displayName} tags={liveProfile.event} />{" "}
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </>

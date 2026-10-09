@@ -29,6 +29,8 @@ export interface Thing {
   previews: string[];
   /** What this kind's own card draws beyond the common shape (components/search/thingCards). */
   detail: ThingDetail;
+  /** The event's NIP-30 `emoji` tags, for drawing `:shortcode:` in the title and description. */
+  emoji: string[][];
 }
 
 /** Where a prediction market stands: taking bets, waiting on its oracle, settled, or called off. */
@@ -255,6 +257,7 @@ function thing(partial: Partial<Thing> & { title: string; detail: ThingDetail })
     stars: null,
     link: null,
     previews: [],
+    emoji: [],
     ...partial,
   };
 }
@@ -275,6 +278,7 @@ export function describeThing(ev: EventLike): Thing | null {
     ...raw,
     title: decodeEntities(raw.title),
     description: raw.description && decodeEntities(raw.description),
+    emoji: ev.tags.filter((t) => t[0] === "emoji"),
   };
   read.set(ev, thing);
   return thing;
@@ -309,11 +313,12 @@ function readThing(ev: EventLike): Thing | null {
             .map((t) => t[1].toLowerCase()),
         ),
       ];
-      const image = tag(ev, "image");
+      // NIP-72 says `image`; Membler publishes the picture as `icon`.
+      const image = [tag(ev, "image"), tag(ev, "icon")].find(isHttp);
       return thing({
         title,
         description: tag(ev, "description") ?? null,
-        image: isHttp(image) ? image : null,
+        image: image ?? null,
         facts: moderators.length > 0 ? [plural(moderators.length, "moderator")] : [],
         detail: {
           type: "community",

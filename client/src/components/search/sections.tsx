@@ -1,5 +1,5 @@
 /**
- * The composed page's building blocks, shared by the search's Everything
+ * The composed page's building blocks, shared by the search's Top
  * page and the home feed: one section stream per band, a kicker + "More →"
  * frame, and rows that fold an author's near-duplicates behind a chip.
  */

@@ -9,6 +9,9 @@ import { LoginPicker } from "@/components/LoginPicker";
 import { KeySignInModal } from "@/components/KeySignInModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
+import { isInstalledPhoneApp } from "@/lib/installedApp";
+import { isIOS } from "@/lib/platform";
+import { useExtensionUnreachable } from "@/hooks/useExtensionUnreachable";
 import { Wordmark } from "@/components/Wordmark";
 import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
 import { HERO_SOLO } from "@/lib/heroScenes";
@@ -55,6 +58,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [failureOpen, setFailureOpen] = useState(false);
   const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
+  /** Opened by asking for the key form, not by an extension failing. */
+  const [keyFirst, setKeyFirst] = useState(false);
   const [failureMessage, setFailureMessage] = useState("");
   const [remoteOpen, setRemoteOpen] = useState(false);
 
@@ -70,6 +75,9 @@ export default function LoginPage() {
     }
   })();
   const hasAccounts = identities.length > 0;
+  // Installed to a phone's home screen with no extension in it: the signer app leads
+  // instead of a button that can only fail. One that is there keeps its button.
+  const installedApp = useExtensionUnreachable();
   const nextPath = getNextPath();
   const inviterPubkey = getInviterPubkey();
 
@@ -113,6 +121,7 @@ export default function LoginPage() {
       if (err instanceof LoginError) {
         setFailureCode(err.code);
         setFailureMessage(err.message);
+        setKeyFirst(false);
         setFailureOpen(true);
       } else {
         setError(err instanceof Error ? err.message : "Couldn't complete sign-in. Please try again.");
@@ -123,6 +132,7 @@ export default function LoginPage() {
   };
 
   const openNsec = () => {
+    setKeyFirst(true);
     setFailureCode("NO_EXTENSION");
     setFailureMessage("Paste your key to sign in.");
     setFailureOpen(true);
@@ -206,6 +216,14 @@ export default function LoginPage() {
               </p>
             </div>
 
+            {/* iOS gives a Home Screen app storage of its own: someone signed in in
+              Safari arrives here signed out, and should hear that it's once only. */}
+            {isInstalledPhoneApp() && !hasAccounts && isIOS() && (
+              <p className="mb-4 text-sm text-muted-foreground" data-testid="login-installed-app-note">
+                The app keeps its own sign-in, separate from Safari's — sign in once here and it stays.
+              </p>
+            )}
+
             {/* Sent here from a payment that belongs to another account on this
               device: say which account to pick before they pick one. */}
             {switchHint && (
@@ -243,33 +261,35 @@ export default function LoginPage() {
             )}
 
             <div className={hasAccounts ? "space-y-3" : "mt-6 space-y-3"}>
-              <Button
-                onClick={onLogin}
-                disabled={loading}
-                variant="neutral"
-                size="lg"
-                className="w-full"
-                data-testid="button-signin-extension"
-              >
-                {loading ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="square"
-                    aria-hidden="true"
-                  >
-                    <path d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108" />
-                    <path d="M2 11.1914H14.88" />
-                    <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
-                  </svg>
-                )}
-                <span>{loading ? "Connecting…" : "Sign in with your extension"}</span>
-                <ArrowRight />
-              </Button>
+              {!installedApp && (
+                <Button
+                  onClick={onLogin}
+                  disabled={loading}
+                  variant="neutral"
+                  size="lg"
+                  className="w-full"
+                  data-testid="button-signin-extension"
+                >
+                  {loading ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="square"
+                      aria-hidden="true"
+                    >
+                      <path d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108" />
+                      <path d="M2 11.1914H14.88" />
+                      <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
+                    </svg>
+                  )}
+                  <span>{loading ? "Connecting…" : "Sign in with your extension"}</span>
+                  <ArrowRight />
+                </Button>
+              )}
 
               {/* One row for every remote signer — nsec.app, Amber's bunker mode,
                 Keycast, anything self-hosted. Their differences are absorbed at
@@ -277,7 +297,7 @@ export default function LoginPage() {
                 choices there are. */}
               <Button
                 type="button"
-                variant="outline"
+                variant={installedApp ? "neutral" : "outline"}
                 size="lg"
                 onClick={() => setRemoteOpen(true)}
                 className="w-full"
@@ -407,6 +427,7 @@ export default function LoginPage() {
         errorMessage={failureMessage}
         onLoginSuccess={handleNsecLoginSuccess}
         onRetryExtension={handleRetryExtension}
+        startWithKey={keyFirst}
       />
 
       <RemoteSignerModal

@@ -1,10 +1,12 @@
 import { parseTrack } from "@/lib/trackEvent";
 import { formatListingPrice, listingCardLine, parseListing } from "@/lib/listing";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
+import type { ProductCardGroup } from "@/lib/listingVariants";
 import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRate";
 import type { WavlakeSong } from "@/lib/wavlake";
 import type { PodcastSong } from "@/lib/dlists";
 import type { FountainItem } from "@/lib/fountain";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
 import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
@@ -25,6 +27,7 @@ import {
   FileAudio,
   FileVideo,
   ListChecks,
+  ShieldCheck,
   MapPin,
   MessageSquare,
   Package,
@@ -38,8 +41,6 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Chip } from "@/components/ui/chip";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { eventStore } from "@/lib/eventStore";
-import { fetchProfileMap } from "@/services/nostr";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
 import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
@@ -52,6 +53,9 @@ import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
+import { TRUSTED_PEOPLE_KIND, readTrustedList } from "@/lib/trustedList";
+import { ITEM_LIST_KINDS, listCountLabel, listTitle, readListItems } from "@/lib/listItems";
+import { ItemListPreview } from "@/components/share/ListPreview";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -110,7 +114,7 @@ export function AuthorRow({
         </AvatarFallback>
       </Avatar>
       <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
-        {author ? getDisplayLabel(author) : "Unknown"}
+        {author ? <ProfileEmojiText pubkey={author.pubkey} text={getDisplayLabel(author)} /> : "Unknown"}
       </span>
       <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{fmtWhen(created_at)}</span>
       {trailing}
@@ -179,6 +183,7 @@ export function CardShell({
   fill = false,
   corner,
   testId,
+  href,
 }: {
   event: NostrEvent;
   children: React.ReactNode;
@@ -204,6 +209,8 @@ export function CardShell({
    *  Lives outside the card's own link like openIn does. */
   corner?: React.ReactNode;
   testId?: string;
+  /** Where the card goes, when the event's own page needs more than its id — a relay hint for a list item. */
+  href?: string;
 }) {
   const footer = openInPlacement === "footer";
   const iconOnly = openInPlacement === "corner-icon";
@@ -213,7 +220,7 @@ export function CardShell({
       data-testid={testId}
     >
       <Link
-        href={eventPath(event)}
+        href={href ?? eventPath(event)}
         className={`block rounded-xl p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 sm:p-4 ${fill ? "h-full" : ""}`}
       >
         {children}
@@ -281,6 +288,7 @@ function naddrOf(event: NostrEvent): string | null {
 // too); re-exported here for the callers that always found them on the card.
 export { mediaUrlOf, mediaPosterOf, isVideoUrl } from "@/lib/mediaKind";
 import { mediaUrlOf, mediaPosterOf, mediaKindOf, mediaMimeOf } from "@/lib/mediaKind";
+import { EmojiText, ProfileEmojiText } from "@/components/ui/custom-emoji";
 
 export function MediaCard({
   event,
@@ -348,11 +356,15 @@ export function MediaCard({
       />
       {caption && (
         <p className="mt-1.5 line-clamp-2 break-words text-sm text-slate-700 dark:text-slate-200">
-          {caption
-            .split(/(nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi)
-            .map((part, i) =>
-              /^nostr:/i.test(part) ? <MentionChip key={i} uri={part} /> : <span key={i}>{part}</span>,
-            )}
+          {caption.split(/(nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi).map((part, i) =>
+            /^nostr:/i.test(part) ? (
+              <MentionChip key={i} uri={part} />
+            ) : (
+              <span key={i}>
+                <EmojiText text={part} tags={event} />
+              </span>
+            ),
+          )}
         </p>
       )}
       {isVideo && url ? (
@@ -457,7 +469,9 @@ export function AppCard({
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
-              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <EmojiText text={name} tags={event} />
+              </p>
               <KindPill event={event} mixed={false} />
             </div>
             {summary && (
@@ -465,7 +479,7 @@ export function AppCard({
                 className="mt-0.5 line-clamp-2 min-h-[2rem] break-words text-xs leading-4 text-slate-500 dark:text-slate-400"
                 data-testid={`app-summary-${event.id}`}
               >
-                {summary}
+                <EmojiText text={summary} tags={event} />
               </p>
             )}
             {/* The chips live in the text column, beside the icon: with no
@@ -639,19 +653,7 @@ export function RepoCard({
   const faces = counts.contributors.slice(0, 3);
   const faceScoreOf = useAuthorScores(faces);
   const faceRing = useTierRing();
-  const [faceProfiles, setFaceProfiles] = useState<Map<string, MemberProfile>>(new Map());
-  useEffect(() => {
-    if (faces.length === 0) return;
-    let alive = true;
-    void fetchProfileMap(faces).then((res) => {
-      if (!alive || res.size === 0) return;
-      setFaceProfiles(new Map([...res].map(([pk, c]) => [pk, c as MemberProfile])));
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [faces.join(",")]);
+  const faceProfiles = useFaceProfiles(faces);
   return (
     // Identity flush left, the code glyph balancing the top-right corner —
     // the App/List/Repo-page anatomy, now on the card too.
@@ -670,7 +672,9 @@ export function RepoCard({
           <div
             className={`flex min-w-0 items-center gap-2 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}
           >
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <EmojiText text={name} tags={event} />
+            </p>
             {/* A patch, pull request or issue announces itself, as it always has;
                 a repo on the Repos tab says Repo only with kind labels on. */}
             {isRepo ? (
@@ -723,7 +727,9 @@ export function RepoCard({
             </div>
           )}
           {description && (
-            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">{description}</p>
+            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
+              <EmojiText text={description} tags={event} />
+            </p>
           )}
           {!isRepo && (comments ?? 0) > 0 && (
             <p
@@ -838,7 +844,9 @@ export function LiveCard({
           {/* The Watch link sits in the corner — the title row leaves it room
               so a long title and the live chip never run beneath it. */}
           <div className={`flex min-w-0 items-center gap-2 ${openIn ? "pr-14" : ""}`}>
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <EmojiText text={title} tags={event} />
+            </p>
             <KindPill event={event} mixed={false} />
             {status && (
               <Chip
@@ -852,7 +860,9 @@ export function LiveCard({
             )}
           </div>
           {summary && (
-            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">{summary}</p>
+            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
+              <EmojiText text={summary} tags={event} />
+            </p>
           )}
           <div className="mt-1.5">
             <AuthorRow author={author} score={score} created_at={event.created_at} />
@@ -999,7 +1009,9 @@ export function LiveTile({
             </span>
           )}
         </div>
-        <p className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-slate-900 dark:text-slate-100">{title}</p>
+        <p className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-slate-900 dark:text-slate-100">
+          <EmojiText text={title} tags={event} />
+        </p>
       </Link>
       <div className={`mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 ${openIn ? "pr-7" : ""}`}>
         <Avatar className={`h-6 w-6 shrink-0 ${ring}`}>
@@ -1042,40 +1054,9 @@ export function LiveTile({
  * out is the one thing you'd do next: add an upcoming event to your calendar,
  * or watch a past one's recording when there is one.
  */
-/** Profiles for a few faces: the store first, one fetch for the rest. */
+/** Profiles for a few faces, live. */
 export function useFaceProfiles(pubkeys: string[]): Map<string, MemberProfile> {
-  const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
-  const key = pubkeys.join(",");
-  useEffect(() => {
-    if (!key) return;
-    const known = new Map<string, MemberProfile>();
-    const missing: string[] = [];
-    for (const pk of key.split(",")) {
-      const stored = eventStore.getReplaceable(0, pk);
-      if (stored) {
-        try {
-          known.set(pk, JSON.parse(stored.content) as MemberProfile);
-        } catch {
-          /* unparseable — fallback face */
-        }
-      } else missing.push(pk);
-    }
-    setProfiles(known);
-    if (missing.length === 0) return;
-    let alive = true;
-    void fetchProfileMap(missing).then((res) => {
-      if (!alive || res.size === 0) return;
-      setProfiles((prev) => {
-        const next = new Map(prev);
-        for (const [pk, content] of res) next.set(pk, content as MemberProfile);
-        return next;
-      });
-    });
-    return () => {
-      alive = false;
-    };
-  }, [key]);
-  return profiles;
+  return useLiveProfiles(pubkeys) as Map<string, MemberProfile>;
 }
 
 /**
@@ -1150,7 +1131,7 @@ export function EventCard({
           <p
             className={`mt-0.5 line-clamp-2 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 ${openIn ? "pr-24" : corner ? "sm:pr-24" : ""}`}
           >
-            {cal.title}
+            <EmojiText text={cal.title} tags={event} />
           </p>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
             <Avatar
@@ -1280,9 +1261,20 @@ export function ListCard({
 }) {
   // A folded row opens its group in place — the card is the door, not a link.
   const [open, setOpen] = useState(false);
-  const title = tagVal(event, "title") ?? tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled list";
+  const title = listTitle(event);
   const description = tagVal(event, "description") ?? "";
-  const ownMembers = event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
+  // Bookmarks, curation sets, pins: read as what they hold — "6 notes", not "6 items".
+  const itemList = useMemo(() => (ITEM_LIST_KINDS.has(event.kind) ? readListItems(event) : null), [event]);
+  // A Trusted List (kind 30392) is a people list that says more: each member's
+  // score on the tag, best first, the tag it was built from and whose web of
+  // trust ranked it — all in its tags.
+  const trusted = useMemo(() => (event.kind === TRUSTED_PEOPLE_KIND ? readTrustedList(event) : null), [event]);
+  const ownMembers = useMemo(
+    () =>
+      trusted ? trusted.members.map((m) => m.pubkey) : event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]),
+    [event, trusted],
+  );
+  const scoreOnList = useMemo(() => new Map(trusted?.members.map((m) => [m.pubkey, m.score])), [trusted]);
   const folded = !!group && group.lists > 1;
   // A folded row shows the faces most lists agree on, and counts everyone once.
   const members = folded ? group.consensus : ownMembers;
@@ -1291,48 +1283,27 @@ export function ListCard({
   // MEMBERS and shows their faces; mixed lists keep the generic item count.
   const isPeopleList = members.length > 0 && otherItems === 0;
   const count = members.length + otherItems;
+  // A bookmark set says its noun ("6 notes"), "8 items" when mixed, "Private" when all sealed.
+  const countLabel =
+    itemList && !isPeopleList
+      ? listCountLabel(itemList)
+      : `${count} ${isPeopleList || trusted ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`;
   const tierRing = useTierRing();
   const memberScoreOf = useAuthorScores(isPeopleList ? members.slice(0, 5) : []);
-  const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
-  useEffect(() => {
-    if (!isPeopleList) return;
-    const shown = members.slice(0, 5);
-    const known = new Map<string, MemberProfile>();
-    const missing: string[] = [];
-    for (const pk of shown) {
-      const stored = eventStore.getReplaceable(0, pk);
-      if (stored) {
-        try {
-          known.set(pk, JSON.parse(stored.content) as MemberProfile);
-        } catch {
-          /* unparseable — fallback face */
-        }
-      } else missing.push(pk);
-    }
-    setProfiles(known);
-    if (missing.length === 0) return;
-    let alive = true;
-    void fetchProfileMap(missing).then((res) => {
-      if (!alive || res.size === 0) return;
-      setProfiles((prev) => {
-        const next = new Map(prev);
-        for (const [pk, content] of res) next.set(pk, content as MemberProfile);
-        return next;
-      });
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event.id]);
+  const provenance = [trusted?.sourceTag?.authorPubkey, trusted?.perspective].filter((pk): pk is string => !!pk);
+  const profiles = useFaceProfiles(isPeopleList ? [...members.slice(0, 5), ...provenance] : provenance);
+  const nameOf = (pk: string) => {
+    const p = profiles.get(pk);
+    return p?.display_name || p?.name || `${nip19.npubEncode(pk).slice(0, 12)}…`;
+  };
   const header = (
     <div className="flex min-w-0 items-center gap-2">
-      <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+      <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+        <EmojiText text={title} tags={event} />
+      </p>
       <KindPill event={event} mixed={false} />
       <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
-        {folded
-          ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}`
-          : `${count} ${isPeopleList ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`}
+        {folded ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}` : countLabel}
       </Chip>
     </div>
   );
@@ -1344,14 +1315,25 @@ export function ListCard({
         return (
           // Phones fit 3 faces + the counter on ONE row; sm+ shows 5.
           <span key={pk} className={`w-12 flex-col items-center gap-1 ${i >= 3 ? "hidden sm:flex" : "flex"}`}>
-            <Avatar
-              className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(memberScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
-            >
-              {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
-              <AvatarFallback className="overflow-hidden">
-                <DefaultAvatarImg />
-              </AvatarFallback>
-            </Avatar>
+            <span className="relative">
+              <Avatar
+                className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(memberScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
+              >
+                {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
+                <AvatarFallback className="overflow-hidden">
+                  <DefaultAvatarImg />
+                </AvatarFallback>
+              </Avatar>
+              {scoreOnList.get(pk) != null && (
+                <span
+                  className="absolute -bottom-1 -right-2 rounded-full border border-slate-200 bg-white px-1 text-[9px] font-semibold tabular-nums leading-tight text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  title={`Score ${scoreOnList.get(pk)} of 100 on this tag`}
+                  data-testid={`list-member-score-${pk}`}
+                >
+                  {scoreOnList.get(pk)}
+                </span>
+              )}
+            </span>
             <span className="w-full truncate text-center text-[10px] leading-tight text-slate-600 dark:text-slate-300">
               {memberName ?? "…"}
             </span>
@@ -1378,7 +1360,11 @@ export function ListCard({
   ) : null;
   const glyph = (
     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
-      <ListChecks className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+      {trusted ? (
+        <ShieldCheck className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+      ) : (
+        <ListChecks className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+      )}
     </div>
   );
 
@@ -1400,7 +1386,7 @@ export function ListCard({
               {header}
               {description && (
                 <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
-                  {description}
+                  <EmojiText text={description} tags={event} />
                 </p>
               )}
               <div className="mt-2">{faces}</div>
@@ -1430,8 +1416,24 @@ export function ListCard({
         <div className="min-w-0 flex-1">
           {header}
           {description && (
-            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">{description}</p>
+            <p className="mt-0.5 line-clamp-2 break-words text-xs text-slate-500 dark:text-slate-400">
+              <EmojiText text={description} tags={event} />
+            </p>
           )}
+          {trusted && (trusted.sourceTag || trusted.perspective) && (
+            <p
+              className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400"
+              data-testid={`list-provenance-${event.id}`}
+            >
+              {[
+                trusted.sourceTag && `From ${nameOf(trusted.sourceTag.authorPubkey)}'s tag “${trusted.sourceTag.slug}”`,
+                trusted.perspective && `Ranked by ${nameOf(trusted.perspective)}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+          {itemList && !isPeopleList && <ItemListPreview event={event} />}
           {isPeopleList ? (
             <div className="mt-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
               {faces}
@@ -1618,8 +1620,9 @@ export function ListingCard({
   score?: number | null;
   showAuthor?: boolean;
   /** When this card stands for one product published as several listings
-   *  (sizes, colours): the shared title and how many options there are. */
-  group?: { title: string; options: number };
+   *  (sizes, colours): its name, how many options there are — or only that
+   *  there are some — and its lowest price when they differ. */
+  group?: ProductCardGroup;
   /** The seller's other listings on the page: a Conduit seller's listing published elsewhere still opens on Conduit. */
   sellerListings?: NostrEvent[];
   /** The page's Bitcoin price, when it has one: the buyer's own money goes under the seller's price. */
@@ -1665,7 +1668,11 @@ export function ListingCard({
         )}
         <span className="absolute left-2 top-2 flex flex-col rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold leading-tight text-white">
           <span data-testid={`listing-price-${event.id}`}>
-            {l.price ? formatListingPrice(l.price) : "Price on request"}
+            {group?.from
+              ? `From ${formatListingPrice(group.from)}`
+              : l.price
+                ? formatListingPrice(l.price)
+                : "Price on request"}
           </span>
           {converted && (
             <span className="text-[10px] font-medium text-white/75" data-testid={`listing-price-converted-${event.id}`}>
@@ -1673,17 +1680,20 @@ export function ListingCard({
             </span>
           )}
         </span>
-        {l.images.length > 1 && (
+        {/* One badge along the bottom: on a narrow card the two collide, and
+            that a product comes in options matters more than its photo count. */}
+        {l.images.length > 1 && !(group && (group.options > 1 || group.moreOptions)) && (
           <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
             {l.images.length} photos
           </span>
         )}
-        {group && group.options > 1 && (
+        {group && (group.options > 1 || group.moreOptions) && (
           <span
             className="absolute bottom-2 left-2 rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-800"
             data-testid={`listing-options-${event.id}`}
           >
-            {group.options} options
+            {/* A count only when every option is in hand; a partial list just says there are some. */}
+            {group.moreOptions ? "Options available" : `${group.options} options`}
           </span>
         )}
       </div>

@@ -173,12 +173,30 @@ function asRumor(raw: Record<string, unknown>): Rumor {
  * Open a wrap addressed to the reader. Two decrypts, in order: the wrap with
  * its one-time key, then the seal with its author's key. Throws `UnwrapError`
  * when anything doesn't hold — a forged seal, a rumor claiming another author.
+ *
+ * `seal`: one this wrap already gave up (checked then), so a retry asks the signer
+ * once, not twice. `onSeal` hears it as soon as it is open and checked.
  */
-export async function unwrapGiftWrap(wrap: NostrEvent, decrypt: Decrypt): Promise<Unwrapped> {
+export async function unwrapGiftWrap(
+  wrap: NostrEvent,
+  decrypt: Decrypt,
+  opts: { seal?: NostrEvent; onSeal?: (seal: NostrEvent) => void } = {},
+): Promise<Unwrapped> {
   if (wrap.kind !== GIFT_WRAP_KIND) throw new UnwrapError("not a gift wrap");
   if (!verified(wrap)) throw new UnwrapError("gift wrap signature is invalid");
   if (!looksLikeNip44(wrap.content)) throw new UnwrapError("gift wrap content is not NIP-44");
 
+  const seal = opts.seal ?? (await openSeal(wrap, decrypt));
+  opts.onSeal?.(seal);
+
+  const rumor = asRumor(parseEvent(await decrypt(seal.pubkey, seal.content), "rumor"));
+  // NIP-59: the seal's signature is the only proof of authorship, so the rumor
+  // must claim the same author or anyone could put words in someone's mouth.
+  if (rumor.pubkey !== seal.pubkey) throw new UnwrapError("rumor author does not match the seal");
+  return { rumor, seal, wrap };
+}
+
+async function openSeal(wrap: NostrEvent, decrypt: Decrypt): Promise<NostrEvent> {
   const seal = parseEvent(await decrypt(wrap.pubkey, wrap.content), "seal") as unknown as NostrEvent;
   if (seal.kind !== SEAL_KIND) throw new UnwrapError("inner event is not a seal");
   if (!verified(seal)) throw new UnwrapError("seal signature is invalid");
@@ -186,12 +204,7 @@ export async function unwrapGiftWrap(wrap: NostrEvent, decrypt: Decrypt): Promis
   // the recipient ever sees a seal, and its signature, not its tags, proves who wrote it,
   // so tags are ignored rather than the message being dropped.
   if (!looksLikeNip44(seal.content)) throw new UnwrapError("seal content is not NIP-44");
-
-  const rumor = asRumor(parseEvent(await decrypt(seal.pubkey, seal.content), "rumor"));
-  // NIP-59: the seal's signature is the only proof of authorship, so the rumor
-  // must claim the same author or anyone could put words in someone's mouth.
-  if (rumor.pubkey !== seal.pubkey) throw new UnwrapError("rumor author does not match the seal");
-  return { rumor, seal, wrap };
+  return seal;
 }
 
 /** NIP-40, on the wrap or the rumor: the moment a message asked to be forgotten. */

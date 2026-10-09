@@ -6,9 +6,8 @@
  * timeouts, and neither built anything the rest of the app could hold onto — the
  * extension was re-discovered at every signature instead.
  */
-import { ExtensionAccount } from "applesauce-accounts/accounts";
-
 import { accountManager } from "@/accounts";
+import { BrainstormExtensionAccount } from "./extension";
 import { LocalAccount } from "./local-account";
 import type { LocalSignerOptions } from "./local-signer";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
@@ -51,15 +50,14 @@ export function waitForExtension(maxWaitMs = EXTENSION_WAIT_MS, intervalMs = 100
 }
 
 /**
- * The Account behind a NIP-07 extension, from the library's own constructor —
- * which asks the extension for its pubkey, so this both waits for it and proves
- * it will answer.
+ * The Account behind a NIP-07 extension, built by asking the extension for its
+ * pubkey — so this both waits for it and proves it will answer.
  *
  * @throws {ExtensionMissingError} when no extension appears, or it refuses.
  */
-export async function extensionAccount(): Promise<ExtensionAccount<AccountMetadata>> {
+export async function extensionAccount(): Promise<BrainstormExtensionAccount<AccountMetadata>> {
   await waitForExtension();
-  return ExtensionAccount.fromExtension<AccountMetadata>();
+  return BrainstormExtensionAccount.fromExtension<AccountMetadata>();
 }
 
 /**

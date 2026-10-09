@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { nip19 } from "nostr-tools";
 import { Calendar, CalendarPlus, MapPin, ExternalLink, PlayCircle, ChevronDown } from "lucide-react";
 import {
@@ -17,7 +18,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { fetchProfileMap } from "@/services/nostr";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { buildIcs, downloadIcs, icsFileName, type IcsInput } from "@/lib/ics";
 import {
@@ -31,6 +31,7 @@ import { eventPath } from "@/lib/shareId";
 import eventDefault from "@/assets/event-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { ReadingText } from "@/components/share/ReadingText";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 type Profile = { name?: string; display_name?: string; picture?: string };
 
@@ -55,9 +56,8 @@ export function EventHero({ event }: { event: MinimalEvent }) {
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`
     : null;
 
-  // The host and the guests' faces — profiles from the same store-first fetch.
+  // The host and the guests' faces.
   const [rsvps, setRsvps] = useState<EventRsvps | null>(null);
-  const [profiles, setProfiles] = useState<Map<string, Profile>>(new Map());
   const faces = rsvps?.faces.slice(0, 5) ?? [];
   useEffect(() => {
     let alive = true;
@@ -68,16 +68,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
       alive = false;
     };
   }, [address]);
-  const peopleKey = [event.pubkey, ...faces].join(",");
-  useEffect(() => {
-    let alive = true;
-    void fetchProfileMap(peopleKey.split(",")).then((m) => {
-      if (alive) setProfiles(new Map([...m].map(([pk, c]) => [pk, c as Profile])));
-    });
-    return () => {
-      alive = false;
-    };
-  }, [peopleKey]);
+  const profiles = useLiveProfiles([event.pubkey, ...faces]) as Map<string, Profile>;
   const scoreOf = useAuthorScores([event.pubkey, ...faces]);
   const tierRing = useTierRing();
   const host = profiles.get(event.pubkey);
@@ -191,7 +182,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
             style={{ fontFamily: "var(--font-display)" }}
             data-testid="event-hero-title"
           >
-            {e.title}
+            <EmojiText text={e.title} tags={event} />
           </h1>
           {/* The host, ringed — the one thing no ticketing site can show. */}
           {hostNpub && (
@@ -311,7 +302,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           data-testid="event-hero-description"
         >
           <h2 className="mb-2 text-sm font-bold text-slate-900 dark:text-slate-100">About</h2>
-          <ReadingText text={e.summary} />
+          <ReadingText text={e.summary} tags={event.tags} />
           {firstLink && (
             <div className="mt-3">
               <LinkPreviewCard url={firstLink} />

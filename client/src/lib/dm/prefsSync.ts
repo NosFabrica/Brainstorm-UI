@@ -22,7 +22,7 @@
  * on a timeout, not on a copy it couldn't decrypt, not on a pin made before
  * the first fetch came back.
  */
-import { activeAccount, type PublishOutcome } from "@/accounts/signing";
+import { activeAccount, hasExternalSigner, type PublishOutcome } from "@/accounts/signing";
 import { DM_PREFS_D_TAG, fetchPrivateAppData, publishAlertPrefs } from "@/services/nostr";
 import {
   SYNCED_DM_FIELDS,
@@ -100,7 +100,8 @@ export function reconcileDmPrefs(
       write: {
         fields: merged,
         sync: ahead
-          ? { at: Math.max(now, remote.updatedAt + 1), dirty: true, joined: true }
+          ? // Based on the account's copy as read: a publish that doesn't land merges onto it next time.
+            { at: Math.max(now, remote.updatedAt + 1), dirty: true, joined: true, base: theirs }
           : { at: remote.updatedAt, dirty: false, joined: true },
       },
       publish: ahead,
@@ -238,6 +239,8 @@ async function publishNow(pubkey: string, { attempt = 0, first = false } = {}): 
     if (!plan.publish) return;
     return publishNow(pubkey, { attempt, first: true });
   }
+  const account = activeAccount();
+  if (account?.pubkey !== pubkey) return;
   const createdAt = Math.max(Math.floor(Date.now() / 1000), (lastCreatedAt.get(pubkey) ?? 0) + 1);
   const res = await publishAlertPrefs(
     fitDmPrefsPayload({
@@ -248,8 +251,10 @@ async function publishNow(pubkey: string, { attempt = 0, first = false } = {}): 
       accepted: prefs.accepted,
     }),
     DM_PREFS_D_TAG,
-    // Nobody asked to unlock for a pin: a Locked Account defers to the next sync.
-    { background: true, createdAt },
+    // Nobody asked to unlock for a pin: a Locked key defers to the next sync. An
+    // extension's prompt is its own, and this only runs for one on the reader's
+    // act (a pin, Messages opening), so it is asked.
+    { background: !hasExternalSigner(account), createdAt },
   ).catch((): PublishOutcome => ({ success: false, error: "All relays failed" }));
   // Signed out or switched while it was out: the row may be gone, and must stay gone.
   if (activeAccount()?.pubkey !== pubkey) return;
@@ -263,8 +268,11 @@ async function publishNow(pubkey: string, { attempt = 0, first = false } = {}): 
   }
   // Waiting on the reader (locked, declined, signer away) or unable to encrypt at all:
   // a timer can't fix those. The next change or the next time Messages opens retries.
-  if (res.deferred || res.cancelled || res.signerUnreachable || res.error === "Not logged in") return;
+  if (res.deferred || res.cancelled || res.declined || res.signerUnreachable || res.error === "Not logged in") return;
   if (res.error === "Could not encrypt") return;
+  // A timer is nobody's act: through an extension or bunker it would be a prompt
+  // out of nowhere. Theirs retries on the next change, or when Messages opens.
+  if (hasExternalSigner(account)) return;
   if (attempt < MAX_RETRIES) schedule(pubkey, RETRY_MS, attempt + 1);
 }
 
@@ -303,10 +311,14 @@ export function startDmPrefsSync(): () => void {
   );
   // An open tab follows the other devices: when it comes back into view, and every few
   // minutes while it's in view. hydrateDmPrefs skips a read made in the last FRESH_MS.
+  // Only for a key held here: an extension or bunker asks the reader for every
+  // read and write, and nobody asked for these. Theirs syncs when Messages opens
+  // and when they pin, mute or accept a chat. (Closing an extension's prompt
+  // focuses the tab again, so a refresh on focus would open the next prompt.)
   const refresh = () => {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-    const pubkey = activeAccount()?.pubkey;
-    if (pubkey) void hydrateDmPrefs(pubkey);
+    const account = activeAccount();
+    if (account && !hasExternalSigner(account)) void hydrateDmPrefs(account.pubkey);
   };
   const hasWindow = typeof window !== "undefined";
   if (hasWindow) {

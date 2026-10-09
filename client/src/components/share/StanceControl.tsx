@@ -44,6 +44,17 @@ import { CommandItem } from "@/components/ui/command";
 
 export type Stance = "apply" | "dispute" | undefined;
 
+/**
+ * The highlight for a picker row that carries controls of its own. The
+ * Command default paints a selected row solid brand purple with white text,
+ * which swallowed the slate-bordered Agree and thumbs-down inside it (the
+ * team, 2026-10-09: "hard to see agree and disagree when hovering"). A soft
+ * tint keeps the row obviously selected in both themes and leaves the
+ * buttons their own colours.
+ */
+export const SOFT_SELECTED_ROW =
+  "data-[selected=true]:bg-brand-primary/10 data-[selected=true]:text-slate-900 dark:data-[selected=true]:bg-brand-primary/20 dark:data-[selected=true]:text-slate-100";
+
 /** Shared by both shapes: what each control does, given the current stance. */
 function actions(stance: Stance) {
   const agreed = stance === "apply";
@@ -88,7 +99,7 @@ export function StanceButtons({
         className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors disabled:cursor-default ${
           a.agreed
             ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-            : "border-slate-200 text-slate-500 hover:border-brand-primary hover:text-brand-primary disabled:opacity-50 dark:border-slate-700 dark:text-slate-400"
+            : "border-slate-300 bg-white text-slate-600 hover:border-brand-primary hover:bg-brand-primary/10 hover:text-brand-primary disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-brand-link dark:hover:text-brand-link"
         }`}
         data-testid={`${testId}-agree`}
         data-agreed={a.agreed ? "true" : "false"}
@@ -112,7 +123,7 @@ export function StanceButtons({
         className={`inline-flex items-center justify-center rounded-full border p-1.5 transition-colors disabled:cursor-default ${
           a.disagreed
             ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400"
-            : "border-slate-200 text-slate-400 hover:border-amber-400 hover:text-amber-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-500"
+            : "border-slate-300 bg-white text-slate-500 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-amber-400 dark:hover:bg-amber-500/10 dark:hover:text-amber-300"
         }`}
         data-testid={`${testId}-disagree`}
         data-disagreed={a.disagreed ? "true" : "false"}
@@ -148,6 +159,7 @@ export function StanceRow({
     <CommandItem
       value={name}
       onSelect={() => !a.agreed && onVote(1)}
+      className={SOFT_SELECTED_ROW}
       data-testid={testId}
       data-stance={stance ?? "none"}
     >

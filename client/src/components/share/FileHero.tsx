@@ -2,6 +2,7 @@ import { Download, FileText, Package } from "lucide-react";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { formatBytes } from "@/lib/formatBytes";
 import { fileMime } from "@/lib/fileMetadata";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 const APK = "application/vnd.android.package-archive";
 
@@ -56,7 +57,7 @@ export function FileHero({ event }: { event: MinimalEvent }) {
           className="break-words text-base font-semibold text-slate-900 dark:text-slate-100"
           data-testid="file-hero-name"
         >
-          {name}
+          <EmojiText text={name} tags={event} />
         </p>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{facts.join(" · ")}</p>
         {url && (

@@ -593,9 +593,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       case "reach":
         span.className = pillClass("emerald");
         span.innerHTML =
-          `<span class="${KEY_CLASS}">within</span>` +
-          `<span class="${VALUE_CLASS}">${seg.value === "follows" ? "people you follow" : "friends of friends"}</span>` +
-          x;
+          `<span class="${KEY_CLASS}">within</span><span class="${VALUE_CLASS}">people you follow</span>` + x;
         span.title = `${seg.raw} — shown by this page, not asked of the relay`;
         return span;
       default: {

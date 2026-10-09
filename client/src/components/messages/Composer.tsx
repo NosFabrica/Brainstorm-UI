@@ -2,10 +2,14 @@ import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Loader2, Mic, Paperclip, Send, Timer, Trash2, X } from "lucide-react";
 import { canRecordVoice, useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import type { DmMessage } from "@/lib/dm/store";
+import { FILE_KIND } from "@/lib/dm/giftWrap";
 import { TIMER_CHOICES } from "@/lib/dm/prefs";
 import { MAX_ATTACHMENT_BYTES } from "@/lib/dm/fileCrypto";
 import { formatBytes } from "@/lib/formatBytes";
-import { firstName, type Profiles } from "./people";
+import { useEditingText } from "@/hooks/useEditingText";
+import { cn } from "@/lib/utils";
+import { type Profiles, PersonName } from "./people";
+import { EmojiText } from "@/components/ui/custom-emoji";
 
 export function Composer({
   placeholder,
@@ -27,6 +31,7 @@ export function Composer({
   /** Disappearing timer in seconds, 0 for off. */
   timer: number;
   disabled?: string;
+  /** Resolves false when nothing was sent and no bubble shows it: the composer restores the draft. */
   onSend: (text: string) => Promise<boolean>;
   onSendFile: (file: File) => Promise<boolean>;
   /** Focus the field on mount — after Accept and reply. */
@@ -44,22 +49,25 @@ export function Composer({
     if (autoFocus) area.current?.focus();
   }, [autoFocus]);
 
-  const send = async () => {
+  // The field empties at once: the message's own bubble shows it sending, sent or
+  // failed. Only a send that never made a bubble (no signer, no inbox relays, the
+  // signer said no) hands the draft back — in front of anything typed since.
+  const send = () => {
     const value = text.trim();
     if (!value || busy || disabled) return;
-    setBusy(true);
-    const sent = await onSend(value);
-    setBusy(false);
-    if (sent) {
-      setText("");
-      area.current?.focus();
-    }
+    setText("");
+    area.current?.focus();
+    void onSend(value)
+      .catch(() => false)
+      .then((sent) => {
+        if (!sent) setText((cur) => (cur.trim() ? `${value}\n${cur}` : value));
+      });
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      void send();
+      send();
     }
   };
 
@@ -93,15 +101,32 @@ export function Composer({
   // pointer-down and -up, the button would move out from under the finger, and
   // the tap would be lost. Keeping focus also keeps the phone keyboard up.
   const keepFocus = (e: React.MouseEvent) => e.preventDefault();
+  const editing = useEditingText();
 
   const timerLabel = TIMER_CHOICES.find((c) => c.seconds === timer)?.label;
   return (
-    <div className="shrink-0 border-t border-border bg-card px-4 pb-3 pt-3 sm:px-6 sm:pb-4">
+    <div
+      className={cn(
+        "shrink-0 border-t border-border bg-card px-4 pb-3 pt-3 sm:px-6 sm:pb-4",
+        // While typing the tab bar steps aside and the composer reaches the bottom edge:
+        // keep the box above the phone's home indicator — unless the keyboard is over it
+        // (MessagesPage sets --bs-bottom-inset to 0 then).
+        editing && "pb-[calc(0.75rem+var(--bs-bottom-inset,env(safe-area-inset-bottom,0px)))]",
+      )}
+    >
       {replyTo && (
         <div className="mb-2 flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-[13px] dark:bg-slate-800">
           <span className="min-w-0 flex-1 truncate">
-            Replying to <strong>{replyTo.author === me ? "yourself" : firstName(replyTo.author, profiles)}</strong> ·{" "}
-            {replyTo.rumor.content}
+            Replying to{" "}
+            <strong>
+              {replyTo.author === me ? "yourself" : <PersonName pubkey={replyTo.author} profiles={profiles} first />}
+            </strong>{" "}
+            ·{" "}
+            {replyTo.kind === FILE_KIND ? (
+              "A file"
+            ) : (
+              <EmojiText text={replyTo.rumor.content} tags={replyTo.rumor.tags} />
+            )}
           </span>
           <button
             type="button"
@@ -172,7 +197,12 @@ export function Composer({
             placeholder={disabled ?? placeholder}
             disabled={!!disabled}
             aria-label="Message"
-            className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-1 py-[11px] text-[15px] leading-snug outline-none [field-sizing:content] placeholder:text-slate-400"
+            className={cn(
+              "max-h-40 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-1 py-[11px] text-[15px] leading-snug outline-none [field-sizing:content] placeholder:text-slate-400",
+              // A long group name ends in "…" on one line rather than wrapping and being
+              // cropped; a reason the field is off is read in full.
+              !disabled && "placeholder:truncate",
+            )}
             data-testid="dm-composer"
           />
           {showMic && !busy ? (
@@ -189,7 +219,7 @@ export function Composer({
           ) : (
             <button
               type="button"
-              onClick={() => void send()}
+              onClick={send}
               disabled={!text.trim() || busy || !!disabled}
               aria-label="Send"
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-primary text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"

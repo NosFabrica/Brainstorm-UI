@@ -21,7 +21,7 @@
  */
 import { Relay, RelayGroup, RelayPool, type GroupRequestCompleteOperator, type RelayOptions } from "applesauce-relay";
 import { normalizeURL } from "applesauce-core/helpers/url";
-import { filter, isObservable, map, scan, type Observable } from "rxjs";
+import { Subject, filter, isObservable, map, race, scan, take, timer, type Observable } from "rxjs";
 import { isUnreachableLocalRelay, onConsentChange } from "./localNetwork";
 import { SEARCH_RELAY, SEARCH_RELAY_READ_TOKEN } from "./relays";
 
@@ -79,6 +79,32 @@ class ReadFirstRelay extends Relay {
     if (this.connected) return;
     this.watchTower.subscribe().unsubscribe();
   }
+
+  /**
+   * The app is back (lib/appResume). A relay whose socket dropped while it was
+   * away — iOS closes a suspended app's sockets, and says so on its return — is
+   * sitting out the library's reconnect backoff, which grows to five minutes
+   * over a long absence. That wait is cut short: the next REQ connects now.
+   */
+  wake(): void {
+    if (this.ready || !this.reconnectSubscription) return;
+    this.reconnectSubscription.unsubscribe();
+    this.reconnectSubscription = null;
+    this.attempts$.next(0);
+    this._ready$.next(true);
+  }
+}
+
+/**
+ * Wakes whatever is waiting to retry a relay (a live subscription's backoff,
+ * services/dm/transport) the moment the app comes back.
+ */
+export const relayWake$ = new Subject<void>();
+
+/** A retry delay that grows to `capMs`, cut short when the app comes back. */
+export function wakeableBackoff(capMs = 30_000) {
+  return (_error: unknown, attempt: number): Observable<unknown> =>
+    race(timer(Math.min(attempt * 1000, capMs)), relayWake$.pipe(take(1)));
 }
 
 /**
@@ -288,3 +314,9 @@ export function createPool(options: RelayOptions = {}): RelayPool {
 }
 
 export const pool = createPool();
+
+/** The app is back: every pooled relay, and every retry waiting on one, goes now. */
+export function wakeRelays(target: RelayPool = pool): void {
+  for (const relay of target.relays.values()) if (relay instanceof ReadFirstRelay) relay.wake();
+  relayWake$.next();
+}

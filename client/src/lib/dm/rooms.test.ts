@@ -6,6 +6,7 @@ import {
   fileMetaOf,
   othersIn,
   participantsOf,
+  reactionAuthors,
   reactionLabel,
   reactionTargetOf,
   replyTargetOf,
@@ -72,6 +73,13 @@ describe("rooms", () => {
     ).toBe("e2");
     expect(reactionLabel("+")).toBe("❤️");
     expect(reactionLabel("🔥")).toBe("🔥");
+  });
+
+  it("counts a reaction once per person, however often they sent it", () => {
+    const r = (author: string, content: string) => ({ author, rumor: { content } });
+    const got = reactionAuthors([r("a", "+"), r("a", "+"), r("b", ""), r("a", "🔥")]);
+    expect([...got.get("❤️")!]).toEqual(["a", "b"]);
+    expect([...got.get("🔥")!]).toEqual(["a"]);
   });
 
   it("reads a file message's decryption metadata", () => {

@@ -38,6 +38,7 @@ vi.mock("./eventCache", () => ({
 vi.mock("./relays", () => ({
   PROFILE_RELAYS: ["wss://lookup.one/", "wss://lookup.two/"],
   CONTENT_RELAYS: ["wss://content.example/"],
+  SEARCH_RELAY: "wss://search.example/",
 }));
 
 const LOOKUP = ["wss://lookup.one/", "wss://lookup.two/"];

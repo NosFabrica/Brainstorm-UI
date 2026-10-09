@@ -21,6 +21,8 @@ const isPanelProbe = (q: string, p?: { tab?: string; limit?: number }) =>
   q.startsWith("#") || (p?.tab === "apps" && p?.limit === 6) || (p?.tab === "events" && p?.limit === 60);
 const mainStreamCalls = () =>
   streamMock.mock.calls.filter(([q, p]) => !isPanelProbe(String(q), p as { tab?: string; limit?: number }));
+// List items among results read the Dictionary through the account; they have their own tests.
+vi.mock("@/components/search/ListItemResults", () => ({ ListItemResults: () => null }));
 vi.mock("@/services/search", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/search")>();
   return {
@@ -59,8 +61,10 @@ vi.mock("@/services/search", async (importOriginal) => {
 });
 // Profiles a test wants the page to know, by pubkey.
 const knownProfiles = new Map<string, { name?: string; display_name?: string; picture?: string }>();
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/services/nostr", async () => ({
+  ...(await import("@/test/fakeNostr")).nostrReadDefaults,
   fetchProfile: async () => null,
+  refreshProfileEvent: async () => null,
   fetchRecentByKinds: async () => [],
   fetchLiveStreams: async () => [],
   fetchProfileMap: async (pks: string[]) =>
@@ -105,7 +109,7 @@ const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
 vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/hooks/useAuthorFlags", () => ({ useAuthorFlags: () => () => false }));
 vi.mock("@/hooks/useNetworkReach", () => ({
-  useNetworkReach: () => ({ direct: new Set(), friends: new Set(), ready: true }),
+  useNetworkReach: () => ({ direct: new Set(), ready: true }),
 }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
@@ -118,6 +122,8 @@ vi.mock("@/lib/wavlake", async (importOriginal) => ({
   searchWavlakeTracks: async () => [],
   searchWavlake: async () => ({ artists: [], albums: [], songs: [] }),
   fetchWavlakeTrending: async () => [],
+  // A person's artist page on Wavlake (useArtistCatalogue): offline here.
+  findWavlakeArtist: async () => null,
 }));
 vi.mock("@/components/feed/HomeFeed", () => ({ HomeFeed: () => null }));
 vi.mock("@/components/FinishSetupBanner", () => ({ FinishSetupBanner: () => null }));
@@ -125,6 +131,12 @@ vi.mock("@/components/AccountCards", () => ({ AccountCards: () => null }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 
 import Landing from "./landing";
+
+// Offline: the BTC price (mempool.space) for fiat price lines is not under test.
+vi.mock("@/lib/exchangeRate", async (orig) => ({
+  ...(await orig<typeof import("@/lib/exchangeRate")>()),
+  fetchBtcRates: async () => null,
+}));
 
 const fParam = () => new URLSearchParams(window.location.search).get("f");
 
@@ -869,10 +881,15 @@ describe("Safari's chrome on the home page", () => {
     meta.name = "theme-color";
     meta.content = "#0a0e18";
     document.head.appendChild(meta);
+    // The app's own background, which the meta goes back to following (lib/themeColor).
+    document.body.style.backgroundColor = "rgb(243, 243, 241)";
+  });
+  afterEach(() => {
+    document.body.style.backgroundColor = "";
   });
   const themeColor = () => document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!.content;
 
-  it("takes the page's own color while it is up, follows the theme, and gives the ink back", async () => {
+  it("takes the page's own color while it is up, follows the theme, and hands back to the app's", async () => {
     const { unmount } = render(<Landing />);
     expect(themeColor()).toBe("#ffffff");
     // The body too: the tab bar's reserved space under a one-screen page showed its gray.
@@ -882,8 +899,8 @@ describe("Safari's chrome on the home page", () => {
     document.documentElement.classList.remove("dark");
     await waitFor(() => expect(themeColor()).toBe("#ffffff"));
     unmount();
-    expect(themeColor()).toBe("#0a0e18");
-    expect(document.body.style.backgroundColor).toBe("");
+    expect(themeColor()).toBe("rgb(243, 243, 241)");
+    expect(document.body.style.backgroundColor).toBe("rgb(243, 243, 241)");
   });
 });
 

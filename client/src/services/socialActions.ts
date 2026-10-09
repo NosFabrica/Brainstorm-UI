@@ -1,6 +1,6 @@
 import { ContactsFactory } from "applesauce-common/factories";
 import { MuteListFactory } from "applesauce-common/factories";
-import { verifyEvent } from "nostr-tools";
+import { verifyEvent, type NostrEvent as SignedEvent } from "nostr-tools";
 
 import { publishToRelays, fetchOutboxRelayList } from "./nostr";
 import { requestAll, requestNewest, requestNewestRaw, requestNewestWithReach } from "@/lib/relayRequest";
@@ -463,12 +463,52 @@ async function publishMuteList(
   }
 }
 
+/**
+ * The newest mute list in sight: the relays' and the caller's, whichever is newer.
+ *
+ * The caller's is never the base on its own. It is whatever the store holds,
+ * and the store is filled from the device at boot (lib/eventCache) — a copy as
+ * old as the last visit. Building on it while the relays have a newer list
+ * would publish over that list and silently undo every mute made elsewhere
+ * since. Muting flips the UI before it publishes, so the read costs no wait.
+ */
+async function newestMuteList(pubkey: string, cached?: NostrEvent | null): Promise<NostrEvent | null> {
+  const fetched = await fetchMuteList(pubkey);
+  if (!cached || !fetched) return fetched ?? cached ?? null;
+  return cached.created_at > fetched.created_at ? cached : fetched;
+}
+
+/**
+ * The mute list a mute builds on. None found is only "start empty" when that is
+ * known — a key minted here, or the relays answering that none exists (#72, as
+ * for a first follow list); otherwise null, and the mute is refused rather than
+ * replacing a list we couldn't read.
+ */
+async function resolveMuteBase(pubkey: string, cached?: NostrEvent | null): Promise<NostrEvent | null> {
+  const found = await newestMuteList(pubkey, cached);
+  if (found) return found;
+  const empty: NostrEvent = { pubkey, kind: 10000, created_at: 0, tags: [], content: "" };
+  if (identityHas(pubkey, "createdInApp")) return empty;
+  try {
+    await fetchOutboxRelayList(pubkey);
+  } catch {
+    /* best-effort warm */
+  }
+  const { newest, reach } = await requestNewestWithReach(
+    outboxRelaysFromDb(pubkey, PROFILE_RELAYS),
+    { kinds: [10000], authors: [pubkey], limit: 5 },
+    6000,
+  );
+  if (newest) return newest as NostrEvent;
+  return reach.answered.length * 2 > reach.asked.length ? empty : null;
+}
+
 export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
 
-  const current = cachedMuteList ?? (await fetchMuteList(account.pubkey));
+  const current = await resolveMuteBase(account.pubkey, cachedMuteList);
   if (!current) return { success: false, error: "Could not fetch your mute list from relays. Please try again." };
 
   if (current.tags.some(isPTagFor(targetPubkey))) return { success: true };
@@ -480,7 +520,7 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
 
-  const current = cachedMuteList ?? (await fetchMuteList(account.pubkey));
+  const current = await newestMuteList(account.pubkey, cachedMuteList);
   if (!current) return { success: false, error: "Could not fetch your mute list" };
 
   if (!current.tags.some(isPTagFor(targetPubkey))) return { success: true };
@@ -530,9 +570,14 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
     { kinds: [1984], authors: [account.pubkey], "#p": [targetPubkey] },
     timeoutMs,
   );
-  if (!collected.length) return null;
-  collected.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-  const latest = collected[0];
+  return myReportFrom(collected, targetPubkey);
+}
+
+/** The newest of my kind-1984 reports on `targetPubkey`, with every report's id; null for none. */
+export function myReportFrom(reports: SignedEvent[], targetPubkey: string): MyReport | null {
+  if (!reports.length) return null;
+  const sorted = [...reports].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  const latest = sorted[0];
   let reportType = "other";
   for (const tag of latest.tags || []) {
     if (tag[0] === "p" && tag[1] === targetPubkey && tag[2]) {
@@ -545,7 +590,7 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
     reportType,
     reason: latest.content || "",
     timestamp: latest.created_at || 0,
-    eventIds: collected.map((e) => e.id).filter(Boolean),
+    eventIds: sorted.map((e) => e.id).filter(Boolean),
   };
 }
 
