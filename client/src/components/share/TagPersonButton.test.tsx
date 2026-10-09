@@ -7,6 +7,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TagPersonButton } from "./TagPersonButton";
+import { resolveOrMintTag } from "@/services/tags";
 
 const toast = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
@@ -48,6 +49,7 @@ beforeEach(() => {
   picker = [];
   applyMock.mockClear();
   toast.mockClear();
+  vi.mocked(resolveOrMintTag).mockClear();
 });
 
 const openPicker = async () => {
@@ -173,5 +175,58 @@ describe("TagPersonButton — a tag whose creator is unscored", () => {
     expect(list.textContent).not.toMatch(/don't know who made/i);
     expect(list.textContent).not.toMatch(/also called this/i);
     expect(screen.queryByTestId("share-tag-unverified")).toBeNull();
+  });
+});
+
+// Issue #202: a new tag could be given a name but never a description, while
+// the wire format (and Tapestry) carry one. The confirm panel for a tag that
+// doesn't exist yet asks for an optional description; existing tags don't.
+describe("TagPersonButton — a new tag can carry a description", () => {
+  const option = (name: string) => ({
+    key: `${AUTHOR}|${name.toLowerCase()}`,
+    name,
+    slug: name.toLowerCase(),
+    authorPubkey: AUTHOR,
+    people: 12,
+    vouches: 1,
+    sharesName: 1,
+    band: "profile",
+    unverified: false,
+  });
+
+  it("the confirm panel offers an optional description, and Add passes it along with the name", async () => {
+    tags = [];
+    render(<TagPersonButton pubkey={PK} variant="link" />);
+    await openPicker();
+    fireEvent.change(screen.getByTestId("share-tag-search"), { target: { value: "Ham Radio" } });
+    fireEvent.click(await screen.findByTestId("share-tag-create"));
+    const confirm = screen.getByTestId("share-tag-confirm");
+    const field = within(confirm).getByTestId("share-tag-description");
+    expect(within(confirm).getByText("Description (optional)")).toBeInTheDocument();
+    // Honest about reuse: a name that already exists keeps the shared tag.
+    expect(confirm).toHaveTextContent(/already exists/i);
+    fireEvent.change(field, { target: { value: "  Licensed amateur radio operator  " } });
+    fireEvent.click(screen.getByTestId("share-tag-confirm-add"));
+    await waitFor(() => expect(resolveOrMintTag).toHaveBeenCalledWith("Ham Radio", "Licensed amateur radio operator"));
+  });
+
+  it("leaving the description empty mints the tag with none", async () => {
+    tags = [];
+    render(<TagPersonButton pubkey={PK} variant="link" />);
+    await openPicker();
+    fireEvent.change(screen.getByTestId("share-tag-search"), { target: { value: "Ham Radio" } });
+    fireEvent.click(await screen.findByTestId("share-tag-create"));
+    fireEvent.click(screen.getByTestId("share-tag-confirm-add"));
+    await waitFor(() => expect(resolveOrMintTag).toHaveBeenCalledWith("Ham Radio", undefined));
+  });
+
+  it("a tag that already exists asks for no description", async () => {
+    tags = [];
+    picker = [option("Developer")];
+    render(<TagPersonButton pubkey={PK} variant="link" />);
+    await openPicker();
+    fireEvent.click(screen.getByTestId("share-tag-existing"));
+    const confirm = screen.getByTestId("share-tag-confirm");
+    expect(within(confirm).queryByTestId("share-tag-description")).toBeNull();
   });
 });
