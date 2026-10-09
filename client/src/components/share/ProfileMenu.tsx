@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { ExternalLink, Flag, Volume2, VolumeX } from "lucide-react";
+import { ExternalLink, Flag, PenLine, Search, Volume2, VolumeX } from "lucide-react";
 import {
   DropdownMenuItem,
   DropdownMenuSub,
@@ -34,6 +34,9 @@ export function ProfileMenu({
   viewer,
   initialMuted,
   alreadyReported,
+  searchHref,
+  review,
+  onReview,
   ua,
 }: {
   pubkey: string;
@@ -43,6 +46,16 @@ export function ProfileMenu({
   viewer: { loggedIn: boolean; isOwner: boolean; isAdmin: boolean };
   initialMuted: boolean;
   alreadyReported: boolean;
+  /** Everything this person published, searchable — public, so every visitor gets it. */
+  searchHref: string;
+  /**
+   * The review the viewer can leave: "write" before they have one, "edit"
+   * after, null when there is nothing to review (signed out, or their own
+   * page). These rows replaced the bare magnifier and pen icons above the
+   * profile that nobody could read (Benjamin, 2026-10-09).
+   */
+  review: "write" | "edit" | null;
+  onReview?: () => void;
   /** Test seam for the platform read; the browser's user agent by default. */
   ua?: string;
 }) {
@@ -115,36 +128,50 @@ export function ProfileMenu({
       triggerTestId="share-actions-menu"
       ua={ua}
       leading={
-        social ? (
-          <>
-            <DropdownMenuItem className="gap-2" onClick={toggleMute} disabled={busy} data-testid="share-mute">
-              {muted ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-              {muted ? "Unmute" : "Mute"}
+        <>
+          {review && (
+            <DropdownMenuItem className="gap-2" onClick={onReview} data-testid="share-review">
+              <PenLine className="h-4 w-4" />
+              {review === "edit" ? "Edit your review" : "Write a review"}
             </DropdownMenuItem>
-            {reported ? (
-              <DropdownMenuItem
-                className="gap-2 text-amber-600"
-                onClick={() => void undoReport()}
-                data-testid="share-report"
-              >
-                <Flag className="h-4 w-4" /> Undo report
+          )}
+          <DropdownMenuItem asChild className="gap-2">
+            <Link href={searchHref} data-testid="share-search-posts">
+              <Search className="h-4 w-4" />
+              {viewer.isOwner ? "Search your posts" : "Search their posts"}
+            </Link>
+          </DropdownMenuItem>
+          {social && (
+            <>
+              <DropdownMenuItem className="gap-2" onClick={toggleMute} disabled={busy} data-testid="share-mute">
+                {muted ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                {muted ? "Unmute" : "Mute"}
               </DropdownMenuItem>
-            ) : (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="gap-2" data-testid="share-report">
-                  <Flag className="h-4 w-4" /> Report
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {REPORT_REASONS.map((r) => (
-                    <DropdownMenuItem key={r} className="capitalize" onClick={() => void submitReport(r)}>
-                      {r}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            )}
-          </>
-        ) : undefined
+              {reported ? (
+                <DropdownMenuItem
+                  className="gap-2 text-amber-600"
+                  onClick={() => void undoReport()}
+                  data-testid="share-report"
+                >
+                  <Flag className="h-4 w-4" /> Undo report
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="gap-2" data-testid="share-report">
+                    <Flag className="h-4 w-4" /> Report
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {REPORT_REASONS.map((r) => (
+                      <DropdownMenuItem key={r} className="capitalize" onClick={() => void submitReport(r)}>
+                        {r}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+            </>
+          )}
+        </>
       }
       trailing={
         viewer.isAdmin ? (

@@ -20,9 +20,6 @@ import {
   SlidersHorizontal,
   UserPlus,
   FileQuestion,
-  PenLine,
-  Search,
-  MessageCircle,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EmojiText } from "@/components/ui/custom-emoji";
@@ -94,6 +91,7 @@ import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { FollowButton } from "@/components/share/FollowButton";
 import { ProfileMenu } from "@/components/share/ProfileMenu";
+import { ProfileActions } from "@/components/share/ProfileActions";
 import { TagPersonButton } from "@/components/share/TagPersonButton";
 import { ShareButton } from "@/components/share/ShareButton";
 import { isAdminPubkey } from "@/config/adminAccess";
@@ -896,38 +894,10 @@ export default function SharePage() {
   // read as text rows under the bio (ProfileDetails). They used to be icon-only
   // glyphs up here; a power user could not find the bolt, and tapping it
   // opened a zap flow when they wanted the address (2026-09-05). Top-right
-  // now holds ACTIONS only: the magnifier and the review pen beside Follow/⋯.
-  // The pen gives a vouch. Signed-in viewers on someone else's page only.
+  // now holds ACTIONS only — and labelled ones: Message, Follow, ⋯. The
+  // review pen and the post-search magnifier that sat here as bare icons
+  // moved into the ⋯ menu as rows with words (Benjamin, 2026-10-09).
   const hasMyReview = !!currentUser?.pubkey && !!myEndorsements?.vouches?.some((v) => v.pubkey === currentUser.pubkey);
-  const reviewIcon = canReview ? (
-    <button
-      type="button"
-      onClick={() => setComposeRequest((n) => n + 1)}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 hover:text-brand-primary dark:hover:bg-slate-800 ${
-        hasMyReview ? "text-brand-primary" : "text-slate-500 dark:text-slate-400"
-      }`}
-      title={hasMyReview ? "Edit your review" : "Write a review"}
-      aria-label={hasMyReview ? "Edit your review" : "Write a review"}
-      data-testid="share-review"
-    >
-      <PenLine className="h-4 w-4" />
-    </button>
-  ) : null;
-  // The magnifier: everything this person published, searchable — the door
-  // X, YouTube and Facebook put on a profile. Everyone gets it; search is public.
-  const searchLabel = profile.display_name || profile.name ? `Search ${displayName}'s posts` : "Search their posts";
-  const searchIcon = (
-    <button
-      type="button"
-      onClick={() => setLocation(scopedSearchHref(pubkey, "top"))}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"
-      title={searchLabel}
-      aria-label={searchLabel}
-      data-testid="share-search-posts"
-    >
-      <Search className="h-4 w-4" />
-    </button>
-  );
   // The action pieces, kept separate so we can place them differently per
   // breakpoint: the magnifier, the review pen, Follow (signed in, not the
   // owner) and the ⋯ menu — everyone's, since it holds the copies and the
@@ -952,19 +922,6 @@ export default function SharePage() {
         displayName={displayName}
       />
     ) : null;
-  // Message: opens (or starts) the private chat with this person.
-  const messageIcon =
-    loggedIn && !isOwner ? (
-      <Link
-        href={`/messages/${npub}`}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-primary dark:text-slate-400 dark:hover:bg-slate-800"
-        title={`Message ${displayName}`}
-        aria-label={`Message ${displayName}`}
-        data-testid="share-message"
-      >
-        <MessageCircle className="h-4 w-4" />
-      </Link>
-    ) : null;
   const profileMenu = (
     <ProfileMenu
       key={`${rel.isMuted}-${!!rel.report}`}
@@ -974,30 +931,21 @@ export default function SharePage() {
       viewer={{ loggedIn, isOwner, isAdmin: isAdminPubkey(currentUser?.pubkey) }}
       initialMuted={rel.isMuted}
       alreadyReported={!!rel.report}
+      searchHref={scopedSearchHref(pubkey, "top")}
+      review={canReview ? (hasMyReview ? "edit" : "write") : null}
+      onReview={() => setComposeRequest((n) => n + 1)}
     />
   );
-  // Desktop: magnifier + pen + Follow + ⋯ together, top-right with the avatar.
-  const topRightActions = (
-    <div className="hidden shrink-0 items-center gap-2 sm:flex" data-testid="share-actions-topright">
-      {searchIcon}
-      {reviewIcon}
-      {messageIcon}
-      {followButton}
-      {profileMenu}
-    </div>
-  );
-  // Phone: the icon actions sit across from the avatar, in the slot under
-  // the banner (X's placement) — a lone magnifier in its own row read as
-  // orphaned (Benjamin, 2026-09-07). Follow keeps its own full-width row
-  // below the identity, so the primary button can stretch; signed out
-  // there is no such row.
-  const mobileTopIcons = (
-    <div className="flex items-center gap-1 sm:hidden" data-testid="share-actions-mobile-top">
-      {searchIcon}
-      {reviewIcon}
-      {messageIcon}
-      {profileMenu}
-    </div>
+  // Desktop: Message + Follow + ⋯ top-right with the avatar. Phone: Message
+  // and ⋯ across from the avatar; Follow keeps its own full-width row below.
+  const profileActions = (
+    <ProfileActions
+      viewer={{ loggedIn, isOwner }}
+      npub={npub}
+      displayName={displayName}
+      follow={followButton}
+      menu={profileMenu}
+    />
   );
   const mobileFollowRow = followButton ? (
     <div className="mt-3 flex items-center gap-2 sm:hidden" data-testid="share-actions-mobile">
@@ -1102,8 +1050,7 @@ export default function SharePage() {
               </div>
               {/* Desktop: magnifier + chip + pen + Follow/⋯ top-right. Phones:
                 the icons here, Follow/⋯ in a row below the identity. */}
-              {topRightActions}
-              {mobileTopIcons}
+              {profileActions}
             </div>
 
             <div className="mt-2.5 md:flex md:items-start md:gap-6">
