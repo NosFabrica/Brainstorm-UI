@@ -20,6 +20,11 @@
       "_coordinate": "Food and Drink Places — Avi Burra's header (2026-10-05), over BTC Map / OpenStreetMap imports signed by Mise En Place, 4bded217… (5000+ kind-39999 items; the Dictionary reads up to 500 from each of index and hub). It declares every field its items carry, types the URL ones and gives display hints (title name, summary address, image image, link website), but pins no URL templates and has no list image. Not searchable: 'and' is a word of its name, so 'search' would make any query with 'and' in it name this list (lib/listSearch)."
     },
     {
+      "coordinate": "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:divine-videos",
+      "ownVersion": true,
+      "_coordinate": "Divine Videos — Avi Burra's header (2026-10-09), over short videos from divine.video (150 kind-39999 items signed by 6b279fb2…, 2026-10-09; the header also covers classic Vines, though none are listed yet). Built for rendering from the start: title title, summary creator, image thumbnail, media video (every item's an .mp4, so it plays in the page), six facts (handle, posted, seconds, platform, Vine loops and likes), a list icon, and two of Avi's URL templates — Divine video ({id} ← divine-id) and Divine profile ({npub} ← creator-npub)."
+    },
+    {
       "coordinate": "39998:77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3:b504f5a8-949f-4d31-ad14-8afcebde2b34",
       "ownVersion": true,
       "_coordinate": "Demo (2026-10-02): V4V Songs by the music curator, their reworked header (replaces …:da216f8f-6a99-460a-801c-62e7217f7acd, which declared no fields). This one names the concept and requires every field its kind-9999 items carry (t, title, artist, url, duration, feedId, feedGuid, artwork, alt) but types none and gives no display hints, so its first required field, t (a podcastindex URL), is what a song is titled by. Kept to show the team how an own version (field types, display hints, link and media roles) makes a list readable: songs get titles, cover art and an in-page player. Not one of the music tab's registered lists (config/dlists.config.json)."
