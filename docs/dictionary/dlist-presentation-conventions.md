@@ -55,13 +55,20 @@ colons.
 ### 2.2 Value type (**Convention**: observed from one client, curate)
 
 ```
-["field-type", <declared field>, "text" | "url"]
+["field-type", <declared field>, "text" | "url" | "address"]
 ```
 
 - It types a field that is already declared. It never declares one by itself.
 - `text` is the default when there's no tag.
 - **`url`** means the field's values are links. Render one as a link only when the value
   parses as an http(s) URL.
+- **`address`** (**Provisional**, Brainstorm 2026-10-10) means the field's values are
+  Nostr addresses, `kind:pubkey:d`: each names another event, usually the field `a`. It
+  says to a renderer "there's something to fetch here". A renderer may look the address
+  up and show what it names (its title, a link to its page) in place of the raw string.
+  Brainstorm renders it as text for now. It's an assertion made ahead of a spec, in the
+  hope that one takes it up. `event`, for event ids, would be its sibling, but no list uses
+  one yet.
 - Unknown types render as text.
 
 The **tag** is emitted by the curate client (curate-psi.vercel.app) and tracked by
@@ -399,7 +406,8 @@ podcastindex.org.
 2. **Element 3 of a field declaration:** a description or a source
    list?
 3. **`field-type`** graduating into the NIP, and whether `url` is the only type that
-   changes rendering.
+   changes rendering. Should `address` (and `event`) become reference types a renderer
+   resolves (§2.2)?
 4. **Template on the header vs. on the field's type.** Tapestry's worksheet item "Field
    types as a DList: portable actions, not portable rendering" (`feat/tags`) proposes
    templates on a field **type**. That needs no placeholder mapping but can't express

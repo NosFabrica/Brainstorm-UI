@@ -11,7 +11,8 @@
  * <item tag name>, <description?>]` — `allowed` reads as optional — and may
  * type a declared field with `["field-type", <name>, <type>]`, which never
  * adds a field of its own. Only `url` changes rendering (a link when the
- * value is http(s)); every other type, or none, is text.
+ * value is http(s)); every other type, or none, is text — `address`
+ * (provisional) included, until something looks the address up.
  *
  * An item is a kind-39999 event (9999 non-addressable) filed under its
  * header by a `z` tag naming the header's coordinate (a 9998 header: its

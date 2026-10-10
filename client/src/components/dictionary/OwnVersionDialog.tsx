@@ -57,8 +57,12 @@ const ROLE_LABEL: Record<DisplayRole, string> = {
 };
 /** Title and summary always read from some field; a picture, link, media or location only when one is named. */
 const NO_ROLE_LABEL = (role: DisplayRole) => (role === "title" || role === "summary" ? "Automatic" : "None");
-/** The value types the form offers (dlistFields: only `url` changes rendering). */
-const FIELD_TYPES = ["text", "url"] as const;
+/**
+ * The value types the form offers. Only `url` changes rendering (dlistFields);
+ * `address` (provisional, 2026-10-10) says the value names another event by
+ * its `kind:pubkey:d`, and reads as text until a renderer looks it up.
+ */
+const FIELD_TYPES = ["text", "url", "address"] as const;
 import type { ConceptDefinition } from "@/lib/conceptResolution";
 import { publishOwnCopy } from "@/services/conceptCopy";
 
@@ -241,7 +245,7 @@ export function OwnVersionDialog({
                       disabled={!f.enabled}
                     >
                       <SelectTrigger
-                        className="h-7 w-[4.5rem] font-mono text-xs"
+                        className="h-7 w-[5.75rem] font-mono text-xs"
                         aria-label={`${f.name || "Field"} type`}
                         data-testid="own-version-field-type"
                       >
