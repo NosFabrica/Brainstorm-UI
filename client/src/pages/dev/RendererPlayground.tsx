@@ -25,6 +25,7 @@ import { DListSuggestionRow } from "@/components/dictionary/DListSuggestionRow";
 import { dictionaryRelays } from "@/config/dictionary";
 import { fetchAddressableEvents, fetchEventsByIds } from "@/services/nostr";
 import { dictionaryConceptOf, loadDictionary } from "@/services/dictionary";
+import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { eventPath } from "@/lib/shareId";
 
 const VIEWS = ["single", "card", "popup", "all"] as const;
@@ -82,9 +83,11 @@ export default function RendererPlayground() {
     staleTime: 60_000,
   });
   // Quick picks: the Dictionary's items, so there's always something to try.
+  const { shown } = useDictionaryConcepts();
   const picks = useQuery({
-    queryKey: ["playground-picks"],
-    queryFn: () => loadDictionary({ pubkey: null, taPubkey: null }),
+    queryKey: ["playground-picks", shown],
+    queryFn: () => loadDictionary({ pubkey: null, taPubkey: null }, shown),
+    enabled: shown.length > 0,
     staleTime: 5 * 60_000,
   });
   const pickItems = (picks.data ?? []).flatMap((e) => e.items).slice(0, 12);
@@ -168,7 +171,8 @@ export default function RendererPlayground() {
 }
 
 function Rendered({ event, view, onView }: { event: NostrEvent; view: View; onView: (v: View) => void }) {
-  if (!dictionaryConceptOf(event)) {
+  const { rendered } = useDictionaryConcepts();
+  if (!dictionaryConceptOf(event, rendered)) {
     return (
       <Card className="p-5 text-sm text-slate-600 dark:text-slate-300" data-testid="playground-not-dlist">
         This is a kind-{event.kind} event, not an item of a Dictionary concept, so none of these renderers apply.{" "}

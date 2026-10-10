@@ -4,6 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/utils";
 import { UserActionsMenu } from "./UserActionsMenu";
 
+// The Dictionary's concepts come from relays (hooks/useDictionaryConcepts): none here, already known.
+vi.mock("@/hooks/useDictionaryConcepts", () => ({
+  useDictionaryConcepts: () => ({ shown: [], rendered: [], known: true }),
+}));
+
 const PK = "a".repeat(64);
 
 describe("UserActionsMenu", () => {

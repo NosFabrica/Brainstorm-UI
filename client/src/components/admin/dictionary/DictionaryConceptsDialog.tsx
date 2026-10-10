@@ -25,7 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Tone } from "@/lib/tones";
-import { DICTIONARY_CONCEPTS } from "@/config/dictionary";
+import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { parseCoordinate } from "@/lib/dlistFields";
 import {
   apiClient,
@@ -74,6 +74,7 @@ export function DictionaryConceptsDialog({
 }) {
   const queryClient = useQueryClient();
   const summary = useUserDictionary(pubkey, taPubkey, open);
+  const { shown: concepts } = useDictionaryConcepts();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<DictionaryRunData | null>(null);
   const [error, setError] = useState<{ message: string; retryable: boolean } | null>(null);
@@ -83,7 +84,7 @@ export function DictionaryConceptsDialog({
     setRunning(true);
     setError(null);
     try {
-      const data = await apiClient.publishDictionaryConcepts(pubkey, DICTIONARY_CONCEPTS);
+      const data = await apiClient.publishDictionaryConcepts(pubkey, concepts);
       setResult(data);
       // The copies now exist (or don't): read the relay again rather than guess.
       await queryClient.invalidateQueries({ queryKey: userDictionaryKey(pubkey, taPubkey) });
@@ -121,7 +122,7 @@ export function DictionaryConceptsDialog({
         </DialogHeader>
 
         <ul className="divide-y divide-border rounded-xl border border-border" data-testid="dictionary-concepts-list">
-          {DICTIONARY_CONCEPTS.map((coordinate) => {
+          {concepts.map((coordinate) => {
             const entry = entries?.find((e) => e.communityCoordinate === coordinate);
             const outcome = result?.concepts.find((c) => c.community === coordinate);
             return (
@@ -176,7 +177,7 @@ export function DictionaryConceptsDialog({
           {!result && (
             <Button
               onClick={() => void run()}
-              disabled={running || !DICTIONARY_CONCEPTS.length}
+              disabled={running || !concepts.length}
               data-testid="dictionary-concepts-run"
             >
               {running ? (

@@ -27,9 +27,8 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
 vi.mock("@/components/share/things/shared", () => ({
   useAuthors: (pks: string[]) => new Map(pks.map((pk) => [pk, { pubkey: pk, npub: "npub", name: "Avi Burra" }])),
 }));
-vi.mock("@/config/dictionary", async (orig) => ({
-  ...(await orig<Record<string, unknown>>()),
-  DICTIONARY_CONCEPTS: [COMMUNITY],
+vi.mock("@/hooks/useDictionaryConcepts", () => ({
+  useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));
 
 import { DListItemCard } from "./DListItemCard";

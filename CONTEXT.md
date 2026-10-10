@@ -122,8 +122,16 @@ _Avoid_: fork, clone, override
 
 **Dictionary**:
 The concepts a User holds local copies of, shown in Settings › Dictionary.
-Which concepts the app offers is `config/dictionary.config.json`.
+Which concepts the app offers is a list, Demo Dictionary Concepts: the entries
+its **curators** filed (`hooks/useDictionaryConcepts`). Adding a concept is a
+publish, not a deploy.
 _Avoid_: glossary, vocabulary
+
+**Curator**:
+Someone whose entries on the Demo Dictionary Concepts list count: its author,
+or a person the house tagged "Dictionary Concept Curator". Both coordinates are
+in `config/dictionary.config.json`.
+_Avoid_: editor, admin (an admin is a server role; a curator is a tag)
 
 **Governing definition**:
 The definition an item is shown by, chosen by `resolveConcept`: the reader's own

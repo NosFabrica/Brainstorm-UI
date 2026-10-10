@@ -14,7 +14,9 @@ const { COMMUNITY, publish } = vi.hoisted(() => ({
 const USER = "1".repeat(64);
 const TA = "2".repeat(64);
 
-vi.mock("@/config/dictionary", () => ({ DICTIONARY_CONCEPTS: [COMMUNITY] }));
+vi.mock("@/hooks/useDictionaryConcepts", () => ({
+  useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
+}));
 vi.mock("@/services/dictionary", () => ({ loadDictionary: vi.fn() }));
 vi.mock("@/services/api", async (orig) => {
   const actual = await orig<typeof import("@/services/api")>();
@@ -47,7 +49,8 @@ describe("DictionaryConceptsDialog", () => {
     expect(await screen.findByText("Not yet")).toBeInTheDocument();
     expect(screen.getByText("GitHub Accounts")).toBeInTheDocument();
     // Headers and copies only: which concepts they hold needs no items.
-    expect(loadDictionary).toHaveBeenCalledWith({ pubkey: USER, taPubkey: TA }, undefined, undefined, {
+    // Over the concepts the Dictionary shows (hooks/useDictionaryConcepts).
+    expect(loadDictionary).toHaveBeenCalledWith({ pubkey: USER, taPubkey: TA }, [COMMUNITY], undefined, {
       items: false,
     });
   });

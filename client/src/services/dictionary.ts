@@ -1,6 +1,6 @@
 /**
  * A reader's Dictionary, read from the tag hub: for each concept the app
- * shows (config/dictionary), its community header, the copies that point at
+ * shows (hooks/useDictionaryConcepts), its community header, the copies that point at
  * it — the reader's own, their Tapestry Assistant's, the house's — and the
  * items filed under any of them. lib/conceptResolution decides which copy
  * governs; this only gathers the candidates.
@@ -16,7 +16,7 @@
  * A relay that fails or times out reads as empty: no copies, no items. The
  * page says what it found, not that the network is down.
  */
-import { DICTIONARY_CONCEPTS, dictionaryRelays } from "@/config/dictionary";
+import { dictionaryRelays } from "@/config/dictionary";
 import { readListEvents } from "@/services/listReads";
 import { resolveHouseObserver, resolveTrustSource } from "@/services/trustSource";
 import { DLIST_ITEM_KINDS, coordinateOf, headerReferenceOf, isDListItem, parseCoordinate } from "@/lib/dlistFields";
@@ -198,7 +198,7 @@ export async function houseCopyAuthors(): Promise<string[]> {
 
 export async function loadDictionary(
   reader: DictionaryReader,
-  concepts: string[] = DICTIONARY_CONCEPTS,
+  concepts: string[],
   hubRelays: string[] = dictionaryRelays(),
   { items: withItems = true }: { items?: boolean } = {},
 ): Promise<DictionaryEntry[]> {
@@ -246,12 +246,16 @@ export async function loadDictionary(
 
 /**
  * The Dictionary concept an item belongs to: the community coordinate its
- * `z` names, when that is a concept the app shows. Synchronous, so a page
- * can choose its renderer before anything loads. An item filed only under
+ * `z` names, when it's one of `concepts` (hooks/useDictionaryConcepts —
+ * `rendered` for drawing an item, `shown` for linking its entry).
+ * Synchronous, so a page can choose its renderer as soon as the set is known. An item filed only under
  * someone's copy (a curation copy) isn't recognised yet — the copy's `b`
  * would have to be fetched first.
  */
-export function dictionaryConceptOf(ev: { kind: number; tags: string[][] }): string | null {
+export function dictionaryConceptOf(
+  ev: { kind: number; tags: string[][] },
+  concepts: readonly string[],
+): string | null {
   if (!isDListItem(ev)) return null;
-  return zValues(ev).find((z) => DICTIONARY_CONCEPTS.includes(z)) ?? null;
+  return zValues(ev).find((z) => concepts.includes(z)) ?? null;
 }

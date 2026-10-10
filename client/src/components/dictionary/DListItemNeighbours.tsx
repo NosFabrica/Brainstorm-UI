@@ -23,6 +23,7 @@ import { useWotItems } from "@/hooks/useWotItems";
 import { neighboursOf } from "@/lib/itemNeighbours";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
+import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { dictionaryConceptOf, type DictionaryItem } from "@/services/dictionary";
 import type { ResolvedConcept } from "@/lib/conceptResolution";
 import { ItemLine } from "./ItemLine";
@@ -35,7 +36,8 @@ const NO_ITEMS: DictionaryItem[] = [];
 
 export function DListItemNeighbours({ event, resolved }: { event: ItemEvent; resolved: ResolvedConcept }) {
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
-  const coordinate = dictionaryConceptOf(event);
+  const { rendered } = useDictionaryConcepts();
+  const coordinate = dictionaryConceptOf(event, rendered);
   const entry = useMemo(
     () =>
       coordinate ? { communityCoordinate: coordinate, resolved, inDictionary: false, items: NO_ITEMS } : undefined,
