@@ -45,7 +45,7 @@ import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useWotItems } from "@/hooks/useWotItems";
 import { useConceptItems } from "@/hooks/useConceptItems";
 import { useNearViewport } from "@/hooks/useNearViewport";
-import { dictionaryRelays, offersOwnVersion } from "@/config/dictionary";
+import { dictionaryRelays } from "@/config/dictionary";
 import { DISPLAY_ROLES, FACT_ROLE, type DisplayHints } from "@/lib/displayHints";
 import type { LinkRef } from "@/lib/linkTemplates";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
@@ -268,7 +268,7 @@ function DictionaryEntryView({
           <FieldsSection fields={r.governing.fields} display={r.governing.display} />
           {r.governing.links.length > 0 && <LinksSection refs={r.governing.links} />}
           <ProvenanceSection resolved={r} coordinate={coordinate} />
-          {offersOwnVersion(coordinate) && r.community && (
+          {r.community && (
             <OwnVersionSection
               community={r.community}
               current={r.source === "personal" ? r.governing : null}
@@ -283,7 +283,7 @@ function DictionaryEntryView({
 }
 
 /**
- * "Your own version" (config `ownVersion`) — began as a demo, likely the seed of a list editor: publish a
+ * "Your own version" — offered on every entry; began as a demo, likely the seed of a list editor: publish a
  * personal copy of the concept, change it, withdraw it — and watch the
  * fields and item pages follow, since a personal copy outranks the
  * Assistant's and the community's.

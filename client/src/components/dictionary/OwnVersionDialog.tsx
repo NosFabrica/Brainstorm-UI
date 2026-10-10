@@ -9,7 +9,7 @@
  * field" makes another. The preview is the tags as they'll be published,
  * so a demo can show exactly what changed.
  *
- * Offered where config says (`ownVersion`); it began as a demo and is likely the seed
+ * Offered on every Dictionary entry; it began as a demo and is likely the seed
  * of a general list header/item editor. It publishes with the reader's
  * own key, which outranks their Assistant's copy and the community's.
  */

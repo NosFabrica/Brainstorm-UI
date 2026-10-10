@@ -21,7 +21,7 @@ import { tagRelays } from "@/config/tagging";
 export type ConceptRole = "url-templates";
 
 const config = raw as {
-  concepts: { coordinate: string; ownVersion?: boolean; role?: ConceptRole; search?: boolean }[];
+  concepts: { coordinate: string; role?: ConceptRole; search?: boolean }[];
 };
 
 const valid = config.concepts.filter((c) => parseCoordinate(c.coordinate)?.kind === 39998);
@@ -42,11 +42,6 @@ export function conceptForRole(role: ConceptRole): string | null {
 
 /** PROVISIONAL: URL Templates, the concept whose governing list the link picker offers (lib/linkTemplates). */
 export const URL_TEMPLATES_CONCEPT: string | null = conceptForRole("url-templates");
-
-/** Whether a concept's Dictionary entry offers "Publish my own version" (OwnVersionDialog). */
-export function offersOwnVersion(coordinate: string): boolean {
-  return valid.some((c) => c.coordinate === coordinate && c.ownVersion === true);
-}
 
 /**
  * The tag hub, where list events are published and read beside our index
