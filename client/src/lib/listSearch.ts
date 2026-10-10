@@ -1,11 +1,13 @@
 /**
  * Search that names a list: "github vcavallo" is vcavallo among GitHub
- * Accounts. Which lists can be named is config (config/dictionary `search`),
- * and everything else is the list's own governing definition (ADR 0004): the
- * words that name it are its singular and plural, and what the rest are
- * matched against is whatever it shows as an item's title and summary
- * (lib/itemPresentation). No list has a trigger word or a match field of its
- * own here.
+ * Accounts. Every list the Dictionary shows can be named (the team,
+ * 2026-10-10: no per-list switch, which no curator would know to set), and
+ * everything else is the list's own governing definition (ADR 0004): the
+ * words that name it are its singular and plural, less filler ("and", "of",
+ * a bare number), so "salt and pepper" doesn't name Food and Drink Places;
+ * what the rest are matched against is whatever it shows as an item's title
+ * and summary (lib/itemPresentation). No list has a trigger word or a match
+ * field of its own here.
  *
  * A stopgap, client-side and over the items the Dictionary reads: ADR 0004
  * puts this in the search API, which would return list items with their
@@ -28,6 +30,10 @@ export interface ListQuery {
 
 const wordsOf = (text: string) => text.toLowerCase().split(/\s+/).filter(Boolean);
 
+/** Words in a list's name that don't name it: joining words, articles, and bare numbers. */
+const FILLER = new Set(["a", "an", "and", "&", "the", "of", "in", "on", "at", "to", "for", "from", "by", "with", "or"]);
+const namesWords = (text: string) => wordsOf(text).filter((w) => !FILLER.has(w) && !/^\d+$/.test(w));
+
 /**
  * The list a search names and the words to find in it — the first list, in
  * the order given, with a word of its name among the search's. Null when no
@@ -36,7 +42,7 @@ const wordsOf = (text: string) => text.toLowerCase().split(/\s+/).filter(Boolean
 export function listQueryOf(query: string, lists: readonly NamedList[]): ListQuery | null {
   const asked = wordsOf(query);
   for (const list of lists) {
-    const name = new Set([...wordsOf(list.singular), ...wordsOf(list.plural)]);
+    const name = new Set([...namesWords(list.singular), ...namesWords(list.plural)]);
     if (!asked.some((w) => name.has(w))) continue;
     const words = asked.filter((w) => !name.has(w));
     if (words.length) return { coordinate: list.coordinate, words };

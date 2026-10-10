@@ -21,19 +21,13 @@ import { tagRelays } from "@/config/tagging";
 export type ConceptRole = "url-templates";
 
 const config = raw as {
-  concepts: { coordinate: string; role?: ConceptRole; search?: boolean }[];
+  concepts: { coordinate: string; role?: ConceptRole }[];
 };
 
 const valid = config.concepts.filter((c) => parseCoordinate(c.coordinate)?.kind === 39998);
 
 /** The community concepts on show, by header coordinate. A malformed entry is dropped, not shipped. */
 export const DICTIONARY_CONCEPTS: string[] = valid.map((c) => c.coordinate);
-
-/**
- * The concepts search can find items of when the words name the list
- * (lib/listSearch) — a flag per concept, so the next list is a line of config.
- */
-export const SEARCHABLE_CONCEPTS: string[] = valid.filter((c) => c.search === true).map((c) => c.coordinate);
 
 /** The concept that plays a role, if one is configured — resolved per reader like any other. */
 export function conceptForRole(role: ConceptRole): string | null {
