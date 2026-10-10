@@ -4,17 +4,16 @@
  * concept gets code of its own (the team, 2026-10-02: "burn the ships"). The
  * page, the card, the popup row and the list row all read it, so they agree.
  *
- * The definition's provisional display hints (lib/displayHints) decide,
- * when on; without them, the first required field is the title and a
+ * The definition's provisional display hints (lib/displayHints) decide;
+ * where it gives none, the first required field is the title and a
  * declared `summary` or `description` is the summary.
  *
  * Chosen per definition, never per item: an item missing its title field
  * reads "Untitled <singular>" rather than borrowing another field, so the
  * same field always fills the same slot down a list (the team, 2026-10-02).
  */
-import { DISPLAY_HINTS_ENABLED } from "@/config/dictionary";
 import { fieldCell, httpUrl } from "@/lib/dlistFields";
-import { factLabel, NO_HINTS } from "@/lib/displayHints";
+import { factLabel } from "@/lib/displayHints";
 import { decodeGeohash, type GeohashCell } from "@/lib/geohash";
 import { mediaKindOfUrl } from "@/lib/mediaKind";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
@@ -60,12 +59,8 @@ function mostPreciseGeohash(item: { tags: string[][] }, field: string | null) {
   return best;
 }
 
-export function presentItem(
-  item: { tags: string[][] },
-  definition: ConceptDefinition,
-  hintsOn: boolean = DISPLAY_HINTS_ENABLED,
-): ItemPresentation {
-  const hints = hintsOn ? definition.display : NO_HINTS;
+export function presentItem(item: { tags: string[][] }, definition: ConceptDefinition): ItemPresentation {
+  const hints = definition.display;
   const fields = definition.fields;
   const valueOf = (name: string | null) => {
     const decl = name ? fields.find((f) => f.name === name) : undefined;

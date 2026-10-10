@@ -35,7 +35,5 @@
       "_coordinate": "Demo (2026-10-02): Books — a header that declares no fields and no names (only a tapestry `json` tag), over Open Library imports whose items carry title, author, cover, isbn, year, pages, subject and open-library-id. A second demo of an own version turning an undeclared list into a readable one."
     }
   ],
-  "_pending": "URLs — no kind-39998 URLs concept exists on any relay (searched dcosl, tags.brainstorm.world, staging, tapestry; 2026-10-01). Decision 2026-10-01: GitHub Accounts first, URLs once someone authors it. Its coordinate is permanent once copies point at it, so choose the author first.",
-  "displayHints": true,
-  "_displayHints": "PROVISIONAL (2026-10-01): read presentation hints on concept headers — ['display', title|summary|image, <field>] and the list's ['image', <url>] (lib/displayHints). Not in any spec yet; names may change once the team settles them with David. false = ignore them and use the defaults."
+  "_pending": "URLs — no kind-39998 URLs concept exists on any relay (searched dcosl, tags.brainstorm.world, staging, tapestry; 2026-10-01). Decision 2026-10-01: GitHub Accounts first, URLs once someone authors it. Its coordinate is permanent once copies point at it, so choose the author first."
 }

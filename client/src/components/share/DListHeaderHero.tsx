@@ -21,7 +21,6 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { DListItemRow } from "@/components/dictionary/DListItemRow";
 import { StructuralHero } from "@/components/share/StructuralHero";
 import { EmojiText } from "@/components/ui/custom-emoji";
-import { DISPLAY_HINTS_ENABLED } from "@/config/dictionary";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { headerReference } from "@/lib/dlistFields";
 import { useListItems } from "@/hooks/useConceptItems";
@@ -107,7 +106,7 @@ function ListView({ resolved, toggle }: { resolved: ResolvedConcept; toggle: Rea
           {toggle}
         </div>
         <div className="mt-3 flex items-center gap-4">
-          <ListPicture image={DISPLAY_HINTS_ENABLED ? def.display.listImage : null} />
+          <ListPicture image={def.display.listImage} />
           <div className="min-w-0 flex-1">
             <h1
               className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"

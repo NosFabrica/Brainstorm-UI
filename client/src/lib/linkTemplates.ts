@@ -14,8 +14,7 @@
  * edits, so a template could be re-pointed under every list that uses it;
  * an id is frozen, like a dependency pinned by hash. Pairs are named, not
  * positional, and may only bind declared fields — the rule `field-type` and
- * the display hints follow. Behind the same `displayHints` flag; every tag
- * name is here, so a rename is one edit.
+ * the display hints follow. Every tag name is here, so a rename is one edit.
  *
  * Templates are RFC 6570 level 1 — `{name}`, nothing else — so values are
  * percent-encoded and can't add a path, query or fragment. And a template

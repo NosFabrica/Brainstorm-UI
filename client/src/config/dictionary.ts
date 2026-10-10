@@ -22,11 +22,7 @@ export type ConceptRole = "url-templates";
 
 const config = raw as {
   concepts: { coordinate: string; ownVersion?: boolean; role?: ConceptRole; search?: boolean }[];
-  displayHints?: boolean;
 };
-
-/** PROVISIONAL: whether renderers honour headers' presentation hints and links (lib/displayHints, lib/linkTemplates). */
-export const DISPLAY_HINTS_ENABLED: boolean = config.displayHints === true;
 
 const valid = config.concepts.filter((c) => parseCoordinate(c.coordinate)?.kind === 39998);
 

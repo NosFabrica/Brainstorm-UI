@@ -4,12 +4,12 @@
 **From:** Brainstorm-UI, which implements all of this (PR #151, 2026-10-02).
 **Status:** a working description, not a ratified spec. Each convention below is marked:
 
-| Mark               | Meaning                                                                                                        |
-| ------------------ | -------------------------------------------------------------------------------------------------------------- |
-| **NIP**            | In the Decentralized Lists NIP. "Working copy" means only in its unpublished working copy.                     |
-| **Convention**     | Written or read by at least one client (named), not in the NIP.                                                |
-| **Tapestry draft** | In tapestry's `protocols/drafts/`, pre-NIP.                                                                    |
-| **Provisional**    | Brainstorm's, behind a flag; names and shapes are expected to change once settled with the protocol's authors. |
+| Mark               | Meaning                                                                                             |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| **NIP**            | In the Decentralized Lists NIP. "Working copy" means only in its unpublished working copy.          |
+| **Convention**     | Written or read by at least one client (named), not in the NIP.                                     |
+| **Tapestry draft** | In tapestry's `protocols/drafts/`, pre-NIP.                                                         |
+| **Provisional**    | Brainstorm's own; names and shapes are expected to change once settled with the protocol's authors. |
 
 Readers that don't know a tag ignore it. Nothing here changes how a list stores its items;
 it only adds tags to **headers** that say how items should read.

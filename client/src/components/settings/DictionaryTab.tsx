@@ -45,7 +45,7 @@ import { useLiveProfile } from "@/hooks/useLiveProfile";
 import { useWotItems } from "@/hooks/useWotItems";
 import { useConceptItems } from "@/hooks/useConceptItems";
 import { useNearViewport } from "@/hooks/useNearViewport";
-import { DISPLAY_HINTS_ENABLED, dictionaryRelays, offersOwnVersion } from "@/config/dictionary";
+import { dictionaryRelays, offersOwnVersion } from "@/config/dictionary";
 import { DISPLAY_ROLES, FACT_ROLE, type DisplayHints } from "@/lib/displayHints";
 import type { LinkRef } from "@/lib/linkTemplates";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
@@ -265,8 +265,8 @@ function DictionaryEntryView({
                 : "Once you have a Brainstorm Assistant it can add this concept to your Dictionary. Until then, this is the community's definition."}
             </p>
           )}
-          <FieldsSection fields={r.governing.fields} display={DISPLAY_HINTS_ENABLED ? r.governing.display : null} />
-          {DISPLAY_HINTS_ENABLED && r.governing.links.length > 0 && <LinksSection refs={r.governing.links} />}
+          <FieldsSection fields={r.governing.fields} display={r.governing.display} />
+          {r.governing.links.length > 0 && <LinksSection refs={r.governing.links} />}
           <ProvenanceSection resolved={r} coordinate={coordinate} />
           {offersOwnVersion(coordinate) && r.community && (
             <OwnVersionSection
