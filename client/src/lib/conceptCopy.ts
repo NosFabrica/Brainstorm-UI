@@ -26,6 +26,7 @@
 import { httpUrl, undeclaredFields, type FieldDecl, type FieldRequirement } from "@/lib/dlistFields";
 import { displayHintTags } from "@/lib/displayHints";
 import { linkTags, type LinkRef } from "@/lib/linkTemplates";
+import type { DraftTemplate } from "@/lib/templateDrafts";
 import { B_DEFERRED, type ConceptDefinition } from "@/lib/conceptResolution";
 
 /** Where a row in the form came from. */
@@ -67,6 +68,8 @@ export interface CopyDraft {
   display: DraftDisplay;
   /** Provisional URL-template links (lib/linkTemplates); a binding with no field yet is "". */
   links: LinkRef[];
+  /** URL templates written here, published just before the header that links them (lib/templateDrafts). */
+  templates: DraftTemplate[];
 }
 
 export interface EventTemplate {
@@ -169,6 +172,7 @@ export function initialDraft(
       listImage: listImage ?? "",
     },
     links: base.links.map((l) => ({ ...l, bindings: l.bindings.map(([p, f]) => [p, f] as [string, string]) })),
+    templates: [],
   };
 }
 

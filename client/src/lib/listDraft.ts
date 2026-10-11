@@ -52,6 +52,7 @@ export function newListDraft(): CopyDraft {
     fields: [],
     display: { ...NO_HINTS, facts: [], listImage: "" },
     links: [],
+    templates: [],
   };
 }
 
@@ -81,6 +82,7 @@ export function listDraftOf(def: ConceptDefinition): CopyDraft {
       listImage: listImage ?? "",
     },
     links: def.links.map((l) => ({ ...l, bindings: l.bindings.map(([p, f]) => [p, f] as [string, string]) })),
+    templates: [],
   };
 }
 

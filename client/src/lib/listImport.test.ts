@@ -144,6 +144,7 @@ describe("importIntoDraft", () => {
           ["image", "a book emoji"],
           ["b", "39998:9999999999999999999999999999999999999999999999999999999999999999:community-books", "pointer"],
         ],
+        templates: [],
         example: {},
         notes: [],
       },
@@ -154,7 +155,7 @@ describe("importIntoDraft", () => {
       ["display", "banner", '"banner" isn\'t a display role'],
       ["display", "image", '"cover" isn\'t a field the list declares'],
       ["field-type", "cover", '"cover" isn\'t a field the list declares'],
-      ["link", "goodreads", "a link pins a URL template by its 64-hex event id"],
+      ["link", "goodreads", '"goodreads" is neither a URL template\'s id nor the ref of one proposed in "templates"'],
       ["image", "a book emoji", "the list's image must be an http(s) URL"],
       [
         "b",
@@ -171,7 +172,13 @@ describe("importIntoDraft", () => {
   it("takes a self-pointer — whoever wrote it, at the same d — as proposing the list as a community concept", () => {
     const pasted = (b: string[]) =>
       importIntoDraft(
-        { d: "books", tags: [["names", "Book", "Books"], ["required", "title"], b], example: {}, notes: [] },
+        {
+          d: "books",
+          tags: [["names", "Book", "Books"], ["required", "title"], b],
+          templates: [],
+          example: {},
+          notes: [],
+        },
         ME,
       );
     const avis = pasted([
@@ -182,5 +189,96 @@ describe("importIntoDraft", () => {
     expect(avis.selfPointer).toBe(true);
     expect(avis.ignored).toEqual([]);
     expect(pasted(["b", `39998:${ME}:other-books`, "pointer"]).selfPointer).toBeNull();
+  });
+});
+
+describe("importIntoDraft — URL templates the AI proposed", () => {
+  const RELAY = "wss://dcosl.brainstorm.world";
+  const BTCMAP = {
+    id: "c".repeat(64),
+    pubkey: "2".repeat(64),
+    name: "BTC Map place",
+    template: "https://btcmap.org/merchant/{id}",
+  };
+  const places = (templates: unknown[], links: string[][]) =>
+    parseListImport(
+      JSON.stringify({
+        d: "places",
+        tags: [
+          ["names", "Place", "Places"],
+          ["required", "name", "Name"],
+          ["optional", "osm-node", "OpenStreetMap node"],
+          ["optional", "btcmap-id", "BTC Map ID"],
+          ...links,
+        ],
+        templates,
+      }),
+    );
+  const imported = (templates: unknown[], links: string[][]) => {
+    const parsed = places(templates, links);
+    if (!parsed.ok) throw new Error(parsed.error);
+    return importIntoDraft(parsed.value, ME, [BTCMAP]);
+  };
+  const OSM = { ref: "osm-node", name: "OpenStreetMap node", template: "https://www.openstreetmap.org/node/{node}" };
+
+  it("drafts a new one, its link naming the draft's id with every placeholder bound", () => {
+    const result = imported([OSM], [["link", "osm-node", RELAY, "node", "osm-node"]]);
+    expect(result.draft.templates).toEqual([
+      { id: expect.stringMatching(/^[0-9a-f]{64}$/), name: OSM.name, template: OSM.template },
+    ]);
+    expect(result.draft.links).toEqual([
+      { templateId: result.draft.templates[0].id, relay: RELAY, bindings: [["node", "osm-node"]] },
+    ]);
+    expect(result.templates).toEqual([{ proposed: OSM, outcome: "new" }]);
+    expect(result.ignored).toEqual([]);
+  });
+
+  it("uses an existing template that builds the same links, its placeholders renamed", () => {
+    const proposed = { ref: "btc", name: "BTC Map", template: "https://BTCMap.org/merchant/{merchant}" };
+    const result = imported([proposed], [["link", "btc", RELAY, "merchant", "btcmap-id"]]);
+    expect(result.draft.templates).toEqual([]);
+    expect(result.draft.links).toEqual([{ templateId: BTCMAP.id, relay: RELAY, bindings: [["id", "btcmap-id"]] }]);
+    expect(result.templates).toEqual([{ proposed, outcome: "existing", existing: BTCMAP }]);
+    expect(result.ignored).toEqual([]);
+  });
+
+  it("drops a malformed proposal, one no link names, and a ref no proposal has — and says why", () => {
+    const bad = { ref: "bad", name: "Anywhere", template: "https://{host}/x" };
+    const unused = { ...OSM, ref: "spare" };
+    const result = imported(
+      [bad, unused],
+      [
+        ["link", "bad", RELAY, "host", "name"],
+        ["link", "missing", RELAY, "node", "osm-node"],
+      ],
+    );
+    expect(result.draft.templates).toEqual([]);
+    expect(result.draft.links).toEqual([]);
+    expect(result.templates).toEqual([
+      { proposed: bad, outcome: "dropped", why: expect.stringContaining("https:// and the site") },
+      { proposed: unused, outcome: "dropped", why: "no link of the list's names it" },
+    ]);
+    expect(result.ignored.map((i) => i.why)).toEqual([
+      '"bad" is neither a URL template\'s id nor the ref of one proposed in "templates"',
+      '"missing" is neither a URL template\'s id nor the ref of one proposed in "templates"',
+    ]);
+  });
+
+  it("a placeholder left unbound stays in the form, waiting for a field", () => {
+    const result = imported([OSM], [["link", "osm-node", RELAY]]);
+    expect(result.draft.links[0].bindings).toEqual([["node", ""]]);
+  });
+
+  it("drafts a template proposed twice once", () => {
+    const again = { ...OSM, ref: "osm-again", name: "OSM" };
+    const result = imported(
+      [OSM, again],
+      [
+        ["link", "osm-node", RELAY, "node", "osm-node"],
+        ["link", "osm-again", RELAY, "node", "osm-node"],
+      ],
+    );
+    expect(result.draft.templates).toHaveLength(1);
+    expect(result.templates[1]).toMatchObject({ outcome: "dropped" });
   });
 });

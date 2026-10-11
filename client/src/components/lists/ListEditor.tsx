@@ -8,8 +8,13 @@
  * behind, while changing its type or how required it is keeps it (text to url
  * turns the value into a link). A list someone else published is shown, not
  * edited: its header is theirs to sign.
+ *
+ * URL templates drafted in the form are previewed as if published
+ * (hooks/draftTemplates) and published just before the header that pins them
+ * (lib/listPublish). A failed attempt keeps what it signed, so trying again
+ * resends rather than asks the signer again.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { NostrEvent } from "nostr-tools";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -19,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SectionHeader } from "@/components/ui/section-header";
 import { DefinitionForm } from "@/components/dictionary/DefinitionForm";
+import { TagsReadout } from "@/components/dictionary/TagsReadout";
 import { AddressRef } from "@/components/dictionary/AddressRef";
 import { ItemFieldInputs, type FieldValues } from "@/components/lists/ItemFieldInputs";
 import { ItemPreview } from "@/components/lists/ItemPreview";
@@ -37,7 +43,11 @@ import {
   previewDefinition,
   slugOf,
 } from "@/lib/listDraft";
-import { publishListEvent } from "@/services/lists";
+import { newPublishSession, progressLabel, publishDefinition, type PublishProgress } from "@/lib/listPublish";
+import { asTemplate, resolveDraftTemplates } from "@/lib/templateDrafts";
+import { DraftTemplatesContext } from "@/hooks/draftTemplates";
+import { useDraftTemplateProblems } from "@/hooks/useLinkTemplates";
+import { listPublishSteps } from "@/services/lists";
 
 export function ListEditor({
   header,
@@ -98,30 +108,47 @@ export function ListEditor({
   }, [names]);
   const item = useMemo(() => exampleItem(resolved.governing, values, me), [resolved, values, me]);
 
+  const templateProblems = useDraftTemplateProblems(draft, own);
   const problems = own
     ? [
         ...draftProblems(draft),
+        ...templateProblems,
         ...listProblems(d),
         ...(!header && takenDs.has(d) ? [`You already have a list at "${d}": give this one another identifier.`] : []),
       ]
     : [];
   const [publishing, setPublishing] = useState(false);
+  const [progress, setProgress] = useState<PublishProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [published, setPublished] = useState(false);
+  const session = useRef(newPublishSession());
   const publish = async () => {
     if (publishing || problems.length || !own) return;
     setPublishing(true);
     setError(null);
+    setProgress(null);
     try {
-      await publishListEvent(template);
+      const done = await publishDefinition({
+        draft,
+        headerOf: (resolved) => listHeaderTemplate(resolved, { d, author, previous, selfPointer }),
+        steps: listPublishSteps,
+        session: session.current,
+        onProgress: setProgress,
+        // Published, a template is an existing one: the form links it by its real id from now on.
+        onTemplatePublished: (t, ev) => setDraft((cur) => resolveDraftTemplates(cur, new Map([[t.id, ev.id]]))),
+      });
+      session.current = newPublishSession();
+      setDraft(done.draft);
       setPublished(true);
       onPublished(`39998:${author}:${d}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPublishing(false);
+      setProgress(null);
     }
   };
+  const drafted = useMemo(() => new Map(draft.templates.map((t) => [t.id, asTemplate(t)])), [draft.templates]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-2" data-testid="list-editor">
@@ -192,18 +219,24 @@ export function ListEditor({
         )}
         {imported &&
           (imported.selfPointer ||
+            imported.templates.length > 0 ||
             imported.ignored.length > 0 ||
             imported.notes.length > 0 ||
             (publishedD !== null && imported.d && imported.d !== publishedD)) && (
             <ImportReport
               result={imported}
               publishedD={publishedD}
-              onDismiss={() => setImported({ ...imported, ignored: [], notes: [], d: null, selfPointer: null })}
+              onDismiss={() =>
+                setImported({ ...imported, ignored: [], notes: [], d: null, selfPointer: null, templates: [] })
+              }
             />
           )}
 
         {own ? (
-          <DefinitionForm draft={draft} setDraft={setDraft} itemsTotal={0} testId="list-editor" idPrefix="list" />
+          // Nothing changes under a publish in flight: what was signed is what goes out.
+          <fieldset disabled={publishing} className="min-w-0 space-y-5">
+            <DefinitionForm draft={draft} setDraft={setDraft} itemsTotal={0} testId="list-editor" idPrefix="list" />
+          </fieldset>
         ) : (
           <Alert data-testid="list-editor-theirs">
             <AlertDescription>
@@ -216,19 +249,7 @@ export function ListEditor({
         {own && (
           <div className="space-y-1.5">
             <Label>What it publishes</Label>
-            <div
-              className="flex flex-wrap gap-1.5 rounded-xl border border-border bg-slate-50 p-2.5 dark:bg-slate-900"
-              data-testid="list-editor-tags"
-            >
-              {template.tags.map((t, i) => (
-                <code
-                  key={i}
-                  className="min-w-0 break-all rounded-md border border-border bg-card px-1.5 py-0.5 font-mono text-[11px] text-slate-700 dark:text-slate-300"
-                >
-                  {JSON.stringify(t)}
-                </code>
-              ))}
-            </div>
+            <TagsReadout draft={draft} tags={template.tags} testId="list-editor-tags" />
           </div>
         )}
 
@@ -257,7 +278,7 @@ export function ListEditor({
             >
               {publishing ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Publishing…
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" /> {progressLabel(progress)}
                 </>
               ) : header ? (
                 "Publish changes"
@@ -285,7 +306,9 @@ export function ListEditor({
           onChange={(field, value) => setValues((v) => ({ ...v, [field]: value }))}
           testId="list-example"
         />
-        <ItemPreview resolved={resolved} item={item} testId="list-preview" />
+        <DraftTemplatesContext.Provider value={drafted}>
+          <ItemPreview resolved={resolved} item={item} testId="list-preview" />
+        </DraftTemplatesContext.Provider>
       </div>
     </div>
   );
@@ -313,6 +336,24 @@ function ImportReport({
           <p data-testid="list-editor-import-self">
             It was proposed as a community concept: it still is, pointing at itself under your key.
           </p>
+        )}
+        {result.templates.length > 0 && (
+          <div>
+            <p>URL templates it proposed:</p>
+            <ul className="mt-1 space-y-0.5" data-testid="list-editor-import-templates">
+              {result.templates.map((o, i) => (
+                <li key={i}>
+                  <strong>{o.proposed.name || o.proposed.ref || "Unnamed"}</strong>{" "}
+                  <code className="break-all font-mono text-xs">{o.proposed.template}</code> —{" "}
+                  {o.outcome === "new"
+                    ? "new: check it, then it's published with the list"
+                    : o.outcome === "existing"
+                      ? `already exists as "${o.existing.name}", so the link uses that`
+                      : `not used: ${o.why}`}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         {result.ignored.length > 0 && (
           <div>

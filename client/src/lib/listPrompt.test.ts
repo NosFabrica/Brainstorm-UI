@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { listAuthoringPrompt } from "./listPrompt";
-import { parseListImport } from "./listImport";
+import { importIntoDraft, parseListImport } from "./listImport";
 
 const GITHUB = {
   id: "f19f39daf75388ff0f19cc37dde5ae1b90124b0d60e35659160c48dc690deca4",
@@ -36,5 +36,29 @@ describe("listAuthoringPrompt", () => {
   it("shows a format the import reads back", () => {
     const block = /\{\n {2}"d"[\s\S]*?\n\}/.exec(prompt)?.[0] ?? "";
     expect(parseListImport(block)).toMatchObject({ ok: true, value: { d: "books" } });
+  });
+});
+
+describe("listAuthoringPrompt — proposing a template", () => {
+  const prompt = listAuthoringPrompt([GITHUB], "wss://hub");
+
+  it("asks for new templates by ref, within the rules a template keeps", () => {
+    expect(prompt).toContain('"templates"');
+    expect(prompt).toContain("by its ref where the id would go");
+    expect(prompt).toContain("its {placeholders} only after the site");
+  });
+
+  it("its own example imports as a drafted template the link uses", () => {
+    const block = /\{\n {2}"d"[\s\S]*?\n\}/.exec(prompt)?.[0] ?? "";
+    const parsed = parseListImport(block);
+    if (!parsed.ok) throw new Error(parsed.error);
+    const result = importIntoDraft(parsed.value, "1".repeat(64), [GITHUB]);
+    expect(result.templates).toMatchObject([{ outcome: "new" }]);
+    expect(result.draft.links[0]).toMatchObject({
+      templateId: result.draft.templates[0].id,
+      relay: "wss://hub",
+      bindings: [["olid", "olid"]],
+    });
+    expect(result.ignored).toEqual([]);
   });
 });

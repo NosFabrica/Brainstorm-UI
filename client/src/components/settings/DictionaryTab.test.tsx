@@ -69,6 +69,7 @@ vi.mock("@/hooks/useDictionaryReader", () => ({
 vi.mock("@/hooks/useLinkTemplates", () => ({
   useLinkTemplates: () => ({ data: new Map() }),
   useAvailableTemplates: () => ({ data: [], isPending: false }),
+  useDraftTemplateProblems: () => [],
 }));
 
 import { DictionaryTab } from "./DictionaryTab";

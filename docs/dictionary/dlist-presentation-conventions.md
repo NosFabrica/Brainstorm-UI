@@ -304,6 +304,12 @@ The definition fixes the destination, and the item fills in the blanks:
   template could be re-pointed under every list that uses it. An id is frozen, like a
   dependency pinned by hash. The safer kind for a template is therefore 9999; a 39999
   pinned by id works too. If the template is deleted, there's simply no link.
+- **Brainstorm publishes new templates as 9999s**, from List Management or "Publish my own
+  version": a template drafted with a list is signed and published first, then the header
+  that names its id. A template is the same as an existing one when only its placeholders'
+  names or its host's case differ (`https://btcmap.org/merchant/{id}` and
+  `https://BTCMap.org/merchant/{place}`); a template like that is never published again,
+  and the existing one is used instead.
 - **Pairs are named, not positional.** Each pair may only bind a declared field.
 - **The URL Templates concept is itself a concept like any other.** A reader's own copy of
   it decides which templates they're offered.

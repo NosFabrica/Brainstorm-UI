@@ -52,6 +52,12 @@ export async function fetchAvailableTemplates(reader: DictionaryReader): Promise
   return out;
 }
 
+/** A template just published here: known by id at once, without asking a relay for it. */
+export function rememberTemplate(ev: { id: string; pubkey: string; tags: string[][] }): void {
+  const tpl = templateOf(ev);
+  if (tpl && templatePlaceholders(tpl.template)) byId.set(ev.id, tpl);
+}
+
 /** Test seam. */
 export function __resetTemplateCache(): void {
   byId.clear();

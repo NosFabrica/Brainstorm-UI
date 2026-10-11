@@ -1,7 +1,7 @@
 /**
  * Authoring a list: the header the form makes, the example item drawn by the
- * real renderers as fields change, the raw links, and an edit that keeps what
- * the form doesn't speak.
+ * real renderers as fields change, the raw links, an edit that keeps what
+ * the form doesn't speak, and a URL template drafted with the list.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
@@ -14,12 +14,20 @@ Element.prototype.hasPointerCapture ??= () => false;
 Element.prototype.releasePointerCapture ??= () => {};
 Element.prototype.scrollIntoView ??= () => {};
 
-const { TEMPLATE, publish } = vi.hoisted(() => ({
+const { TEMPLATE, publish, sign } = vi.hoisted(() => ({
   TEMPLATE: "8846baa4be1d8bc17529a4079525b8ecb019f52a0655bd20ae547903b72bd5ed",
   publish: vi.fn(),
+  sign: vi.fn(),
 }));
-vi.mock("@/services/lists", () => ({ publishListEvent: (t: unknown) => publish(t) }));
-vi.mock("@/hooks/useLinkTemplates", () => {
+vi.mock("@/services/lists", () => ({
+  listPublishSteps: { sign: (t: unknown) => sign(t), publish: (ev: unknown) => publish(ev) },
+}));
+vi.mock("@/hooks/useLinkTemplates", async () => {
+  // Drafts answer as the real hook has them do; what exists is the one template below.
+  const { useDraftTemplates } =
+    await vi.importActual<typeof import("@/hooks/draftTemplates")>("@/hooks/draftTemplates");
+  const { draftTemplateProblems } =
+    await vi.importActual<typeof import("@/lib/templateDrafts")>("@/lib/templateDrafts");
   const templates = new Map([
     [
       TEMPLATE,
@@ -32,8 +40,13 @@ vi.mock("@/hooks/useLinkTemplates", () => {
     ],
   ]);
   return {
-    useLinkTemplates: () => ({ data: templates }),
+    useLinkTemplates: () => {
+      const drafts = useDraftTemplates();
+      return { data: drafts.size ? new Map([...templates, ...drafts]) : templates };
+    },
     useAvailableTemplates: () => ({ data: [...templates.values()], isPending: false }),
+    useDraftTemplateProblems: (draft: Parameters<typeof draftTemplateProblems>[0]) =>
+      draftTemplateProblems(draft, [...templates.values()]),
   };
 });
 vi.mock("@/hooks/useDictionaryConcepts", () => ({
@@ -69,7 +82,11 @@ async function startList() {
 
 beforeEach(() => {
   publish.mockReset();
-  publish.mockResolvedValue({});
+  publish.mockResolvedValue(undefined);
+  sign.mockReset();
+  // An event's id counts signatures, so a test can see which were signed again.
+  let n = 0;
+  sign.mockImplementation(async (t: object) => ({ ...t, id: String(++n).padStart(64, "0"), pubkey: ME }));
 });
 
 describe("ListEditor — a new list", () => {
@@ -266,6 +283,47 @@ ${JSON.stringify(
     expect(tags()).toContain('["license","ODbL-1.0"]');
   });
 
+  it("drafts the templates an AI proposed, and uses an existing one in place of its twin", async () => {
+    const proposing = JSON.stringify({
+      d: "food-trucks",
+      tags: [
+        ["names", "Food Truck", "Food Trucks"],
+        ["required", "name", "Name"],
+        ["optional", "btcmap-id", "BTC Map id"],
+        ["optional", "osm-node", "OpenStreetMap node"],
+        ["display", "title", "name"],
+        ["link", "osm", "wss://dcosl.brainstorm.world", "node", "osm-node"],
+        ["link", "btc", "wss://dcosl.brainstorm.world", "merchant", "btcmap-id"],
+      ],
+      templates: [
+        { ref: "osm", name: "OpenStreetMap node", template: "https://www.openstreetmap.org/node/{node}" },
+        { ref: "btc", name: "BTC Map merchant", template: "https://btcmap.org/merchant/{merchant}" },
+      ],
+      example: { name: "Wolf's Burger Truck", "btcmap-id": "28718", "osm-node": "123" },
+      notes: [],
+    });
+    const user = userEvent.setup();
+    editor();
+    await user.click(screen.getByTestId("list-editor-import"));
+    await user.click(screen.getByTestId("list-import-reply"));
+    await user.paste(proposing);
+    await user.click(screen.getByTestId("list-import-fill"));
+
+    const report = screen.getByTestId("list-editor-import-templates");
+    expect(report).toHaveTextContent("OpenStreetMap node https://www.openstreetmap.org/node/{node} — new");
+    expect(report).toHaveTextContent(
+      'BTC Map merchant https://btcmap.org/merchant/{merchant} — already exists as "BTC Map place"',
+    );
+    expect(screen.getByTestId("list-editor-draft-template-0-url")).toHaveValue(
+      "https://www.openstreetmap.org/node/{node}",
+    );
+    expect(tags()).toContain(`["link","${TEMPLATE}","wss://dcosl.brainstorm.world","id","btcmap-id"]`);
+    const hrefs = within(screen.getByTestId("list-preview-links"))
+      .getAllByTestId("list-preview-links-href")
+      .map((el) => el.textContent);
+    expect(hrefs).toEqual(["https://www.openstreetmap.org/node/123", "https://btcmap.org/merchant/28718"]);
+  });
+
   it("won't fill the form from something it can't read", async () => {
     const user = userEvent.setup();
     editor();
@@ -312,5 +370,88 @@ describe("ListEditor — proposing a list as a community concept", () => {
     editor(published([elsewhere]));
     expect(screen.getByTestId("list-editor-version-of")).toHaveTextContent("A version of");
     expect(tags()).toContain(JSON.stringify(elsewhere));
+  });
+});
+
+describe("ListEditor — a new URL template", () => {
+  /** A new list with an isbn field and a template drafted for it. */
+  async function draftTemplate(field: string, name: string, url: string) {
+    await startList();
+    await userEvent.click(screen.getByTestId("list-editor-add-field"));
+    await userEvent.type(within(fieldRow(1)).getByTestId("list-editor-field-name"), field);
+    await userEvent.click(screen.getByTestId("list-editor-new-template"));
+    if (name) await userEvent.type(screen.getByTestId("list-editor-draft-template-0-name"), name);
+    await userEvent.clear(screen.getByTestId("list-editor-draft-template-0-url"));
+    await userEvent.paste(url);
+  }
+  const OPEN_LIBRARY = "https://openlibrary.org/isbn/{isbn}";
+
+  it("previews a drafted template's link, its placeholder bound to the field it names", async () => {
+    await draftTemplate("isbn", "Open Library book", OPEN_LIBRARY);
+    await userEvent.type(screen.getByTestId("list-example-isbn"), "9780140328721");
+    expect(within(screen.getByTestId("list-preview-links")).getByTestId("list-preview-links-href")).toHaveTextContent(
+      "https://openlibrary.org/isbn/9780140328721",
+    );
+    expect(screen.getByTestId("list-editor-tags-template")).toHaveTextContent(`["url-template","${OPEN_LIBRARY}"]`);
+    expect(tags()).toContain('"‹id of Open Library book›"');
+  });
+
+  it("says what's wrong with a template it can't publish", async () => {
+    await draftTemplate("isbn", "", "http://openlibrary.org/isbn/{isbn}");
+    expect(screen.getByTestId("list-editor-draft-template-0-invalid")).toBeInTheDocument();
+    await userEvent.clear(screen.getByTestId("list-editor-draft-template-0-url"));
+    await userEvent.paste(OPEN_LIBRARY);
+    expect(screen.getByTestId("list-editor-problems")).toHaveTextContent(`Name the new URL template ${OPEN_LIBRARY}.`);
+    expect(screen.getByTestId("list-editor-publish")).toBeDisabled();
+  });
+
+  it("publishes the template first, then the list naming its id", async () => {
+    await draftTemplate("isbn", "Open Library book", OPEN_LIBRARY);
+    await userEvent.click(screen.getByTestId("list-editor-publish"));
+    const [template, header] = publish.mock.calls.map((c) => c[0]);
+    expect(template.kind).toBe(9999);
+    expect(template.tags).toContainEqual(["url-template", OPEN_LIBRARY]);
+    expect(header.kind).toBe(39998);
+    expect(header.tags.find((t: string[]) => t[0] === "link")?.slice(0, 2)).toEqual(["link", template.id]);
+    expect(screen.queryByTestId("list-editor-draft-template-0")).toBeNull();
+  });
+
+  it("a failed list publish keeps the published template, and trying again sends only the list", async () => {
+    await draftTemplate("isbn", "Open Library book", OPEN_LIBRARY);
+    publish.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("relay said no"));
+    await userEvent.click(screen.getByTestId("list-editor-publish"));
+    expect(screen.getByTestId("list-editor-error")).toHaveTextContent("relay said no");
+    // Published, the template is an existing one: no longer a draft in the form.
+    expect(screen.queryByTestId("list-editor-draft-template-0")).toBeNull();
+
+    await userEvent.click(screen.getByTestId("list-editor-publish"));
+    expect(publish.mock.calls.map((c) => c[0].kind)).toEqual([9999, 39998, 39998]);
+    expect(sign).toHaveBeenCalledTimes(2);
+    expect(publish.mock.calls[2][0].id).toBe(publish.mock.calls[1][0].id);
+  });
+
+  it("won't publish a template that exists — offers it, bindings carried over", async () => {
+    await draftTemplate("btcmap-id", "BTC Map", "https://BTCMap.org/merchant/{place}");
+    await pick(screen.getByTestId("list-editor-link-bind-place"), "btcmap-id");
+    const same = screen.getByTestId("list-editor-draft-template-0-same");
+    expect(same).toHaveTextContent("BTC Map place");
+    expect(screen.getByTestId("list-editor-problems")).toHaveTextContent(
+      'BTC Map is the same as the existing "BTC Map place": use that one.',
+    );
+    expect(screen.getByTestId("list-editor-publish")).toBeDisabled();
+
+    await userEvent.click(within(same).getByRole("button", { name: "Use it" }));
+    expect(screen.queryByTestId("list-editor-draft-template-0")).toBeNull();
+    expect(screen.getByTestId("list-editor-link-bind-id")).toHaveTextContent("btcmap-id");
+    expect(tags()).toContain(`["link","${TEMPLATE}"`);
+    expect(screen.queryByTestId("list-editor-problems")).toBeNull();
+  });
+
+  it("points out templates for the same site", async () => {
+    await draftTemplate("btcmap-id", "BTC Map area", "https://btcmap.org/area/{id}");
+    expect(screen.getByTestId("list-editor-draft-template-0-same-site")).toHaveTextContent(
+      "https://btcmap.org/merchant/{id}",
+    );
+    expect(screen.queryByTestId("list-editor-draft-template-0-same")).toBeNull();
   });
 });

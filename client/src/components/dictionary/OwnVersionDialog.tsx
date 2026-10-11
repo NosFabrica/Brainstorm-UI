@@ -14,7 +14,7 @@
  * of a general list header/item editor. It publishes with the reader's
  * own key, which outranks their Assistant's copy and the community's.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,12 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { DefinitionForm } from "@/components/dictionary/DefinitionForm";
+import { TagsReadout } from "@/components/dictionary/TagsReadout";
 import { copyTemplate, draftProblems, initialDraft, type CopyDraft } from "@/lib/conceptCopy";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
+import { newPublishSession, progressLabel, type PublishProgress } from "@/lib/listPublish";
+import { resolveDraftTemplates } from "@/lib/templateDrafts";
+import { useDraftTemplateProblems } from "@/hooks/useLinkTemplates";
 import { publishOwnCopy } from "@/services/conceptCopy";
 
 export function OwnVersionDialog({
@@ -51,16 +55,21 @@ export function OwnVersionDialog({
 }) {
   const [draft, setDraft] = useState<CopyDraft>(() => initialDraft(community, current, items));
   const [publishing, setPublishing] = useState(false);
+  const [progress, setProgress] = useState<PublishProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // What a failed attempt signed, resent by the next (lib/listPublish).
+  const session = useRef(newPublishSession());
 
   // Each opening starts from what's published now, not from an abandoned edit.
   useEffect(() => {
     if (!open) return;
     setDraft(initialDraft(community, current, items));
     setError(null);
+    session.current = newPublishSession();
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const problems = draftProblems(draft);
+  const templateProblems = useDraftTemplateProblems(draft, open);
+  const problems = [...draftProblems(draft), ...templateProblems];
   const preview = copyTemplate(community, draft).tags;
 
   const publish = async () => {
@@ -68,13 +77,20 @@ export function OwnVersionDialog({
     setPublishing(true);
     setError(null);
     try {
-      await publishOwnCopy(community, draft);
+      await publishOwnCopy(community, draft, {
+        session: session.current,
+        onProgress: setProgress,
+        // Published, a template is an existing one: linked by its real id from now on.
+        onTemplatePublished: (t, ev) => setDraft((cur) => resolveDraftTemplates(cur, new Map([[t.id, ev.id]]))),
+      });
+      session.current = newPublishSession();
       onPublished();
       onOpenChange(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPublishing(false);
+      setProgress(null);
     }
   };
 
@@ -92,23 +108,13 @@ export function OwnVersionDialog({
         {/* min-w-0: DialogContent is a grid, and a grid child won't shrink below its
             widest word — the preview's 64-hex coordinate would push the modal sideways. */}
         <div className="min-w-0 space-y-4">
-          <DefinitionForm draft={draft} setDraft={setDraft} itemsTotal={items.length} templatesEnabled={open} />
+          <fieldset disabled={publishing} className="min-w-0 space-y-4">
+            <DefinitionForm draft={draft} setDraft={setDraft} itemsTotal={items.length} templatesEnabled={open} />
+          </fieldset>
 
           <div className="space-y-1.5">
             <Label>Preview</Label>
-            <div
-              className="flex flex-wrap gap-1.5 rounded-xl border border-border bg-slate-50 p-2.5 dark:bg-slate-900"
-              data-testid="own-version-preview"
-            >
-              {preview.map((t, i) => (
-                <code
-                  key={i}
-                  className="min-w-0 break-all rounded-md border border-border bg-card px-1.5 py-0.5 font-mono text-[11px] text-slate-700 dark:text-slate-300"
-                >
-                  {JSON.stringify(t)}
-                </code>
-              ))}
-            </div>
+            <TagsReadout draft={draft} tags={preview} testId="own-version-preview" />
           </div>
 
           {problems.length > 0 && (
@@ -140,7 +146,7 @@ export function OwnVersionDialog({
           >
             {publishing ? (
               <>
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Publishing…
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" /> {progressLabel(progress)}
               </>
             ) : current ? (
               "Publish changes"

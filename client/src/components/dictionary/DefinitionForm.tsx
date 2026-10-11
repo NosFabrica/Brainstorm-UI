@@ -22,9 +22,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { CopyDraft, DraftDisplay, DraftField } from "@/lib/conceptCopy";
 import { DISPLAY_ROLES, factLabel, type DisplayRole } from "@/lib/displayHints";
 import { httpUrl, type FieldRequirement } from "@/lib/dlistFields";
-import { templatePlaceholders, type UrlTemplate } from "@/lib/linkTemplates";
+import { rebind, similarTemplates, templatePlaceholders, type UrlTemplate } from "@/lib/linkTemplates";
+import { asTemplate, draftTemplateId, type DraftTemplate } from "@/lib/templateDrafts";
 import { useAvailableTemplates, useLinkTemplates } from "@/hooks/useLinkTemplates";
-import { dictionaryRelays } from "@/config/dictionary";
+import { URL_TEMPLATES_CONCEPT, dictionaryRelays } from "@/config/dictionary";
 
 /** Radix Select can't hold an empty value: "no hint" needs a name of its own. */
 const AUTO = "__auto";
@@ -87,18 +88,22 @@ export function DefinitionForm({
     setDraft((d) => ({ ...d, display: { ...d.display, facts: next(d.display.facts) } }));
   const total = itemsTotal;
 
-  // URL templates: the ones on offer (the URL Templates list), and the ones this draft already pins.
+  // URL templates: the ones on offer (the URL Templates list), the ones this draft already pins,
+  // and the ones drafted here, which no relay has yet (lib/templateDrafts).
   const available = useAvailableTemplates(templatesEnabled);
-  const pinned = useLinkTemplates(draft.links);
+  const existing = available.data ?? [];
+  const draftIds = new Set(draft.templates.map((t) => t.id));
+  const pinned = useLinkTemplates(draft.links.filter((l) => !draftIds.has(l.templateId)));
   const templateById = new Map<string, UrlTemplate>([
-    ...(available.data ?? []).map((t) => [t.id, t] as [string, UrlTemplate]),
+    ...existing.map((t) => [t.id, t] as [string, UrlTemplate]),
     ...(pinned.data ?? new Map()),
+    ...draft.templates.map((t) => [t.id, asTemplate(t)] as [string, UrlTemplate]),
   ]);
+  // A field named for the placeholder is the likely one: {username} → github-username.
+  const guess = (p: string) => enabledNames.find((n) => n === p || n.endsWith(`-${p}`)) ?? "";
   const addLink = (id: string) => {
     const tpl = templateById.get(id);
     const placeholders = tpl ? (templatePlaceholders(tpl.template) ?? []) : [];
-    // A field named for the placeholder is the likely one: {username} → github-username.
-    const guess = (p: string) => enabledNames.find((n) => n === p || n.endsWith(`-${p}`)) ?? "";
     setDraft((d) => ({
       ...d,
       links: [
@@ -115,8 +120,56 @@ export function DefinitionForm({
       ),
     }));
   // A template this version already links isn't offered twice.
-  const offered = (available.data ?? []).filter((t) => !draft.links.some((l) => l.templateId === t.id));
-  const removeLink = (i: number) => setDraft((d) => ({ ...d, links: d.links.filter((_, j) => j !== i) }));
+  const offered = existing.filter((t) => !draft.links.some((l) => l.templateId === t.id));
+  // Removing a drafted template's link drops the draft with it.
+  const removeLink = (i: number) =>
+    setDraft((d) => ({
+      ...d,
+      links: d.links.filter((_, j) => j !== i),
+      templates: d.templates.filter((t) => t.id !== d.links[i]?.templateId),
+    }));
+  const newTemplate = () => {
+    const id = draftTemplateId();
+    setDraft((d) => ({
+      ...d,
+      templates: [...d.templates, { id, name: "", template: "https://" }],
+      links: [...d.links, { templateId: id, relay: dictionaryRelays()[0] ?? "", bindings: [] }],
+    }));
+  };
+  // A draft's placeholders follow its text: a binding stays while its placeholder does.
+  const editTemplate = (id: string, patch: Partial<DraftTemplate>) =>
+    setDraft((d) => {
+      const before = d.templates.find((t) => t.id === id);
+      if (!before) return d;
+      const after = { ...before, ...patch };
+      const placeholders = templatePlaceholders(after.template.trim());
+      return {
+        ...d,
+        templates: d.templates.map((t) => (t.id === id ? after : t)),
+        links: placeholders
+          ? d.links.map((l) => {
+              if (l.templateId !== id) return l;
+              const bound = new Map(l.bindings);
+              return { ...l, bindings: placeholders.map((p) => [p, bound.get(p) ?? guess(p)] as [string, string]) };
+            })
+          : d.links,
+      };
+    });
+  // An existing template in a draft's place: bindings carried over by position when it builds the same links.
+  const swapForExisting = (i: number, tpl: UrlTemplate) =>
+    setDraft((d) => {
+      const link = d.links[i];
+      const drafted = d.templates.find((t) => t.id === link.templateId);
+      const same = drafted && similarTemplates(drafted.template, [tpl]).same;
+      const bindings = same
+        ? rebind(drafted.template.trim(), tpl.template, link.bindings)
+        : (templatePlaceholders(tpl.template) ?? []).map((p) => [p, guess(p)] as [string, string]);
+      return {
+        ...d,
+        links: d.links.map((l, j) => (j === i ? { ...l, templateId: tpl.id, bindings } : l)),
+        templates: d.templates.filter((t) => t.id !== link.templateId),
+      };
+    });
 
   return (
     <>
@@ -256,25 +309,37 @@ export function DefinitionForm({
           <ul className="divide-y divide-border rounded-xl border border-border">
             {draft.links.map((link, i) => {
               const tpl = templateById.get(link.templateId);
+              const drafted = draft.templates.find((t) => t.id === link.templateId);
               return (
                 <li key={`${link.templateId}-${i}`} className="space-y-2 px-3 py-2" data-testid={`${testId}-link-${i}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                      {tpl?.name ?? "URL template"}
-                    </span>
-                    <code className="min-w-0 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
-                      {tpl?.template ?? link.templateId.slice(0, 12) + "…"}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => removeLink(i)}
-                      className="ml-auto rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
-                      aria-label="Remove link"
-                      data-testid={`${testId}-link-remove`}
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  {drafted ? (
+                    <DraftTemplateEditor
+                      template={drafted}
+                      existing={existing}
+                      onChange={(patch) => editTemplate(drafted.id, patch)}
+                      onUseExisting={(t) => swapForExisting(i, t)}
+                      onRemove={() => removeLink(i)}
+                      testId={`${testId}-draft-template-${i}`}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        {tpl?.name ?? "URL template"}
+                      </span>
+                      <code className="min-w-0 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
+                        {tpl?.template ?? link.templateId.slice(0, 12) + "…"}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => removeLink(i)}
+                        className="ml-auto rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+                        aria-label="Remove link"
+                        data-testid={`${testId}-link-remove`}
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                   {link.bindings.map(([placeholder, field]) => (
                     <div key={placeholder} className="flex items-center gap-2 text-xs">
                       <code className="font-mono text-slate-600 dark:text-slate-300">{`{${placeholder}}`}</code>
@@ -305,28 +370,41 @@ export function DefinitionForm({
             })}
           </ul>
         )}
-        {offered.length > 0 ? (
-          <Select value="" onValueChange={addLink}>
-            <SelectTrigger className="h-8 w-56 text-sm" data-testid={`${testId}-add-link`}>
-              <SelectValue placeholder="+ Add a link…" />
-            </SelectTrigger>
-            <SelectContent>
-              {offered.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name} <span className="font-mono text-xs text-slate-400">{t.template}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {available.isPending
-              ? "Looking for URL templates…"
-              : (available.data ?? []).length
-                ? "Every URL template is already linked."
-                : "No URL templates found."}
-          </p>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {offered.length > 0 ? (
+            <Select value="" onValueChange={addLink}>
+              <SelectTrigger className="h-8 w-56 text-sm" data-testid={`${testId}-add-link`}>
+                <SelectValue placeholder="+ Add a link…" />
+              </SelectTrigger>
+              <SelectContent>
+                {offered.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name} <span className="font-mono text-xs text-slate-400">{t.template}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {available.isPending
+                ? "Looking for URL templates…"
+                : (available.data ?? []).length
+                  ? "Every URL template is already linked."
+                  : "No URL templates found."}
+            </p>
+          )}
+          {URL_TEMPLATES_CONCEPT && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={newTemplate}
+              data-testid={`${testId}-new-template`}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" /> New URL template
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2" data-testid={`${testId}-display`}>
@@ -421,5 +499,111 @@ export function DefinitionForm({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * A URL template drafted in the form: its name and address, checked as typed,
+ * and what already exists — one building the same links, which it must use
+ * instead (it won't be published), and others on the same site, offered.
+ */
+function DraftTemplateEditor({
+  template,
+  existing,
+  onChange,
+  onUseExisting,
+  onRemove,
+  testId,
+}: {
+  template: DraftTemplate;
+  existing: readonly UrlTemplate[];
+  onChange: (patch: Partial<DraftTemplate>) => void;
+  onUseExisting: (t: UrlTemplate) => void;
+  onRemove: () => void;
+  testId: string;
+}) {
+  const text = template.template.trim();
+  const valid = !!templatePlaceholders(text);
+  const typed = !!text && text !== "https://";
+  const { same, sameSite } = valid ? similarTemplates(text, existing) : { same: null, sameSite: [] };
+  return (
+    <div className="space-y-2" data-testid={testId}>
+      <div className="flex items-center gap-2">
+        <Chip tone="accent" size="sm">
+          new — published with the list
+        </Chip>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="ml-auto rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+          aria-label="Remove link"
+          data-testid={`${testId}-remove`}
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="space-y-2">
+        <Input
+          value={template.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+          placeholder="Name: Open Library book"
+          className="h-8 text-sm"
+          aria-label="Template name"
+          data-testid={`${testId}-name`}
+        />
+        <Input
+          value={template.template}
+          onChange={(e) => onChange({ template: e.target.value })}
+          placeholder="https://openlibrary.org/isbn/{isbn}"
+          className="h-8 font-mono text-xs md:text-xs"
+          aria-label="Template address"
+          data-testid={`${testId}-url`}
+        />
+      </div>
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Placeholders like <code className="font-mono">{"{isbn}"}</code> go after the site; each is filled from a field.
+      </p>
+      {typed && !valid && (
+        <Chip tone="warning" size="sm" data-testid={`${testId}-invalid`}>
+          Start with https:// and the site, then use {"{placeholders}"}
+        </Chip>
+      )}
+      {same && (
+        <div
+          className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-slate-50 px-2.5 py-2 text-xs dark:bg-slate-900"
+          data-testid={`${testId}-same`}
+        >
+          <span>
+            Already exists as <strong>{same.name}</strong>{" "}
+            <code className="break-all font-mono text-slate-500">{same.template}</code>
+          </span>
+          <Button type="button" size="sm" variant="outline" className="ml-auto h-7" onClick={() => onUseExisting(same)}>
+            Use it
+          </Button>
+        </div>
+      )}
+      {!same && sameSite.length > 0 && (
+        <div className="space-y-1 text-xs text-slate-500 dark:text-slate-400" data-testid={`${testId}-same-site`}>
+          <p>Templates for this site already exist — one may already do it:</p>
+          {sameSite.map((t) => (
+            <div key={t.id} className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5">
+              <span className="min-w-0">
+                <span className="text-slate-700 dark:text-slate-300">{t.name}</span>{" "}
+                <code className="break-all font-mono">{t.template}</code>
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="ml-auto h-7 shrink-0"
+                onClick={() => onUseExisting(t)}
+              >
+                Use instead
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

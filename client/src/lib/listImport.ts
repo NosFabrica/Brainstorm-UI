@@ -5,7 +5,7 @@
  * report of whatever didn't make it.
  *
  * It takes, leniently:
- * - `{ "d": …, "tags": [[…], …], "example": { field: value }, "notes": [ … ] }`
+ * - `{ "d": …, "tags": [[…], …], "templates": [ … ], "example": { field: value }, "notes": [ … ] }`
  * - a bare array of tags, or a whole event (`{ "kind": 39998, "tags": … }`)
  * - any of those inside a Markdown code fence, as chats tend to reply.
  *
@@ -17,6 +17,12 @@
  * version of someone else's is made from its Dictionary entry. What a reader would ignore — a hint naming a field the
  * list doesn't declare, a role that isn't one — is dropped and said so, so an
  * AI's mistake doesn't vanish without a word.
+ *
+ * "templates" are URL templates the AI proposes, each named in a `link` by a
+ * `ref` of its own. A proposal becomes a drafted template (lib/templateDrafts),
+ * published with the list — unless an existing template builds the same links
+ * (lib/linkTemplates `similarTemplates`): then the link uses that one, its
+ * placeholders renamed to match. What became of each is reported.
  */
 import type { CopyDraft } from "@/lib/conceptCopy";
 import { definitionOf, type HeaderEvent } from "@/lib/conceptResolution";
@@ -24,10 +30,20 @@ import { DISPLAY_ROLES, FACT_ROLE } from "@/lib/displayHints";
 import { httpUrl } from "@/lib/dlistFields";
 import { listDraftOf, listHeaderTemplate } from "@/lib/listDraft";
 import { parseCoordinate } from "@/lib/dlistFields";
+import { LINK_TAG, rebind, similarTemplates, templatePlaceholders, type UrlTemplate } from "@/lib/linkTemplates";
+import { asTemplate, draftTemplateId, type DraftTemplate } from "@/lib/templateDrafts";
+
+/** A URL template an import proposes; its `link`s name it by `ref`. */
+export interface ProposedTemplate {
+  ref: string;
+  name: string;
+  template: string;
+}
 
 export interface ListImport {
   d: string | null;
   tags: string[][];
+  templates: ProposedTemplate[];
   example: Record<string, string>;
   notes: string[];
 }
@@ -68,7 +84,15 @@ export function parseListImport(text: string): ParsedImport {
     }
   }
   const notes = Array.isArray(obj.notes) ? obj.notes.filter((n): n is string => typeof n === "string") : [];
-  return { ok: true, value: { d, tags, example, notes } };
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const templates = (Array.isArray(obj.templates) ? obj.templates : [])
+    .filter((t): t is Record<string, unknown> => !!t && typeof t === "object" && !Array.isArray(t))
+    .map((t) => ({
+      ref: str(t.ref) || str(t.id),
+      name: str(t.name),
+      template: str(t.template) || str(t["url-template"]) || str(t.url),
+    }));
+  return { ok: true, value: { d, tags, templates, example, notes } };
 }
 
 export interface ImportResult {
@@ -86,6 +110,72 @@ export interface ImportResult {
   notes: string[];
   /** True when the paste pointed the list at itself; null when it said nothing about it. */
   selfPointer: true | null;
+  /** What became of each URL template the import proposed. */
+  templates: TemplateOutcome[];
+}
+
+/** A proposed template: drafted, to publish with the list; an existing one used instead; or dropped, with why. */
+export type TemplateOutcome =
+  | { proposed: ProposedTemplate; outcome: "new" }
+  | { proposed: ProposedTemplate; outcome: "existing"; existing: UrlTemplate }
+  | { proposed: ProposedTemplate; outcome: "dropped"; why: string };
+
+/** Where a link naming a ref goes: the template's id, and the text its placeholders were named in and are now. */
+interface Target {
+  id: string;
+  from: string;
+  to: string;
+}
+
+/** The proposals, read against the templates that exist and each other. */
+function adoptTemplates(proposals: ProposedTemplate[], existing: readonly UrlTemplate[]) {
+  const outcomes: TemplateOutcome[] = [];
+  const drafts: DraftTemplate[] = [];
+  const byRef = new Map<string, Target>();
+  for (const proposed of proposals) {
+    const ref = proposed.ref.trim();
+    const template = proposed.template.trim();
+    const drop = (why: string) => outcomes.push({ proposed, outcome: "dropped", why });
+    if (!ref) {
+      drop("it has no ref for a link to name it by");
+      continue;
+    }
+    if (byRef.has(ref)) {
+      drop(`another proposed template is "${ref}" too`);
+      continue;
+    }
+    if (!templatePlaceholders(template)) {
+      drop("a template starts with https:// and the site, then uses {placeholders} — nothing else");
+      continue;
+    }
+    const { same } = similarTemplates(template, existing);
+    if (same) {
+      byRef.set(ref, { id: same.id, from: template, to: same.template });
+      outcomes.push({ proposed, outcome: "existing", existing: same });
+      continue;
+    }
+    const twin = similarTemplates(template, drafts.map(asTemplate)).same;
+    if (twin) {
+      byRef.set(ref, { id: twin.id, from: template, to: twin.template });
+      drop(`it's the same as "${twin.name}", also proposed: its links use that one`);
+      continue;
+    }
+    const id = draftTemplateId();
+    drafts.push({ id, name: proposed.name.trim(), template });
+    byRef.set(ref, { id, from: template, to: template });
+    outcomes.push({ proposed, outcome: "new" });
+  }
+  return { outcomes, drafts, byRef };
+}
+
+/** A link naming a proposed template by ref, naming its id instead — placeholders renamed for an existing one. */
+function relink(tag: string[], byRef: ReadonlyMap<string, Target>): string[] {
+  const target = tag[0] === LINK_TAG ? byRef.get(tag[1]) : undefined;
+  if (!target) return tag;
+  const pairs: [string, string][] = [];
+  for (let i = 3; i + 1 < tag.length; i += 2) pairs.push([tag[i], tag[i + 1]]);
+  const bindings = target.from === target.to ? pairs : rebind(target.from, target.to, pairs).filter(([, f]) => f);
+  return [LINK_TAG, target.id, tag[2] ?? "", ...bindings.flat()];
 }
 
 /** The tags the editor's form writes or the list manages itself (its `d`, its `b`). */
@@ -118,7 +208,8 @@ function whyDropped(tag: string[], declared: Set<string>): string {
   }
   if (name === "field-type") return `"${a}" isn't a field the list declares`;
   if (name === "link") {
-    if (!/^[0-9a-f]{64}$/i.test(a ?? "")) return "a link pins a URL template by its 64-hex event id";
+    if (!/^[0-9a-f]{64}$/i.test(a ?? ""))
+      return `"${a}" is neither a URL template's id nor the ref of one proposed in "templates"`;
     return "every placeholder needs a field the list declares";
   }
   if (name === "image") return httpUrl(a) ? "a list has one image" : "the list's image must be an http(s) URL";
@@ -131,9 +222,14 @@ function whyDropped(tag: string[], declared: Set<string>): string {
 }
 
 /** The pasted header as the editor's draft, as though its form had been filled in. */
-export function importIntoDraft(value: ListImport, author: string): ImportResult {
+export function importIntoDraft(
+  value: ListImport,
+  author: string,
+  existing: readonly UrlTemplate[] = [],
+): ImportResult {
   const d = value.d ?? "";
-  const given = value.tags.filter((t) => t[0] !== "d" && t[0] !== "b");
+  const adopted = adoptTemplates(value.templates, existing);
+  const given = value.tags.filter((t) => t[0] !== "d" && t[0] !== "b").map((t) => relink(t, adopted.byRef));
   const header: HeaderEvent = {
     id: "0".repeat(64),
     pubkey: author,
@@ -142,7 +238,26 @@ export function importIntoDraft(value: ListImport, author: string): ImportResult
     tags: [["d", d], ...given],
   };
   const def = definitionOf(header);
-  const draft = listDraftOf(def);
+  const read = listDraftOf(def);
+  // A link to a proposed template has a binding for each of its placeholders, filled or not, as the form makes it.
+  const textOf = new Map([...adopted.byRef.values()].map((t) => [t.id, t.to]));
+  const links = read.links.map((l) => {
+    const text = textOf.get(l.templateId);
+    if (!text) return l;
+    const bound = new Map(l.bindings);
+    return {
+      ...l,
+      bindings: (templatePlaceholders(text) ?? []).map((p) => [p, bound.get(p) ?? ""] as [string, string]),
+    };
+  });
+  const used = (id: string) => links.some((l) => l.templateId === id);
+  const draft = { ...read, links, templates: adopted.drafts.filter((t) => used(t.id)) };
+  const templates = adopted.outcomes.map((o): TemplateOutcome => {
+    const id = adopted.byRef.get(o.proposed.ref.trim())?.id;
+    return o.outcome === "new" && id && !used(id)
+      ? { proposed: o.proposed, outcome: "dropped", why: "no link of the list's names it" }
+      : o;
+  });
   const kept = given.filter((t) => !FORM_TAGS.has(t[0]) || t[0] === "field-type");
   const made = listHeaderTemplate(draft, { d, author, previous: { tags: kept } }).tags;
   const declared = new Set(def.fields.map((f) => f.name));
@@ -167,5 +282,6 @@ export function importIntoDraft(value: ListImport, author: string): ImportResult
     example,
     notes: value.notes,
     selfPointer: pointers.some(isSelf) ? true : null,
+    templates,
   };
 }

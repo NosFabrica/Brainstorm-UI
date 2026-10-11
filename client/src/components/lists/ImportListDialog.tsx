@@ -53,7 +53,7 @@ export function ImportListDialog({
   };
   const fill = () => {
     if (!parsed?.ok) return;
-    onImport(importIntoDraft(parsed.value, author));
+    onImport(importIntoDraft(parsed.value, author, templates.data ?? []));
     setText("");
     onOpenChange(false);
   };
