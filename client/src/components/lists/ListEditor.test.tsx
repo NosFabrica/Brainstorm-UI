@@ -40,6 +40,10 @@ vi.mock("@/hooks/useDictionaryConcepts", () => ({
   useDictionaryConcepts: () => ({ shown: [], rendered: [], known: true }),
 }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ isAdmin: true }) }));
+// An address shown by name is looked up from the store: none here.
+vi.mock("@/hooks/useStoreReplaceable", () => ({
+  useStoreReplaceable: () => ({ event: undefined, loading: false, settled: true }),
+}));
 
 import { ListEditor } from "./ListEditor";
 
@@ -270,5 +274,43 @@ ${JSON.stringify(
     await user.paste("a list of food trucks please");
     expect(screen.getByTestId("list-import-error")).toHaveTextContent("That isn't JSON.");
     expect(screen.getByTestId("list-import-fill")).toBeDisabled();
+  });
+});
+
+describe("ListEditor — proposing a list as a community concept", () => {
+  const self = `["b","39998:${ME}:food-trucks","pointer"]`;
+  const published = (extra: string[][]): NostrEvent => ({
+    id: "h".repeat(64),
+    pubkey: ME,
+    kind: 39998,
+    created_at: 1,
+    content: "",
+    sig: "",
+    tags: [["d", "food-trucks"], ["names", "Food Truck", "Food Trucks"], ["required", "name"], ...extra],
+  });
+
+  it("is ticked for a new list — it points at itself — and unticking takes the pointer off", async () => {
+    await startList();
+    expect(screen.getByTestId("list-editor-self-pointer")).toBeChecked();
+    expect(tags()).toContain(self);
+    await userEvent.click(screen.getByTestId("list-editor-self-pointer"));
+    expect(tags()).not.toContain(self);
+  });
+
+  it("is as a published list had it, and never added to one that didn't", async () => {
+    const { unmount } = editor(published([["b", `39998:${ME}:food-trucks`, "pointer"]]));
+    expect(screen.getByTestId("list-editor-self-pointer")).toBeChecked();
+    unmount();
+    editor(published([]));
+    expect(screen.getByTestId("list-editor-self-pointer")).not.toBeChecked();
+    await userEvent.click(screen.getByTestId("list-editor-publish"));
+    expect(publish.mock.calls[0][0].tags.some((t: string[]) => t[0] === "b")).toBe(false);
+  });
+
+  it("says when a list is a version of another, and keeps that pointer", async () => {
+    const elsewhere = ["b", `39998:${"9".repeat(64)}:community-trucks`, "pointer"];
+    editor(published([elsewhere]));
+    expect(screen.getByTestId("list-editor-version-of")).toHaveTextContent("A version of");
+    expect(tags()).toContain(JSON.stringify(elsewhere));
   });
 });

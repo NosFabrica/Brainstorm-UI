@@ -12,6 +12,7 @@ import {
   listHeaderTemplate,
   listProblems,
   newListDraft,
+  pointsAtItself,
   previewDefinition,
   slugOf,
 } from "./listDraft";
@@ -49,8 +50,8 @@ describe("slugOf", () => {
 });
 
 describe("listHeaderTemplate", () => {
-  it("is a 39998 at its d: the definition, then a b pointing at itself", () => {
-    const t = listHeaderTemplate(draft(), { d: "food-trucks", author: ME });
+  it("is a 39998 at its d: the definition, then — proposed as a community concept — a b pointing at itself", () => {
+    const t = listHeaderTemplate(draft(), { d: "food-trucks", author: ME, selfPointer: true });
     expect(t.kind).toBe(39998);
     expect(t.tags).toEqual([
       ["d", "food-trucks"],
@@ -99,6 +100,39 @@ describe("listHeaderTemplate", () => {
     expect(t.tags).toContainEqual(["field-type", "name", "text"]);
   });
 
+  it("points at itself only when its author says so — an edit never adds or drops it on its own", () => {
+    const self = ["b", `39998:${ME}:food-trucks`, "pointer"];
+    expect(listHeaderTemplate(draft(), { d: "food-trucks", author: ME }).tags).not.toContainEqual(self);
+    // A list without one, edited, stays without one unless it's ticked.
+    const plain = {
+      tags: [
+        ["d", "food-trucks"],
+        ["names", "Food Truck", "Food Trucks"],
+      ],
+    };
+    expect(
+      listHeaderTemplate(draft(), { d: "food-trucks", author: ME, previous: plain }).tags.some((t) => t[0] === "b"),
+    ).toBe(false);
+    // Its own earlier self-pointer is kept exactly, relay hint and all; unticked, it goes.
+    const hinted = ["b", `39998:${ME}:food-trucks`, "pointer", "wss://hub"];
+    const withHint = { tags: [["d", "food-trucks"], hinted] };
+    expect(
+      listHeaderTemplate(draft(), { d: "food-trucks", author: ME, previous: withHint, selfPointer: true }).tags,
+    ).toContainEqual(hinted);
+    expect(
+      listHeaderTemplate(draft(), { d: "food-trucks", author: ME, previous: withHint, selfPointer: false }).tags,
+    ).not.toContainEqual(hinted);
+  });
+
+  it("keeps a b pointing at another list, ticked or not", () => {
+    const elsewhere = ["b", "39998:abc:community-trucks", "pointer"];
+    for (const selfPointer of [true, false])
+      expect(
+        listHeaderTemplate(draft(), { d: "food-trucks", author: ME, previous: { tags: [elsewhere] }, selfPointer })
+          .tags,
+      ).toContainEqual(elsewhere);
+  });
+
   it("needs a d", () => {
     expect(listProblems("  ")).toHaveLength(1);
     expect(listProblems("food-trucks")).toEqual([]);
@@ -112,11 +146,15 @@ describe("listDraftOf", () => {
       pubkey: ME,
       kind: 39998,
       created_at: 1,
-      tags: listHeaderTemplate(draft(), { d: "food-trucks", author: ME }).tags,
+      tags: listHeaderTemplate(draft(), { d: "food-trucks", author: ME, selfPointer: true }).tags,
     };
     const again = listDraftOf(definitionOf(header));
     expect(again.fields.every((f) => f.origin === "custom")).toBe(true);
-    expect(listHeaderTemplate(again, { d: "food-trucks", author: ME, previous: header }).tags).toEqual(header.tags);
+    expect(pointsAtItself(header)).toBe(true);
+    expect(
+      listHeaderTemplate(again, { d: "food-trucks", author: ME, previous: header, selfPointer: pointsAtItself(header) })
+        .tags,
+    ).toEqual(header.tags);
   });
 });
 

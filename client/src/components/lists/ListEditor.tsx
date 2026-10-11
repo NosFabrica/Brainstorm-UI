@@ -14,10 +14,12 @@ import type { NostrEvent } from "nostr-tools";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SectionHeader } from "@/components/ui/section-header";
 import { DefinitionForm } from "@/components/dictionary/DefinitionForm";
+import { AddressRef } from "@/components/dictionary/AddressRef";
 import { ItemFieldInputs, type FieldValues } from "@/components/lists/ItemFieldInputs";
 import { ItemPreview } from "@/components/lists/ItemPreview";
 import { ImportListDialog } from "@/components/lists/ImportListDialog";
@@ -26,6 +28,8 @@ import { draftProblems, type CopyDraft } from "@/lib/conceptCopy";
 import { definitionOf, type HeaderEvent } from "@/lib/conceptResolution";
 import {
   exampleItem,
+  listCoordinate,
+  pointsAtItself,
   listDraftOf,
   listHeaderTemplate,
   listProblems,
@@ -65,7 +69,16 @@ export function ListEditor({
     () => (header || imported ? { tags: [...(header?.tags ?? []), ...(imported?.kept ?? [])] } : null),
     [header, imported],
   );
-  const template = useMemo(() => listHeaderTemplate(draft, { d, author, previous }), [draft, d, author, previous]);
+  // Put forward as a community concept: a new list is (the team, 2026-10-11); a published one as it was.
+  const [selfPointer, setSelfPointer] = useState(() => (header ? pointsAtItself(header) : true));
+  const template = useMemo(
+    () => listHeaderTemplate(draft, { d, author, previous, selfPointer }),
+    [draft, d, author, previous, selfPointer],
+  );
+  // A b pointing at another list: this one is someone's version of it.
+  const versionOf = (header?.tags ?? [])
+    .filter((t) => t[0] === "b" && t[1] && t[1] !== listCoordinate(author, d))
+    .map((t) => t[1]);
   const resolved = useMemo(() => previewDefinition(template, author), [template, author]);
 
   const [values, setValues] = useState<FieldValues>({});
@@ -73,6 +86,7 @@ export function ListEditor({
   const applyImport = (result: ImportResult) => {
     setDraft(result.draft);
     if (publishedD === null && result.d) setTypedD(result.d);
+    if (result.selfPointer) setSelfPointer(true);
     setValues(result.example);
     setImported(result);
   };
@@ -136,6 +150,36 @@ export function ListEditor({
         </div>
 
         {own && (
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="list-self-pointer"
+              checked={selfPointer}
+              onCheckedChange={(v) => setSelfPointer(v === true)}
+              data-testid="list-editor-self-pointer"
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="list-self-pointer">Propose as a community concept</Label>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                The list points at itself (<code className="font-mono">b</code>): a public signal that you think
+                it&rsquo;s a good candidate for a concept others share.
+              </p>
+            </div>
+          </div>
+        )}
+        {versionOf.length > 0 && (
+          <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="list-editor-version-of">
+            A version of{" "}
+            {versionOf.map((c, i) => (
+              <span key={c}>
+                {i > 0 && ", "}
+                <AddressRef address={c} />
+              </span>
+            ))}
+            . That pointer stays as it is.
+          </p>
+        )}
+
+        {own && (
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setImporting(true)} data-testid="list-editor-import">
               Import from JSON…
@@ -147,13 +191,14 @@ export function ListEditor({
           </div>
         )}
         {imported &&
-          (imported.ignored.length > 0 ||
+          (imported.selfPointer ||
+            imported.ignored.length > 0 ||
             imported.notes.length > 0 ||
             (publishedD !== null && imported.d && imported.d !== publishedD)) && (
             <ImportReport
               result={imported}
               publishedD={publishedD}
-              onDismiss={() => setImported({ ...imported, ignored: [], notes: [], d: null })}
+              onDismiss={() => setImported({ ...imported, ignored: [], notes: [], d: null, selfPointer: null })}
             />
           )}
 
@@ -262,6 +307,11 @@ function ImportReport({
         {publishedD !== null && result.d && result.d !== publishedD && (
           <p>
             This list keeps its identifier, {publishedD}; the import's {result.d} wasn't used.
+          </p>
+        )}
+        {result.selfPointer && (
+          <p data-testid="list-editor-import-self">
+            It was proposed as a community concept: it still is, pointing at itself under your key.
           </p>
         )}
         {result.ignored.length > 0 && (

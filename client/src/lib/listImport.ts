@@ -10,7 +10,11 @@
  * - any of those inside a Markdown code fence, as chats tend to reply.
  *
  * What the form can't set but a header may carry (`license`, `r`, …) is kept,
- * as editing keeps it. What a reader would ignore — a hint naming a field the
+ * as editing keeps it. A `b` pointing at the list itself — whoever wrote it,
+ * as long as it names the same `d` — says the paste was put forward as a
+ * community concept, and ticks that choice for the list; a `b` pointing at
+ * another list is dropped and said so: a list here is one's own, and one's
+ * version of someone else's is made from its Dictionary entry. What a reader would ignore — a hint naming a field the
  * list doesn't declare, a role that isn't one — is dropped and said so, so an
  * AI's mistake doesn't vanish without a word.
  */
@@ -19,6 +23,7 @@ import { definitionOf, type HeaderEvent } from "@/lib/conceptResolution";
 import { DISPLAY_ROLES, FACT_ROLE } from "@/lib/displayHints";
 import { httpUrl } from "@/lib/dlistFields";
 import { listDraftOf, listHeaderTemplate } from "@/lib/listDraft";
+import { parseCoordinate } from "@/lib/dlistFields";
 
 export interface ListImport {
   d: string | null;
@@ -79,6 +84,8 @@ export interface ImportResult {
   ignored: { tag: string[]; why: string }[];
   example: Record<string, string>;
   notes: string[];
+  /** True when the paste pointed the list at itself; null when it said nothing about it. */
+  selfPointer: true | null;
 }
 
 /** The tags the editor's form writes or the list manages itself (its `d`, its `b`). */
@@ -142,7 +149,23 @@ export function importIntoDraft(value: ListImport, author: string): ImportResult
   const ignored = given
     .filter((t) => FORM_TAGS.has(t[0]) && !made.some((m) => sameTag(m, t)))
     .map((tag) => ({ tag, why: whyDropped(tag, declared) }));
+  // A b at the list's own d is its self-pointer, whoever wrote it; any other names another list.
+  const pointers = value.tags.filter((t) => t[0] === "b" && t[1]);
+  const isSelf = (t: string[]) => !!value.d && parseCoordinate(t[1])?.d === value.d;
+  for (const tag of pointers.filter((t) => !isSelf(t)))
+    ignored.push({
+      tag,
+      why: "a list here is your own: make your version of another list from its Dictionary entry",
+    });
   // Example values only for fields the list declares: the preview has no input for the rest.
   const example = Object.fromEntries(Object.entries(value.example).filter(([field]) => declared.has(field)));
-  return { draft, d: value.d, kept, ignored, example, notes: value.notes };
+  return {
+    draft,
+    d: value.d,
+    kept,
+    ignored,
+    example,
+    notes: value.notes,
+    selfPointer: pointers.some(isSelf) ? true : null,
+  };
 }

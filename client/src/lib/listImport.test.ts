@@ -112,7 +112,9 @@ describe("importIntoDraft", () => {
 
   it("keeps what the form can't set, so the header it publishes carries it", () => {
     expect(result.kept).toEqual([["license", "CC0-1.0"]]);
+    // Ticked, as the editor does for a new list.
     const published = listHeaderTemplate(result.draft, {
+      selfPointer: true,
       d: "books",
       author: ME,
       previous: { tags: result.kept },
@@ -140,7 +142,7 @@ describe("importIntoDraft", () => {
           ["field-type", "title", "text"],
           ["link", "goodreads", "wss://hub", "isbn", "isbn"],
           ["image", "a book emoji"],
-          ["b", "39998:someone:books", "pointer"],
+          ["b", "39998:9999999999999999999999999999999999999999999999999999999999999999:community-books", "pointer"],
         ],
         example: {},
         notes: [],
@@ -154,10 +156,31 @@ describe("importIntoDraft", () => {
       ["field-type", "cover", '"cover" isn\'t a field the list declares'],
       ["link", "goodreads", "a link pins a URL template by its 64-hex event id"],
       ["image", "a book emoji", "the list's image must be an http(s) URL"],
+      [
+        "b",
+        `39998:${"9".repeat(64)}:community-books`,
+        "a list here is your own: make your version of another list from its Dictionary entry",
+      ],
     ]);
+    expect(sloppy.selfPointer).toBeNull();
     // A text type given on purpose stays: it's carried as the previous version's.
     expect(
       listHeaderTemplate(sloppy.draft, { d: "books", author: ME, previous: { tags: sloppy.kept } }).tags,
     ).toContainEqual(["field-type", "title", "text"]);
+  });
+  it("takes a self-pointer — whoever wrote it, at the same d — as proposing the list as a community concept", () => {
+    const pasted = (b: string[]) =>
+      importIntoDraft(
+        { d: "books", tags: [["names", "Book", "Books"], ["required", "title"], b], example: {}, notes: [] },
+        ME,
+      );
+    const avis = pasted([
+      "b",
+      `39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:books`,
+      "pointer",
+    ]);
+    expect(avis.selfPointer).toBe(true);
+    expect(avis.ignored).toEqual([]);
+    expect(pasted(["b", `39998:${ME}:other-books`, "pointer"]).selfPointer).toBeNull();
   });
 });

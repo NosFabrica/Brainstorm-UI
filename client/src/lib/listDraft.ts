@@ -6,9 +6,12 @@
  *
  * - its own `d`, a slug of its name until it's published, fixed after (a new
  *   `d` is a new list);
- * - a `b` pointing at itself, as a canonical concept's does (Avi's headers,
- *   Tapestry's shared-concept search) — unless it already has a `b`, which
- *   stays: a copy edited here is still a copy;
+ * - a `b` pointing at itself when its author puts it forward as a community
+ *   concept — the signal a canonical concept gives (Avi's headers, Tapestry's
+ *   shared-concept search). It's the author's choice, never added or dropped
+ *   behind their back: new lists start with it (the team, 2026-10-11: a list
+ *   authored here is submitted as a community concept), an edit keeps whatever
+ *   the list had. A `b` pointing at another list stays as it was;
  * - every tag the form doesn't speak kept as it was when an existing list is
  *   edited (`r`, `license`, `item-kind`, `alt`, …): editing never drops what
  *   it can't show. `client` is the one exception — signing stamps a fresh one.
@@ -91,27 +94,40 @@ export function slugOf(name: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/** A list's own address. */
+export const listCoordinate = (author: string, d: string) => `39998:${author}:${d}`;
+
+/** Whether a header points at itself: put forward as a candidate community concept. */
+export function pointsAtItself(header: { pubkey: string; tags: string[][] }): boolean {
+  const d = header.tags.find((t) => t[0] === "d")?.[1] ?? "";
+  return header.tags.some((t) => t[0] === "b" && t[1] === listCoordinate(header.pubkey, d));
+}
+
 /**
  * The list's header as an unsigned event. `previous` is the version being
- * edited, if any: its other tags are kept, and its `b`, if it has one.
+ * edited, if any: its other tags are kept, a `b` pointing elsewhere among
+ * them. `selfPointer` decides the `b` pointing at itself — the list's own
+ * earlier one, exactly, if it had one.
  */
 export function listHeaderTemplate(
   draft: CopyDraft,
-  { d, author, previous }: { d: string; author: string; previous?: { tags: string[][] } | null },
+  {
+    d,
+    author,
+    previous,
+    selfPointer = false,
+  }: { d: string; author: string; previous?: { tags: string[][] } | null; selfPointer?: boolean },
 ): EventTemplate {
   const before = previous?.tags ?? [];
+  const self = listCoordinate(author, d);
   const typed = new Set(before.filter((t) => t[0] === "field-type" && t[1] && t[2]).map((t) => t[1]));
   const kept = before.filter((t) => !WRITTEN.has(t[0]) && t[0] !== "b");
-  const pointers = before.filter((t) => t[0] === "b");
+  const elsewhere = before.filter((t) => t[0] === "b" && t[1] !== self);
+  const itself = before.find((t) => t[0] === "b" && t[1] === self) ?? ["b", self, "pointer"];
   return {
     kind: 39998,
     content: "",
-    tags: [
-      ["d", d],
-      ...definitionTags(draft, typed),
-      ...kept,
-      ...(pointers.length ? pointers : [["b", `39998:${author}:${d}`, "pointer"]]),
-    ],
+    tags: [["d", d], ...definitionTags(draft, typed), ...kept, ...elsewhere, ...(selfPointer ? [itself] : [])],
   };
 }
 
