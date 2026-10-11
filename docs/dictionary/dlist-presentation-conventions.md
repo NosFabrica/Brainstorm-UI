@@ -66,9 +66,12 @@ colons.
   Nostr addresses, `kind:pubkey:d`: each names another event, usually the field `a`. It
   says to a renderer "there's something to fetch here". A renderer may look the address
   up and show what it names (its title, a link to its page) in place of the raw string.
-  Brainstorm renders it as text for now. It's an assertion made ahead of a spec, in the
-  hope that one takes it up. `event`, for event ids, would be its sibling, but no list uses
-  one yet.
+  Brainstorm does (2026-10-11): it reads a coordinate, or an `naddr` spelled out as one,
+  shows the event by its name (a list's plural, an item's `title` or `name`, else its `d`)
+  and links to its page, falling back to the address while it looks. Its item form stores
+  the coordinate even when an `naddr` is pasted. It's an assertion made ahead of a spec, in
+  the hope that one takes it up. `event`, for event ids, would be its sibling, but no list
+  uses one yet.
 - Unknown types render as text.
 
 The **tag** is emitted by the curate client (curate-psi.vercel.app) and tracked by

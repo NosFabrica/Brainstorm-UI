@@ -37,6 +37,7 @@ import { Chip } from "@/components/ui/chip";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
 import { Favicon } from "@/components/share/LinkPreview";
+import { FieldValue } from "@/components/dictionary/FieldValue";
 import { isReady, useItemView, useResolvedItemView, type ItemView, type ReadyItemView } from "@/hooks/useItemView";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { fieldCell, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
@@ -166,18 +167,7 @@ function Defined({ event, view, preview }: { event: ItemEvent; view: ReadyItemVi
             <div key={f.field} className="contents" data-testid="dlist-item-fact" data-field={f.field}>
               <dt className="text-slate-500 dark:text-slate-400">{f.label}</dt>
               <dd className="min-w-0 break-words text-slate-900 dark:text-slate-100">
-                {f.href ? (
-                  <a
-                    href={f.href}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                    className="text-brand-link hover:underline"
-                  >
-                    {f.value}
-                  </a>
-                ) : (
-                  f.value
-                )}
+                <FieldValue value={f.value} href={f.href} address={f.address} />
                 {f.extra > 0 && <span className="ml-2 text-xs text-slate-400">+{f.extra} more</span>}
               </dd>
             </div>
@@ -322,12 +312,8 @@ function FieldList({ cells }: { cells: { field: FieldDecl; cell: ReturnType<type
               ) : (
                 <span className="text-slate-400">—</span>
               )
-            ) : cell.href ? (
-              <a href={cell.href} target="_blank" rel="noopener noreferrer" className="text-brand-link hover:underline">
-                {cell.value}
-              </a>
             ) : (
-              cell.value
+              <FieldValue value={cell.value} href={cell.href} address={cell.address} />
             )}
             {cell.extra > 0 && <span className="ml-2 text-xs text-slate-400">+{cell.extra} more</span>}
           </dd>

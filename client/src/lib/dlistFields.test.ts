@@ -3,7 +3,9 @@
  * dcosl.brainstorm.world (header and items as published, 2026-09).
  */
 import { describe, expect, it } from "vitest";
+import { nip19 } from "nostr-tools";
 import {
+  addressOf,
   coordinateOf,
   fieldCell,
   headerNames,
@@ -154,7 +156,13 @@ describe("fieldCell", () => {
   const [username] = parseFieldDecls(header);
 
   it("reads the item's value for a declared field", () => {
-    expect(fieldCell(item, username)).toEqual({ value: "vcavallo", extra: 0, missing: false, href: null });
+    expect(fieldCell(item, username)).toEqual({
+      value: "vcavallo",
+      extra: 0,
+      missing: false,
+      href: null,
+      address: null,
+    });
   });
 
   it("flags a missing required field", () => {
@@ -200,5 +208,29 @@ describe("undeclaredFields", () => {
       [],
     );
     expect(extra).toEqual([]);
+  });
+});
+
+describe("address fields (provisional)", () => {
+  const coord = `39998:${AVI}:divine-videos`;
+
+  it("reads a coordinate or an naddr as the address it names, and nothing else", () => {
+    expect(addressOf(` ${coord} `)).toBe(coord);
+    expect(addressOf(nip19.naddrEncode({ kind: 39998, pubkey: AVI, identifier: "divine-videos" }))).toBe(coord);
+    expect(addressOf(`nostr:${nip19.naddrEncode({ kind: 30023, pubkey: AVI, identifier: "a:b" })}`)).toBe(
+      `30023:${AVI}:a:b`,
+    );
+    expect(addressOf("divine-videos")).toBeNull();
+    expect(addressOf("naddr1nonsense")).toBeNull();
+  });
+
+  it("gives an address field's cell the address its value names — and no other type's", () => {
+    const item = { tags: [["list", coord]] };
+    expect(fieldCell(item, { name: "list", requirement: "optional", description: null, type: "address" }).address).toBe(
+      coord,
+    );
+    expect(
+      fieldCell(item, { name: "list", requirement: "optional", description: null, type: "text" }).address,
+    ).toBeNull();
   });
 });
