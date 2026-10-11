@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ItemComposer } from "@/components/lists/ItemComposer";
 import { ListEditor } from "@/components/lists/ListEditor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useListAt, useMyLists } from "@/hooks/useLists";
@@ -87,14 +89,33 @@ function EditorFor({ list, me, mine }: { list: string; me: string; mine: NostrEv
         <Loader2 className="h-4 w-4 animate-spin" /> Reading the list…
       </p>
     );
+  return <PublishedList key={coordinateOf(header) ?? header.id} header={header} me={me} takenDs={takenDs} />;
+}
+
+/**
+ * A published list: its definition (editable when it's the author's own) and
+ * a form to add an item to it. Someone else's opens on adding, all one can do.
+ */
+function PublishedList({ header, me, takenDs }: { header: NostrEvent; me: string; takenDs: ReadonlySet<string> }) {
+  const [mode, setMode] = useState<"definition" | "item">(header.pubkey === me ? "definition" : "item");
   return (
-    <ListEditor
-      key={coordinateOf(header) ?? header.id}
-      header={header}
-      me={me}
-      takenDs={takenDs}
-      onPublished={onPublished}
-    />
+    <div className="space-y-5">
+      <Tabs value={mode} onValueChange={(v) => setMode(v as "definition" | "item")}>
+        <TabsList>
+          <TabsTrigger value="definition" data-testid="list-manager-mode-definition">
+            Definition
+          </TabsTrigger>
+          <TabsTrigger value="item" data-testid="list-manager-mode-item">
+            Add an item
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {mode === "definition" ? (
+        <ListEditor header={header} me={me} takenDs={takenDs} onPublished={() => {}} />
+      ) : (
+        <ItemComposer header={header} me={me} />
+      )}
+    </div>
   );
 }
 

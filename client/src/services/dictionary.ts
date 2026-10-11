@@ -95,7 +95,7 @@ function newestPerCoordinate(events: HeaderEvent[]): Map<string, HeaderEvent> {
  * preferring the one sharing its `d` (the convention a copy follows), else
  * the newest.
  */
-function copyBy(author: string | null, community: string, copies: HeaderEvent[]): HeaderEvent | null {
+export function copyBy(author: string | null, community: string, copies: HeaderEvent[]): HeaderEvent | null {
   if (!author) return null;
   const d = parseCoordinate(community)?.d;
   const mine = copies.filter((h) => h.pubkey === author && pointsAt(h, community));
