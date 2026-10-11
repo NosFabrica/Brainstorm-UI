@@ -32,6 +32,20 @@ describe("listQueryOf — a search that names a list", () => {
   it("does not take part of a word for the name", () => {
     expect(listQueryOf("bookshelf oak", concepts)).toBeNull();
   });
+
+  it("is not named by filler in its name: joining words, articles, bare numbers", () => {
+    const FOOD = "39998:b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450:food-and-drink-places";
+    const V4V = "39998:77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3:b504f5a8";
+    const lists = [
+      { coordinate: FOOD, singular: "Food and Drink Place", plural: "Food and Drink Places" },
+      { coordinate: V4V, singular: "Value 4 Value Song", plural: "Value 4 Value Songs" },
+    ];
+    expect(listQueryOf("salt and pepper", lists)).toBeNull();
+    expect(listQueryOf("top 4 albums", lists)).toBeNull();
+    expect(listQueryOf("food truck", lists)).toEqual({ coordinate: FOOD, words: ["truck"] });
+    // "and" is still a word to find once the list is named.
+    expect(listQueryOf("drink salt and pepper", lists)).toEqual({ coordinate: FOOD, words: ["salt", "and", "pepper"] });
+  });
 });
 
 const header: HeaderEvent = {

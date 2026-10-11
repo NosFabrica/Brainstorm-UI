@@ -32,9 +32,8 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
     ]),
   }),
 }));
-vi.mock("@/config/dictionary", async (orig) => ({
-  ...(await orig<Record<string, unknown>>()),
-  DICTIONARY_CONCEPTS: [COMMUNITY],
+vi.mock("@/hooks/useDictionaryConcepts", () => ({
+  useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));
 
 // The app's players, as what they're handed: the test is what the page gives them.

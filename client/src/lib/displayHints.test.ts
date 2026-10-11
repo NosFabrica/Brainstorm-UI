@@ -82,7 +82,7 @@ describe("presentItem", () => {
   );
 
   it("with no hints: the first required field is the title, a description the summary", () => {
-    expect(presentItem(item, plain, true)).toMatchObject({
+    expect(presentItem(item, plain)).toMatchObject({
       title: "vcavallo",
       titleField: "github-username",
       summary: "Vinney Cavallo",
@@ -92,7 +92,7 @@ describe("presentItem", () => {
   });
 
   it("a hint decides: the header's author has the say", () => {
-    expect(presentItem(item, hinted, true)).toMatchObject({
+    expect(presentItem(item, hinted)).toMatchObject({
       title: "Vinney Cavallo",
       image: "https://avatars.example/v.png",
       listImage: "https://x.example/i.svg",
@@ -100,15 +100,7 @@ describe("presentItem", () => {
   });
 
   it("the summary is never the title again", () => {
-    expect(presentItem(item, hinted, true).summary).toBeNull();
-  });
-
-  it("hints switched off: the defaults stand", () => {
-    expect(presentItem(item, hinted, false)).toMatchObject({
-      title: "vcavallo",
-      image: null,
-      listImage: null,
-    });
+    expect(presentItem(item, hinted).summary).toBeNull();
   });
 });
 
@@ -156,7 +148,7 @@ describe("link and media roles", () => {
   });
 
   it("the link is the item's own URL, named by its field's description", () => {
-    expect(presentItem(song, songs, true).link).toEqual({
+    expect(presentItem(song, songs).link).toEqual({
       href: "https://podcastindex.org/podcast/4148683#5",
       host: "podcastindex.org",
       label: "Podcast Index page",
@@ -164,12 +156,12 @@ describe("link and media roles", () => {
   });
 
   it("the media plays as what its file is", () => {
-    expect(presentItem(song, songs, true).media).toEqual({
+    expect(presentItem(song, songs).media).toEqual({
       url: "https://mp3s.podcastindex.org/Supertramp.mp3",
       kind: "audio",
     });
     const video = { tags: [...song.tags.filter((t) => t[0] !== "url"), ["url", "https://v.example/clip.mp4"]] };
-    expect(presentItem(video, songs, true).media?.kind).toBe("video");
+    expect(presentItem(video, songs).media?.kind).toBe("video");
   });
 
   it("no media from a file that isn't audio or video, and no link from a non-http value", () => {
@@ -179,7 +171,7 @@ describe("link and media roles", () => {
         ["t", "javascript:alert(1)"],
       ],
     };
-    expect(presentItem(odd, songs, true)).toMatchObject({ media: null, link: null });
+    expect(presentItem(odd, songs)).toMatchObject({ media: null, link: null });
   });
 
   it("a link labelled by its host when the field has no description", () => {
@@ -189,7 +181,7 @@ describe("link and media roles", () => {
         ["display", "link", "page"],
       ]),
     );
-    expect(presentItem({ tags: [["page", "https://example.org/x"]] }, plain, true).link?.label).toBe("example.org");
+    expect(presentItem({ tags: [["page", "https://example.org/x"]] }, plain).link?.label).toBe("example.org");
   });
 });
 
@@ -278,7 +270,6 @@ describe("fact role", () => {
         ["display", "fact", "phone"],
         ["display", "fact", "menu"],
       ]),
-      true,
     );
     expect(shown.facts).toEqual([
       { field: "accepts-bitcoin", label: "Bitcoin", value: "lightning", href: null, extra: 0 },
@@ -301,15 +292,10 @@ describe("fact role", () => {
         ["display", "fact", "address"],
         ["display", "fact", "phone"],
       ]),
-      true,
     );
     expect(shown.summary).toBe("1440 Canal Street");
     expect(shown.facts.map((f) => f.field)).toEqual(["phone"]);
     expect(shown.factFields).toEqual(["phone"]);
-  });
-
-  it("hints switched off: no facts", () => {
-    expect(presentItem(place, withFacts([["display", "fact", "phone"]]), false).facts).toEqual([]);
   });
 });
 
@@ -330,7 +316,7 @@ describe("location role", () => {
   const mapped = definitionOf(header([...placeFields, ["display", "location", "g"]]));
 
   it("reads the field's most precise geohash, wherever it sits", () => {
-    const { location, locationField } = presentItem(place, mapped, true);
+    const { location, locationField } = presentItem(place, mapped);
     expect(locationField).toBe("g");
     expect(location?.geohash).toBe("6ex01945p");
     expect(location?.lat).toBeCloseTo(-25.30647, 4);
@@ -345,7 +331,7 @@ describe("location role", () => {
         ["g", "6ex0"],
       ],
     };
-    expect(presentItem(odd, mapped, true).location?.geohash).toBe("6ex0");
+    expect(presentItem(odd, mapped).location?.geohash).toBe("6ex0");
     expect(
       presentItem(
         {
@@ -355,12 +341,11 @@ describe("location role", () => {
           ],
         },
         mapped,
-        true,
       ).location,
     ).toBeNull();
   });
 
   it("needs the role: a declared g alone is no location", () => {
-    expect(presentItem(place, definitionOf(header(placeFields)), true).location).toBeNull();
+    expect(presentItem(place, definitionOf(header(placeFields))).location).toBeNull();
   });
 });

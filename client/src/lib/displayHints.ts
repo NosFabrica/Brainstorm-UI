@@ -4,8 +4,9 @@
  * image the list as a whole wears. No spec defines these yet; tapestry has
  * nothing like it on any branch. The shape follows the tapestry agent's
  * review, and the team will settle names with David once this approach has
- * been seen working. Every tag name lives here, so a rename is one edit;
- * `displayHints` in dictionary.config.json turns reading them off.
+ * been seen working. Every tag name lives here, so a rename is one edit.
+ * (A config flag once turned reading them off; removed 2026-10-10, as every
+ * list's look depends on them.)
  *
  *   ["display", "title" | "summary" | "image" | "link" | "media" | "location", <declared field>]
  *   ["display", "fact", <declared field>, <label?>]   — as many as the header likes

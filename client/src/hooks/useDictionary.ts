@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { useDictionaryReader } from "@/hooks/useDictionaryReader";
 import { loadDictionary } from "@/services/dictionary";
 
 /**
- * The Active Account's Dictionary (services/dictionary). Waits for
+ * The Active Account's Dictionary (services/dictionary), over the concepts
+ * it shows (hooks/useDictionaryConcepts). Waits for
  * `/user/history` to say who their Assistant is — reading without it would
  * show "not in your Dictionary" for a concept their Assistant did add, then
  * flip. With no Session the history never comes, so it reads with the
@@ -17,11 +19,12 @@ import { loadDictionary } from "@/services/dictionary";
  */
 export function useDictionary(enabled = true, { anonymous = false }: { anonymous?: boolean } = {}) {
   const { pubkey, taPubkey, settled } = useDictionaryReader();
+  const concepts = useDictionaryConcepts();
   const query = useQuery({
-    queryKey: ["dictionary", pubkey, taPubkey],
+    queryKey: ["dictionary", pubkey, taPubkey, concepts.shown],
     // Headers and copies only: a concept's items load when its row or entry shows them (useConceptItems).
-    queryFn: () => loadDictionary({ pubkey, taPubkey }, undefined, undefined, { items: false }),
-    enabled: enabled && (anonymous || !!pubkey) && settled,
+    queryFn: () => loadDictionary({ pubkey, taPubkey }, concepts.shown, undefined, { items: false }),
+    enabled: enabled && (anonymous || !!pubkey) && settled && concepts.known,
     staleTime: 5 * 60_000,
   });
   return { ...query, pubkey, taPubkey };

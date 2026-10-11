@@ -45,6 +45,8 @@ import { CuratorFooter } from "@/components/search/cards";
 import { DListItemHero } from "@/components/share/DListItemHero";
 import { dlistOfEvent } from "@/lib/dlists";
 import { dictionaryConceptOf } from "@/services/dictionary";
+import { isDListItem } from "@/lib/dlistFields";
+import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
@@ -222,6 +224,7 @@ function EventView({
   const coinReplaced = useCoinReplacedByRing();
   const relayHints = ptr?.relays || [];
   const loggedIn = useHasSession();
+  const concepts = useDictionaryConcepts();
   // Tagging needs a SIGNER, not a session: a session token is backend auth and
   // cannot sign an event, so gating on it would show a button that throws.
   //
@@ -340,9 +343,14 @@ function EventView({
   const DEDICATED_KINDS = new Set([
     30311, 32267, 1063, 30617, 30000, 30392, 10040, 31337, 30402, 31922, 31923, 39998, 9998,
   ]);
+  // An item of a Dictionary concept is drawn from its definition. Until this device knows the
+  // concepts (its first visit), a list item waits for them rather than draw its tags and swap.
+  const asDictionaryItem =
+    !!note &&
+    (!!dictionaryConceptOf(note, concepts.rendered) || (!concepts.known && isDListItem(note) && !dlistOfEvent(note)));
   const renderedGenerically =
     !!note &&
-    !dictionaryConceptOf(note) &&
+    !asDictionaryItem &&
     !isGitItem(note.kind) &&
     !DEDICATED_KINDS.has(note.kind) &&
     !ITEM_LIST_KINDS.has(note.kind) &&
@@ -394,8 +402,7 @@ function EventView({
   // A list's items and headers are about the thing listed, not who listed it: the
   // lister is a quiet "Listed by" under it, as on the results card, instead of the
   // header a post or an article gets (the team, 2026-10-01).
-  const quietAuthor =
-    !!note && (!!dlistOfEvent(note) || !!dictionaryConceptOf(note) || note.kind === 39998 || note.kind === 9998);
+  const quietAuthor = !!note && (!!dlistOfEvent(note) || asDictionaryItem || note.kind === 39998 || note.kind === 9998);
 
   // When the thread's anon signup gate is showing, suppress the page's own
   // (now-duplicate) "Who can you trust online?" funnel.
@@ -560,7 +567,7 @@ function EventView({
               ) : note.kind === 39998 || note.kind === 9998 ? (
                 // Any other list's header: the list and its items, its tags behind "Advanced view".
                 <DListHeaderHero event={note} />
-              ) : dictionaryConceptOf(note) ? (
+              ) : asDictionaryItem ? (
                 // An item of a Dictionary concept, drawn from its governing definition (ADR 0004).
                 <DListItemHero event={note} />
               ) : isGitItem(note.kind) ? (

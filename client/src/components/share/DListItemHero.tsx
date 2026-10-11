@@ -46,6 +46,7 @@ import type { ItemPresentation } from "@/lib/itemPresentation";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import type { DefinitionSource } from "@/lib/conceptResolution";
+import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { dictionaryConceptOf } from "@/services/dictionary";
 import { EmojiText } from "@/components/ui/custom-emoji";
 
@@ -378,7 +379,9 @@ function MoreFields({
  */
 function ConceptLink({ event, children }: { event: ItemEvent; children: ReactNode }) {
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
-  const coordinate = dictionaryConceptOf(event);
+  // Infrastructure (URL Templates) renders, but has no Dictionary entry to link to.
+  const { shown } = useDictionaryConcepts();
+  const coordinate = dictionaryConceptOf(event, shown);
   if (!isAdmin || !coordinate) return <>{children}</>;
   return (
     <Link

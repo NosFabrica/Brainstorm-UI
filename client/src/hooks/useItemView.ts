@@ -1,6 +1,5 @@
 import { useItemConcept } from "@/hooks/useItemConcept";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
-import { DISPLAY_HINTS_ENABLED } from "@/config/dictionary";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
 import { itemLinks, type ItemLink } from "@/lib/linkTemplates";
 import type { ResolvedConcept } from "@/lib/conceptResolution";
@@ -48,7 +47,7 @@ export function useResolvedItemView(
   resolved: ResolvedConcept | null,
   pending = false,
 ): ItemView {
-  const refs = DISPLAY_HINTS_ENABLED && resolved ? resolved.governing.links : [];
+  const refs = resolved ? resolved.governing.links : [];
   const templates = useLinkTemplates(refs);
   if (pending || !resolved) return { pending, resolved: null, shown: null, links: [], usedFields: new Set() };
   const shown = presentItem(item, resolved.governing);
