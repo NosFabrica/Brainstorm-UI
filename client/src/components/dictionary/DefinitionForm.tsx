@@ -211,7 +211,7 @@ export function DefinitionForm({
                   disabled={!f.enabled}
                 >
                   <SelectTrigger
-                    className="h-7 w-[7.5rem] text-xs"
+                    className="h-7 w-[8.75rem] text-xs"
                     aria-label={`${f.name || "Field"} requirement`}
                     data-testid={`${testId}-field-requirement`}
                   >
