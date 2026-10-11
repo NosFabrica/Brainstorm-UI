@@ -37,7 +37,7 @@ import { Chip } from "@/components/ui/chip";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
 import { Favicon } from "@/components/share/LinkPreview";
-import { isReady, useItemView, type ReadyItemView } from "@/hooks/useItemView";
+import { isReady, useItemView, useResolvedItemView, type ItemView, type ReadyItemView } from "@/hooks/useItemView";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { fieldCell, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
 import { avatarSrc } from "@/lib/avatarSrc";
@@ -45,7 +45,7 @@ import { osmEmbedUrl, osmPageUrl } from "@/lib/geohash";
 import type { ItemPresentation } from "@/lib/itemPresentation";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
-import type { DefinitionSource } from "@/lib/conceptResolution";
+import type { DefinitionSource, ResolvedConcept } from "@/lib/conceptResolution";
 import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
 import { dictionaryConceptOf } from "@/services/dictionary";
 import { EmojiText } from "@/components/ui/custom-emoji";
@@ -61,7 +61,20 @@ const SOURCE_WORDS: Record<DefinitionSource, string> = {
 
 export function DListItemHero({ event }: { event: ItemEvent }) {
   const view = useItemView(event);
+  return <HeroFor event={event} view={view} />;
+}
 
+/**
+ * The page as it would read under a definition held in hand — List
+ * Management's preview of an item under a draft header (components/lists).
+ * No neighbours: the list it would be on isn't read.
+ */
+export function DListItemHeroPreview({ event, resolved }: { event: ItemEvent; resolved: ResolvedConcept }) {
+  const view = useResolvedItemView(event, resolved);
+  return <HeroFor event={event} view={view} preview />;
+}
+
+function HeroFor({ event, view, preview = false }: { event: ItemEvent; view: ItemView; preview?: boolean }) {
   if (view.pending)
     return (
       <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400" data-testid="dlist-item-hero">
@@ -70,10 +83,10 @@ export function DListItemHero({ event }: { event: ItemEvent }) {
     );
 
   if (!isReady(view)) return <Undefined event={event} />;
-  return <Defined event={event} view={view} />;
+  return <Defined event={event} view={view} preview={preview} />;
 }
 
-function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
+function Defined({ event, view, preview }: { event: ItemEvent; view: ReadyItemView; preview: boolean }) {
   const { resolved: r, shown, links, usedFields } = view;
   const fields = r.governing.fields;
   const cells = fields.map((f) => ({ field: f, cell: fieldCell(event, f) }));
@@ -202,7 +215,7 @@ function Defined({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
         <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />
       )}
 
-      <DListItemNeighbours event={event} resolved={r} />
+      {!preview && <DListItemNeighbours event={event} resolved={r} />}
 
       <p
         className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-400 dark:text-slate-500"

@@ -192,24 +192,20 @@ export function draftProblems(draft: CopyDraft): string[] {
 }
 
 /**
- * The copy as an unsigned event. Fields in the form's order; a field the
- * community typed keeps its `field-type`, verbatim.
+ * A definition's tags, as a draft says them: its names and description,
+ * each field it includes with its requirement and description, a type for a
+ * field that isn't plain text (or one `typed` already gave a type), the
+ * display hints and facts that name an included field, and the links whose
+ * every placeholder has one. Shared by an own version (copyTemplate) and a
+ * list of one's own (lib/listDraft).
  */
-export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): EventTemplate {
-  const d = community.event.tags.find((t) => t[0] === "d")?.[1] ?? "";
-  const typed = new Map(
-    community.event.tags.filter((t) => t[0] === "field-type" && t[1] && t[2]).map((t) => [t[1], t]),
-  );
-  const tags: string[][] = [
-    ["d", d],
-    ["names", draft.singular.trim(), draft.plural.trim()],
-  ];
+export function definitionTags(draft: CopyDraft, typed: ReadonlySet<string> = new Set()): string[][] {
+  const tags: string[][] = [["names", draft.singular.trim(), draft.plural.trim()]];
   if (draft.description.trim()) tags.push(["description", draft.description.trim()]);
   for (const f of draft.fields.filter((f) => f.enabled)) {
     const name = f.name.trim();
     const description = f.description?.trim();
     tags.push([f.requirement, name, ...(description ? [description] : [])]);
-    // A field the community typed keeps a type tag; any other only when it isn't plain text.
     const type = f.type ?? "text";
     if (typed.has(name) || type !== "text") tags.push(["field-type", name, type]);
   }
@@ -235,8 +231,21 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
   const usable = draft.links.filter((l) => l.bindings.every(([, f]) => f && enabled.has(f)));
   const linkKey = (t: string[]) => JSON.stringify(t);
   tags.push(...linkTags(usable).filter((t, i, all) => all.findIndex((u) => linkKey(u) === linkKey(t)) === i));
-  tags.push(["b", community.coordinate, "pointer"]);
-  return { kind: 39998, content: "", tags };
+  return tags;
+}
+
+/**
+ * The copy as an unsigned event. Fields in the form's order; a field the
+ * community typed keeps its `field-type`, verbatim.
+ */
+export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): EventTemplate {
+  const d = community.event.tags.find((t) => t[0] === "d")?.[1] ?? "";
+  const typed = new Set(community.event.tags.filter((t) => t[0] === "field-type" && t[1] && t[2]).map((t) => t[1]));
+  return {
+    kind: 39998,
+    content: "",
+    tags: [["d", d], ...definitionTags(draft, typed), ["b", community.coordinate, "pointer"]],
+  };
 }
 
 /** The same coordinate, no longer a copy of anything: what withdrawing publishes. */
