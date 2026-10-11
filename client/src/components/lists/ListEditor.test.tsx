@@ -163,3 +163,71 @@ describe("ListEditor — a published list", () => {
     expect(screen.getByTestId("list-example-name")).toBeInTheDocument();
   });
 });
+
+describe("ListEditor — importing from JSON", () => {
+  const reply = `Here you go:
+
+\`\`\`json
+${JSON.stringify(
+  {
+    d: "food-trucks",
+    tags: [
+      ["names", "Food Truck", "Food Trucks"],
+      ["required", "name", "Name"],
+      ["optional", "btcmap-id", "BTC Map id"],
+      ["display", "title", "name"],
+      ["display", "fact", "cuisine", "Cuisine"],
+      ["link", TEMPLATE, "wss://dcosl.brainstorm.world", "id", "btcmap-id"],
+      ["license", "ODbL-1.0"],
+    ],
+    example: { name: "Wolf's Burger Truck", "btcmap-id": "28718" },
+    notes: ["No template for the truck's own website: it's a field."],
+  },
+  null,
+  2,
+)}
+\`\`\``;
+
+  it("copies instructions that name the URL templates there are", async () => {
+    const user = userEvent.setup();
+    editor();
+    await user.click(screen.getByTestId("list-editor-import"));
+    await user.click(screen.getByTestId("list-import-copy"));
+    const copied = await navigator.clipboard.readText();
+    expect(copied).toContain(`${TEMPLATE} — BTC Map place — https://btcmap.org/merchant/{id}`);
+    expect(screen.getByTestId("list-import-copy")).toHaveTextContent("Copied");
+  });
+
+  it("fills the form and the example from an AI's reply, and says what it didn't use", async () => {
+    const user = userEvent.setup();
+    editor();
+    await user.click(screen.getByTestId("list-editor-import"));
+    await user.click(screen.getByTestId("list-import-reply"));
+    await user.paste(reply);
+    await user.click(screen.getByTestId("list-import-fill"));
+
+    expect(screen.getByTestId("list-editor-plural")).toHaveValue("Food Trucks");
+    expect(screen.getByTestId("list-editor-d")).toHaveValue("food-trucks");
+    expect(within(screen.getByTestId("list-preview")).getByTestId("dlist-item-title")).toHaveTextContent(
+      "Wolf's Burger Truck",
+    );
+    expect(within(screen.getByTestId("list-preview-links")).getByTestId("list-preview-links-href")).toHaveTextContent(
+      "https://btcmap.org/merchant/28718",
+    );
+    expect(screen.getByTestId("list-editor-import-ignored")).toHaveTextContent(
+      `["display","fact","cuisine","Cuisine"] — "cuisine" isn't a field the list declares`,
+    );
+    expect(screen.getByTestId("list-editor-import-notes")).toHaveTextContent("No template for the truck's own website");
+    expect(tags()).toContain('["license","ODbL-1.0"]');
+  });
+
+  it("won't fill the form from something it can't read", async () => {
+    const user = userEvent.setup();
+    editor();
+    await user.click(screen.getByTestId("list-editor-import"));
+    await user.click(screen.getByTestId("list-import-reply"));
+    await user.paste("a list of food trucks please");
+    expect(screen.getByTestId("list-import-error")).toHaveTextContent("That isn't JSON.");
+    expect(screen.getByTestId("list-import-fill")).toBeDisabled();
+  });
+});

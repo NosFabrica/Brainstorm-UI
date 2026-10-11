@@ -20,6 +20,8 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { DefinitionForm } from "@/components/dictionary/DefinitionForm";
 import { ItemFieldInputs, type FieldValues } from "@/components/lists/ItemFieldInputs";
 import { ItemPreview } from "@/components/lists/ItemPreview";
+import { ImportListDialog } from "@/components/lists/ImportListDialog";
+import type { ImportResult } from "@/lib/listImport";
 import { draftProblems, type CopyDraft } from "@/lib/conceptCopy";
 import { definitionOf, type HeaderEvent } from "@/lib/conceptResolution";
 import {
@@ -57,13 +59,23 @@ export function ListEditor({
   const [typedD, setTypedD] = useState<string | null>(null);
   const d = publishedD ?? typedD ?? slugOf(draft.plural);
 
-  const template = useMemo(
-    () => listHeaderTemplate(draft, { d, author, previous: header }),
-    [draft, d, author, header],
+  // An import's tags the form can't set ride along, as an edited list's own do.
+  const [imported, setImported] = useState<ImportResult | null>(null);
+  const previous = useMemo(
+    () => (header || imported ? { tags: [...(header?.tags ?? []), ...(imported?.kept ?? [])] } : null),
+    [header, imported],
   );
+  const template = useMemo(() => listHeaderTemplate(draft, { d, author, previous }), [draft, d, author, previous]);
   const resolved = useMemo(() => previewDefinition(template, author), [template, author]);
 
   const [values, setValues] = useState<FieldValues>({});
+  const [importing, setImporting] = useState(false);
+  const applyImport = (result: ImportResult) => {
+    setDraft(result.draft);
+    if (publishedD === null && result.d) setTypedD(result.d);
+    setValues(result.example);
+    setImported(result);
+  };
   // A renamed field's example goes with its old name.
   const names = resolved.governing.fields.map((f) => f.name).join("\n");
   useEffect(() => {
@@ -122,6 +134,28 @@ export function ListEditor({
             </>
           )}
         </div>
+
+        {own && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setImporting(true)} data-testid="list-editor-import">
+              Import from JSON…
+            </Button>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Have an AI draft the list, then tinker here.
+            </span>
+            <ImportListDialog open={importing} onOpenChange={setImporting} author={author} onImport={applyImport} />
+          </div>
+        )}
+        {imported &&
+          (imported.ignored.length > 0 ||
+            imported.notes.length > 0 ||
+            (publishedD !== null && imported.d && imported.d !== publishedD)) && (
+            <ImportReport
+              result={imported}
+              publishedD={publishedD}
+              onDismiss={() => setImported({ ...imported, ignored: [], notes: [], d: null })}
+            />
+          )}
 
         {own ? (
           <DefinitionForm draft={draft} setDraft={setDraft} itemsTotal={0} testId="list-editor" idPrefix="list" />
@@ -209,5 +243,53 @@ export function ListEditor({
         <ItemPreview resolved={resolved} item={item} testId="list-preview" />
       </div>
     </div>
+  );
+}
+
+/** What an import couldn't use, and what the AI said about it. */
+function ImportReport({
+  result,
+  publishedD,
+  onDismiss,
+}: {
+  result: ImportResult;
+  publishedD: string | null;
+  onDismiss: () => void;
+}) {
+  return (
+    <Alert data-testid="list-editor-import-report">
+      <AlertDescription className="space-y-2 text-sm">
+        {publishedD !== null && result.d && result.d !== publishedD && (
+          <p>
+            This list keeps its identifier, {publishedD}; the import's {result.d} wasn't used.
+          </p>
+        )}
+        {result.ignored.length > 0 && (
+          <div>
+            <p>Imported, but these tags weren't used:</p>
+            <ul className="mt-1 space-y-0.5" data-testid="list-editor-import-ignored">
+              {result.ignored.map(({ tag, why }, i) => (
+                <li key={i}>
+                  <code className="break-all font-mono text-xs">{JSON.stringify(tag)}</code> — {why}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {result.notes.length > 0 && (
+          <div>
+            <p>Notes from the import:</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-4" data-testid="list-editor-import-notes">
+              {result.notes.map((n, i) => (
+                <li key={i}>{n}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <Button variant="outline" size="sm" onClick={onDismiss}>
+          Dismiss
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 }
