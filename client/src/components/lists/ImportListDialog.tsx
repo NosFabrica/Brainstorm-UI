@@ -5,7 +5,7 @@
  * editor a draft, as if its form had been filled in by hand. Nothing is
  * published from here.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { dictionaryRelays } from "@/config/dictionary";
 import { useAvailableTemplates } from "@/hooks/useLinkTemplates";
+import { copyToClipboard } from "@/lib/clipboard";
 import { importIntoDraft, parseListImport, type ImportResult } from "@/lib/listImport";
 import { listAuthoringPrompt } from "@/lib/listPrompt";
 
@@ -37,17 +38,18 @@ export function ImportListDialog({
 }) {
   const templates = useAvailableTemplates(open);
   const prompt = listAuthoringPrompt(templates.data ?? [], dictionaryRelays()[0] ?? "");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"copied" | "failed" | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   const parsed = text.trim() ? parseListImport(text) : null;
 
+  // The dialog traps focus, so the clipboard's fallback copies from inside it (lib/clipboard).
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(prompt);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
+    const ok = await copyToClipboard(prompt, { container: dialogRef.current });
+    setCopied(ok ? "copied" : "failed");
+    // Couldn't: leave the instructions selected, a Ctrl+C away.
+    if (!ok) promptRef.current?.select();
   };
   const fill = () => {
     if (!parsed?.ok) return;
@@ -58,7 +60,11 @@ export function ImportListDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl" data-testid="list-import-dialog">
+      <DialogContent
+        ref={dialogRef}
+        className="max-h-[90vh] overflow-y-auto sm:max-w-xl"
+        data-testid="list-import-dialog"
+      >
         <DialogHeader>
           <DialogTitle>Import a list from JSON</DialogTitle>
           <DialogDescription>
@@ -78,16 +84,19 @@ export function ImportListDialog({
                 onClick={() => void copy()}
                 data-testid="list-import-copy"
               >
-                {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
-                {copied ? "Copied" : "Copy instructions"}
+                {copied === "copied" ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
+                {copied === "copied" ? "Copied" : "Copy instructions"}
               </Button>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                {templates.isPending
-                  ? "Reading the URL templates…"
-                  : `Includes the ${templates.data?.length ?? 0} URL templates available now. Add your request at the end.`}
+              <span className="text-xs text-slate-500 dark:text-slate-400" data-testid="list-import-copy-status">
+                {copied === "failed"
+                  ? "Couldn't copy here: the instructions below are selected, so Ctrl+C (⌘C) copies them."
+                  : templates.isPending
+                    ? "Reading the URL templates…"
+                    : `Includes the ${templates.data?.length ?? 0} URL templates available now. Add your request at the end.`}
               </span>
             </div>
             <Textarea
+              ref={promptRef}
               readOnly
               rows={4}
               value={prompt}

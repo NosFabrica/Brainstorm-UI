@@ -188,14 +188,55 @@ ${JSON.stringify(
 )}
 \`\`\``;
 
-  it("copies instructions that name the URL templates there are", async () => {
-    const user = userEvent.setup();
-    editor();
-    await user.click(screen.getByTestId("list-editor-import"));
-    await user.click(screen.getByTestId("list-import-copy"));
-    const copied = await navigator.clipboard.readText();
-    expect(copied).toContain(`${TEMPLATE} — BTC Map place — https://btcmap.org/merchant/{id}`);
-    expect(screen.getByTestId("list-import-copy")).toHaveTextContent("Copied");
+  describe("copying the instructions", () => {
+    const secure = (value: boolean) => Object.defineProperty(window, "isSecureContext", { value, configurable: true });
+    const exec = vi.fn();
+    beforeEach(() => {
+      secure(true);
+      exec.mockReset();
+      Object.defineProperty(document, "execCommand", { value: exec, configurable: true });
+    });
+    const openAndCopy = async (user: ReturnType<typeof userEvent.setup>) => {
+      editor();
+      await user.click(screen.getByTestId("list-editor-import"));
+      await user.click(screen.getByTestId("list-import-copy"));
+    };
+
+    it("puts instructions naming today's URL templates on the clipboard", async () => {
+      const user = userEvent.setup();
+      await openAndCopy(user);
+      expect(await navigator.clipboard.readText()).toContain(
+        `${TEMPLATE} — BTC Map place — https://btcmap.org/merchant/{id}`,
+      );
+      expect(screen.getByTestId("list-import-copy")).toHaveTextContent("Copied");
+    });
+
+    it("when the browser refuses the clipboard, copies from inside the dialog, where focus can go", async () => {
+      const user = userEvent.setup();
+      vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("NotAllowedError"));
+      // Where focus was, and what it held, at the moment of copying: the helper takes its textarea away after.
+      const at: { inDialog?: boolean; text?: string } = {};
+      exec.mockImplementation(() => {
+        const el = document.activeElement as HTMLTextAreaElement;
+        at.inDialog = screen.getByTestId("list-import-dialog").contains(el);
+        at.text = el.value;
+        return true;
+      });
+      await openAndCopy(user);
+      expect(exec).toHaveBeenCalledWith("copy");
+      expect(at).toMatchObject({ inDialog: true, text: expect.stringContaining("URL templates available") });
+      expect(screen.getByTestId("list-import-copy")).toHaveTextContent("Copied");
+    });
+
+    it("says so when it can't copy at all, and leaves the instructions selected", async () => {
+      const user = userEvent.setup();
+      secure(false);
+      exec.mockReturnValue(false);
+      await openAndCopy(user);
+      expect(screen.getByTestId("list-import-copy-status")).toHaveTextContent("Couldn't copy here");
+      const box = screen.getByTestId("list-import-prompt") as HTMLTextAreaElement;
+      expect(box.selectionEnd - box.selectionStart).toBe(box.value.length);
+    });
   });
 
   it("fills the form and the example from an AI's reply, and says what it didn't use", async () => {
