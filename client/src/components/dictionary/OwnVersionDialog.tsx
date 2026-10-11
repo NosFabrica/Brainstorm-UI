@@ -1,7 +1,8 @@
 /**
  * "Publish my own version" — a form for the reader's own copy of a community
  * concept (lib/conceptCopy), after dlist-ui's create-list: names,
- * description, and the fields its items carry, each required or optional.
+ * description, and the fields its items carry, each required, recommended or
+ * optional. The form itself is DefinitionForm, shared with List Management.
  *
  * Rows start from the reader's current version, else the community's: the
  * community's fields (on), then fields the items carry that the definition
@@ -14,11 +15,9 @@
  * own key, which outranks their Assistant's copy and the community's.
  */
 import { useEffect, useState } from "react";
-import { Loader2, Minus, Plus } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Chip } from "@/components/ui/chip";
 import {
   Dialog,
   DialogContent,
@@ -27,42 +26,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  copyTemplate,
-  draftProblems,
-  initialDraft,
-  type CopyDraft,
-  type DraftDisplay,
-  type DraftField,
-} from "@/lib/conceptCopy";
-import { DISPLAY_ROLES, factLabel, type DisplayRole } from "@/lib/displayHints";
-import { httpUrl } from "@/lib/dlistFields";
-import { templatePlaceholders, type UrlTemplate } from "@/lib/linkTemplates";
-import { useAvailableTemplates, useLinkTemplates } from "@/hooks/useLinkTemplates";
-import { dictionaryRelays } from "@/config/dictionary";
-
-/** Radix Select can't hold an empty value: "no hint" needs a name of its own. */
-const AUTO = "__auto";
-const ROLE_LABEL: Record<DisplayRole, string> = {
-  title: "Title",
-  summary: "Summary",
-  image: "Picture",
-  link: "Link",
-  media: "Media",
-  location: "Location (geohash)",
-};
-/** Title and summary always read from some field; a picture, link, media or location only when one is named. */
-const NO_ROLE_LABEL = (role: DisplayRole) => (role === "title" || role === "summary" ? "Automatic" : "None");
-/**
- * The value types the form offers. Only `url` changes rendering (dlistFields);
- * `address` (provisional, 2026-10-10) says the value names another event by
- * its `kind:pubkey:d`, and reads as text until a renderer looks it up.
- */
-const FIELD_TYPES = ["text", "url", "address"] as const;
+import { DefinitionForm } from "@/components/dictionary/DefinitionForm";
+import { copyTemplate, draftProblems, initialDraft, type CopyDraft } from "@/lib/conceptCopy";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
 import { publishOwnCopy } from "@/services/conceptCopy";
 
@@ -96,50 +62,6 @@ export function OwnVersionDialog({
 
   const problems = draftProblems(draft);
   const preview = copyTemplate(community, draft).tags;
-  const total = items.length;
-
-  const setField = (i: number, patch: Partial<DraftField>) =>
-    setDraft((d) => ({ ...d, fields: d.fields.map((f, j) => (j === i ? { ...f, ...patch } : f)) }));
-  const addField = () =>
-    setDraft((d) => ({ ...d, fields: [...d.fields, { name: "", enabled: true, required: false, origin: "custom" }] }));
-  const removeField = (i: number) => setDraft((d) => ({ ...d, fields: d.fields.filter((_, j) => j !== i) }));
-  const setDisplay = (patch: Partial<DraftDisplay>) => setDraft((d) => ({ ...d, display: { ...d.display, ...patch } }));
-  // A role can only name a field this version declares; a disabled field drops back to Automatic.
-  const enabledNames = draft.fields.filter((f) => f.enabled && f.name.trim()).map((f) => f.name.trim());
-  const factOf = (field: string) => draft.display.facts.find((f) => f.field === field) ?? null;
-  const setFacts = (next: (facts: DraftDisplay["facts"]) => DraftDisplay["facts"]) =>
-    setDraft((d) => ({ ...d, display: { ...d.display, facts: next(d.display.facts) } }));
-
-  // URL templates: the ones on offer (the URL Templates list), and the ones this draft already pins.
-  const available = useAvailableTemplates(open);
-  const pinned = useLinkTemplates(draft.links);
-  const templateById = new Map<string, UrlTemplate>([
-    ...(available.data ?? []).map((t) => [t.id, t] as [string, UrlTemplate]),
-    ...(pinned.data ?? new Map()),
-  ]);
-  const addLink = (id: string) => {
-    const tpl = templateById.get(id);
-    const placeholders = tpl ? (templatePlaceholders(tpl.template) ?? []) : [];
-    // A field named for the placeholder is the likely one: {username} → github-username.
-    const guess = (p: string) => enabledNames.find((n) => n === p || n.endsWith(`-${p}`)) ?? "";
-    setDraft((d) => ({
-      ...d,
-      links: [
-        ...d.links,
-        { templateId: id, relay: dictionaryRelays()[0] ?? "", bindings: placeholders.map((p) => [p, guess(p)]) },
-      ],
-    }));
-  };
-  const bindLink = (i: number, placeholder: string, field: string) =>
-    setDraft((d) => ({
-      ...d,
-      links: d.links.map((l, j) =>
-        j === i ? { ...l, bindings: l.bindings.map(([p, f]) => [p, p === placeholder ? field : f]) } : l,
-      ),
-    }));
-  // A template this version already links isn't offered twice.
-  const offered = (available.data ?? []).filter((t) => !draft.links.some((l) => l.templateId === t.id));
-  const removeLink = (i: number) => setDraft((d) => ({ ...d, links: d.links.filter((_, j) => j !== i) }));
 
   const publish = async () => {
     if (publishing || problems.length) return;
@@ -170,306 +92,7 @@ export function OwnVersionDialog({
         {/* min-w-0: DialogContent is a grid, and a grid child won't shrink below its
             widest word — the preview's 64-hex coordinate would push the modal sideways. */}
         <div className="min-w-0 space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="own-plural">List name (plural)</Label>
-              <Input
-                id="own-plural"
-                value={draft.plural}
-                onChange={(e) => setDraft((d) => ({ ...d, plural: e.target.value }))}
-                data-testid="own-version-plural"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="own-singular">Item name (singular)</Label>
-              <Input
-                id="own-singular"
-                value={draft.singular}
-                onChange={(e) => setDraft((d) => ({ ...d, singular: e.target.value }))}
-                data-testid="own-version-singular"
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="own-description">Description</Label>
-            <Textarea
-              id="own-description"
-              rows={2}
-              value={draft.description}
-              onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-              data-testid="own-version-description"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Item fields</Label>
-            <ul className="divide-y divide-border rounded-xl border border-border" data-testid="own-version-fields">
-              {draft.fields.map((f, i) => (
-                <li
-                  key={i}
-                  className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 ${f.enabled ? "" : "opacity-60"}`}
-                  data-testid={`own-version-field-${i}`}
-                >
-                  <Checkbox
-                    checked={f.enabled}
-                    onCheckedChange={(v) => setField(i, { enabled: v === true })}
-                    aria-label={`Include ${f.name || "this field"}`}
-                    data-testid="own-version-field-enabled"
-                  />
-                  {f.origin === "custom" ? (
-                    <Input
-                      value={f.name}
-                      onChange={(e) => setField(i, { name: e.target.value })}
-                      placeholder="field name"
-                      className="h-8 w-44 font-mono text-sm"
-                      aria-label="Field name"
-                      data-testid="own-version-field-name"
-                    />
-                  ) : (
-                    <code className="font-mono text-sm text-slate-900 dark:text-slate-100">{f.name}</code>
-                  )}
-                  {f.origin === "definition" && (
-                    <Chip tone="slate" size="sm">
-                      community
-                    </Chip>
-                  )}
-                  {f.origin === "items" && (
-                    <Chip tone="slate" size="sm">
-                      on {f.seenOn} of {total} items
-                    </Chip>
-                  )}
-                  <span className="ml-auto flex items-center gap-1.5">
-                    <Select
-                      value={f.type ?? "text"}
-                      onValueChange={(v) => setField(i, { type: v })}
-                      disabled={!f.enabled}
-                    >
-                      <SelectTrigger
-                        className="h-7 w-[5.75rem] font-mono text-xs"
-                        aria-label={`${f.name || "Field"} type`}
-                        data-testid="own-version-field-type"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {FIELD_TYPES.map((t) => (
-                          <SelectItem key={t} value={t} className="font-mono text-xs">
-                            {t}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Checkbox
-                      id={`own-required-${i}`}
-                      checked={f.required}
-                      disabled={!f.enabled}
-                      onCheckedChange={(v) => setField(i, { required: v === true })}
-                      data-testid="own-version-field-required"
-                    />
-                    <label htmlFor={`own-required-${i}`} className="w-16 text-xs text-slate-600 dark:text-slate-300">
-                      {f.required ? "Required" : "Optional"}
-                    </label>
-                    {f.origin === "custom" && (
-                      <button
-                        type="button"
-                        onClick={() => removeField(i)}
-                        className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
-                        aria-label="Remove field"
-                        data-testid="own-version-field-remove"
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <Button type="button" variant="outline" size="sm" onClick={addField} data-testid="own-version-add-field">
-              <Plus className="mr-1 h-3.5 w-3.5" /> Add a field
-            </Button>
-          </div>
-
-          <div className="space-y-2" data-testid="own-version-links">
-            <Label className="flex items-center gap-2">
-              Links
-              <Chip tone="slate" size="sm">
-                provisional
-              </Chip>
-            </Label>
-            {draft.links.length > 0 && (
-              <ul className="divide-y divide-border rounded-xl border border-border">
-                {draft.links.map((link, i) => {
-                  const tpl = templateById.get(link.templateId);
-                  return (
-                    <li
-                      key={`${link.templateId}-${i}`}
-                      className="space-y-2 px-3 py-2"
-                      data-testid={`own-version-link-${i}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                          {tpl?.name ?? "URL template"}
-                        </span>
-                        <code className="min-w-0 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
-                          {tpl?.template ?? link.templateId.slice(0, 12) + "…"}
-                        </code>
-                        <button
-                          type="button"
-                          onClick={() => removeLink(i)}
-                          className="ml-auto rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
-                          aria-label="Remove link"
-                          data-testid="own-version-link-remove"
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      {link.bindings.map(([placeholder, field]) => (
-                        <div key={placeholder} className="flex items-center gap-2 text-xs">
-                          <code className="font-mono text-slate-600 dark:text-slate-300">{`{${placeholder}}`}</code>
-                          <span className="text-slate-400">←</span>
-                          <Select
-                            value={enabledNames.includes(field) ? field : AUTO}
-                            onValueChange={(v) => bindLink(i, placeholder, v === AUTO ? "" : v)}
-                          >
-                            <SelectTrigger
-                              className="h-8 w-48 font-mono text-xs"
-                              data-testid={`own-version-link-bind-${placeholder}`}
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={AUTO}>Choose a field</SelectItem>
-                              {enabledNames.map((n) => (
-                                <SelectItem key={n} value={n} className="font-mono text-xs">
-                                  {n}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      ))}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {offered.length > 0 ? (
-              <Select value="" onValueChange={addLink}>
-                <SelectTrigger className="h-8 w-56 text-sm" data-testid="own-version-add-link">
-                  <SelectValue placeholder="+ Add a link…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {offered.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name} <span className="font-mono text-xs text-slate-400">{t.template}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {available.isPending
-                  ? "Looking for URL templates…"
-                  : (available.data ?? []).length
-                    ? "Every URL template is already linked."
-                    : "No URL templates found."}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2" data-testid="own-version-display">
-            <Label className="flex items-center gap-2">
-              How items read
-              <Chip tone="slate" size="sm">
-                provisional
-              </Chip>
-            </Label>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {DISPLAY_ROLES.map((role) => (
-                <div key={role} className="space-y-1">
-                  <span className="text-xs text-slate-500 dark:text-slate-400">{ROLE_LABEL[role]}</span>
-                  <Select
-                    value={enabledNames.includes(draft.display[role] ?? "") ? draft.display[role]! : AUTO}
-                    onValueChange={(v) => setDisplay({ [role]: v === AUTO ? null : v })}
-                  >
-                    <SelectTrigger className="h-8 font-mono text-xs" data-testid={`own-version-display-${role}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={AUTO}>{NO_ROLE_LABEL(role)}</SelectItem>
-                      {enabledNames.map((n) => (
-                        <SelectItem key={n} value={n} className="font-mono text-xs">
-                          {n}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-1.5" data-testid="own-version-facts">
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                Facts — listed on an item&rsquo;s page as &ldquo;label: value&rdquo;, in field order
-              </span>
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                {enabledNames.map((n) => (
-                  <label key={n} className="flex items-center gap-1.5">
-                    <Checkbox
-                      checked={factOf(n) != null}
-                      onCheckedChange={(v) =>
-                        setFacts((facts) =>
-                          v === true ? [...facts, { field: n, label: "" }] : facts.filter((f) => f.field !== n),
-                        )
-                      }
-                      data-testid={`own-version-fact-${n}`}
-                    />
-                    <code className="font-mono text-xs text-slate-700 dark:text-slate-300">{n}</code>
-                  </label>
-                ))}
-              </div>
-              {enabledNames
-                .filter((n) => factOf(n))
-                .map((n) => (
-                  <div key={n} className="flex items-center gap-2">
-                    <code className="w-36 shrink-0 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
-                      {n}
-                    </code>
-                    <Input
-                      value={factOf(n)!.label}
-                      onChange={(e) =>
-                        setFacts((facts) => facts.map((f) => (f.field === n ? { ...f, label: e.target.value } : f)))
-                      }
-                      placeholder={factLabel({ field: n, label: null })}
-                      className="h-8 text-sm"
-                      aria-label={`Label for ${n}`}
-                      data-testid={`own-version-fact-label-${n}`}
-                    />
-                  </div>
-                ))}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="own-list-image" className="text-xs font-normal text-slate-500 dark:text-slate-400">
-                List image (a URL every item wears, e.g. a logo)
-              </Label>
-              <div className="flex items-center gap-2">
-                {httpUrl(draft.display.listImage) && (
-                  <img
-                    src={httpUrl(draft.display.listImage)!}
-                    alt=""
-                    className="h-8 w-8 shrink-0 rounded-md border border-border object-contain"
-                  />
-                )}
-                <Input
-                  id="own-list-image"
-                  value={draft.display.listImage}
-                  onChange={(e) => setDisplay({ listImage: e.target.value })}
-                  placeholder="https://…"
-                  className="h-8 text-sm"
-                  data-testid="own-version-list-image"
-                />
-              </div>
-            </div>
-          </div>
+          <DefinitionForm draft={draft} setDraft={setDraft} itemsTotal={items.length} templatesEnabled={open} />
 
           <div className="space-y-1.5">
             <Label>Preview</Label>

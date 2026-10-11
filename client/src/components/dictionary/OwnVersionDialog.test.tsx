@@ -9,6 +9,11 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/utils";
 import { definitionOf, type HeaderEvent } from "@/lib/conceptResolution";
 
+// Radix Select captures the pointer and scrolls its options into view; jsdom does neither.
+Element.prototype.hasPointerCapture ??= () => false;
+Element.prototype.releasePointerCapture ??= () => {};
+Element.prototype.scrollIntoView ??= () => {};
+
 const { publish } = vi.hoisted(() => ({ publish: vi.fn() }));
 vi.mock("@/services/conceptCopy", () => ({ publishOwnCopy: (...a: unknown[]) => publish(...a) }));
 
@@ -82,12 +87,18 @@ describe("OwnVersionDialog", () => {
     expect(preview()).not.toContain('"description"]');
   });
 
-  it("turning on an items' field and requiring it shows in the preview", async () => {
+  it("turning on an items' field and setting how required it is shows in the preview", async () => {
     open();
     await userEvent.click(within(row(1)).getByTestId("own-version-field-enabled"));
     expect(preview()).toContain('["optional","description"]');
-    await userEvent.click(within(row(1)).getByTestId("own-version-field-required"));
+    const level = async (name: string) => {
+      await userEvent.click(within(row(1)).getByTestId("own-version-field-requirement"));
+      await userEvent.click(await screen.findByRole("option", { name }));
+    };
+    await level("Required");
     expect(preview()).toContain('["required","description"]');
+    await level("Recommended");
+    expect(preview()).toContain('["recommended","description"]');
   });
 
   it("adds a custom field, and won't publish it unnamed", async () => {

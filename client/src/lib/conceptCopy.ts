@@ -12,8 +12,8 @@
  * flags the items that lack it.
  *
  * The form follows dlist-ui's create-list (dlist-ui.netlify.app), minus
- * "from list", contexts, and the allowed / recommended / disallowed levels:
- * a field here is required or optional.
+ * "from list", contexts, and the allowed / disallowed levels: a field here is
+ * required, recommended or optional (`allowed` reads as optional).
  *
  * Withdrawing replaces the copy rather than deleting it: the same coordinate
  * republished with `["b", "b-tag-deferred"]` — Tapestry's reserved value for
@@ -23,7 +23,7 @@
  * may or may not honour (the hub does take kind 5); and it says a decision was
  * made, where a header with no `b` looks like one that never was a copy.
  */
-import { httpUrl, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
+import { httpUrl, undeclaredFields, type FieldDecl, type FieldRequirement } from "@/lib/dlistFields";
 import { displayHintTags } from "@/lib/displayHints";
 import { linkTags, type LinkRef } from "@/lib/linkTemplates";
 import { B_DEFERRED, type ConceptDefinition } from "@/lib/conceptResolution";
@@ -33,7 +33,7 @@ export type FieldOrigin = "definition" | "items" | "custom";
 
 export interface DraftField {
   name: string;
-  required: boolean;
+  requirement: FieldRequirement;
   /** Part of the version being published. */
   enabled: boolean;
   origin: FieldOrigin;
@@ -121,7 +121,7 @@ export function initialDraft(
     rows.push({
       name: f.name,
       enabled: !!own,
-      required: (own ?? f).requirement === "required",
+      requirement: (own ?? f).requirement,
       origin: "definition",
       type: (own ?? f).type,
       // A copy made before descriptions were carried has none: the community's fills in.
@@ -133,7 +133,7 @@ export function initialDraft(
     rows.push({
       name,
       enabled: !!own,
-      required: own?.requirement === "required",
+      requirement: own?.requirement ?? "optional",
       origin: "items",
       seenOn: count,
       type: own?.type ?? "text",
@@ -146,7 +146,7 @@ export function initialDraft(
       rows.push({
         name: f.name,
         enabled: true,
-        required: f.requirement === "required",
+        requirement: f.requirement,
         origin: "custom",
         type: f.type,
         description: f.description,
@@ -208,7 +208,7 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
   for (const f of draft.fields.filter((f) => f.enabled)) {
     const name = f.name.trim();
     const description = f.description?.trim();
-    tags.push([f.required ? "required" : "optional", name, ...(description ? [description] : [])]);
+    tags.push([f.requirement, name, ...(description ? [description] : [])]);
     // A field the community typed keeps a type tag; any other only when it isn't plain text.
     const type = f.type ?? "text";
     if (typed.has(name) || type !== "text") tags.push(["field-type", name, type]);

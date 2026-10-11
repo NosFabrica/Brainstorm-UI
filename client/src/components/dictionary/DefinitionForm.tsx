@@ -1,0 +1,425 @@
+/**
+ * The form for a list header's definition — its names, description, the
+ * fields its items carry (each with a type and a requirement), its links
+ * from URL templates, and how its items read (display hints, facts, the
+ * list's image). Shared by "Publish my own version" (OwnVersionDialog) and
+ * List Management's editor, which own the draft (lib/conceptCopy), show what
+ * it publishes, and publish it.
+ *
+ * Rows come from the draft: a definition's own fields, fields its items carry
+ * ("on 2 of 7 items"), and custom ones "+ Add a field" makes. A field the
+ * draft turns off keeps its row; a role or fact can only name one that's on.
+ */
+import type { Dispatch, SetStateAction } from "react";
+import { Minus, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Chip } from "@/components/ui/chip";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { CopyDraft, DraftDisplay, DraftField } from "@/lib/conceptCopy";
+import { DISPLAY_ROLES, factLabel, type DisplayRole } from "@/lib/displayHints";
+import { httpUrl, type FieldRequirement } from "@/lib/dlistFields";
+import { templatePlaceholders, type UrlTemplate } from "@/lib/linkTemplates";
+import { useAvailableTemplates, useLinkTemplates } from "@/hooks/useLinkTemplates";
+import { dictionaryRelays } from "@/config/dictionary";
+
+/** Radix Select can't hold an empty value: "no hint" needs a name of its own. */
+const AUTO = "__auto";
+const ROLE_LABEL: Record<DisplayRole, string> = {
+  title: "Title",
+  summary: "Summary",
+  image: "Picture",
+  link: "Link",
+  media: "Media",
+  location: "Location (geohash)",
+};
+/** Title and summary always read from some field; a picture, link, media or location only when one is named. */
+const NO_ROLE_LABEL = (role: DisplayRole) => (role === "title" || role === "summary" ? "Automatic" : "None");
+/**
+ * The value types the form offers. Only `url` changes rendering (dlistFields);
+ * `address` (provisional, 2026-10-10) says the value names another event by
+ * its `kind:pubkey:d`, and reads as text until a renderer looks it up.
+ */
+export const FIELD_TYPES = ["text", "url", "address"] as const;
+/** The DList NIP's levels a form can set (`allowed` reads as optional; `disallowed` is never declared here). */
+const REQUIREMENTS: FieldRequirement[] = ["required", "recommended", "optional"];
+const REQUIREMENT_LABEL: Record<FieldRequirement, string> = {
+  required: "Required",
+  recommended: "Recommended",
+  optional: "Optional",
+};
+
+export function DefinitionForm({
+  draft,
+  setDraft,
+  itemsTotal,
+  templatesEnabled = true,
+  testId = "own-version",
+  idPrefix = "own",
+}: {
+  draft: CopyDraft;
+  setDraft: Dispatch<SetStateAction<CopyDraft>>;
+  /** How many items the list has, for "on 2 of 7 items". */
+  itemsTotal: number;
+  /** Whether to read the URL templates on offer (a closed dialog needn't). */
+  templatesEnabled?: boolean;
+  /** Prefix of every test id, so two forms on one page stay apart. */
+  testId?: string;
+  /** Prefix of every element id, for the same reason. */
+  idPrefix?: string;
+}) {
+  const setField = (i: number, patch: Partial<DraftField>) =>
+    setDraft((d) => ({ ...d, fields: d.fields.map((f, j) => (j === i ? { ...f, ...patch } : f)) }));
+  const addField = () =>
+    setDraft((d) => ({
+      ...d,
+      fields: [...d.fields, { name: "", enabled: true, requirement: "optional", origin: "custom" }],
+    }));
+  const removeField = (i: number) => setDraft((d) => ({ ...d, fields: d.fields.filter((_, j) => j !== i) }));
+  const setDisplay = (patch: Partial<DraftDisplay>) => setDraft((d) => ({ ...d, display: { ...d.display, ...patch } }));
+  // A role can only name a field this version declares; a disabled field drops back to Automatic.
+  const enabledNames = draft.fields.filter((f) => f.enabled && f.name.trim()).map((f) => f.name.trim());
+  const factOf = (field: string) => draft.display.facts.find((f) => f.field === field) ?? null;
+  const setFacts = (next: (facts: DraftDisplay["facts"]) => DraftDisplay["facts"]) =>
+    setDraft((d) => ({ ...d, display: { ...d.display, facts: next(d.display.facts) } }));
+  const total = itemsTotal;
+
+  // URL templates: the ones on offer (the URL Templates list), and the ones this draft already pins.
+  const available = useAvailableTemplates(templatesEnabled);
+  const pinned = useLinkTemplates(draft.links);
+  const templateById = new Map<string, UrlTemplate>([
+    ...(available.data ?? []).map((t) => [t.id, t] as [string, UrlTemplate]),
+    ...(pinned.data ?? new Map()),
+  ]);
+  const addLink = (id: string) => {
+    const tpl = templateById.get(id);
+    const placeholders = tpl ? (templatePlaceholders(tpl.template) ?? []) : [];
+    // A field named for the placeholder is the likely one: {username} → github-username.
+    const guess = (p: string) => enabledNames.find((n) => n === p || n.endsWith(`-${p}`)) ?? "";
+    setDraft((d) => ({
+      ...d,
+      links: [
+        ...d.links,
+        { templateId: id, relay: dictionaryRelays()[0] ?? "", bindings: placeholders.map((p) => [p, guess(p)]) },
+      ],
+    }));
+  };
+  const bindLink = (i: number, placeholder: string, field: string) =>
+    setDraft((d) => ({
+      ...d,
+      links: d.links.map((l, j) =>
+        j === i ? { ...l, bindings: l.bindings.map(([p, f]) => [p, p === placeholder ? field : f]) } : l,
+      ),
+    }));
+  // A template this version already links isn't offered twice.
+  const offered = (available.data ?? []).filter((t) => !draft.links.some((l) => l.templateId === t.id));
+  const removeLink = (i: number) => setDraft((d) => ({ ...d, links: d.links.filter((_, j) => j !== i) }));
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-plural`}>List name (plural)</Label>
+          <Input
+            id={`${idPrefix}-plural`}
+            value={draft.plural}
+            onChange={(e) => setDraft((d) => ({ ...d, plural: e.target.value }))}
+            data-testid={`${testId}-plural`}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-singular`}>Item name (singular)</Label>
+          <Input
+            id={`${idPrefix}-singular`}
+            value={draft.singular}
+            onChange={(e) => setDraft((d) => ({ ...d, singular: e.target.value }))}
+            data-testid={`${testId}-singular`}
+          />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-description`}>Description</Label>
+        <Textarea
+          id={`${idPrefix}-description`}
+          rows={2}
+          value={draft.description}
+          onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+          data-testid={`${testId}-description`}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Item fields</Label>
+        <ul className="divide-y divide-border rounded-xl border border-border" data-testid={`${testId}-fields`}>
+          {draft.fields.map((f, i) => (
+            <li
+              key={i}
+              className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 ${f.enabled ? "" : "opacity-60"}`}
+              data-testid={`${testId}-field-${i}`}
+            >
+              <Checkbox
+                checked={f.enabled}
+                onCheckedChange={(v) => setField(i, { enabled: v === true })}
+                aria-label={`Include ${f.name || "this field"}`}
+                data-testid={`${testId}-field-enabled`}
+              />
+              {f.origin === "custom" ? (
+                <Input
+                  value={f.name}
+                  onChange={(e) => setField(i, { name: e.target.value })}
+                  placeholder="field name"
+                  className="h-8 w-44 font-mono text-sm"
+                  aria-label="Field name"
+                  data-testid={`${testId}-field-name`}
+                />
+              ) : (
+                <code className="font-mono text-sm text-slate-900 dark:text-slate-100">{f.name}</code>
+              )}
+              {f.origin === "definition" && (
+                <Chip tone="slate" size="sm">
+                  community
+                </Chip>
+              )}
+              {f.origin === "items" && (
+                <Chip tone="slate" size="sm">
+                  on {f.seenOn} of {total} items
+                </Chip>
+              )}
+              <span className="ml-auto flex items-center gap-1.5">
+                <Select value={f.type ?? "text"} onValueChange={(v) => setField(i, { type: v })} disabled={!f.enabled}>
+                  <SelectTrigger
+                    className="h-7 w-[5.75rem] font-mono text-xs"
+                    aria-label={`${f.name || "Field"} type`}
+                    data-testid={`${testId}-field-type`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FIELD_TYPES.map((t) => (
+                      <SelectItem key={t} value={t} className="font-mono text-xs">
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={f.requirement}
+                  onValueChange={(v) => setField(i, { requirement: v as FieldRequirement })}
+                  disabled={!f.enabled}
+                >
+                  <SelectTrigger
+                    className="h-7 w-[7.5rem] text-xs"
+                    aria-label={`${f.name || "Field"} requirement`}
+                    data-testid={`${testId}-field-requirement`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REQUIREMENTS.map((r) => (
+                      <SelectItem key={r} value={r} className="text-xs">
+                        {REQUIREMENT_LABEL[r]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {f.origin === "custom" && (
+                  <button
+                    type="button"
+                    onClick={() => removeField(i)}
+                    className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+                    aria-label="Remove field"
+                    data-testid={`${testId}-field-remove`}
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <Button type="button" variant="outline" size="sm" onClick={addField} data-testid={`${testId}-add-field`}>
+          <Plus className="mr-1 h-3.5 w-3.5" /> Add a field
+        </Button>
+      </div>
+
+      <div className="space-y-2" data-testid={`${testId}-links`}>
+        <Label className="flex items-center gap-2">
+          Links
+          <Chip tone="slate" size="sm">
+            provisional
+          </Chip>
+        </Label>
+        {draft.links.length > 0 && (
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {draft.links.map((link, i) => {
+              const tpl = templateById.get(link.templateId);
+              return (
+                <li key={`${link.templateId}-${i}`} className="space-y-2 px-3 py-2" data-testid={`${testId}-link-${i}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {tpl?.name ?? "URL template"}
+                    </span>
+                    <code className="min-w-0 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
+                      {tpl?.template ?? link.templateId.slice(0, 12) + "…"}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => removeLink(i)}
+                      className="ml-auto rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+                      aria-label="Remove link"
+                      data-testid={`${testId}-link-remove`}
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  {link.bindings.map(([placeholder, field]) => (
+                    <div key={placeholder} className="flex items-center gap-2 text-xs">
+                      <code className="font-mono text-slate-600 dark:text-slate-300">{`{${placeholder}}`}</code>
+                      <span className="text-slate-400">←</span>
+                      <Select
+                        value={enabledNames.includes(field) ? field : AUTO}
+                        onValueChange={(v) => bindLink(i, placeholder, v === AUTO ? "" : v)}
+                      >
+                        <SelectTrigger
+                          className="h-8 w-48 font-mono text-xs"
+                          data-testid={`${testId}-link-bind-${placeholder}`}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={AUTO}>Choose a field</SelectItem>
+                          {enabledNames.map((n) => (
+                            <SelectItem key={n} value={n} className="font-mono text-xs">
+                              {n}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {offered.length > 0 ? (
+          <Select value="" onValueChange={addLink}>
+            <SelectTrigger className="h-8 w-56 text-sm" data-testid={`${testId}-add-link`}>
+              <SelectValue placeholder="+ Add a link…" />
+            </SelectTrigger>
+            <SelectContent>
+              {offered.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name} <span className="font-mono text-xs text-slate-400">{t.template}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {available.isPending
+              ? "Looking for URL templates…"
+              : (available.data ?? []).length
+                ? "Every URL template is already linked."
+                : "No URL templates found."}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-2" data-testid={`${testId}-display`}>
+        <Label className="flex items-center gap-2">
+          How items read
+          <Chip tone="slate" size="sm">
+            provisional
+          </Chip>
+        </Label>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {DISPLAY_ROLES.map((role) => (
+            <div key={role} className="space-y-1">
+              <span className="text-xs text-slate-500 dark:text-slate-400">{ROLE_LABEL[role]}</span>
+              <Select
+                value={enabledNames.includes(draft.display[role] ?? "") ? draft.display[role]! : AUTO}
+                onValueChange={(v) => setDisplay({ [role]: v === AUTO ? null : v })}
+              >
+                <SelectTrigger className="h-8 font-mono text-xs" data-testid={`${testId}-display-${role}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={AUTO}>{NO_ROLE_LABEL(role)}</SelectItem>
+                  {enabledNames.map((n) => (
+                    <SelectItem key={n} value={n} className="font-mono text-xs">
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+        </div>
+        <div className="space-y-1.5" data-testid={`${testId}-facts`}>
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            Facts — listed on an item&rsquo;s page as &ldquo;label: value&rdquo;, in field order
+          </span>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {enabledNames.map((n) => (
+              <label key={n} className="flex items-center gap-1.5">
+                <Checkbox
+                  checked={factOf(n) != null}
+                  onCheckedChange={(v) =>
+                    setFacts((facts) =>
+                      v === true ? [...facts, { field: n, label: "" }] : facts.filter((f) => f.field !== n),
+                    )
+                  }
+                  data-testid={`${testId}-fact-${n}`}
+                />
+                <code className="font-mono text-xs text-slate-700 dark:text-slate-300">{n}</code>
+              </label>
+            ))}
+          </div>
+          {enabledNames
+            .filter((n) => factOf(n))
+            .map((n) => (
+              <div key={n} className="flex items-center gap-2">
+                <code className="w-36 shrink-0 truncate font-mono text-xs text-slate-500 dark:text-slate-400">{n}</code>
+                <Input
+                  value={factOf(n)!.label}
+                  onChange={(e) =>
+                    setFacts((facts) => facts.map((f) => (f.field === n ? { ...f, label: e.target.value } : f)))
+                  }
+                  placeholder={factLabel({ field: n, label: null })}
+                  className="h-8 text-sm"
+                  aria-label={`Label for ${n}`}
+                  data-testid={`${testId}-fact-label-${n}`}
+                />
+              </div>
+            ))}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${idPrefix}-list-image`} className="text-xs font-normal text-slate-500 dark:text-slate-400">
+            List image (a URL every item wears, e.g. a logo)
+          </Label>
+          <div className="flex items-center gap-2">
+            {httpUrl(draft.display.listImage) && (
+              <img
+                src={httpUrl(draft.display.listImage)!}
+                alt=""
+                className="h-8 w-8 shrink-0 rounded-md border border-border object-contain"
+              />
+            )}
+            <Input
+              id={`${idPrefix}-list-image`}
+              value={draft.display.listImage}
+              onChange={(e) => setDisplay({ listImage: e.target.value })}
+              placeholder="https://…"
+              className="h-8 text-sm"
+              data-testid={`${testId}-list-image`}
+            />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

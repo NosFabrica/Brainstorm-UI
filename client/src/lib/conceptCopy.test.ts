@@ -56,17 +56,32 @@ describe("initialDraft", () => {
     const draft = initialDraft(community, null, items);
     expect(draft).toMatchObject({ singular: "GitHub Account", plural: "GitHub Accounts" });
     expect(draft.fields).toEqual([
-      { name: "github-username", enabled: true, required: true, origin: "definition", type: "text", description: null },
+      {
+        name: "github-username",
+        enabled: true,
+        requirement: "required",
+        origin: "definition",
+        type: "text",
+        description: null,
+      },
       {
         name: "description",
         enabled: false,
-        required: false,
+        requirement: "optional",
         origin: "items",
         seenOn: 2,
         type: "text",
         description: null,
       },
-      { name: "note", enabled: false, required: false, origin: "items", seenOn: 1, type: "text", description: null },
+      {
+        name: "note",
+        enabled: false,
+        requirement: "optional",
+        origin: "items",
+        seenOn: 1,
+        type: "text",
+        description: null,
+      },
     ]);
   });
 
@@ -85,7 +100,7 @@ describe("initialDraft", () => {
       {
         name: "github-username",
         enabled: true,
-        required: false,
+        requirement: "optional",
         origin: "definition",
         type: "text",
         description: null,
@@ -93,14 +108,22 @@ describe("initialDraft", () => {
       {
         name: "description",
         enabled: true,
-        required: true,
+        requirement: "required",
         origin: "items",
         seenOn: 2,
         type: "text",
         description: null,
       },
-      { name: "note", enabled: false, required: false, origin: "items", seenOn: 1, type: "text", description: null },
-      { name: "avatar", enabled: true, required: false, origin: "custom", type: "text", description: null },
+      {
+        name: "note",
+        enabled: false,
+        requirement: "optional",
+        origin: "items",
+        seenOn: 1,
+        type: "text",
+        description: null,
+      },
+      { name: "avatar", enabled: true, requirement: "optional", origin: "custom", type: "text", description: null },
     ]);
     expect(draft.description).toBe("");
   });
@@ -109,8 +132,8 @@ describe("initialDraft", () => {
 describe("copyTemplate", () => {
   it("is a 39998 at the community's d, pointing back, with the chosen fields", () => {
     const draft = initialDraft(community, null, items);
-    draft.fields[1] = { ...draft.fields[1], enabled: true, required: true };
-    draft.fields.push({ name: "avatar", enabled: true, required: false, origin: "custom" });
+    draft.fields[1] = { ...draft.fields[1], enabled: true, requirement: "required" };
+    draft.fields.push({ name: "avatar", enabled: true, requirement: "optional", origin: "custom" });
     expect(copyTemplate(community, draft)).toEqual({
       kind: 39998,
       content: "",
@@ -148,7 +171,7 @@ describe("draftProblems", () => {
   });
 
   it("catches unnamed, malformed, reserved and repeated fields", () => {
-    const add = (name: string) => ({ name, enabled: true, required: false, origin: "custom" as const });
+    const add = (name: string) => ({ name, enabled: true, requirement: "optional", origin: "custom" as const });
     expect(draftProblems({ ...draft, fields: [...draft.fields, add("")] })).toEqual(["Every field needs a name."]);
     expect(draftProblems({ ...draft, fields: [...draft.fields, add("two words"), add("z")] })[0]).toMatch(
       /two words, z/,
@@ -159,7 +182,7 @@ describe("draftProblems", () => {
   });
 
   it("a disabled row can be anything", () => {
-    const add = { name: "", enabled: false, required: false, origin: "custom" as const };
+    const add = { name: "", enabled: false, requirement: "optional", origin: "custom" as const };
     expect(draftProblems({ ...draft, fields: [...draft.fields, add] })).toEqual([]);
   });
 
@@ -301,8 +324,8 @@ describe("the same link twice", () => {
 describe("field types and the link and media roles", () => {
   it("a field set to url is published with its type; plain text needs no tag", () => {
     const draft = initialDraft(community, null, items);
-    draft.fields.push({ name: "page", enabled: true, required: false, origin: "custom", type: "url" });
-    draft.fields.push({ name: "note2", enabled: true, required: false, origin: "custom", type: "text" });
+    draft.fields.push({ name: "page", enabled: true, requirement: "optional", origin: "custom", type: "url" });
+    draft.fields.push({ name: "note2", enabled: true, requirement: "optional", origin: "custom", type: "text" });
     const tags = copyTemplate(community, draft).tags;
     expect(tags).toContainEqual(["field-type", "page", "url"]);
     expect(tags.some((t) => t[0] === "field-type" && t[1] === "note2")).toBe(false);
@@ -312,8 +335,8 @@ describe("field types and the link and media roles", () => {
 
   it("publishes link and media roles for fields this version includes", () => {
     const draft = initialDraft(community, null, items);
-    draft.fields.push({ name: "page", enabled: true, required: false, origin: "custom", type: "url" });
-    draft.fields.push({ name: "clip", enabled: true, required: false, origin: "custom", type: "url" });
+    draft.fields.push({ name: "page", enabled: true, requirement: "optional", origin: "custom", type: "url" });
+    draft.fields.push({ name: "clip", enabled: true, requirement: "optional", origin: "custom", type: "url" });
     draft.display = { ...draft.display, link: "page", media: "clip" };
     const tags = copyTemplate(community, draft).tags;
     expect(tags).toContainEqual(["display", "link", "page"]);
