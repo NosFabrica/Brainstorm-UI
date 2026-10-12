@@ -24,11 +24,19 @@ export function ItemLine({
   testId: string;
 }) {
   const picture = shown.image ?? shown.listImage;
+  // A cover is a portrait tile, as on a shelf; a face or a logo is round.
+  const portrait = !!shown.image && shown.imageShape === "portrait";
   // A list's logo sits on white in both themes: logos are drawn for a white ground, and many carry one.
   return (
     <>
       <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden text-slate-400 dark:text-slate-500 ${shown.image ? "rounded-full" : "rounded-lg"} ${!shown.image && shown.listImage ? "bg-white" : "bg-slate-100 dark:bg-slate-800"}`}
+        className={`flex shrink-0 items-center justify-center overflow-hidden text-slate-400 dark:text-slate-500 ${
+          portrait
+            ? "h-10 w-7 rounded-sm shadow-sm ring-1 ring-black/10 dark:ring-white/10"
+            : `h-8 w-8 ${shown.image ? "rounded-full" : "rounded-lg"}`
+        } ${!shown.image && shown.listImage ? "bg-white" : "bg-slate-100 dark:bg-slate-800"}`}
+        data-shape={portrait ? "portrait" : undefined}
+        data-testid={`${testId}-tile`}
       >
         {picture ? (
           <img

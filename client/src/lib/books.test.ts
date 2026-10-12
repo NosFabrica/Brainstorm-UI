@@ -135,5 +135,6 @@ describe("bookPresentation", () => {
     expect(shown.title).toBe("The storm before the storm");
     expect(shown.summary).toBe("Michael Duncan");
     expect(shown.image).toBe("https://covers.openlibrary.org/b/id/10092515-L.jpg");
+    expect(shown.imageShape).toBe("portrait");
   });
 });

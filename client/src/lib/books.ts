@@ -142,5 +142,6 @@ export function bookPresentation(item: Item, definition: ConceptDefinition, show
     summaryField: book.author ? BOOK_FIELDS.author : shown.summaryField,
     image: book.cover ?? shown.image,
     imageField: book.cover ? BOOK_FIELDS.cover : shown.imageField,
+    imageShape: book.cover ? "portrait" : shown.imageShape,
   };
 }
