@@ -21,6 +21,7 @@ export function PlaceMap({
   compact = false,
   tall = false,
   fill = false,
+  hero = false,
 }: {
   lat: number;
   lon: number;
@@ -31,6 +32,8 @@ export function PlaceMap({
   tall?: boolean;
   /** From sm up, as tall as the column it sits in — the facts beside it set the height. */
   fill?: boolean;
+  /** The page's hero band: wide, with the zoom buttons bottom right so a panel can sit top left. */
+  hero?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -49,9 +52,15 @@ export function PlaceMap({
           maxZoom: 16,
           scrollWheelZoom: false,
           attributionControl: true,
-          zoomControl: true,
+          zoomControl: !hero,
         });
         map.attributionControl.setPrefix(false);
+        if (hero) {
+          L.control.zoom({ position: "bottomright" }).addTo(map);
+          // The panel sits over the left of the band from sm up: keep the pin in the open right half.
+          if (host.current.clientWidth >= 480)
+            map.panBy([-Math.round(host.current.clientWidth * 0.22), 0], { animate: false });
+        }
         const esri = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
         L.tileLayer(`${esri}/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`, {
           maxZoom: 16,
@@ -79,13 +88,13 @@ export function PlaceMap({
       cleanup?.();
       map?.remove();
     };
-  }, [lat, lon, name]);
+  }, [lat, lon, name, hero]);
 
   return (
     <div className={`space-y-1.5 ${fill ? "sm:flex sm:min-h-0 sm:flex-1 sm:flex-col" : ""}`} data-testid="place-map">
       <div
         ref={host}
-        className={`${tall ? "aspect-[4/5]" : compact ? "aspect-[16/7] sm:aspect-[4/3]" : "aspect-[16/9] sm:aspect-[4/5]"} ${fill ? "sm:aspect-auto sm:h-full sm:min-h-[220px] sm:flex-1" : ""} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500`}
+        className={`${hero ? "aspect-[16/9] sm:aspect-[16/7]" : tall ? "aspect-[4/5]" : compact ? "aspect-[16/7] sm:aspect-[4/3]" : "aspect-[16/9] sm:aspect-[4/5]"} ${fill ? "sm:aspect-auto sm:h-full sm:min-h-[220px] sm:flex-1" : ""} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500`}
         role="img"
         aria-label={`Map showing ${name}`}
       >

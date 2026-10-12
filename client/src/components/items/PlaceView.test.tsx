@@ -256,7 +256,7 @@ describe("PlaceView", () => {
 
     const details = screen.getByTestId("place-details");
     expect(within(details).getByTestId("place-address")).toHaveTextContent("6519 Midnight Pass Road Sarasota 34242");
-    expect(within(details).getByTestId("place-hours")).toHaveTextContent("Thursday 5:00 PM–11:00 PM");
+    expect(within(details).getByTestId("place-hours")).toHaveTextContent(/Thursday\s*5:00 PM–11:00 PM/);
     expect(within(details).getByTestId("place-phone")).toHaveTextContent("+1 346 493 2858");
     expect(within(details).getByTestId("place-website")).toHaveTextContent("ilsolefood.com");
     expect(screen.getByTestId("place-attribution")).toHaveTextContent("OpenStreetMap contributors");
@@ -265,8 +265,7 @@ describe("PlaceView", () => {
     expect(screen.getByTestId("place-map")).toHaveAttribute("data-lon", "-82.5343946");
     expect(screen.getByTestId("place-verdict")).toHaveTextContent("Who stands behind it");
 
-    // The week unfolds on tap, today first and bold, closed days said.
-    await userEvent.click(within(details).getByTestId("place-hours-toggle"));
+    // The week in view, today first and bold, closed days said.
     const week = within(details).getByTestId("place-week");
     const rows = within(week).getAllByRole("row");
     expect(rows[0]).toHaveTextContent(/Thursday\s*5:00 PM–11:00 PM/);

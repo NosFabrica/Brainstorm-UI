@@ -19,10 +19,10 @@
  *   the links the definition's templates build (BTC Map).
  * - The map as the visual, since no place in the list has a photo yet; the
  *   photo when one has. Loaded on tap, as the privacy rule has it.
- * - The details under both columns, a compact grid two across from sm up: the address on
- *   its own line, then hours (today first, the week on tap), phone, website,
- *   price; the country alone when there's no address. Each thing is said
- *   once: Bitcoin is the chip, the address is the row.
+ * - Location & hours, Yelp's block: address, phone, website, price on the
+ *   left; the whole week on the right, today first and bold. The country
+ *   alone when there's no address. Each thing is said once: Bitcoin is the
+ *   chip, the address is the row.
  * - Reviews by people (PlaceReviews), ordered by who the reader trusts, with
  *   a composer for a signed-in reader; their photos become the page's
  *   pictures under the map, and the price and payment they give fill the rows
@@ -34,13 +34,11 @@
  * community concept's names for them; a copy that drops the name leaves the
  * item to the tier-two page.
  */
-import { useState } from "react";
 import {
   Beer,
   Bitcoin,
   BookOpen,
   CalendarCheck,
-  ChevronDown,
   Clock,
   Coffee,
   CreditCard,
@@ -201,7 +199,6 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const network = useNetworkView(event);
   const ranked = useRankedReviews(event);
-  const [mapTall, setMapTall] = useState(false);
   const price = priceSummary(ranked.reviews);
   const payments = paymentSummary(ranked.reviews);
 
@@ -241,145 +238,131 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           <ConceptLink event={event}>{r.governing.singular}</ConceptLink>
         </p>
       )}
-      {/* One column on a phone: who, then the ways out, then the map, then the details. Two from sm up:
-          the facts on the left, the map (and the photo, when a site gives one) sticky on the right. */}
-      <div className="grid grid-cols-1 gap-x-6 gap-y-4 [grid-template-areas:'identity''actions''media''details'] sm:grid-cols-[minmax(0,1fr)_224px] sm:[grid-template-areas:'identity_media''actions_media''details_details']">
-        <div className="[grid-area:identity]">
-          <div className="min-w-0 flex-1">
-            <h1
-              className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
-              style={{ fontFamily: "var(--font-display)" }}
-              data-testid="place-name"
-            >
-              <EmojiText text={place.name} tags={event} />
-            </h1>
-            {kind && (
-              <p
-                className="mt-1 inline-flex items-center gap-1.5 text-[15px] text-slate-600 dark:text-slate-300"
-                data-testid="place-kind"
-              >
-                <Mark className="h-4 w-4 text-slate-400" aria-hidden />
-                {kind}
-                {place.priceRange && (
-                  <span className="text-slate-400"> · {"$".repeat(Math.min(4, Number(place.priceRange) || 0))}</span>
-                )}
-              </p>
-            )}
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400" data-testid="place-trust-line">
-              <a href="#place-verdict" className="hover:text-brand-link">
-                {vouches > 0
-                  ? `Vouched for by ${vouches} ${vouches === 1 ? "person" : "people"} you trust`
-                  : "No one you trust has vouched for it yet"}
-              </a>
-              <span className="text-slate-300 dark:text-slate-600"> · </span>
-              <a href="#place-reviews" className="hover:text-brand-link">
-                {reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}` : "No reviews yet"}
-              </a>
-            </p>
-            {(status || bitcoin != null) && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {status && (
-                  <span
-                    className={`inline-flex items-center gap-1.5 text-sm font-semibold ${status.open ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}
-                    title="In the place's local time, estimated from where it is"
-                    data-testid="place-open-status"
-                  >
-                    <Clock className="h-3.5 w-3.5" />
-                    {status.open
-                      ? `Open now · until ${clock(status.until)}`
-                      : status.opensAt != null && status.opensDay
-                        ? `Closed · opens ${status.opensDay === localNow!.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
-                        : "Closed"}
-                  </span>
-                )}
-                {bitcoin != null && (
-                  <Chip tone="warning" icon={Bitcoin} size="sm" data-testid="place-bitcoin">
-                    Accepts Bitcoin{bitcoin ? ` · ${bitcoin}` : ""}
-                  </Chip>
-                )}
-              </div>
-            )}
-            {place.description && (
-              <p className="mt-2 max-w-prose text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
-                <EmojiText text={place.description} tags={event} />
-              </p>
-            )}
-          </div>
-        </div>
 
-        {(directions || call || website || menu || reserve || others.length > 0) && (
-          <div className="flex flex-wrap gap-1 self-start [grid-area:actions] sm:gap-2" data-testid="place-actions">
-            {directions && (
-              <Action href={directions} label="Directions" primary>
-                <Navigation className="h-5 w-5" />
-              </Action>
-            )}
-            {call && (
-              <Action href={call} label="Call">
-                <Phone className="h-5 w-5" />
-              </Action>
-            )}
-            {website && (
-              <Action href={website} label="Website">
-                <Globe className="h-5 w-5" />
-              </Action>
-            )}
-            {menu && (
-              <Action href={menu} label="Menu">
-                <BookOpen className="h-5 w-5" />
-              </Action>
-            )}
-            {reserve && (
-              <Action href={reserve} label="Reserve">
-                <CalendarCheck className="h-5 w-5" />
-              </Action>
-            )}
-            {others.map((l) => (
-              <Action key={l.href} href={l.href} label={l.label.replace(/ place$/i, "")}>
-                <Favicon host={l.host} className="h-4 w-4 text-slate-500" />
-              </Action>
-            ))}
-          </div>
+      {/* The hero band, Yelp's way with our twist: the picture is the map (or the site's photo), and a
+          frosted panel on its corner carries who it is — the name, the kind, the trust line, open or closed. */}
+      <div className="relative">
+        {photo ? (
+          <img
+            src={proxiedSrc(photo, "media_1280")}
+            referrerPolicy="no-referrer"
+            alt=""
+            className="aspect-[16/9] w-full rounded-xl border border-border object-cover sm:aspect-[16/7]"
+            data-testid="place-photo"
+          />
+        ) : (
+          coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} hero />
         )}
+        <div
+          className="mt-3 sm:absolute sm:left-4 sm:top-4 sm:z-10 sm:mt-0 sm:max-w-[min(60%,22rem)] sm:rounded-xl sm:border sm:border-white/60 sm:bg-white/85 sm:p-4 sm:shadow-sm sm:backdrop-blur-md dark:sm:border-slate-700/60 dark:sm:bg-slate-900/85"
+          data-testid="place-identity"
+        >
+          <h1
+            className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
+            style={{ fontFamily: "var(--font-display)" }}
+            data-testid="place-name"
+          >
+            <EmojiText text={place.name} tags={event} />
+          </h1>
+          {kind && (
+            <p
+              className="mt-1 inline-flex items-center gap-1.5 text-[15px] text-slate-600 dark:text-slate-300"
+              data-testid="place-kind"
+            >
+              <Mark className="h-4 w-4 text-slate-400" aria-hidden />
+              {kind}
+              {place.priceRange && (
+                <span className="text-slate-400"> · {"$".repeat(Math.min(4, Number(place.priceRange) || 0))}</span>
+              )}
+            </p>
+          )}
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400" data-testid="place-trust-line">
+            <a href="#place-verdict" className="hover:text-brand-link">
+              {vouches > 0
+                ? `Vouched for by ${vouches} ${vouches === 1 ? "person" : "people"} you trust`
+                : "No one you trust has vouched for it yet"}
+            </a>
+            <span className="text-slate-300 dark:text-slate-600"> · </span>
+            <a href="#place-reviews" className="hover:text-brand-link">
+              {reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}` : "No reviews yet"}
+            </a>
+          </p>
+          {(status || bitcoin != null) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {status && (
+                <span
+                  className={`inline-flex items-center gap-1.5 text-sm font-semibold ${status.open ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}
+                  title="In the place's local time, estimated from where it is"
+                  data-testid="place-open-status"
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  {status.open
+                    ? `Open now · until ${clock(status.until)}`
+                    : status.opensAt != null && status.opensDay
+                      ? `Closed · opens ${status.opensDay === localNow!.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
+                      : "Closed"}
+                </span>
+              )}
+              {bitcoin != null && (
+                <Chip tone="warning" icon={Bitcoin} size="sm" data-testid="place-bitcoin">
+                  Accepts Bitcoin{bitcoin ? ` · ${bitcoin}` : ""}
+                </Chip>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      {photo && coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} compact />}
+      {place.description && (
+        <p className="max-w-prose text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
+          <EmojiText text={place.description} tags={event} />
+        </p>
+      )}
+      <ReviewPhotos reviews={ranked.reviews} />
 
-        <aside className="min-w-0 self-stretch [grid-area:media]">
-          <div className="flex h-full flex-col gap-3">
-            {photo && (
-              <img
-                src={proxiedSrc(photo, "media_1280")}
-                referrerPolicy="no-referrer"
-                alt=""
-                className="aspect-[16/9] w-full rounded-xl border border-border object-cover sm:aspect-[4/3]"
-                data-testid="place-photo"
-              />
-            )}
-            {coords && (
-              <PlaceMap
-                lat={coords.lat}
-                lon={coords.lon}
-                name={place.name}
-                compact={!!photo || !mapTall}
-                tall={mapTall}
-                fill={!photo}
-              />
-            )}
-            {coords && !photo && (
-              <button
-                type="button"
-                onClick={() => setMapTall((v) => !v)}
-                className="self-start text-xs font-semibold text-slate-500 hover:text-brand-link dark:text-slate-400 sm:hidden"
-                data-testid="place-map-expand"
-              >
-                {mapTall ? "Smaller map" : "Larger map"}
-              </button>
-            )}
-            <ReviewPhotos reviews={ranked.reviews} />
-          </div>
-        </aside>
+      {(directions || call || website || menu || reserve || others.length > 0) && (
+        <div className="flex flex-wrap gap-1 sm:gap-2" data-testid="place-actions">
+          {directions && (
+            <Action href={directions} label="Directions" primary>
+              <Navigation className="h-5 w-5" />
+            </Action>
+          )}
+          {call && (
+            <Action href={call} label="Call">
+              <Phone className="h-5 w-5" />
+            </Action>
+          )}
+          {website && (
+            <Action href={website} label="Website">
+              <Globe className="h-5 w-5" />
+            </Action>
+          )}
+          {menu && (
+            <Action href={menu} label="Menu">
+              <BookOpen className="h-5 w-5" />
+            </Action>
+          )}
+          {reserve && (
+            <Action href={reserve} label="Reserve">
+              <CalendarCheck className="h-5 w-5" />
+            </Action>
+          )}
+          {others.map((l) => (
+            <Action key={l.href} href={l.href} label={l.label.replace(/ place$/i, "")}>
+              <Favicon host={l.host} className="h-4 w-4 text-slate-500" />
+            </Action>
+          ))}
+        </div>
+      )}
 
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-1 [grid-area:details] sm:grid-cols-2" data-testid="place-details">
+      {/* Location & hours, Yelp's block: where and how to reach it on the left, the week on the right. */}
+      <section className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2" data-testid="place-details">
+        <dl className="space-y-0.5">
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+            Location
+          </p>
           {place.address ? (
-            <Row icon={MapPin} label="Address" testId="place-address" wide>
+            <Row icon={MapPin} label="Address" testId="place-address">
               {directions ? (
                 <a
                   href={directions}
@@ -398,12 +381,11 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
             </Row>
           ) : (
             (place.locality || country) && (
-              <Row icon={MapPin} label="Where" testId="place-country" wide>
+              <Row icon={MapPin} label="Where" testId="place-country">
                 {[place.locality, place.region, country].filter(Boolean).join(", ")}
               </Row>
             )
           )}
-          {week && localNow && <HoursRow week={week} today={localNow.day} />}
           {place.phone && (
             <Row icon={Phone} label="Phone" testId="place-phone">
               {call ? (
@@ -413,18 +395,6 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
               ) : (
                 place.phone
               )}
-            </Row>
-          )}
-          {(price || place.priceRange) && (
-            <Row icon={Tag} label="Price" testId="place-price">
-              {price
-                ? `${price.dollars} · from ${price.count} ${price.count === 1 ? "review" : "reviews"}`
-                : "$".repeat(Number(place.priceRange) || 0)}
-            </Row>
-          )}
-          {payments.length > 0 && (
-            <Row icon={CreditCard} label="Paid with" testId="place-paid">
-              {payments.map((p) => `${p.label} · ${p.count}`).join(", ")}
             </Row>
           )}
           {website && (
@@ -440,8 +410,21 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
               </a>
             </Row>
           )}
+          {(price || place.priceRange) && (
+            <Row icon={Tag} label="Price" testId="place-price">
+              {price
+                ? `${price.dollars} · from ${price.count} ${price.count === 1 ? "review" : "reviews"}`
+                : "$".repeat(Number(place.priceRange) || 0)}
+            </Row>
+          )}
+          {payments.length > 0 && (
+            <Row icon={CreditCard} label="Paid with" testId="place-paid">
+              {payments.map((p) => `${p.label} · ${p.count}`).join(", ")}
+            </Row>
+          )}
         </dl>
-      </div>
+        {week && localNow && <HoursBlock week={week} today={localNow.day} />}
+      </section>
 
       <div id="place-reviews">
         <PlaceReviews item={event} ranked={ranked} />
@@ -521,41 +504,30 @@ function Row({
   );
 }
 
-/** Today's hours on the row; the whole week on tap, today first and bold. */
-function HoursRow({ week, today }: { week: Week; today: Day }) {
-  const [open, setOpen] = useState(false);
+/** The week, Yelp's way: every day in view, today first and bold. */
+function HoursBlock({ week, today }: { week: Week; today: Day }) {
   const order = [...DAYS.slice(DAYS.indexOf(today)), ...DAYS.slice(0, DAYS.indexOf(today))];
   return (
-    <div className={`py-1.5 text-sm ${open ? "sm:col-span-2" : ""}`} data-testid="place-hours">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-start gap-2.5 text-left"
-        data-testid="place-hours-toggle"
-      >
-        <Clock className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-        <span className="min-w-0 flex-1 text-slate-900 dark:text-slate-100">
-          <span className="font-medium">{DAY_NAMES[today]}</span> {spansText(week[today])}
-        </span>
-        <ChevronDown
-          className={`mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open && (
-        <table className="mt-2 w-full border-collapse pl-7 text-sm" data-testid="place-week">
-          <tbody>
-            {order.map((d) => (
-              <tr key={d} data-today={d === today ? "true" : undefined} className={d === today ? "font-semibold" : ""}>
-                <th scope="row" className="font-inherit w-28 py-0.5 pl-7 text-left text-slate-600 dark:text-slate-300">
-                  {DAY_NAMES[d]}
-                </th>
-                <td className="py-0.5 text-slate-900 dark:text-slate-100">{spansText(week[d])}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+    <div data-testid="place-hours">
+      <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Hours</p>
+      <table className="w-full border-collapse text-sm" data-testid="place-week">
+        <tbody>
+          {order.map((d) => (
+            <tr
+              key={d}
+              data-today={d === today ? "true" : undefined}
+              className={
+                d === today ? "font-semibold text-slate-900 dark:text-slate-100" : "text-slate-600 dark:text-slate-300"
+              }
+            >
+              <th scope="row" className="font-inherit w-28 py-0.5 text-left">
+                {DAY_NAMES[d]}
+              </th>
+              <td className="py-0.5">{spansText(week[d])}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
