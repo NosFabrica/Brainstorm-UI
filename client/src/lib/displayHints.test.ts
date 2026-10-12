@@ -272,13 +272,14 @@ describe("fact role", () => {
       ]),
     );
     expect(shown.facts).toEqual([
-      { field: "accepts-bitcoin", label: "Bitcoin", value: "lightning", href: null, extra: 0 },
-      { field: "phone", label: "Phone", value: "+1-540-391-0134", href: null, extra: 0 },
+      { field: "accepts-bitcoin", label: "Bitcoin", value: "lightning", href: null, address: null, extra: 0 },
+      { field: "phone", label: "Phone", value: "+1-540-391-0134", href: null, address: null, extra: 0 },
       {
         field: "menu",
         label: "Menu",
         value: "https://wolfs.example/menu",
         href: "https://wolfs.example/menu",
+        address: null,
         extra: 0,
       },
     ]);

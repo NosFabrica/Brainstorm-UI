@@ -28,6 +28,7 @@ import { Chip } from "@/components/ui/chip";
 import { SectionHeader } from "@/components/ui/section-header";
 import { AgreementChip } from "@/components/dictionary/AgreementChip";
 import { OwnVersionDialog } from "@/components/dictionary/OwnVersionDialog";
+import { ListManager, listManagerPath } from "@/components/lists/ListManager";
 import { DListItemRow } from "@/components/dictionary/DListItemRow";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -58,9 +59,12 @@ export const dictionaryEntryPath = (coordinate: string) =>
   `/settings?tab=dictionary&concept=${encodeURIComponent(coordinate)}`;
 
 export function DictionaryTab() {
-  const concept = new URLSearchParams(useSearch()).get("concept");
+  const params = new URLSearchParams(useSearch());
+  const concept = params.get("concept");
   const dictionary = useDictionary();
   const entries = dictionary.data ?? [];
+
+  if (params.get("manage") === "lists") return <ListManager />;
 
   if (concept) {
     const entry = entries.find((e) => e.communityCoordinate === concept);
@@ -84,6 +88,13 @@ export function DictionaryTab() {
         subtitle="The concepts Brainstorm understands for you — what a GitHub account is, which details it has, how it shows up. Your Assistant keeps a copy of each concept your community shares."
       />
       <div className="space-y-6 p-5">
+        <div className="flex justify-end">
+          <Button asChild variant="outline" size="sm">
+            <Link href={listManagerPath()} data-testid="dictionary-list-management">
+              List Management
+            </Link>
+          </Button>
+        </div>
         {dictionary.isPending ? (
           <Pending label="Reading your Dictionary…" />
         ) : (

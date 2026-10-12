@@ -11,8 +11,9 @@
  * <item tag name>, <description?>]` — `allowed` reads as optional — and may
  * type a declared field with `["field-type", <name>, <type>]`, which never
  * adds a field of its own. Only `url` changes rendering (a link when the
- * value is http(s)); every other type, or none, is text — `address`
- * (provisional) included, until something looks the address up.
+ * value is http(s)), and `address` (provisional): the event a `kind:pubkey:d`
+ * names, which a renderer looks up (components/dictionary/AddressRef). Every
+ * other type, or none, is text.
  *
  * An item is a kind-39999 event (9999 non-addressable) filed under its
  * header by a `z` tag naming the header's coordinate (a 9998 header: its
@@ -21,6 +22,7 @@
  * lib/dlists reads the music lists, whose shapes are fixed; this module
  * reads any list.
  */
+import { nip19 } from "nostr-tools";
 
 export const DLIST_HEADER_KIND = 39998;
 export const DLIST_ITEM_KIND = 39999;
@@ -52,6 +54,8 @@ export interface FieldCell {
   missing: boolean;
   /** A link for a `url` field whose value is an http(s) URL. */
   href: string | null;
+  /** For an `address` field (provisional): the `kind:pubkey:d` its value names, when it names one. */
+  address: string | null;
 }
 
 export interface Coordinate {
@@ -90,6 +94,25 @@ export function parseCoordinate(coord: string | null | undefined): Coordinate | 
 }
 
 export const formatCoordinate = ({ kind, pubkey, d }: Coordinate): string => `${kind}:${pubkey}:${d}`;
+
+/**
+ * The address a value names, as `kind:pubkey:d`: the coordinate itself, or an
+ * `naddr` (with or without `nostr:`) spelled out. Null for anything else.
+ */
+export function addressOf(value: string | null | undefined): string | null {
+  const s = typeof value === "string" ? value.trim().replace(/^nostr:/, "") : "";
+  const coordinate = parseCoordinate(s);
+  if (coordinate) return formatCoordinate(coordinate);
+  if (!s.startsWith("naddr1")) return null;
+  try {
+    const d = nip19.decode(s);
+    return d.type === "naddr"
+      ? formatCoordinate({ kind: d.data.kind, pubkey: d.data.pubkey, d: d.data.identifier })
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 /** The coordinate of an addressable event (a 39998 header, a 39999 item), or null without a `d`. */
 export function coordinateOf(ev: EventLike): string | null {
@@ -181,6 +204,7 @@ export function fieldCell(item: TaggedEvent, decl: FieldDecl): FieldCell {
     extra: Math.max(0, hits.length - 1),
     missing: decl.requirement === "required" && value == null,
     href: value != null && decl.type === "url" ? httpUrl(value) : null,
+    address: value != null && decl.type === "address" ? addressOf(value) : null,
   };
 }
 

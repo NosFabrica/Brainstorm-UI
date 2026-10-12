@@ -12,8 +12,8 @@
  * flags the items that lack it.
  *
  * The form follows dlist-ui's create-list (dlist-ui.netlify.app), minus
- * "from list", contexts, and the allowed / recommended / disallowed levels:
- * a field here is required or optional.
+ * "from list", contexts, and the allowed / disallowed levels: a field here is
+ * required, recommended or optional (`allowed` reads as optional).
  *
  * Withdrawing replaces the copy rather than deleting it: the same coordinate
  * republished with `["b", "b-tag-deferred"]` — Tapestry's reserved value for
@@ -23,9 +23,10 @@
  * may or may not honour (the hub does take kind 5); and it says a decision was
  * made, where a header with no `b` looks like one that never was a copy.
  */
-import { httpUrl, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
+import { httpUrl, undeclaredFields, type FieldDecl, type FieldRequirement } from "@/lib/dlistFields";
 import { displayHintTags } from "@/lib/displayHints";
 import { linkTags, type LinkRef } from "@/lib/linkTemplates";
+import type { DraftTemplate } from "@/lib/templateDrafts";
 import { B_DEFERRED, type ConceptDefinition } from "@/lib/conceptResolution";
 
 /** Where a row in the form came from. */
@@ -33,7 +34,7 @@ export type FieldOrigin = "definition" | "items" | "custom";
 
 export interface DraftField {
   name: string;
-  required: boolean;
+  requirement: FieldRequirement;
   /** Part of the version being published. */
   enabled: boolean;
   origin: FieldOrigin;
@@ -67,6 +68,8 @@ export interface CopyDraft {
   display: DraftDisplay;
   /** Provisional URL-template links (lib/linkTemplates); a binding with no field yet is "". */
   links: LinkRef[];
+  /** URL templates written here, published just before the header that links them (lib/templateDrafts). */
+  templates: DraftTemplate[];
 }
 
 export interface EventTemplate {
@@ -121,7 +124,7 @@ export function initialDraft(
     rows.push({
       name: f.name,
       enabled: !!own,
-      required: (own ?? f).requirement === "required",
+      requirement: (own ?? f).requirement,
       origin: "definition",
       type: (own ?? f).type,
       // A copy made before descriptions were carried has none: the community's fills in.
@@ -133,7 +136,7 @@ export function initialDraft(
     rows.push({
       name,
       enabled: !!own,
-      required: own?.requirement === "required",
+      requirement: own?.requirement ?? "optional",
       origin: "items",
       seenOn: count,
       type: own?.type ?? "text",
@@ -146,7 +149,7 @@ export function initialDraft(
       rows.push({
         name: f.name,
         enabled: true,
-        required: f.requirement === "required",
+        requirement: f.requirement,
         origin: "custom",
         type: f.type,
         description: f.description,
@@ -169,6 +172,7 @@ export function initialDraft(
       listImage: listImage ?? "",
     },
     links: base.links.map((l) => ({ ...l, bindings: l.bindings.map(([p, f]) => [p, f] as [string, string]) })),
+    templates: [],
   };
 }
 
@@ -192,24 +196,20 @@ export function draftProblems(draft: CopyDraft): string[] {
 }
 
 /**
- * The copy as an unsigned event. Fields in the form's order; a field the
- * community typed keeps its `field-type`, verbatim.
+ * A definition's tags, as a draft says them: its names and description,
+ * each field it includes with its requirement and description, a type for a
+ * field that isn't plain text (or one `typed` already gave a type), the
+ * display hints and facts that name an included field, and the links whose
+ * every placeholder has one. Shared by an own version (copyTemplate) and a
+ * list of one's own (lib/listDraft).
  */
-export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): EventTemplate {
-  const d = community.event.tags.find((t) => t[0] === "d")?.[1] ?? "";
-  const typed = new Map(
-    community.event.tags.filter((t) => t[0] === "field-type" && t[1] && t[2]).map((t) => [t[1], t]),
-  );
-  const tags: string[][] = [
-    ["d", d],
-    ["names", draft.singular.trim(), draft.plural.trim()],
-  ];
+export function definitionTags(draft: CopyDraft, typed: ReadonlySet<string> = new Set()): string[][] {
+  const tags: string[][] = [["names", draft.singular.trim(), draft.plural.trim()]];
   if (draft.description.trim()) tags.push(["description", draft.description.trim()]);
   for (const f of draft.fields.filter((f) => f.enabled)) {
     const name = f.name.trim();
     const description = f.description?.trim();
-    tags.push([f.required ? "required" : "optional", name, ...(description ? [description] : [])]);
-    // A field the community typed keeps a type tag; any other only when it isn't plain text.
+    tags.push([f.requirement, name, ...(description ? [description] : [])]);
     const type = f.type ?? "text";
     if (typed.has(name) || type !== "text") tags.push(["field-type", name, type]);
   }
@@ -235,8 +235,21 @@ export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): Ev
   const usable = draft.links.filter((l) => l.bindings.every(([, f]) => f && enabled.has(f)));
   const linkKey = (t: string[]) => JSON.stringify(t);
   tags.push(...linkTags(usable).filter((t, i, all) => all.findIndex((u) => linkKey(u) === linkKey(t)) === i));
-  tags.push(["b", community.coordinate, "pointer"]);
-  return { kind: 39998, content: "", tags };
+  return tags;
+}
+
+/**
+ * The copy as an unsigned event. Fields in the form's order; a field the
+ * community typed keeps its `field-type`, verbatim.
+ */
+export function copyTemplate(community: ConceptDefinition, draft: CopyDraft): EventTemplate {
+  const d = community.event.tags.find((t) => t[0] === "d")?.[1] ?? "";
+  const typed = new Set(community.event.tags.filter((t) => t[0] === "field-type" && t[1] && t[2]).map((t) => t[1]));
+  return {
+    kind: 39998,
+    content: "",
+    tags: [["d", d], ...definitionTags(draft, typed), ["b", community.coordinate, "pointer"]],
+  };
 }
 
 /** The same coordinate, no longer a copy of anything: what withdrawing publishes. */

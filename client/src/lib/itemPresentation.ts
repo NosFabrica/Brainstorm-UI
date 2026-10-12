@@ -37,7 +37,7 @@ export interface ItemPresentation {
   location: (GeohashCell & { geohash: string }) | null;
   locationField: string | null;
   /** The definition's facts this item has a value for, labelled, in the header's order. */
-  facts: { field: string; label: string; value: string; href: string | null; extra: number }[];
+  facts: { field: string; label: string; value: string; href: string | null; address: string | null; extra: number }[];
   /** Every field named as a fact, so a page needn't list it again. */
   factFields: string[];
   /** The list's image, worn by every item. */
@@ -84,7 +84,16 @@ export function presentItem(item: { tags: string[][] }, definition: ConceptDefin
     const cell = decl ? fieldCell(item, decl) : null;
     return cell?.value == null
       ? []
-      : [{ field: f.field, label: factLabel(f), value: cell.value, href: cell.href, extra: cell.extra }];
+      : [
+          {
+            field: f.field,
+            label: factLabel(f),
+            value: cell.value,
+            href: cell.href,
+            address: cell.address,
+            extra: cell.extra,
+          },
+        ];
   });
 
   return {
