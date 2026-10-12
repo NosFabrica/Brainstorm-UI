@@ -1,7 +1,9 @@
 /**
  * The place on a map, drawn by Leaflet on Esri's light gray canvas — a
  * muted, keyless basemap with its labels laid over — with Brainstorm's own
- * pin: the page's picture, since no place in the list has a photo yet. Leaflet and its stylesheet load only on a place's
+ * pin: the page's picture, since no place in the list has a photo yet. In
+ * dark mode the tiles are inverted — the gray canvas turns dark, its labels
+ * light — while the pin and the controls keep their own colours. Leaflet and its stylesheet load only on a place's
  * page (a dynamic import), never in the app's first bundle. The map doesn't
  * take the wheel: scrolling the page past it keeps scrolling; zoom with the
  * buttons or a pinch. The container is a stacking context of its own
@@ -94,7 +96,7 @@ export function PlaceMap({
     <div className={`space-y-1.5 ${fill ? "sm:flex sm:min-h-0 sm:flex-1 sm:flex-col" : ""}`} data-testid="place-map">
       <div
         ref={host}
-        className={`${hero ? "aspect-[16/9] sm:aspect-[16/7]" : tall ? "aspect-[4/5]" : compact ? "aspect-[16/7] sm:aspect-[4/3]" : "aspect-[16/9] sm:aspect-[4/5]"} ${fill ? "sm:aspect-auto sm:h-full sm:min-h-[220px] sm:flex-1" : ""} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500`}
+        className={`${hero ? "aspect-[16/9] sm:aspect-[16/7]" : tall ? "aspect-[4/5]" : compact ? "aspect-[16/7] sm:aspect-[4/3]" : "aspect-[16/9] sm:aspect-[4/5]"} ${fill ? "sm:aspect-auto sm:h-full sm:min-h-[220px] sm:flex-1" : ""} relative isolate z-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:[&_.leaflet-bar_a]:border-slate-700 dark:[&_.leaflet-bar_a]:bg-slate-800 dark:[&_.leaflet-bar_a]:text-slate-100 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500 dark:[&_.leaflet-control-attribution]:bg-slate-900/80 dark:[&_.leaflet-control-attribution]:text-slate-400 dark:[&_.leaflet-tile-pane]:[filter:invert(1)_hue-rotate(180deg)_brightness(0.82)_contrast(0.9)]`}
         role="img"
         aria-label={`Map showing ${name}`}
       >

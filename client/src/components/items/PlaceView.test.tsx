@@ -51,8 +51,21 @@ vi.mock("@/components/items/PlaceMap", () => ({
     <div data-testid="place-map" data-lat={p.lat} data-lon={p.lon} data-name={p.name} />
   ),
 }));
+// The list's other places (components/dictionary/DListItemNeighbours useListItems): what the reader's web of trust holds.
+const list = vi.hoisted(() => ({
+  items: [] as {
+    id: string;
+    kind: number;
+    pubkey: string;
+    created_at: number;
+    content: string;
+    tags: string[][];
+    sig: string;
+  }[],
+}));
 vi.mock("@/components/dictionary/DListItemNeighbours", () => ({
   DListItemNeighbours: () => <div data-testid="neighbours-slot" />,
+  useListItems: () => ({ items: list.items, pending: false }),
 }));
 const network = vi.hoisted(() => ({ endorsers: [] as { pubkey: string; at: number }[] }));
 vi.mock("@/hooks/useItemEngagement", () => ({
@@ -216,6 +229,7 @@ beforeEach(() => {
   reviews.list = [];
   reviews.post.mutate.mockClear();
   site.card = null;
+  list.items = [];
   // Thursday 2026-10-15, 23:30 UTC: 18:30 in Sarasota by the longitude estimate (UTC−5), when Il Sole is open.
   vi.useFakeTimers({ now: new Date("2026-10-15T23:30:00Z"), toFake: ["Date"] });
 });
@@ -249,7 +263,7 @@ describe("PlaceView", () => {
       "href",
       "https://www.ilsolefood.com/",
     );
-    expect(within(actions).getByRole("link", { name: "BTC Map" })).toHaveAttribute(
+    expect(within(actions).getByRole("link", { name: "Map" })).toHaveAttribute(
       "href",
       "https://btcmap.org/merchant/30083",
     );
@@ -363,5 +377,50 @@ describe("PlaceView", () => {
     reviews.list = [{ id: "r1", pubkey: "b".repeat(64), at: 8, text: "Fine.", photos: [], price: null, paid: null }];
     renderWithProviders(<Page event={ilSole} />);
     expect(screen.getByTestId("place-trust-line")).toHaveTextContent("Vouched for by 1 person you trust · 1 review");
+  });
+
+  it("the nearest places from the list, by distance, the place itself left out", () => {
+    const at = (id: string, name: string, lat: string, lon: string) => ({
+      id: id.repeat(64),
+      kind: 39999,
+      pubkey: AVI,
+      created_at: 1,
+      content: "",
+      sig: "",
+      tags: [
+        ["d", `osm-${id}`],
+        ["z", COMMUNITY],
+        ["name", name],
+        ["category", "cafe"],
+        ["lat", lat],
+        ["lon", lon],
+      ],
+    });
+    list.items = [
+      ilSole as never,
+      at("3", "Far Away Cafe", "27.9", "-82.5"),
+      at("4", "Next Door Bakery", "27.2515", "-82.5340"),
+      at("5", "Across Town Bar", "27.33", "-82.53"),
+      at("6", "Other Island Deli", "27.26", "-82.52"),
+    ];
+    renderWithProviders(<Page event={ilSole} />);
+    const nearby = screen.getByTestId("place-nearby");
+    const names = within(nearby)
+      .getAllByTestId("place-nearby-item")
+      .map((el) => el.textContent ?? "");
+    expect(names).toHaveLength(3);
+    expect(names[0]).toContain("Next Door Bakery");
+    expect(names[1]).toContain("Other Island Deli");
+    expect(names[2]).toContain("Across Town Bar");
+    expect(names[0]).toMatch(/\d+ m|\d\.\d (km|mi)/);
+    expect(nearby).not.toHaveTextContent("Il Sole");
+  });
+
+  it("the action row invites a review, and the invitation lands in the composer", async () => {
+    viewer.pubkey = "d".repeat(64);
+    renderWithProviders(<Page event={ilSole} />);
+    const review = within(screen.getByTestId("place-actions")).getByRole("link", { name: "Review" });
+    await userEvent.click(review);
+    expect(within(screen.getByTestId("place-review-composer")).getByRole("textbox")).toHaveFocus();
   });
 });

@@ -48,6 +48,7 @@ import {
   IceCreamCone,
   MapPin,
   Navigation,
+  PenLine,
   Phone,
   Store,
   Tag,
@@ -56,7 +57,13 @@ import {
 } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
-import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
+import { DListItemNeighbours, useListItems } from "@/components/dictionary/DListItemNeighbours";
+import { ItemLine } from "@/components/dictionary/ItemLine";
+import { Link } from "wouter";
+import { eventPath } from "@/lib/shareId";
+import { dictionaryRelays } from "@/config/dictionary";
+import { isReady, useResolvedItemView } from "@/hooks/useItemView";
+import { distanceKm, distanceWords } from "@/lib/placeDistance";
 import { AdminDefinition, ConceptLink, type FieldCells, type ItemEvent } from "@/components/share/DListItemParts";
 import { useNetworkView, WhoStandsBehindIt } from "@/components/items/WhoStandsBehindIt";
 import { PlaceMap } from "@/components/items/PlaceMap";
@@ -199,6 +206,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const network = useNetworkView(event);
   const ranked = useRankedReviews(event);
+  const listed = useListItems(event, r);
   const price = priceSummary(ranked.reviews);
   const payments = paymentSummary(ranked.reviews);
 
@@ -327,6 +335,22 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
               <Navigation className="h-5 w-5" />
             </Action>
           )}
+          {network.me && (
+            <Action
+              href="#place-reviews"
+              label="Review"
+              onClick={(e) => {
+                e.preventDefault();
+                const box = document.querySelector<HTMLTextAreaElement>(
+                  '[data-testid="place-review-composer"] textarea',
+                );
+                box?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+                box?.focus({ preventScroll: true });
+              }}
+            >
+              <PenLine className="h-5 w-5" />
+            </Action>
+          )}
           {call && (
             <Action href={call} label="Call">
               <Phone className="h-5 w-5" />
@@ -348,8 +372,10 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
             </Action>
           )}
           {others.map((l) => (
-            <Action key={l.href} href={l.href} label={l.label.replace(/ place$/i, "")}>
-              <Favicon host={l.host} className="h-4 w-4 text-slate-500" />
+            // The template's name, as the button's word: "BTC Map place" reads "Map" (the team, 2026-10-12);
+            // the destination stays on hover. The favicon in grayscale, so the row keeps one voice.
+            <Action key={l.href} href={l.href} label={l.label.replace(/^BTC /i, "").replace(/ place$/i, "")}>
+              <Favicon host={l.host} className="h-4 w-4 opacity-80 grayscale" />
             </Action>
           ))}
         </div>
@@ -434,7 +460,9 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
         <WhoStandsBehindIt network={network} noun="place" idPrefix="place" />
       </div>
 
-      <DListItemNeighbours event={event} resolved={r} />
+      {coords && <NearbyPlaces here={{ id: event.id, ...coords }} items={listed.items} resolved={r} />}
+
+      <DListItemNeighbours event={event} resolved={r} more={false} />
 
       <p className="text-[11px] text-slate-400 dark:text-slate-500" data-testid="place-attribution">
         {place.source === "btcmap" ? "Seeded from BTC Map. " : ""}Data © OpenStreetMap contributors, Open Database
@@ -451,19 +479,24 @@ function Action({
   href,
   label,
   primary = false,
+  onClick,
   children,
 }: {
   href: string;
   label: string;
   primary?: boolean;
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
   children: React.ReactNode;
 }) {
+  const inPage = href.startsWith("#") || href.startsWith("tel:");
   return (
     <a
       href={href}
-      target={href.startsWith("tel:") ? undefined : "_blank"}
-      rel="noopener noreferrer nofollow"
+      target={inPage ? undefined : "_blank"}
+      rel={inPage ? undefined : "noopener noreferrer nofollow"}
+      onClick={onClick}
       aria-label={label}
+      title={inPage ? undefined : href}
       className="group flex w-16 flex-col items-center gap-1.5 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
     >
       <span
@@ -529,5 +562,79 @@ function HoursBlock({ week, today }: { week: Week; today: Day }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+const NEARBY = 3;
+
+/**
+ * The nearest places from the list, by distance from this one: what a reader
+ * scanning for somewhere to eat wants, and the one thing the list can give
+ * that a review site can't. Three, each a tile with how far it is, in the
+ * reader's units (lib/placeDistance).
+ */
+function NearbyPlaces({
+  here,
+  items,
+  resolved,
+}: {
+  here: { id: string; lat: number; lon: number };
+  items: { id: string; kind: number; pubkey: string; tags: string[][] }[];
+  resolved: ReadyItemView["resolved"];
+}) {
+  const nearest = items
+    .filter((i) => i.id !== here.id)
+    .map((item) => {
+      const p = placeOf(item, resolved.governing);
+      const lat = Number(p?.lat);
+      const lon = Number(p?.lon);
+      return p && Number.isFinite(lat) && Number.isFinite(lon) && p.lat && p.lon
+        ? { item, km: distanceKm(here, { lat, lon }) }
+        : null;
+    })
+    .filter((x): x is { item: (typeof items)[number]; km: number } => x !== null)
+    .sort((a, b) => a.km - b.km)
+    .slice(0, NEARBY);
+  if (nearest.length === 0) return null;
+  return (
+    <section data-testid="place-nearby">
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+        Nearby
+      </p>
+      <ul className="grid gap-2 sm:grid-cols-3">
+        {nearest.map(({ item, km }) => (
+          <NearbyTile key={item.id} item={item} km={km} resolved={resolved} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function NearbyTile({
+  item,
+  km,
+  resolved,
+}: {
+  item: { id: string; kind: number; pubkey: string; tags: string[][] };
+  km: number;
+  resolved: ReadyItemView["resolved"];
+}) {
+  const view = useResolvedItemView(item, resolved);
+  if (!isReady(view)) return null;
+  const kind = categoryWords(placeOf(item, resolved.governing)?.category ?? null);
+  return (
+    <li className="min-w-0" data-testid="place-nearby-item">
+      <Link
+        href={eventPath(item as never, dictionaryRelays())}
+        className="flex items-center gap-2.5 rounded-xl border border-slate-200 px-3 py-2 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-slate-700 dark:hover:bg-slate-900"
+      >
+        <ItemLine
+          shown={view.shown}
+          singular={resolved.governing.singular}
+          line={[distanceWords(km), kind].filter(Boolean).join(" · ")}
+          testId="place-nearby"
+        />
+      </Link>
+    </li>
   );
 }
