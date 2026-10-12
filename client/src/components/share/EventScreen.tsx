@@ -730,6 +730,7 @@ function EventView({
                 relayHints={relayHints}
                 excludeId={note.id}
                 excludeContent={note.content}
+                event={note}
               />
             )}
 
