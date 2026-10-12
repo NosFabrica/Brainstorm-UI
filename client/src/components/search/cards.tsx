@@ -60,7 +60,7 @@ import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { SensitiveCover } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
-import { VIDEO_KINDS } from "@/lib/nip71";
+import { SHORT_VIDEO_KINDS, VIDEO_KINDS, readVideo } from "@/lib/nip71";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
@@ -313,6 +313,9 @@ export function MediaCard({
   // A video its creator marked sensitive neither plays nor shows its poster until the reader asks.
   const warning = isVideo || VIDEO_KINDS.has(event.kind) ? contentWarningOf(event) : null;
   const [shown, setShown] = useState(false);
+  // A video event says its own size and, as a short, that it loops; a note with a clip says neither.
+  const isVideoEvent = VIDEO_KINDS.has(event.kind);
+  const dim = isVideoEvent ? readVideo(event).dim : undefined;
   // The caption is the words, never the URL — the media itself is the link.
   // nostr: mentions stay IN and render as the person below.
   const caption = (tagVal(event, "title") ?? event.content ?? "")
@@ -380,7 +383,13 @@ export function MediaCard({
           className="mt-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
         />
       ) : isVideo && url ? (
-        <FeedVideo src={url} poster={poster ?? undefined} autoFocus={shown} />
+        <FeedVideo
+          src={url}
+          poster={poster ?? undefined}
+          autoFocus={shown}
+          dim={dim}
+          loop={SHORT_VIDEO_KINDS.has(event.kind)}
+        />
       ) : isAudio && url ? (
         <div className="mt-2" data-noopen>
           <EmbeddedTrackCard
