@@ -5,6 +5,7 @@ import { useLiveProfiles } from "@/hooks/useLiveProfile";
 import { useLocation } from "wouter";
 import { MessagesSquare, Loader2, Flame, Clock, Heart, Repeat2, MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { MoreResults } from "@/components/search/MoreResults";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
@@ -27,13 +28,25 @@ import { cn } from "@/lib/utils";
  *
  * Read-only while posting doesn't exist: notes open the full conversation at
  * /e/:id, the same surface the public share pages use.
+ *
+ * It reads as the reader's own endless feed: PAGE rows reveal as they reach
+ * the bottom, and when the loaded notes run out the module asks the store for
+ * the week before. After AUTO_TURNS automatic turns the sentinel stops and the
+ * button takes over — a floor the reader steps past on purpose, so the page
+ * never becomes a bottomless pit and "See everyone you follow" stays reachable.
  */
 
 const DAY = 24 * 60 * 60;
 const WINDOW_DAYS = 7;
 const MAX_AUTHORS = 300;
+/** Per author, per week loaded — one voice should not become the whole feed. */
 const MAX_PER_AUTHOR = 3;
-const MAX_ROWS = 40;
+/** Rows revealed per turn. */
+const PAGE = 20;
+/** Weeks the feed will reach back; beyond that the relays are the place to look. */
+const MAX_WINDOWS = 8;
+/** Pages turned by scrolling alone before the button takes over. */
+const AUTO_TURNS = 5;
 
 type Mode = "trending" | "latest";
 
@@ -56,12 +69,27 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
 
   const authorsKey = authors.join(",");
   // Fixed per author set: a window recomputed every render would be a new filter, and a new REQ, each time.
-  const since = useMemo(() => Math.floor(Date.now() / 1000) - WINDOW_DAYS * DAY, [authorsKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const notesFilter = useMemo(() => ({ kinds: [1], authors, since, limit: 400 }), [authorsKey, since]); // eslint-disable-line react-hooks/exhaustive-deps
+  const now = useMemo(() => Math.floor(Date.now() / 1000), [authorsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // How many weeks back the feed reaches, how many rows it shows, and how many
+  // pages scrolling alone has turned.
+  const [windows, setWindows] = useState(1);
+  const [shown, setShown] = useState(PAGE);
+  const [turns, setTurns] = useState(0);
+  const since = now - windows * WINDOW_DAYS * DAY;
+  // The timeline spans every week loaded; the ask is for the newest week not yet
+  // asked for (the first week has no `until`, so notes posted since mount stream in).
+  const spanFilter = useMemo(() => ({ kinds: [1], authors, since }), [authorsKey, since]); // eslint-disable-line react-hooks/exhaustive-deps
+  const askFilter = useMemo(
+    () =>
+      windows === 1
+        ? { kinds: [1], authors, since, limit: 400 }
+        : { kinds: [1], authors, since, until: since + WINDOW_DAYS * DAY, limit: 400 },
+    [authorsKey, since, windows], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const notesQuery = useStoreEvents(
-    enabled && authors.length ? `thread-notes:${since}:${authorsKey}` : null,
-    enabled && authors.length ? [notesFilter] : null,
-    () => fetchEventsByFilter(notesFilter),
+    enabled && authors.length ? `thread-notes:${now}:${windows}:${authorsKey}` : null,
+    enabled && authors.length ? [spanFilter] : null,
+    () => fetchEventsByFilter(askFilter),
     { minMs: 2 * 60_000 },
   );
 
@@ -122,21 +150,30 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
     const out: MinimalEvent[] = [];
     for (const e of sorted) {
       const used = perAuthor.get(e.pubkey) ?? 0;
-      if (used >= MAX_PER_AUTHOR) continue;
+      if (used >= MAX_PER_AUTHOR * windows) continue;
       perAuthor.set(e.pubkey, used + 1);
       out.push(e);
-      if (out.length >= MAX_ROWS) break;
     }
     return out;
-  }, [candidates, scores, mode]);
+  }, [candidates, scores, mode, windows]);
+  const visible = useMemo(() => notes.slice(0, shown), [notes, shown]);
+  // Everything loaded is on screen and there is a week left to ask for.
+  const canReachBack = shown >= notes.length && windows < MAX_WINDOWS;
+  const turnPage = () => {
+    setTurns((n) => n + 1);
+    if (shown < notes.length) setShown((n) => n + PAGE);
+    else if (windows < MAX_WINDOWS) setWindows((w) => w + 1);
+  };
 
   // Parents of replies, so "replying to…" renders with real context.
   const parentIds = useMemo(
     () =>
       Array.from(
-        new Set(notes.flatMap((e) => (e.tags ?? []).filter((t: string[]) => t[0] === "e").map((t: string[]) => t[1]))),
+        new Set(
+          visible.flatMap((e) => (e.tags ?? []).filter((t: string[]) => t[0] === "e").map((t: string[]) => t[1])),
+        ),
       ).slice(0, 24),
-    [notes],
+    [visible],
   );
   const parentsQuery = useStoreEvents(
     notesQuery.settled && parentIds.length ? `thread-parents:${parentIds.join(",")}` : null,
@@ -151,15 +188,15 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
 
   const profilePubkeys = useMemo(() => {
     const s = new Set<string>();
-    for (const e of notes) s.add(e.pubkey);
+    for (const e of visible) s.add(e.pubkey);
     eventsById.forEach((e) => s.add(e.pubkey));
     return Array.from(s);
-  }, [notes, eventsById]);
+  }, [visible, eventsById]);
   const profileMap = useLiveProfiles(profilePubkeys);
   const profiles = profileMap;
   // Trust scores for the feed's authors (the module's own `scores` map is
   // ENGAGEMENT, not trust). Shared session cache; house POV.
-  const authorScoreOf = useAuthorScores(useMemo(() => notes.map((n) => n.pubkey), [notes]));
+  const authorScoreOf = useAuthorScores(useMemo(() => visible.map((n) => n.pubkey), [visible]));
 
   const loading = follows.loading || (authors.length > 0 && notesQuery.loading);
   if (!enabled || (!loading && candidates.length === 0)) return null;
@@ -226,7 +263,7 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
             className="mx-auto max-w-xl divide-y divide-slate-100 dark:divide-slate-800/60"
             data-testid="network-thread-list"
           >
-            {notes.map((e) => {
+            {visible.map((e) => {
               const s = scores.get(e.id);
               return (
                 <div key={e.id} className="py-2 first:pt-0" data-testid="network-thread-note">
@@ -268,6 +305,15 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
             })}
           </div>
         )}
+
+        <MoreResults
+          show={!loading && notes.length > 0 && (shown < notes.length || canReachBack)}
+          loading={windows > 1 && !notesQuery.settled}
+          onMore={turnPage}
+          auto={turns < AUTO_TURNS}
+          label="More from your network"
+          testId="network-thread-more"
+        />
 
         {!loading && notes.length > 0 && (
           <button
