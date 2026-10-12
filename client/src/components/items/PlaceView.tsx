@@ -251,31 +251,34 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
         </p>
       )}
 
-      {/* The hero band, Yelp's way with our twist: the picture is the map (or the site's photo), and a
-          frosted panel on its corner carries who it is — the name, the kind, the trust line, open or closed. */}
-      <div className="relative">
-        {photo ? (
-          <img
-            src={proxiedSrc(photo, "media_1280")}
-            referrerPolicy="no-referrer"
-            alt=""
-            className="aspect-[16/9] w-full rounded-xl border border-border object-cover sm:aspect-[16/7]"
-            data-testid="place-photo"
-          />
-        ) : (
-          coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} hero />
-        )}
+      {/* The hero band, Yelp's way with our twist: the picture is always the map, and a frosted panel on
+          its corner carries who it is — the name, the kind, the trust line, open or closed. The site's own
+          picture, when it has one, is a small tile in the panel beside the name, like a logo: never a band
+          that pushes the map down the page. */}
+      <div className="relative" data-testid="place-hero">
+        {coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} hero />}
         <div
           className="mt-3 sm:absolute sm:left-4 sm:top-4 sm:z-10 sm:mt-0 sm:max-w-[min(60%,22rem)] sm:rounded-xl sm:border sm:border-white/60 sm:bg-white/85 sm:p-4 sm:shadow-sm sm:backdrop-blur-md dark:sm:border-slate-700/60 dark:sm:bg-slate-900/85"
           data-testid="place-identity"
         >
-          <h1
-            className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
-            style={{ fontFamily: "var(--font-display)" }}
-            data-testid="place-name"
-          >
-            <EmojiText text={place.name} tags={event} />
-          </h1>
+          <div className="flex items-start gap-3">
+            {photo && (
+              <img
+                src={proxiedSrc(photo, "media_320")}
+                referrerPolicy="no-referrer"
+                alt=""
+                className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 object-cover dark:border-slate-700"
+                data-testid="place-photo"
+              />
+            )}
+            <h1
+              className="min-w-0 break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: "var(--font-display)" }}
+              data-testid="place-name"
+            >
+              <EmojiText text={place.name} tags={event} />
+            </h1>
+          </div>
           {kind && (
             <p
               className="mt-1 inline-flex items-center gap-1.5 text-[15px] text-slate-600 dark:text-slate-300"
@@ -326,7 +329,6 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           )}
         </div>
       </div>
-      {photo && coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} compact />}
       {place.description && (
         <p className="max-w-prose text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
           <EmojiText text={place.description} tags={event} />

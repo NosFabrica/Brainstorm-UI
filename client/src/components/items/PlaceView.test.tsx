@@ -374,11 +374,19 @@ describe("PlaceView", () => {
     );
   });
 
-  it("the website's picture joins the map column when the site gives one", () => {
+  it("the map is the hero even when the site gives a picture; the picture is a small tile in the panel, beside the name", () => {
     site.card = { image: "https://www.ilsolefood.com/og.jpg", siteName: "Il Sole" };
     renderWithProviders(<Page event={ilSole} />);
-    expect(screen.getByTestId("place-photo").getAttribute("src")).toContain("ilsolefood.com/og.jpg");
-    expect(screen.getByTestId("place-map")).toBeInTheDocument();
+    // One map, the hero; never a second one under a photo band.
+    expect(screen.getAllByTestId("place-map")).toHaveLength(1);
+    const hero = screen.getByTestId("place-hero");
+    expect(within(hero).getByTestId("place-map")).toBeInTheDocument();
+    const panel = within(hero).getByTestId("place-identity");
+    const photo = within(panel).getByTestId("place-photo");
+    expect(photo.getAttribute("src")).toContain("ilsolefood.com/og.jpg");
+    // The picture never fills the band: it is a tile the height of the name, not a banner.
+    expect(photo.className).toMatch(/h-14/);
+    expect(photo.className).not.toMatch(/w-full/);
   });
 
   it("the trust line counts the vouches from people the reader trusts and the reviews", () => {
