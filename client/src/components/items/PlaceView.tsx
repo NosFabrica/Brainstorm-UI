@@ -19,9 +19,10 @@
  *   the links the definition's templates build (BTC Map).
  * - The map as the visual, since no place in the list has a photo yet; the
  *   photo when one has. Loaded on tap, as the privacy rule has it.
- * - The details, one row each: address, hours (today first, the week on
- *   tap), phone, website; the country alone when there's no address. Each
- *   thing is said once: Bitcoin is the chip, the address is the row.
+ * - The details as a compact grid, two across from sm up: the address on
+ *   its own line, then hours (today first, the week on tap), phone, website,
+ *   price; the country alone when there's no address. Each thing is said
+ *   once: Bitcoin is the chip, the address is the row.
  * - Reviews by people (PlaceReviews), ordered by who the reader trusts, with
  *   a composer for a signed-in reader; their photos become the page's
  *   pictures under the map, and the price and payment they give fill the rows
@@ -375,9 +376,9 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           </div>
         </aside>
 
-        <dl className="divide-y divide-slate-100 [grid-area:details] dark:divide-slate-800" data-testid="place-details">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-1 [grid-area:details] sm:grid-cols-2" data-testid="place-details">
           {place.address ? (
-            <Row icon={MapPin} label="Address" testId="place-address">
+            <Row icon={MapPin} label="Address" testId="place-address" wide>
               {directions ? (
                 <a
                   href={directions}
@@ -396,7 +397,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
             </Row>
           ) : (
             (place.locality || country) && (
-              <Row icon={MapPin} label="Where" testId="place-country">
+              <Row icon={MapPin} label="Where" testId="place-country" wide>
                 {[place.locality, place.region, country].filter(Boolean).join(", ")}
               </Row>
             )
@@ -500,15 +501,18 @@ function Row({
   icon: Icon,
   label,
   testId,
+  wide = false,
   children,
 }: {
   icon: typeof MapPin;
   label: string;
   testId: string;
+  /** Across both columns from sm up: the address, which needs the width. */
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-3 py-3 text-sm" data-testid={testId}>
+    <div className={`flex items-start gap-2.5 py-1.5 text-sm ${wide ? "sm:col-span-2" : ""}`} data-testid={testId}>
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
       <dt className="sr-only">{label}</dt>
       <dd className="min-w-0 flex-1 break-words text-slate-900 dark:text-slate-100">{children}</dd>
@@ -521,12 +525,12 @@ function HoursRow({ week, today }: { week: Week; today: Day }) {
   const [open, setOpen] = useState(false);
   const order = [...DAYS.slice(DAYS.indexOf(today)), ...DAYS.slice(0, DAYS.indexOf(today))];
   return (
-    <div className="py-3 text-sm" data-testid="place-hours">
+    <div className={`py-1.5 text-sm ${open ? "sm:col-span-2" : ""}`} data-testid="place-hours">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-start gap-3 text-left"
+        className="flex w-full items-start gap-2.5 text-left"
         data-testid="place-hours-toggle"
       >
         <Clock className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />

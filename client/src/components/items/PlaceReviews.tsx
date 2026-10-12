@@ -256,8 +256,8 @@ function Composer({ item }: { item: Item }) {
           ))}
         </div>
       )}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <input
             ref={file}
             type="file"
@@ -280,7 +280,7 @@ function Composer({ item }: { item: Item }) {
           type="button"
           onClick={submit}
           disabled={(!text.trim() && photos.length === 0) || post.isPending || uploading}
-          className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-brand-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50 sm:self-auto"
         >
           {post.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
           Post review
