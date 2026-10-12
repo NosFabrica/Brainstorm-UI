@@ -75,6 +75,15 @@ describe("the syntax sheet", () => {
     expect(parseQuery("kind:30023").kinds).toEqual([30023]);
   });
 
+  it("says the one hashtag that is a chip: `#vine-archive` on Media lists classic Vines", () => {
+    const text = sheetText();
+    expect(text).toContain("#vine-archive");
+    expect(text).toMatch(/On the Media tab, #vine-archive lists classic Vines/);
+    // And the one word `kind:` takes, said as what it asks.
+    expect(text).toMatch(/kind:video/);
+    expect(parseQuery("kind:video").kinds).toEqual([21, 22, 34235, 34236]);
+  });
+
   it("says which two tokens never reach the relay", () => {
     const text = sheetText();
     expect(text).toContain("Only on this page");

@@ -514,7 +514,7 @@ export function searchStream(
     // it is — `kind:5905` is the specs that define kind 5905. The relay
     // narrows by `#k` (probed 2026-09-23).
     // On the Media tab itself `#vine-archive` is the Classic Vines chip (lib/mediaFacet): the
-    // Vines Divine restored, which carry that word as a NIP-32 label and no `t` at all (probed
+    // Vines Divine restored, which carry that word as a NIP-32 label and never as a `t` (probed
     // 2026-10-12). Asked as a hashtag it is a `#t` filter that finds none of them and an `#l`
     // filter at a quarter of the page, over every media kind; asked as the chip it is their
     // one kind with the label on every filter, a whole page. A preview band is not the tab.

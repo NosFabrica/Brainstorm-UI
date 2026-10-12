@@ -935,7 +935,7 @@ describe("the Media tab's Videos and Classic Vines", () => {
   });
 
   // Probed on the search relay (2026-10-12): a restored Vine carries `["l","vine-archive",…]`
-  // and no `t` at all, so the hashtag's own `#t` filter finds none of them and its `#l` filter
+  // and never a `t` of that word, so the hashtag's own `#t` filter finds none of them and its `#l` filter
   // is a side question at a quarter of the page.
   it("Classic Vines asks kind 34236 by the archive's label, a whole page of them", async () => {
     controllable();

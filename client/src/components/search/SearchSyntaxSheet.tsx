@@ -112,7 +112,12 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
               {
                 token: "#",
                 em: "hashtag",
-                what: "Events tagged with that topic, plus the labels and the comments written on it.",
+                what: (
+                  <>
+                    Events tagged with that topic, plus the labels and the comments written on it. On the Media tab,{" "}
+                    <code className="font-mono text-[12px]">#vine-archive</code> lists classic Vines.
+                  </>
+                ),
               },
               {
                 token: "label:",

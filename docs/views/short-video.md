@@ -65,12 +65,55 @@ never printed.
    is present.
 8. "Watch on Divine", when the video is Divine's.
 
-**Cards, rows and thumbnails.** These keep their existing shape. The one rule this view adds
-to them is the content warning, on these surfaces and no others:
+**Cards, rows and thumbnails in search.** A video event is drawn from the same reading as its
+page (`readVideo`), on these surfaces:
+
+| Surface                                                          | What a video event gets                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Media card (`MediaCard`, through `FeedVideo`)                    | A frame in the video's own proportions from `dim`, no taller than 34rem and centred in the card, held before the file loads. Kinds 22 and 34236 loop. Without a `dim` the frame is the one every clip gets, sized by the video once it loads.        |
+| All row (`AllResultRow`)                                         | A facts line: the length (`6s`, `1:05` from a minute up, `1:02:05` from an hour up) and, for a classic Vine, its loops with thousands separators (`1,234,567 loops`). Loops of zero and likes are not shown on a row. With neither there is no line. |
+| Top page tile (`MediaTile`)                                      | The caption is the title, and the words only when there is no title. The tile keeps the grid's 4:3 shape. An upright or square video is fitted into it whole on a dark ground; a wide one, or one with no `dim`, fills the tile.                     |
+| Dates on the All row, the Top row, the card, the tile, the panel | The posted date from the Sources table (`published_at` when it is a believable time, else `created_at`), through `postedAtOf`. The person panel's "Latest" list is ordered by it too. Every other kind keeps `created_at`.                           |
+
+A note that carries a clip (kind 1) is not a video event. It gets none of the above: its card
+keeps the one frame, does not loop, and is dated by `created_at`.
+
+`videoShapeOf` in `lib/videoFrame.ts` is the one reading of shape: portrait, square (sides
+within 5% of each other) or landscape, and nothing when there is no size or it is not one.
+
+**Asking for videos in search.** The Media tab has two chips that change what the relay is
+asked. Photos and Audio, beside them, only sort through the page already loaded.
+
+| Chip          | Token in the query | What is asked                                                                                     |
+| ------------- | ------------------ | ------------------------------------------------------------------------------------------------- |
+| Videos        | `kind:video`       | Kinds 21, 22, 34235 and 34236, and nothing else                                                   |
+| Classic Vines | `#vine-archive`    | Kind 34236 with `"#l": ["vine-archive"]` on every filter, a whole page, beside any words, `from:` |
+
+- A chosen chip is that one token in the query, so the address holds it
+  (`/?q=dog+kind%3Avideo&t=media`, `/?q=dog+%23vine-archive&t=media`), a link or Back
+  reproduces it, and the box shows it as a pill. The chip reads as pressed from the query.
+- `kind:video` is the one word the `kind:` operator takes. It means the four kinds wherever it
+  is typed, and any tab narrows by it as it does by a number. The four numbers typed out read as
+  the Videos chip too. Any other word after `kind:` is plain text, and so is the word "video"
+  in a sentence.
+- With a chip chosen the tab asks for video events alone: the companion ask for notes that
+  carry a clip is not made, and the "From <person>" lead group keeps to the same narrowing.
+- Choosing a chip takes out a `kind:` typed beside it. One chip at a time.
+- On the Media tab a chip's token is left out of Recent searches. Typed on another tab it is
+  the reader's own words and is remembered.
+- **The `#vine-archive` exception.** A lone hashtag is a topic and goes to `/t/<tag>`.
+  `#vine-archive` alone does not: restored Vines carry the word as a NIP-32 label and never as
+  a `t` tag, so the topic page had nothing to show. It stays a search and opens the Media tab
+  with Classic Vines chosen. That happens only when the address names no tab; a link, Back or a
+  tab the reader picked is kept. Every other hashtag, hyphenated or not, goes to its topic page.
+  Off the Media tab, and in the Top page's bands, `#vine-archive` is asked as any hashtag is.
+
+**The content warning.** The rule this view adds for a video its creator marked sensitive, on
+these surfaces and no others:
 
 | Surface                                                                                                                   | A video its creator marked sensitive                                                          |
 | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Media card (`MediaCard`)                                                                                                  | The cover with "Show video" in place of the player                                            |
+| Media card (`MediaCard`)                                                                                                  | The cover with "Show video" in place of the player, in the frame the player will take         |
 | A video quoted by event id (`nostr:nevent…`, a `q` or `e` tag), or carried in a repost (kind 6 or 16): `EmbeddedNoteCard` | The cover in place of a clip in its `content`, and a placeholder in place of a picture there  |
 | A video quoted by address (`nostr:naddr…`, an `a` tag): `EmbeddedArticleCard`                                             | The "Sensitive" tile in place of the card's cover, which is the event's top-level `image` tag |
 | Media tile (`MediaTile`)                                                                                                  | A neutral tile labelled "Sensitive" in place of the picture                                   |
@@ -137,6 +180,20 @@ has no place to ask first, so the video reads as a row, where its thumbnail is t
 
 ### Known gaps
 
+In search:
+
+- **Restored Vines from the `user-submitted-archive` source.** These carry a `source` tag of
+  `user-submitted-archive` and usually no `dim`, duration, `loops` or `published_at` (72 of a
+  sample of 300 restored Vines on the search relay, 2026-10-12, and none of the 72 had any of
+  the four). They keep the wide frame, show no facts, and are dated by `created_at`, which is
+  the day they were imported.
+- **The lead group under Classic Vines.** The "From <person>" group reads the person's 40
+  newest kind-34236 events and then keeps the ones carrying the archive's label. A creator
+  with more than 40 newer shorts of their own shows no Vines there. The results under it are
+  asked by label and are not affected.
+- **A flagged card with no `dim`** keeps the wide cover, so "Show video" can still change the
+  frame's size.
+
 A content warning is still ignored in these places after this change:
 
 - **Photos.** A kind-20 picture with a content warning is shown everywhere it is drawn: cards,
@@ -165,6 +222,14 @@ A content warning is still ignored in these places after this change:
 ## Reference
 
 - `client/src/lib/nip71.ts`: `readVideo`, `publishedAtOf`
+- `client/src/lib/videoFrame.ts`: `videoShapeOf`, `videoFrameStyle`
+- `client/src/lib/eventDate.ts`: `postedAtOf`, the date a row, card or tile shows
+- `client/src/lib/mediaFacet.ts`: the Videos and Classic Vines chips as tokens in the query
+- `client/src/lib/searchQuery.ts`: `kind:video`; `client/src/lib/topicQuery.ts`: the
+  `#vine-archive` exception
+- `client/src/lib/resultReaders.ts`: the row facts for kinds 21, 22, 34235 and 34236
+- `client/src/services/search.ts`: what Classic Vines asks
+- `client/src/components/share/FeedVideo.tsx`: `dim`, `loop`, `feedVideoFrame`
 - `client/src/lib/nip36.ts`: `contentWarningOf`
 - `client/src/lib/nip40.ts`: `expirationOf`, `isExpired`
 - `client/src/lib/resultSummary.ts`: `sensitive` on a row's summary, inherited by a repost
@@ -195,3 +260,8 @@ A content warning is still ignored in these places after this change:
 - 2026-10-11, second review: a flagged video quoted by address shows no cover, and one stays
   out of the Top stories strip. A reveal is for one video: another video drawn in the same place
   asks again.
+- 2026-10-12: Search. A Media card frames a video event by its `dim` and loops a short. The All
+  row says its length and a classic Vine's loops. The Top tile is captioned with the title and
+  fits an upright or square video whole. Rows, cards, tiles and the person panel date a video by
+  `published_at`. The Media tab offers Videos (`kind:video`) and Classic Vines (`#vine-archive`),
+  and `#vine-archive` alone opens there in place of its topic page.

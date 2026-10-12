@@ -203,3 +203,23 @@ closed; the UI remembers answers for the session and never re-asks.
 
 Ask: nothing yet. A `COUNT` by author and kind would let the chips say "29 items";
 the `limit:1` probe is enough to say "has some".
+
+## 16. Classic Vines are asked by label, not by hashtag (2026-10-12)
+
+Divine's restored Vines are kind 34236 with `["l","vine-archive","archive.divine.video"]`
+and never a `t` tag of that word (probed on the search relay: 0 of 300). A `#vine-archive` typed in
+the box builds the hashtag union, whose `#t` filter finds none of them and whose `#l` filter
+is a side question at a quarter of the page, over every kind the tab holds.
+
+So on the Media tab the UI reads `#vine-archive` as its Classic Vines chip and sends one
+filter: `{ kinds:[34236], "#l":["vine-archive"], search:"<words> sort:recent observer:<hex>",
+limit:100 }`, with `authors` when the query has a `from:`. It answers and pages by `until`
+like any single recent-sorted filter. The Videos chip beside it is `kind:video` in the box,
+which is the four NIP-71 kinds (21, 22, 34235, 34236) on the wire. Both are described in
+`docs/views/short-video.md`.
+
+Under the house observer a wordless Classic Vines browse returned 55 of the 100 asked the same
+day; `include:spam` returns the full page. That is the lens question in issue #213, not a fault
+of the filter.
+
+Ask: nothing yet. A count by label (ties to #5) would let the chip say how many there are.
