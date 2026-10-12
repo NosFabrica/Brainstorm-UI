@@ -18,9 +18,9 @@
  *
  * Then what the network says (useItemEngagement): who endorsed the listing,
  * the people the reader follows first, with an Endorse button for a
- * signed-in reader (one "+", public and signed), and which Nostr profiles claim the
- * handle — the ones in the reader's web of trust as rows, the rest as a
- * count, since ten strangers claiming one handle is the point, not ten rows.
+ * signed-in reader (one "+", public and signed), and which Nostr profiles in
+ * the reader's web of trust claim the handle. Strangers' claims are read
+ * but not shown.
  *
  * The rest of the list follows, for everyone; the definition line and the
  * "More fields" fold are an admin's, since a reader came for the account.
@@ -42,7 +42,7 @@ import { rankEndorsers } from "@/services/endorsements";
 import type { GitHubClaimant } from "@/lib/itemEngagement";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import { Favicon } from "@/components/share/LinkPreview";
-import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
+import { DListItemNeighbours, useItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
 import {
   ConceptLink,
   DefinitionLine,
@@ -92,7 +92,7 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
   const account = githubAccountOf(event, r.governing)!;
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const facts = useGitHubAccount(account.handle).data ?? null;
-  const network = useNetworkView(event, account.handle);
+  const network = useNetworkView(event, account.handle, r);
 
   // The profile is the first link the templates build on github.com; the rest are offered as they are.
   const profile = links.find((l) => l.host === "github.com") ?? null;
@@ -178,7 +178,7 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
 
       {isAdmin && <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />}
 
-      <DListItemNeighbours event={event} resolved={r} />
+      <DListItemNeighbours event={event} resolved={r} alsoListed={false} />
 
       {isAdmin && <DefinitionLine event={event} resolved={r} />}
     </div>
@@ -238,13 +238,18 @@ function namesLine(names: string[], total: number): string {
  * reader's web of trust, the lister's distance, and names and faces for all
  * of them.
  */
-function useNetworkView(event: ItemEvent, handle: string) {
+function useNetworkView(event: ItemEvent, handle: string, resolved: ReadyItemView["resolved"]) {
   const { endorsers, claimants } = useItemEngagement(event, handle);
   const me = useActiveAccountDisplay()?.pubkey ?? null;
   const endorse = useEndorseItem(event);
   const { follows } = useMyFollows();
   const { hops } = useListerDistance(event.pubkey);
-  const people = [...new Set([event.pubkey, ...endorsers.map((e) => e.pubkey), ...claimants.map((c) => c.pubkey)])];
+  // The item's author first, then whoever else in the reader's web of trust listed the same handle.
+  const listers = [
+    event.pubkey,
+    ...useItemNeighbours(event, resolved).alsoListedBy.filter((pk) => pk !== event.pubkey),
+  ];
+  const people = [...new Set([...listers, ...endorsers.map((e) => e.pubkey), ...claimants.map((c) => c.pubkey)])];
   const scoreOf = useAuthorScores(people);
   const profiles = useProfileMap(people);
   const nameOf = (pk: string) => {
@@ -255,6 +260,7 @@ function useNetworkView(event: ItemEvent, handle: string) {
   const split = useWotItems(claimants);
   return {
     me,
+    listers,
     endorse,
     endorsers,
     ranked,
@@ -275,10 +281,7 @@ type NetworkView = ReturnType<typeof useNetworkView>;
  * they are from the reader, and how many people in the reader's network
  * vouch for it. Everything below is the evidence.
  */
-function Verdict({ event, network: n }: { event: ItemEvent; network: NetworkView }) {
-  const lister = event.pubkey;
-  const npub = n.npubOf(lister);
-  const name = n.nameOf(lister);
+function Verdict({ event: _event, network: n }: { event: ItemEvent; network: NetworkView }) {
   const inNetwork = n.ranked.filter((e) => e.group !== "other" && e.pubkey !== n.me).length;
   const vouch = n.mine
     ? inNetwork > 0
@@ -287,15 +290,39 @@ function Verdict({ event, network: n }: { event: ItemEvent; network: NetworkView
     : inNetwork > 0
       ? `${inNetwork === 1 ? "1 person" : `${inNetwork} people`} in your network ${inNetwork === 1 ? "vouches" : "vouch"} for this account.`
       : "No one in your network vouches for this account yet.";
+  const named = n.listers.slice(0, 2);
+  const rest = n.listers.length - named.length;
+  const person = (pk: string) => {
+    const npub = n.npubOf(pk);
+    const name = n.nameOf(pk);
+    return npub ? (
+      <Link
+        key={pk}
+        href={`/p/${npub}`}
+        className="font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+      >
+        {name}
+      </Link>
+    ) : (
+      <span key={pk} className="font-semibold text-slate-900 dark:text-slate-100">
+        {name}
+      </span>
+    );
+  };
   return (
     <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="github-account-verdict">
       <span className="text-slate-500 dark:text-slate-400">Listed by </span>
-      {npub ? (
-        <Link href={`/p/${npub}`} className="font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100">
-          {name}
-        </Link>
-      ) : (
-        <span className="font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+      {named.map((pk, i) => (
+        <span key={pk}>
+          {i > 0 && <span className="text-slate-500 dark:text-slate-400">{rest > 0 ? ", " : " and "}</span>}
+          {person(pk)}
+        </span>
+      ))}
+      {rest > 0 && (
+        <span className="text-slate-500 dark:text-slate-400" title={n.listers.slice(2).map(n.nameOf).join(", ")}>
+          {" "}
+          and {rest} {rest === 1 ? "other" : "others"}
+        </span>
       )}
       {n.hops != null && (
         <span className="text-slate-500 dark:text-slate-400">
@@ -309,8 +336,8 @@ function Verdict({ event, network: n }: { event: ItemEvent; network: NetworkView
 }
 
 function OnNostr({ event: _event, network: n }: { event: ItemEvent; network: NetworkView }) {
-  const { ranked, claimants, me, endorse, mine, split } = n;
-  if (ranked.length === 0 && claimants.length === 0 && !me) return null;
+  const { ranked, me, endorse, mine, split } = n;
+  if (ranked.length === 0 && split.trusted.length === 0 && !me) return null;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -356,10 +383,9 @@ function OnNostr({ event: _event, network: n }: { event: ItemEvent; network: Net
           </button>
         )}
       </div>
-      {claimants.length > 0 && (
+      {split.trusted.length > 0 && (
         <Claimants
           trusted={split.trusted}
-          outside={split.outside}
           nameOf={n.nameOf}
           pictureOf={n.pictureOf}
           npubOf={n.npubOf}
@@ -371,26 +397,19 @@ function OnNostr({ event: _event, network: n }: { event: ItemEvent; network: Net
 }
 
 /**
- * "2 more profiles claim this handle, outside your network." under trusted
- * rows; with none, "59 profiles claim this handle; none is in your network."
- * — the count is the warning.
+ * Who on Nostr says this GitHub account is theirs (a NIP-39 claim on their
+ * profile): the ones in the reader's web of trust, each a link. Strangers'
+ * claims aren't counted or shown (the team, 2026-10-12: a count of them
+ * reads as a warning about the account, not about the strangers).
  */
-function outsideLine(n: number, afterTrusted: boolean): string {
-  if (afterTrusted)
-    return `${n === 1 ? "1 more profile claims" : `${n} more profiles claim`} this handle, outside your network.`;
-  return `${n === 1 ? "1 profile claims" : `${n} profiles claim`} this handle; ${n === 1 ? "it isn't" : "none is"} in your network.`;
-}
-
 function Claimants({
   trusted,
-  outside,
   nameOf,
   pictureOf,
   npubOf,
   scoreOf,
 }: {
   trusted: GitHubClaimant[];
-  outside: GitHubClaimant[];
   nameOf: (pk: string) => string;
   pictureOf: (pk: string) => string | undefined;
   npubOf: (pk: string) => string | undefined;
@@ -399,14 +418,17 @@ function Claimants({
   const tierRing = useTierRing();
   return (
     <div className="space-y-2" data-testid="github-account-claimants">
-      <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">On Nostr</p>
       {trusted.length > 0 && (
         <ul className="space-y-1.5">
           {trusted.map((c) => {
             const npub = npubOf(c.pubkey);
             const name = nameOf(c.pubkey);
             return (
-              <li key={c.pubkey} className="flex items-center gap-2.5 text-sm" data-testid="github-account-claimant">
+              <li
+                key={c.pubkey}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+                data-testid="github-account-claimant"
+              >
                 <Avatar
                   className={`h-7 w-7 rounded-full bg-white dark:bg-slate-900 ${tierRing(scoreOf(c.pubkey), false, "sm", true) ?? ""}`}
                 >
@@ -427,7 +449,7 @@ function Claimants({
                 ) : (
                   <span className="min-w-0 truncate font-semibold text-slate-900 dark:text-slate-100">{name}</span>
                 )}
-                <span className="text-xs text-slate-500 dark:text-slate-400">says this is their GitHub</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">says this GitHub account is theirs</span>
                 <Chip tone="success" icon={BadgeCheck} size="sm">
                   In your network
                 </Chip>
@@ -435,11 +457,6 @@ function Claimants({
             );
           })}
         </ul>
-      )}
-      {outside.length > 0 && (
-        <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="github-account-claimants-outside">
-          {outsideLine(outside.length, trusted.length > 0)}
-        </p>
       )}
     </div>
   );

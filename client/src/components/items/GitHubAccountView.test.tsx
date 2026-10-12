@@ -37,8 +37,11 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
 vi.mock("@/hooks/useDictionaryConcepts", () => ({
   useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));
+// The rest of the list (components/dictionary/DListItemNeighbours): who else listed the same handle.
+const neighbours = vi.hoisted(() => ({ alsoListedBy: [] as string[] }));
 vi.mock("@/components/dictionary/DListItemNeighbours", () => ({
   DListItemNeighbours: () => <div data-testid="neighbours-slot" />,
+  useItemNeighbours: () => ({ alsoListedBy: neighbours.alsoListedBy, more: [], total: 1, coordinate: null }),
 }));
 vi.mock("@/lib/connection", () => ({ useConnectionSpeed: () => "normal" }));
 // What the network says about the item (hooks/useItemEngagement); nothing unless a test says so.
@@ -148,6 +151,7 @@ beforeEach(() => {
   network.endorsers = [];
   network.claimants = [];
   distance.hops = null;
+  neighbours.alsoListedBy = [];
 });
 
 const FACTS = {
@@ -317,7 +321,7 @@ describe("GitHubAccountView", () => {
     expect(within(line).getAllByRole("link")[0]).toHaveAttribute("href", `/p/${nip19.npubEncode(FOLLOWED)}`);
   });
 
-  it("lists the Nostr profiles claiming this handle: the ones in the reader's network as rows, the rest as a count", () => {
+  it("lists the Nostr profiles in the reader's network that claim this handle, and nobody else", () => {
     network.claimants = [
       { pubkey: STRANGER, proof: null },
       { pubkey: TRUSTED, proof: "gist" },
@@ -329,10 +333,11 @@ describe("GitHubAccountView", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveTextContent("Ada");
     expect(within(rows[0]).getByRole("link")).toHaveAttribute("href", "/p/npub-a");
+    expect(rows[0]).toHaveTextContent("says this GitHub account is theirs");
     expect(rows[0]).toHaveTextContent("In your network");
-    expect(screen.getByTestId("github-account-claimants-outside")).toHaveTextContent(
-      "2 more profiles claim this handle, outside your network",
-    );
+    // Strangers' claims are neither listed nor counted.
+    expect(section).not.toHaveTextContent("2");
+    expect(screen.queryByTestId("github-account-claimants-outside")).toBeNull();
   });
 
   it("with no endorsements and no claimants, neither block shows", () => {
@@ -341,16 +346,14 @@ describe("GitHubAccountView", () => {
     expect(screen.queryByTestId("github-account-claimants")).toBeNull();
   });
 
-  it("when nobody in the reader's network claims the handle, the count stands alone as the warning", () => {
+  it("when only strangers claim the handle, the page says nothing about them", () => {
     network.claimants = [
       { pubkey: STRANGER, proof: null },
       { pubkey: FOLLOWED, proof: null },
     ];
     renderWithProviders(<Page event={item} copy={houseCopy} />);
-    expect(screen.queryByTestId("github-account-claimant")).toBeNull();
-    expect(screen.getByTestId("github-account-claimants-outside")).toHaveTextContent(
-      "2 profiles claim this handle; none is in your network.",
-    );
+    expect(screen.queryByTestId("github-account-claimants")).toBeNull();
+    expect(screen.queryByTestId("github-account-claimants-outside")).toBeNull();
   });
 
   it("a signed-in reader can endorse the listing; one who already has sees that they did; a visitor sees no button", async () => {
@@ -380,9 +383,10 @@ describe("GitHubAccountView", () => {
   });
 
   it("sums the page up under the name: who listed it and how far they are, and how many in the reader's network vouch", () => {
-    // A reader who hasn't endorsed it themselves, two hops from the lister.
+    // A reader who hasn't endorsed it themselves, two hops from the lister; Ada listed the handle too.
     viewer.pubkey = "d".repeat(64);
     distance.hops = 2;
+    neighbours.alsoListedBy = [TRUSTED];
     network.endorsers = [
       { pubkey: TRUSTED, at: 9 },
       { pubkey: FOLLOWED, at: 8 },
@@ -391,8 +395,9 @@ describe("GitHubAccountView", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     const verdict = screen.getByTestId("github-account-verdict");
     // The lister is the item's author: AVI, "Bob" in this test's profiles.
-    expect(verdict).toHaveTextContent("Listed by Bob · 2 hops from you");
+    expect(verdict).toHaveTextContent("Listed by Bob and Ada · 2 hops from you");
     expect(within(verdict).getByRole("link", { name: "Bob" })).toHaveAttribute("href", "/p/npub-b");
+    expect(within(verdict).getByRole("link", { name: "Ada" })).toHaveAttribute("href", "/p/npub-a");
     expect(verdict).toHaveTextContent("2 people in your network vouch for this account.");
   });
 
