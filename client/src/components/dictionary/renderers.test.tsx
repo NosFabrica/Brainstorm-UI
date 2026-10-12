@@ -16,6 +16,11 @@ const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
 const ME = "1".repeat(64);
 
 let concept: { data: ResolvedConcept | null; isPending: boolean } = { data: null, isPending: true };
+// These tests pin the tier-two reading; GitHub's tier-three view (ADR 0007) has its own.
+vi.mock("@/components/items/itemViews", () => ({
+  tierThreeFor: () => null,
+  tierThreePresentation: (_item: unknown, _resolved: unknown, shown: unknown) => shown,
+}));
 vi.mock("@/hooks/useItemConcept", () => ({ useItemConcept: () => concept }));
 vi.mock("@/hooks/useLinkTemplates", () => ({
   useLinkTemplates: () => ({

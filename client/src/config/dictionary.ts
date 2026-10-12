@@ -26,10 +26,14 @@ import { tagRelays } from "@/config/tagging";
 /** A job a concept does for the app beyond being shown: URL Templates' items are what links are built from. */
 export type ConceptRole = "url-templates";
 
+/** A community concept the app draws with a page of its own (ADR 0007): a tier-three view. */
+export type ConceptViewKey = "github-account";
+
 const config = raw as {
   conceptList: string;
   curatorTag: string;
   roles: Partial<Record<ConceptRole, string>>;
+  views?: Partial<Record<ConceptViewKey, string>>;
 };
 
 /** The Demo Dictionary Concepts list: its entries name the concepts the Dictionary shows. */
@@ -49,6 +53,13 @@ export function conceptForRole(role: ConceptRole): string | null {
 
 /** PROVISIONAL: URL Templates, the concept whose governing list the link picker offers (lib/linkTemplates). */
 export const URL_TEMPLATES_CONCEPT: string | null = conceptForRole("url-templates");
+
+/** The tier-three view a community concept has, by its coordinate, or null: it renders the tier-two way. */
+export function conceptViewOf(coordinate: string | null | undefined): ConceptViewKey | null {
+  if (!coordinate) return null;
+  const hit = (Object.entries(config.views ?? {}) as [ConceptViewKey, string][]).find(([, c]) => c === coordinate);
+  return hit ? hit[0] : null;
+}
 
 /**
  * Infrastructure: concepts that play a role. Their items render through them,

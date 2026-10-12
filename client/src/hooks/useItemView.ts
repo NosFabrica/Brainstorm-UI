@@ -1,6 +1,7 @@
 import { useItemConcept } from "@/hooks/useItemConcept";
 import { useLinkTemplates } from "@/hooks/useLinkTemplates";
 import { presentItem, type ItemPresentation } from "@/lib/itemPresentation";
+import { tierThreePresentation } from "@/components/items/itemViews";
 import { itemLinks, type ItemLink } from "@/lib/linkTemplates";
 import type { ResolvedConcept } from "@/lib/conceptResolution";
 
@@ -50,7 +51,8 @@ export function useResolvedItemView(
   const refs = resolved ? resolved.governing.links : [];
   const templates = useLinkTemplates(refs);
   if (pending || !resolved) return { pending, resolved: null, shown: null, links: [], usedFields: new Set() };
-  const shown = presentItem(item, resolved.governing);
+  // The hints' reading, then the concept's own when it has a tier-three view (ADR 0007).
+  const shown = tierThreePresentation(item, resolved, presentItem(item, resolved.governing));
   // The item's own link (a `link` role) first, then the ones its templates build; one per address.
   const links = [...(shown.link ? [shown.link] : []), ...itemLinks(item, refs, templates.data ?? new Map())].filter(
     (l, i, all) => all.findIndex((x) => x.href === l.href) === i,

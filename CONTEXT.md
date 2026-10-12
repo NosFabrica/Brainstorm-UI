@@ -128,6 +128,13 @@ Brainstorm Assistant. Today a copy repeats the community's definition; one day
 it may change it.
 _Avoid_: fork, clone, override
 
+**Tier-three view**:
+A page made by hand for one community concept (GitHub Accounts), keyed by its
+coordinate, drawn from the same resolved view as the dynamic page and reading
+fields only through the governing definition (ADR 0007). Tier one is the raw
+tags; tier two is the page every concept gets from its definition.
+_Avoid_: custom renderer, hardcoded concept, override
+
 **Dictionary**:
 The concepts a User holds local copies of, shown in Settings › Dictionary.
 Which concepts the app offers is a list, Demo Dictionary Concepts: the entries

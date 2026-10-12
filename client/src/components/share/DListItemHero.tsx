@@ -29,36 +29,26 @@
  *
  * The lister, the time and the ids are EventScreen's, around this.
  */
-import { useState, type ReactNode } from "react";
-import { Link } from "wouter";
-import { BookOpen, ChevronDown, ExternalLink, Loader2, MapPin, TriangleAlert } from "lucide-react";
+import { useState } from "react";
+import { BookOpen, ExternalLink, Loader2, MapPin, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
-import { AgreementChip } from "@/components/dictionary/AgreementChip";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
 import { Favicon } from "@/components/share/LinkPreview";
 import { FieldValue } from "@/components/dictionary/FieldValue";
 import { isReady, useItemView, useResolvedItemView, type ItemView, type ReadyItemView } from "@/hooks/useItemView";
-import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { fieldCell, undeclaredFields, type FieldDecl } from "@/lib/dlistFields";
+import { fieldCell, undeclaredFields } from "@/lib/dlistFields";
 import { avatarSrc } from "@/lib/avatarSrc";
 import { osmEmbedUrl, osmPageUrl } from "@/lib/geohash";
 import type { ItemPresentation } from "@/lib/itemPresentation";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
-import type { DefinitionSource, ResolvedConcept } from "@/lib/conceptResolution";
-import { useDictionaryConcepts } from "@/hooks/useDictionaryConcepts";
-import { dictionaryConceptOf } from "@/services/dictionary";
+import type { ResolvedConcept } from "@/lib/conceptResolution";
+import { ConceptLink, DefinitionLine, MoreFields } from "@/components/share/DListItemParts";
+import { tierThreeFor } from "@/components/items/itemViews";
 import { EmojiText } from "@/components/ui/custom-emoji";
 
 type ItemEvent = { id: string; kind: number; pubkey: string; created_at: number; content: string; tags: string[][] };
-
-const SOURCE_WORDS: Record<DefinitionSource, string> = {
-  personal: "your own copy of",
-  assistant: "your Assistant's copy of",
-  house: "Brainstorm's copy of",
-  community: "the community concept",
-};
 
 export function DListItemHero({ event }: { event: ItemEvent }) {
   const view = useItemView(event);
@@ -84,6 +74,9 @@ function HeroFor({ event, view, preview = false }: { event: ItemEvent; view: Ite
     );
 
   if (!isReady(view)) return <Undefined event={event} />;
+  // A concept with a view of its own (ADR 0007) draws itself from the same view; everything else is drawn here.
+  const TierThree = preview ? null : tierThreeFor(event, view);
+  if (TierThree) return <TierThree event={event} view={view} />;
   return <Defined event={event} view={view} preview={preview} />;
 }
 
@@ -207,15 +200,7 @@ function Defined({ event, view, preview }: { event: ItemEvent; view: ReadyItemVi
 
       {!preview && <DListItemNeighbours event={event} resolved={r} />}
 
-      <p
-        className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-400 dark:text-slate-500"
-        data-testid="dlist-item-definition"
-      >
-        <span>
-          Shown as {SOURCE_WORDS[r.source]} <ConceptLink event={event}>{r.governing.plural}</ConceptLink>.
-        </span>
-        <AgreementChip agreement={r.agreement} />
-      </p>
+      <DefinitionLine event={event} resolved={r} />
     </div>
   );
 }
@@ -288,107 +273,6 @@ function ItemMap({ location, title }: { location: NonNullable<ItemPresentation["
         </Button>
       )}
     </div>
-  );
-}
-
-function FieldList({ cells }: { cells: { field: FieldDecl; cell: ReturnType<typeof fieldCell> }[] }) {
-  if (cells.length === 0) return null;
-  return (
-    <dl className="divide-y divide-border rounded-xl border border-border" data-testid="dlist-item-fields">
-      {cells.map(({ field, cell }) => (
-        <div key={field.name} className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 px-4 py-2.5">
-          <dt
-            className="w-40 shrink-0 text-xs text-slate-500 dark:text-slate-400"
-            title={field.description ?? undefined}
-          >
-            <code className="font-mono">{field.name}</code>
-          </dt>
-          <dd className="min-w-0 flex-1 break-words text-sm text-slate-900 dark:text-slate-100">
-            {cell.value == null ? (
-              cell.missing ? (
-                <Chip tone="warning" icon={TriangleAlert} size="sm">
-                  Missing — the list requires it
-                </Chip>
-              ) : (
-                <span className="text-slate-400">—</span>
-              )
-            ) : (
-              <FieldValue value={cell.value} href={cell.href} address={cell.address} />
-            )}
-            {cell.extra > 0 && <span className="ml-2 text-xs text-slate-400">+{cell.extra} more</span>}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-/**
- * What the definition doesn't show: declared fields no title, summary, picture
- * or link uses, then tags the item carries that the definition never declared.
- * Folded away; an item the definition fully covers has none and shows nothing.
- */
-function MoreFields({
-  cells,
-  extras,
-  singular,
-}: {
-  cells: { field: FieldDecl; cell: ReturnType<typeof fieldCell> }[];
-  extras: { name: string; value: string }[];
-  singular: string;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-brand-link dark:text-slate-400"
-        data-testid="dlist-item-more-toggle"
-      >
-        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
-        More fields ({cells.length + extras.length})
-      </button>
-      {open && <FieldList cells={cells} />}
-      {open && extras.length > 0 && (
-        <p className="pt-1 text-[11px] text-slate-400 dark:text-slate-500">Not part of the {singular} definition</p>
-      )}
-      {open && extras.length > 0 && (
-        <dl
-          className="divide-y divide-dashed divide-border rounded-xl border border-dashed border-border"
-          data-testid="dlist-item-extras"
-        >
-          {extras.map((x, i) => (
-            <div key={`${x.name}-${i}`} className="flex flex-wrap items-baseline gap-x-4 px-4 py-2">
-              <dt className="w-40 shrink-0 font-mono text-xs text-slate-400">{x.name}</dt>
-              <dd className="min-w-0 flex-1 break-words text-sm text-slate-600 dark:text-slate-300">{x.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-    </div>
-  );
-}
-
-/**
- * The concept's Dictionary entry for an admin; plain words for anyone else —
- * the Dictionary is admins-only while it's an internal demo (SettingsPage
- * `ADMIN_ONLY_TABS`), and the admin claim rides on a Session.
- */
-function ConceptLink({ event, children }: { event: ItemEvent; children: ReactNode }) {
-  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
-  // Infrastructure (URL Templates) renders, but has no Dictionary entry to link to.
-  const { shown } = useDictionaryConcepts();
-  const coordinate = dictionaryConceptOf(event, shown);
-  if (!isAdmin || !coordinate) return <>{children}</>;
-  return (
-    <Link
-      href={`/settings?tab=dictionary&concept=${encodeURIComponent(coordinate)}`}
-      className="text-brand-link hover:underline"
-    >
-      {children}
-    </Link>
   );
 }
 

@@ -34,8 +34,13 @@ const MAX_MORE = 3;
 const MAX_FACES = 3;
 const NO_ITEMS: DictionaryItem[] = [];
 
-export function DListItemNeighbours({ event, resolved }: { event: ItemEvent; resolved: ResolvedConcept }) {
-  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
+/**
+ * The item's neighbours for a page: who else in the reader's web of trust
+ * listed the same thing, a few of the list's other things, and the list's
+ * size — one read, shared by this block and any page that names the other
+ * listers itself (a tier-three view's verdict line, ADR 0007).
+ */
+export function useItemNeighbours(event: ItemEvent, resolved: ResolvedConcept) {
   const { rendered } = useDictionaryConcepts();
   const coordinate = dictionaryConceptOf(event, rendered);
   const entry = useMemo(
@@ -45,10 +50,26 @@ export function DListItemNeighbours({ event, resolved }: { event: ItemEvent; res
   );
   const items = useConceptItems(entry);
   const wot = useWotItems(items.data ?? NO_ITEMS);
-  const { alsoListedBy, more, total } = useMemo(
+  const neighbours = useMemo(
     () => neighboursOf(event, wot.trusted, resolved.governing, MAX_MORE),
     [event, wot.trusted, resolved.governing],
   );
+  return { ...neighbours, coordinate };
+}
+
+export function DListItemNeighbours({
+  event,
+  resolved,
+  alsoListed = true,
+}: {
+  event: ItemEvent;
+  resolved: ResolvedConcept;
+  /** False when the page names the other listers itself, so the line isn't said twice. */
+  alsoListed?: boolean;
+}) {
+  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
+  const { alsoListedBy: listers, more, total, coordinate } = useItemNeighbours(event, resolved);
+  const alsoListedBy = alsoListed ? listers : [];
   const authors = useAuthors(alsoListedBy.slice(0, MAX_FACES));
 
   if (alsoListedBy.length === 0 && more.length === 0) return null;
