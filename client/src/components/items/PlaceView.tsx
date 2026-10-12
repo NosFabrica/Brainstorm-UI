@@ -14,6 +14,10 @@
  * - The details, one row each: address, hours (today first, the week on
  *   tap), phone, website; the country alone when there's no address. Each
  *   thing is said once: Bitcoin is the chip, the address is the row.
+ * - Reviews by people (PlaceReviews), ordered by who the reader trusts, with
+ *   a composer for a signed-in reader; their photos become the page's
+ *   pictures under the map, and the price and payment they give fill the rows
+ *   the list can't.
  * - Who stands behind it (WhoStandsBehindIt), the rest of the list, and the
  *   data attribution the ODbL licence asks for.
  *
@@ -28,11 +32,13 @@ import {
   CalendarCheck,
   ChevronDown,
   Clock,
+  CreditCard,
   ExternalLink,
   Globe,
   MapPin,
   Navigation,
   Phone,
+  Tag,
 } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
@@ -46,6 +52,8 @@ import {
 } from "@/components/share/DListItemParts";
 import { useNetworkView, WhoStandsBehindIt } from "@/components/items/WhoStandsBehindIt";
 import { PlaceMap } from "@/components/items/PlaceMap";
+import { PlaceReviews, ReviewPhotos, useRankedReviews } from "@/components/items/PlaceReviews";
+import { paymentSummary, priceSummary } from "@/lib/placeReviews";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ReadyItemView } from "@/hooks/useItemView";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
@@ -168,6 +176,9 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const place = placeOf(event, r.governing)!;
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const network = useNetworkView(event);
+  const ranked = useRankedReviews(event);
+  const price = priceSummary(ranked.reviews);
+  const payments = paymentSummary(ranked.reviews);
 
   const kind = [categoryWords(place.category), categoryWords(place.cuisine)].filter(Boolean).join(" · ");
   const week = parseOpeningHours(place.hours);
@@ -209,6 +220,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
         ) : (
           coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} />
         )}
+        <ReviewPhotos reviews={ranked.reviews} />
         <div>
           <h1
             className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
@@ -329,6 +341,18 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
             )}
           </Row>
         )}
+        {(price || place.priceRange) && (
+          <Row icon={Tag} label="Price" testId="place-price">
+            {price
+              ? `${price.dollars} · from ${price.count} ${price.count === 1 ? "review" : "reviews"}`
+              : "$".repeat(Number(place.priceRange) || 0)}
+          </Row>
+        )}
+        {payments.length > 0 && (
+          <Row icon={CreditCard} label="Paid with" testId="place-paid">
+            {payments.map((p) => `${p.label} · ${p.count}`).join(", ")}
+          </Row>
+        )}
         {website && (
           <Row icon={Globe} label="Website" testId="place-website">
             <a
@@ -342,6 +366,8 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           </Row>
         )}
       </dl>
+
+      <PlaceReviews item={event} ranked={ranked} />
 
       <WhoStandsBehindIt network={network} noun="place" idPrefix="place" />
 

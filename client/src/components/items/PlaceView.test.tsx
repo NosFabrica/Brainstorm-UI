@@ -68,6 +68,23 @@ vi.mock("@/hooks/useWotItems", () => ({
 vi.mock("@/hooks/useMyFollows", () => ({
   useMyFollows: () => ({ follows: new Set<string>(), ready: true, signedIn: false }),
 }));
+// Reviews of the place (hooks/usePlaceReviews): what the relays hold, and the post the reader signs.
+const reviews = vi.hoisted(() => ({
+  list: [] as {
+    id: string;
+    pubkey: string;
+    at: number;
+    text: string;
+    photos: string[];
+    price: number | null;
+    paid: string | null;
+  }[],
+  post: { mutate: vi.fn(), isPending: false },
+}));
+vi.mock("@/hooks/usePlaceReviews", () => ({
+  usePlaceReviews: () => ({ reviews: reviews.list, pending: false }),
+  usePostPlaceReview: () => reviews.post,
+}));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.5 }));
 vi.mock("@/hooks/useProfileMap", () => ({ useProfileMap: () => new Map() }));
 
@@ -193,6 +210,8 @@ function Page({ event }: { event: typeof ilSole }) {
 beforeEach(() => {
   viewer.pubkey = null;
   network.endorsers = [];
+  reviews.list = [];
+  reviews.post.mutate.mockClear();
   // Thursday 2026-10-15, 23:30 UTC: 18:30 in Sarasota by the longitude estimate (UTC−5), when Il Sole is open.
   vi.useFakeTimers({ now: new Date("2026-10-15T23:30:00Z"), toFake: ["Date"] });
 });
@@ -263,5 +282,53 @@ describe("PlaceView", () => {
     const resolved = resolveConcept({ community, communityCoordinate: COMMUNITY, house: houseCopy })!;
     expect(placeOf(ilSole, resolved.governing)?.name).toBe("Il Sole Italian Food");
     expect(placeOf({ ...ilSole, tags: ilSole.tags.filter((t) => t[0] !== "name") }, resolved.governing)).toBeNull();
+  });
+
+  it("reviews by people, with their photos, price and payment summed up; nothing to post for a visitor", () => {
+    reviews.list = [
+      {
+        id: "r1",
+        pubkey: "a".repeat(64),
+        at: 9,
+        text: "Best pizza on the key.",
+        photos: ["https://img.example/pie.jpg"],
+        price: 2,
+        paid: "lightning",
+      },
+      { id: "r2", pubkey: "b".repeat(64), at: 8, text: "Slow on Fridays.", photos: [], price: 2, paid: "card" },
+    ];
+    renderWithProviders(<Page event={ilSole} />);
+    const section = screen.getByTestId("place-reviews");
+    expect(section).toHaveTextContent("Reviews · 2");
+    const rows = within(section).getAllByTestId("place-review");
+    expect(rows).toHaveLength(2);
+    expect(section).toHaveTextContent("Best pizza on the key.");
+    expect(section).toHaveTextContent("Slow on Fridays.");
+    expect(section.querySelector('img[src*="img.example"]')).not.toBeNull();
+    // The photos reviewers added, as the page's pictures under the map.
+    expect(screen.getByTestId("place-photos").querySelectorAll("img")).toHaveLength(1);
+    // What the list lacks, from the reviews.
+    expect(screen.getByTestId("place-price")).toHaveTextContent("$$ · from 2 reviews");
+    expect(screen.getByTestId("place-paid")).toHaveTextContent("Lightning · 1");
+    expect(screen.getByTestId("place-paid")).toHaveTextContent("Card · 1");
+    expect(screen.queryByTestId("place-review-composer")).toBeNull();
+  });
+
+  it("a signed-in reader writes a review: words, a price, how they paid; it posts as one signed comment", async () => {
+    viewer.pubkey = "d".repeat(64);
+    renderWithProviders(<Page event={ilSole} />);
+    expect(screen.getByTestId("place-reviews")).toHaveTextContent("No reviews yet");
+    const composer = screen.getByTestId("place-review-composer");
+    const post = within(composer).getByRole("button", { name: "Post review" });
+    expect(post).toBeDisabled();
+    await userEvent.type(within(composer).getByRole("textbox"), "Best pizza on the key.");
+    await userEvent.click(within(composer).getByRole("button", { name: "$$" }));
+    await userEvent.click(within(composer).getByRole("button", { name: "Lightning" }));
+    expect(post).toBeEnabled();
+    await userEvent.click(post);
+    expect(reviews.post.mutate).toHaveBeenCalledWith(
+      { text: "Best pizza on the key.", price: 2, paid: "lightning", photos: [] },
+      expect.anything(),
+    );
   });
 });
