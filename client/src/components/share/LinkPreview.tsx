@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ExternalLink, Globe } from "lucide-react";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { FountainCard } from "@/components/share/FountainCard";
@@ -60,11 +60,21 @@ export function __resetFavicons(): void {
 }
 
 /** Favicon loaded directly from the site; the globe once every candidate failed. */
-export function Favicon({ host, className }: { host: string; className?: string }) {
+export function Favicon({
+  host,
+  className,
+  fallback,
+}: {
+  host: string;
+  className?: string;
+  /** What to show when the site has no icon to give; a globe by default. */
+  fallback?: ReactNode;
+}) {
   const known = host ? faviconByHost.get(host) : null;
   const candidates = known ? [known] : host && known === undefined ? faviconCandidates(host) : [];
   const [attempt, setAttempt] = useState(0);
-  if (attempt >= candidates.length) return <Globe className={className} data-testid="favicon-globe" />;
+  if (attempt >= candidates.length)
+    return fallback !== undefined ? <>{fallback}</> : <Globe className={className} data-testid="favicon-globe" />;
   const src = candidates[attempt];
   return (
     <img

@@ -42,6 +42,9 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
 vi.mock("@/hooks/useDictionaryConcepts", () => ({
   useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));
+// What the place's website says about itself (hooks/useSiteCard): nothing unless a test says so.
+const site = vi.hoisted(() => ({ card: null as null | { image: string | null; siteName: string | null } }));
+vi.mock("@/hooks/useSiteCard", () => ({ useSiteCard: () => site.card }));
 // The map is Leaflet in a browser; here, what it was handed.
 vi.mock("@/components/items/PlaceMap", () => ({
   PlaceMap: (p: { lat: number; lon: number; name: string }) => (
@@ -212,6 +215,7 @@ beforeEach(() => {
   network.endorsers = [];
   reviews.list = [];
   reviews.post.mutate.mockClear();
+  site.card = null;
   // Thursday 2026-10-15, 23:30 UTC: 18:30 in Sarasota by the longitude estimate (UTC−5), when Il Sole is open.
   vi.useFakeTimers({ now: new Date("2026-10-15T23:30:00Z"), toFake: ["Date"] });
 });
@@ -222,7 +226,15 @@ describe("PlaceView", () => {
     renderWithProviders(<Page event={ilSole} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Il Sole Italian Food");
     expect(screen.getByTestId("place-kind")).toHaveTextContent("Restaurant · Italian");
-    expect(screen.getByTestId("place-open-status")).toHaveTextContent("Open now · until 23:00");
+    expect(screen.getByTestId("place-open-status")).toHaveTextContent("Open now · until 11:00 PM");
+    // Where Google puts the stars: the trust line, both halves linking down.
+    expect(screen.getByTestId("place-trust-line")).toHaveTextContent(
+      "No one you trust has vouched for it yet · No reviews yet",
+    );
+    // A logo beside the name: the site's favicon, since the place has a website.
+    expect(screen.getByTestId("place-logo").querySelector("img")?.getAttribute("src")).toContain(
+      "ilsolefood.com/favicon.ico",
+    );
     expect(screen.getByTestId("place-bitcoin")).toHaveTextContent("Accepts Bitcoin · Lightning");
 
     const actions = screen.getByTestId("place-actions");
@@ -242,7 +254,7 @@ describe("PlaceView", () => {
 
     const details = screen.getByTestId("place-details");
     expect(within(details).getByTestId("place-address")).toHaveTextContent("6519 Midnight Pass Road Sarasota 34242");
-    expect(within(details).getByTestId("place-hours")).toHaveTextContent("Thursday 17:00–23:00");
+    expect(within(details).getByTestId("place-hours")).toHaveTextContent("Thursday 5:00 PM–11:00 PM");
     expect(within(details).getByTestId("place-phone")).toHaveTextContent("+1 346 493 2858");
     expect(within(details).getByTestId("place-website")).toHaveTextContent("ilsolefood.com");
     expect(screen.getByTestId("place-attribution")).toHaveTextContent("OpenStreetMap contributors");
@@ -255,9 +267,9 @@ describe("PlaceView", () => {
     await userEvent.click(within(details).getByTestId("place-hours-toggle"));
     const week = within(details).getByTestId("place-week");
     const rows = within(week).getAllByRole("row");
-    expect(rows[0]).toHaveTextContent(/Thursday\s*17:00–23:00/);
+    expect(rows[0]).toHaveTextContent(/Thursday\s*5:00 PM–11:00 PM/);
     expect(rows[0]).toHaveAttribute("data-today", "true");
-    expect(rows[1]).toHaveTextContent(/Friday\s*17:00–00:00/);
+    expect(rows[1]).toHaveTextContent(/Friday\s*5:00 PM–12:00 AM/);
     expect(rows[2]).toHaveTextContent(/Saturday\s*Closed/);
   });
 
@@ -267,6 +279,11 @@ describe("PlaceView", () => {
     expect(screen.getByTestId("place-kind")).toHaveTextContent("Fast food · Pizza");
     expect(screen.queryByTestId("place-open-status")).toBeNull();
     expect(screen.getByTestId("place-bitcoin")).toHaveTextContent("Accepts Bitcoin · Lightning and on-chain");
+    // No website: the kind of place is the mark, and the map is the hero.
+    expect(screen.getByTestId("place-logo").querySelector("img")).toBeNull();
+    expect(screen.getByTestId("place-logo").querySelector("svg")).not.toBeNull();
+    expect(screen.getByTestId("place-hero-map")).toBeInTheDocument();
+    expect(screen.queryByTestId("place-photo")).toBeNull();
     const actions = screen.getByTestId("place-actions");
     expect(within(actions).getByRole("link", { name: "Directions" })).toBeInTheDocument();
     expect(within(actions).queryByRole("link", { name: "Call" })).toBeNull();
@@ -330,5 +347,21 @@ describe("PlaceView", () => {
       { text: "Best pizza on the key.", price: 2, paid: "lightning", photos: [] },
       expect.anything(),
     );
+  });
+
+  it("the website's picture is the hero when the site gives one, and the map becomes a tile under the actions", () => {
+    site.card = { image: "https://www.ilsolefood.com/og.jpg", siteName: "Il Sole" };
+    renderWithProviders(<Page event={ilSole} />);
+    expect(screen.getByTestId("place-photo").getAttribute("src")).toContain("ilsolefood.com/og.jpg");
+    expect(screen.queryByTestId("place-hero-map")).toBeNull();
+    expect(screen.getByTestId("place-map")).toBeInTheDocument();
+  });
+
+  it("the trust line counts the vouches from people the reader trusts and the reviews", () => {
+    viewer.pubkey = "d".repeat(64);
+    network.endorsers = [{ pubkey: "a".repeat(64), at: 9 }];
+    reviews.list = [{ id: "r1", pubkey: "b".repeat(64), at: 8, text: "Fine.", photos: [], price: null, paid: null }];
+    renderWithProviders(<Page event={ilSole} />);
+    expect(screen.getByTestId("place-trust-line")).toHaveTextContent("Vouched for by 1 person you trust · 1 review");
   });
 });

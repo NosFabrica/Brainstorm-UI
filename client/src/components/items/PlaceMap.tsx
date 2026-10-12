@@ -11,7 +11,18 @@ import { useEffect, useRef, useState } from "react";
 
 const PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 41c-1 0-15-16-15-24a15 15 0 1 1 30 0c0 8-14 24-15 24Z" fill="#7237ff" stroke="#fff" stroke-width="2"/><circle cx="17" cy="17" r="5.5" fill="#fff"/></svg>`;
 
-export function PlaceMap({ lat, lon, name }: { lat: number; lon: number; name: string }) {
+export function PlaceMap({
+  lat,
+  lon,
+  name,
+  compact = false,
+}: {
+  lat: number;
+  lon: number;
+  name: string;
+  /** A tile under the actions, when a photo is the hero; else the hero itself. */
+  compact?: boolean;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
 
@@ -57,7 +68,7 @@ export function PlaceMap({ lat, lon, name }: { lat: number; lon: number; name: s
     <div className="space-y-1.5" data-testid="place-map">
       <div
         ref={host}
-        className="aspect-[16/9] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 sm:aspect-[16/7] [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500"
+        className={`${compact ? "aspect-[16/6] sm:aspect-[16/5]" : "aspect-[16/9] sm:aspect-[16/7]"} w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500`}
         role="img"
         aria-label={`Map showing ${name}`}
       >

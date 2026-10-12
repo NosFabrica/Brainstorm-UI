@@ -2,10 +2,15 @@
  * A food and drink place on its own page (ADR 0007, tier three), the shape
  * a reader knows from Google Places or Yelp, in Brainstorm's own clothes:
  *
- * - The name; what it is as words ("Fast food · Pizza"); "Open now · until
- *   22:00" or "Closed · opens Thu 17:00" when it has hours, in the place's
- *   local time estimated from its longitude (lib/placeLinks); an "Accepts
- *   Bitcoin" chip saying how.
+ * - The website's own picture as the hero when the site gives one (through
+ *   our link-preview origin), else the map; a logo beside the name from the
+ *   site's favicon, else a mark for the kind of place.
+ * - The name; what it is as words ("Fast food · Pizza"); where Google puts
+ *   the stars, the trust line: how many people the reader trusts vouch for
+ *   it and how many reviews it has; "Open now · until 10:00 PM" or "Closed ·
+ *   opens Thu 5:00 PM" in the place's local time estimated from its
+ *   longitude (lib/placeLinks) and the reader's clock; an "Accepts Bitcoin"
+ *   chip saying how.
  * - The ways out, icon over label, only the ones with data: Directions (the
  *   phone's maps app, by the coordinates), Call, Website, Menu, Reserve, and
  *   the links the definition's templates build (BTC Map).
@@ -27,18 +32,25 @@
  */
 import { useState } from "react";
 import {
+  Beer,
   Bitcoin,
   BookOpen,
   CalendarCheck,
   ChevronDown,
   Clock,
+  Coffee,
   CreditCard,
+  Croissant,
   ExternalLink,
   Globe,
+  IceCreamCone,
   MapPin,
   Navigation,
   Phone,
+  Store,
   Tag,
+  Utensils,
+  Wine,
 } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
@@ -61,7 +73,8 @@ import { fieldCell, httpUrl, undeclaredFields } from "@/lib/dlistFields";
 import { contactHref } from "@/lib/contactHref";
 import { DAYS, openingStatus, parseOpeningHours, type Day, type Week } from "@/lib/openingHours";
 import { categoryWords, directionsUrl, placeLocalMinutes } from "@/lib/placeLinks";
-import { avatarSrc } from "@/lib/avatarSrc";
+import { proxiedSrc } from "@/lib/imageProxy";
+import { useSiteCard } from "@/hooks/useSiteCard";
 import { EmojiText } from "@/components/ui/custom-emoji";
 
 export interface Place {
@@ -136,11 +149,24 @@ const DAY_NAMES: Record<Day, string> = {
 };
 const DAY_SHORT: Record<Day, string> = { mo: "Mon", tu: "Tue", we: "Wed", th: "Thu", fr: "Fri", sa: "Sat", su: "Sun" };
 
-/** 1020 → "17:00"; 1440 and past-midnight closes wrap to the clock. */
+/** 1020 → "5:00 PM" for a US reader, "17:00" elsewhere: the reader's own clock. Past-midnight closes wrap. */
+const clockFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
 const clock = (m: number) => {
   const t = ((m % 1440) + 1440) % 1440;
-  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+  return clockFormat.format(new Date(Date.UTC(2000, 0, 1, Math.floor(t / 60), t % 60)));
 };
+
+/** The mark for a kind of place with no website to borrow a logo from. */
+function categoryIcon(category: string | null): typeof Store {
+  const c = (category ?? "").toLowerCase();
+  if (/cafe|coffee|tea/.test(c)) return Coffee;
+  if (/bar|pub|brewery|beer/.test(c)) return Beer;
+  if (/wine|winery|distillery|alcohol/.test(c)) return Wine;
+  if (/bakery|pastry|bread|chocolate/.test(c)) return Croissant;
+  if (/ice_cream|ice cream|gelato/.test(c)) return IceCreamCone;
+  if (/restaurant|fast_food|food|deli|butcher|farm/.test(c)) return Utensils;
+  return Store;
+}
 const spansText = (spans: Week[Day]) =>
   spans.length ? spans.map((s) => `${clock(s.open)}–${clock(s.close)}`).join(", ") : "Closed";
 
@@ -190,12 +216,17 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const coords =
     Number.isFinite(Number(place.lat)) && Number.isFinite(lon) && place.lat ? { lat: Number(place.lat), lon } : null;
   const website = httpUrl(place.website);
+  const site = useSiteCard(website);
   const call = place.phone ? contactHref(place.phone) : null;
   const menu = httpUrl(place.menu);
   const reserve = httpUrl(place.reservations);
   // The definition's templates (BTC Map), apart from the website the hints already show.
   const others = links.filter((l) => l.href !== website);
   const country = countryName(place.country);
+  const photo = shown.image ?? site?.image ?? null;
+  const Mark = categoryIcon(place.category);
+  const vouches = network.ranked.filter((e) => e.group !== "other").length;
+  const reviewCount = ranked.reviews.length;
 
   // The admin's fold: declared fields the page doesn't show, and tags outside the definition.
   const used = new Set([...usedFields, ...Object.values(FIELDS)]);
@@ -206,70 +237,105 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
 
   return (
     <div className="space-y-5" data-testid="dlist-item-hero" data-definition="read" data-view="place">
-      <div className="space-y-3">
-        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
-          <ConceptLink event={event}>{r.governing.singular}</ConceptLink>
-        </p>
-        {shown.image ? (
+      <div className="space-y-4">
+        {isAdmin && (
+          <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
+            <ConceptLink event={event}>{r.governing.singular}</ConceptLink>
+          </p>
+        )}
+        {photo ? (
           <img
-            src={avatarSrc(shown.image, "lg")}
+            src={proxiedSrc(photo, "media_1280")}
+            referrerPolicy="no-referrer"
             alt=""
-            className="aspect-[16/9] w-full rounded-xl border border-border object-cover"
+            className="aspect-[16/9] w-full rounded-xl border border-border object-cover sm:aspect-[16/7]"
             data-testid="place-photo"
           />
         ) : (
-          coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} />
+          coords && (
+            <div data-testid="place-hero-map">
+              <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} />
+            </div>
+          )
         )}
         <ReviewPhotos reviews={ranked.reviews} />
-        <div>
-          <h1
-            className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
-            style={{ fontFamily: "var(--font-display)" }}
-            data-testid="place-name"
+
+        <div className="flex items-start gap-3">
+          <span
+            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-900"
+            data-testid="place-logo"
           >
-            <EmojiText text={place.name} tags={event} />
-          </h1>
-          {kind && (
-            <p className="mt-0.5 text-[15px] text-slate-600 dark:text-slate-300" data-testid="place-kind">
-              {kind}
-              {place.priceRange && (
-                <span className="text-slate-400"> · {"$".repeat(Math.min(4, Number(place.priceRange) || 0))}</span>
-              )}
+            {website ? (
+              <Favicon
+                host={hostOf(website)}
+                className="h-6 w-6 text-slate-400"
+                fallback={<Mark className="h-5 w-5" aria-hidden />}
+              />
+            ) : (
+              <Mark className="h-5 w-5" aria-hidden />
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h1
+              className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
+              style={{ fontFamily: "var(--font-display)" }}
+              data-testid="place-name"
+            >
+              <EmojiText text={place.name} tags={event} />
+            </h1>
+            {kind && (
+              <p className="mt-0.5 text-[15px] text-slate-600 dark:text-slate-300" data-testid="place-kind">
+                {kind}
+                {place.priceRange && (
+                  <span className="text-slate-400"> · {"$".repeat(Math.min(4, Number(place.priceRange) || 0))}</span>
+                )}
+              </p>
+            )}
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400" data-testid="place-trust-line">
+              <a href="#place-verdict" className="hover:text-brand-link">
+                {vouches > 0
+                  ? `Vouched for by ${vouches} ${vouches === 1 ? "person" : "people"} you trust`
+                  : "No one you trust has vouched for it yet"}
+              </a>
+              <span className="text-slate-300 dark:text-slate-600"> · </span>
+              <a href="#place-reviews" className="hover:text-brand-link">
+                {reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}` : "No reviews yet"}
+              </a>
             </p>
-          )}
-          {(status || bitcoin != null) && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {status && (
-                <span
-                  className={`inline-flex items-center gap-1.5 text-sm font-semibold ${status.open ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}
-                  title="In the place's local time, estimated from where it is"
-                  data-testid="place-open-status"
-                >
-                  <Clock className="h-3.5 w-3.5" />
-                  {status.open
-                    ? `Open now · until ${clock(status.until)}`
-                    : status.opensAt != null && status.opensDay
-                      ? `Closed · opens ${status.opensDay === localNow!.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
-                      : "Closed"}
-                </span>
-              )}
-              {bitcoin != null && (
-                <Chip tone="warning" icon={Bitcoin} size="sm" data-testid="place-bitcoin">
-                  Accepts Bitcoin{bitcoin ? ` · ${bitcoin}` : ""}
-                </Chip>
-              )}
-            </div>
-          )}
-          {place.description && (
-            <p className="mt-2 max-w-prose text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
-              <EmojiText text={place.description} tags={event} />
-            </p>
-          )}
+            {(status || bitcoin != null) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {status && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-sm font-semibold ${status.open ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}
+                    title="In the place's local time, estimated from where it is"
+                    data-testid="place-open-status"
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    {status.open
+                      ? `Open now · until ${clock(status.until)}`
+                      : status.opensAt != null && status.opensDay
+                        ? `Closed · opens ${status.opensDay === localNow!.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
+                        : "Closed"}
+                  </span>
+                )}
+                {bitcoin != null && (
+                  <Chip tone="warning" icon={Bitcoin} size="sm" data-testid="place-bitcoin">
+                    Accepts Bitcoin{bitcoin ? ` · ${bitcoin}` : ""}
+                  </Chip>
+                )}
+              </div>
+            )}
+            {place.description && (
+              <p className="mt-2 max-w-prose text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">
+                <EmojiText text={place.description} tags={event} />
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
       {(directions || call || website || menu || reserve || others.length > 0) && (
-        <div className="flex gap-2 sm:flex-wrap" data-testid="place-actions">
+        <div className="flex flex-wrap gap-1 sm:gap-2" data-testid="place-actions">
           {directions && (
             <Action href={directions} label="Directions" primary>
               <Navigation className="h-5 w-5" />
@@ -297,18 +363,15 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           )}
           {others.map((l) => (
             <Action key={l.href} href={l.href} label={l.label.replace(/ place$/i, "")}>
-              <span className="flex h-5 w-5 items-center justify-center rounded bg-white">
-                <Favicon host={l.host} className="h-3.5 w-3.5 text-slate-500" />
-              </span>
+              <Favicon host={l.host} className="h-4 w-4 text-slate-500" />
             </Action>
           ))}
         </div>
       )}
 
-      <dl
-        className="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700"
-        data-testid="place-details"
-      >
+      {photo && coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} compact />}
+
+      <dl className="divide-y divide-slate-100 dark:divide-slate-800" data-testid="place-details">
         {place.address ? (
           <Row icon={MapPin} label="Address" testId="place-address">
             {directions ? (
@@ -367,9 +430,13 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
         )}
       </dl>
 
-      <PlaceReviews item={event} ranked={ranked} />
+      <div id="place-reviews">
+        <PlaceReviews item={event} ranked={ranked} />
+      </div>
 
-      <WhoStandsBehindIt network={network} noun="place" idPrefix="place" />
+      <div id="place-verdict">
+        <WhoStandsBehindIt network={network} noun="place" idPrefix="place" />
+      </div>
 
       {isAdmin && <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />}
 
@@ -385,7 +452,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   );
 }
 
-/** A way out: icon over label, the one primary action filled. */
+/** A way out, Google's way: a round button with the label under; the one primary action filled. */
 function Action({
   href,
   label,
@@ -403,18 +470,23 @@ function Action({
       target={href.startsWith("tel:") ? undefined : "_blank"}
       rel="noopener noreferrer nofollow"
       aria-label={label}
-      className={`flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-xs font-semibold transition-colors sm:min-w-[76px] sm:flex-none sm:px-3 ${
-        primary
-          ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
-          : "border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-      }`}
+      className="group flex w-[72px] flex-col items-center gap-1.5 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
     >
-      {children}
+      <span
+        className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
+          primary
+            ? "bg-brand-primary text-white group-hover:bg-brand-primary-hover"
+            : "border border-slate-200 bg-white text-slate-700 group-hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:group-hover:bg-slate-800"
+        }`}
+      >
+        {children}
+      </span>
       <span aria-hidden>{label}</span>
     </a>
   );
 }
 
+/** One detail, Google's way: an icon, the value, a hairline under. */
 function Row({
   icon: Icon,
   label,
@@ -427,7 +499,7 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-3 px-4 py-3 text-sm" data-testid={testId}>
+    <div className="flex items-start gap-3 py-3 text-sm" data-testid={testId}>
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
       <dt className="sr-only">{label}</dt>
       <dd className="min-w-0 flex-1 break-words text-slate-900 dark:text-slate-100">{children}</dd>
@@ -440,7 +512,7 @@ function HoursRow({ week, today }: { week: Week; today: Day }) {
   const [open, setOpen] = useState(false);
   const order = [...DAYS.slice(DAYS.indexOf(today)), ...DAYS.slice(0, DAYS.indexOf(today))];
   return (
-    <div className="px-4 py-3 text-sm" data-testid="place-hours">
+    <div className="py-3 text-sm" data-testid="place-hours">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
