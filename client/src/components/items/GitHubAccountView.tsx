@@ -17,12 +17,12 @@
  * copy that renames the handle leaves the item to the tier-two page.
  *
  * Between the name and GitHub's numbers, what the reader's network says as
- * three labelled facts (FromYourNetwork): who listed it, how many vouch, how
- * far the lister is. Then the evidence (useItemEngagement): who endorsed the listing,
- * the people the reader follows first, with an Endorse button for a
- * signed-in reader (one "+", public and signed), and which Nostr profiles in
- * the reader's web of trust claim the handle. Strangers' claims are read
- * but not shown.
+ * three labelled facts (FromYourNetwork): who listed it, who vouches (the
+ * endorsers' faces, the people the reader follows first, with an Endorse
+ * button for a signed-in reader: one "+", public and signed), and how far
+ * the lister is. Then which Nostr profiles in the reader's web of trust
+ * claim the handle (useItemEngagement). Strangers' claims are read but not
+ * shown.
  *
  * The rest of the list follows, for everyone; the definition line and the
  * "More fields" fold are an admin's, since a reader came for the account.
@@ -33,7 +33,6 @@ import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { EndorsementLine } from "@/components/search/EndorsementLine";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useEndorseItem, useItemEngagement, useListerDistance } from "@/hooks/useItemEngagement";
@@ -225,15 +224,6 @@ function IconButton({
   );
 }
 
-/** "Bob, Ada and Cy", "Bob, Ada, Cy and 2 more". */
-function namesLine(names: string[], total: number): string {
-  const shown = names.slice(0, 3);
-  const rest = total - shown.length;
-  const list = shown.length <= 1 ? (shown[0] ?? "") : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
-  if (rest <= 0) return list;
-  return `${shown.join(", ")} and ${rest} more`;
-}
-
 /**
  * What the network says, read once for the page: the listing's endorsers,
  * ranked as every endorsement surface ranks them (services/endorsements:
@@ -289,10 +279,11 @@ function hopsExplained(hops: number): string {
 /**
  * What the reader's network says, as three labelled facts between the name
  * and GitHub's numbers: who listed it (faces and names), how many in the
- * reader's network vouch for it, and how far the lister is from the reader
- * in the follows graph — each with a line on hover saying what it means. A
- * fact with nothing to say is left out; vouches read "none yet" so a
- * signed-in reader sees the Endorse path.
+ * reader's network vouch for it (their faces, the Endorse button at the
+ * row's end), and how far the lister is from the reader in the follows
+ * graph — each with a line on hover saying what it means. A fact with
+ * nothing to say is left out; vouches read "none yet" so a signed-in reader
+ * sees the Endorse path.
  */
 function FromYourNetwork({ network: n }: { network: NetworkView }) {
   const tierRing = useTierRing();
@@ -308,9 +299,12 @@ function FromYourNetwork({ network: n }: { network: NetworkView }) {
   const rest = n.listers.length - listers.length;
   return (
     <div className="space-y-2" data-testid="github-account-verdict">
-      <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
-        From your network
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+          From your network
+        </p>
+        {n.me && <EndorseButton network={n} />}
+      </div>
       <dl className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
         <div
           className="flex items-center gap-2"
@@ -368,14 +362,45 @@ function FromYourNetwork({ network: n }: { network: NetworkView }) {
           title="People you follow, or your network verifies, who endorsed this listing"
         >
           <dt className="text-slate-500 dark:text-slate-400">Vouches</dt>
-          <dd
-            className={
-              inNetwork > 0 || n.mine
-                ? "font-semibold text-slate-900 dark:text-slate-100"
-                : "text-slate-500 dark:text-slate-400"
-            }
-          >
-            {vouches}
+          <dd className="flex items-center gap-2">
+            {n.ranked.length > 0 && (
+              <span className="flex -space-x-1.5">
+                {n.ranked.slice(0, 3).map((e) => {
+                  const npub = n.npubOf(e.pubkey);
+                  const face = (
+                    <Avatar
+                      data-face={e.pubkey}
+                      className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 ${tierRing(e.score, false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}
+                    >
+                      {n.pictureOf(e.pubkey) ? (
+                        <AvatarImage src={n.pictureOf(e.pubkey)} alt="" className="object-cover" />
+                      ) : null}
+                      <AvatarFallback className="overflow-hidden rounded-full">
+                        <DefaultAvatarImg />
+                      </AvatarFallback>
+                    </Avatar>
+                  );
+                  return npub ? (
+                    <Link key={e.pubkey} href={`/p/${npub}`} className="rounded-full" title={n.nameOf(e.pubkey)}>
+                      {face}
+                    </Link>
+                  ) : (
+                    <span key={e.pubkey} title={n.nameOf(e.pubkey)}>
+                      {face}
+                    </span>
+                  );
+                })}
+              </span>
+            )}
+            <span
+              className={
+                inNetwork > 0 || n.mine
+                  ? "font-semibold text-slate-900 dark:text-slate-100"
+                  : "text-slate-500 dark:text-slate-400"
+              }
+            >
+              {vouches}
+            </span>
           </dd>
         </div>
         {n.hops != null && (
@@ -395,64 +420,46 @@ function FromYourNetwork({ network: n }: { network: NetworkView }) {
   );
 }
 
-function OnNostr({ event: _event, network: n }: { event: ItemEvent; network: NetworkView }) {
-  const { ranked, me, endorse, mine, split } = n;
-  if (ranked.length === 0 && split.trusted.length === 0 && !me) return null;
+/** One "+" on the item, public and signed by the reader's account; "Endorsed" once they have. */
+function EndorseButton({ network: n }: { network: NetworkView }) {
+  const { endorse, mine } = n;
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        {ranked.length > 0 ? (
-          <EndorsementLine
-            faces={ranked.map((e) => ({
-              pubkey: e.pubkey,
-              name: n.nameOf(e.pubkey),
-              picture: n.pictureOf(e.pubkey),
-              score01: e.score,
-            }))}
-            label={`Endorsed by ${namesLine(
-              ranked.map((e) => n.nameOf(e.pubkey)),
-              ranked.length,
-            )}`}
-            linkFaces
-            testId="github-account-endorsed"
-          />
-        ) : (
-          <p className="text-xs text-slate-500 dark:text-slate-400">Be the first to endorse this account.</p>
-        )}
-        {me && (
-          <button
-            type="button"
-            onClick={() => endorse.mutate()}
-            disabled={mine || endorse.isPending}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors ${
-              mine
-                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                : "border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            }`}
-            title={mine ? "You endorsed this listing" : "Public and signed by your account"}
-            data-testid="github-account-endorse"
-          >
-            {endorse.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : mine ? (
-              <Check className="h-3.5 w-3.5" />
-            ) : (
-              <ThumbsUp className="h-3.5 w-3.5" />
-            )}
-            {mine ? "Endorsed" : "Endorse"}
-          </button>
-        )}
-      </div>
-      {split.trusted.length > 0 && (
-        <Claimants
-          trusted={split.trusted}
-          nameOf={n.nameOf}
-          pictureOf={n.pictureOf}
-          npubOf={n.npubOf}
-          scoreOf={n.scoreOf}
-        />
+    <button
+      type="button"
+      onClick={() => endorse.mutate()}
+      disabled={mine || endorse.isPending}
+      className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition-colors ${
+        mine
+          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+          : "border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+      }`}
+      title={mine ? "You endorsed this listing" : "Public and signed by your account"}
+      data-testid="github-account-endorse"
+    >
+      {endorse.isPending ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : mine ? (
+        <Check className="h-3.5 w-3.5" />
+      ) : (
+        <ThumbsUp className="h-3.5 w-3.5" />
       )}
-    </div>
+      {mine ? "Endorsed" : "Endorse"}
+    </button>
+  );
+}
+
+/** The claimants in the reader's web of trust, when there are any; the endorsers are on the strip above. */
+function OnNostr({ event: _event, network: n }: { event: ItemEvent; network: NetworkView }) {
+  const { split } = n;
+  if (split.trusted.length === 0) return null;
+  return (
+    <Claimants
+      trusted={split.trusted}
+      nameOf={n.nameOf}
+      pictureOf={n.pictureOf}
+      npubOf={n.npubOf}
+      scoreOf={n.scoreOf}
+    />
   );
 }
 

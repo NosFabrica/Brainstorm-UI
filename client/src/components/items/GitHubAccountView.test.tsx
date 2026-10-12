@@ -8,7 +8,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { nip19 } from "nostr-tools";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 import { useResolvedItemView, isReady } from "@/hooks/useItemView";
@@ -307,18 +306,19 @@ describe("GitHubAccountView", () => {
     expect(screen.queryByTestId("github-account-repo")).toBeNull();
   });
 
-  it("says who endorsed the listing, the people the reader follows first, each face a link", () => {
+  it("the endorsers are the faces on the Vouches fact, the people the reader follows first, each a link", () => {
     network.endorsers = [
       { pubkey: TRUSTED, at: 9 },
       { pubkey: FOLLOWED, at: 8 },
       { pubkey: STRANGER, at: 7 },
     ];
     renderWithProviders(<Page event={item} copy={houseCopy} />);
-    const line = screen.getByTestId("github-account-endorsed");
-    expect(line).toHaveTextContent("Endorsed by Bob, Ada and Cy");
-    const faces = [...line.querySelectorAll("[data-face]")].map((el) => el.getAttribute("data-face"));
+    const vouches = screen.getByTestId("github-account-fact-vouches");
+    const faces = [...vouches.querySelectorAll("[data-face]")].map((el) => el.getAttribute("data-face"));
     expect(faces).toEqual([FOLLOWED, TRUSTED, STRANGER]);
-    expect(within(line).getAllByRole("link")[0]).toHaveAttribute("href", `/p/${nip19.npubEncode(FOLLOWED)}`);
+    expect(within(vouches).getAllByRole("link")[0]).toHaveAttribute("href", "/p/npub-b");
+    expect(vouches).toHaveTextContent("2 in your network");
+    expect(screen.queryByTestId("github-account-endorsed")).toBeNull();
   });
 
   it("lists the Nostr profiles in the reader's network that claim this handle, and nobody else", () => {
@@ -340,9 +340,10 @@ describe("GitHubAccountView", () => {
     expect(screen.queryByTestId("github-account-claimants-outside")).toBeNull();
   });
 
-  it("with no endorsements and no claimants, neither block shows", () => {
+  it("with no endorsements and no claimants, the strip reads 'none yet' and nothing else is drawn", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
-    expect(screen.queryByTestId("github-account-endorsed")).toBeNull();
+    expect(screen.getByTestId("github-account-fact-vouches")).toHaveTextContent("none yet");
+    expect(screen.getByTestId("github-account-fact-vouches").querySelector("[data-face]")).toBeNull();
     expect(screen.queryByTestId("github-account-claimants")).toBeNull();
   });
 
@@ -375,11 +376,12 @@ describe("GitHubAccountView", () => {
     expect(done).toBeDisabled();
   });
 
-  it("with no endorsements yet, a signed-in reader is invited to be the first", () => {
+  it("the Endorse button sits in the strip's header row, beside the kicker", () => {
     viewer.pubkey = FOLLOWED;
     renderWithProviders(<Page event={item} copy={houseCopy} />);
-    expect(screen.getByTestId("github-account-endorse")).toHaveTextContent("Endorse");
-    expect(screen.getByText("Be the first to endorse this account.")).toBeInTheDocument();
+    const strip = screen.getByTestId("github-account-verdict");
+    expect(within(strip).getByTestId("github-account-endorse")).toHaveTextContent("Endorse");
+    expect(within(strip).getByTestId("github-account-fact-vouches")).toHaveTextContent("none yet");
   });
 
   it("says what the reader's network thinks as labelled facts: who listed it, how many vouch, how far the lister is", () => {
