@@ -34,7 +34,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { EndorsementLine } from "@/components/search/EndorsementLine";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { useEndorseItem, useItemEngagement } from "@/hooks/useItemEngagement";
+import { useEndorseItem, useItemEngagement, useListerDistance } from "@/hooks/useItemEngagement";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { useWotItems } from "@/hooks/useWotItems";
@@ -92,6 +92,7 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
   const account = githubAccountOf(event, r.governing)!;
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const facts = useGitHubAccount(account.handle).data ?? null;
+  const network = useNetworkView(event, account.handle);
 
   // The profile is the first link the templates build on github.com; the rest are offered as they are.
   const profile = links.find((l) => l.host === "github.com") ?? null;
@@ -147,6 +148,7 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
                 <EmojiText text={account.byline} tags={event} />
               </p>
             )}
+            <Verdict event={event} network={network} />
           </div>
         </div>
         {(profile || others.length > 0) && (
@@ -172,7 +174,7 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
 
       {facts && <OnGitHub facts={facts} />}
 
-      <OnNostr event={event} handle={account.handle} />
+      <OnNostr event={event} network={network} />
 
       {isAdmin && <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />}
 
@@ -230,16 +232,19 @@ function namesLine(names: string[], total: number): string {
 }
 
 /**
- * What the network says: the listing's endorsers, ranked as every endorsement
- * surface ranks them (services/endorsements: followed, verified, other), and
- * the profiles claiming the handle, split by the reader's web of trust.
+ * What the network says, read once for the page: the listing's endorsers,
+ * ranked as every endorsement surface ranks them (services/endorsements:
+ * followed, verified, other), the profiles claiming the handle split by the
+ * reader's web of trust, the lister's distance, and names and faces for all
+ * of them.
  */
-function OnNostr({ event, handle }: { event: ItemEvent; handle: string }) {
+function useNetworkView(event: ItemEvent, handle: string) {
   const { endorsers, claimants } = useItemEngagement(event, handle);
   const me = useActiveAccountDisplay()?.pubkey ?? null;
   const endorse = useEndorseItem(event);
   const { follows } = useMyFollows();
-  const people = [...new Set([...endorsers.map((e) => e.pubkey), ...claimants.map((c) => c.pubkey)])];
+  const { hops } = useListerDistance(event.pubkey);
+  const people = [...new Set([event.pubkey, ...endorsers.map((e) => e.pubkey), ...claimants.map((c) => c.pubkey)])];
   const scoreOf = useAuthorScores(people);
   const profiles = useProfileMap(people);
   const nameOf = (pk: string) => {
@@ -248,7 +253,63 @@ function OnNostr({ event, handle }: { event: ItemEvent; handle: string }) {
   };
   const ranked = rankEndorsers(endorsers, { follows, scoreOf });
   const split = useWotItems(claimants);
-  const mine = !!me && endorsers.some((e) => e.pubkey === me);
+  return {
+    me,
+    endorse,
+    endorsers,
+    ranked,
+    claimants,
+    split,
+    hops,
+    scoreOf,
+    nameOf,
+    pictureOf: (pk: string) => profiles.get(pk)?.picture,
+    npubOf: (pk: string) => profiles.get(pk)?.npub,
+    mine: !!me && endorsers.some((e) => e.pubkey === me),
+  };
+}
+type NetworkView = ReturnType<typeof useNetworkView>;
+
+/**
+ * The page in a sentence or two, under the name: who listed it and how far
+ * they are from the reader, and how many people in the reader's network
+ * vouch for it. Everything below is the evidence.
+ */
+function Verdict({ event, network: n }: { event: ItemEvent; network: NetworkView }) {
+  const lister = event.pubkey;
+  const npub = n.npubOf(lister);
+  const name = n.nameOf(lister);
+  const inNetwork = n.ranked.filter((e) => e.group !== "other" && e.pubkey !== n.me).length;
+  const vouch = n.mine
+    ? inNetwork > 0
+      ? `You and ${inNetwork === 1 ? "1 other person" : `${inNetwork} others`} in your network vouch for this account.`
+      : "You vouch for this account."
+    : inNetwork > 0
+      ? `${inNetwork === 1 ? "1 person" : `${inNetwork} people`} in your network ${inNetwork === 1 ? "vouches" : "vouch"} for this account.`
+      : "No one in your network vouches for this account yet.";
+  return (
+    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="github-account-verdict">
+      <span className="text-slate-500 dark:text-slate-400">Listed by </span>
+      {npub ? (
+        <Link href={`/p/${npub}`} className="font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100">
+          {name}
+        </Link>
+      ) : (
+        <span className="font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+      )}
+      {n.hops != null && (
+        <span className="text-slate-500 dark:text-slate-400">
+          {" "}
+          · {n.hops} {n.hops === 1 ? "hop" : "hops"} from you
+        </span>
+      )}
+      <span className="text-slate-500 dark:text-slate-400">. {vouch}</span>
+    </p>
+  );
+}
+
+function OnNostr({ event: _event, network: n }: { event: ItemEvent; network: NetworkView }) {
+  const { ranked, claimants, me, endorse, mine, split } = n;
   if (ranked.length === 0 && claimants.length === 0 && !me) return null;
   return (
     <div className="space-y-3">
@@ -257,12 +318,12 @@ function OnNostr({ event, handle }: { event: ItemEvent; handle: string }) {
           <EndorsementLine
             faces={ranked.map((e) => ({
               pubkey: e.pubkey,
-              name: nameOf(e.pubkey),
-              picture: profiles.get(e.pubkey)?.picture,
+              name: n.nameOf(e.pubkey),
+              picture: n.pictureOf(e.pubkey),
               score01: e.score,
             }))}
             label={`Endorsed by ${namesLine(
-              ranked.map((e) => nameOf(e.pubkey)),
+              ranked.map((e) => n.nameOf(e.pubkey)),
               ranked.length,
             )}`}
             linkFaces
@@ -299,10 +360,10 @@ function OnNostr({ event, handle }: { event: ItemEvent; handle: string }) {
         <Claimants
           trusted={split.trusted}
           outside={split.outside}
-          nameOf={nameOf}
-          pictureOf={(pk) => profiles.get(pk)?.picture}
-          npubOf={(pk) => profiles.get(pk)?.npub}
-          scoreOf={scoreOf}
+          nameOf={n.nameOf}
+          pictureOf={n.pictureOf}
+          npubOf={n.npubOf}
+          scoreOf={n.scoreOf}
         />
       )}
     </div>
@@ -421,7 +482,7 @@ function OnGitHub({ facts }: { facts: GitHubAccountFacts }) {
             Active {active}
           </li>
         )}
-        {joined && <li>Joined {joined}</li>}
+        {joined && <li className="hidden sm:list-item">Joined {joined}</li>}
         {facts.location && (
           <li className="inline-flex items-center gap-1.5">
             <MapPin className="h-3.5 w-3.5 text-slate-400" />
@@ -447,7 +508,7 @@ function OnGitHub({ facts }: { facts: GitHubAccountFacts }) {
                 {repo.name}
               </a>
               {repo.description && (
-                <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                <p className="mt-0.5 line-clamp-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400 sm:line-clamp-2">
                   {repo.description}
                 </p>
               )}

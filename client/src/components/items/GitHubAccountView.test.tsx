@@ -47,9 +47,12 @@ const network = vi.hoisted(() => ({
   claimants: [] as { pubkey: string; proof: string | null }[],
 }));
 const endorse = vi.hoisted(() => ({ mutate: vi.fn(), isPending: false }));
+// How far the lister is from the reader (hooks/useItemEngagement useListerDistance).
+const distance = vi.hoisted(() => ({ hops: null as number | null }));
 vi.mock("@/hooks/useItemEngagement", () => ({
   useItemEngagement: () => ({ endorsers: network.endorsers, claimants: network.claimants, pending: false }),
   useEndorseItem: () => endorse,
+  useListerDistance: () => ({ hops: distance.hops }),
 }));
 const TRUSTED = "a".repeat(64);
 const FOLLOWED = "b".repeat(64);
@@ -144,6 +147,7 @@ beforeEach(() => {
   github.pending = false;
   network.endorsers = [];
   network.claimants = [];
+  distance.hops = null;
 });
 
 const FACTS = {
@@ -373,5 +377,38 @@ describe("GitHubAccountView", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     expect(screen.getByTestId("github-account-endorse")).toHaveTextContent("Endorse");
     expect(screen.getByText("Be the first to endorse this account.")).toBeInTheDocument();
+  });
+
+  it("sums the page up under the name: who listed it and how far they are, and how many in the reader's network vouch", () => {
+    // A reader who hasn't endorsed it themselves, two hops from the lister.
+    viewer.pubkey = "d".repeat(64);
+    distance.hops = 2;
+    network.endorsers = [
+      { pubkey: TRUSTED, at: 9 },
+      { pubkey: FOLLOWED, at: 8 },
+      { pubkey: STRANGER, at: 7 },
+    ];
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    const verdict = screen.getByTestId("github-account-verdict");
+    // The lister is the item's author: AVI, "Bob" in this test's profiles.
+    expect(verdict).toHaveTextContent("Listed by Bob · 2 hops from you");
+    expect(within(verdict).getByRole("link", { name: "Bob" })).toHaveAttribute("href", "/p/npub-b");
+    expect(verdict).toHaveTextContent("2 people in your network vouch for this account.");
+  });
+
+  it("for a visitor the verdict names the lister and says nobody vouches yet; a single hop reads as one", () => {
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    const verdict = screen.getByTestId("github-account-verdict");
+    expect(verdict).toHaveTextContent("Listed by Bob");
+    expect(verdict).not.toHaveTextContent("hops");
+    expect(verdict).toHaveTextContent("No one in your network vouches for this account yet.");
+
+    viewer.pubkey = TRUSTED;
+    distance.hops = 1;
+    network.endorsers = [{ pubkey: TRUSTED, at: 9 }];
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    const mine = screen.getAllByTestId("github-account-verdict").at(-1)!;
+    expect(mine).toHaveTextContent("Listed by Bob · 1 hop from you");
+    expect(mine).toHaveTextContent("You vouch for this account.");
   });
 });
