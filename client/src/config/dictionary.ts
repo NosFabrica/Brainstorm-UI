@@ -27,7 +27,7 @@ import { tagRelays } from "@/config/tagging";
 export type ConceptRole = "url-templates";
 
 /** A community concept the app draws with a page of its own (ADR 0007): a tier-three view. */
-export type ConceptViewKey = "github-account";
+export type ConceptViewKey = "github-account" | "place";
 
 const config = raw as {
   conceptList: string;

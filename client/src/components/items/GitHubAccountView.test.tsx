@@ -234,7 +234,7 @@ describe("GitHubAccountView", () => {
     expect(screen.queryByTestId("github-account-repos")).toBeNull();
   });
 
-  it("a reader sees no definition line and no More fields; an admin sees both", async () => {
+  it("a reader sees no definition line and no More fields; an admin finds both behind one fold", async () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     expect(screen.queryByTestId("dlist-item-definition")).toBeNull();
     expect(screen.queryByTestId("dlist-item-more-toggle")).toBeNull();
@@ -243,6 +243,9 @@ describe("GitHubAccountView", () => {
     viewer.isAdmin = true;
     viewer.pubkey = TRUSTED;
     renderWithProviders(<Page event={item} copy={houseCopy} />);
+    // Even an admin's page reads like a reader's until they open the Definition fold.
+    expect(screen.queryByTestId("dlist-item-definition")).toBeNull();
+    await userEvent.click(screen.getByTestId("dlist-item-admin-toggle"));
     expect(screen.getByTestId("dlist-item-definition")).toHaveTextContent(
       "Shown as Brainstorm's copy of GitHub Accounts",
     );
