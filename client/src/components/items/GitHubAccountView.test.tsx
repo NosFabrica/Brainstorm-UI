@@ -20,8 +20,10 @@ const { COMMUNITY, TEMPLATE_ID } = vi.hoisted(() => ({
 const AVI = "b83a28b7e4e5d20bd960c5faeb6625f95529166b8bdb045d42634a2f35919450";
 const HOUSE = "3".repeat(64);
 
-const viewer = vi.hoisted(() => ({ isAdmin: false }));
-vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ isAdmin: viewer.isAdmin }) }));
+const viewer = vi.hoisted(() => ({ isAdmin: false, pubkey: null as string | null }));
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({
+  useActiveAccountDisplay: () => (viewer.pubkey ? { isAdmin: viewer.isAdmin, pubkey: viewer.pubkey } : null),
+}));
 vi.mock("@/hooks/useLinkTemplates", () => ({
   useLinkTemplates: () => ({
     data: new Map([
@@ -44,8 +46,10 @@ const network = vi.hoisted(() => ({
   endorsers: [] as { pubkey: string; at: number }[],
   claimants: [] as { pubkey: string; proof: string | null }[],
 }));
+const endorse = vi.hoisted(() => ({ mutate: vi.fn(), isPending: false }));
 vi.mock("@/hooks/useItemEngagement", () => ({
   useItemEngagement: () => ({ endorsers: network.endorsers, claimants: network.claimants, pending: false }),
+  useEndorseItem: () => endorse,
 }));
 const TRUSTED = "a".repeat(64);
 const FOLLOWED = "b".repeat(64);
@@ -133,6 +137,9 @@ function Page({ event, copy }: { event: typeof item; copy?: HeaderEvent | null }
 
 beforeEach(() => {
   viewer.isAdmin = false;
+  viewer.pubkey = null;
+  endorse.mutate.mockClear();
+  endorse.isPending = false;
   github.facts = null;
   github.pending = false;
   network.endorsers = [];
@@ -235,6 +242,7 @@ describe("GitHubAccountView", () => {
     expect(screen.getByTestId("neighbours-slot")).toBeInTheDocument();
 
     viewer.isAdmin = true;
+    viewer.pubkey = TRUSTED;
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     expect(screen.getByTestId("dlist-item-definition")).toHaveTextContent(
       "Shown as Brainstorm's copy of GitHub Accounts",
@@ -339,5 +347,31 @@ describe("GitHubAccountView", () => {
     expect(screen.getByTestId("github-account-claimants-outside")).toHaveTextContent(
       "2 profiles claim this handle; none is in your network.",
     );
+  });
+
+  it("a signed-in reader can endorse the listing; one who already has sees that they did; a visitor sees no button", async () => {
+    network.endorsers = [{ pubkey: TRUSTED, at: 9 }];
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(screen.queryByTestId("github-account-endorse")).toBeNull();
+
+    viewer.pubkey = FOLLOWED;
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    const button = screen.getByTestId("github-account-endorse");
+    expect(button).toHaveTextContent("Endorse");
+    await userEvent.click(button);
+    expect(endorse.mutate).toHaveBeenCalledTimes(1);
+
+    viewer.pubkey = TRUSTED;
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    const done = screen.getAllByTestId("github-account-endorse").at(-1)!;
+    expect(done).toHaveTextContent("Endorsed");
+    expect(done).toBeDisabled();
+  });
+
+  it("with no endorsements yet, a signed-in reader is invited to be the first", () => {
+    viewer.pubkey = FOLLOWED;
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(screen.getByTestId("github-account-endorse")).toHaveTextContent("Endorse");
+    expect(screen.getByText("Be the first to endorse this account.")).toBeInTheDocument();
   });
 });

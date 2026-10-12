@@ -17,7 +17,8 @@
  * copy that renames the handle leaves the item to the tier-two page.
  *
  * Then what the network says (useItemEngagement): who endorsed the listing,
- * the people the reader follows first, and which Nostr profiles claim the
+ * the people the reader follows first, with an Endorse button for a
+ * signed-in reader (one "+", public and signed), and which Nostr profiles claim the
  * handle — the ones in the reader's web of trust as rows, the rest as a
  * count, since ten strangers claiming one handle is the point, not ten rows.
  *
@@ -25,7 +26,7 @@
  * "More fields" fold are an admin's, since a reader came for the account.
  */
 import type { ReactNode } from "react";
-import { Activity, BadgeCheck, FolderGit2, Github, MapPin, Star, Users } from "lucide-react";
+import { Activity, BadgeCheck, Check, FolderGit2, Github, Loader2, MapPin, Star, ThumbsUp, Users } from "lucide-react";
 import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
@@ -33,7 +34,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { EndorsementLine } from "@/components/search/EndorsementLine";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { useItemEngagement } from "@/hooks/useItemEngagement";
+import { useEndorseItem, useItemEngagement } from "@/hooks/useItemEngagement";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { useWotItems } from "@/hooks/useWotItems";
@@ -235,6 +236,8 @@ function namesLine(names: string[], total: number): string {
  */
 function OnNostr({ event, handle }: { event: ItemEvent; handle: string }) {
   const { endorsers, claimants } = useItemEngagement(event, handle);
+  const me = useActiveAccountDisplay()?.pubkey ?? null;
+  const endorse = useEndorseItem(event);
   const { follows } = useMyFollows();
   const people = [...new Set([...endorsers.map((e) => e.pubkey), ...claimants.map((c) => c.pubkey)])];
   const scoreOf = useAuthorScores(people);
@@ -245,25 +248,53 @@ function OnNostr({ event, handle }: { event: ItemEvent; handle: string }) {
   };
   const ranked = rankEndorsers(endorsers, { follows, scoreOf });
   const split = useWotItems(claimants);
-  if (ranked.length === 0 && claimants.length === 0) return null;
+  const mine = !!me && endorsers.some((e) => e.pubkey === me);
+  if (ranked.length === 0 && claimants.length === 0 && !me) return null;
   return (
     <div className="space-y-3">
-      {ranked.length > 0 && (
-        <EndorsementLine
-          faces={ranked.map((e) => ({
-            pubkey: e.pubkey,
-            name: nameOf(e.pubkey),
-            picture: profiles.get(e.pubkey)?.picture,
-            score01: e.score,
-          }))}
-          label={`Endorsed by ${namesLine(
-            ranked.map((e) => nameOf(e.pubkey)),
-            ranked.length,
-          )}`}
-          linkFaces
-          testId="github-account-endorsed"
-        />
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        {ranked.length > 0 ? (
+          <EndorsementLine
+            faces={ranked.map((e) => ({
+              pubkey: e.pubkey,
+              name: nameOf(e.pubkey),
+              picture: profiles.get(e.pubkey)?.picture,
+              score01: e.score,
+            }))}
+            label={`Endorsed by ${namesLine(
+              ranked.map((e) => nameOf(e.pubkey)),
+              ranked.length,
+            )}`}
+            linkFaces
+            testId="github-account-endorsed"
+          />
+        ) : (
+          <p className="text-xs text-slate-500 dark:text-slate-400">Be the first to endorse this account.</p>
+        )}
+        {me && (
+          <button
+            type="button"
+            onClick={() => endorse.mutate()}
+            disabled={mine || endorse.isPending}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors ${
+              mine
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                : "border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            }`}
+            title={mine ? "You endorsed this listing" : "Public and signed by your account"}
+            data-testid="github-account-endorse"
+          >
+            {endorse.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : mine ? (
+              <Check className="h-3.5 w-3.5" />
+            ) : (
+              <ThumbsUp className="h-3.5 w-3.5" />
+            )}
+            {mine ? "Endorsed" : "Endorse"}
+          </button>
+        )}
+      </div>
       {claimants.length > 0 && (
         <Claimants
           trusted={split.trusted}
@@ -280,14 +311,13 @@ function OnNostr({ event, handle }: { event: ItemEvent; handle: string }) {
 
 /**
  * "2 more profiles claim this handle, outside your network." under trusted
- * rows; with none, "50 profiles claim this handle; none is in your network."
+ * rows; with none, "59 profiles claim this handle; none is in your network."
  * — the count is the warning.
  */
 function outsideLine(n: number, afterTrusted: boolean): string {
-  const profiles = n === 1 ? "1 profile claims" : `${n} profiles claim`;
   if (afterTrusted)
     return `${n === 1 ? "1 more profile claims" : `${n} more profiles claim`} this handle, outside your network.`;
-  return `${profiles} this handle; ${n === 1 ? "it isn't" : "none is"} in your network.`;
+  return `${n === 1 ? "1 profile claims" : `${n} profiles claim`} this handle; ${n === 1 ? "it isn't" : "none is"} in your network.`;
 }
 
 function Claimants({
