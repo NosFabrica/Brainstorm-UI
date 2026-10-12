@@ -72,18 +72,43 @@ export type NetworkView = ReturnType<typeof useNetworkView>;
  * hover saying what it means; a fact with nothing to say is left out, except
  * vouches, which read "none yet" so a signed-in reader sees the Endorse path.
  */
+/**
+ * The words for the act: one puts their name behind an account or a place
+ * ("vouch"), and recommends a book ("recommend"). Same signed signal.
+ */
+export type Voice = "vouch" | "recommend";
+const WORDS: Record<Voice, { heading: string; by: string; verb: string; done: string; youDid: string }> = {
+  vouch: {
+    heading: "Who stands behind it",
+    by: "Vouched for by",
+    verb: "Vouch for it",
+    done: "Vouched",
+    youDid: "You vouched for this",
+  },
+  recommend: {
+    heading: "Who recommends it",
+    by: "Recommended by",
+    verb: "Recommend",
+    done: "Recommended",
+    youDid: "You recommended this",
+  },
+};
+
 export function WhoStandsBehindIt({
   network: n,
   noun,
   idPrefix,
+  voice = "vouch",
 }: {
   network: NetworkView;
   /** What the item is, in the button's words: "account", "place". */
   noun: string;
   /** The test ids' prefix, one per view. */
   idPrefix: string;
+  voice?: Voice;
 }) {
   const tierRing = useTierRing();
+  const words = WORDS[voice];
   const inNetwork = n.ranked.filter((e) => e.group !== "other" && e.pubkey !== n.me).length;
   const people = (k: number) => `${k} ${k === 1 ? "person" : "people"} you trust`;
   const vouches = n.mine
@@ -98,9 +123,9 @@ export function WhoStandsBehindIt({
     <div className="space-y-2" data-testid={`${idPrefix}-verdict`}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
-          Who stands behind it
+          {words.heading}
         </p>
-        {n.me && <EndorseButton network={n} noun={noun} idPrefix={idPrefix} />}
+        {n.me && <EndorseButton network={n} noun={noun} idPrefix={idPrefix} voice={voice} />}
       </div>
       <dl className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
         <div
@@ -108,7 +133,7 @@ export function WhoStandsBehindIt({
           data-testid={`${idPrefix}-fact-vouches`}
           title={`People you follow, or people they trust, who put their name behind this ${noun}`}
         >
-          <dt className="text-slate-500 dark:text-slate-400">Vouched for by</dt>
+          <dt className="text-slate-500 dark:text-slate-400">{words.by}</dt>
           <dd className="flex items-center gap-2">
             {n.ranked.length > 0 && (
               <span className="flex -space-x-1.5">
@@ -156,8 +181,19 @@ export function WhoStandsBehindIt({
 }
 
 /** One "+" on the item, public and signed by the reader's account; "Endorsed" once they have. */
-function EndorseButton({ network: n, noun, idPrefix }: { network: NetworkView; noun: string; idPrefix: string }) {
+function EndorseButton({
+  network: n,
+  noun,
+  idPrefix,
+  voice,
+}: {
+  network: NetworkView;
+  noun: string;
+  idPrefix: string;
+  voice: Voice;
+}) {
   const { endorse, mine } = n;
+  const words = WORDS[voice];
   return (
     <button
       type="button"
@@ -168,7 +204,7 @@ function EndorseButton({ network: n, noun, idPrefix }: { network: NetworkView; n
           ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
           : "border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
       }`}
-      title={mine ? `You vouched for this ${noun}` : "Public and signed by your account"}
+      title={mine ? `${words.youDid} ${noun}` : "Public and signed by your account"}
       data-testid={`${idPrefix}-endorse`}
     >
       {endorse.isPending ? (
@@ -178,7 +214,7 @@ function EndorseButton({ network: n, noun, idPrefix }: { network: NetworkView; n
       ) : (
         <ThumbsUp className="h-3.5 w-3.5" />
       )}
-      {mine ? "Vouched" : "Vouch for it"}
+      {mine ? words.done : words.verb}
     </button>
   );
 }

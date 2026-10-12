@@ -242,7 +242,9 @@ describe("PlaceView", () => {
     expect(screen.getByTestId("place-kind")).toHaveTextContent("Restaurant · Italian");
     expect(screen.getByTestId("place-open-status")).toHaveTextContent("Open now · until 11:00 PM");
     // Where Google puts the stars: the trust line, both halves linking down.
-    expect(screen.getByTestId("place-trust-line")).toHaveTextContent(
+    // A visitor who isn't signed in has no "you": the line speaks of vouches, not of their trust.
+    expect(screen.getByTestId("place-trust-line")).toHaveTextContent("No vouches yet · No reviews yet");
+    expect(screen.getByTestId("place-trust-line")).not.toHaveTextContent(
       "No one you trust has vouched for it yet · No reviews yet",
     );
     // No logo circle beside the name: the kind-of-place glyph marks the kind line, the site's favicon sits by its website.

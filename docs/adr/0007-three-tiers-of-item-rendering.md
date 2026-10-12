@@ -35,6 +35,13 @@ A tier-three view is a presentation of the tier-two view, not a way around it.
   keyed by that concept means; a copy that renames or drops a field the view needs leaves
   the item to tier two. Each view says whether it `applies` (`components/items/itemViews`),
   and `DListItemHero` falls back when it doesn't.
+  - _The seeded concept with an empty header_ (2026-10-12): the community `books` header
+    declares no fields at all, so reading only through it would leave every book
+    untitled. The book view reads a field by the name Open Library's seed gave it
+    **only while the governing definition declares nothing for that name**; the moment a
+    definition declares the field, its declaration wins (`lib/books`). This is the one
+    allowance, for a concept whose header is empty, and it closes on its own when a copy
+    that declares the fields exists (`docs/dictionary/house-copies.md`).
 - **Links come from the definition.** A view may shape the links its templates build (a
   Repositories button beside the GitHub profile, say) but adds no destination of its own:
   a definition that names no template still gives no link.
@@ -48,7 +55,9 @@ A tier-three view is a presentation of the tier-two view, not a way around it.
   chip and the "More fields" fold stay, for admins. The rest of the list
   (`DListItemNeighbours`) stays for everyone.
 - **One file per view**, with its own test, beside the registry. Result cards, popup rows
-  and list rows stay tier two until a view earns a card of its own.
+  and list rows stay tier two until a view earns a card of its own; a view may say how
+  its items read there (`present`: a book is its cover, title and author), still from the
+  item alone.
 
 ## Consequences
 

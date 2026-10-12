@@ -17,9 +17,12 @@ const ME = "1".repeat(64);
 
 let concept: { data: ResolvedConcept | null; isPending: boolean } = { data: null, isPending: true };
 // These tests pin the tier-two reading; GitHub's tier-three view (ADR 0007) has its own.
+// A test may say how a concept's view presents its items among many (a book: a portrait cover).
+const tierThree = vi.hoisted(() => ({ present: null as null | Record<string, unknown> }));
 vi.mock("@/components/items/itemViews", () => ({
   tierThreeFor: () => null,
-  tierThreePresentation: (_item: unknown, _resolved: unknown, shown: unknown) => shown,
+  tierThreePresentation: (_item: unknown, _resolved: unknown, shown: Record<string, unknown>) =>
+    tierThree.present ? { ...shown, ...tierThree.present } : shown,
 }));
 vi.mock("@/hooks/useItemConcept", () => ({ useItemConcept: () => concept }));
 vi.mock("@/hooks/useLinkTemplates", () => ({
@@ -73,7 +76,19 @@ const mine = header(ME, [
 
 beforeEach(() => {
   concept = { data: resolveConcept({ community, communityCoordinate: COMMUNITY }), isPending: false };
+  tierThree.present = null;
 });
+
+const COVER = "https://covers.openlibrary.org/b/id/10092515-L.jpg";
+/** A book's view says its picture is a cover: a portrait tile, never a circle (lib/books). */
+const asBook = () => {
+  tierThree.present = {
+    title: "The storm before the storm",
+    summary: "Michael Duncan",
+    image: COVER,
+    imageShape: "portrait",
+  };
+};
 
 describe("DListItemCard", () => {
   it("a GitHub account under a definition that names the GitHub URL template: its title, its logo, its GitHub link", () => {
@@ -104,6 +119,15 @@ describe("DListItemCard", () => {
     );
   });
 
+  it("a cover is a portrait tile, as on a shelf — not the round crop a face gets", () => {
+    asBook();
+    renderWithProviders(<DListItemCard event={item} />);
+    const img = screen.getByTestId("dlist-item-card-image");
+    expect(img).toHaveAttribute("src", expect.stringContaining("10092515-L.jpg"));
+    expect(img.parentElement).toHaveAttribute("data-shape", "portrait");
+    expect(img.parentElement?.className).not.toMatch(/rounded-full/);
+  });
+
   it("says so while the definition loads", () => {
     concept = { data: null, isPending: true };
     renderWithProviders(<DListItemCard event={item} />);
@@ -126,6 +150,15 @@ describe("DListSuggestionRow", () => {
     renderWithProviders(<DListSuggestionRow event={item} />);
     expect(screen.getByTestId("dlist-suggestion-title")).toHaveTextContent("vcavallo");
     expect(screen.getByTestId("dlist-suggestion-line")).toHaveTextContent("GitHub Account · in GitHub Accounts");
+  });
+
+  it("a cover is a portrait tile in the popup row too", () => {
+    asBook();
+    renderWithProviders(<DListSuggestionRow event={item} />);
+    const tile = screen.getByTestId("dlist-suggestion-tile");
+    expect(tile).toHaveAttribute("data-shape", "portrait");
+    expect(tile.className).not.toMatch(/rounded-full/);
+    expect(screen.getByTestId("dlist-suggestion-line")).toHaveTextContent("Michael Duncan");
   });
 
   it("shows nothing until it can name the item", () => {

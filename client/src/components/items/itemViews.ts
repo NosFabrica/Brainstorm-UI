@@ -14,6 +14,7 @@ import type { ReadyItemView } from "@/hooks/useItemView";
 import type { ItemEvent } from "@/components/share/DListItemParts";
 import { GitHubAccountView, githubAccountOf, githubPresentation } from "@/components/items/GitHubAccountView";
 import { PlaceView, placeOf } from "@/components/items/PlaceView";
+import { BookView, bookOf, bookPresentation } from "@/components/items/BookView";
 import type { ConceptDefinition, ResolvedConcept } from "@/lib/conceptResolution";
 import type { ItemPresentation } from "@/lib/itemPresentation";
 
@@ -43,6 +44,11 @@ const VIEWS: Record<ConceptViewKey, TierThreeView> = {
   place: {
     applies: (event, view) => placeOf(event, view.resolved.governing) !== null,
     View: PlaceView,
+  },
+  book: {
+    applies: (event, view) => bookOf(event, view.resolved.governing) !== null,
+    View: BookView,
+    present: bookPresentation,
   },
 };
 

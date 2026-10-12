@@ -28,6 +28,12 @@ export interface ItemPresentation {
   /** The item's own picture, an http(s) URL. */
   image: string | null;
   imageField: string | null;
+  /**
+   * How the picture is cut where the item is one among many: round, as a
+   * face or a logo, unless a concept's view says the picture is a portrait —
+   * a book's cover (lib/books). Unset means round.
+   */
+  imageShape?: "round" | "portrait";
   /** The item's own link — a field holding a whole URL — labelled by its field's description, else its host. */
   link: { label: string; href: string; host: string } | null;
   linkField: string | null;

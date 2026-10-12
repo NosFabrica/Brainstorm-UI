@@ -50,6 +50,7 @@ export async function publishPlaceReview(item: Item, draft: ReviewDraft): Promis
       photos: draft.photos,
       price: draft.price,
       paid: draft.paid,
+      rating: draft.rating ?? null,
     }
   );
 }

@@ -4,6 +4,8 @@
  * lacks: a price from $ to $$$$ (`["price", "1".."4"]`) and how the reviewer
  * paid (`["paid", "lightning" | "onchain" | "card" | "cash"]`). Photos ride
  * as NIP-92 `imeta` tags and in the words, so every client shows them.
+ * A thing reviewed with stars — a book — carries one to five as
+ * `["rating", "1".."5"]`; the same comment, the same readers.
  *
  * The rules only: reading a review from an event, the template a reader
  * signs, and the page's sums. Fetching and publishing are
@@ -29,6 +31,8 @@ export interface PlaceReview {
   /** 1 ($) to 4 ($$$$), or null. */
   price: number | null;
   paid: Paid | null;
+  /** One to five stars, or null. */
+  rating: number | null;
 }
 
 export interface ReviewDraft {
@@ -36,6 +40,7 @@ export interface ReviewDraft {
   price: number | null;
   paid: Paid | null;
   photos: string[];
+  rating?: number | null;
 }
 
 type EventLike = { id: string; kind: number; pubkey: string; created_at: number; content: string; tags: string[][] };
@@ -54,6 +59,7 @@ export function reviewOf(event: EventLike, address: string): PlaceReview | null 
   if (!text && photos.length === 0) return null;
   const price = Number(tagOf(event.tags, "price"));
   const paid = tagOf(event.tags, "paid");
+  const rating = Number(tagOf(event.tags, "rating"));
   return {
     id: event.id,
     pubkey: event.pubkey,
@@ -62,6 +68,7 @@ export function reviewOf(event: EventLike, address: string): PlaceReview | null 
     photos,
     price: Number.isInteger(price) && price >= 1 && price <= 4 ? price : null,
     paid: paid && PAID.has(paid) ? (paid as Paid) : null,
+    rating: Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : null,
   };
 }
 
@@ -83,6 +90,7 @@ export function reviewTemplate(
   ];
   if (draft.price != null) tags.push(["price", String(draft.price)]);
   if (draft.paid) tags.push(["paid", draft.paid]);
+  if (draft.rating != null) tags.push(["rating", String(draft.rating)]);
   for (const url of draft.photos) tags.push(["imeta", `url ${url}`]);
   const content = [draft.text.trim(), ...draft.photos].filter(Boolean).join("\n");
   return { kind: 1111, content, tags };
@@ -104,4 +112,12 @@ export function paymentSummary(reviews: { paid: Paid | null }[]): { paid: Paid; 
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([paid, count]) => ({ paid, label: PAID_LABELS[paid], count }));
+}
+
+/** The stars given, averaged to one decimal, with how many gave them — null when nobody did. */
+export function ratingSummary(reviews: { rating: number | null }[]): { average: number; count: number } | null {
+  const given = reviews.map((r) => r.rating).filter((n): n is number => n != null);
+  if (given.length === 0) return null;
+  const average = Math.round((given.reduce((a, b) => a + b, 0) / given.length) * 10) / 10;
+  return { average, count: given.length };
 }
