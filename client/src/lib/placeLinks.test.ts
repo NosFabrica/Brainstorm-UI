@@ -66,6 +66,15 @@ describe("addressLines", () => {
       }),
     ).toEqual(["6519 Midnight Pass Road", "Sarasota, FL 34242"]);
   });
+  it("a ZIP+4 extension is dropped: the five digits are what anyone writes", () => {
+    expect(
+      addressLines({ address: "2328 Gulf Gate Drive", locality: "Sarasota", region: "FL", postalCode: "34231-5608" }),
+    ).toEqual(["2328 Gulf Gate Drive", "Sarasota, FL 34231"]);
+    // Other countries' hyphenated codes stay whole.
+    expect(addressLines({ address: null, locality: "Rolante", region: null, postalCode: "95690-000" })).toEqual([
+      "Rolante, 95690-000",
+    ]);
+  });
   it("one line when only one part is known", () => {
     expect(addressLines({ address: null, locality: "Sarasota", region: "FL", postalCode: null })).toEqual([
       "Sarasota, FL",
@@ -92,7 +101,7 @@ describe("addressLine", () => {
         region: "FL",
         postalCode: "34231",
       }),
-    ).toBe("2328 Gulf Gate Drive, Sarasota, FL 34231-5608");
+    ).toBe("2328 Gulf Gate Drive, Sarasota, FL 34231");
   });
   it("what the list gives, when it gives less", () => {
     expect(addressLine({ address: "Calle 5", locality: "Tamarindo", region: null, postalCode: null })).toBe(

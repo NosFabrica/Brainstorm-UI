@@ -102,7 +102,8 @@ export function addressLines(place: {
     }
     street = words.join(" ").replace(/,\s*$/, "") || null;
   }
-  const code = postalSeen ?? postal;
+  // The five digits of a US ZIP are what anyone writes; the +4 extension is noise here.
+  const code = (postalSeen ?? postal)?.replace(/^(\d{5})-\d{4}$/, "$1") ?? null;
   const regionLine = [region, code].filter(Boolean).join(" ") || null;
   const cityLine = [locality, regionLine].filter(Boolean).join(", ") || null;
   const lines = [street, cityLine].filter((l): l is string => !!l);

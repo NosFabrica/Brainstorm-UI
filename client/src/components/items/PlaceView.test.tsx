@@ -272,10 +272,11 @@ describe("PlaceView", () => {
     expect(screen.getByTestId("place-listing")).toHaveTextContent("BTC Map");
 
     const details = screen.getByTestId("place-details");
-    // The address as it would be written on an envelope: the street, then the city line with the country muted after it.
+    // The address as it would be written on an envelope: the street, the city line, then the country, muted.
     const addr = within(details).getByTestId("place-address");
     expect(within(addr).getByTestId("place-address-street")).toHaveTextContent(/^6519 Midnight Pass Road$/);
-    expect(within(addr).getByTestId("place-address-city")).toHaveTextContent(/^Sarasota, FL 34242, United States$/);
+    expect(within(addr).getByTestId("place-address-city")).toHaveTextContent(/^Sarasota, FL 34242$/);
+    expect(within(addr).getByTestId("place-address-country")).toHaveTextContent(/^United States$/);
     expect(addr.querySelector("a")).toHaveAttribute("href", expect.stringContaining("google.com/maps/dir"));
     expect(within(details).getByTestId("place-hours")).toHaveTextContent(/Thursday\s*5:00 PM–11:00 PM/);
     expect(within(details).getByTestId("place-phone")).toHaveTextContent("+1 346 493 2858");

@@ -388,7 +388,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           </p>
           {place.address && address ? (
             <Row icon={MapPin} label="Address" testId="place-address">
-              {/* Written as on an envelope: the street, then the city line, the country muted after it. */}
+              {/* Written as on an envelope: the street, the city line, then the country, muted. */}
               <Address
                 lines={lines}
                 country={country && !address.includes(country) ? country : null}
@@ -551,7 +551,7 @@ function Row({
 
 /**
  * The address written as on an envelope: the street on one line, the city,
- * state and postcode on the next, the country muted at the end of that line
+ * state and postcode on the next, the country on its own line, muted
  * (lib/placeLinks addressLines). The whole of it opens directions.
  */
 function Address({ lines, country, href }: { lines: string[]; country: string | null; href: string | null }) {
@@ -563,15 +563,14 @@ function Address({ lines, country, href }: { lines: string[]; country: string | 
           {street}
         </span>
       )}
-      {(city || country) && (
+      {city && (
         <span className="block" data-testid="place-address-city">
           {city}
-          {country && (
-            <span className="text-slate-500 dark:text-slate-400">
-              {city ? ", " : ""}
-              {country}
-            </span>
-          )}
+        </span>
+      )}
+      {country && (
+        <span className="block text-slate-500 dark:text-slate-400" data-testid="place-address-country">
+          {country}
         </span>
       )}
     </>
