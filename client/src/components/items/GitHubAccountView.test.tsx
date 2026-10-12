@@ -8,6 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { nip19 } from "nostr-tools";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 import { useResolvedItemView, isReady } from "@/hooks/useItemView";
@@ -38,6 +39,46 @@ vi.mock("@/components/dictionary/DListItemNeighbours", () => ({
   DListItemNeighbours: () => <div data-testid="neighbours-slot" />,
 }));
 vi.mock("@/lib/connection", () => ({ useConnectionSpeed: () => "normal" }));
+// What the network says about the item (hooks/useItemEngagement); nothing unless a test says so.
+const network = vi.hoisted(() => ({
+  endorsers: [] as { pubkey: string; at: number }[],
+  claimants: [] as { pubkey: string; proof: string | null }[],
+}));
+vi.mock("@/hooks/useItemEngagement", () => ({
+  useItemEngagement: () => ({ endorsers: network.endorsers, claimants: network.claimants, pending: false }),
+}));
+const TRUSTED = "a".repeat(64);
+const FOLLOWED = "b".repeat(64);
+const STRANGER = "c".repeat(64);
+// Who is in the reader's web of trust (hooks/useWotItems): only TRUSTED.
+vi.mock("@/hooks/useWotItems", () => ({
+  useWotItems: (items: { pubkey: string }[]) => ({
+    trusted: items.filter((i) => i.pubkey === TRUSTED),
+    outside: items.filter((i) => i.pubkey !== TRUSTED),
+    pending: false,
+    source: "house",
+    observer: "house",
+  }),
+}));
+vi.mock("@/hooks/useMyFollows", () => ({
+  useMyFollows: () => ({ follows: new Set([FOLLOWED]), ready: true, signedIn: true }),
+}));
+vi.mock("@/hooks/useAuthorScores", () => ({
+  useAuthorScores: () => (pk: string) => (pk === TRUSTED ? 0.5 : pk === FOLLOWED ? 0.1 : null),
+}));
+vi.mock("@/hooks/useProfileMap", () => ({
+  useProfileMap: (pks: string[]) =>
+    new Map(
+      pks.map((pk) => [
+        pk,
+        {
+          pubkey: pk,
+          npub: `npub-${pk.slice(0, 1)}`,
+          displayName: { a: "Ada", b: "Bob", c: "Cy" }[pk[0]] ?? pk.slice(0, 8),
+        },
+      ]),
+    ),
+}));
 // What our origin knows from GitHub (services/github); nothing unless a test says so.
 const github = vi.hoisted(() => ({ facts: null as null | Record<string, unknown>, pending: false }));
 vi.mock("@/hooks/useGitHubAccount", () => ({
@@ -94,6 +135,8 @@ beforeEach(() => {
   viewer.isAdmin = false;
   github.facts = null;
   github.pending = false;
+  network.endorsers = [];
+  network.claimants = [];
 });
 
 const FACTS = {
@@ -246,5 +289,55 @@ describe("GitHubAccountView", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("nous-clawds4");
     expect(screen.queryByTestId("github-account-stats")).toBeNull();
     expect(screen.queryByTestId("github-account-repo")).toBeNull();
+  });
+
+  it("says who endorsed the listing, the people the reader follows first, each face a link", () => {
+    network.endorsers = [
+      { pubkey: TRUSTED, at: 9 },
+      { pubkey: FOLLOWED, at: 8 },
+      { pubkey: STRANGER, at: 7 },
+    ];
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    const line = screen.getByTestId("github-account-endorsed");
+    expect(line).toHaveTextContent("Endorsed by Bob, Ada and Cy");
+    const faces = [...line.querySelectorAll("[data-face]")].map((el) => el.getAttribute("data-face"));
+    expect(faces).toEqual([FOLLOWED, TRUSTED, STRANGER]);
+    expect(within(line).getAllByRole("link")[0]).toHaveAttribute("href", `/p/${nip19.npubEncode(FOLLOWED)}`);
+  });
+
+  it("lists the Nostr profiles claiming this handle: the ones in the reader's network as rows, the rest as a count", () => {
+    network.claimants = [
+      { pubkey: STRANGER, proof: null },
+      { pubkey: TRUSTED, proof: "gist" },
+      { pubkey: FOLLOWED, proof: null },
+    ];
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    const section = screen.getByTestId("github-account-claimants");
+    const rows = within(section).getAllByTestId("github-account-claimant");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("Ada");
+    expect(within(rows[0]).getByRole("link")).toHaveAttribute("href", "/p/npub-a");
+    expect(rows[0]).toHaveTextContent("In your network");
+    expect(screen.getByTestId("github-account-claimants-outside")).toHaveTextContent(
+      "2 more profiles claim this handle, outside your network",
+    );
+  });
+
+  it("with no endorsements and no claimants, neither block shows", () => {
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(screen.queryByTestId("github-account-endorsed")).toBeNull();
+    expect(screen.queryByTestId("github-account-claimants")).toBeNull();
+  });
+
+  it("when nobody in the reader's network claims the handle, the count stands alone as the warning", () => {
+    network.claimants = [
+      { pubkey: STRANGER, proof: null },
+      { pubkey: FOLLOWED, proof: null },
+    ];
+    renderWithProviders(<Page event={item} copy={houseCopy} />);
+    expect(screen.queryByTestId("github-account-claimant")).toBeNull();
+    expect(screen.getByTestId("github-account-claimants-outside")).toHaveTextContent(
+      "2 profiles claim this handle; none is in your network.",
+    );
   });
 });

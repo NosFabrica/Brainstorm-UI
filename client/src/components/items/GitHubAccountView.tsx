@@ -15,10 +15,29 @@
  * `description` fields — the community concept's names for them — so a
  * copy that renames the handle leaves the item to the tier-two page.
  *
+ * Then what the network says (useItemEngagement): who endorsed the listing,
+ * the people the reader follows first, and which Nostr profiles claim the
+ * handle — the ones in the reader's web of trust as rows, the rest as a
+ * count, since ten strangers claiming one handle is the point, not ten rows.
+ *
  * The rest of the list follows, for everyone; the definition line and the
  * "More fields" fold are an admin's, since a reader came for the account.
  */
-import { Activity, ExternalLink, FolderGit2, Github, MapPin, Star, Users } from "lucide-react";
+import { Activity, BadgeCheck, ExternalLink, FolderGit2, Github, MapPin, Star, Users } from "lucide-react";
+import { Link } from "wouter";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Chip } from "@/components/ui/chip";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { EndorsementLine } from "@/components/search/EndorsementLine";
+import { useTierRing } from "@/components/score/VerificationCoin";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { useItemEngagement } from "@/hooks/useItemEngagement";
+import { useMyFollows } from "@/hooks/useMyFollows";
+import { useProfileMap } from "@/hooks/useProfileMap";
+import { useWotItems } from "@/hooks/useWotItems";
+import { rankEndorsers } from "@/services/endorsements";
+import type { GitHubClaimant } from "@/lib/itemEngagement";
+import { getDisplayLabel } from "@/lib/profileSearch";
 import { Favicon } from "@/components/share/LinkPreview";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
 import {
@@ -94,7 +113,7 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
         </p>
         <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex min-w-0 flex-1 items-center gap-4">
-            <Avatar handle={account.handle} listImage={shown.listImage} />
+            <AccountPicture handle={account.handle} listImage={shown.listImage} />
             <div className="min-w-0 flex-1">
               <h1
                 className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
@@ -183,11 +202,148 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
 
       {facts && <OnGitHub facts={facts} />}
 
+      <OnNostr event={event} handle={account.handle} />
+
       {isAdmin && <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />}
 
       <DListItemNeighbours event={event} resolved={r} />
 
       {isAdmin && <DefinitionLine event={event} resolved={r} />}
+    </div>
+  );
+}
+
+/** "Bob, Ada and Cy", "Bob, Ada, Cy and 2 more". */
+function namesLine(names: string[], total: number): string {
+  const shown = names.slice(0, 3);
+  const rest = total - shown.length;
+  const list = shown.length <= 1 ? (shown[0] ?? "") : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+  if (rest <= 0) return list;
+  return `${shown.join(", ")} and ${rest} more`;
+}
+
+/**
+ * What the network says: the listing's endorsers, ranked as every endorsement
+ * surface ranks them (services/endorsements: followed, verified, other), and
+ * the profiles claiming the handle, split by the reader's web of trust.
+ */
+function OnNostr({ event, handle }: { event: ItemEvent; handle: string }) {
+  const { endorsers, claimants } = useItemEngagement(event, handle);
+  const { follows } = useMyFollows();
+  const people = [...new Set([...endorsers.map((e) => e.pubkey), ...claimants.map((c) => c.pubkey)])];
+  const scoreOf = useAuthorScores(people);
+  const profiles = useProfileMap(people);
+  const nameOf = (pk: string) => {
+    const p = profiles.get(pk);
+    return p ? getDisplayLabel(p) : pk.slice(0, 8);
+  };
+  const ranked = rankEndorsers(endorsers, { follows, scoreOf });
+  const split = useWotItems(claimants);
+  if (ranked.length === 0 && claimants.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      {ranked.length > 0 && (
+        <EndorsementLine
+          faces={ranked.map((e) => ({
+            pubkey: e.pubkey,
+            name: nameOf(e.pubkey),
+            picture: profiles.get(e.pubkey)?.picture,
+            score01: e.score,
+          }))}
+          label={`Endorsed by ${namesLine(
+            ranked.map((e) => nameOf(e.pubkey)),
+            ranked.length,
+          )}`}
+          linkFaces
+          testId="github-account-endorsed"
+        />
+      )}
+      {claimants.length > 0 && (
+        <Claimants
+          trusted={split.trusted}
+          outside={split.outside}
+          nameOf={nameOf}
+          pictureOf={(pk) => profiles.get(pk)?.picture}
+          npubOf={(pk) => profiles.get(pk)?.npub}
+          scoreOf={scoreOf}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * "2 more profiles claim this handle, outside your network." under trusted
+ * rows; with none, "50 profiles claim this handle; none is in your network."
+ * — the count is the warning.
+ */
+function outsideLine(n: number, afterTrusted: boolean): string {
+  const profiles = n === 1 ? "1 profile claims" : `${n} profiles claim`;
+  if (afterTrusted)
+    return `${n === 1 ? "1 more profile claims" : `${n} more profiles claim`} this handle, outside your network.`;
+  return `${profiles} this handle; ${n === 1 ? "it isn't" : "none is"} in your network.`;
+}
+
+function Claimants({
+  trusted,
+  outside,
+  nameOf,
+  pictureOf,
+  npubOf,
+  scoreOf,
+}: {
+  trusted: GitHubClaimant[];
+  outside: GitHubClaimant[];
+  nameOf: (pk: string) => string;
+  pictureOf: (pk: string) => string | undefined;
+  npubOf: (pk: string) => string | undefined;
+  scoreOf: (pk: string) => number | null | undefined;
+}) {
+  const tierRing = useTierRing();
+  return (
+    <div className="space-y-2" data-testid="github-account-claimants">
+      <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">On Nostr</p>
+      {trusted.length > 0 && (
+        <ul className="space-y-1.5">
+          {trusted.map((c) => {
+            const npub = npubOf(c.pubkey);
+            const name = nameOf(c.pubkey);
+            return (
+              <li key={c.pubkey} className="flex items-center gap-2.5 text-sm" data-testid="github-account-claimant">
+                <Avatar
+                  className={`h-7 w-7 rounded-full bg-white dark:bg-slate-900 ${tierRing(scoreOf(c.pubkey), false, "sm", true) ?? ""}`}
+                >
+                  {pictureOf(c.pubkey) ? (
+                    <AvatarImage src={pictureOf(c.pubkey)} alt="" className="object-cover" />
+                  ) : null}
+                  <AvatarFallback className="overflow-hidden rounded-full">
+                    <DefaultAvatarImg />
+                  </AvatarFallback>
+                </Avatar>
+                {npub ? (
+                  <Link
+                    href={`/p/${npub}`}
+                    className="min-w-0 truncate font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+                  >
+                    {name}
+                  </Link>
+                ) : (
+                  <span className="min-w-0 truncate font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+                )}
+                <span className="text-xs text-slate-500 dark:text-slate-400">says this is their GitHub</span>
+                <Chip tone="success" icon={BadgeCheck} size="sm">
+                  In your network
+                </Chip>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {outside.length > 0 && (
+        <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="github-account-claimants-outside">
+          {outsideLine(outside.length, trusted.length > 0)}
+        </p>
+      )}
     </div>
   );
 }
@@ -275,7 +431,7 @@ function OnGitHub({ facts }: { facts: GitHubAccountFacts }) {
 }
 
 /** The account's own picture; when GitHub has none to give, the list's mark, else GitHub's. */
-function Avatar({ handle, listImage }: { handle: string; listImage: string | null }) {
+function AccountPicture({ handle, listImage }: { handle: string; listImage: string | null }) {
   const speed = useConnectionSpeed();
   const { src, onError, spent } = useAvatarSrc(avatarUrl(handle), "lg", speed);
   if (!spent && src)
