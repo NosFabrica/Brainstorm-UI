@@ -199,6 +199,16 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
         <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary">
           <ConceptLink event={event}>{r.governing.singular}</ConceptLink>
         </p>
+        {shown.image ? (
+          <img
+            src={avatarSrc(shown.image, "lg")}
+            alt=""
+            className="aspect-[16/9] w-full rounded-xl border border-border object-cover"
+            data-testid="place-photo"
+          />
+        ) : (
+          coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} />
+        )}
         <div>
           <h1
             className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
@@ -281,17 +291,6 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
             </Action>
           ))}
         </div>
-      )}
-
-      {shown.image ? (
-        <img
-          src={avatarSrc(shown.image, "lg")}
-          alt=""
-          className="aspect-[16/9] w-full rounded-xl border border-border object-cover"
-          data-testid="place-photo"
-        />
-      ) : (
-        coords && <PlaceMap lat={coords.lat} lon={coords.lon} name={place.name} />
       )}
 
       <dl

@@ -4,10 +4,10 @@
  * pin: the page's picture, since no place in the list has a photo yet. Leaflet and its stylesheet load only on a place's
  * page (a dynamic import), never in the app's first bundle. The map doesn't
  * take the wheel: scrolling the page past it keeps scrolling; zoom with the
- * buttons or a pinch.
+ * buttons or a pinch. It stays in the page: no link out to a bigger map;
+ * the Directions action is the way to a maps app.
  */
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink } from "lucide-react";
 
 const PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 41c-1 0-15-16-15-24a15 15 0 1 1 30 0c0 8-14 24-15 24Z" fill="#7237ff" stroke="#fff" stroke-width="2"/><circle cx="17" cy="17" r="5.5" fill="#fff"/></svg>`;
 
@@ -53,12 +53,11 @@ export function PlaceMap({ lat, lon, name }: { lat: number; lon: number; name: s
     };
   }, [lat, lon, name]);
 
-  const page = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
   return (
     <div className="space-y-1.5" data-testid="place-map">
       <div
         ref={host}
-        className="aspect-[16/8] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500"
+        className="aspect-[16/9] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 sm:aspect-[16/7] [&_.leaflet-control-attribution]:text-[10px] [&_.leaflet-control-attribution]:text-slate-500"
         role="img"
         aria-label={`Map showing ${name}`}
       >
@@ -66,14 +65,6 @@ export function PlaceMap({ lat, lon, name }: { lat: number; lon: number; name: s
           <p className="flex h-full items-center justify-center text-sm text-slate-500">The map couldn&rsquo;t load.</p>
         )}
       </div>
-      <a
-        href={page}
-        target="_blank"
-        rel="noopener noreferrer nofollow"
-        className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-brand-link dark:text-slate-400"
-      >
-        Larger map <ExternalLink className="h-3 w-3" />
-      </a>
     </div>
   );
 }
