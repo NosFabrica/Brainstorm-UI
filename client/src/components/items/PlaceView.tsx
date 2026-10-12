@@ -1,3 +1,4 @@
+import { useState } from "react";
 /**
  * A food and drink place on its own page (ADR 0007, tier three), the shape
  * a reader knows from Google Places or Yelp, in Brainstorm's own clothes:
@@ -262,15 +263,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           data-testid="place-identity"
         >
           <div className="flex items-start gap-3">
-            {photo && (
-              <img
-                src={proxiedSrc(photo, "media_320")}
-                referrerPolicy="no-referrer"
-                alt=""
-                className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 object-cover dark:border-slate-700"
-                data-testid="place-photo"
-              />
-            )}
+            {photo && <LogoTile src={photo} />}
             <h1
               className="min-w-0 break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
               style={{ fontFamily: "var(--font-display)" }}
@@ -586,6 +579,35 @@ function Address({ lines, country, href }: { lines: string[]; country: string | 
     </a>
   ) : (
     body
+  );
+}
+
+/**
+ * The site's picture as a small tile beside the name — but only once it has
+ * loaded and proved roughly square, which is what a logo is. A site's picture
+ * is usually its link-preview banner, wide and lettered, and cropped to a
+ * square that is a slice of lettering; a banner is left unseen. Unseen, not
+ * absent, so the measurement can happen.
+ */
+const SQUARE_ENOUGH = [0.75, 1.34] as const;
+
+function LogoTile({ src }: { src: string }) {
+  const [square, setSquare] = useState(false);
+  return (
+    <img
+      src={proxiedSrc(src, "media_320")}
+      referrerPolicy="no-referrer"
+      alt=""
+      onLoad={(e) => {
+        const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+        const ratio = w > 0 && h > 0 ? w / h : 0;
+        setSquare(ratio >= SQUARE_ENOUGH[0] && ratio <= SQUARE_ENOUGH[1]);
+      }}
+      hidden={!square}
+      className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 object-cover dark:border-slate-700"
+      data-shown={square ? "true" : "false"}
+      data-testid="place-photo"
+    />
   );
 }
 
