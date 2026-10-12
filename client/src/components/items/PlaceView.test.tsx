@@ -263,13 +263,18 @@ describe("PlaceView", () => {
       "href",
       "https://www.ilsolefood.com/",
     );
-    expect(within(actions).getByRole("link", { name: "Map" })).toHaveAttribute(
+    // The listing it came from is provenance, not an action: a line by the attribution, not a button.
+    expect(within(actions).queryByRole("link", { name: "Map" })).toBeNull();
+    expect(screen.getByTestId("place-listing").querySelector("a")).toHaveAttribute(
       "href",
       "https://btcmap.org/merchant/30083",
     );
+    expect(screen.getByTestId("place-listing")).toHaveTextContent("BTC Map");
 
     const details = screen.getByTestId("place-details");
-    expect(within(details).getByTestId("place-address")).toHaveTextContent("6519 Midnight Pass Road Sarasota 34242");
+    expect(within(details).getByTestId("place-address")).toHaveTextContent(
+      "6519 Midnight Pass Road, Sarasota, FL 34242, United States",
+    );
     expect(within(details).getByTestId("place-hours")).toHaveTextContent(/Thursday\s*5:00 PM–11:00 PM/);
     expect(within(details).getByTestId("place-phone")).toHaveTextContent("+1 346 493 2858");
     expect(within(details).getByTestId("place-website")).toHaveTextContent("ilsolefood.com");

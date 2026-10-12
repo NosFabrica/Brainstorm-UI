@@ -75,7 +75,7 @@ import type { ConceptDefinition } from "@/lib/conceptResolution";
 import { fieldCell, httpUrl, undeclaredFields } from "@/lib/dlistFields";
 import { contactHref } from "@/lib/contactHref";
 import { DAYS, openingStatus, parseOpeningHours, type Day, type Week } from "@/lib/openingHours";
-import { categoryWords, directionsUrl, placeLocalMinutes } from "@/lib/placeLinks";
+import { addressLine, categoryWords, directionsUrl, placeLocalMinutes } from "@/lib/placeLinks";
 import { proxiedSrc } from "@/lib/imageProxy";
 import { useSiteCard } from "@/hooks/useSiteCard";
 import { EmojiText } from "@/components/ui/custom-emoji";
@@ -225,8 +225,10 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
   const menu = httpUrl(place.menu);
   const reserve = httpUrl(place.reservations);
   // The definition's templates (BTC Map), apart from the website the hints already show.
-  const others = links.filter((l) => l.href !== website);
+  // The definition's templates (BTC Map's listing): where the record came from, said by the attribution.
+  const listings = links.filter((l) => l.href !== website);
   const country = countryName(place.country);
+  const address = addressLine(place);
   const photo = shown.image ?? site?.image ?? null;
   const Mark = categoryIcon(place.category);
   const vouches = network.ranked.filter((e) => e.group !== "other").length;
@@ -328,7 +330,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
       )}
       <ReviewPhotos reviews={ranked.reviews} />
 
-      {(directions || call || website || menu || reserve || others.length > 0) && (
+      {(directions || call || website || menu || reserve) && (
         <div className="flex flex-wrap gap-1 sm:gap-2" data-testid="place-actions">
           {directions && (
             <Action href={directions} label="Directions" primary>
@@ -371,13 +373,6 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
               <CalendarCheck className="h-5 w-5" />
             </Action>
           )}
-          {others.map((l) => (
-            // The template's name, as the button's word: "BTC Map place" reads "Map" (the team, 2026-10-12);
-            // the destination stays on hover. The favicon in grayscale, so the row keeps one voice.
-            <Action key={l.href} href={l.href} label={l.label.replace(/^BTC /i, "").replace(/ place$/i, "")}>
-              <Favicon host={l.host} className="h-4 w-4 opacity-80 grayscale" />
-            </Action>
-          ))}
         </div>
       )}
 
@@ -387,7 +382,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
             Location
           </p>
-          {place.address ? (
+          {place.address && address ? (
             <Row icon={MapPin} label="Address" testId="place-address">
               {directions ? (
                 <a
@@ -396,19 +391,19 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
                   rel="noopener noreferrer nofollow"
                   className="hover:text-brand-link"
                 >
-                  {place.address}
+                  {address}
                 </a>
               ) : (
-                place.address
+                address
               )}
-              {country && !place.address.includes(country) && (
+              {country && !address.includes(country) && (
                 <span className="text-slate-500 dark:text-slate-400">, {country}</span>
               )}
             </Row>
           ) : (
-            (place.locality || country) && (
+            (address || country) && (
               <Row icon={MapPin} label="Where" testId="place-country">
-                {[place.locality, place.region, country].filter(Boolean).join(", ")}
+                {[address, country].filter(Boolean).join(", ")}
               </Row>
             )
           )}
@@ -465,8 +460,30 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
       <DListItemNeighbours event={event} resolved={r} more={false} />
 
       <p className="text-[11px] text-slate-400 dark:text-slate-500" data-testid="place-attribution">
-        {place.source === "btcmap" ? "Seeded from BTC Map. " : ""}Data © OpenStreetMap contributors, Open Database
-        License.
+        {listings.length > 0 ? (
+          <span data-testid="place-listing">
+            Listed on{" "}
+            {listings.map((l, i) => (
+              <span key={l.href}>
+                {i > 0 && ", "}
+                <a
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="underline decoration-dotted underline-offset-2 hover:text-brand-link"
+                >
+                  {l.label.replace(/ place$/i, "")}
+                </a>
+              </span>
+            ))}
+            .{" "}
+          </span>
+        ) : place.source === "btcmap" ? (
+          "Seeded from BTC Map. "
+        ) : (
+          ""
+        )}
+        Data © OpenStreetMap contributors, Open Database License.
       </p>
 
       <AdminDefinition event={event} resolved={r} cells={unshown} extras={extras} />
