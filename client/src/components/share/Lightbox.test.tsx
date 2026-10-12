@@ -78,6 +78,41 @@ describe("Lightbox", () => {
     expect(video.hasAttribute("controls")).toBe(true);
     expect(video.hasAttribute("autoplay")).toBe(true);
     expect(video.hasAttribute("playsinline")).toBe(true);
+    // An ordinary clip gains no tab stop of ours.
+    expect(video.hasAttribute("tabindex")).toBe(false);
+  });
+
+  // A tile for a video its creator marked sensitive opens here: the full view asks before it shows it.
+  it("covers a video marked sensitive until the reader asks for it", () => {
+    render(
+      <LightboxProvider>
+        <Opener
+          items={[
+            {
+              url: "https://cdn.example/goal.mp4",
+              kind: "video",
+              poster: "https://cdn.example/poster.jpg",
+              warning: { reason: "nudity" },
+            },
+          ]}
+        />
+      </LightboxProvider>,
+    );
+    fireEvent.click(screen.getByText("open"));
+    const cover = screen.getByTestId("sensitive-cover");
+    expect(cover).toHaveTextContent("The creator marked this video as sensitive: nudity");
+    expect(screen.queryByTestId("lightbox-video")).toBeNull();
+    expect(screen.getByTestId("lightbox").querySelector("video, img")).toBeNull();
+    // A tap on the cover is not a tap on the backdrop.
+    fireEvent.click(cover);
+    expect(screen.getByTestId("lightbox")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show video" }));
+    expect(screen.queryByTestId("sensitive-cover")).toBeNull();
+    const video = screen.getByTestId("lightbox-video") as HTMLVideoElement;
+    expect(video.getAttribute("src")).toBe("https://cdn.example/goal.mp4");
+    expect(video.hasAttribute("autoplay")).toBe(true);
+    expect(document.activeElement).toBe(video);
+    expect(video.getAttribute("tabindex")).toBe("0");
   });
 
   // Benjamin, over a replay in the rail: it should expand and play like the

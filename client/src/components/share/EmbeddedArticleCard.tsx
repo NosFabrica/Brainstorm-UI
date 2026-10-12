@@ -18,6 +18,9 @@ export const RECIPE_COVER_ALT = "Cooking Recipe — easy recipe steps";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { isBlankEvent } from "@/lib/blankEvent";
 import { DeletedStub } from "@/components/share/DeletedStub";
+import { SensitiveTile } from "@/components/share/SensitiveMedia";
+import { contentWarningOf } from "@/lib/nip36";
+import { VIDEO_KINDS } from "@/lib/nip71";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { specKindTags } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
@@ -101,6 +104,8 @@ export function EmbeddedArticleCard({
   const moreKinds = allKinds.length - coveredKinds.length;
   const summary = articleBrief(event);
   const image = tagVal(event, "image");
+  // A video quoted by address is drawn here too. One its creator marked sensitive shows no cover.
+  const sensitive = VIDEO_KINDS.has(event.kind) && !!contentWarningOf(event);
   // A spec wears the NIP cover, a recipe the recipe cover, the rest the article one.
   const fallbackCover = isSpec ? specCover : sourceAppFor(event)?.noun === "Recipe" ? recipeCover : articleDefault;
   const coverSrc = !image || imgBroken ? fallbackCover : image;
@@ -133,16 +138,20 @@ export function EmbeddedArticleCard({
         {/* One shape for every card — 16:9, the shape covers are — so the
             same cover never crops differently from card to card, and a
             banner shows edge to edge. Dimensions declared: no jump on load. */}
-        <img
-          src={coverSrc}
-          alt={coverAlt}
-          width={1280}
-          height={720}
-          loading="lazy"
-          decoding="async"
-          onError={() => setImgBroken(true)}
-          className="aspect-video w-full shrink-0 bg-slate-100 object-cover @[26rem]:m-3 @[26rem]:w-44 @[26rem]:self-start @[26rem]:rounded-lg dark:bg-slate-800"
-        />
+        {sensitive ? (
+          <SensitiveTile className="aspect-video w-full shrink-0 @[26rem]:m-3 @[26rem]:w-44 @[26rem]:self-start @[26rem]:rounded-lg" />
+        ) : (
+          <img
+            src={coverSrc}
+            alt={coverAlt}
+            width={1280}
+            height={720}
+            loading="lazy"
+            decoding="async"
+            onError={() => setImgBroken(true)}
+            className="aspect-video w-full shrink-0 bg-slate-100 object-cover @[26rem]:m-3 @[26rem]:w-44 @[26rem]:self-start @[26rem]:rounded-lg dark:bg-slate-800"
+          />
+        )}
 
         <div className="min-w-0 flex-1 p-3">
           <KindPill event={event} mixed={mixed} />

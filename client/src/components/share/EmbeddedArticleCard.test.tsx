@@ -348,3 +348,43 @@ describe("EmbeddedArticleCard", () => {
     expect(card).not.toHaveTextContent("Article");
   });
 });
+
+// A video quoted by address (nostr:naddr…, or an `a` tag) is drawn by this card, with the
+// event's top-level `image` tag as its cover. One its creator marked sensitive shows no cover.
+describe("EmbeddedArticleCard — a video marked sensitive", () => {
+  const video = (kind: number, extra: string[][] = []) =>
+    page(kind, "", [
+      ["d", "b0f9"],
+      ["title", "Morning at the lake"],
+      ["image", "https://media.divine.video/thumb.jpg"],
+      ...extra,
+    ]);
+
+  it("shows the placeholder in place of the cover", () => {
+    for (const kind of [21, 22, 34235, 34236]) {
+      const { unmount } = render(<EmbeddedArticleCard event={video(kind, [["content-warning", "nudity"]])} />);
+      const card = screen.getByTestId("embedded-article");
+      expect(within(card).getByTestId("sensitive-tile")).toHaveTextContent("Sensitive");
+      // No cover at all: not the event's picture, and not the default one either.
+      expect(card.querySelector('img[src*="thumb"]')).toBeNull();
+      expect(card.querySelector('img[width="1280"]')).toBeNull();
+      expect(card).toHaveTextContent("Morning at the lake");
+      unmount();
+    }
+  });
+
+  it("leaves an unflagged video's cover as it was", () => {
+    render(<EmbeddedArticleCard event={video(34236)} />);
+    const card = screen.getByTestId("embedded-article");
+    expect(within(card).queryByTestId("sensitive-tile")).toBeNull();
+    expect(card.querySelector('img[width="1280"]')?.getAttribute("src")).toBe("https://media.divine.video/thumb.jpg");
+  });
+
+  // Articles are outside this rule: a warning on one is a known gap, not this card's to decide.
+  it("leaves a flagged article's cover as it was", () => {
+    render(<EmbeddedArticleCard event={video(30023, [["content-warning", "nudity"]])} />);
+    const card = screen.getByTestId("embedded-article");
+    expect(within(card).queryByTestId("sensitive-tile")).toBeNull();
+    expect(card.querySelector('img[width="1280"]')?.getAttribute("src")).toBe("https://media.divine.video/thumb.jpg");
+  });
+});

@@ -3,22 +3,27 @@
  * loads, the video's own first frame when the poster fails (expired CDN
  * links are common), a quiet placeholder when there is nothing to show —
  * never a broken-image glyph. The tap is the caller's: the page opens the
- * lightbox and plays the video in full view.
+ * lightbox and plays the video in full view. A video its creator marked
+ * sensitive (`warning`) is a "Sensitive" placeholder: no poster, no frame.
  */
 import { useState } from "react";
 import { Play, Video } from "lucide-react";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import type { ContentWarning } from "@/lib/nip36";
+import { SensitiveTile, sensitiveVideoLabel } from "@/components/share/SensitiveMedia";
 
 export function VideoTile({
   poster,
   url,
   onOpen,
   title,
+  warning,
 }: {
   poster?: string | null;
   url?: string | null;
   onOpen: () => void;
   title?: string;
+  warning?: ContentWarning | null;
 }) {
   const speed = useConnectionSpeed();
   const [posterFailed, setPosterFailed] = useState(false);
@@ -27,11 +32,13 @@ export function VideoTile({
     <button
       type="button"
       onClick={onOpen}
-      aria-label={title ? `Play ${title}` : "Play video"}
+      aria-label={warning ? sensitiveVideoLabel(title) : title ? `Play ${title}` : "Play video"}
       className="group relative block aspect-video w-full bg-slate-900 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
       data-testid="share-video-tile"
     >
-      {showPoster ? (
+      {warning ? (
+        <SensitiveTile className="absolute inset-0" />
+      ) : showPoster ? (
         <img
           src={poster!}
           alt=""
@@ -57,11 +64,13 @@ export function VideoTile({
           <Video className="h-6 w-6 text-slate-500" aria-hidden="true" />
         </div>
       )}
-      <div className="absolute inset-0 flex items-center justify-center bg-black/10 transition-colors group-hover:bg-black/20">
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all group-hover:scale-105 group-hover:bg-white">
-          <Play className="ml-0.5 h-5 w-5 text-brand-deep" />
-        </span>
-      </div>
+      {!warning && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/10 transition-colors group-hover:bg-black/20">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-lg transition-all group-hover:scale-105 group-hover:bg-white">
+            <Play className="ml-0.5 h-5 w-5 text-brand-deep" />
+          </span>
+        </div>
+      )}
     </button>
   );
 }

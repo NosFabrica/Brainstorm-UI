@@ -7,7 +7,7 @@
  * the note's full page already shows it.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { nip19 } from "nostr-tools";
 import { renderWithProviders } from "@/test/utils";
 
@@ -249,5 +249,72 @@ describe("EmbeddedNoteCard — deleted by overwriting", () => {
     renderWithProviders(<EmbeddedNoteCard event={husk("gm")} author={{ display_name: "Zap Cooking" }} />);
     expect(screen.getByTestId("embedded-note")).toHaveTextContent("gm");
     expect(screen.queryByTestId("embedded-deleted")).toBeNull();
+  });
+});
+
+// Safe by default: a video event quoted or reposted into another post plays in place when its
+// content holds the file. One its creator marked sensitive is covered there too.
+describe("EmbeddedNoteCard — a video marked sensitive", () => {
+  const clip = (tags: string[][] = [], kind = 22) => ({
+    id: "c".repeat(64),
+    kind,
+    pubkey: AUTHOR,
+    created_at: 1_780_000_100,
+    content: "Watch this https://cdn.example/clip.mp4 and https://cdn.example/still.jpg",
+    tags: [["title", "A clip"], ...tags],
+  });
+
+  it("shows the cover in place of the clip, and a placeholder in place of its picture, until asked", () => {
+    renderWithProviders(<EmbeddedNoteCard event={clip([["content-warning", "nudity"]])} author={{ name: "Maker" }} />);
+    const card = screen.getByTestId("embedded-note");
+    expect(screen.getByTestId("sensitive-cover")).toHaveTextContent(
+      "The creator marked this video as sensitive: nudity",
+    );
+    expect(screen.getByTestId("sensitive-tile")).toBeInTheDocument();
+    expect(card.querySelector("video, img[src*='still']")).toBeNull();
+    expect(card).toHaveTextContent("Watch this");
+
+    fireEvent.click(screen.getByRole("button", { name: "Show video" }));
+    expect(screen.queryByTestId("sensitive-cover")).toBeNull();
+    expect(screen.queryByTestId("sensitive-tile")).toBeNull();
+    expect(screen.getByTestId("feed-video-el").getAttribute("src")).toBe("https://cdn.example/clip.mp4");
+    expect(document.activeElement).toBe(screen.getByTestId("feed-video-el"));
+    expect(card.querySelector("img[src*='still']")).not.toBeNull();
+  });
+
+  it("is covered again when the card turns to a different flagged video", () => {
+    const first = clip([["content-warning", "nudity"]]);
+    const { rerender } = renderWithProviders(<EmbeddedNoteCard event={first} author={{ name: "Maker" }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show video" }));
+    expect(screen.queryByTestId("sensitive-cover")).toBeNull();
+    rerender(<EmbeddedNoteCard event={{ ...first, id: "f".repeat(64) }} author={{ name: "Maker" }} />);
+    expect(screen.getByTestId("sensitive-cover")).toBeInTheDocument();
+    expect(screen.queryByTestId("feed-video-el")).toBeNull();
+  });
+
+  it("with several clips, hands focus to the first one shown", () => {
+    const two = {
+      ...clip([["content-warning"]]),
+      content: "One https://cdn.example/first.mp4 two https://cdn.example/second.mp4",
+    };
+    renderWithProviders(<EmbeddedNoteCard event={two} author={{ name: "Maker" }} />);
+    expect(screen.getAllByTestId("sensitive-cover")).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole("button", { name: "Show video" })[1]);
+    const clips = screen.getAllByTestId("feed-video-el");
+    expect(clips.map((c) => c.getAttribute("src"))).toEqual([
+      "https://cdn.example/first.mp4",
+      "https://cdn.example/second.mp4",
+    ]);
+    expect(document.activeElement).toBe(clips[0]);
+  });
+
+  it("leaves an unflagged video, and a flagged note that is not a video event, as they were", () => {
+    const { unmount } = renderWithProviders(<EmbeddedNoteCard event={clip()} author={{ name: "Maker" }} />);
+    expect(screen.queryByTestId("sensitive-cover")).toBeNull();
+    expect(screen.getByTestId("feed-video-el")).toBeInTheDocument();
+    unmount();
+    renderWithProviders(<EmbeddedNoteCard event={clip([["content-warning"]], 1)} author={{ name: "Maker" }} />);
+    expect(screen.queryByTestId("sensitive-cover")).toBeNull();
+    expect(screen.getByTestId("feed-video-el")).toBeInTheDocument();
   });
 });

@@ -15,6 +15,8 @@ import { contentShape } from "@/lib/contentShape";
 import { formatEventDate, parseCalendarEvent, shortPlace } from "@/lib/calendarEvent";
 import { formatListingPrice, parseListing } from "@/lib/listing";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/lib/mediaKind";
+import { contentWarningOf, type ContentWarning } from "@/lib/nip36";
+import { VIDEO_KINDS } from "@/lib/nip71";
 import { describeDesignation } from "@/lib/nip85Declaration";
 import { parseHighlight } from "@/lib/nip84";
 import { describeThing, THING_KINDS } from "@/lib/thing";
@@ -45,6 +47,11 @@ export interface ResultSummary {
   image: string | null;
   /** The clip itself, when the event is a video: its first frame stands in for a missing or dead picture. */
   video: string | null;
+  /**
+   * The picture is a video's, and its creator marked it sensitive: the row draws a placeholder
+   * in its place. Decided with the picture, so a repost carries the reposted video's warning.
+   */
+  sensitive?: ContentWarning;
   /** Short, quiet, in order: a price, a date and place, a duration, a status. */
   facts: string[];
   /** The kind's own full page. */
@@ -297,13 +304,16 @@ function repostedEvent(ev: SummaryEvent): SummaryEvent | null {
 }
 
 function summarizeKind(ev: SummaryEvent): ResultSummary {
+  const image = genericImage(ev);
+  const video = genericVideo(ev);
   const base: ResultSummary = {
     title: genericTitle(ev),
     body: proseTag(ev),
     quote: null,
     shape: null,
-    image: genericImage(ev),
-    video: genericVideo(ev),
+    image,
+    video,
+    sensitive: video || (image && VIDEO_KINDS.has(ev.kind)) ? (contentWarningOf(ev) ?? undefined) : undefined,
     facts: [],
     href: eventPath(ev),
     ref: null,
@@ -446,6 +456,7 @@ function summarizeKind(ev: SummaryEvent): ResultSummary {
         quote: s.quote,
         image: s.image,
         video: s.video,
+        sensitive: s.sensitive,
         facts: [`Repost of ${who(of)}`],
       };
     }

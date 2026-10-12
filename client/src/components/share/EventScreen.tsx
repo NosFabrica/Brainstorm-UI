@@ -54,6 +54,8 @@ import { ThingHero, ThingSections, hasThingPage } from "@/components/share/thing
 import { ListingRelated } from "@/components/share/ListingRelated";
 import { EventHero } from "@/components/share/EventHero";
 import { VideoHero } from "@/components/share/VideoHero";
+import { isExpired } from "@/lib/nip40";
+import { VIDEO_KINDS, publishedAtOf } from "@/lib/nip71";
 import { HighlightHero } from "@/components/share/HighlightQuote";
 import { LiveHero } from "@/components/share/LiveHero";
 import { EventThread } from "@/components/share/EventThread";
@@ -112,8 +114,6 @@ function ago(ts?: number): string {
 }
 
 const NOTE_KINDS = new Set([1, 6, 16]);
-/** NIP-71 videos: normal / short, and their addressable twins (Divine ships 34236). */
-const VIDEO_EVENT_KINDS = new Set([21, 22, 34235, 34236]);
 const IMG_RE = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|#|$)/i;
 const VID_RE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
 
@@ -175,6 +175,10 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   // Deleted by overwriting (lib/blankEvent): the address still resolves, to a
   // husk. Say what happened rather than render an article called "[Deleted]".
   if (note && isBlankEvent(note)) return <DeletedEvent />;
+  // A video past its NIP-40 expiration: its author meant it to be gone by now.
+  // Video kinds only for now; every other kind still shows an expired event.
+  if (note && VIDEO_KINDS.has(note.kind) && isExpired(note, Math.floor(Date.now() / 1000)))
+    return <DeletedEvent expired />;
   // The kind decides, before any of the event layout's own queries run.
   if (note && READER_KINDS.has(note.kind)) {
     const d = note.tags.find((t) => t[0] === "d")?.[1] ?? "";
@@ -192,13 +196,13 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   return <EventView ptr={ptr} note={note} loading={eventQuery.loading} />;
 }
 
-function DeletedEvent() {
+function DeletedEvent({ expired = false }: { expired?: boolean }) {
   return (
     <div className="min-h-page bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <PublicPageHeader />
       <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-        <div className="py-10" data-testid="event-deleted">
-          <DeletedStub />
+        <div className="py-10" data-testid={expired ? "event-expired" : "event-deleted"}>
+          <DeletedStub expired={expired} />
           <p className="mt-4 text-center">
             <Link href="/" className="text-sm font-semibold text-brand-link hover:underline">
               Go to Brainstorm →
@@ -355,7 +359,7 @@ function EventView({
     !DEDICATED_KINDS.has(note.kind) &&
     !ITEM_LIST_KINDS.has(note.kind) &&
     !hasThingPage(note) &&
-    !VIDEO_EVENT_KINDS.has(note.kind) &&
+    !VIDEO_KINDS.has(note.kind) &&
     !(note.kind === 9802 && note.content.trim()) &&
     !NOTE_KINDS.has(note.kind);
   // The ⋯ in the header: copies of the event's ids and "Open in" another
@@ -545,7 +549,10 @@ function EventView({
                       />
                       <TierWordChip score01={score01} />
                     </div>
-                    <span className="block text-[13px] text-slate-500 dark:text-slate-400">{ago(note.created_at)}</span>
+                    {/* A video says when it was published: a restored Vine's created_at is its import day. */}
+                    <span className="block text-[13px] text-slate-500 dark:text-slate-400" data-testid="event-date">
+                      {ago(VIDEO_KINDS.has(note.kind) ? publishedAtOf(note) : note.created_at)}
+                    </span>
                   </div>
                 </Link>
                 {entityMenu}
@@ -606,7 +613,7 @@ function EventView({
                 // Communities, fundraisers, reviews, shops, apps, calendars,
                 // badges, emoji packs, playlists, lessons, torrents (lib/thing).
                 <ThingHero event={note} />
-              ) : VIDEO_EVENT_KINDS.has(note.kind) ? (
+              ) : VIDEO_KINDS.has(note.kind) ? (
                 <VideoHero event={note} />
               ) : note.kind === 9802 && note.content.trim() ? (
                 // A NIP-84 highlight: the passage marked in its paragraph, and the text it is from.
