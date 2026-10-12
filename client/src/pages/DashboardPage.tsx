@@ -613,10 +613,13 @@ export default function DashboardPage() {
 
         <AppHeader user={user} onLogout={handleLogout} active="dashboard" search={false} />
 
-        <div className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          <DeferredSessionNotice className="mb-6" />
+        {/* One column, one rhythm: every block is a direct child and the column's gap
+            is the only spacing between them — a block that renders nothing leaves no
+            hole, and nothing carries a margin of its own. */}
+        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
+          <DeferredSessionNotice />
 
-          <div className="mb-8 flex flex-col gap-6">
+          <div className="flex flex-col gap-4 sm:gap-6">
             <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
               {/* Compact: a page someone opens every day. The subtitle only speaks when
                   it has news (first run, no follows) — "active and growing" was a
@@ -1001,18 +1004,7 @@ export default function DashboardPage() {
               page said "wait" four or five times over and looked broken. The single
               CalculatingNotice above is the one statement; these appear when they
               have something to show. */}
-          <div className={`flex flex-col gap-4 ${isCalculationComplete ? "mb-6" : ""}`}>
-            {isCalculationComplete && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="flex w-full"
-              >
-                <AlertsBanner observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
-              </motion.div>
-            )}
-          </div>
+          {isCalculationComplete && <AlertsBanner observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />}
 
           {/* Someone put a public label on you. Nothing else in the app would
               ever tell you — self-hides when there's nothing new. Under "Your

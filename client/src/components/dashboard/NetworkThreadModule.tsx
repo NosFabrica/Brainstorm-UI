@@ -223,7 +223,7 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
     // confirm then open the profile. Without it these render as dead buttons.
     <ShareNavProvider>
       <Card
-        className="mb-6 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+        className="rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
         data-testid="card-network-thread"
       >
         <div className="mb-3 flex flex-wrap items-center gap-2">
