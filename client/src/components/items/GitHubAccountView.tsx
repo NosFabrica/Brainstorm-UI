@@ -16,8 +16,8 @@
  * `description` fields — the community concept's names for them — so a
  * copy that renames the handle leaves the item to the tier-two page.
  *
- * Between the name and GitHub's numbers, what the reader's network says as
- * three labelled facts (FromYourNetwork): who listed it, who vouches (the
+ * Under the name, GitHub's numbers (GitHubStats); then what the reader's
+ * network says as labelled facts (FromYourNetwork): who vouches (the
  * endorsers' faces, the people the reader follows first, with an Endorse
  * button for a signed-in reader: one "+", public and signed), and how far
  * the lister is. Then which Nostr profiles in the reader's web of trust
@@ -172,9 +172,11 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
         )}
       </div>
 
+      {facts && <GitHubStats facts={facts} />}
+
       <FromYourNetwork network={network} />
 
-      {facts && <OnGitHub facts={facts} />}
+      {facts && <TopRepos facts={facts} />}
 
       <OnNostr event={event} network={network} />
 
@@ -277,8 +279,8 @@ function hopsExplained(hops: number, lister: string): string {
 }
 
 /**
- * What the reader's network says, as labelled facts between the name and
- * GitHub's numbers: how many in the reader's network vouch for it (their
+ * What the reader's network says, as labelled facts between GitHub's
+ * numbers and the repos: how many in the reader's network vouch for it (their
  * faces, the Endorse button at the row's end), how far the lister is from
  * the reader in the follows graph, and — only when someone besides the
  * author filed the same handle — who else listed it. The author themself is
@@ -538,82 +540,82 @@ function Claimants({
 const TOP_REPOS = 3;
 const toUnix = (iso: string | null) => (iso ? Math.floor(new Date(iso).getTime() / 1000) : 0);
 
-/**
- * What GitHub says about the account: the numbers a reader judges a
- * developer by, then their best repos. Nothing here is a field of the list.
- */
-function OnGitHub({ facts }: { facts: GitHubAccountFacts }) {
-  const repos = topRepos(facts.repos, TOP_REPOS);
+/** GitHub's numbers, right under the name: the ones a reader judges a developer by. */
+function GitHubStats({ facts }: { facts: GitHubAccountFacts }) {
   const joined = facts.joinedAt ? new Date(facts.joinedAt).getUTCFullYear() : null;
   const active = facts.lastActiveAt ? relativeTime(toUnix(facts.lastActiveAt)) : null;
   return (
-    <div className="space-y-3" data-testid="github-account-facts">
-      <ul
-        className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300"
-        data-testid="github-account-stats"
-      >
+    <ul
+      className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300"
+      data-testid="github-account-stats"
+    >
+      <li className="inline-flex items-center gap-1.5">
+        <Users className="h-3.5 w-3.5 text-slate-400" />
+        <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+          {compactCount(facts.followers)}
+        </span>{" "}
+        followers
+      </li>
+      <li className="inline-flex items-center gap-1.5">
+        <FolderGit2 className="h-3.5 w-3.5 text-slate-400" />
+        <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+          {compactCount(facts.publicRepos)}
+        </span>{" "}
+        repos
+      </li>
+      {active && (
         <li className="inline-flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5 text-slate-400" />
-          <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
-            {compactCount(facts.followers)}
-          </span>{" "}
-          followers
+          <Activity className="h-3.5 w-3.5 text-slate-400" />
+          Active {active}
         </li>
-        <li className="inline-flex items-center gap-1.5">
-          <FolderGit2 className="h-3.5 w-3.5 text-slate-400" />
-          <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
-            {compactCount(facts.publicRepos)}
-          </span>{" "}
-          repos
-        </li>
-        {active && (
-          <li className="inline-flex items-center gap-1.5">
-            <Activity className="h-3.5 w-3.5 text-slate-400" />
-            Active {active}
-          </li>
-        )}
-        {joined && <li className="hidden sm:list-item">Joined {joined}</li>}
-        {facts.location && (
-          <li className="inline-flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5 text-slate-400" />
-            {facts.location}
-          </li>
-        )}
-      </ul>
-      {repos.length > 0 && (
-        <ul className="grid gap-2 sm:grid-cols-3" data-testid="github-account-repos">
-          {repos.map((repo) => (
-            <li
-              key={repo.url}
-              className="min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 dark:border-slate-700"
-              data-testid="github-account-repo"
-            >
-              <a
-                href={repo.url}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className="block truncate text-sm font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
-                title={repo.url}
-              >
-                {repo.name}
-              </a>
-              {repo.description && (
-                <p className="mt-0.5 line-clamp-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400 sm:line-clamp-2">
-                  {repo.description}
-                </p>
-              )}
-              <p className="mt-1.5 flex flex-wrap items-center gap-x-3 text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="inline-flex items-center gap-1 tabular-nums">
-                  <Star className="h-3 w-3" /> {compactCount(repo.stars)}
-                </span>
-                {repo.language && <span>{repo.language}</span>}
-                {repo.pushedAt && <span>{relativeTime(toUnix(repo.pushedAt))}</span>}
-              </p>
-            </li>
-          ))}
-        </ul>
       )}
-    </div>
+      {joined && <li className="hidden sm:list-item">Joined {joined}</li>}
+      {facts.location && (
+        <li className="inline-flex items-center gap-1.5">
+          <MapPin className="h-3.5 w-3.5 text-slate-400" />
+          {facts.location}
+        </li>
+      )}
+    </ul>
+  );
+}
+
+/** The account's best repos by stars, below what the network says. Nothing here is a field of the list. */
+function TopRepos({ facts }: { facts: GitHubAccountFacts }) {
+  const repos = topRepos(facts.repos, TOP_REPOS);
+  if (repos.length === 0) return null;
+  return (
+    <ul className="grid gap-2 sm:grid-cols-3" data-testid="github-account-repos">
+      {repos.map((repo) => (
+        <li
+          key={repo.url}
+          className="min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 dark:border-slate-700"
+          data-testid="github-account-repo"
+        >
+          <a
+            href={repo.url}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="block truncate text-sm font-semibold text-slate-900 hover:text-brand-link dark:text-slate-100"
+            title={repo.url}
+          >
+            {repo.name}
+          </a>
+          {repo.description && (
+            <p className="mt-0.5 line-clamp-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400 sm:line-clamp-2">
+              {repo.description}
+            </p>
+          )}
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-3 text-[11px] text-slate-500 dark:text-slate-400">
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <Star className="h-3 w-3" /> {compactCount(repo.stars)}
+            </span>
+            {repo.language && <span>{repo.language}</span>}
+            {repo.pushedAt && <span>{relativeTime(toUnix(repo.pushedAt))}</span>}
+          </p>
+        </li>
+      ))}
+    </ul>
   );
 }
 
