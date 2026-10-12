@@ -622,7 +622,7 @@ function EventView({
                 // badges, emoji packs, playlists, lessons, torrents (lib/thing).
                 <ThingHero event={note} />
               ) : VIDEO_KINDS.has(note.kind) ? (
-                <VideoHero event={note} />
+                <VideoHero event={note} nip05={profile.nip05} />
               ) : note.kind === 9802 && note.content.trim() ? (
                 // A NIP-84 highlight: the passage marked in its paragraph, and the text it is from.
                 <HighlightHero event={note} />

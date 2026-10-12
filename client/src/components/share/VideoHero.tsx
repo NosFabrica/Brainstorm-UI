@@ -8,17 +8,28 @@
  * extension — the imeta's `m video/*` is what makes it a video, not the
  * URL's tail.
  *
- * A short (22 / 34236) loops. Nothing starts by itself on this page. A video
+ * A short (22 / 34236) loops, and starts by itself, muted, once it is in
+ * view: the reader turns the sound on with the player's own controls. It
+ * waits for a press instead when the device asks for less motion or is on a
+ * slow or data-saving connection. A full-length video always waits. A video
  * its creator marked sensitive is covered until the reader asks for it: no
- * player and no poster are in the page before that.
+ * player and no poster are in the page before that, and once shown it waits
+ * for a press too.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Monitor, Smartphone } from "lucide-react";
 import { extractVideoPoster, extractVideoUrls } from "@/lib/noteContent";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { SHORT_VIDEO_KINDS, readVideo, type Video } from "@/lib/nip71";
-import { DivineWordmark } from "@/lib/brands";
+import { DivineWordmark, brandForHost } from "@/lib/brands";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { useAutoplayInView } from "@/lib/feedVideo";
+import { parseNip05 } from "@/lib/nip05";
+import { profileIdentifier } from "@/lib/shareId";
+import { videoShapeOf } from "@/lib/videoFrame";
+import { useNip05 } from "@/hooks/useNip05";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { Nip05Handle } from "@/components/Nip05Check";
 import { ReadingText } from "@/components/share/ReadingText";
 import { SensitiveCover } from "@/components/share/SensitiveMedia";
 import { useShareNav } from "@/components/share/ShareNavContext";
@@ -27,10 +38,9 @@ import { EmojiText } from "@/components/ui/custom-emoji";
 
 /** Upright for a portrait short, square for a square one (a Vine), wide for the rest or when the imeta gives no `dim`. */
 function frameClass(dim: Video["dim"]): string {
-  if (!dim) return "aspect-video w-full";
-  const { width, height } = dim;
-  if (Math.abs(width - height) / Math.max(width, height) <= 0.05) return "aspect-square w-full max-w-[36rem]";
-  return height > width ? "aspect-[9/16] max-h-[36rem]" : "aspect-video w-full";
+  const shape = videoShapeOf(dim);
+  if (shape === "square") return "aspect-square w-full max-w-[36rem]";
+  return shape === "portrait" ? "aspect-[9/16] max-h-[36rem]" : "aspect-video w-full";
 }
 
 /** "6s" for a short; "1:05" from a minute up. */
@@ -53,20 +63,99 @@ const hashtagsIn = (text: string) =>
 /** A row or two of chips; an event can carry dozens of `t` tags. */
 const MAX_HASHTAGS = 12;
 
-export function VideoHero({ event }: { event: MinimalEvent }) {
+/**
+ * The page's own player. One per video file (keyed by its address), so the
+ * in-view watch starts over when the page turns to another video, and a newer
+ * version of the event with the same file leaves the player as it is. It is
+ * the page's lead (lib/feedVideo): a clip in a reply does not start over it.
+ *
+ * The watch begins once, when the device allows it: as the video appears, or a
+ * moment later (a browser's first reading of the connection can be wrong on a
+ * cold load) if the reader has not started the video themselves by then. The
+ * video is muted at that moment and never again, and the watch is not taken
+ * back: a connection that changes afterwards cannot mute or start a video the
+ * reader has set as they want it. If the device stops allowing it later
+ * (reduced motion or a data saver turned on) what is playing is left alone,
+ * and the watch starts nothing while that lasts.
+ */
+function HeroPlayer({
+  src,
+  poster,
+  label,
+  loop,
+  autoplay,
+  takeFocus,
+}: {
+  src: string;
+  poster?: string;
+  label?: string;
+  loop: boolean;
+  autoplay: boolean;
+  takeFocus: boolean;
+}) {
   const speed = useConnectionSpeed();
+  const player = useRef<HTMLVideoElement>(null);
+  // Off to on, once.
+  const [watched, setWatched] = useState(autoplay);
+  useEffect(() => {
+    const el = player.current;
+    if (autoplay && !watched && el && el.paused && el.currentTime === 0) setWatched(true);
+  }, [autoplay, watched]);
+  // After "Show video" focus follows to the video: the button that had it is gone.
+  useEffect(() => {
+    if (takeFocus) player.current?.focus();
+  }, [takeFocus]);
+  // Muted on the element itself, so the browser lets it start (React's `muted`
+  // attribute is unreliable for this). Once, as the watch begins: the sound is
+  // the reader's to set from then on, with the controls.
+  useEffect(() => {
+    if (watched && player.current) player.current.muted = true;
+  }, [watched]);
+  // The device's wish now, for a watch already begun.
+  const held = useRef(!autoplay);
+  useEffect(() => {
+    held.current = !autoplay;
+  }, [autoplay]);
+  useAutoplayInView(player, watched, true, held);
+  return (
+    <video
+      ref={player}
+      tabIndex={0}
+      src={src}
+      poster={poster}
+      controls
+      playsInline
+      loop={loop}
+      preload={videoPreload(speed)}
+      aria-label={label}
+      className="h-full w-full object-contain"
+      data-testid="video-hero-player"
+    />
+  );
+}
+
+export function VideoHero({ event, nip05 }: { event: MinimalEvent; nip05?: string | null }) {
+  const speed = useConnectionSpeed();
+  const reduce = usePrefersReducedMotion();
   const requestNav = useShareNav();
   const video = useMemo(() => readVideo(event), [event]);
   // Shown once the reader asks, for this visit and this video only: a
-  // different event drawn in the same place asks again. Focus follows to the
-  // video: the button that had it is gone.
+  // different event drawn in the same place asks again.
   const [shownId, setShownId] = useState<string | null>(null);
   if (shownId !== null && shownId !== event.id) setShownId(null);
   const shown = shownId === event.id;
-  const player = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    if (shown) player.current?.focus();
-  }, [shown]);
+  const short = SHORT_VIDEO_KINDS.has(event.kind);
+  // A flagged video never starts by itself, even once shown: the reader pressed
+  // a button to see it, and it waits for the next press.
+  const autoplay = short && !video.contentWarning && !reduce && speed === "normal";
+  // The creator's page on Divine, and their handle there once its domain
+  // confirms it (a kind-0 `nip05` alone is a claim anyone can copy). Only a
+  // handle on divine.video: beside Divine's links any other would read as
+  // Divine's word, and the byline already marks it.
+  const creatorNpub = video.divineUrl ? profileIdentifier(event.pubkey) : "";
+  const divineHandle =
+    video.divineUrl && brandForHost(parseNip05(nip05)?.domain)?.name === "Divine" ? nip05 : undefined;
+  const handleVerified = useNip05(divineHandle, event.pubkey) === "verified";
   const tag = (k: string) => event.tags.find((t) => t[0] === k)?.[1];
   const url = extractVideoUrls(event.content ?? "", event.tags)[0] ?? tag("url");
   const poster = extractVideoPoster(event.content ?? "", event.tags);
@@ -93,18 +182,14 @@ export function VideoHero({ event }: { event: MinimalEvent }) {
             className="h-full w-full"
           />
         ) : url ? (
-          <video
-            ref={player}
-            tabIndex={0}
+          <HeroPlayer
+            key={url}
             src={url}
             poster={poster}
-            controls
-            playsInline
-            loop={SHORT_VIDEO_KINDS.has(event.kind)}
-            preload={videoPreload(speed)}
-            aria-label={video.alt || title || undefined}
-            className="h-full w-full object-contain"
-            data-testid="video-hero-player"
+            label={video.alt || title || undefined}
+            loop={short}
+            autoplay={autoplay}
+            takeFocus={shown}
           />
         ) : poster ? (
           <img src={poster} alt="" className="h-full w-full object-contain" />
@@ -178,6 +263,27 @@ export function VideoHero({ event }: { event: MinimalEvent }) {
                 <DivineWordmark />
               </span>
             </a>
+          )}
+          {/* In words: the wordmark is drawn once, on the link beside it. */}
+          {creatorNpub && (
+            <a
+              href={`https://divine.video/profile/${creatorNpub}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center text-[13px] font-medium text-slate-600 hover:underline dark:text-slate-300"
+              data-testid="video-hero-divine-creator"
+            >
+              Creator on Divine
+            </a>
+          )}
+          {handleVerified && (
+            <Nip05Handle
+              nip05={divineHandle}
+              pubkey={event.pubkey}
+              className="inline-flex min-w-0 items-center gap-1 text-[13px] text-slate-500 dark:text-slate-400"
+              iconClassName="h-3.5 w-3.5 shrink-0 text-sky-500"
+              testId="video-hero-handle"
+            />
           )}
         </div>
       )}
