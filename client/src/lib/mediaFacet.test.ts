@@ -1,12 +1,13 @@
 // @vitest-environment node
 /**
- * The Media tab's two chips that change what is asked. A chosen chip is
- * tokens in the query, so the page's URL (`q`) is the whole of its state: a
- * link reproduces it, and the box shows it as pills.
+ * The Media tab's two chips that change what is asked. A chosen chip is one
+ * token in the query, so the page's URL (`q`) is the whole of its state: a
+ * link reproduces it, and the box shows it as a pill.
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
 import { VIDEO_KINDS } from "./nip71";
+import { parseQuery } from "./searchQuery";
 import {
   VIDEO_FACET_KINDS,
   isClassicVinesTopic,
@@ -26,35 +27,42 @@ describe("the Videos facet", () => {
     expect([...VIDEO_FACET_KINDS].sort()).toEqual([...VIDEO_KINDS].sort());
   });
 
-  it("is the four video kinds as kind: tokens", () => {
-    expect(withMediaFacet("", "videos")).toBe("kind:21 kind:22 kind:34235 kind:34236");
+  it("is `kind:video`, the grammar's one word for the four video kinds", () => {
+    expect(withMediaFacet("", "videos")).toBe("kind:video");
+    expect(mediaFacetOf("kind:video")).toBe("videos");
+    expect(parseQuery("kind:video").kinds).toEqual([...VIDEO_FACET_KINDS]);
+  });
+
+  it("the four kinds typed out are the same request, so the same chip", () => {
     expect(mediaFacetOf("kind:21 kind:22 kind:34235 kind:34236")).toBe("videos");
+    expect(withMediaFacet("skate kind:21 kind:22 kind:34235 kind:34236", null)).toBe("skate");
   });
 
   it("keeps the words, the person and the panel's tokens beside it", () => {
     const q = withMediaFacet(`skate from:${npub} sort:recent`, "videos");
-    expect(q).toBe(`skate from:${npub} sort:recent kind:21 kind:22 kind:34235 kind:34236`);
+    expect(q).toBe(`skate from:${npub} sort:recent kind:video`);
     expect(mediaFacetOf(q)).toBe("videos");
   });
 
   it("round-trips through the URL", () => {
     const q = withMediaFacet("skate", "videos");
+    expect(throughUrl(q)).toBe("skate kind:video");
     expect(mediaFacetOf(throughUrl(q))).toBe("videos");
     expect(withMediaFacet(throughUrl(q), null)).toBe("skate");
   });
 
   it("a hand-typed kind is the reader's own narrowing, not the chip", () => {
     expect(mediaFacetOf("kind:34236")).toBeNull();
-    expect(mediaFacetOf("kind:21 kind:22 kind:34235 kind:34236 kind:20")).toBeNull();
+    expect(mediaFacetOf("kind:video kind:20")).toBeNull();
     // Choosing the chip replaces it rather than stacking beside it.
-    expect(withMediaFacet("kind:34236 skate", "videos")).toBe("skate kind:21 kind:22 kind:34235 kind:34236");
+    expect(withMediaFacet("kind:34236 skate", "videos")).toBe("skate kind:video");
   });
 
   it("taken off, leaves the rest of the query as it was", () => {
-    expect(withMediaFacet("skate kind:21 kind:22 kind:34235 kind:34236 #fun", null)).toBe("skate #fun");
-    expect(withMediaFacet("kind:21 kind:22 kind:34235 kind:34236", null)).toBe("");
+    expect(withMediaFacet("skate kind:video #fun", null)).toBe("skate #fun");
+    expect(withMediaFacet("kind:video", null)).toBe("");
     // A kind that is not a video's was typed by hand, and stays.
-    expect(withMediaFacet("kind:20 kind:21 kind:22 kind:34235 kind:34236", null)).toBe("kind:20");
+    expect(withMediaFacet("kind:20 kind:video", null)).toBe("kind:20");
   });
 });
 
@@ -80,9 +88,7 @@ describe("the Classic Vines facet", () => {
 
   it("one chip at a time: choosing one takes the other off", () => {
     expect(withMediaFacet(withMediaFacet("cats", "videos"), "vines")).toBe("cats #vine-archive");
-    expect(withMediaFacet(withMediaFacet("cats", "vines"), "videos")).toBe(
-      "cats kind:21 kind:22 kind:34235 kind:34236",
-    );
+    expect(withMediaFacet(withMediaFacet("cats", "vines"), "videos")).toBe("cats kind:video");
   });
 
   it("another hashtag is not it", () => {
@@ -122,8 +128,8 @@ describe("mediaNarrowingOf — what a Media query narrows the tab to", () => {
     expect(mediaNarrowingOf(`cats from:${npub} #funny sort:recent`)).toBeNull();
   });
 
-  it("`video:` and the four kinds typed out are the video kinds", () => {
-    for (const q of ["video:", "kind:21 kind:22 kind:34235 kind:34236"]) {
+  it("`kind:video` and the four kinds typed out are the video kinds", () => {
+    for (const q of ["kind:video", "kind:21 kind:22 kind:34235 kind:34236"]) {
       const narrowing = mediaNarrowingOf(q)!;
       expect(narrowing.kinds).toEqual([21, 22, 34235, 34236]);
       expect([1, 20, 21, 22, 34235, 34236, 1063].filter((kind) => narrowing.has(event(kind)))).toEqual([
@@ -152,6 +158,6 @@ describe("mediaNarrowingOf — what a Media query narrows the tab to", () => {
     const narrowing = mediaNarrowingOf("#vine-archive kind:21")!;
     expect(narrowing.kinds).toEqual([]);
     expect(narrowing.has(vine)).toBe(false);
-    expect(mediaNarrowingOf("#vine-archive video:")!.has(vine)).toBe(true);
+    expect(mediaNarrowingOf("#vine-archive kind:video")!.has(vine)).toBe(true);
   });
 });

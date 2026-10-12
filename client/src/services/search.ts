@@ -518,7 +518,7 @@ export function searchStream(
     // 2026-10-12). Asked as a hashtag it is a `#t` filter that finds none of them and an `#l`
     // filter at a quarter of the page, over every media kind; asked as the chip it is their
     // one kind with the label on every filter, a whole page. A preview band is not the tab.
-    // (The Videos chip needs nothing here: it is `kind:` tokens, narrowed just below.)
+    // (The Videos chip needs nothing here: it is `kind:video`, a typed kind, narrowed just below.)
     const vines = params.tab === "media" && !params.band && !params.kinds && mediaFacetOf(query) === "vines";
     const tabKinds =
       params.kinds ??

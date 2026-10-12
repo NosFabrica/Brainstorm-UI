@@ -46,6 +46,7 @@ describe("the syntax sheet", () => {
       "reach:follows",
       "kind:",
       "spec:",
+      "kind:video",
       '"exact phrase"',
       "-word",
     ]) {

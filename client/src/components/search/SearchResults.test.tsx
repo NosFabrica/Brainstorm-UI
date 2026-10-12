@@ -3480,8 +3480,8 @@ describe("SearchResults", () => {
       expect(asked).toContainEqual([1, 20, 21, 22, 34235, 34236]);
     });
 
-    it("with `video:` it is video events alone, and only those are asked for", async () => {
-      const { cards, asked } = await leadFor(`${from} video:`);
+    it("with `kind:video` it is video events alone, and only those are asked for", async () => {
+      const { cards, asked } = await leadFor(`${from} kind:video`);
       expect(cards).toEqual(["long", "short", "vine"]);
       expect(asked).toContainEqual(VIDEO_KINDS);
       expect(asked).not.toContainEqual([1, 20, 21, 22, 34235, 34236]);
@@ -3579,7 +3579,7 @@ describe("SearchResults", () => {
       timeMs: 120,
     };
   };
-  const VIDEOS = "kind:21 kind:22 kind:34235 kind:34236";
+  const VIDEOS = "kind:video";
 
   it("the Media tab sorts a mixed page by photos or audio, counted", async () => {
     setUrlTab("media");
@@ -3636,7 +3636,7 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("media-facet-video")).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("choosing Videos rewrites the query to the four video kinds, and All takes them off", async () => {
+  it("choosing Videos rewrites the query to ask for videos, and All takes them off", async () => {
     setUrlTab("media");
     const onQueryRewrite = vi.fn();
     const view = render(<SearchResults query="sunset sort:rank" pov="nosfabrica" onQueryRewrite={onQueryRewrite} />);

@@ -163,6 +163,16 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
                 what: "Only events of that kind — drawn by name where this app has a word for it.",
               },
               {
+                token: "kind:video",
+                what: (
+                  <>
+                    Videos, long and short (kinds 21, 22, 34235 and 34236). The one word{" "}
+                    <code className="font-mono text-[12px]">kind:</code> takes. The Media tab&apos;s <b>Videos</b> chip
+                    writes it.
+                  </>
+                ),
+              },
+              {
                 token: "spec:",
                 what: (
                   <>

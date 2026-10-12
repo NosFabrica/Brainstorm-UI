@@ -865,7 +865,7 @@ export function SearchResults({
   // Music tab leads with the person's own tracks the same way.
   const leadsTop = tab === "top" && !/(^|\s)sort:/i.test(query);
   const leadsMusic = tab === "music" && !scopeOf(query);
-  // On the Media tab the lead is held to what the tab is narrowed to (`kind:`, `video:`,
+  // On the Media tab the lead is held to what the tab is narrowed to (`kind:`, `kind:video`,
   // Classic Vines): a page asked for as videos does not lead with the person's pictures. Only
   // the kinds that can pass are asked for, and a narrowing none of them fits asks nothing.
   const leadNarrowing = useMemo(() => (tab === "media" ? mediaNarrowingOf(query) : null), [tab, query]);
@@ -1355,7 +1355,8 @@ export function SearchResults({
   const rates = useBtcRates(tab === "shop");
   const viewerFiat = useMemo(() => viewerCurrency(), []);
   const bands = useMemo(() => priceBands(viewerFiat), [viewerFiat]);
-  // Photos · Videos · Audio — the Media tab's one narrowing (lib/mediaKind).
+  // Photos and Audio sort through the loaded page (lib/mediaKind). Videos and Classic Vines
+  // change what is asked instead (`mediaFacet`, lib/mediaFacet).
   const [mediaKind, setMediaKind] = useState<MediaKind | null>(null);
   // Sorting through the page is for a page of mixed kinds; one asked for as videos or Vines has none.
   const pageKind = mediaFacet ? null : mediaKind;

@@ -871,13 +871,14 @@ describe("token lifting", () => {
   });
 });
 
-// The Media tab's two chips that change the request (lib/mediaFacet). A chosen chip is tokens
+// The Media tab's two chips that change the request (lib/mediaFacet). A chosen chip is a token
 // in the query, so what is tested here is what the query the chip writes puts on the wire.
 describe("the Media tab's Videos and Classic Vines", () => {
   const alice = "a".repeat(64);
 
   it("Videos asks the four video kinds and nothing else", async () => {
     controllable();
+    expect(withMediaFacet("", "videos")).toBe("kind:video");
     searchStream(withMediaFacet("", "videos"), { tab: "media", pov: "nosfabrica" }, () => {});
     await tick();
     expect(askedFilters()).toHaveLength(1);
@@ -895,6 +896,42 @@ describe("the Media tab's Videos and Classic Vines", () => {
       authors: [alice],
       search: `skate observer:${HOUSE}`,
     });
+  });
+
+  // `kind:video` is the four numeric kinds said in one token, wherever it is typed: a tab that
+  // holds no videos asks nothing for either spelling, and a tab with no kinds of its own asks
+  // exactly those four.
+  it("off the Media tab, `kind:video` asks what the four numeric kinds ask", async () => {
+    const NUMERIC = "kind:21 kind:22 kind:34235 kind:34236";
+    for (const tab of ["notes", "articles"] as const) {
+      for (const typed of ["kind:video", NUMERIC]) {
+        reqMock.mockClear();
+        controllable();
+        const snaps: SearchSnapshot[] = [];
+        searchStream(`dog ${typed}`, { tab, pov: "nosfabrica" }, (s) => snaps.push(s));
+        await tick();
+        expect(reqMock).not.toHaveBeenCalled();
+        expect(snaps.at(-1)).toMatchObject({ hits: [], eose: true, exhausted: true });
+      }
+    }
+    const askedOnAll: Record<string, unknown>[][] = [];
+    for (const typed of ["kind:video", NUMERIC]) {
+      reqMock.mockClear();
+      controllable();
+      searchStream(`dog ${typed}`, { tab: "all", pov: "nosfabrica" }, () => {});
+      await tick();
+      askedOnAll.push(askedFilters());
+    }
+    expect(askedOnAll[0]).toEqual([{ kinds: [21, 22, 34235, 34236], search: `dog observer:${HOUSE}`, limit: 100 }]);
+    expect(askedOnAll[1]).toEqual(askedOnAll[0]);
+  });
+
+  it("a sentence with the word video in it is searched as its words, on every kind the tab holds", async () => {
+    controllable();
+    searchStream("Video: Bitcoin explained", { tab: "notes", pov: "nosfabrica" }, () => {});
+    await tick();
+    expect(asked().kinds).toEqual(TAB_KINDS.notes);
+    expect(asked().search).toBe(`Video: Bitcoin explained observer:${HOUSE}`);
   });
 
   // Probed on the search relay (2026-10-12): a restored Vine carries `["l","vine-archive",…]`

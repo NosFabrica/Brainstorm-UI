@@ -456,10 +456,10 @@ describe("a # query that is more than one tag", () => {
   });
 });
 
-// The Media tab's Videos and Classic Vines chips are tokens in the query (lib/mediaFacet), so
+// The Media tab's Videos and Classic Vines chips are a token in the query (lib/mediaFacet), so
 // the address bar's `q` is the whole of their state.
 describe("the Media tab's Videos and Classic Vines chips", () => {
-  const VIDEOS = "kind:21 kind:22 kind:34235 kind:34236";
+  const VIDEOS = "kind:video";
   const params = () => new URLSearchParams(window.location.search);
   const mediaAsks = () =>
     streamMock.mock.calls.filter(([, p]) => (p as { tab?: string }).tab === "media").map(([q]) => String(q));

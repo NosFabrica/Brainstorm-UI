@@ -191,8 +191,8 @@ export interface LiftedQuery {
   "#t"?: string[];
   since?: number;
   until?: number;
-  /** `kind:N` tokens, and `spec:` as the word for kind 30817 — typed by agents
-   *  and power users; no chip exposes them. */
+  /** `kind:N` tokens, `kind:video` for NIP-71's four, and `spec:` as the word for kind 30817 —
+   *  typed by agents and power users; the Media tab's Videos chip writes `kind:video`. */
   kinds?: number[];
 }
 

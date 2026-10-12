@@ -314,6 +314,43 @@ describe("ymd", () => {
   });
 });
 
+// One chip on the Media tab asks for videos; written as four `kind:` tokens it filled a phone's
+// box with four pills. `kind:video` is the one named value `kind:` takes: all four at once. It
+// is a value of an operator that otherwise takes digits, so no sentence can write it by
+// accident. A word of its own (`video:`) could, and did: "Video: Bitcoin explained".
+describe("kind:video — the named value for the NIP-71 video kinds", () => {
+  it("comes out of the terms as the four kinds, in one token", () => {
+    const q = parseQuery("skate kind:video");
+    expect(q.kinds).toEqual([21, 22, 34235, 34236]);
+    expect(q.terms).toBe("skate");
+    expect(types("skate kind:video")).toEqual(["text", "kind"]);
+    expect(parseQuery("Kind:Video").kinds).toEqual([21, 22, 34235, 34236]);
+  });
+
+  it("beside a kind it already names, asks each kind once", () => {
+    expect(parseQuery("kind:34236 kind:video kind:20").kinds).toEqual([34236, 21, 22, 34235, 20]);
+  });
+
+  it("the word video in a sentence is a word, colon or not", () => {
+    for (const prose of ["music video: the making of", "Video: Bitcoin explained", "video:", "music video"]) {
+      const q = parseQuery(prose);
+      expect(q.kinds).toEqual([]);
+      expect(q.terms).toBe(prose);
+      expect(q.words).toBe(prose);
+      expect(types(prose)).toEqual(["text"]);
+    }
+  });
+
+  it("any other word after kind: is plain text, as it always was", () => {
+    for (const typed of ["kind:videos", "kind:video-art", "kind:photo", "kind:foo", "kind:"]) {
+      expect(types(typed)).toEqual(["text"]);
+      expect(parseQuery(typed).kinds).toEqual([]);
+      expect(parseQuery(typed).terms).toBe(typed);
+    }
+    expect(types("https://x.com/kind:video")).toEqual(["text"]);
+  });
+});
+
 // A pill that reads "34236" answers nothing; the words are the ones lib/kindFamily uses.
 describe("kindNoun — what a kind: pill says", () => {
   it("names the four NIP-71 video kinds", () => {

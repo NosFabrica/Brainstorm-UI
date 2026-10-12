@@ -150,7 +150,7 @@ describe("pills over the value", () => {
     expect(pills[2].title).toBe("kind:31999 — only events of kind 31999");
   });
 
-  // The Media tab's Videos chip is these four kinds; a hand-typed `kind:34236` is Divine's shorts.
+  // The four NIP-71 kinds, typed one by one; a hand-typed `kind:34236` is Divine's shorts.
   it("a video kind's pill says video or short video, never the number", () => {
     mount({ value: "kind:21 kind:22 kind:34235 kind:34236" });
     const pills = [...box().querySelectorAll('[data-type="kind"]')] as HTMLElement[];
@@ -161,6 +161,18 @@ describe("pills over the value", () => {
       "kind:short videos",
     ]);
     expect(pills[3].title).toBe("kind:34236 — only short videos (kind 34236)");
+  });
+
+  it("kind:video is one pill for all four, and says so on hover", () => {
+    mount({ value: "skate kind:video" });
+    const pills = [...box().querySelectorAll('[data-type="kind"]')] as HTMLElement[];
+    expect(pills.map((p) => p.textContent?.replace("×", "").trim())).toEqual(["kind:videos"]);
+    expect(pills[0].title).toBe("kind:video — only videos (kinds 21, 22, 34235, 34236)");
+  });
+
+  it("the word video before a colon draws no pill", () => {
+    mount({ value: "Video: Bitcoin explained" });
+    expect(box().querySelectorAll("[data-token]")).toHaveLength(0);
   });
 
   it("the ranking tokens pill too, where the relay's own field leaves them as bare text", () => {

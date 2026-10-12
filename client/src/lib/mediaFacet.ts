@@ -6,20 +6,22 @@
  *  - **Classic Vines** asks the Vines Divine restored from the archive: kind
  *    34236 carrying the NIP-32 label `vine-archive`.
  *
- * A chosen chip is tokens in the query, not state of its own: Videos is the
- * `kind:` tokens `services/search` already narrows a tab by, and Classic
- * Vines is the hashtag `#vine-archive`. So the address bar's `q` holds it, a
- * link reproduces it, Back undoes it, and the box shows it as pills a reader
- * can take off.
+ * A chosen chip is one token in the query, not state of its own: Videos is
+ * `kind:video`, the grammar's name for the four kinds, which `services/search`
+ * narrows a tab by as it does any typed `kind:`; Classic Vines is the hashtag
+ * `#vine-archive`. So the address bar's `q` holds it, a link reproduces it,
+ * Back undoes it, and the box shows it as a pill a reader can take off.
  */
-import { parseQuery, tokenize, type Segment } from "@/lib/searchQuery";
+import { VIDEO_KINDS_ASKED, parseQuery, tokenize, type Segment } from "@/lib/searchQuery";
 
 export type MediaFacet = "videos" | "vines";
 
 export const MEDIA_FACET_LABELS: Record<MediaFacet, string> = { videos: "Videos", vines: "Classic Vines" };
 
-/** NIP-71's kinds, in the order the Media tab lists them. lib/nip71's `VIDEO_KINDS`, held equal by the test. */
-export const VIDEO_FACET_KINDS: readonly number[] = [21, 22, 34235, 34236];
+/** What Videos asks: NIP-71's kinds. lib/nip71's `VIDEO_KINDS`, held equal by the test. */
+export const VIDEO_FACET_KINDS = VIDEO_KINDS_ASKED;
+/** The token the Videos chip writes. */
+const VIDEO_TOKEN = "kind:video";
 
 /** The label the archive's importer puts on every restored Vine, and the hashtag that asks for it. */
 export const VINE_ARCHIVE_LABEL = "vine-archive";
@@ -29,8 +31,9 @@ export const CLASSIC_VINE_KIND = 34236;
 const isVideoKind = (kind: number) => VIDEO_FACET_KINDS.includes(kind);
 
 /**
- * Which chip a query carries. Videos is exactly the four kinds: a hand-typed
- * `kind:34236` is the reader's own narrowing and presses nothing.
+ * Which chip a query carries. Videos is exactly the four kinds, as
+ * `kind:video` or typed out one by one: a hand-typed `kind:34236` is the
+ * reader's own narrowing and presses nothing.
  */
 export function mediaFacetOf(query: string): MediaFacet | null {
   const q = parseQuery(query);
@@ -48,7 +51,7 @@ export interface MediaNarrowing {
 
 /**
  * What a query narrows the Media tab to, or null when it narrows nothing: its
- * typed kinds (`kind:`, `video:`) and, for Classic Vines, kind 34236 carrying
+ * typed kinds (`kind:N`, `kind:video`) and, for Classic Vines, kind 34236 carrying
  * the archive's label. `services/search` asks the relay this; what the page
  * adds beside the relay's answer (the lead group of a named person's own
  * media) is held to the same test.
@@ -92,15 +95,12 @@ export function withoutVineArchiveTag(query: string): string {
 export function withMediaFacet(query: string, facet: MediaFacet | null): string {
   const rest = without(
     query,
-    (seg) => (seg.type === "tag" && seg.tag === VINE_ARCHIVE_LABEL) || (seg.type === "kind" && isVideoKind(seg.value)),
+    (seg) =>
+      (seg.type === "tag" && seg.tag === VINE_ARCHIVE_LABEL) ||
+      (seg.type === "kind" && (seg.values ?? [seg.value]).every(isVideoKind)),
   );
-  const tokens =
-    facet === "videos"
-      ? VIDEO_FACET_KINDS.map((kind) => `kind:${kind}`).join(" ")
-      : facet === "vines"
-        ? `#${VINE_ARCHIVE_LABEL}`
-        : "";
-  return `${rest} ${tokens}`.trim();
+  const token = facet === "videos" ? VIDEO_TOKEN : facet === "vines" ? `#${VINE_ARCHIVE_LABEL}` : "";
+  return `${rest} ${token}`.trim();
 }
 
 /**
