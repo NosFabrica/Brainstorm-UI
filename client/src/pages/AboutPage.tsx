@@ -1,12 +1,8 @@
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, ArrowRight, ExternalLink, Play, Pause, Store, ShieldCheck, Globe, Lock } from "lucide-react";
-import { CommunitiesIcon, MusicLibraryIcon } from "@/components/brainstormAppIcons";
-import { Card } from "@/components/ui/card";
-import { Chip } from "@/components/ui/chip";
-import { tone as getTone, type NamedTone } from "@/lib/tones";
-import { cn } from "@/lib/utils";
+import { Search, ArrowRight, ExternalLink, Play, Pause, ShieldCheck, Globe, Lock } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { BrainstormFamily } from "@/components/about/BrainstormFamily";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { BrainLogo } from "@/components/BrainLogo";
 import heroVideo from "@assets/generated_videos/about_hero_real_connection.mp4";
@@ -267,60 +263,7 @@ export default function AboutPage() {
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Search — live */}
-          <button
-            onClick={() => navigate("/")}
-            className="group flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-brand-accent/50 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 sm:p-6"
-            data-testid="card-family-search"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-primary shadow-[0_4px_14px_rgb(var(--brand-primary)/0.3)]">
-                <Search className="h-5 w-5 text-white" />
-              </div>
-              <Chip tone="emerald" dot size="sm" className="font-bold uppercase tracking-wide">
-                Live
-              </Chip>
-            </div>
-            <h3
-              className="text-lg font-bold text-slate-900 dark:text-slate-100"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Brainstorm Search
-            </h3>
-            <p className="flex-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-              Find real people across millions of profiles. Search by name, bio, or handle.
-            </p>
-            <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-primary transition-all group-hover:gap-2">
-              Open search <ArrowRight className="h-4 w-4" />
-            </span>
-          </button>
-
-          {/* Vendors */}
-          <ComingSoonCard
-            icon={Store}
-            tone="sky"
-            title="Brainstorm Vendors"
-            desc="Find sellers and services worth your money, vouched for by people you trust."
-            testId="card-family-vendors"
-          />
-          {/* Communities */}
-          <ComingSoonCard
-            icon={CommunitiesIcon}
-            tone="violet"
-            title="Brainstorm Communities"
-            desc="Hang out in spaces full of people actually worth your time."
-            testId="card-family-communities"
-          />
-          {/* Music */}
-          <ComingSoonCard
-            icon={MusicLibraryIcon}
-            tone="fuchsia"
-            title="Brainstorm Music"
-            desc="Tunes worth a listen, picked by ears you trust instead of the charts."
-            testId="card-family-music"
-          />
-        </div>
+        <BrainstormFamily navigate={navigate} />
       </section>
 
       {/* ============ THEMATIC BANDS ============ */}
@@ -387,41 +330,6 @@ export default function AboutPage() {
         </div>
       </section>
     </InfoPageLayout>
-  );
-}
-
-function ComingSoonCard({
-  icon: Icon,
-  tone,
-  title,
-  desc,
-  testId,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  tone: NamedTone;
-  title: string;
-  desc: string;
-  testId: string;
-}) {
-  const c = getTone(tone);
-  return (
-    <Card className="flex flex-col gap-3 p-5 sm:p-6" data-testid={testId}>
-      <div className="flex items-center justify-between">
-        <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl border", c.bg, c.border)}>
-          <Icon className={cn("h-5 w-5", c.icon)} />
-        </div>
-        <Chip tone="slate" size="sm" className="font-bold uppercase tracking-wide">
-          Coming soon
-        </Chip>
-      </div>
-      <h3
-        className="text-lg font-bold text-slate-800 dark:text-slate-200"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        {title}
-      </h3>
-      <p className="flex-1 text-sm leading-relaxed text-slate-500 dark:text-slate-400">{desc}</p>
-    </Card>
   );
 }
 
