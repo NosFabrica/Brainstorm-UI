@@ -15,6 +15,7 @@ import {
   cleanSubjects,
   languageName,
   similarBooks,
+  topSubjects,
 } from "./books";
 
 const LIBRARIAN = "6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b";
@@ -144,6 +145,24 @@ describe("cleanSubjects and languageName", () => {
     expect(languageName("eng")).toBe("English");
     expect(languageName("fre")).toBe("French");
     expect(languageName("xx-nonsense")).toBeNull();
+  });
+});
+
+describe("topSubjects", () => {
+  it("the few a reader would recognise: the shortest first, catalogue headings left out, capped", () => {
+    const all = [
+      "History of the middle east",
+      "Criminology and law enforcement",
+      "Intelligence service, israel",
+      "Israel, politics and government",
+      "Intelligence service",
+      "History",
+      "Politics and government",
+      "Israel. Mosad le-modiʻin ṿe-tafkidim meyuḥadim",
+      "Israel",
+    ];
+    expect(topSubjects(all, 4)).toEqual(["Israel", "History", "Intelligence service", "Politics and government"]);
+    expect(topSubjects(["History", "Roman Empire"], 4)).toEqual(["History", "Roman Empire"]);
   });
 });
 

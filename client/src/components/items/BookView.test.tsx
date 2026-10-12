@@ -208,9 +208,9 @@ describe("BookView", () => {
     expect(within(hero).getByRole("heading", { level: 1 })).toHaveTextContent("The storm before the storm");
     expect(within(hero).getByTestId("book-author")).toHaveTextContent("Michael Duncan");
     expect(within(hero).getByTestId("book-meta")).toHaveTextContent("2017 · 327 pages · English");
-    expect(screen.getByTestId("book-subjects")).toHaveTextContent("History");
-    expect(screen.getByTestId("book-subjects")).toHaveTextContent("Roman Empire");
+    expect(screen.getByTestId("book-subjects")).toHaveTextContent("History · Roman Empire");
     expect(screen.getByTestId("book-subjects")).not.toHaveTextContent("nyt:");
+    expect(screen.queryByTestId("book-subjects-more")).toBeNull();
     expect(screen.queryByTestId("book-rating")).toBeNull();
     expect(screen.queryByTestId("book-description")).toBeNull();
     // Nothing for a reader to open: the community header names no template.
@@ -428,5 +428,32 @@ describe("more from the list", () => {
     expect(screen.queryByTestId("book-by-author")).toBeNull();
     expect(screen.queryByTestId("book-similar")).toBeNull();
     expect(within(screen.getByTestId("book-author")).queryByRole("link")).toBeNull();
+  });
+});
+
+describe("subjects, quietly", () => {
+  it("a few on one muted line, the rest behind a count the reader can open", async () => {
+    const many = {
+      ...storm,
+      tags: [
+        ...storm.tags.filter((t) => t[0] !== "subject"),
+        ["subject", "History of the middle east"],
+        ["subject", "Criminology and law enforcement"],
+        ["subject", "Intelligence service, israel"],
+        ["subject", "Israel, politics and government"],
+        ["subject", "Intelligence service"],
+        ["subject", "History"],
+        ["subject", "Politics and government"],
+        ["subject", "Israel"],
+      ],
+    };
+    renderWithProviders(<Page event={many} />);
+    const line = screen.getByTestId("book-subjects");
+    expect(line).toHaveTextContent("Israel · History · Intelligence service · Politics and government");
+    expect(line).not.toHaveTextContent("Criminology");
+    const more = screen.getByTestId("book-subjects-more");
+    expect(more).toHaveTextContent("+4 more");
+    await userEvent.click(more);
+    expect(line).toHaveTextContent("Criminology and law enforcement");
   });
 });

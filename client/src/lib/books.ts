@@ -107,6 +107,23 @@ export function cleanSubjects(subjects: string[]): string[] {
   return out;
 }
 
+/** A catalogue heading, not a subject a reader would say: "Israel. Mosad le-modiʻin ṿe-…" */
+const CATALOGUE = /\.\s|\s--\s/;
+const LONGEST = 40;
+
+/**
+ * The few subjects a reader would recognise, for one quiet line: the
+ * shortest first — the broad ones — leaving out library catalogue headings
+ * and anything too long to scan, capped at `n`. The full set stays behind
+ * a count.
+ */
+export function topSubjects(subjects: string[], n: number): string[] {
+  return subjects
+    .filter((s) => s.length <= LONGEST && !CATALOGUE.test(s))
+    .sort((a, b) => a.length - b.length || a.localeCompare(b))
+    .slice(0, n);
+}
+
 const languageNames = (() => {
   try {
     return new Intl.DisplayNames(undefined, { type: "language", fallback: "none" });

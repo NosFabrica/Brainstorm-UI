@@ -15,7 +15,6 @@
  */
 import { useState } from "react";
 import { BookOpen, Library, Star, X } from "lucide-react";
-import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { Link } from "wouter";
 import { DListItemNeighbours, useListItems } from "@/components/dictionary/DListItemNeighbours";
@@ -30,7 +29,7 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBookFacts } from "@/hooks/useBookFacts";
 import type { ReadyItemView } from "@/hooks/useItemView";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
-import { BOOK_FIELDS, bookOf, booksByAuthor, similarBooks, type Book } from "@/lib/books";
+import { BOOK_FIELDS, bookOf, booksByAuthor, similarBooks, topSubjects, type Book } from "@/lib/books";
 import { fieldCell, undeclaredFields } from "@/lib/dlistFields";
 import { proxiedSrc } from "@/lib/imageProxy";
 
@@ -205,15 +204,7 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
 
       {facts?.description && <Description text={facts.description} />}
 
-      {book.subjects.length > 0 && (
-        <div className="flex flex-wrap gap-1.5" data-testid="book-subjects">
-          {book.subjects.map((s) => (
-            <Chip key={s} tone="slate" size="sm">
-              {s}
-            </Chip>
-          ))}
-        </div>
-      )}
+      {book.subjects.length > 0 && <Subjects all={book.subjects} />}
 
       <BookReviews item={event} ranked={ranked} />
 
@@ -242,6 +233,35 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
 }
 
 const SHELF = 6;
+const SUBJECTS_SHOWN = 4;
+
+/** The subjects as one quiet line: a few a reader would recognise, the rest behind a count. */
+function Subjects({ all }: { all: string[] }) {
+  const [open, setOpen] = useState(false);
+  const few = topSubjects(all, SUBJECTS_SHOWN);
+  const shown = open ? [...few, ...all.filter((s) => !few.includes(s))] : few;
+  const hidden = all.length - few.length;
+  if (shown.length === 0) return null;
+  return (
+    <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="book-subjects">
+      <span className="font-semibold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Subjects </span>
+      {shown.join(" · ")}
+      {hidden > 0 && !open && (
+        <>
+          {" "}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="font-medium text-brand-link hover:underline"
+            data-testid="book-subjects-more"
+          >
+            +{hidden} more
+          </button>
+        </>
+      )}
+    </p>
+  );
+}
 
 /** A shelf of covers — the author's other books, or the ones like this — each a link to its page. */
 function Shelf({
