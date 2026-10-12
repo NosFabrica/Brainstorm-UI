@@ -63,8 +63,11 @@ vi.mock("@/hooks/useLinkTemplates", () => ({
 vi.mock("@/hooks/useDictionaryConcepts", () => ({
   useDictionaryConcepts: () => ({ shown: [COMMUNITY], rendered: [COMMUNITY], known: true }),
 }));
+// The list the book is on (DListItemNeighbours' read): empty unless a test fills it.
+const list = vi.hoisted(() => ({ items: [] as { id: string; pubkey: string; kind: number; tags: string[][] }[] }));
 vi.mock("@/components/dictionary/DListItemNeighbours", () => ({
   DListItemNeighbours: () => <div data-testid="neighbours-slot" />,
+  useListItems: () => ({ items: list.items, pending: false, coordinate: COMMUNITY }),
 }));
 vi.mock("@/hooks/useItemEngagement", () => ({
   useItemEngagement: () => ({ endorsers: [], claimants: [], pending: false }),
@@ -194,6 +197,7 @@ beforeEach(() => {
   openLibrary.facts = null;
   reviews.list = [];
   reviews.post.mutate.mockClear();
+  list.items = [];
 });
 
 describe("BookView", () => {
@@ -373,5 +377,56 @@ describe("reading it inside Brainstorm", () => {
     const borrow = within(screen.getByTestId("book-actions")).getByRole("link", { name: /Borrow on Internet Archive/ });
     expect(borrow).toHaveAttribute("href", "https://archive.org/details/stormbeforestorm00dunc");
     expect(screen.queryByRole("button", { name: "Read it here" })).toBeNull();
+  });
+});
+
+describe("more from the list", () => {
+  const other = (id: string, fields: string[][]) => ({
+    ...storm,
+    id: id.padEnd(64, "0"),
+    tags: [["d", id], ["z", COMMUNITY], ...fields],
+  });
+  const hero = other("hero", [
+    ["title", "Hero of Two Worlds"],
+    ["author", "Duncan, Michael (Podcaster)"],
+    ["cover", "https://covers.openlibrary.org/b/id/1-L.jpg"],
+  ]);
+  const rubicon = other("rubicon", [
+    ["title", "Rubicon"],
+    ["author", "Tom Holland"],
+    ["subject", "Roman Empire"],
+  ]);
+  const cats = other("cats", [
+    ["title", "Kaspar"],
+    ["author", "Michael Morpurgo"],
+    ["subject", "Cats"],
+  ]);
+
+  it("more by this author and books sharing its subjects, each a shelf of covers; the author's name leads to the shelf", () => {
+    list.items = [storm, hero, rubicon, cats];
+    renderWithProviders(<Page event={storm} />);
+    const byAuthor = screen.getByTestId("book-by-author");
+    expect(byAuthor).toHaveTextContent("More by Michael Duncan");
+    expect(
+      within(byAuthor)
+        .getAllByTestId("book-shelf-item")
+        .map((el) => el.textContent),
+    ).toEqual(["Hero of Two Worlds"]);
+    const similar = screen.getByTestId("book-similar");
+    expect(similar).toHaveTextContent("If you liked this");
+    expect(
+      within(similar)
+        .getAllByTestId("book-shelf-item")
+        .map((el) => el.textContent),
+    ).toEqual(["Rubicon"]);
+    expect(screen.queryByText("Kaspar")).toBeNull();
+    expect(within(screen.getByTestId("book-author")).getByRole("link")).toHaveAttribute("href", "#book-by-author");
+  });
+
+  it("with nothing else on the list, neither shelf, and the author's name is plain", () => {
+    renderWithProviders(<Page event={storm} />);
+    expect(screen.queryByTestId("book-by-author")).toBeNull();
+    expect(screen.queryByTestId("book-similar")).toBeNull();
+    expect(within(screen.getByTestId("book-author")).queryByRole("link")).toBeNull();
   });
 });

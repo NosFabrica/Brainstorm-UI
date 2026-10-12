@@ -145,3 +145,38 @@ export function bookPresentation(item: Item, definition: ConceptDefinition, show
     imageShape: book.cover ? "portrait" : shown.imageShape,
   };
 }
+
+type ListItem = { id: string; tags: string[][] };
+const fold = (s: string) => s.trim().toLowerCase();
+
+/** The list's other books by the same author, as the cover names them — newest listed first is the list's order. */
+export function booksByAuthor<T extends ListItem>(
+  book: Book,
+  selfId: string,
+  items: T[],
+  definition: ConceptDefinition,
+): T[] {
+  if (!book.author) return [];
+  const author = fold(book.author);
+  return items.filter((i) => i.id !== selfId && fold(bookOf(i, definition)?.author ?? "") === author);
+}
+
+/** The list's books sharing the most subjects with this one; sharing none, none. */
+export function similarBooks<T extends ListItem>(
+  book: Book,
+  selfId: string,
+  items: T[],
+  definition: ConceptDefinition,
+): T[] {
+  const mine = new Set(book.subjects.map(fold));
+  if (mine.size === 0) return [];
+  return items
+    .filter((i) => i.id !== selfId)
+    .map((item) => {
+      const theirs = bookOf(item, definition)?.subjects ?? [];
+      return { item, shared: theirs.filter((s) => mine.has(fold(s))).length };
+    })
+    .filter((x) => x.shared > 0)
+    .sort((a, b) => b.shared - a.shared)
+    .map((x) => x.item);
+}

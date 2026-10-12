@@ -7,7 +7,15 @@
 import { describe, expect, it } from "vitest";
 import { definitionOf, type HeaderEvent } from "./conceptResolution";
 import { presentItem } from "./itemPresentation";
-import { authorName, bookOf, bookPresentation, cleanSubjects, languageName } from "./books";
+import {
+  authorName,
+  bookOf,
+  bookPresentation,
+  booksByAuthor,
+  cleanSubjects,
+  languageName,
+  similarBooks,
+} from "./books";
 
 const LIBRARIAN = "6aca05b812da97601151776d13de04ae71afc9d86da1408f0e72cffef72ece4b";
 const BOOKS = `39998:${LIBRARIAN}:books`;
@@ -75,6 +83,16 @@ const storm = {
   ],
 };
 
+/** A book item with the given fields, listed at `created_at`. */
+const place = (id: string, created_at: number, fields: Record<string, string>) => ({
+  id: id.padEnd(64, "0"),
+  pubkey: LIBRARIAN,
+  kind: 39999,
+  created_at,
+  content: "",
+  tags: [["d", id], ["z", BOOKS], ...Object.entries(fields)],
+});
+
 describe("bookOf", () => {
   it("reads the book through a definition that declares its fields", () => {
     const book = bookOf(storm, declared);
@@ -136,5 +154,39 @@ describe("bookPresentation", () => {
     expect(shown.summary).toBe("Michael Duncan");
     expect(shown.image).toBe("https://covers.openlibrary.org/b/id/10092515-L.jpg");
     expect(shown.imageShape).toBe("portrait");
+  });
+});
+
+describe("more from the list", () => {
+  const revolutions = place("revolutions", 400, {
+    title: "Hero of Two Worlds",
+    author: "Duncan, Michael (Podcaster)",
+    subject: "Biography",
+  });
+  const spqr = place("spqr", 500, { title: "SPQR", author: "Mary Beard", subject: "Roman Empire" });
+  const roman2 = {
+    ...place("rubicon", 600, { title: "Rubicon", author: "Tom Holland" }),
+    tags: [
+      ["d", "rubicon"],
+      ["title", "Rubicon"],
+      ["author", "Tom Holland"],
+      ["subject", "Roman Empire"],
+      ["subject", "History"],
+    ],
+  };
+  const unrelated = place("kaspar", 700, {
+    title: "Kaspar prince of cats",
+    author: "Michael Morpurgo",
+    subject: "Cats",
+  });
+  const all = [storm, revolutions, spqr, roman2, unrelated];
+  const book = bookOf(storm, bare)!;
+
+  it("by the same author, as the cover names them, the book itself left out", () => {
+    expect(booksByAuthor(book, storm.id, all, bare).map((i) => i.id)).toEqual([revolutions.id]);
+  });
+
+  it("sharing the most subjects first; a book sharing none is no neighbour", () => {
+    expect(similarBooks(book, storm.id, all, bare).map((i) => i.id)).toEqual([roman2.id, spqr.id]);
   });
 });

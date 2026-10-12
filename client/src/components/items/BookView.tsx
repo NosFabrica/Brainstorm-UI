@@ -17,7 +17,10 @@ import { useState } from "react";
 import { BookOpen, Library, Star, X } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
-import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
+import { Link } from "wouter";
+import { DListItemNeighbours, useListItems } from "@/components/dictionary/DListItemNeighbours";
+import { eventPath } from "@/lib/shareId";
+import { dictionaryRelays } from "@/config/dictionary";
 import { AdminDefinition, ConceptLink, type FieldCells, type ItemEvent } from "@/components/share/DListItemParts";
 import { useNetworkView, WhoStandsBehindIt } from "@/components/items/WhoStandsBehindIt";
 import { useRankedReviews } from "@/components/items/PlaceReviews";
@@ -26,7 +29,8 @@ import { ratingSummary } from "@/lib/placeReviews";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBookFacts } from "@/hooks/useBookFacts";
 import type { ReadyItemView } from "@/hooks/useItemView";
-import { BOOK_FIELDS, bookOf } from "@/lib/books";
+import type { ConceptDefinition } from "@/lib/conceptResolution";
+import { BOOK_FIELDS, bookOf, booksByAuthor, similarBooks, type Book } from "@/lib/books";
 import { fieldCell, undeclaredFields } from "@/lib/dlistFields";
 import { proxiedSrc } from "@/lib/imageProxy";
 
@@ -46,6 +50,12 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
   const reviewCount = ranked.reviews.filter((r) => r.text).length;
   const ours = ratingSummary(ranked.reviews);
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
+  // The rest of the list, read once: the author's other books, and the ones sharing its subjects.
+  const listed = useListItems(event, r);
+  const byAuthor = booksByAuthor(book, event.id, listed.items, r.governing).slice(0, SHELF);
+  const similar = similarBooks(book, event.id, listed.items, r.governing)
+    .filter((i) => !byAuthor.some((b) => b.id === i.id))
+    .slice(0, SHELF);
 
   const meta = [
     book.year,
@@ -94,7 +104,13 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
           {book.author && (
             <p className="mt-2 text-lg text-slate-800 dark:text-slate-200" data-testid="book-author">
               <span className="text-slate-500 dark:text-slate-400">by </span>
-              <span className="font-semibold">{book.author}</span>
+              {byAuthor.length > 0 ? (
+                <a href="#book-by-author" className="font-semibold hover:text-brand-link">
+                  {book.author}
+                </a>
+              ) : (
+                <span className="font-semibold">{book.author}</span>
+              )}
             </p>
           )}
         </div>
@@ -201,7 +217,20 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
 
       <BookReviews item={event} ranked={ranked} />
 
-      <DListItemNeighbours event={event} resolved={r} alsoListed={false} />
+      {byAuthor.length > 0 && (
+        <Shelf id="book-by-author" heading={`More by ${book.author}`} items={byAuthor} definition={r.governing} />
+      )}
+
+      {similar.length > 0 && (
+        <Shelf id="book-similar" heading="If you liked this" items={similar} definition={r.governing} />
+      )}
+
+      <DListItemNeighbours
+        event={event}
+        resolved={r}
+        alsoListed={false}
+        more={byAuthor.length === 0 && similar.length === 0}
+      />
 
       <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="book-attribution">
         Listed from Open Library. Cover and details © their publishers.
@@ -209,6 +238,62 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
 
       <AdminDefinition event={event} resolved={r} cells={unshown} extras={extras} />
     </div>
+  );
+}
+
+const SHELF = 6;
+
+/** A shelf of covers — the author's other books, or the ones like this — each a link to its page. */
+function Shelf({
+  id,
+  heading,
+  items,
+  definition,
+}: {
+  id: string;
+  heading: string;
+  items: { id: string; kind: number; pubkey: string; tags: string[][] }[];
+  definition: ConceptDefinition;
+}) {
+  return (
+    <section id={id} data-testid={id}>
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">
+        {heading}
+      </p>
+      <ul className="flex gap-3 overflow-x-auto pb-1">
+        {items.map((item) => {
+          const b = bookOf(item, definition) as Book;
+          return (
+            <li key={item.id} className="w-20 shrink-0 sm:w-24">
+              <Link
+                href={eventPath(item as never, dictionaryRelays())}
+                className="group block"
+                title={[b.title, b.author].filter(Boolean).join(" · ")}
+              >
+                {b.cover ? (
+                  <img
+                    src={proxiedSrc(b.cover, "media_320")}
+                    referrerPolicy="no-referrer"
+                    alt=""
+                    className="aspect-[2/3] w-full rounded-md object-cover shadow-md ring-1 ring-black/10 transition-transform group-hover:-translate-y-0.5 dark:ring-white/10"
+                  />
+                ) : (
+                  <span className="flex aspect-[2/3] w-full items-center justify-center rounded-md bg-slate-200 text-slate-400 shadow-md dark:bg-slate-800">
+                    <BookOpen className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                )}
+                <span
+                  className="mt-1.5 line-clamp-2 block text-xs font-medium leading-snug text-slate-800 dark:text-slate-200"
+                  data-testid="book-shelf-item"
+                >
+                  {b.title}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
