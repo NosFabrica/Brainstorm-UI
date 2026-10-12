@@ -1,4 +1,5 @@
 import { dashboardShortcutFor } from "@/lib/dashboardShortcuts";
+import { scoreAge } from "@/lib/scoreAge";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { SearchBox } from "@/components/search/SearchBox";
@@ -430,16 +431,10 @@ export default function DashboardPage() {
     followingCount,
   ]);
 
-  const formatTimestamp = (date: Date | null): string => {
-    if (!date || isNaN(date.getTime())) return "";
-    return date.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
+  // How old the scores are, in words; past two weeks the strip says so and
+  // Recalculate becomes the action rather than the reference.
+  const age = scoreAge(grapeRankUpdatedAt || grapeRankCreatedAt);
+  const stale = publishDone && !!age?.stale;
 
   const handleExport = () => {
     const data = {
@@ -705,6 +700,14 @@ export default function DashboardPage() {
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
                       Active
                     </span>
+                  ) : stale && age ? (
+                    // Weeks old: the strip's one job is to say whether the scores are current.
+                    <span
+                      className="font-semibold text-amber-600 dark:text-amber-400"
+                      data-testid="text-overall-trust-score-sub"
+                    >
+                      Scores are {age.old}
+                    </span>
                   ) : publishDone ? (
                     // Not "Score: 0.4321" or "Complete": what the reader has, in a word.
                     <span
@@ -721,9 +724,9 @@ export default function DashboardPage() {
                       Awaiting calculation
                     </span>
                   )}
-                  {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
+                  {publishDone && age && !stale && (
                     <span className="text-slate-400 dark:text-slate-500" data-testid="text-trust-signals-updated">
-                      · Updated {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
+                      · Updated {age.label}
                     </span>
                   )}
                   <span className="h-3 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
@@ -731,7 +734,11 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => setRecalcConfirmOpen(true)}
                     disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                    className="inline-flex items-center gap-1 rounded font-semibold text-brand-deep hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-link"
+                    className={
+                      stale
+                        ? "inline-flex items-center gap-1 rounded-full bg-brand-primary px-2.5 py-0.5 font-semibold text-white hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40"
+                        : "inline-flex items-center gap-1 rounded font-semibold text-brand-deep hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 disabled:pointer-events-none disabled:opacity-40 dark:text-brand-link"
+                    }
                     data-testid="button-trigger-graperank"
                   >
                     {triggerGrapeRankMutation.isPending ? (
@@ -739,7 +746,7 @@ export default function DashboardPage() {
                     ) : (
                       <RefreshCw className="h-3 w-3" />
                     )}
-                    {triggerGrapeRankMutation.isPending ? "Calculating" : "Recalculate"}
+                    {triggerGrapeRankMutation.isPending ? "Calculating" : stale ? "Recalculate now" : "Recalculate"}
                   </button>
                   <button
                     type="button"

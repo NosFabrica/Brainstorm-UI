@@ -63,6 +63,8 @@ vi.mock("@/hooks/useSelf", () => ({
   useSelfHistory: () => ({ data: { data: { ta_pubkey: "a".repeat(64), last_time_calculated_graperank: null } } }),
   useSelfStats: () => ({ isLoading: false, data: { data: {} } }),
 }));
+// When the run last finished; a test moves it to make the scores old or fresh.
+let runUpdatedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19);
 vi.mock("@/services/api", () => ({
   apiClient: {
     getGrapeRankResult: async () => ({
@@ -70,7 +72,7 @@ vi.mock("@/services/api", () => ({
         internal_publication_status: "success",
         ta_status: "success",
         average: 0.4321,
-        updated_at: "2026-10-01T10:38:00",
+        updated_at: runUpdatedAt,
       },
     }),
     triggerGrapeRank: async () => ({ data: {} }),
@@ -91,6 +93,7 @@ function show() {
 beforeEach(() => {
   localStorage.clear();
   provider = "none";
+  runUpdatedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19);
   // A returning user: scores existed before this visit, and the invite card was never seen.
   localStorage.setItem(accountKey("brainstorm_calc_completed", ME), "true");
 });
@@ -152,6 +155,24 @@ describe("DashboardPage for a returning user", () => {
     expect(within(search).getByTestId("search-box")).toHaveAttribute("aria-label", "Search Brainstorm");
     expect(screen.getAllByTestId("search-box")).toHaveLength(1);
     expect(screen.getByTestId("app-header")).toHaveAttribute("data-search", "false");
+  });
+
+  it("says how old the scores are in words, and when they are weeks old, says so and asks for a recalculation", async () => {
+    runUpdatedAt = new Date(Date.now() - 49 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19);
+    show();
+    const strip = await screen.findByTestId("card-overall-trust-score");
+    expect(within(strip).getByTestId("text-overall-trust-score-sub")).toHaveTextContent("Scores are 7 weeks old");
+    expect(strip).not.toHaveTextContent("Scores ready");
+    expect(within(strip).getByTestId("button-trigger-graperank")).toHaveTextContent("Recalculate now");
+  });
+
+  it("fresh scores read as ready, with their age in words rather than a date", async () => {
+    runUpdatedAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19);
+    show();
+    const strip = await screen.findByTestId("card-overall-trust-score");
+    expect(within(strip).getByTestId("text-overall-trust-score-sub")).toHaveTextContent("Scores ready");
+    expect(within(strip).getByTestId("text-trust-signals-updated")).toHaveTextContent("Updated 3 days ago");
+    expect(within(strip).getByTestId("button-trigger-graperank")).toHaveTextContent(/^Recalculate$/);
   });
 
   it("the greeting is one line: no slogan under it for a user whose network is already running", async () => {
