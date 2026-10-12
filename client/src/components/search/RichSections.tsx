@@ -18,7 +18,9 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { useLightbox } from "@/components/share/Lightbox";
 import { SensitiveTile, sensitiveVideoLabel } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
-import { VIDEO_KINDS } from "@/lib/nip71";
+import { VIDEO_KINDS, readVideo } from "@/lib/nip71";
+import { videoShapeOf } from "@/lib/videoFrame";
+import { postedAtOf } from "@/lib/eventDate";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { MediaImg } from "@/components/ui/media-img";
 import { parseNewsShape } from "@/lib/newsShape";
@@ -261,6 +263,12 @@ function MediaTile({
   const isVideo = VIDEO_KINDS.has(e.kind) || (!!url && !isImage && isVideoUrl(e, url));
   // A video its creator marked sensitive: no poster and no frame here, and the full view asks first.
   const warning = isVideo ? (contentWarningOf(e) ?? undefined) : undefined;
+  // Every tile in the grid is 4:3 so a row stays one height. Cropped to fill it, an upright
+  // video shows its middle third and a square one loses its top and bottom, so those two are
+  // fitted in whole on a dark ground. A wide video, or one that gives no size, fills the tile.
+  const shape = VIDEO_KINDS.has(e.kind) ? videoShapeOf(readVideo(e).dim) : null;
+  const whole = shape === "portrait" || shape === "square";
+  const fit = whole ? "object-contain" : "object-cover";
   const openPost = () => navigate(eventPath(e));
   // A tap on the picture or the play badge gives the MEDIA — full view,
   // playing — the way X, Instagram and TikTok do. The caption opens the post.
@@ -281,7 +289,8 @@ function MediaTile({
     else if (poster && !warning) openLightbox([{ url: poster, kind: "image" }], 0, context);
     else openPost();
   };
-  const caption = noteTitle(e.content || tagVal(e, "title") || "", 160);
+  // The title first, as the Media card reads it: a video's words are often only its hashtags.
+  const caption = noteTitle(tagVal(e, "title") || e.content || "", 160);
   return (
     <div
       className="group overflow-hidden rounded-xl border border-slate-100 bg-white/70 transition-all hover:border-slate-200 hover:shadow-sm dark:border-slate-800/60 dark:bg-slate-900/70 dark:hover:border-slate-800"
@@ -298,7 +307,9 @@ function MediaTile({
             openMedia();
           }
         }}
-        className="relative aspect-[4/3] cursor-pointer bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:bg-slate-800"
+        className={`relative aspect-[4/3] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
+          whole && !warning ? "bg-black" : "bg-slate-100 dark:bg-slate-800"
+        }`}
         data-testid="media-tile-media"
       >
         {/* Dead media leaves the grid (Google's rule for a broken image): a
@@ -317,7 +328,7 @@ function MediaTile({
               setImgFailed(true);
               if (!(url && isVideo)) onGone?.();
             }}
-            className="absolute inset-0 h-full w-full object-cover"
+            className={`absolute inset-0 h-full w-full ${fit}`}
           />
         ) : url && isVideo ? (
           <video
@@ -328,7 +339,7 @@ function MediaTile({
             tabIndex={-1}
             aria-hidden
             onError={() => onGone?.()}
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+            className={`pointer-events-none absolute inset-0 h-full w-full ${fit}`}
           />
         ) : null}
         {isVideo && !warning && (
@@ -357,7 +368,7 @@ function MediaTile({
         )}
         <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500">
           <span className="min-w-0 truncate">
-            {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(e.created_at)}
+            {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(postedAtOf(e))}
           </span>
           {/* The picture says what it is; the pill only when asked for everywhere. */}
           <KindPill event={e} mixed={false} />

@@ -893,3 +893,36 @@ describe("SerpRow — a NIP-84 highlight", () => {
     );
   });
 });
+// A restored Vine is signed the day it was imported; `published_at` is the day it was posted.
+const classicVine = (): NostrEvent =>
+  ({
+    id: "7".repeat(64),
+    kind: 34236,
+    pubkey: "9".repeat(64),
+    created_at: Math.floor(Date.now() / 1000) - 60,
+    sig: "s",
+    content: "Vampire Eric",
+    tags: [
+      ["d", "OaXhLEvJxwA"],
+      ["title", "Vampire Eric"],
+      [
+        "imeta",
+        "url https://media.divine.video/9001",
+        "m video/mp4",
+        "image https://media.divine.video/9001.jpg",
+        "dim 480x480",
+      ],
+      ["published_at", "1410674550"],
+      ["platform", "vine"],
+      ["l", "vine-archive", "archive.divine.video"],
+    ],
+  }) as NostrEvent;
+
+describe("SerpRow — a video's date", () => {
+  it("dates a classic Vine by the day it was posted, not the day it was imported", () => {
+    render(<SerpRow event={classicVine()} author={null} score={0.7} query="" />);
+    const row = screen.getByTestId(`serp-row-${"7".repeat(64)}`);
+    expect(row).toHaveTextContent("Sep 2014");
+    expect(row).not.toHaveTextContent("1m ago");
+  });
+});

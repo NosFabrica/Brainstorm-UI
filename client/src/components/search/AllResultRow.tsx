@@ -29,6 +29,7 @@ import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
 import { SensitiveTile } from "@/components/share/SensitiveMedia";
 import { Headline } from "@/components/search/SerpRow";
 import { ago } from "@/lib/ago";
+import { postedAtOf } from "@/lib/eventDate";
 import { kindTone } from "@/lib/kindFamily";
 import { kindLabel } from "@/lib/kindLabel";
 import type { SearchResult } from "@/lib/profileSearch";
@@ -130,7 +131,7 @@ export const AllResultRow = memo(function AllResultRow({
           <span className="min-w-0 truncate text-xs font-medium text-slate-600 dark:text-slate-300">
             <ProfileEmojiText pubkey={pubkey} text={authorName} />
           </span>
-          <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">· {ago(event.created_at)}</span>
+          <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">· {ago(postedAtOf(event))}</span>
           <span className="flex-1" />
           <Chip
             tone={kindTone(event.kind)}

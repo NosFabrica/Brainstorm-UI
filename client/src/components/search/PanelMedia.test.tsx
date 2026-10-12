@@ -64,3 +64,46 @@ describe("PanelLatestMedia — a video marked sensitive", () => {
     );
   });
 });
+// A restored Vine is signed the day it was imported; `published_at` is the day it was posted.
+const classicVine = (): NostrEvent =>
+  ({
+    id: "7".repeat(64),
+    kind: 34236,
+    pubkey: person.pubkey,
+    created_at: Math.floor(Date.now() / 1000) - 60,
+    sig: "s",
+    content: "Vampire Eric",
+    tags: [
+      ["d", "OaXhLEvJxwA"],
+      ["title", "Vampire Eric"],
+      [
+        "imeta",
+        "url https://media.divine.video/9001",
+        "m video/mp4",
+        "image https://media.divine.video/9001.jpg",
+        "dim 480x480",
+      ],
+      ["published_at", "1410674550"],
+      ["platform", "vine"],
+      ["l", "vine-archive", "archive.divine.video"],
+    ],
+  }) as NostrEvent;
+
+describe("PanelLatestMedia — a video's date", () => {
+  it("dates a classic Vine by the day it was posted, not the day it was imported", () => {
+    expect(latestVideos([classicVine()])[0].at).toBe(1_410_674_550);
+    render(<PanelLatestMedia person={person} events={[classicVine()]} />);
+    const row = screen.getByTestId(`person-media-item-${"7".repeat(64)}`);
+    const years = new Date().getFullYear() - 2014;
+    expect(row.textContent).toMatch(new RegExp(`(${years}|${years - 1})y ago`));
+    expect(row).not.toHaveTextContent("1m ago");
+  });
+
+  it("orders by the day posted: a Vine imported today sits under last week's video", () => {
+    const lastWeek = short("b2");
+    lastWeek.created_at = Math.floor(Date.now() / 1000) - 7 * 86_400;
+    render(<PanelLatestMedia person={person} events={[classicVine(), lastWeek]} />);
+    const rows = screen.getAllByTestId(/^person-media-item-/).map((el) => el.getAttribute("data-testid"));
+    expect(rows).toEqual(["person-media-item-b2", `person-media-item-${"7".repeat(64)}`]);
+  });
+});

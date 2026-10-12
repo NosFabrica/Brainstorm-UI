@@ -61,6 +61,7 @@ import { FeedVideo } from "@/components/share/FeedVideo";
 import { SensitiveCover } from "@/components/share/SensitiveMedia";
 import { contentWarningOf } from "@/lib/nip36";
 import { SHORT_VIDEO_KINDS, VIDEO_KINDS, readVideo } from "@/lib/nip71";
+import { postedAtOf } from "@/lib/eventDate";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
@@ -355,7 +356,7 @@ export function MediaCard({
       <AuthorRow
         author={author}
         score={score}
-        created_at={event.created_at}
+        created_at={postedAtOf(event)}
         trailing={
           <>
             <KindPill event={event} mixed={false} />
