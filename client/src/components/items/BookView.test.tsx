@@ -270,7 +270,7 @@ describe("reviews from people you trust", () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByTestId("book-review-stars")).toHaveAttribute("aria-label", "5 out of 5 stars");
     expect(rows[0]).toHaveTextContent("Gripping from the first page.");
-    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("2 reviews · rated 4.5");
+    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("Rated 4.5 by 2 people · 2 reviews");
     // Not signed in: no composer, a word about signing in.
     expect(screen.queryByTestId("book-review-composer")).toBeNull();
   });
@@ -286,5 +286,53 @@ describe("reviews from people you trust", () => {
       { text: "Dense but worth it.", rating: 4, price: null, paid: null, photos: [] },
       expect.anything(),
     );
+  });
+});
+
+describe("a book is recommended, not vouched for", () => {
+  it("the section and the hero speak of recommending; the button recommends", () => {
+    viewer.pubkey = "f".repeat(64);
+    renderWithProviders(<Page event={storm} />);
+    const verdict = screen.getByTestId("book-verdict");
+    expect(verdict).toHaveTextContent("Recommended by");
+    expect(verdict).not.toHaveTextContent(/vouch/i);
+    expect(within(verdict).getByTestId("book-endorse")).toHaveTextContent("Recommend");
+    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("No one you trust has recommended it yet");
+    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("No reviews yet");
+  });
+
+  it("stars alone count as a rating, words as a review, and the hero counts them apart", () => {
+    reviews.list = [
+      {
+        id: "1".padEnd(64, "0"),
+        pubkey: "a".repeat(64),
+        at: 1,
+        text: "",
+        photos: [],
+        price: null,
+        paid: null,
+        rating: 5,
+      },
+      {
+        id: "2".padEnd(64, "0"),
+        pubkey: "b".repeat(64),
+        at: 2,
+        text: "Dense but worth it.",
+        photos: [],
+        price: null,
+        paid: null,
+        rating: 3,
+      },
+    ];
+    renderWithProviders(<Page event={storm} />);
+    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("Rated 4.0 by 2 people · 1 review");
+  });
+
+  it("the people come before the publisher's blurb: recommenders sit above About this book", () => {
+    openLibrary.facts = FACTS;
+    renderWithProviders(<Page event={storm} />);
+    const verdict = screen.getByTestId("book-verdict");
+    const about = screen.getByTestId("book-description");
+    expect(verdict.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

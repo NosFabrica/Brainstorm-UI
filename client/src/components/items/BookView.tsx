@@ -38,8 +38,9 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
   const facts = useBookFacts(book).data ?? null;
   const network = useNetworkView(event);
   const ranked = useRankedReviews(event);
-  const vouches = network.ranked.filter((e) => e.group !== "other").length;
-  const reviewCount = ranked.reviews.length;
+  const recommenders = network.ranked.filter((e) => e.group !== "other").length;
+  // Stars alone are a rating; words are a review. Counted apart, as Open Library counts.
+  const reviewCount = ranked.reviews.filter((r) => r.text).length;
   const ours = ratingSummary(ranked.reviews);
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
 
@@ -99,15 +100,20 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
           {/* The line a shop can't write: who you trust stands behind it, and what they thought. */}
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300" data-testid="book-trust-line">
             <a href="#book-verdict" className="hover:text-brand-link">
-              {vouches > 0
-                ? `Vouched for by ${vouches} ${vouches === 1 ? "person" : "people"} you trust`
-                : "No one you trust has vouched for it yet"}
+              {recommenders > 0
+                ? `Recommended by ${recommenders} ${recommenders === 1 ? "person" : "people"} you trust`
+                : "No one you trust has recommended it yet"}
             </a>
             <span className="text-slate-300 dark:text-slate-600"> · </span>
             <a href="#book-reviews" className="hover:text-brand-link">
-              {reviewCount > 0
-                ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}${ours ? ` · rated ${ours.average.toFixed(1)}` : ""}`
-                : "No reviews yet"}
+              {[
+                ours
+                  ? `Rated ${ours.average.toFixed(1)} by ${ours.count} ${ours.count === 1 ? "person" : "people"}`
+                  : null,
+                reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "No reviews yet"}
             </a>
           </p>
           {meta.length > 0 && (
@@ -139,6 +145,8 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
         </div>
       )}
 
+      <WhoStandsBehindIt network={network} noun="book" idPrefix="book" voice="recommend" />
+
       {facts?.description && <Description text={facts.description} />}
 
       {book.subjects.length > 0 && (
@@ -152,8 +160,6 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
       )}
 
       <BookReviews item={event} ranked={ranked} />
-
-      <WhoStandsBehindIt network={network} noun="book" idPrefix="book" />
 
       <DListItemNeighbours event={event} resolved={r} alsoListed={false} />
 
