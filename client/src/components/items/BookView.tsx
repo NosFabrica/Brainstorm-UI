@@ -20,6 +20,9 @@ import { Favicon } from "@/components/share/LinkPreview";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
 import { AdminDefinition, ConceptLink, type FieldCells, type ItemEvent } from "@/components/share/DListItemParts";
 import { useNetworkView, WhoStandsBehindIt } from "@/components/items/WhoStandsBehindIt";
+import { useRankedReviews } from "@/components/items/PlaceReviews";
+import { BookReviews } from "@/components/items/BookReviews";
+import { ratingSummary } from "@/lib/placeReviews";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBookFacts } from "@/hooks/useBookFacts";
 import type { ReadyItemView } from "@/hooks/useItemView";
@@ -34,6 +37,10 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
   const book = bookOf(event, r.governing)!;
   const facts = useBookFacts(book).data ?? null;
   const network = useNetworkView(event);
+  const ranked = useRankedReviews(event);
+  const vouches = network.ranked.filter((e) => e.group !== "other").length;
+  const reviewCount = ranked.reviews.length;
+  const ours = ratingSummary(ranked.reviews);
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
 
   const meta = [
@@ -84,6 +91,20 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
             </p>
           )}
           {facts?.rating && <Rating average={facts.rating.average} count={facts.rating.count} />}
+          {/* The line a shop can't write: who you trust stands behind it, and what they thought. */}
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="book-trust-line">
+            <a href="#book-verdict" className="hover:text-brand-link">
+              {vouches > 0
+                ? `Vouched for by ${vouches} ${vouches === 1 ? "person" : "people"} you trust`
+                : "No one you trust has vouched for it yet"}
+            </a>
+            <span className="text-slate-300 dark:text-slate-600"> · </span>
+            <a href="#book-reviews" className="hover:text-brand-link">
+              {reviewCount > 0
+                ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}${ours ? ` · rated ${ours.average.toFixed(1)}` : ""}`
+                : "No reviews yet"}
+            </a>
+          </p>
           {meta.length > 0 && (
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="book-meta">
               {meta.join(" · ")}
@@ -124,6 +145,8 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
           ))}
         </div>
       )}
+
+      <BookReviews item={event} ranked={ranked} />
 
       <WhoStandsBehindIt network={network} noun="book" idPrefix="book" />
 

@@ -6,7 +6,7 @@
  * are worked by hand.
  */
 import { describe, expect, it } from "vitest";
-import { paymentSummary, priceSummary, reviewOf, reviewTemplate } from "./placeReviews";
+import { paymentSummary, priceSummary, ratingSummary, reviewOf, reviewTemplate } from "./placeReviews";
 
 const PLACE = "39999:4bded2172075221ead393a0baec9c530238ec192c2a9cdbbc7754ba8c3357b64:osm-node-13302615652";
 const item = {
@@ -44,6 +44,7 @@ describe("reviewOf", () => {
       photos: ["https://img.example/pie.jpg"],
       price: 2,
       paid: "lightning",
+      rating: null,
     });
   });
   it("a comment on something else, or not a comment, or with nothing to say, is not a review", () => {
@@ -60,6 +61,25 @@ describe("reviewOf", () => {
         PLACE,
       ),
     ).toMatchObject({ price: null, paid: null });
+  });
+});
+
+describe("a rating, for the things reviewed with stars (a book)", () => {
+  it("reads one to five stars from a `rating` tag, and nothing from a number that isn't", () => {
+    expect(reviewOf(comment(A, "Gripping.", [["rating", "5"]]), PLACE)).toMatchObject({ rating: 5 });
+    expect(reviewOf(comment(A, "Meh.", [["rating", "7"]]), PLACE)).toMatchObject({ rating: null });
+    expect(reviewOf(comment(A, "Meh.", []), PLACE)).toMatchObject({ rating: null });
+  });
+  it("is written as a `rating` tag when the reviewer gave one", () => {
+    const t = reviewTemplate(item, { text: "Gripping.", price: null, paid: null, photos: [], rating: 4 }, "wss://r");
+    expect(t.tags).toContainEqual(["rating", "4"]);
+  });
+  it("averages the stars given, to one decimal, with how many gave them", () => {
+    expect(ratingSummary([{ rating: 5 }, { rating: 4 }, { rating: null }, { rating: 4 }])).toEqual({
+      average: 4.3,
+      count: 3,
+    });
+    expect(ratingSummary([{ rating: null }])).toBeNull();
   });
 });
 

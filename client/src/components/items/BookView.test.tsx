@@ -9,6 +9,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/utils";
 import { resolveConcept, type HeaderEvent } from "@/lib/conceptResolution";
 import { useResolvedItemView, isReady } from "@/hooks/useItemView";
@@ -81,9 +82,23 @@ vi.mock("@/hooks/useWotItems", () => ({
 vi.mock("@/hooks/useMyFollows", () => ({ useMyFollows: () => ({ follows: new Set(), ready: true, signedIn: false }) }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
 vi.mock("@/hooks/useProfileMap", () => ({ useProfileMap: () => new Map() }));
+// Reviews of the book (hooks/usePlaceReviews — the same signed comments a place gets, with stars).
+const reviews = vi.hoisted(() => ({
+  list: [] as {
+    id: string;
+    pubkey: string;
+    at: number;
+    text: string;
+    photos: string[];
+    price: null;
+    paid: null;
+    rating: number | null;
+  }[],
+  post: { mutate: vi.fn(), isPending: false },
+}));
 vi.mock("@/hooks/usePlaceReviews", () => ({
-  usePlaceReviews: () => ({ reviews: [], pending: false }),
-  usePostPlaceReview: () => ({ mutate: vi.fn(), isPending: false }),
+  usePlaceReviews: () => ({ reviews: reviews.list, pending: false }),
+  usePostPlaceReview: () => reviews.post,
 }));
 // What our origin knows from Open Library (services/openLibrary); nothing unless a test says so.
 const openLibrary = vi.hoisted(() => ({ facts: null as null | Record<string, unknown> }));
@@ -176,6 +191,8 @@ beforeEach(() => {
   viewer.isAdmin = false;
   viewer.pubkey = null;
   openLibrary.facts = null;
+  reviews.list = [];
+  reviews.post.mutate.mockClear();
 });
 
 describe("BookView", () => {
@@ -227,5 +244,47 @@ describe("BookView", () => {
     viewer.isAdmin = true;
     renderWithProviders(<Page event={storm} copy={houseCopy} />);
     expect(screen.getByTestId("dlist-item-admin-toggle")).toBeInTheDocument();
+  });
+});
+
+describe("reviews from people you trust", () => {
+  const review = (pubkey: string, rating: number | null, text: string) => ({
+    id: pubkey.slice(0, 4).padEnd(64, "0"),
+    pubkey,
+    at: 1_780_000_000,
+    text,
+    photos: [],
+    price: null as null,
+    paid: null as null,
+    rating,
+  });
+
+  it("each review shows its stars, and the hero sums them up beside the vouches", () => {
+    reviews.list = [
+      review("a".repeat(64), 5, "Gripping from the first page."),
+      review("b".repeat(64), 4, "Dense but worth it."),
+    ];
+    renderWithProviders(<Page event={storm} />);
+    const section = screen.getByTestId("book-reviews");
+    const rows = within(section).getAllByTestId("book-review");
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByTestId("book-review-stars")).toHaveAttribute("aria-label", "5 out of 5 stars");
+    expect(rows[0]).toHaveTextContent("Gripping from the first page.");
+    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("2 reviews · rated 4.5");
+    // Not signed in: no composer, a word about signing in.
+    expect(screen.queryByTestId("book-review-composer")).toBeNull();
+  });
+
+  it("a signed-in reader rates it with five stars and a few words, and the post carries both", async () => {
+    viewer.pubkey = "f".repeat(64);
+    renderWithProviders(<Page event={storm} />);
+    const composer = screen.getByTestId("book-review-composer");
+    await userEvent.click(within(composer).getByRole("button", { name: "4 stars" }));
+    await userEvent.type(within(composer).getByRole("textbox"), "Dense but worth it.");
+    await userEvent.click(within(composer).getByRole("button", { name: "Post review" }));
+    expect(reviews.post.mutate).toHaveBeenCalledWith(
+      { text: "Dense but worth it.", rating: 4, price: null, paid: null, photos: [] },
+      expect.anything(),
+    );
   });
 });
