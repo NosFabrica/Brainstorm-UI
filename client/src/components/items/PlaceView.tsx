@@ -262,15 +262,16 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
           className="mt-3 sm:absolute sm:left-4 sm:top-4 sm:z-10 sm:mt-0 sm:max-w-[min(60%,22rem)] sm:rounded-xl sm:border sm:border-white/60 sm:bg-white/85 sm:p-4 sm:shadow-sm sm:backdrop-blur-md dark:sm:border-slate-700/60 dark:sm:bg-slate-900/85"
           data-testid="place-identity"
         >
+          {/* The name leads; the logo, when the site has one, sits at the row's right end, as on a letterhead. */}
           <div className="flex items-start gap-3">
-            {photo && <LogoTile src={photo} />}
             <h1
-              className="min-w-0 break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
+              className="min-w-0 flex-1 break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="place-name"
             >
               <EmojiText text={place.name} tags={event} />
             </h1>
+            {photo && <LogoTile src={photo} />}
           </div>
           {kind && (
             <p
@@ -297,28 +298,29 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
               {reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}` : "No reviews yet"}
             </a>
           </p>
-          {(status || bitcoin != null) && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {status && (
-                <span
-                  className={`inline-flex items-center gap-1.5 text-sm font-semibold ${status.open ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}
-                  title="In the place's local time, estimated from where it is"
-                  data-testid="place-open-status"
-                >
-                  <Clock className="h-3.5 w-3.5" />
-                  {status.open
-                    ? `Open now · until ${clock(status.until)}`
-                    : status.opensAt != null && status.opensDay
-                      ? `Closed · opens ${status.opensDay === localNow!.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
-                      : "Closed"}
-                </span>
-              )}
-              {bitcoin != null && (
-                <Chip tone="warning" icon={Bitcoin} size="sm" data-testid="place-bitcoin">
-                  Accepts Bitcoin{bitcoin ? ` · ${bitcoin}` : ""}
-                </Chip>
-              )}
+          {/* Bitcoin on its own line, then open or closed on its own: two facts, two lines, every screen. */}
+          {bitcoin != null && (
+            <div className="mt-2">
+              <Chip tone="warning" icon={Bitcoin} size="sm" data-testid="place-bitcoin">
+                Accepts Bitcoin{bitcoin ? ` · ${bitcoin}` : ""}
+              </Chip>
             </div>
+          )}
+          {status && (
+            <p className="mt-2">
+              <span
+                className={`inline-flex items-center gap-1.5 text-sm font-semibold ${status.open ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}
+                title="In the place's local time, estimated from where it is"
+                data-testid="place-open-status"
+              >
+                <Clock className="h-3.5 w-3.5" />
+                {status.open
+                  ? `Open now · until ${clock(status.until)}`
+                  : status.opensAt != null && status.opensDay
+                    ? `Closed · opens ${status.opensDay === localNow!.day ? "at" : DAY_SHORT[status.opensDay]} ${clock(status.opensAt)}`
+                    : "Closed"}
+              </span>
+            </p>
           )}
         </div>
       </div>
@@ -604,7 +606,7 @@ function LogoTile({ src }: { src: string }) {
         setSquare(ratio >= SQUARE_ENOUGH[0] && ratio <= SQUARE_ENOUGH[1]);
       }}
       hidden={!square}
-      className="h-14 w-14 shrink-0 rounded-lg border border-slate-200 object-cover dark:border-slate-700"
+      className="ml-auto h-14 w-14 shrink-0 rounded-lg border border-slate-200 bg-white object-cover shadow-sm dark:border-slate-700"
       data-shown={square ? "true" : "false"}
       data-testid="place-photo"
     />

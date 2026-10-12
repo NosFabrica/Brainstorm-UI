@@ -397,6 +397,19 @@ describe("PlaceView", () => {
     expect(photo).toHaveAttribute("data-shown", "true");
     expect(photo.className).toMatch(/h-14/);
     expect(photo.className).not.toMatch(/w-full/);
+    // At the right end of the name's row, as a logo sits on a letterhead — the name leads.
+    const name = within(panel).getByTestId("place-name");
+    expect(name.compareDocumentPosition(photo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(photo.parentElement).toBe(name.parentElement);
+    expect(photo.className).toMatch(/ml-auto/);
+  });
+
+  it("Accepts Bitcoin sits on its own line above the open-or-closed line, never beside it", () => {
+    renderWithProviders(<Page event={ilSole} />);
+    const bitcoin = screen.getByTestId("place-bitcoin");
+    const status = screen.getByTestId("place-open-status");
+    expect(bitcoin.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(bitcoin.parentElement).not.toBe(status.parentElement);
   });
 
   it("a wide picture — a link-preview banner — is not shown at all: cropped square it would be a slice of lettering", () => {
