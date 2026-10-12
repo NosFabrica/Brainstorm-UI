@@ -99,6 +99,9 @@ export default defineConfig({
         target: "https://openlibrary.org",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/openlibrary/, ""),
+        // The ISBN path answers with a redirect to the edition; follow it here, so the
+        // browser never contacts openlibrary.org itself.
+        followRedirects: true,
         headers: { "User-Agent": "Brainstorm-UI-dev" },
       },
       "/link-preview": {

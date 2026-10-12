@@ -65,13 +65,16 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
         </p>
       )}
 
-      {/* The shop window: the cover on a soft band, the words beside it. */}
+      {/* The shop window: the cover on a soft band, the words beside it. On a phone the rating, the
+          trust line and the facts drop under the cover, where they have the whole width. */}
       <section
-        className="-mx-4 -mt-4 flex gap-5 rounded-t-2xl bg-gradient-to-br from-brand-primary/10 via-slate-50 to-brand-accent/10 px-4 pb-5 pt-5 dark:from-brand-primary/20 dark:via-slate-900 dark:to-brand-accent/10 sm:-mx-5 sm:-mt-5 sm:gap-7 sm:px-6 sm:pb-6 sm:pt-6"
+        className="-mx-4 -mt-4 grid grid-cols-[7rem_minmax(0,1fr)] gap-x-5 gap-y-3 rounded-t-2xl bg-gradient-to-br from-brand-primary/10 via-slate-50 to-brand-accent/10 px-4 pb-5 pt-5 dark:from-brand-primary/20 dark:via-slate-900 dark:to-brand-accent/10 sm:-mx-5 sm:-mt-5 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-x-7 sm:px-6 sm:pb-6 sm:pt-6"
         data-testid="book-hero"
       >
-        <Cover src={book.cover} title={book.title} />
-        <div className="min-w-0 flex-1 self-center">
+        <div className="sm:row-span-2">
+          <Cover src={book.cover} title={book.title} />
+        </div>
+        <div className="min-w-0 self-center">
           <h1
             className="break-words text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl"
             style={{ fontFamily: "var(--font-display)" }}
@@ -90,9 +93,11 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
               <span className="font-semibold">{book.author}</span>
             </p>
           )}
+        </div>
+        <div className="col-span-2 min-w-0 sm:col-span-1 sm:col-start-2">
           {facts?.rating && <Rating average={facts.rating.average} count={facts.rating.count} />}
           {/* The line a shop can't write: who you trust stands behind it, and what they thought. */}
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="book-trust-line">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300" data-testid="book-trust-line">
             <a href="#book-verdict" className="hover:text-brand-link">
               {vouches > 0
                 ? `Vouched for by ${vouches} ${vouches === 1 ? "person" : "people"} you trust`
@@ -106,7 +111,7 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
             </a>
           </p>
           {meta.length > 0 && (
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="book-meta">
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400" data-testid="book-meta">
               {meta.join(" · ")}
             </p>
           )}
