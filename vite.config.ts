@@ -93,6 +93,14 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/github/, ""),
         headers: { "User-Agent": "Brainstorm-UI-dev" },
       },
+      // Open Library, the same way (services/openLibrary): a book's page asks
+      // our origin for the edition, the work and its ratings.
+      "/openlibrary": {
+        target: "https://openlibrary.org",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/openlibrary/, ""),
+        headers: { "User-Agent": "Brainstorm-UI-dev" },
+      },
       "/link-preview": {
         target: `http://${process.env.OG_UPSTREAM ?? "127.0.0.1:8080"}`,
         // One hop, so a local service wanting real per-client keys needs
