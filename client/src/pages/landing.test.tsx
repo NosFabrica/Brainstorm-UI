@@ -953,3 +953,36 @@ describe("submitting with Enter", () => {
     expect(document.activeElement).toBe(box);
   });
 });
+
+// ⓧ on a results page clears the words, not the page: the box empties and
+// takes the cursor, the results stay until the next search, and the page is
+// never blank. The wordmark is "home".
+describe("clearing a search with ⓧ", () => {
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    window.history.replaceState({}, "", "/?q=austin");
+  });
+
+  it("empties the box and keeps the results, the band and the URL where they are", async () => {
+    render(<Landing />);
+    expect(await screen.findByTestId("search-band")).toBeInTheDocument();
+    expect(screen.getByTestId("search-results")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-clear"));
+    expect((screen.getByTestId("input-home-search") as HTMLElement).textContent).toBe("");
+    expect(screen.getByTestId("search-results")).toBeInTheDocument();
+    expect(screen.getByTestId("search-band")).toBeInTheDocument();
+    expect(screen.queryByTestId("search-hero")).toBeNull();
+    expect(window.location.search).toBe("?q=austin");
+  });
+
+  it("the wordmark still takes the reader home to the hero", async () => {
+    render(<Landing />);
+    await screen.findByTestId("search-band");
+    fireEvent.click(screen.getByTestId("wordmark-home"));
+    expect(screen.getByTestId("search-hero")).toBeInTheDocument();
+    expect(screen.queryByTestId("search-band")).toBeNull();
+  });
+});

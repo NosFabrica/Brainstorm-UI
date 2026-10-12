@@ -457,6 +457,16 @@ export default function Landing() {
     } catch {}
   }, []);
 
+  // ⓧ on a results page clears the WORDS, not the page: the box empties and
+  // takes the cursor, and the results stay until the next search. The page is
+  // never blank — folding back to the hero made the box jump to the middle of
+  // the screen, and keeping the band over nothing left a bar floating over
+  // white. The wordmark is "home"; ⓧ is "type something else".
+  const clearWords = useCallback(() => {
+    setQuery("");
+    boxRef.current?.reset({ refocus: true });
+  }, []);
+
   // Browse a whole vertical with no keyword — Benjamin's "just show me all
   // the live events". Deep-linkable: ?t=<tab> with no ?q=.
   const browseVertical = useCallback(
@@ -654,10 +664,10 @@ export default function Landing() {
             onSearch={(q) => {
               void handleSearch(q);
             }}
-            onClear={() => clearSearch()}
+            onClear={() => (hasSearched ? clearWords() : clearSearch())}
             onBrowse={browseVertical}
             // Dropping a filter is a decision: the page acts on it at once rather than
-            // waiting for Enter. Emptying the box is the ⓧ gesture — back to the home.
+            // waiting for Enter. Dropping the last pill empties the box — back to the home.
             onRemoveToken={(next) => {
               if (!next.trim()) {
                 clearSearch();
