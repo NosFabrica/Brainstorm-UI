@@ -35,7 +35,7 @@ import { Chip } from "@/components/ui/chip";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { useEndorseItem, useItemEngagement, useListerDistance } from "@/hooks/useItemEngagement";
+import { useEndorseItem, useItemEngagement } from "@/hooks/useItemEngagement";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { useWotItems } from "@/hooks/useWotItems";
@@ -43,7 +43,7 @@ import { rankEndorsers } from "@/services/endorsements";
 import type { GitHubClaimant } from "@/lib/itemEngagement";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import { Favicon } from "@/components/share/LinkPreview";
-import { DListItemNeighbours, useItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
+import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
 import {
   ConceptLink,
   DefinitionLine,
@@ -118,7 +118,7 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
   const account = githubAccountOf(event, r.governing)!;
   const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const facts = useGitHubAccount(account.handle).data ?? null;
-  const network = useNetworkView(event, account.handle, r);
+  const network = useNetworkView(event, account.handle);
 
   // The profile is the first link the templates build on github.com; the rest are offered as they are.
   const profile = links.find((l) => l.host === "github.com") ?? null;
@@ -138,10 +138,7 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
           a long name never meets a button. From sm up the buttons sit beside the name. */}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-3 [grid-template-areas:'kicker_buttons''title_title'] sm:[grid-template-areas:'kicker_kicker''title_buttons']">
         <p className="min-w-0 self-center truncate text-[11px] font-bold uppercase tracking-[0.15em] text-brand-primary [grid-area:kicker]">
-          {r.governing.singular}{" "}
-          <span className="font-medium normal-case tracking-normal text-slate-400 dark:text-slate-500">
-            in <ConceptLink event={event}>{r.governing.plural}</ConceptLink>
-          </span>
+          <ConceptLink event={event}>{r.governing.singular}</ConceptLink>
         </p>
         <div className="flex min-w-0 items-center gap-4 [grid-area:title]">
           <AccountPicture handle={account.handle} listImage={shown.listImage} />
@@ -258,18 +255,12 @@ function IconButton({
  * reader's web of trust, the lister's distance, and names and faces for all
  * of them.
  */
-function useNetworkView(event: ItemEvent, handle: string, resolved: ReadyItemView["resolved"]) {
+function useNetworkView(event: ItemEvent, handle: string) {
   const { endorsers, claimants } = useItemEngagement(event, handle);
   const me = useActiveAccountDisplay()?.pubkey ?? null;
   const endorse = useEndorseItem(event);
   const { follows } = useMyFollows();
-  const { hops } = useListerDistance(event.pubkey);
-  // The item's author first, then whoever else in the reader's web of trust listed the same handle.
-  const listers = [
-    event.pubkey,
-    ...useItemNeighbours(event, resolved).alsoListedBy.filter((pk) => pk !== event.pubkey),
-  ];
-  const people = [...new Set([...listers, ...endorsers.map((e) => e.pubkey), ...claimants.map((c) => c.pubkey)])];
+  const people = [...new Set([...endorsers.map((e) => e.pubkey), ...claimants.map((c) => c.pubkey)])];
   const scoreOf = useAuthorScores(people);
   const profiles = useProfileMap(people);
   const nameOf = (pk: string) => {
@@ -280,13 +271,11 @@ function useNetworkView(event: ItemEvent, handle: string, resolved: ReadyItemVie
   const split = useWotItems(claimants);
   return {
     me,
-    listers,
     endorse,
     endorsers,
     ranked,
     claimants,
     split,
-    hops,
     scoreOf,
     nameOf,
     pictureOf: (pk: string) => profiles.get(pk)?.picture,
@@ -295,19 +284,6 @@ function useNetworkView(event: ItemEvent, handle: string, resolved: ReadyItemVie
   };
 }
 type NetworkView = ReturnType<typeof useNetworkView>;
-
-/** How far the person who added it is, in words a newcomer uses: "a friend of a friend", never "2 hops". */
-function hopsInWords(hops: number): string {
-  if (hops === 1) return "someone you follow";
-  if (hops === 2) return "a friend of a friend";
-  return `someone ${hops} steps from you`;
-}
-
-function hopsExplained(hops: number, lister: string): string {
-  if (hops === 1) return `You follow ${lister}, who added this account.`;
-  if (hops === 2) return `Someone you follow follows ${lister}, who added this account.`;
-  return `${lister}, who added this account, is ${hops} follows away from you.`;
-}
 
 /**
  * What the reader's network says, as labelled facts between GitHub's
@@ -330,10 +306,6 @@ function FromYourNetwork({ network: n }: { network: NetworkView }) {
       ? people(inNetwork)
       : "nobody you trust yet";
   // The author is the footer's "Listed by"; the strip names only who else filed the same handle.
-  const others = n.listers.slice(1);
-  const listers = others.slice(0, 3);
-  const rest = others.length - listers.length;
-  const author = n.nameOf(n.listers[0]);
   return (
     <div className="space-y-2" data-testid="github-account-verdict">
       <div className="flex items-center justify-between gap-3">
@@ -390,92 +362,6 @@ function FromYourNetwork({ network: n }: { network: NetworkView }) {
             </span>
           </dd>
         </div>
-        <div
-          className="flex items-center gap-2"
-          data-testid="github-account-fact-added"
-          title={
-            n.hops != null
-              ? hopsExplained(n.hops, author)
-              : "The person who added this account to the GitHub Accounts list"
-          }
-        >
-          <dt className="text-slate-500 dark:text-slate-400">Added by</dt>
-          <dd className="flex items-center gap-2">
-            <Avatar
-              data-face={n.listers[0]}
-              className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 ${tierRing(n.scoreOf(n.listers[0]), false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}
-            >
-              {n.pictureOf(n.listers[0]) ? (
-                <AvatarImage src={n.pictureOf(n.listers[0])} alt="" className="object-cover" />
-              ) : null}
-              <AvatarFallback className="overflow-hidden rounded-full">
-                <DefaultAvatarImg />
-              </AvatarFallback>
-            </Avatar>
-            <span className="font-semibold text-slate-900 dark:text-slate-100">
-              {n.npubOf(n.listers[0]) ? (
-                <Link href={`/p/${n.npubOf(n.listers[0])}`} className="hover:text-brand-link">
-                  {author}
-                </Link>
-              ) : (
-                author
-              )}
-            </span>
-            {n.hops != null && <span className="text-slate-500 dark:text-slate-400">· {hopsInWords(n.hops)}</span>}
-          </dd>
-        </div>
-        {listers.length > 0 && (
-          <div
-            className="flex items-center gap-2"
-            data-testid="github-account-fact-listed"
-            title="People you trust who also added this account to the GitHub Accounts list"
-          >
-            <dt className="text-slate-500 dark:text-slate-400">Also added by</dt>
-            <dd className="flex items-center gap-2">
-              <span className="flex -space-x-1.5">
-                {listers.map((pk) => (
-                  <Avatar
-                    key={pk}
-                    data-face={pk}
-                    className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 ${tierRing(n.scoreOf(pk), false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}
-                  >
-                    {n.pictureOf(pk) ? <AvatarImage src={n.pictureOf(pk)} alt="" className="object-cover" /> : null}
-                    <AvatarFallback className="overflow-hidden rounded-full">
-                      <DefaultAvatarImg />
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-              </span>
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
-                {listers.map((pk, i) => {
-                  const npub = n.npubOf(pk);
-                  const name = n.nameOf(pk);
-                  return (
-                    <span key={pk}>
-                      {i > 0 && <span className="font-normal text-slate-400">, </span>}
-                      {npub ? (
-                        <Link href={`/p/${npub}`} className="hover:text-brand-link">
-                          {name}
-                        </Link>
-                      ) : (
-                        name
-                      )}
-                    </span>
-                  );
-                })}
-                {rest > 0 && (
-                  <span
-                    className="font-normal text-slate-500 dark:text-slate-400"
-                    title={others.slice(3).map(n.nameOf).join(", ")}
-                  >
-                    {" "}
-                    and {rest} more
-                  </span>
-                )}
-              </span>
-            </dd>
-          </div>
-        )}
       </dl>
     </div>
   );
