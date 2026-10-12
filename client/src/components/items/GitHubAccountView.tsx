@@ -8,8 +8,9 @@
  * and the account's best repos by stars, so a reader can judge a developer
  * at a glance. None of it is asked of GitHub by the page itself. The buttons are
  * the links the definition's URL templates build (the profile), plus the
- * repositories tab of that profile; a definition that names no template
- * gives none, and the view adds no link of its own.
+ * repositories tab of that profile, as two icon buttons side by side; a
+ * definition that names no template gives none, and the view adds no link
+ * of its own.
  *
  * What it reads is the governing definition's `github-username` and
  * `description` fields — the community concept's names for them — so a
@@ -23,7 +24,8 @@
  * The rest of the list follows, for everyone; the definition line and the
  * "More fields" fold are an admin's, since a reader came for the account.
  */
-import { Activity, BadgeCheck, ExternalLink, FolderGit2, Github, MapPin, Star, Users } from "lucide-react";
+import type { ReactNode } from "react";
+import { Activity, BadgeCheck, FolderGit2, Github, MapPin, Star, Users } from "lucide-react";
 import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
@@ -146,54 +148,21 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
             </div>
           </div>
           {(profile || others.length > 0) && (
-            <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-end [&>a]:flex-1 sm:[&>a]:flex-none">
+            <div className="flex shrink-0 items-center gap-2" data-testid="github-account-buttons">
               {profile && (
-                <a
-                  href={profile.href}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
-                  data-testid="github-account-profile"
-                  title={profile.href}
-                >
-                  <Github className="h-4 w-4" />
-                  {profile.label}
-                  <span className="sr-only">· {profile.host}</span>
-                  <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-                </a>
+                <IconButton href={profile.href} label={profile.label} primary testId="github-account-profile">
+                  <Github className="h-5 w-5" />
+                </IconButton>
               )}
               {repos && (
-                <a
-                  href={repos}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  data-testid="github-account-repos"
-                  title={repos}
-                >
-                  <FolderGit2 className="h-4 w-4" />
-                  Repositories
-                  <span className="sr-only">· github.com</span>
-                  <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-                </a>
+                <IconButton href={repos} label="Repositories on GitHub" testId="github-account-repos">
+                  <FolderGit2 className="h-5 w-5" />
+                </IconButton>
               )}
               {others.map((l) => (
-                <a
-                  key={l.href}
-                  href={l.href}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  data-testid="dlist-item-link"
-                  title={l.href}
-                >
-                  <span className="flex h-5 w-5 items-center justify-center rounded bg-white">
-                    <Favicon host={l.host} className="h-3.5 w-3.5 text-slate-500" />
-                  </span>
-                  {l.label}
-                  <span className="sr-only">· {l.host}</span>
-                  <ExternalLink className="h-3.5 w-3.5 opacity-70" />
-                </a>
+                <IconButton key={l.href} href={l.href} label={`${l.label} · ${l.host}`} testId="dlist-item-link">
+                  <Favicon host={l.host} className="h-4 w-4 text-slate-500" />
+                </IconButton>
               ))}
             </div>
           )}
@@ -210,6 +179,43 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
 
       {isAdmin && <DefinitionLine event={event} resolved={r} />}
     </div>
+  );
+}
+
+/**
+ * A square icon button that opens elsewhere: the icon is the whole face, the
+ * label is for screen readers and the hover. Two sit side by side, under the
+ * title on a phone and at the right of it from `sm` up.
+ */
+function IconButton({
+  href,
+  label,
+  primary = false,
+  testId,
+  children,
+}: {
+  href: string;
+  label: string;
+  primary?: boolean;
+  testId: string;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer nofollow"
+      aria-label={label}
+      title={label}
+      className={
+        primary
+          ? "inline-flex h-11 w-11 items-center justify-center rounded-xl bg-brand-primary text-white transition-colors hover:bg-brand-primary-hover"
+          : "inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+      }
+      data-testid={testId}
+    >
+      {children}
+    </a>
   );
 }
 

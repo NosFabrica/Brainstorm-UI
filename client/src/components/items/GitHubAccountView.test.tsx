@@ -212,13 +212,13 @@ describe("GitHubAccountView", () => {
 
   it("offers the profile the definition's template builds, and the repositories beside it", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
-    const profile = screen.getByTestId("github-account-profile");
+    // Icon buttons, side by side: each is named for a screen reader and on hover.
+    const profile = screen.getByRole("link", { name: "GitHub profile" });
     expect(profile).toHaveAttribute("href", "https://github.com/nous-clawds4");
-    expect(profile).toHaveTextContent("GitHub profile");
-    expect(screen.getByTestId("github-account-repos")).toHaveAttribute(
-      "href",
-      "https://github.com/nous-clawds4?tab=repositories",
-    );
+    expect(profile).toHaveAttribute("title", "GitHub profile");
+    const repos = screen.getByRole("link", { name: "Repositories on GitHub" });
+    expect(repos).toHaveAttribute("href", "https://github.com/nous-clawds4?tab=repositories");
+    expect(repos).toHaveAttribute("title", "Repositories on GitHub");
   });
 
   it("a definition that names no template gives no buttons — the view adds no link of its own", () => {
