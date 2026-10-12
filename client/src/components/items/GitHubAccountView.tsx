@@ -16,8 +16,8 @@
  * `description` fields — the community concept's names for them — so a
  * copy that renames the handle leaves the item to the tier-two page.
  *
- * Under the name, GitHub's numbers (GitHubStats); then what the reader's
- * network says as labelled facts (FromYourNetwork): who vouches (the
+ * Under the name, GitHub's numbers and the account's best repos; then what
+ * the reader's network says as labelled facts (FromYourNetwork): who vouches (the
  * endorsers' faces, the people the reader follows first, with an Endorse
  * button for a signed-in reader: one "+", public and signed), and how far
  * the lister is. Then which Nostr profiles in the reader's web of trust
@@ -174,9 +174,9 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
 
       {facts && <GitHubStats facts={facts} />}
 
-      <FromYourNetwork network={network} />
-
       {facts && <TopRepos facts={facts} />}
+
+      <FromYourNetwork network={network} />
 
       <OnNostr event={event} network={network} />
 
@@ -280,7 +280,7 @@ function hopsExplained(hops: number, lister: string): string {
 
 /**
  * What the reader's network says, as labelled facts between GitHub's
- * numbers and the repos: how many in the reader's network vouch for it (their
+ * content and the rest of the list: how many in the reader's network vouch for it (their
  * faces, the Endorse button at the row's end), how far the lister is from
  * the reader in the follows graph, and — only when someone besides the
  * author filed the same handle — who else listed it. The author themself is
@@ -580,7 +580,7 @@ function GitHubStats({ facts }: { facts: GitHubAccountFacts }) {
   );
 }
 
-/** The account's best repos by stars, below what the network says. Nothing here is a field of the list. */
+/** The account's best repos by stars, with GitHub's numbers above them. Nothing here is a field of the list. */
 function TopRepos({ facts }: { facts: GitHubAccountFacts }) {
   const repos = topRepos(facts.repos, TOP_REPOS);
   if (repos.length === 0) return null;
