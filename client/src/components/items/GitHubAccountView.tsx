@@ -38,14 +38,7 @@ import { useNetworkView, WhoStandsBehindIt, type NetworkView } from "@/component
 import type { GitHubClaimant } from "@/lib/itemEngagement";
 import { Favicon } from "@/components/share/LinkPreview";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
-import {
-  ConceptLink,
-  DefinitionLine,
-  MoreFields,
-  type FieldCells,
-  type ItemEvent,
-} from "@/components/share/DListItemParts";
-import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { AdminDefinition, ConceptLink, type FieldCells, type ItemEvent } from "@/components/share/DListItemParts";
 import { useGitHubAccount } from "@/hooks/useGitHubAccount";
 import { topRepos, type GitHubAccountFacts } from "@/services/github";
 import { compactCount } from "@/lib/compactCount";
@@ -110,7 +103,6 @@ export function githubPresentation(
 export function GitHubAccountView({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
   const { resolved: r, shown, links, usedFields } = view;
   const account = githubAccountOf(event, r.governing)!;
-  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
   const facts = useGitHubAccount(account.handle).data ?? null;
   const network = useNetworkView(event, account.handle);
 
@@ -196,11 +188,9 @@ export function GitHubAccountView({ event, view }: { event: ItemEvent; view: Rea
 
       <OnNostr event={event} network={network} />
 
-      {isAdmin && <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />}
-
       <DListItemNeighbours event={event} resolved={r} alsoListed={false} />
 
-      {isAdmin && <DefinitionLine event={event} resolved={r} />}
+      <AdminDefinition event={event} resolved={r} cells={unshown} extras={extras} />
     </div>
   );
 }

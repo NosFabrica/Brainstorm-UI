@@ -55,13 +55,7 @@ import {
 import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { DListItemNeighbours } from "@/components/dictionary/DListItemNeighbours";
-import {
-  ConceptLink,
-  DefinitionLine,
-  MoreFields,
-  type FieldCells,
-  type ItemEvent,
-} from "@/components/share/DListItemParts";
+import { AdminDefinition, ConceptLink, type FieldCells, type ItemEvent } from "@/components/share/DListItemParts";
 import { useNetworkView, WhoStandsBehindIt } from "@/components/items/WhoStandsBehindIt";
 import { PlaceMap } from "@/components/items/PlaceMap";
 import { PlaceReviews, ReviewPhotos, useRankedReviews } from "@/components/items/PlaceReviews";
@@ -438,8 +432,6 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
         <WhoStandsBehindIt network={network} noun="place" idPrefix="place" />
       </div>
 
-      {isAdmin && <MoreFields cells={unshown} extras={extras} singular={r.governing.singular} />}
-
       <DListItemNeighbours event={event} resolved={r} />
 
       <p className="text-[11px] text-slate-400 dark:text-slate-500" data-testid="place-attribution">
@@ -447,7 +439,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
         License.
       </p>
 
-      {isAdmin && <DefinitionLine event={event} resolved={r} />}
+      <AdminDefinition event={event} resolved={r} cells={unshown} extras={extras} />
     </div>
   );
 }
