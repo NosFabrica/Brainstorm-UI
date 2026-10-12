@@ -59,7 +59,6 @@ import {
   Minimize2,
   X,
 } from "lucide-react";
-import { Chip } from "@/components/ui/chip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { DListItemNeighbours, useListItems } from "@/components/dictionary/DListItemNeighbours";
 import { ItemLine } from "@/components/dictionary/ItemLine";
@@ -337,14 +336,6 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
               {reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? "review" : "reviews"}` : "No reviews yet"}
             </a>
           </p>
-          {/* Bitcoin on its own line, then open or closed on its own: two facts, two lines, every screen. */}
-          {bitcoin != null && (
-            <div className="mt-2">
-              <Chip tone="warning" icon={Bitcoin} size="sm" data-testid="place-bitcoin">
-                Accepts Bitcoin{bitcoin ? ` · ${bitcoin}` : ""}
-              </Chip>
-            </div>
-          )}
           {status && (
             <p className="mt-2">
               <span
@@ -463,6 +454,13 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
                 <Favicon host={hostOf(website)} className="h-4 w-4 text-slate-400" fallback={null} />
                 {hostOf(website)} <ExternalLink className="h-3 w-3 opacity-60" />
               </a>
+            </Row>
+          )}
+          {/* How to pay is a detail, with the address, phone and site — not a badge in the panel: every
+              place on a BTC Map list takes Bitcoin, so the badge said the same thing on every page. */}
+          {bitcoin != null && (
+            <Row icon={Bitcoin} label="Payment" testId="place-bitcoin">
+              Accepts Bitcoin{bitcoin ? ` · ${bitcoin}` : ""}
             </Row>
           )}
           {(price || place.priceRange) && (

@@ -425,12 +425,14 @@ describe("PlaceView", () => {
     expect(screen.getByTestId("place-identity")).not.toHaveAttribute("data-folded");
   });
 
-  it("Accepts Bitcoin sits on its own line above the open-or-closed line, never beside it", () => {
+  it("Accepts Bitcoin is a detail among the details — a Location row under the website — not a badge in the panel", () => {
     renderWithProviders(<Page event={ilSole} />);
-    const bitcoin = screen.getByTestId("place-bitcoin");
-    const status = screen.getByTestId("place-open-status");
-    expect(bitcoin.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(bitcoin.parentElement).not.toBe(status.parentElement);
+    const details = screen.getByTestId("place-details");
+    const bitcoin = within(details).getByTestId("place-bitcoin");
+    expect(bitcoin).toHaveTextContent("Accepts Bitcoin · Lightning");
+    const website = within(details).getByTestId("place-website");
+    expect(website.compareDocumentPosition(bitcoin) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(screen.getByTestId("place-identity")).queryByTestId("place-bitcoin")).toBeNull();
   });
 
   it("a wide picture — a link-preview banner — is not shown at all: cropped square it would be a slice of lettering", () => {
