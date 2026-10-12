@@ -110,12 +110,6 @@ export default function Landing() {
     }
   });
   const hasSearched = submitted !== null;
-  // ⓧ on a results page is "start over", not "leave": the box keeps its band at
-  // the top with the recents open under it while the results go. The centred
-  // hero is for arriving (and for the wordmark, which is "home"), not for
-  // clearing — the jump from band to hero read as being sent somewhere.
-  const [cleared, setCleared] = useState(false);
-  const band = hasSearched || cleared;
   // Brief in-box spinner while a NIP-05 handle resolves to a profile.
   const [isSearching, setIsSearching] = useState(false);
 
@@ -131,7 +125,7 @@ export default function Landing() {
   // reads as a slab laid over the aurora in dark mode.
   const [bandFrosted, setBandFrosted] = useState(false);
   useEffect(() => {
-    if (!band) {
+    if (!hasSearched) {
       setBandFrosted(false);
       return;
     }
@@ -139,7 +133,7 @@ export default function Landing() {
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [band]);
+  }, [hasSearched]);
   // Safari's chrome takes this page's own color while it is up. iOS Safari paints the
   // theme-color past the page's end — into the strip its toolbar gives up when the box
   // takes focus — and the app's ink (#0a0e18) ran as a black band under the white home
@@ -227,8 +221,6 @@ export default function Landing() {
   // keeps browsing that tab; nothing at all returns to the pristine home.
   const resetResults = useCallback(() => {
     searchAbortRef.current++;
-    // Back to a URL with no search is the home, hero and all.
-    setCleared(false);
     const params = new URLSearchParams(window.location.search);
     setSubmitted(params.get("t") ? (params.get("f") ?? "").trim() : null);
     setIsSearching(false);
@@ -445,31 +437,25 @@ export default function Landing() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- scope is rebuilt each render; keyed on pubkey
   }, [scope?.pubkey]);
 
-  const clearSearch = useCallback(
-    (opts?: { refocus?: boolean }) => {
-      searchAbortRef.current++;
-      // The ⓧ (refocus) stays in the band; the wordmark (no refocus) goes home.
-      setCleared(opts?.refocus !== false && submitted !== null);
-      setQuery("");
-      setFilters("");
-      setSubmitted(null);
-      setIsSearching(false);
-      // Refocusing reopens the recents dropdown — right for the ⓧ clear
-      // button, wrong for the wordmark (a "refresh", not an invitation).
-      boxRef.current?.reset(opts);
-      try {
-        const url = new URL(window.location.href);
-        if (url.searchParams.has("q") || url.searchParams.has("t") || url.searchParams.has("f")) {
-          url.searchParams.delete("q");
-          url.searchParams.delete("t");
-          url.searchParams.delete("f");
-          window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
-        }
-      } catch {}
-      // `submitted` is read at the click: whether there were results to stay beside.
-    },
-    [submitted],
-  );
+  const clearSearch = useCallback((opts?: { refocus?: boolean }) => {
+    searchAbortRef.current++;
+    setQuery("");
+    setFilters("");
+    setSubmitted(null);
+    setIsSearching(false);
+    // Refocusing reopens the recents dropdown — right for the ⓧ clear
+    // button, wrong for the wordmark (a "refresh", not an invitation).
+    boxRef.current?.reset(opts);
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("q") || url.searchParams.has("t") || url.searchParams.has("f")) {
+        url.searchParams.delete("q");
+        url.searchParams.delete("t");
+        url.searchParams.delete("f");
+        window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+    } catch {}
+  }, []);
 
   // Browse a whole vertical with no keyword — Benjamin's "just show me all
   // the live events". Deep-linkable: ?t=<tab> with no ?q=.
@@ -534,7 +520,7 @@ export default function Landing() {
           a search has run the page becomes a tool — the hero folds into one
           compact band (small mark · box · actions) and this bar steps aside so
           results start high (Benjamin, 2026-09-04: "Apple-like clean"). */}
-      {!band && (
+      {!hasSearched && (
         <header className="relative z-20 flex items-center px-4 py-5 sm:px-8 short:py-2.5" data-testid="home-header">
           {/* Center: the finish-setup nudge — this is the page a fresh sign-in
             lands on, so the one persistent reminder has to live here too.
@@ -565,7 +551,7 @@ export default function Landing() {
           desktop padding both have to be neutralised by height, not width. `!`
           because these override `sm:` utilities of equal specificity. */}
       <main
-        className={`relative z-10 flex flex-1 flex-col items-center px-4 ${band ? "justify-start pt-3 sm:pt-4" : dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "-mt-10 justify-center sm:-mt-16 short:!mt-0 short:justify-start short:pt-2"}`}
+        className={`relative z-10 flex flex-1 flex-col items-center px-4 ${hasSearched ? "justify-start pt-3 sm:pt-4" : dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "-mt-10 justify-center sm:-mt-16 short:!mt-0 short:justify-start short:pt-2"}`}
       >
         {/* Two shapes, one tree: the centred hero before a search; after it, a
             compact band — mark left, box centre, actions right — that wraps
@@ -573,11 +559,11 @@ export default function Landing() {
         <div
           ref={heroRef}
           className={
-            band
+            hasSearched
               ? "sticky top-0 z-30 mx-auto -mt-3 flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 py-2 sm:-mt-4 sm:flex-nowrap sm:gap-x-5 sm:py-2.5"
               : "mx-auto w-full max-w-2xl text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]"
           }
-          data-testid={band ? "search-band" : "search-hero"}
+          data-testid={hasSearched ? "search-band" : "search-hero"}
         >
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
@@ -585,7 +571,7 @@ export default function Landing() {
               wide as the results column, so painting the row itself drew a
               rectangle with two hard edges down the middle of the page. This
               spans the viewport instead, and stays clear until scrolled. */}
-          {band && (
+          {hasSearched && (
             <div
               aria-hidden="true"
               data-frosted={bandFrosted}
@@ -598,8 +584,12 @@ export default function Landing() {
             />
           )}
 
-          <div className={band ? "order-1 flex shrink-0 items-center" : "mb-8 flex flex-col items-center short:mb-3.5"}>
-            <h1 className={band ? "flex items-center" : "mb-2.5 short:mb-1.5"} data-testid="text-home-title">
+          <div
+            className={
+              hasSearched ? "order-1 flex shrink-0 items-center" : "mb-8 flex flex-col items-center short:mb-3.5"
+            }
+          >
+            <h1 className={hasSearched ? "flex items-center" : "mb-2.5 short:mb-1.5"} data-testid="text-home-title">
               {/* Wordmark <img> carries the "Brainstorm" accessible name (its
                   alt), so no sr-only duplicate. */}
               {/* Website hero → wordmark. Stays the Aurora gradient (a reserved
@@ -631,18 +621,18 @@ export default function Landing() {
                 data-testid="wordmark-home"
               >
                 <Wordmark
-                  height={band ? 26 : 52}
+                  height={hasSearched ? 26 : 52}
                   variant="gradient"
-                  className={band ? "dark:hidden" : "mx-auto dark:hidden short:!h-9"}
+                  className={hasSearched ? "dark:hidden" : "mx-auto dark:hidden short:!h-9"}
                 />
                 <Wordmark
-                  height={band ? 26 : 52}
+                  height={hasSearched ? 26 : 52}
                   variant="white"
-                  className={band ? "hidden dark:block" : "mx-auto hidden dark:block short:!h-9"}
+                  className={hasSearched ? "hidden dark:block" : "mx-auto hidden dark:block short:!h-9"}
                 />
               </button>
             </h1>
-            {!band && (
+            {!hasSearched && (
               <p
                 className="text-base font-medium text-slate-700 dark:text-slate-100 sm:text-lg short:!text-sm"
                 data-testid="text-home-subtitle"
@@ -655,7 +645,7 @@ export default function Landing() {
           <SearchBox
             boxRef={boxRef}
             className={
-              band
+              hasSearched
                 ? "order-3 basis-full sm:order-2 sm:mx-auto sm:min-w-0 sm:max-w-2xl sm:flex-1 sm:basis-auto"
                 : undefined
             }
@@ -683,7 +673,7 @@ export default function Landing() {
             // Not on a touch screen: there it opens the keyboard over the page the moment it
             // loads — every launch of the installed iPhone app — and iOS scrolls the page up
             // under the status bar to show the field.
-            autoFocus={!band && !isTouchScreen()}
+            autoFocus={!hasSearched && !isTouchScreen()}
             placeholder={
               <span
                 className={`${SEARCH_PLACEHOLDER_CLASS} transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
@@ -696,7 +686,7 @@ export default function Landing() {
               <>
                 {/* The band has no button: Enter searches, the magnifier spins
                     while it runs. The pristine landing keeps the purple call. */}
-                {!band && (
+                {!hasSearched && (
                   <button
                     type="submit"
                     aria-label="Search"
@@ -760,7 +750,7 @@ export default function Landing() {
           />
 
           {/* Band, right: the same account actions the pristine bar carries. */}
-          {band && (
+          {hasSearched && (
             <div
               className="order-2 ml-auto flex shrink-0 items-center gap-1 sm:order-3 sm:ml-0 sm:gap-2"
               data-testid="band-actions"
@@ -788,7 +778,7 @@ export default function Landing() {
               pristine. Once results show it moves into the results' tab row
               (compact) — one row of chrome between the box and the results,
               not three. */}
-          {!band && (
+          {!hasSearched && (
             <PerspectiveToggle
               pov={effectivePov}
               user={user}
@@ -801,7 +791,7 @@ export default function Landing() {
 
         {/* The finish-setup nudge lives in the pristine bar; once that bar has
             stepped aside it sits under the band instead. Self-hides when done. */}
-        {band && (
+        {hasSearched && (
           <div className="mt-2 flex w-full justify-center">
             <FinishSetupBanner />
           </div>
