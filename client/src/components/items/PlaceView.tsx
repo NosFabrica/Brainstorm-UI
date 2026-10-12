@@ -203,7 +203,8 @@ const hostOf = (url: string) => {
 export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
   const { resolved: r, shown, links, usedFields } = view;
   const place = placeOf(event, r.governing)!;
-  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
+  const me = useActiveAccountDisplay();
+  const isAdmin = me?.isAdmin === true;
   const network = useNetworkView(event);
   const ranked = useRankedReviews(event);
   const listed = useListItems(event, r);
@@ -291,7 +292,9 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
             <a href="#place-verdict" className="hover:text-brand-link">
               {vouches > 0
                 ? `Vouched for by ${vouches} ${vouches === 1 ? "person" : "people"} you trust`
-                : "No one you trust has vouched for it yet"}
+                : me
+                  ? "No one you trust has vouched for it yet"
+                  : "No vouches yet"}
             </a>
             <span className="text-slate-300 dark:text-slate-600"> · </span>
             <a href="#place-reviews" className="hover:text-brand-link">

@@ -13,7 +13,7 @@
  * none gives none. Readers see the book; the concept kicker and the field
  * fold are the admin's.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { BookOpen, Library, Star } from "lucide-react";
 import { Favicon } from "@/components/share/LinkPreview";
 import { Link } from "wouter";
@@ -37,8 +37,12 @@ export { bookOf, bookPresentation } from "@/lib/books";
 
 export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
   const { resolved: r, links, usedFields } = view;
-  const book = bookOf(event, r.governing)!;
-  const facts = useBookFacts(book).data ?? null;
+  // Read once per item and definition, so the shelves below memoise against it.
+  const book = useMemo(() => bookOf(event, r.governing)!, [event, r.governing]);
+  const asked = useBookFacts(book);
+  const facts = asked.data ?? null;
+  // Only while an answer may still come: a book with neither ISBN nor work id is never asked.
+  const awaiting = asked.isPending && !!(book.isbn || book.workId);
   const read = facts?.read ?? null;
   const network = useNetworkView(event);
   const ranked = useRankedReviews(event);
@@ -46,13 +50,21 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
   // Stars alone are a rating; words are a review. Counted apart, as Open Library counts.
   const reviewCount = ranked.reviews.filter((r) => r.text).length;
   const ours = ratingSummary(ranked.reviews);
-  const isAdmin = useActiveAccountDisplay()?.isAdmin === true;
+  const me = useActiveAccountDisplay();
+  const isAdmin = me?.isAdmin === true;
   // The rest of the list, read once: the author's other books, and the ones sharing its subjects.
   const listed = useListItems(event, r);
-  const byAuthor = booksByAuthor(book, event.id, listed.items, r.governing).slice(0, SHELF);
-  const similar = similarBooks(book, event.id, listed.items, r.governing)
-    .filter((i) => !byAuthor.some((b) => b.id === i.id))
-    .slice(0, SHELF);
+  const byAuthor = useMemo(
+    () => booksByAuthor(book, event.id, listed.items, r.governing).slice(0, SHELF),
+    [book, event.id, listed.items, r.governing],
+  );
+  const similar = useMemo(
+    () =>
+      similarBooks(book, event.id, listed.items, r.governing)
+        .filter((i) => !byAuthor.some((b) => b.id === i.id))
+        .slice(0, SHELF),
+    [book, event.id, listed.items, r.governing, byAuthor],
+  );
 
   const meta = [
     book.year,
@@ -113,12 +125,21 @@ export function BookView({ event, view }: { event: ItemEvent; view: ReadyItemVie
         </div>
         <div className="col-span-2 min-w-0 sm:col-span-1 sm:col-start-2">
           {facts?.rating && <Rating average={facts.rating.average} count={facts.rating.count} />}
+          {awaiting && !facts && (
+            <span
+              className="block h-5 w-48 max-w-full animate-pulse rounded bg-slate-200/70 dark:bg-slate-700/60"
+              aria-hidden="true"
+              data-testid="book-facts-pending"
+            />
+          )}
           {/* The line a shop can't write: who you trust stands behind it, and what they thought. */}
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300" data-testid="book-trust-line">
             <a href="#book-verdict" className="hover:text-brand-link">
               {recommenders > 0
                 ? `Recommended by ${recommenders} ${recommenders === 1 ? "person" : "people"} you trust`
-                : "No one you trust has recommended it yet"}
+                : me
+                  ? "No one you trust has recommended it yet"
+                  : "No recommendations yet"}
             </a>
             <span className="text-slate-300 dark:text-slate-600"> · </span>
             <a href="#book-reviews" className="hover:text-brand-link">

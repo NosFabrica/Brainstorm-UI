@@ -104,8 +104,10 @@ vi.mock("@/hooks/usePlaceReviews", () => ({
   usePostPlaceReview: () => reviews.post,
 }));
 // What our origin knows from Open Library (services/openLibrary); nothing unless a test says so.
-const openLibrary = vi.hoisted(() => ({ facts: null as null | Record<string, unknown> }));
-vi.mock("@/hooks/useBookFacts", () => ({ useBookFacts: () => ({ data: openLibrary.facts, isPending: false }) }));
+const openLibrary = vi.hoisted(() => ({ facts: null as null | Record<string, unknown>, pending: false }));
+vi.mock("@/hooks/useBookFacts", () => ({
+  useBookFacts: () => ({ data: openLibrary.facts, isPending: openLibrary.pending }),
+}));
 
 import { BookView } from "./BookView";
 
@@ -195,6 +197,7 @@ beforeEach(() => {
   viewer.isAdmin = false;
   viewer.pubkey = null;
   openLibrary.facts = null;
+  openLibrary.pending = false;
   reviews.list = [];
   reviews.post.mutate.mockClear();
   list.items = [];
@@ -213,6 +216,8 @@ describe("BookView", () => {
     expect(screen.queryByTestId("book-subjects-more")).toBeNull();
     expect(screen.queryByTestId("book-rating")).toBeNull();
     expect(screen.queryByTestId("book-description")).toBeNull();
+    // Not signed in: no "you" to trust, so the line speaks of recommendations.
+    expect(screen.getByTestId("book-trust-line")).toHaveTextContent("No recommendations yet · No reviews yet");
     // Nothing for a reader to open: the community header names no template.
     expect(screen.queryByTestId("book-actions")).toBeNull();
     expect(screen.getByTestId("neighbours-slot")).toBeInTheDocument();
@@ -464,5 +469,21 @@ describe("subjects, quietly", () => {
     await userEvent.click(less);
     expect(line).not.toHaveTextContent("Criminology");
     expect(screen.getByTestId("book-subjects-more")).toHaveTextContent("+4 more");
+  });
+});
+
+describe("while Open Library answers", () => {
+  it("holds a quiet placeholder where the rating will go, so the hero doesn't jump when it lands", () => {
+    openLibrary.pending = true;
+    renderWithProviders(<Page event={storm} />);
+    expect(screen.getByTestId("book-facts-pending")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByTestId("book-rating")).toBeNull();
+  });
+
+  it("and once answered — or silent — the placeholder is gone", () => {
+    openLibrary.facts = FACTS;
+    renderWithProviders(<Page event={storm} />);
+    expect(screen.queryByTestId("book-facts-pending")).toBeNull();
+    expect(screen.getByTestId("book-rating")).toBeInTheDocument();
   });
 });
