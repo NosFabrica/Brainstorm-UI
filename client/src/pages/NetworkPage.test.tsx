@@ -39,7 +39,17 @@ vi.mock("@/hooks/useSocialActions", () => ({
 vi.mock("@/services/nostr", () => ({ fetchProfiles: async () => {}, eventStore: { getReplaceable: () => undefined } }));
 vi.mock("@/services/api", () => ({
   apiClient: {
-    getGrapeRankResult: async () => ({ data: { internal_publication_status: "success" } }),
+    getGrapeRankResult: async () => ({
+      data: {
+        internal_publication_status: "success",
+        // tier → hops → count: 150 within three hops, 6 of them flagged.
+        count_values: {
+          high: { "1": 44 },
+          low: { "2": 100 },
+          low_and_reported_by_2_or_more_trusted_pubkeys: { "3": 6 },
+        },
+      },
+    }),
     getUserByPubkey: async () => ({ data: null }),
     getUserStats: async () => ({ data: null }),
   },
@@ -93,6 +103,26 @@ beforeEach(() => {
   perspective = "mywot";
   connectionsAsked.mockClear();
   localStorage.setItem("brainstorm_calc_completed", "true");
+});
+
+describe("NetworkPage reach strip", () => {
+  // The dashboard's "Your Network" card moved here: reach and health sit
+  // above the filters, read from the same run the page already loads.
+  it("shows the run's reach and health above the filters", async () => {
+    show();
+    const strip = await screen.findByTestId("network-reach-strip");
+    const filters = screen.getByTestId("card-network-filters");
+    expect(strip.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(strip).getByTestId("network-reach-count")).toHaveTextContent("150");
+    expect(within(strip).getByTestId("network-health-legend")).toHaveTextContent("Flagged 4%");
+  });
+
+  it("the page is titled for its reader, not as an explorer of data", async () => {
+    show();
+    const [header] = await screen.findAllByTestId("section-network-header");
+    expect(header).toHaveTextContent("Your Network");
+    expect(header).not.toHaveTextContent("Network Explorer");
+  });
 });
 
 describe("NetworkPage controls", () => {

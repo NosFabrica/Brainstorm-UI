@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /**
  * How the dashboard is put together for a returning user: one slim status
- * strip carrying the single prompt, then alerts, then the network, then what
- * the network is reading — not three setup panels before any product.
+ * strip carrying the single prompt, the page's own search box, then alerts,
+ * then what the network is reading — not three setup panels before any
+ * product. The network itself lives on /network.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
@@ -13,7 +14,13 @@ import { accountKey } from "@/lib/accountStorage";
 
 const ME = "f".repeat(64);
 
-vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
+// The header's own search box is off on this page: the page's hero box is the one.
+vi.mock("@/components/AppHeader", () => ({
+  AppHeader: ({ search }: { search?: boolean }) => <div data-testid="app-header" data-search={String(search)} />,
+}));
+vi.mock("@/components/search/SearchBox", () => ({
+  SearchBox: ({ ariaLabel }: { ariaLabel?: string }) => <input aria-label={ariaLabel} data-testid="search-box" />,
+}));
 vi.mock("@/components/Footer", () => ({ Footer: () => null }));
 vi.mock("@/components/PageBackground", () => ({ default: () => null }));
 vi.mock("@/components/DeferredSession", () => ({ DeferredSessionNotice: () => null }));
@@ -24,9 +31,6 @@ vi.mock("@/components/dashboard/SetupProgressCard", () => ({ SetupProgressCard: 
 vi.mock("@/components/dashboard/TaggedYouModule", () => ({ TaggedYouModule: () => null }));
 vi.mock("@/components/dashboard/ClientShelf", () => ({ ClientShelf: () => null }));
 vi.mock("@/components/dashboard/AlertsBanner", () => ({ AlertsBanner: () => <div data-testid="alerts-banner" /> }));
-vi.mock("@/components/dashboard/YourNetworkCard", () => ({
-  YourNetworkCard: () => <div data-testid="card-your-network" />,
-}));
 vi.mock("@/components/dashboard/NetworkArticlesModule", () => ({
   NetworkArticlesModule: () => <div data-testid="card-network-articles" />,
 }));
@@ -39,7 +43,6 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
 }));
 vi.mock("@/hooks/useTrustPresetSync", () => ({ useTrustPresetSync: () => ({ preset: "default", isLoading: false }) }));
 vi.mock("@/hooks/useTierGranularity", () => ({ useTierGranularity: () => ["simple", () => {}] }));
-vi.mock("@/hooks/useNetworkFaces", () => ({ useNetworkFaces: () => ({ data: undefined }) }));
 vi.mock("@/hooks/useShareUrl", () => ({ useShareUrl: () => "" }));
 vi.mock("@/hooks/useVerifiedNoFollows", () => ({ useVerifiedNoFollows: () => "has-follows" }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
@@ -107,15 +110,24 @@ describe("DashboardPage for a returning user", () => {
     expect(screen.getAllByText(/Activate/)).toHaveLength(1);
   });
 
-  it("reads status → alerts → network → reading, top to bottom", async () => {
+  it("reads status → search → alerts → reading, top to bottom: the network lives on /network now", async () => {
     show();
     const strip = await screen.findByTestId("card-overall-trust-score");
+    const search = screen.getByTestId("dashboard-search");
     const alerts = screen.getByTestId("alerts-banner");
-    const network = screen.getByTestId("card-your-network");
     const reading = screen.getByTestId("card-network-articles");
-    expect(before(strip, alerts)).toBe(true);
-    expect(before(alerts, network)).toBe(true);
-    expect(before(network, reading)).toBe(true);
+    expect(before(strip, search)).toBe(true);
+    expect(before(search, alerts)).toBe(true);
+    expect(before(alerts, reading)).toBe(true);
+    expect(screen.queryByTestId("card-your-network")).toBeNull();
+  });
+
+  it("is a search page first: one search box, the page's own, with the header's switched off", async () => {
+    show();
+    const search = await screen.findByTestId("dashboard-search");
+    expect(within(search).getByTestId("search-box")).toHaveAttribute("aria-label", "Search Brainstorm");
+    expect(screen.getAllByTestId("search-box")).toHaveLength(1);
+    expect(screen.getByTestId("app-header")).toHaveAttribute("data-search", "false");
   });
 
   it("the greeting is one line: no slogan under it for a user whose network is already running", async () => {

@@ -57,6 +57,8 @@ import {
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { useHasSession } from "@/hooks/useHasSession";
 import { TrustScoreModal, useScorePov } from "@/components/score/TrustScorePov";
+import { NetworkReachStrip } from "@/components/network/NetworkReachStrip";
+import { countValuesOf } from "@/lib/networkReach";
 import { networkPerspective } from "@/lib/networkPerspective";
 import { presetDisplayLabel } from "@/services/trustThreshold";
 import { UNKNOWN_EXPLAINER, ladderFor } from "@/lib/trustLadder";
@@ -1084,7 +1086,7 @@ export default function NetworkPage() {
           <div className="relative z-10 mb-8 pt-2 text-left" data-testid="section-network-header">
             <div className="pointer-events-none absolute left-1/2 top-1/2 h-[100%] w-[100%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-primary/5 blur-[60px] will-change-transform" />
             <PageHeader
-              kicker="Network Explorer"
+              kicker="Who you trust"
               title={
                 <>
                   Your <span className="text-brand-link">Network</span>
@@ -1120,6 +1122,14 @@ export default function NetworkPage() {
             </div>
             <TrustScoreModal open={scoreExplainOpen} onOpenChange={setScoreExplainOpen} />
           </div>
+
+          {/* Reach and health, from the run this page already loads — the dashboard's
+              "Your Network" card, now where the network is. */}
+          <NetworkReachStrip
+            counts={countValuesOf(grapeRankData?.data?.count_values)}
+            loading={grapeRankLoading}
+            onDetails={() => setScoreExplainOpen(true)}
+          />
 
           <Card
             className="relative overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"

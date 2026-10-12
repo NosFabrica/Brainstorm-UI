@@ -1,20 +1,17 @@
 import { dashboardShortcutFor } from "@/lib/dashboardShortcuts";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { SearchBox } from "@/components/search/SearchBox";
+import { SEARCH_PLACEHOLDER_CLASS } from "@/components/search/searchBoxChrome";
 import { PageHeader } from "@/components/PageHeader";
-import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
-import { useTierGranularity } from "@/hooks/useTierGranularity";
-import { ladderFor, type Bucket } from "@/lib/trustLadder";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
 import { AlertsBanner } from "@/components/dashboard/AlertsBanner";
-import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
 import { TaggedYouModule } from "@/components/dashboard/TaggedYouModule";
-import { useNetworkFaces } from "@/hooks/useNetworkFaces";
 import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
 import { ClientShelf } from "@/components/dashboard/ClientShelf";
 import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
@@ -55,8 +52,7 @@ import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { hasDeclinedNip85 } from "@/lib/nip85Consent";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient, isAuthRedirecting } from "@/services/api";
-import { TIER_LABELS } from "@/services/trustThreshold";
-import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
+import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 import { needsActivationPrompt } from "@/components/ActivateBrainstormPanel";
 import { dashboardPrompt } from "@/lib/dashboardPrompt";
@@ -110,9 +106,8 @@ export default function DashboardPage() {
   const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [hopRange, setHopRange] = useState([1, 3]);
-  const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
-  const [networkViewMode] = useState<"trust" | "activity">("trust");
+  // The page's own search box — the header's is off here so there is one.
+  const [query, setQuery] = useState("");
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
   const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(user?.pubkey));
@@ -208,7 +203,6 @@ export default function DashboardPage() {
   const overviewQuery = useSelfOverview(user?.pubkey);
   const historyQuery = useSelfHistory(user?.pubkey);
   // Preset-driven server-side; a preset change invalidates this query.
-  const statsQuery = useSelfStats(user?.pubkey);
 
   const grapeRankQuery = useQuery({
     queryKey: ["/user/graperankResult"],
@@ -281,7 +275,6 @@ export default function DashboardPage() {
 
   const overview = overviewQuery.data?.data ?? null;
   const history = historyQuery.data?.data ?? null;
-  const stats = statsQuery.data?.data ?? null;
 
   const taPubkey = history?.ta_pubkey;
   const trustServiceProvider = useTrustProviderStatus(user?.pubkey, taPubkey);
@@ -329,9 +322,6 @@ export default function DashboardPage() {
   const reportedByCount = overview?.counts?.reported_by ?? 0;
   const reportingCount = overview?.counts?.reporting ?? 0;
   const influence = overview?.influence ?? 0;
-
-  const verifiedFollowersCount = stats?.followed_by?.verified ?? 0;
-  const verifiedFollowingCount = stats?.following?.verified ?? 0;
 
   const queuePosition = grapeRank
     ? typeof grapeRank.how_many_others_with_priority === "number"
@@ -451,160 +441,6 @@ export default function DashboardPage() {
     });
   };
 
-  const TIER_CONFIG = [
-    { key: "high", name: TIER_LABELS.high, color: TRUST_TIER_COLORS.highlyTrusted },
-    { key: "medium_high", name: TIER_LABELS.trusted, color: TRUST_TIER_COLORS.trusted },
-    { key: "medium", name: TIER_LABELS.neutral, color: TRUST_TIER_COLORS.neutral },
-    { key: "medium_low", name: TIER_LABELS.low, color: TRUST_TIER_COLORS.lowTrust },
-    { key: "low", name: TIER_LABELS.unverified, color: TRUST_TIER_COLORS.unverified },
-    { key: "low_and_reported_by_2_or_more_trusted_pubkeys", name: "Flagged", color: TRUST_TIER_COLORS.flagged },
-  ] as const;
-
-  // Decision 7: the composition chart follows the viewer's ladder. Under Simple
-  // the five tiers fold into Verified (at or above the verified line — the
-  // `medium_low` bucket's lower bound IS that line) and Unknown (`low`); Flagged
-  // stays its own slice.
-  const [granularity] = useTierGranularity();
-
-  const countValues = useMemo(() => {
-    if (!grapeRank) return null;
-    const raw = grapeRank.count_values;
-    if (!raw) return null;
-    try {
-      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-      if (typeof parsed === "object" && parsed !== null) return parsed as Record<string, Record<string, number>>;
-    } catch {
-      /* ignore parse errors */
-    }
-    return null;
-  }, [grapeRank]);
-
-  // Direct flagged count (DISTINCT flagged users across all of your
-  // relationships), from /overview — preserves the legacy /self graph's flagged
-  // semantics and matches NetworkPage. Only consumed by the pre-calc
-  // `pieData` fallback slice (the post-calc pie reads count_values via
-  // aggregateByHopRange).
-  const flaggedCount = overview?.flagged_count ?? 0;
-
-  const maxHopInData = useMemo(() => {
-    if (!countValues) return 5;
-    let maxH = 1;
-    for (const tierKey of Object.keys(countValues)) {
-      const hopMap = countValues[tierKey];
-      if (!hopMap || typeof hopMap !== "object") continue;
-      for (const hopStr of Object.keys(hopMap)) {
-        const h = parseInt(hopStr, 10);
-        if (!isNaN(h) && h < 900 && h > maxH) maxH = h;
-      }
-    }
-    return Math.max(maxH, 5);
-  }, [countValues]);
-
-  const aggregateByHopRange = (tierKey: string, lo: number, hi: number): number => {
-    if (!countValues || !countValues[tierKey]) return 0;
-    const hopMap = countValues[tierKey];
-    let total = 0;
-    for (const hopStr of Object.keys(hopMap)) {
-      const h = parseInt(hopStr, 10);
-      if (isNaN(h)) continue;
-      if (h >= lo && h <= hi) {
-        total += hopMap[hopStr] || 0;
-      }
-    }
-    return total;
-  };
-
-  useEffect(() => {
-    if (countValues) {
-      let total = 0;
-      for (const tier of TIER_CONFIG) {
-        total += aggregateByHopRange(tier.key, hopRange[0], hopRange[1]);
-      }
-      setExtendedNetworkCount(total);
-    } else {
-      const base = 500;
-      const count = Math.floor(base * Math.pow(8, hopRange[1]));
-      setExtendedNetworkCount(count > 1000000 ? 1000000 : count);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- TIER_CONFIG/aggregateByHopRange are per-render, derived from countValues
-  }, [hopRange, countValues]);
-
-  const enhancedPieData = useMemo(() => {
-    if (countValues) {
-      return TIER_CONFIG.map((tier) => {
-        const value = aggregateByHopRange(tier.key, hopRange[0], hopRange[1]);
-        return { name: tier.name, value, color: tier.color };
-      }).filter((d) => d.value > 0 || d.name === "Flagged");
-    }
-    const fallback = [
-      { label: TIER_LABELS.high, count: followersCount, color: TRUST_TIER_COLORS.highlyTrusted },
-      { label: TIER_LABELS.trusted, count: followingCount, color: TRUST_TIER_COLORS.trusted },
-      { label: TIER_LABELS.neutral, count: Math.max(100, followersCount * 2), color: TRUST_TIER_COLORS.neutral },
-      { label: TIER_LABELS.low, count: mutedByCount + mutingCount, color: TRUST_TIER_COLORS.lowTrust },
-      { label: "Unverified", count: Math.max(10, mutedByCount), color: TRUST_TIER_COLORS.unverified },
-      { label: "Flagged", count: flaggedCount, color: TRUST_TIER_COLORS.flagged },
-    ];
-    const currentHops = hopRange[1];
-    return fallback
-      .map((d) => {
-        let multiplier = 1;
-        if (d.label === TIER_LABELS.high) multiplier = Math.max(0.2, 1 - (currentHops - 1) * 0.15);
-        else if (d.label === TIER_LABELS.trusted) multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
-        else if (d.label === TIER_LABELS.neutral) multiplier = 1 + (currentHops - 1) * 0.4;
-        else if (d.label === TIER_LABELS.low) multiplier = 1 + (currentHops - 1) * 0.6;
-        else if (d.label === "Flagged") multiplier = 1;
-        else multiplier = 1 + (currentHops - 1) * 0.8;
-        return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
-      })
-      .filter((d) => d.value > 0 || d.name === "Flagged");
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- TIER_CONFIG/aggregateByHopRange are per-render, derived from countValues
-  }, [countValues, hopRange, followersCount, followingCount, mutedByCount, mutingCount, flaggedCount]);
-
-  const pieData = useMemo(() => {
-    if (granularity !== "simple") return enhancedPieData;
-    const ladder = ladderFor("simple");
-    const rung = (k: Bucket) => ladder.find((r) => r.key === k)!;
-    const verifiedNames = new Set<string>([
-      TIER_LABELS.high,
-      TIER_LABELS.trusted,
-      TIER_LABELS.neutral,
-      TIER_LABELS.low,
-    ]);
-    const sum = (pick: (name: string) => boolean) =>
-      enhancedPieData.filter((d) => pick(d.name)).reduce((a, d) => a + d.value, 0);
-    return [
-      { name: rung("verified").label, value: sum((n) => verifiedNames.has(n)), color: rung("verified").color },
-      {
-        name: rung("unknown").label,
-        value: sum((n) => n === TIER_LABELS.unverified || n === "Unverified"),
-        color: rung("unknown").color,
-      },
-      { name: rung("flagged").label, value: sum((n) => n === "Flagged"), color: rung("flagged").color },
-    ].filter((d) => d.value > 0 || d.name === "Flagged");
-  }, [enhancedPieData, granularity]);
-
-  const activityBreakdown = [
-    { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#059669" },
-    { name: "Active (90 days)", value: Math.floor(extendedNetworkCount * 0.32), color: "#0ea5e9" },
-    { name: "Quiet (90+ days)", value: Math.floor(extendedNetworkCount * 0.3), color: "#7237ff" },
-    {
-      name: "Dormant (1+ year)",
-      value: Math.max(
-        0,
-        extendedNetworkCount -
-          Math.floor(extendedNetworkCount * 0.18) -
-          Math.floor(extendedNetworkCount * 0.32) -
-          Math.floor(extendedNetworkCount * 0.3),
-      ),
-      color: "#d1d5db",
-    },
-  ];
-
-  const currentPieData: Array<{ name: string; value: number; color: string }> =
-    networkViewMode === "trust" ? pieData : activityBreakdown;
-
-  // Stats `tier_counts` field names now match the GR `count_values` keys
-  // used by TIER_CONFIG — pass straight through.
   const handleExport = () => {
     const data = {
       format: "brainstorm-v1",
@@ -669,12 +505,6 @@ export default function DashboardPage() {
     }
   }, [calcDone, user?.pubkey]);
 
-  // Recently-active faces for the Your Network tiles (follows + followers).
-  // MUST stay above the early return below — a hook called after a conditional
-  // return changes hook order between renders and crashes the whole page.
-  const recalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
-  const facesQuery = useNetworkFaces(user?.pubkey ?? "", calcDone || recalculating);
-
   // Also above the early return, for the same reason. Holds whether this is the
   // user's first-ever visit; the value is captured further down, once
   // overviewQuery has actually answered.
@@ -682,7 +512,7 @@ export default function DashboardPage() {
 
   if (!user || isAuthRedirecting()) return null;
 
-  const isRecalculating = recalculating;
+  const isRecalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
   const isCalculationComplete = calcDone || isRecalculating;
 
   // "Welcome back" is a lie to someone who signed up 30 seconds ago, and the
@@ -786,7 +616,7 @@ export default function DashboardPage() {
       >
         <PageBackground />
 
-        <AppHeader user={user} onLogout={handleLogout} active="dashboard" />
+        <AppHeader user={user} onLogout={handleLogout} active="dashboard" search={false} />
 
         <div className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
           <DeferredSessionNotice className="mb-6" />
@@ -928,6 +758,20 @@ export default function DashboardPage() {
                 them as panels: this replaces the Activate panel, the legacy
                 Select-Brainstorm card and the invite card, which could stack
                 three high on a phone. dashboardPrompt picks the most important. */}
+            {/* A search app's signed-in home starts with the search. The box is the one
+                every surface shares; a search here is the usual trip to /?q=. The header's
+                own box is off on this page so there is exactly one. */}
+            <div data-testid="dashboard-search">
+              <SearchBox
+                className="w-full"
+                value={query}
+                onChange={setQuery}
+                onClear={() => setQuery("")}
+                placeholder={<span className={SEARCH_PLACEHOLDER_CLASS}>Search people, topics, or handles</span>}
+                ariaLabel="Search Brainstorm"
+              />
+            </div>
+
             {prompt && (
               <div
                 className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-slate-200/80 bg-white/70 px-3.5 py-2.5 text-sm backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/60"
@@ -1146,30 +990,6 @@ export default function DashboardPage() {
                 className="flex w-full"
               >
                 <AlertsBanner observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
-              </motion.div>
-            )}
-
-            {isCalculationComplete && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="flex w-full"
-              >
-                <YourNetworkCard
-                  isReady={isCalculationComplete}
-                  loading={overviewQuery.isLoading || statsQuery.isLoading}
-                  followers={verifiedFollowersCount}
-                  following={verifiedFollowingCount}
-                  extendedCount={extendedNetworkCount}
-                  hopRange={hopRange}
-                  maxHop={maxHopInData}
-                  onHopChange={setHopRange}
-                  health={currentPieData}
-                  onNavigate={navigate}
-                  followersFaces={facesQuery.data?.followers ?? []}
-                  followingFaces={facesQuery.data?.following ?? []}
-                />
               </motion.div>
             )}
           </div>
