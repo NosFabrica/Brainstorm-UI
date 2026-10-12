@@ -12,6 +12,7 @@
  * reads "Untitled <singular>" rather than borrowing another field, so the
  * same field always fills the same slot down a list (the team, 2026-10-02).
  */
+import { contactHref } from "@/lib/contactHref";
 import { fieldCell, httpUrl } from "@/lib/dlistFields";
 import { factLabel } from "@/lib/displayHints";
 import { decodeGeohash, type GeohashCell } from "@/lib/geohash";
@@ -84,7 +85,16 @@ export function presentItem(item: { tags: string[][] }, definition: ConceptDefin
     const cell = decl ? fieldCell(item, decl) : null;
     return cell?.value == null
       ? []
-      : [{ field: f.field, label: factLabel(f), value: cell.value, href: cell.href, extra: cell.extra }];
+      : [
+          {
+            field: f.field,
+            label: factLabel(f),
+            value: cell.value,
+            // A typed url field links as declared; a text fact still taps when its value is a phone, an email or an address.
+            href: cell.href ?? contactHref(cell.value),
+            extra: cell.extra,
+          },
+        ];
   });
 
   return {

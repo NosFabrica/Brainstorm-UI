@@ -15,6 +15,11 @@ const BOB = "b".repeat(64);
 const SPAM = "5".repeat(64);
 
 const viewer = { isAdmin: false };
+// These tests pin the tier-two reading; GitHub's tier-three view (ADR 0007) has its own.
+vi.mock("@/components/items/itemViews", () => ({
+  tierThreeFor: () => null,
+  tierThreePresentation: (_item: unknown, _resolved: unknown, shown: unknown) => shown,
+}));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ isAdmin: viewer.isAdmin }) }));
 vi.mock("@/config/dictionary", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),

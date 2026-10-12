@@ -406,19 +406,23 @@ describe("GitHubAccountView", () => {
     const vouches = within(strip).getByTestId("github-account-fact-vouches");
     expect(vouches).toHaveTextContent("Vouched for by");
     expect(vouches).toHaveTextContent("2 people you trust");
-    const distanceFact = within(strip).getByTestId("github-account-fact-distance");
-    expect(distanceFact).toHaveTextContent("Added by");
-    expect(distanceFact).toHaveTextContent("a friend of a friend");
-    expect(distanceFact).toHaveAttribute("title", "Someone you follow follows Bob, who added this account.");
+    // The one who added it, by name, with how they relate to the reader beside them.
+    const added = within(strip).getByTestId("github-account-fact-added");
+    expect(added).toHaveTextContent("Added by");
+    expect(within(added).getByRole("link", { name: "Bob" })).toHaveAttribute("href", "/p/npub-b");
+    expect(added).toHaveTextContent("a friend of a friend");
+    expect(added).toHaveAttribute("title", "Someone you follow follows Bob, who added this account.");
   });
 
   it("a visitor sees the lister and 'none yet'; a reader who endorsed it reads 'you', and one hop is explained", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     const strip = screen.getByTestId("github-account-verdict");
-    // One lister, the author: the footer says so; the strip doesn't repeat it.
+    // A visitor: the one who added it, by name, with no relationship to say.
     expect(within(strip).queryByTestId("github-account-fact-listed")).toBeNull();
     expect(within(strip).getByTestId("github-account-fact-vouches")).toHaveTextContent("nobody you trust yet");
-    expect(within(strip).queryByTestId("github-account-fact-distance")).toBeNull();
+    const added = within(strip).getByTestId("github-account-fact-added");
+    expect(added).toHaveTextContent("Bob");
+    expect(added).not.toHaveTextContent("follow");
 
     viewer.pubkey = TRUSTED;
     distance.hops = 1;
@@ -426,7 +430,8 @@ describe("GitHubAccountView", () => {
     renderWithProviders(<Page event={item} copy={houseCopy} />);
     const mine = screen.getAllByTestId("github-account-verdict").at(-1)!;
     expect(within(mine).getByTestId("github-account-fact-vouches")).toHaveTextContent("you");
-    const hop = within(mine).getByTestId("github-account-fact-distance");
+    const hop = within(mine).getByTestId("github-account-fact-added");
+    expect(hop).toHaveTextContent("Bob");
     expect(hop).toHaveTextContent("someone you follow");
     expect(hop).toHaveAttribute("title", "You follow Bob, who added this account.");
   });

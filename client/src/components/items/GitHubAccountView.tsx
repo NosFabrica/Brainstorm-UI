@@ -60,6 +60,7 @@ import type { ReadyItemView } from "@/hooks/useItemView";
 import { useAvatarSrc } from "@/lib/avatarSrc";
 import { useConnectionSpeed } from "@/lib/connection";
 import type { ConceptDefinition } from "@/lib/conceptResolution";
+import type { ItemPresentation } from "@/lib/itemPresentation";
 import { fieldCell, undeclaredFields } from "@/lib/dlistFields";
 import { EmojiText } from "@/components/ui/custom-emoji";
 
@@ -87,6 +88,30 @@ export function githubAccountOf(item: { tags: string[][] }, definition: ConceptD
 
 /** GitHub serves an account's avatar at its handle; the proxy keeps the page from contacting github.com itself. */
 const avatarUrl = (handle: string) => `https://github.com/${encodeURIComponent(handle)}.png?size=160`;
+
+/**
+ * How a GitHub account reads wherever it is one among many (ADR 0007): the
+ * handle first, the account's own avatar, the description as the line —
+ * whatever the copy's display hints say the title is. The handle is read
+ * through the definition (githubAccountOf); nothing is asked of GitHub.
+ */
+export function githubPresentation(
+  item: { tags: string[][] },
+  definition: ConceptDefinition,
+  shown: ItemPresentation,
+): ItemPresentation {
+  const account = githubAccountOf(item, definition);
+  if (!account) return shown;
+  const summary = account.byline ?? (shown.summary !== account.handle ? shown.summary : null);
+  return {
+    ...shown,
+    title: account.handle,
+    titleField: HANDLE_FIELD,
+    summary: summary === account.handle ? null : summary,
+    summaryField: account.byline ? BYLINE_FIELD : shown.summaryField,
+    image: avatarUrl(account.handle),
+  };
+}
 
 export function GitHubAccountView({ event, view }: { event: ItemEvent; view: ReadyItemView }) {
   const { resolved: r, shown, links, usedFields } = view;
@@ -287,10 +312,9 @@ function hopsExplained(hops: number, lister: string): string {
 /**
  * What the reader's network says, as labelled facts between GitHub's
  * content and the rest of the list: how many in the reader's network vouch for it (their
- * faces, the Endorse button at the row's end), how far the lister is from
- * the reader in the follows graph, and — only when someone besides the
- * author filed the same handle — who else listed it. The author themself is
- * the footer's "Listed by" and isn't said twice. Each fact has a line on
+ * faces, the Endorse button at the row's end), who added it with how they
+ * relate to the reader beside the name ("a friend of a friend"), and — only
+ * when someone else filed the same handle — who else added it. Each fact has a line on
  * hover saying what it means; a fact with nothing to say is left out, except
  * vouches, which read "none yet" so a signed-in reader sees the Endorse path.
  */
@@ -366,16 +390,40 @@ function FromYourNetwork({ network: n }: { network: NetworkView }) {
             </span>
           </dd>
         </div>
-        {n.hops != null && (
-          <div
-            className="flex items-center gap-2"
-            data-testid="github-account-fact-distance"
-            title={hopsExplained(n.hops, author)}
-          >
-            <dt className="text-slate-500 dark:text-slate-400">Added by</dt>
-            <dd className="font-semibold text-slate-900 dark:text-slate-100">{hopsInWords(n.hops)}</dd>
-          </div>
-        )}
+        <div
+          className="flex items-center gap-2"
+          data-testid="github-account-fact-added"
+          title={
+            n.hops != null
+              ? hopsExplained(n.hops, author)
+              : "The person who added this account to the GitHub Accounts list"
+          }
+        >
+          <dt className="text-slate-500 dark:text-slate-400">Added by</dt>
+          <dd className="flex items-center gap-2">
+            <Avatar
+              data-face={n.listers[0]}
+              className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 ${tierRing(n.scoreOf(n.listers[0]), false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}
+            >
+              {n.pictureOf(n.listers[0]) ? (
+                <AvatarImage src={n.pictureOf(n.listers[0])} alt="" className="object-cover" />
+              ) : null}
+              <AvatarFallback className="overflow-hidden rounded-full">
+                <DefaultAvatarImg />
+              </AvatarFallback>
+            </Avatar>
+            <span className="font-semibold text-slate-900 dark:text-slate-100">
+              {n.npubOf(n.listers[0]) ? (
+                <Link href={`/p/${n.npubOf(n.listers[0])}`} className="hover:text-brand-link">
+                  {author}
+                </Link>
+              ) : (
+                author
+              )}
+            </span>
+            {n.hops != null && <span className="text-slate-500 dark:text-slate-400">· {hopsInWords(n.hops)}</span>}
+          </dd>
+        </div>
         {listers.length > 0 && (
           <div
             className="flex items-center gap-2"

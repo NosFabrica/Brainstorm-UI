@@ -273,7 +273,8 @@ describe("fact role", () => {
     );
     expect(shown.facts).toEqual([
       { field: "accepts-bitcoin", label: "Bitcoin", value: "lightning", href: null, extra: 0 },
-      { field: "phone", label: "Phone", value: "+1-540-391-0134", href: null, extra: 0 },
+      // A text fact that is a phone number taps as a call (lib/contactHref), though the field isn't typed url.
+      { field: "phone", label: "Phone", value: "+1-540-391-0134", href: "tel:+15403910134", extra: 0 },
       {
         field: "menu",
         label: "Menu",
