@@ -13,6 +13,7 @@ import { conceptViewOf, type ConceptViewKey } from "@/config/dictionary";
 import type { ReadyItemView } from "@/hooks/useItemView";
 import type { ItemEvent } from "@/components/share/DListItemParts";
 import { GitHubAccountView, githubAccountOf, githubPresentation } from "@/components/items/GitHubAccountView";
+import { PlaceView, placeOf } from "@/components/items/PlaceView";
 import type { ConceptDefinition, ResolvedConcept } from "@/lib/conceptResolution";
 import type { ItemPresentation } from "@/lib/itemPresentation";
 
@@ -38,6 +39,10 @@ const VIEWS: Record<ConceptViewKey, TierThreeView> = {
     applies: (event, view) => githubAccountOf(event, view.resolved.governing) !== null,
     View: GitHubAccountView,
     present: githubPresentation,
+  },
+  place: {
+    applies: (event, view) => placeOf(event, view.resolved.governing) !== null,
+    View: PlaceView,
   },
 };
 
