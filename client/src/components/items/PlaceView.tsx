@@ -331,7 +331,10 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
       <ReviewPhotos reviews={ranked.reviews} />
 
       {(directions || call || website || menu || reserve) && (
-        <div className="flex gap-1 sm:gap-2" data-testid="place-actions">
+        <div
+          className="flex gap-1 border-b border-slate-100 pb-4 dark:border-slate-800 sm:gap-2"
+          data-testid="place-actions"
+        >
           {directions && (
             <Action href={directions} label="Directions" primary>
               <Navigation className="h-5 w-5" />
