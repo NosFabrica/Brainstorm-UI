@@ -73,7 +73,8 @@ export function NetworkArticlesModule({ observer, enabled }: { observer: string;
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+      {/* One row: more on the left, the way out on the right, on a phone and a desktop alike. */}
+      <div className="mt-3 flex items-center gap-3">
         {left > 0 && (
           <button
             type="button"
@@ -89,7 +90,7 @@ export function NetworkArticlesModule({ observer, enabled }: { observer: string;
           <button
             type="button"
             onClick={() => navigate("/reading")}
-            className="inline-flex items-center gap-1 self-start rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            className="ml-auto inline-flex items-center gap-1 rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
             data-testid="network-articles-see-all"
           >
             See all {articles.length} articles <ArrowRight className="h-3 w-3" />
