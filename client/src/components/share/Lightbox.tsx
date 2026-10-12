@@ -6,6 +6,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
+import { SensitiveCover } from "@/components/share/SensitiveMedia";
+import type { ContentWarning } from "@/lib/nip36";
 import { useSoloEmbed } from "@/lib/playback";
 
 /**
@@ -17,15 +19,30 @@ import { useSoloEmbed } from "@/lib/playback";
  * renders at the app root: fullscreen dark backdrop, the media centered,
  * arrow + swipe navigation through the set, and a counter. Close via the X
  * button, a backdrop tap, or Esc. Desktop + mobile friendly.
+ *
+ * A video item with a `warning` (its creator marked it sensitive) opens
+ * covered: no clip and no poster until the reader asks for it.
  */
 /** `hls` is a live or recorded HLS stream through our player; `embed` a platform player's page URL (YouTube, Twitch…). */
-export type LightboxItem = string | { url: string; kind: "image" | "video" | "hls" | "embed"; poster?: string | null };
+export type LightboxItem =
+  | string
+  | {
+      url: string;
+      kind: "image" | "video" | "hls" | "embed";
+      poster?: string | null;
+      warning?: ContentWarning | null;
+    };
 /** Who the media is from and where the post lives — the quiet bar in full view. */
 export type LightboxContextInfo = {
   author?: { name: string; npub: string; picture?: string | null; score01?: number | null } | null;
   postHref?: string | null;
 };
-type MediaItem = { url: string; kind: "image" | "video" | "hls" | "embed"; poster: string | null };
+type MediaItem = {
+  url: string;
+  kind: "image" | "video" | "hls" | "embed";
+  poster: string | null;
+  warning: ContentWarning | null;
+};
 type LightboxState = { images: MediaItem[]; index: number; context: LightboxContextInfo | null } | null;
 
 const LightboxContext = createContext<(items: LightboxItem[], index: number, context?: LightboxContextInfo) => void>(
@@ -40,8 +57,8 @@ function normalize(items: LightboxItem[]): MediaItem[] {
   return items
     .map((it) =>
       typeof it === "string"
-        ? { url: it, kind: "image" as const, poster: null }
-        : { url: it.url, kind: it.kind, poster: it.poster ?? null },
+        ? { url: it, kind: "image" as const, poster: null, warning: null }
+        : { url: it.url, kind: it.kind, poster: it.poster ?? null, warning: it.warning ?? null },
     )
     .filter((it) => !!it.url);
 }
@@ -76,6 +93,14 @@ function LightboxOverlay({
   const multi = images.length > 1;
   const touchX = useRef<number | null>(null);
   const tierRing = useTierRing();
+  // The sensitive clip the reader asked to see, while this view is open.
+  const [shownUrl, setShownUrl] = useState<string | null>(null);
+  const covered = images[index].kind === "video" && !!images[index].warning && shownUrl !== images[index].url;
+  // Focus follows to the clip once it is shown: the button that had it is gone.
+  const shownVideo = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    if (shownUrl) shownVideo.current?.focus();
+  }, [shownUrl]);
   // A stream embed plays with sound as it opens: it takes the floor and the
   // music bar yields (lib/playback). The video and HLS items are <video>
   // elements the document listener already sees.
@@ -203,9 +228,24 @@ function LightboxOverlay({
             data-testid="lightbox-embed"
           />
         </div>
+      ) : covered ? (
+        <div
+          key={images[index].url}
+          onClick={(e) => e.stopPropagation()}
+          className="w-[96vw] max-w-xl overflow-hidden rounded-lg shadow-2xl"
+        >
+          <SensitiveCover
+            reason={images[index].warning?.reason}
+            onShow={() => setShownUrl(images[index].url)}
+            className="aspect-video"
+          />
+        </div>
       ) : images[index].kind === "video" ? (
         <video
           key={images[index].url}
+          ref={shownVideo}
+          // A tab stop only for a clip shown from the cover, which is handed focus.
+          tabIndex={images[index].warning ? 0 : undefined}
           src={images[index].url}
           poster={images[index].poster ?? undefined}
           controls

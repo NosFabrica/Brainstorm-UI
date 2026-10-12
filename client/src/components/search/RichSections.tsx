@@ -16,6 +16,9 @@ import { BookOpen, Play } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Favicon } from "@/components/share/LinkPreview";
 import { useLightbox } from "@/components/share/Lightbox";
+import { SensitiveTile, sensitiveVideoLabel } from "@/components/share/SensitiveMedia";
+import { contentWarningOf } from "@/lib/nip36";
+import { VIDEO_KINDS } from "@/lib/nip71";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { MediaImg } from "@/components/ui/media-img";
 import { parseNewsShape } from "@/lib/newsShape";
@@ -31,7 +34,6 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
-const VIDEO_KINDS = new Set([21, 22, 34235, 34236]);
 const MAX_STORIES = 4;
 
 function ago(created_at: number): string {
@@ -67,7 +69,12 @@ export function pickTopStories(hits: SearchHit[]): TopStory[] {
   const out: TopStory[] = [];
   const seenAuthors = new Set<string>();
   const seenIds = new Set<string>();
-  const eligible = hits.filter((h) => !tagVal(h.event, "title") && !tagVal(h.event, "name") && !!h.event.content);
+  // The strip draws a picture large with no way to ask first: a video its creator marked
+  // sensitive stays a row, where its thumbnail is a placeholder.
+  const flagged = (e: NostrEvent) => VIDEO_KINDS.has(e.kind) && !!contentWarningOf(e);
+  const eligible = hits.filter(
+    (h) => !tagVal(h.event, "title") && !tagVal(h.event, "name") && !!h.event.content && !flagged(h.event),
+  );
   const take = (hit: SearchHit, news: StoryShape) => {
     seenAuthors.add(hit.event.pubkey);
     seenIds.add(hit.event.id);
@@ -252,6 +259,8 @@ function MediaTile({
   const isImage = !!url && IMAGE_RE.test(url);
   const poster = isImage ? url : (mediaPosterOf(e) ?? null);
   const isVideo = VIDEO_KINDS.has(e.kind) || (!!url && !isImage && isVideoUrl(e, url));
+  // A video its creator marked sensitive: no poster and no frame here, and the full view asks first.
+  const warning = isVideo ? (contentWarningOf(e) ?? undefined) : undefined;
   const openPost = () => navigate(eventPath(e));
   // A tap on the picture or the play badge gives the MEDIA — full view,
   // playing — the way X, Instagram and TikTok do. The caption opens the post.
@@ -268,8 +277,8 @@ function MediaTile({
     postHref: eventPath(e),
   };
   const openMedia = () => {
-    if (isVideo && url) openLightbox([{ url, kind: "video", poster }], 0, context);
-    else if (poster) openLightbox([{ url: poster, kind: "image" }], 0, context);
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning }], 0, context);
+    else if (poster && !warning) openLightbox([{ url: poster, kind: "image" }], 0, context);
     else openPost();
   };
   const caption = noteTitle(e.content || tagVal(e, "title") || "", 160);
@@ -281,7 +290,7 @@ function MediaTile({
       <div
         role="button"
         tabIndex={0}
-        aria-label={isVideo ? "Play video" : "View image"}
+        aria-label={warning ? sensitiveVideoLabel(caption) : isVideo ? "Play video" : "View image"}
         onClick={openMedia}
         onKeyDown={(ev) => {
           if (ev.key === "Enter" || ev.key === " ") {
@@ -296,7 +305,9 @@ function MediaTile({
             poster that fails falls back to the video's first frame when there
             is one; when that fails too — or a picture alone fails — the tile
             tells the grid it is gone. */}
-        {poster && !imgFailed ? (
+        {warning ? (
+          <SensitiveTile className="absolute inset-0" />
+        ) : poster && !imgFailed ? (
           <MediaImg
             src={poster}
             preset="media_640"
@@ -320,7 +331,7 @@ function MediaTile({
             className="pointer-events-none absolute inset-0 h-full w-full object-cover"
           />
         ) : null}
-        {isVideo && (
+        {isVideo && !warning && (
           <span className="absolute inset-0 flex items-center justify-center" data-testid="media-tile-play">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-md">
               <Play className="ml-0.5 h-4 w-4 text-brand-deep" />

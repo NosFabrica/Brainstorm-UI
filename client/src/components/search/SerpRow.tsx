@@ -49,6 +49,9 @@ import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/sear
 import { BallotAnswers, MarketSummary } from "@/components/search/thingCards";
 import { MediaImg } from "@/components/ui/media-img";
 import { VideoFirstFrame } from "@/components/share/VideoFirstFrame";
+import { SensitiveTile } from "@/components/share/SensitiveMedia";
+import { contentWarningOf } from "@/lib/nip36";
+import { VIDEO_KINDS } from "@/lib/nip71";
 import { useStoreEvents } from "@/hooks/useStoreEvents";
 import { CustomEmojiImg, ProfileEmojiText } from "@/components/ui/custom-emoji";
 import { splitCustomEmoji } from "@/lib/customEmoji";
@@ -228,15 +231,25 @@ function RowThumb({
     postHref: eventPath(event),
   };
   const { url, poster, isVideo } = rowThumbMedia(event);
+  // A video its creator marked sensitive: no poster and no frame here, and the full view asks first.
+  const warning = isVideo || VIDEO_KINDS.has(event.kind) ? (contentWarningOf(event) ?? undefined) : undefined;
   // Google's result thumbnail is a 92px square; a 64px one undersold every picture.
   const cls = "h-[92px] w-[92px] shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
   // The thumbnail IS the media: a tap opens it full view (a clip plays), not
   // the post — the rest of the row still opens the post.
   const openMedia = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isVideo && url) openLightbox([{ url, kind: "video", poster }], 0, context);
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster, warning }], 0, context);
     else if (poster) openLightbox([{ url: poster, kind: "image" }], 0, context);
   };
+  if (warning && (poster || (isVideo && url))) {
+    // With a clip to play, the tap opens it covered; with only a poster, the row opens the post.
+    return isVideo && url ? (
+      <SensitiveTile onClick={openMedia} className={`cursor-pointer ${cls}`} />
+    ) : (
+      <SensitiveTile className={cls} />
+    );
+  }
   if (poster && !failed) {
     return (
       <MediaImg

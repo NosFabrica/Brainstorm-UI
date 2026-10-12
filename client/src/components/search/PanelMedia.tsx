@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Pause, Play, Video } from "lucide-react";
 import { useLightbox } from "@/components/share/Lightbox";
+import { SensitiveTile, sensitiveVideoLabel } from "@/components/share/SensitiveMedia";
+import { contentWarningOf, type ContentWarning } from "@/lib/nip36";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf } from "@/components/search/cards";
 import { fetchFountainItem, fountainRef, type FountainItem } from "@/lib/fountain";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -20,7 +22,17 @@ import { useConnectionSpeed, videoPreload } from "@/lib/connection";
  * author bar; a podcast plays through the shared audio player.
  */
 export type LatestMediaItem =
-  | { kind: "video"; id: string; title: string; poster: string | null; url: string; at: number; href: string }
+  | {
+      kind: "video";
+      id: string;
+      title: string;
+      poster: string | null;
+      url: string;
+      at: number;
+      href: string;
+      /** Its creator marked it sensitive: no poster in the row, and the full view asks first. */
+      warning: ContentWarning | null;
+    }
   | {
       kind: "podcast";
       id: string;
@@ -48,6 +60,7 @@ export function latestVideos(events: NostrEvent[]): Extract<LatestMediaItem, { k
       url,
       at: e.created_at,
       href: eventPath(e),
+      warning: contentWarningOf(e),
     });
   }
   return out;
@@ -136,16 +149,21 @@ export function PanelLatestMedia({
               testId={`person-media-item-${item.id}`}
               poster={item.poster}
               videoUrl={item.url}
+              sensitive={!!item.warning}
               title={item.title}
               label="Video"
               at={item.at}
               href={item.href}
               icon={<Video className="h-3 w-3" />}
               onPlay={() =>
-                openLightbox([{ url: item.url, kind: "video", poster: item.poster }], 0, {
-                  author,
-                  postHref: item.href,
-                })
+                openLightbox(
+                  [{ url: item.url, kind: "video", poster: item.poster, warning: item.warning ?? undefined }],
+                  0,
+                  {
+                    author,
+                    postHref: item.href,
+                  },
+                )
               }
               playing={false}
             />
@@ -185,6 +203,7 @@ function MediaRow({
   testId,
   poster,
   videoUrl,
+  sensitive = false,
   title,
   label,
   at,
@@ -196,6 +215,7 @@ function MediaRow({
   testId: string;
   poster: string | null;
   /** A clip without a poster still has a first frame: the browser paints it from the metadata alone. */ videoUrl?: string;
+  sensitive?: boolean;
   title: string;
   label: string;
   at: number;
@@ -214,9 +234,11 @@ function MediaRow({
         type="button"
         onClick={onPlay}
         className="group/cover relative h-11 w-16 shrink-0 overflow-hidden rounded-md bg-slate-900"
-        aria-label={playing ? `Pause ${title}` : `Play ${title}`}
+        aria-label={sensitive ? sensitiveVideoLabel(title) : playing ? `Pause ${title}` : `Play ${title}`}
       >
-        {poster ? (
+        {sensitive ? (
+          <SensitiveTile className="h-full w-full" />
+        ) : poster ? (
           <img src={poster} alt="" loading="lazy" className="h-full w-full object-cover" />
         ) : videoUrl ? (
           <video
@@ -231,11 +253,13 @@ function MediaRow({
         ) : (
           <span className="absolute inset-0 flex items-center justify-center text-slate-500">{icon}</span>
         )}
-        <span className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover/cover:bg-black/40">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/95 text-brand-primary shadow">
-            {playing ? <Pause className="h-3 w-3 fill-current" /> : <Play className="ml-px h-3 w-3 fill-current" />}
+        {!sensitive && (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover/cover:bg-black/40">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/95 text-brand-primary shadow">
+              {playing ? <Pause className="h-3 w-3 fill-current" /> : <Play className="ml-px h-3 w-3 fill-current" />}
+            </span>
           </span>
-        </span>
+        )}
       </button>
       <Link href={href} className="min-w-0 flex-1">
         <p className="line-clamp-2 text-xs font-semibold leading-snug text-slate-900 dark:text-slate-100">{title}</p>

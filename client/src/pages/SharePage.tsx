@@ -105,6 +105,7 @@ import {
   useCoinReplacedByRing,
 } from "@/components/score/VerificationCoin";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
+import { contentWarningOf } from "@/lib/nip36";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
@@ -581,6 +582,7 @@ export default function SharePage() {
             title: tag("title") || "",
             url: extractVideoUrls(ev.content, ev.tags)[0],
             poster: extractVideoPoster(ev.content, ev.tags),
+            warning: contentWarningOf(ev),
             ts: ev.created_at,
           };
         })
@@ -1519,11 +1521,17 @@ export default function SharePage() {
                       poster={v.poster}
                       url={v.url}
                       title={v.title}
+                      warning={v.warning}
                       onOpen={() =>
                         openLightbox(
                           videos
                             .filter((x) => x.url)
-                            .map((x) => ({ url: x.url!, kind: "video" as const, poster: x.poster ?? null })),
+                            .map((x) => ({
+                              url: x.url!,
+                              kind: "video" as const,
+                              poster: x.poster ?? null,
+                              warning: x.warning,
+                            })),
                           Math.max(
                             0,
                             videos.filter((x) => x.url).findIndex((x) => x.id === v.id),

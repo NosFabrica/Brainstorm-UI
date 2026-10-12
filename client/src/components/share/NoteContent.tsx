@@ -17,6 +17,8 @@ import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
+import { SensitiveCover, SensitiveTile } from "@/components/share/SensitiveMedia";
+import type { ContentWarning } from "@/lib/nip36";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { wavlakeTrackId } from "@/lib/wavlake";
@@ -92,6 +94,7 @@ export function NoteContent({
   embeddedIds,
   embeddedCoords,
   embedThings = false,
+  videoWarning,
 }: {
   content: string;
   compact?: boolean;
@@ -117,11 +120,19 @@ export function NoteContent({
   tags?: string[][];
   /** The note author's display name — shown as the audio player's "artist". */
   authorName?: string;
+  /** The event is a video its creator marked sensitive (lib/nip36): a clip in its words is
+   *  covered until the reader asks for it, and a picture there (its poster) is a placeholder. */
+  videoWarning?: ContentWarning | null;
 }) {
+  // The callers key this component on the event, so a reveal never carries to another one.
+  const [sensitiveShown, setSensitiveShown] = useState(false);
+  const covered = !!videoWarning && !sensitiveShown;
   // On the event's own page, whatever markup the text came in (HTML, a
   // GitHub comment's stray tags) is cleaned first; feeds keep the raw text.
   const text = useMemo(() => (reading ? normalizeMarkup(content) : content), [reading, content]);
   const tokens = useMemo(() => parseNoteContent(text), [text]);
+  // Of several clips shown at once, the first is where focus goes.
+  const firstClip = tokens.find((t) => t.type === "video")?.value;
   // Shared metadata for a rich audio/podcast player: the note's own image as
   // artwork and its title/first-line as the track name (falling back per-URL).
   const audioCover = extractImageUrls(text, tags)[0];
@@ -167,6 +178,13 @@ export function NoteContent({
           </div>
         );
       case "image":
+        if (covered)
+          return (
+            <SensitiveTile
+              key={i}
+              className="mt-2 aspect-[16/10] max-h-72 w-full rounded-xl border border-slate-200 dark:border-slate-800"
+            />
+          );
         return imageOpensThread ? (
           // Clickable feed card: a tidy cropped thumbnail; the click bubbles
           // up to the card and opens the thread (full image + zoom live there).
@@ -200,7 +218,16 @@ export function NoteContent({
           />
         );
       case "video":
-        return <FeedVideo key={i} src={token.value} />;
+        if (covered)
+          return (
+            <SensitiveCover
+              key={i}
+              reason={videoWarning?.reason}
+              onShow={() => setSensitiveShown(true)}
+              className="mt-2 aspect-video w-full rounded-xl border border-slate-200 dark:border-slate-800"
+            />
+          );
+        return <FeedVideo key={i} src={token.value} autoFocus={sensitiveShown && token.value === firstClip} />;
       case "live":
         return <NoteLiveVideo key={i} url={token.value} />;
       case "mention": {
