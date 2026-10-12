@@ -342,7 +342,7 @@ export function PlaceView({ event, view }: { event: ItemEvent; view: ReadyItemVi
         )}
 
         <aside className="min-w-0 [grid-area:media]">
-          <div className="space-y-3 sm:sticky sm:top-24">
+          <div className="space-y-3">
             {photo && (
               <img
                 src={proxiedSrc(photo, "media_1280")}
