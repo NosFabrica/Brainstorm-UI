@@ -214,16 +214,17 @@ function Subjects({ all }: { all: string[] }) {
     <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="book-subjects">
       <span className="font-semibold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Subjects </span>
       {shown.join(" · ")}
-      {hidden > 0 && !open && (
+      {hidden > 0 && (
         <>
           {" "}
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
             className="font-medium text-brand-link hover:underline"
-            data-testid="book-subjects-more"
+            data-testid={open ? "book-subjects-less" : "book-subjects-more"}
           >
-            +{hidden} more
+            {open ? "Show less" : `+${hidden} more`}
           </button>
         </>
       )}

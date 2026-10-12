@@ -457,5 +457,12 @@ describe("subjects, quietly", () => {
     expect(more).toHaveTextContent("+4 more");
     await userEvent.click(more);
     expect(line).toHaveTextContent("Criminology and law enforcement");
+    // And back: the same quiet control, now reading "Show less".
+    const less = screen.getByTestId("book-subjects-less");
+    expect(less).toHaveTextContent("Show less");
+    expect(less.className).toBe(more.className);
+    await userEvent.click(less);
+    expect(line).not.toHaveTextContent("Criminology");
+    expect(screen.getByTestId("book-subjects-more")).toHaveTextContent("+4 more");
   });
 });
